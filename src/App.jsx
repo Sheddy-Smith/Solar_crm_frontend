@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -6,9 +6,9 @@ import {
   Bell,
   Boxes,
   CalendarDays,
-  ChevronsLeft,
-  ChevronsRight,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   ClipboardPlus,
   Clock3,
   Eye,
@@ -223,6 +223,46 @@ function cx(...classes) {
 function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const sidebarNavRef = useRef(null);
+
+  const updateSidebarScrollState = () => {
+    const nav = sidebarNavRef.current;
+    if (!nav) {
+      return;
+    }
+
+    const maxScroll = nav.scrollHeight - nav.clientHeight;
+    setCanScrollUp(nav.scrollTop > 8);
+    setCanScrollDown(maxScroll - nav.scrollTop > 8);
+  };
+
+  const scrollSidebarBy = (delta) => {
+    const nav = sidebarNavRef.current;
+    if (!nav) {
+      return;
+    }
+
+    nav.scrollBy({ top: delta, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const nav = sidebarNavRef.current;
+    if (!nav) {
+      return undefined;
+    }
+
+    const handleUpdate = () => updateSidebarScrollState();
+    updateSidebarScrollState();
+    nav.addEventListener('scroll', handleUpdate, { passive: true });
+    window.addEventListener('resize', handleUpdate);
+
+    return () => {
+      nav.removeEventListener('scroll', handleUpdate);
+      window.removeEventListener('resize', handleUpdate);
+    };
+  }, [desktopSidebarCollapsed, mobileSidebarOpen]);
 
   return (
     <div className="box-border min-h-screen overflow-x-hidden bg-[#f5f7fb] p-2 text-[#20345f] sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden">
@@ -238,7 +278,7 @@ function App() {
         <aside
           className={cx(
             'fixed inset-y-2 left-2 z-50 flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[18px] border border-[#dfe7f2] bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
-            desktopSidebarCollapsed ? 'xl:w-[86px]' : 'xl:w-[236px]',
+            desktopSidebarCollapsed ? 'xl:w-[96px]' : 'xl:w-[clamp(224px,18vw,252px)]',
             mobileSidebarOpen ? 'translate-x-0' : '-translate-x-[110%] xl:translate-x-0',
           )}
         >
@@ -273,55 +313,79 @@ function App() {
               type="button"
               onClick={() => setDesktopSidebarCollapsed((current) => !current)}
               className="absolute right-3 top-2 hidden size-11 items-center justify-center rounded-[14px] border border-[#dfe6f1] bg-[#f8fbff] text-[#6c7f9b] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_16px_rgba(17,39,84,0.08)] transition hover:text-[#2e4f83] xl:inline-flex"
-              aria-label={desktopSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label="Toggle sidebar menu"
             >
-              {desktopSidebarCollapsed ? (
-                <ChevronsRight className="size-5" />
-              ) : (
-                <ChevronsLeft className="size-5" />
-              )}
+              <span className="translate-y-[-1px] text-[24px] font-extrabold leading-none">☰</span>
             </button>
           </div>
 
           <div className="flex flex-1 flex-col bg-[linear-gradient(180deg,#18c92f_0%,#14c84d_8%,#0fc79a_26%,#0ca9d8_49%,#0a8ce1_68%,#0b77df_84%,#0b6ddb_100%)] px-3 pb-3 pt-4">
-            <nav className="scroll-soft flex-1 space-y-1.5 overflow-y-auto">
-              {sidebarItems.map((item) => {
-                const Icon = item.icon;
+            <div className="relative flex-1">
+              <button
+                type="button"
+                onClick={() => scrollSidebarBy(-160)}
+                disabled={!canScrollUp}
+                className={cx(
+                  'absolute left-1/2 top-0 z-10 inline-flex size-7 -translate-x-1/2 items-center justify-center rounded-full border border-white/35 bg-[#ffffff2a] text-white shadow-[0_8px_18px_rgba(0,44,104,0.26)] backdrop-blur-sm transition',
+                  canScrollUp ? 'opacity-100 hover:bg-[#ffffff38]' : 'pointer-events-none opacity-35',
+                )}
+                aria-label="Scroll sidebar up"
+              >
+                <ChevronUp className="size-4" />
+              </button>
 
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    title={desktopSidebarCollapsed ? item.label : undefined}
-                    aria-label={item.label}
-                    className={cx(
-                      'flex min-h-[46px] w-full items-center gap-3 rounded-[12px] border text-left transition',
-                      desktopSidebarCollapsed ? 'justify-center px-0' : 'px-4',
-                      item.active
-                        ? 'border-[#56dd24] bg-[linear-gradient(90deg,#13c93a_0%,#48dd16_100%)] text-white shadow-[0_12px_22px_rgba(11,113,43,0.24)]'
-                        : 'border-white/10 bg-white/[0.065] text-white/96 hover:bg-white/[0.09]',
-                    )}
-                  >
-                    <Icon className="size-4.5 shrink-0" />
-                    <span
+              <nav ref={sidebarNavRef} className="scroll-soft h-full space-y-1.5 overflow-y-auto pb-10 pt-8">
+                {sidebarItems.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      title={desktopSidebarCollapsed ? item.label : undefined}
+                      aria-label={item.label}
                       className={cx(
-                        'min-w-0 flex-1 text-[14px] font-semibold leading-tight',
-                        desktopSidebarCollapsed && 'hidden',
+                        'flex min-h-[46px] w-full items-center gap-3 rounded-[12px] border text-left transition',
+                        desktopSidebarCollapsed ? 'justify-center px-0' : 'px-4',
+                        item.active
+                          ? 'border-[#56dd24] bg-[linear-gradient(90deg,#13c93a_0%,#48dd16_100%)] text-white shadow-[0_12px_22px_rgba(11,113,43,0.24)]'
+                          : 'border-white/10 bg-white/[0.065] text-white/96 hover:bg-white/[0.09]',
                       )}
                     >
-                      {item.label}
-                    </span>
-                    {item.disabled && !desktopSidebarCollapsed ? (
-                      <span className="rounded-[7px] border border-white/8 bg-white/[0.17] px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-white/78">
-                        Disabled
+                      <Icon className="size-4.5 shrink-0" />
+                      <span
+                        className={cx(
+                          'min-w-0 flex-1 text-[14px] font-semibold leading-tight',
+                          desktopSidebarCollapsed && 'hidden',
+                        )}
+                      >
+                        {item.label}
                       </span>
-                    ) : item.showChevron && !desktopSidebarCollapsed ? (
-                      <ChevronRight className="size-4 shrink-0 text-white/90" />
-                    ) : null}
-                  </button>
-                );
-              })}
-            </nav>
+                      {item.disabled && !desktopSidebarCollapsed ? (
+                        <span className="rounded-[7px] border border-white/8 bg-white/[0.17] px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-white/78">
+                          Disabled
+                        </span>
+                      ) : item.showChevron && !desktopSidebarCollapsed ? (
+                        <ChevronRight className="size-4 shrink-0 text-white/90" />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <button
+                type="button"
+                onClick={() => scrollSidebarBy(160)}
+                disabled={!canScrollDown}
+                className={cx(
+                  'absolute bottom-0 left-1/2 z-10 inline-flex size-7 -translate-x-1/2 items-center justify-center rounded-full border border-white/35 bg-[#ffffff2a] text-white shadow-[0_8px_18px_rgba(0,44,104,0.26)] backdrop-blur-sm transition',
+                  canScrollDown ? 'opacity-100 hover:bg-[#ffffff38]' : 'pointer-events-none opacity-35',
+                )}
+                aria-label="Scroll sidebar down"
+              >
+                <ChevronDown className="size-4" />
+              </button>
+            </div>
 
             {!desktopSidebarCollapsed ? (
               <div className="mt-4 rounded-[18px] border-[3px] border-white/85 bg-white/14 p-2 shadow-[0_18px_30px_rgba(7,49,115,0.2)]">
