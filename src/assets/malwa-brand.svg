@@ -1,0 +1,46 @@
+<svg width="1240" height="220" viewBox="0 0 1240 220" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMinYMid meet">
+  <defs>
+    <linearGradient id="sunGrad" x1="52" y1="20" x2="155" y2="156" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD93B"/>
+      <stop offset="1" stop-color="#F4A900"/>
+    </linearGradient>
+    <linearGradient id="leafGradA" x1="14" y1="108" x2="120" y2="194" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20E31F"/>
+      <stop offset="1" stop-color="#00B92E"/>
+    </linearGradient>
+    <linearGradient id="leafGradB" x1="84" y1="66" x2="187" y2="175" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67F000"/>
+      <stop offset="1" stop-color="#00BB2B"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="205" y1="62" x2="1120" y2="140" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#009649"/>
+      <stop offset="1" stop-color="#008635"/>
+    </linearGradient>
+  </defs>
+
+  <g>
+    <circle cx="86" cy="84" r="51" fill="url(#sunGrad)"/>
+    <path d="M34 98C73 101 97 121 112 161C73 160 45 142 34 98Z" fill="url(#leafGradA)"/>
+    <path d="M174 53C165 119 139 171 65 200C88 148 122 103 174 53Z" fill="url(#leafGradB)"/>
+    <path d="M78 172C86 111 117 86 174 53C154 107 123 148 78 172Z" fill="#25C80E"/>
+    <path d="M32 114C58 127 81 146 95 169" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    <path d="M82 173C112 126 148 89 174 63" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    <path d="M87 124C83 144 83 159 86 180" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    <g stroke="#FFCC08" stroke-width="9" stroke-linecap="round">
+      <path d="M87 8V28"/>
+      <path d="M33 23L46 41"/>
+      <path d="M5 66L26 71"/>
+      <path d="M167 21L154 39"/>
+      <path d="M193 68L176 78"/>
+    </g>
+  </g>
+
+  <g>
+    <text x="222" y="116" fill="url(#titleGrad)" font-family="Montserrat, Arial, sans-serif" font-size="78" font-weight="800" letter-spacing="-1">
+      Malwa Solar Energy
+    </text>
+    <text x="224" y="178" fill="#73808F" font-family="Nunito Sans, Arial, sans-serif" font-size="42" font-weight="700" letter-spacing="13">
+      CRM SYSTEM
+    </text>
+  </g>
+</svg>
