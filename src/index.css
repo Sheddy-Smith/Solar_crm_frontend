@@ -55,14 +55,24 @@ input {
   scrollbar-gutter: stable;
 }
 
-.sidebar-text-scroll {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+.sidebar-menu-scroll {
+  scrollbar-color: rgba(255, 255, 255, 0.55) rgba(255, 255, 255, 0.14);
+  scrollbar-width: thin;
 }
 
-.sidebar-text-scroll::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+.sidebar-menu-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+
+.sidebar-menu-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.sidebar-menu-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .header-banner::before,

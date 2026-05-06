@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -6,9 +6,7 @@ import {
   Bell,
   Boxes,
   CalendarDays,
-  ChevronDown,
   ChevronRight,
-  ChevronUp,
   ClipboardPlus,
   Clock3,
   Eye,
@@ -35,7 +33,6 @@ import {
   Zap,
 } from 'lucide-react';
 import headerImage from '../Data/header_image.png';
-import brandImage from './assets/malwa-brand.svg';
 
 const sidebarItems = [
   { label: 'Dashboard', icon: Home, active: true },
@@ -223,46 +220,6 @@ function cx(...classes) {
 function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
-  const [canScrollUp, setCanScrollUp] = useState(false);
-  const [canScrollDown, setCanScrollDown] = useState(false);
-  const sidebarNavRef = useRef(null);
-
-  const updateSidebarScrollState = () => {
-    const nav = sidebarNavRef.current;
-    if (!nav) {
-      return;
-    }
-
-    const maxScroll = nav.scrollHeight - nav.clientHeight;
-    setCanScrollUp(nav.scrollTop > 8);
-    setCanScrollDown(maxScroll - nav.scrollTop > 8);
-  };
-
-  const scrollSidebarBy = (delta) => {
-    const nav = sidebarNavRef.current;
-    if (!nav) {
-      return;
-    }
-
-    nav.scrollBy({ top: delta, behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    const nav = sidebarNavRef.current;
-    if (!nav) {
-      return undefined;
-    }
-
-    const handleUpdate = () => updateSidebarScrollState();
-    updateSidebarScrollState();
-    nav.addEventListener('scroll', handleUpdate, { passive: true });
-    window.addEventListener('resize', handleUpdate);
-
-    return () => {
-      nav.removeEventListener('scroll', handleUpdate);
-      window.removeEventListener('resize', handleUpdate);
-    };
-  }, [desktopSidebarCollapsed, mobileSidebarOpen]);
 
   return (
     <div className="box-border min-h-screen overflow-x-hidden bg-[#f5f7fb] p-2 text-[#20345f] sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden">
@@ -277,64 +234,35 @@ function App() {
 
         <aside
           className={cx(
-            'fixed inset-y-2 left-2 z-50 flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[18px] border border-[#dfe7f2] bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
-            desktopSidebarCollapsed ? 'xl:w-[96px]' : 'xl:w-[clamp(224px,18vw,252px)]',
+            'fixed inset-y-2 left-2 z-50 flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] border-r-white/10 bg-white shadow-xl shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
+            desktopSidebarCollapsed ? 'xl:w-[84px]' : 'xl:w-[236px]',
             mobileSidebarOpen ? 'translate-x-0' : '-translate-x-[110%] xl:translate-x-0',
           )}
         >
-          <div className={cx('relative border-b border-[#e8eef6] py-3', desktopSidebarCollapsed ? 'px-3' : 'px-4')}>
-            <div
-              className={cx(
-                'flex items-center',
-                desktopSidebarCollapsed ? 'h-[62px] justify-center' : 'h-[66px] pr-14 xl:h-[62px] xl:pr-14',
-              )}
-            >
-              {desktopSidebarCollapsed ? (
-                <MiniBrandMark />
-              ) : (
-                <img
-                  src={brandImage}
-                  alt="Malwa Solar Energy CRM System"
-                  className="block h-full w-full max-w-[188px] rounded-[6px] object-contain object-left"
-                />
-              )}
+          <div
+            className={cx(
+              'relative shrink-0 border-b border-[#e8eef6] bg-white',
+              desktopSidebarCollapsed ? 'px-3 py-4' : 'px-4 py-3',
+            )}
+          >
+            <div className={cx('flex items-center', desktopSidebarCollapsed ? 'h-[58px] justify-center' : 'h-[58px]')}>
+              {desktopSidebarCollapsed ? <MiniBrandMark compact /> : <BrandLockup />}
             </div>
 
             <button
               type="button"
               onClick={() => setMobileSidebarOpen(false)}
-              className="absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-xl border border-[#e4ebf4] bg-white/95 text-[#52637f] shadow-[0_6px_14px_rgba(17,39,84,0.08)] xl:hidden"
+              className="absolute right-3 top-4 inline-flex size-9 items-center justify-center rounded-[12px] border border-[#e4ebf4] bg-white/95 text-[#52637f] shadow-[0_6px_14px_rgba(17,39,84,0.08)] xl:hidden"
               aria-label="Close sidebar"
             >
               <X className="size-4" />
             </button>
 
-            <button
-              type="button"
-              onClick={() => setDesktopSidebarCollapsed((current) => !current)}
-              className="absolute right-3 top-2 hidden size-11 items-center justify-center rounded-[14px] border border-[#dfe6f1] bg-[#f8fbff] text-[#6c7f9b] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_16px_rgba(17,39,84,0.08)] transition hover:text-[#2e4f83] xl:inline-flex"
-              aria-label="Toggle sidebar menu"
-            >
-              <span className="translate-y-[-1px] text-[24px] font-extrabold leading-none">{'\u2630'}</span>
-            </button>
           </div>
 
-          <div className="flex flex-1 flex-col bg-[linear-gradient(180deg,#18c92f_0%,#14c84d_8%,#0fc79a_26%,#0ca9d8_49%,#0a8ce1_68%,#0b77df_84%,#0b6ddb_100%)] px-3 pb-3 pt-4">
-            <div className="relative min-h-0 flex-1">
-              <button
-                type="button"
-                onClick={() => scrollSidebarBy(-160)}
-                disabled={!canScrollUp}
-                className={cx(
-                  'absolute left-1/2 top-0 z-10 inline-flex size-7 -translate-x-1/2 items-center justify-center rounded-full border border-white/35 bg-[#ffffff2a] text-white shadow-[0_8px_18px_rgba(0,44,104,0.26)] backdrop-blur-sm transition',
-                  canScrollUp ? 'opacity-100 hover:bg-[#ffffff38]' : 'pointer-events-none opacity-35',
-                )}
-                aria-label="Scroll sidebar up"
-              >
-                <ChevronUp className="size-4" />
-              </button>
-
-              <nav ref={sidebarNavRef} className="scroll-soft sidebar-text-scroll h-full space-y-1.5 overflow-y-auto pb-10 pt-8">
+          <div className="relative min-h-0 flex-1 overflow-hidden rounded-t-[20px] bg-[linear-gradient(180deg,#39d353_0%,#06b6d4_50%,#0057b8_100%)]">
+            <div className="scroll-soft sidebar-menu-scroll h-full overflow-y-auto px-3 py-3">
+              <nav className="space-y-1">
                 {sidebarItems.map((item) => {
                   const Icon = item.icon;
 
@@ -345,27 +273,23 @@ function App() {
                       title={desktopSidebarCollapsed ? item.label : undefined}
                       aria-label={item.label}
                       className={cx(
-                        'flex min-h-[46px] w-full items-center gap-3 rounded-[12px] border text-left transition',
+                        'group flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border text-left transition duration-200',
                         desktopSidebarCollapsed ? 'justify-center px-0' : 'px-4',
                         item.active
-                          ? 'border-[#56dd24] bg-[linear-gradient(90deg,#13c93a_0%,#48dd16_100%)] text-white shadow-[0_12px_22px_rgba(11,113,43,0.24)]'
-                          : 'border-white/10 bg-white/[0.065] text-white/96 hover:bg-white/[0.09]',
+                          ? 'border-[#35e719]/70 bg-[linear-gradient(90deg,#08b848_0%,#45dd18_100%)] text-white shadow-lg'
+                          : 'border-transparent bg-transparent text-white/96 hover:border-white/10 hover:bg-white/[0.08]',
                       )}
                     >
-                      <Icon className="size-4.5 shrink-0" />
+                      <Icon className="size-[17px] shrink-0 transition group-hover:scale-105" />
                       <span
                         className={cx(
-                          'min-w-0 flex-1 text-[14px] font-semibold leading-tight',
+                          'min-w-0 flex-1 text-[13px] font-bold leading-tight',
                           desktopSidebarCollapsed && 'hidden',
                         )}
                       >
                         {item.label}
                       </span>
-                      {item.disabled && !desktopSidebarCollapsed ? (
-                        <span className="rounded-[7px] border border-white/8 bg-white/[0.17] px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-white/78">
-                          Disabled
-                        </span>
-                      ) : item.showChevron && !desktopSidebarCollapsed ? (
+                      {item.showChevron && !desktopSidebarCollapsed ? (
                         <ChevronRight className="size-4 shrink-0 text-white/90" />
                       ) : null}
                     </button>
@@ -373,44 +297,32 @@ function App() {
                 })}
               </nav>
 
-              <button
-                type="button"
-                onClick={() => scrollSidebarBy(160)}
-                disabled={!canScrollDown}
-                className={cx(
-                  'absolute bottom-0 left-1/2 z-10 inline-flex size-7 -translate-x-1/2 items-center justify-center rounded-full border border-white/35 bg-[#ffffff2a] text-white shadow-[0_8px_18px_rgba(0,44,104,0.26)] backdrop-blur-sm transition',
-                  canScrollDown ? 'opacity-100 hover:bg-[#ffffff38]' : 'pointer-events-none opacity-35',
-                )}
-                aria-label="Scroll sidebar down"
-              >
-                <ChevronDown className="size-4" />
-              </button>
-            </div>
-
-            {!desktopSidebarCollapsed ? (
-              <div className="mt-4 rounded-[18px] border-[3px] border-white/85 bg-white/14 p-2 shadow-[0_18px_30px_rgba(7,49,115,0.2)]">
-                <div className="overflow-hidden rounded-[14px] bg-white shadow-[inset_0_0_0_1px_rgba(219,232,245,0.9)]">
-                  <img
-                    src={headerImage}
-                    alt="Solar panels"
-                    className="h-[88px] w-full object-cover object-right"
-                  />
-                  <div className="p-4">
-                    <p className="font-display text-[16px] font-extrabold leading-[1.12] text-[#284276]">
-                      Powering a
-                      <br />
-                      Sustainable Future
-                    </p>
-                    <p className="mt-2 text-[12px] leading-5 text-[#66748f]">
-                      One Solar Solution
-                      <br />
-                      at a Time
-                      <Leaf className="ml-1 inline size-3.5 translate-y-[-1px] text-[#19c35a]" />
-                    </p>
+              {!desktopSidebarCollapsed ? (
+                <div className="mt-16 rounded-[12px] border-[3px] border-white/90 bg-white/15 p-1.5 shadow-[0_18px_30px_rgba(7,49,115,0.18)]">
+                  <div className="overflow-hidden rounded-[8px] bg-white shadow-[inset_0_0_0_1px_rgba(219,232,245,0.9)]">
+                    <img
+                      src={headerImage}
+                      alt="Solar panels"
+                      className="h-[82px] w-full object-cover object-right"
+                    />
+                    <div className="p-3.5">
+                      <p className="font-display text-[15px] font-extrabold leading-[1.12] text-[#284276]">
+                        Powering a
+                        <br />
+                        Sustainable Future
+                      </p>
+                      <p className="mt-2 text-[11px] leading-5 text-[#66748f]">
+                        One Solar Solution
+                        <br />
+                        at a Time
+                        <Leaf className="ml-1 inline size-3.5 translate-y-[-1px] text-[#19c35a]" />
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
+
           </div>
         </aside>
 
@@ -426,6 +338,15 @@ function App() {
                     aria-label="Open sidebar"
                   >
                     <Menu className="size-5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDesktopSidebarCollapsed((current) => !current)}
+                    className="hidden size-10 shrink-0 items-center justify-center rounded-[8px] bg-transparent text-[#52637f] transition hover:bg-[#f7faff] hover:text-[#244c7e] xl:inline-flex"
+                    aria-label="Toggle sidebar menu"
+                  >
+                    <Menu className="size-[21px]" />
                   </button>
 
                   <div className="flex flex-wrap items-center justify-end gap-3 lg:hidden">
@@ -759,10 +680,32 @@ const avatarToneMap = {
   emerald: 'bg-[linear-gradient(135deg,#19b55a,#0ea5a4)]',
 };
 
-function MiniBrandMark() {
+function BrandLockup() {
   return (
-    <div className="grid size-[52px] place-items-center rounded-[16px] border border-[#e5edf7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.08)]">
-      <svg viewBox="0 0 44 44" className="size-9" aria-hidden="true">
+    <div className="flex min-w-0 items-center gap-2.5">
+      <MiniBrandMark compact plain />
+      <div className="min-w-0">
+        <p className="truncate font-display text-[14px] font-extrabold leading-tight text-[#078c3e]">
+          Malwa Solar Energy
+        </p>
+        <p className="mt-1 truncate text-[8px] font-extrabold uppercase text-[#6f7d8d]">
+          CRM System
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MiniBrandMark({ compact = false, plain = false }) {
+  return (
+    <div
+      className={cx(
+        'grid shrink-0 place-items-center',
+        plain ? '' : 'border border-[#e5edf7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.08)]',
+        compact ? 'size-10 rounded-[12px]' : 'size-[52px] rounded-[16px]',
+      )}
+    >
+      <svg viewBox="0 0 44 44" className={compact ? 'size-8' : 'size-9'} aria-hidden="true">
         <circle cx="16" cy="15" r="8.5" fill="#ffc928" />
         <path
           d="M8.5 24.5c6.7 0 11.5 3.7 12.8 10.1-6.3 1.6-10.6 1.1-13.4-1.3-2.1-1.8-3.1-4.7-3.1-8.8h3.7z"
