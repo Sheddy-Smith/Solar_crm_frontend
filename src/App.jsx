@@ -315,12 +315,12 @@ function App() {
               className="absolute right-3 top-2 hidden size-11 items-center justify-center rounded-[14px] border border-[#dfe6f1] bg-[#f8fbff] text-[#6c7f9b] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_16px_rgba(17,39,84,0.08)] transition hover:text-[#2e4f83] xl:inline-flex"
               aria-label="Toggle sidebar menu"
             >
-              <span className="translate-y-[-1px] text-[24px] font-extrabold leading-none">☰</span>
+              <span className="translate-y-[-1px] text-[24px] font-extrabold leading-none">{'\u2630'}</span>
             </button>
           </div>
 
           <div className="flex flex-1 flex-col bg-[linear-gradient(180deg,#18c92f_0%,#14c84d_8%,#0fc79a_26%,#0ca9d8_49%,#0a8ce1_68%,#0b77df_84%,#0b6ddb_100%)] px-3 pb-3 pt-4">
-            <div className="relative flex-1">
+            <div className="relative min-h-0 flex-1">
               <button
                 type="button"
                 onClick={() => scrollSidebarBy(-160)}
@@ -334,7 +334,7 @@ function App() {
                 <ChevronUp className="size-4" />
               </button>
 
-              <nav ref={sidebarNavRef} className="scroll-soft h-full space-y-1.5 overflow-y-auto pb-10 pt-8">
+              <nav ref={sidebarNavRef} className="scroll-soft sidebar-text-scroll h-full space-y-1.5 overflow-y-auto pb-10 pt-8">
                 {sidebarItems.map((item) => {
                   const Icon = item.icon;
 

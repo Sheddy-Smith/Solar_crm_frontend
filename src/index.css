@@ -49,6 +49,22 @@ input {
   background: transparent;
 }
 
+.scroll-soft {
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+.sidebar-text-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.sidebar-text-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 .header-banner::before,
 .header-banner::after {
   content: "";
