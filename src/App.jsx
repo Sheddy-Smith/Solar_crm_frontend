@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -203,8 +203,8 @@ const quickActions = [
 ];
 
 const actionIcons = [
-  { icon: Bell, badge: '5' },
-  { icon: MessageSquareMore, badge: '3' },
+  { icon: Bell, badge: '5', label: 'Notifications' },
+  { icon: MessageSquareMore, badge: '3', label: 'Messages' },
 ];
 
 const panelClass =
@@ -220,6 +220,21 @@ function cx(...classes) {
 function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
+  const [activeSidebarItem, setActiveSidebarItem] = useState('Dashboard');
+  const [toast, setToast] = useState(null);
+
+  const notify = (message) => {
+    setToast({ id: Date.now(), message });
+  };
+
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setToast(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   return (
     <div className="box-border min-h-screen overflow-x-hidden bg-[#f5f7fb] p-2 text-[#20345f] sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden">
@@ -265,17 +280,24 @@ function App() {
               <nav className="space-y-1">
                 {sidebarItems.map((item) => {
                   const Icon = item.icon;
+                  const isActive = item.label === activeSidebarItem;
 
                   return (
                     <button
                       key={item.label}
                       type="button"
+                      onClick={() => {
+                        setActiveSidebarItem(item.label);
+                        setMobileSidebarOpen(false);
+                        notify(`${item.label} section selected`);
+                      }}
                       title={desktopSidebarCollapsed ? item.label : undefined}
                       aria-label={item.label}
+                      aria-current={isActive ? 'page' : undefined}
                       className={cx(
                         'group flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border text-left transition duration-200',
                         desktopSidebarCollapsed ? 'justify-center px-0' : 'px-4',
-                        item.active
+                        isActive
                           ? 'border-[#35e719]/70 bg-[linear-gradient(90deg,#08b848_0%,#45dd18_100%)] text-white shadow-lg'
                           : 'border-transparent bg-transparent text-white/96 hover:border-white/10 hover:bg-white/[0.08]',
                       )}
@@ -333,7 +355,10 @@ function App() {
                 <div className="flex items-center justify-between gap-3 lg:contents">
                   <button
                     type="button"
-                    onClick={() => setMobileSidebarOpen(true)}
+                    onClick={() => {
+                      setMobileSidebarOpen(true);
+                      notify('Sidebar opened');
+                    }}
                     className="inline-flex size-11 shrink-0 items-center justify-center rounded-[12px] border border-[#dfe7f2] bg-white text-[#52637f] transition hover:border-[#cfdbee] hover:text-[#2158d6] xl:hidden"
                     aria-label="Open sidebar"
                   >
@@ -342,7 +367,13 @@ function App() {
 
                   <button
                     type="button"
-                    onClick={() => setDesktopSidebarCollapsed((current) => !current)}
+                    onClick={() => {
+                      setDesktopSidebarCollapsed((current) => {
+                        const next = !current;
+                        notify(next ? 'Sidebar collapsed' : 'Sidebar expanded');
+                        return next;
+                      });
+                    }}
                     className="hidden size-10 shrink-0 items-center justify-center rounded-[8px] bg-transparent text-[#52637f] transition hover:bg-[#f7faff] hover:text-[#244c7e] xl:inline-flex"
                     aria-label="Toggle sidebar menu"
                   >
@@ -353,12 +384,14 @@ function App() {
                     {actionIcons.map((action) => {
                       const Icon = action.icon;
 
-                      return (
-                        <button
-                          key={`mobile-${action.badge}-${Icon.displayName ?? Icon.name}`}
-                          type="button"
-                          className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
-                        >
+                    return (
+                      <button
+                        key={`mobile-${action.label}`}
+                        type="button"
+                        onClick={() => notify(`${action.label} opened`)}
+                        className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
+                        aria-label={action.label}
+                      >
                           <Icon className="size-[18px]" />
                           <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
                             {action.badge}
@@ -392,9 +425,11 @@ function App() {
 
                     return (
                       <button
-                        key={`${action.badge}-${Icon.displayName ?? Icon.name}`}
+                        key={action.label}
                         type="button"
+                        onClick={() => notify(`${action.label} opened`)}
                         className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
+                        aria-label={action.label}
                       >
                         <Icon className="size-[18px]" />
                         <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
@@ -427,7 +462,11 @@ function App() {
 
                 <div className="mt-4 space-y-3 lg:hidden">
                   {todayFollowUps.map((followUp) => (
-                    <FollowUpCard key={`${followUp.customer}-${followUp.ivrs}`} followUp={followUp} />
+                    <FollowUpCard
+                      key={`${followUp.customer}-${followUp.ivrs}`}
+                      followUp={followUp}
+                      onView={() => notify(`${followUp.customer} follow-up opened`)}
+                    />
                   ))}
                 </div>
 
@@ -455,6 +494,7 @@ function App() {
                             <td className="text-right">
                               <button
                                 type="button"
+                                onClick={() => notify(`${followUp.customer} follow-up opened`)}
                                 className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
                                 aria-label={`View ${followUp.customer}`}
                               >
@@ -471,6 +511,7 @@ function App() {
                 <div className="mt-4 flex justify-center">
                   <button
                     type="button"
+                    onClick={() => notify('All follow-ups opened')}
                     className="inline-flex items-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-5 py-2.5 text-[13px] font-extrabold text-[#2a64dd] shadow-[0_8px_18px_rgba(17,39,84,0.06)] transition hover:bg-[#f8fbff]"
                   >
                     View All Follow-ups
@@ -490,6 +531,7 @@ function App() {
                       <button
                         key={action.label}
                         type="button"
+                        onClick={() => notify(`${action.label} action started`)}
                         className={cx(
                           'flex w-full items-center justify-between rounded-[12px] bg-gradient-to-r px-4 py-4 text-left text-white shadow-[0_12px_24px_rgba(22,65,145,0.18)] transition hover:brightness-[1.03] sm:min-h-[92px] xl:min-h-0',
                           action.bg,
@@ -511,11 +553,11 @@ function App() {
 
             <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
               <article className={`${panelClass} p-3 sm:p-4`}>
-                <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" />
+                <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" onAction={() => notify('All recent leads opened')} />
 
                 <div className="mt-4 space-y-3 lg:hidden">
                   {recentLeads.map((lead) => (
-                    <RecentLeadCard key={`${lead.customer}-${lead.mobile}`} lead={lead} />
+                    <RecentLeadCard key={`${lead.customer}-${lead.mobile}`} lead={lead} onView={() => notify(`${lead.customer} lead opened`)} />
                   ))}
                 </div>
 
@@ -551,7 +593,13 @@ function App() {
               </article>
 
               <aside className={`${panelClass} p-3 sm:p-4`}>
-                <SectionHeader icon={Clock3} title="Overdue Follow-ups" actionLabel="View All" iconTone="danger" />
+                <SectionHeader
+                  icon={Clock3}
+                  title="Overdue Follow-ups"
+                  actionLabel="View All"
+                  iconTone="danger"
+                  onAction={() => notify('All overdue follow-ups opened')}
+                />
 
                 <div className="mt-4 divide-y divide-[#eef3f8] rounded-[14px] border border-[#eaf0f7] bg-white px-4">
                   {overdueFollowUps.map((item) => (
@@ -580,6 +628,17 @@ function App() {
           </div>
         </main>
       </div>
+
+      {toast ? (
+        <div
+          key={toast.id}
+          className="fixed bottom-5 right-5 z-[80] rounded-[12px] border border-[#dce7f5] bg-white px-4 py-3 text-[13px] font-extrabold text-[#223768] shadow-[0_16px_34px_rgba(21,43,83,0.16)]"
+          role="status"
+          aria-live="polite"
+        >
+          {toast.message}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -621,7 +680,7 @@ function StatCard({ stat }) {
   );
 }
 
-function SectionHeader({ icon: Icon, title, actionLabel, iconTone = 'primary' }) {
+function SectionHeader({ icon: Icon, title, actionLabel, onAction, iconTone = 'primary' }) {
   const iconClass =
     {
       primary: 'text-[#2d67e1]',
@@ -639,6 +698,7 @@ function SectionHeader({ icon: Icon, title, actionLabel, iconTone = 'primary' })
       {actionLabel ? (
         <button
           type="button"
+          onClick={onAction}
           className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#2d67e1] transition hover:opacity-80"
         >
           {actionLabel}
@@ -763,7 +823,7 @@ function PersonAvatar({ tone, initials }) {
   );
 }
 
-function FollowUpCard({ followUp }) {
+function FollowUpCard({ followUp, onView }) {
   return (
     <article className="rounded-[14px] border border-[#e8eef6] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
       <div className="flex items-start justify-between gap-3">
@@ -773,6 +833,7 @@ function FollowUpCard({ followUp }) {
         </div>
         <button
           type="button"
+          onClick={onView}
           className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff]"
           aria-label={`View ${followUp.customer}`}
         >
@@ -789,7 +850,7 @@ function FollowUpCard({ followUp }) {
   );
 }
 
-function RecentLeadCard({ lead }) {
+function RecentLeadCard({ lead, onView }) {
   return (
     <article className="rounded-[14px] border border-[#e8eef6] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
       <div className="flex items-start justify-between gap-3">
@@ -799,6 +860,14 @@ function RecentLeadCard({ lead }) {
         </div>
         <StatusBadge status={lead.status} />
       </div>
+      <button
+        type="button"
+        onClick={onView}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-3 py-2 text-[12px] font-extrabold text-[#2d67e1]"
+      >
+        View Lead
+        <ArrowRight className="size-3.5" />
+      </button>
       <div className="mt-4 grid grid-cols-1 gap-3 text-[12px] min-[420px]:grid-cols-2">
         <InfoCell label="Mobile" value={lead.mobile} />
         <InfoCell label="Created On" value={lead.createdOn} />
