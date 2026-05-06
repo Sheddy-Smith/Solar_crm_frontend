@@ -14,13 +14,19 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #f5f7fb;
+  background: #f3f7fb;
   color: #20345f;
 }
 
 button,
 input {
   font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgba(45, 103, 225, 0.42);
+  outline-offset: 2px;
 }
 
 #root {
@@ -125,6 +131,14 @@ input {
 
 .crm-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.crm-table tbody tr {
+  transition: background-color 160ms ease;
+}
+
+.crm-table tbody tr:hover {
+  background: #f8fbff;
 }
 
 @media (max-width: 767px) {

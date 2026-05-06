@@ -17,6 +17,8 @@ import {
   Home,
   IndianRupee,
   Leaf,
+  LockKeyhole,
+  LogIn,
   Menu,
   MessageSquareMore,
   Minus,
@@ -25,7 +27,9 @@ import {
   Settings,
   ShieldCheck,
   Trophy,
+  LogOut,
   UserPlus,
+  UserRound,
   Users,
   UsersRound,
   Wrench,
@@ -33,6 +37,7 @@ import {
   Zap,
 } from 'lucide-react';
 import headerImage from '../Data/header_image.png';
+import signInBgImage from './assets/data/Sign_in_bg_hd.png';
 
 const sidebarItems = [
   { label: 'Dashboard', icon: Home, active: true },
@@ -44,6 +49,7 @@ const sidebarItems = [
   { label: 'Inventory', icon: Boxes, disabled: true },
   { label: 'Reports', icon: BarChart3, disabled: true },
   { label: 'Employee Management', icon: UsersRound, disabled: true },
+  { label: 'AMC & Warranty', icon: ShieldCheck },
   { label: 'Settings', icon: Settings, disabled: true },
 ];
 
@@ -208,7 +214,10 @@ const actionIcons = [
 ];
 
 const panelClass =
-  'rounded-[16px] border border-[#e4ebf4] bg-white shadow-[0_10px_26px_rgba(17,39,84,0.055)]';
+  'rounded-[14px] border border-[#dbe5f2] bg-white/90 shadow-[0_12px_28px_rgba(24,48,87,0.07)] backdrop-blur-sm';
+
+const dataPanelClass =
+  'overflow-hidden rounded-[14px] border border-[#dbe5f2] bg-white/75 shadow-[0_14px_32px_rgba(24,48,87,0.08)] backdrop-blur-md';
 
 const tableHeaders = ['Customer Name', 'Mobile Number', 'IVRS Number', 'Project Name', 'Assigned To', 'Follow-up Date', 'Action'];
 const recentHeaders = ['Customer Name', 'Mobile Number', 'Project Name', 'Status', 'Assigned To', 'Created On'];
@@ -218,13 +227,26 @@ function cx(...classes) {
 }
 
 function App() {
+  const [currentPage, setCurrentPage] = useState('dashboard');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
   const [activeSidebarItem, setActiveSidebarItem] = useState('Dashboard');
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   const notify = (message) => {
     setToast({ id: Date.now(), message });
+  };
+
+  const handleProfileAction = (action) => {
+    setProfileMenuOpen(false);
+    if (action === 'Sign in') {
+      setCurrentPage('signin');
+      notify('Sign in opened');
+      return;
+    }
+
+    notify(`${action} selected`);
   };
 
   useEffect(() => {
@@ -236,8 +258,17 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  if (currentPage === 'signin') {
+    return (
+      <>
+        <SignInPage onNotify={notify} />
+        <Toast toast={toast} />
+      </>
+    );
+  }
+
   return (
-    <div className="box-border min-h-screen overflow-x-hidden bg-[#f5f7fb] p-2 text-[#20345f] sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden">
+    <div className="box-border min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] p-2 text-[#20345f] sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden">
       <div className="mx-auto flex w-full gap-3 xl:h-full xl:items-stretch xl:gap-4">
         <div
           className={cx(
@@ -275,73 +306,61 @@ function App() {
 
           </div>
 
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded-t-[20px] bg-[linear-gradient(180deg,#39d353_0%,#06b6d4_50%,#0057b8_100%)]">
-            <div className="scroll-soft sidebar-menu-scroll h-full overflow-y-auto px-3 py-3">
-              <nav className="space-y-1">
+          <div className="relative min-h-0 flex-1 overflow-hidden rounded-t-[14px] bg-[linear-gradient(180deg,#09b83f_0%,#0799a7_42%,#075fc2_100%)]">
+            <div className="scroll-soft sidebar-menu-scroll h-full overflow-y-auto px-4 py-4">
+              <nav className="space-y-0.5">
                 {sidebarItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.label === activeSidebarItem;
+                  const showLeadDivider = item.label === 'Lead';
 
                   return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => {
-                        setActiveSidebarItem(item.label);
-                        setMobileSidebarOpen(false);
-                        notify(`${item.label} section selected`);
-                      }}
-                      title={desktopSidebarCollapsed ? item.label : undefined}
-                      aria-label={item.label}
-                      aria-current={isActive ? 'page' : undefined}
-                      className={cx(
-                        'group flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border text-left transition duration-200',
-                        desktopSidebarCollapsed ? 'justify-center px-0' : 'px-4',
-                        isActive
-                          ? 'border-[#35e719]/70 bg-[linear-gradient(90deg,#08b848_0%,#45dd18_100%)] text-white shadow-lg'
-                          : 'border-transparent bg-transparent text-white/96 hover:border-white/10 hover:bg-white/[0.08]',
-                      )}
-                    >
-                      <Icon className="size-[17px] shrink-0 transition group-hover:scale-105" />
-                      <span
+                    <div key={item.label} className={cx(showLeadDivider && !desktopSidebarCollapsed && 'border-b border-white/50 pb-1')}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveSidebarItem(item.label);
+                          setMobileSidebarOpen(false);
+                          notify(`${item.label} section selected`);
+                        }}
+                        title={desktopSidebarCollapsed ? item.label : undefined}
+                        aria-label={item.label}
+                        aria-current={isActive ? 'page' : undefined}
                         className={cx(
-                          'min-w-0 flex-1 text-[13px] font-bold leading-tight',
-                          desktopSidebarCollapsed && 'hidden',
+                          'group flex min-h-[43px] w-full items-center gap-3 border text-left transition duration-200',
+                          desktopSidebarCollapsed ? 'justify-center px-0' : 'px-4',
+                          isActive
+                            ? 'min-h-[40px] rounded-[8px] border-[#36d95b]/75 bg-[linear-gradient(90deg,#07913a_0%,#23cf2b_100%)] text-white shadow-[0_8px_14px_rgba(3,83,55,0.22)]'
+                            : 'rounded-[3px] border-transparent bg-transparent text-white hover:border-white/10 hover:bg-white/[0.08]',
                         )}
                       >
-                        {item.label}
-                      </span>
-                      {item.showChevron && !desktopSidebarCollapsed ? (
-                        <ChevronRight className="size-4 shrink-0 text-white/90" />
-                      ) : null}
-                    </button>
+                        <Icon className="size-[17px] shrink-0 transition group-hover:scale-105" />
+                        <span
+                          className={cx(
+                            'min-w-0 flex-1 text-[13px] font-bold leading-tight',
+                            desktopSidebarCollapsed && 'hidden',
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                        {item.showChevron && !desktopSidebarCollapsed ? (
+                          <ChevronRight className="size-4 shrink-0 text-white/90" />
+                        ) : null}
+                      </button>
+                    </div>
                   );
                 })}
               </nav>
 
               {!desktopSidebarCollapsed ? (
-                <div className="mt-16 rounded-[12px] border-[3px] border-white/90 bg-white/15 p-1.5 shadow-[0_18px_30px_rgba(7,49,115,0.18)]">
-                  <div className="overflow-hidden rounded-[8px] bg-white shadow-[inset_0_0_0_1px_rgba(219,232,245,0.9)]">
-                    <img
-                      src={headerImage}
-                      alt="Solar panels"
-                      className="h-[82px] w-full object-cover object-right"
-                    />
-                    <div className="p-3.5">
-                      <p className="font-display text-[15px] font-extrabold leading-[1.12] text-[#284276]">
-                        Powering a
-                        <br />
-                        Sustainable Future
-                      </p>
-                      <p className="mt-2 text-[11px] leading-5 text-[#66748f]">
-                        One Solar Solution
-                        <br />
-                        at a Time
-                        <Leaf className="ml-1 inline size-3.5 translate-y-[-1px] text-[#19c35a]" />
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => notify('Logout clicked')}
+                  className="mt-12 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/[0.09] px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]"
+                >
+                  <LogOut className="size-[17px] shrink-0" />
+                  <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">Logout</span>
+                </button>
               ) : null}
             </div>
 
@@ -349,8 +368,8 @@ function App() {
         </aside>
 
         <main className="min-w-0 flex-1 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
-          <div className="space-y-3 xl:pb-2">
-            <header className={`${panelClass} px-3 py-3 sm:px-4`}>
+          <div className="space-y-4 xl:pb-3">
+            <header className={`${panelClass} relative z-30 overflow-visible px-3 py-3 sm:px-4`}>
               <div className="grid gap-3 lg:grid-cols-[44px_minmax(0,1fr)] xl:grid-cols-[44px_326px_minmax(0,1fr)_auto] xl:items-center">
                 <div className="flex items-center justify-between gap-3 lg:contents">
                   <button
@@ -399,6 +418,33 @@ function App() {
                         </button>
                       );
                     })}
+
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setProfileMenuOpen((current) => !current)}
+                        className="rounded-full transition hover:scale-[1.02]"
+                        aria-label="Open profile menu"
+                        aria-expanded={profileMenuOpen}
+                      >
+                        <AdminAvatar />
+                      </button>
+
+                      {profileMenuOpen ? (
+                        <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                          {['Sign in', 'Sign up', 'Logout'].map((item) => (
+                            <button
+                              key={`mobile-${item}`}
+                              type="button"
+                              onClick={() => handleProfileAction(item)}
+                              className="block w-full px-4 py-3 text-left text-[13px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+                            >
+                              {item}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
@@ -439,28 +485,57 @@ function App() {
                     );
                   })}
 
-                  <div className="ml-auto flex items-center gap-2.5 sm:gap-3">
-                    <AdminAvatar />
-                    <div className="text-right">
-                      <p className="text-[15px] font-extrabold leading-tight text-[#263d72]">Admin</p>
-                      <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">Super Admin</p>
-                    </div>
+                  <div className="relative ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => setProfileMenuOpen((current) => !current)}
+                      className="flex items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#f5f9ff] sm:gap-3"
+                      aria-label="Open profile menu"
+                      aria-expanded={profileMenuOpen}
+                    >
+                      <AdminAvatar />
+                      <div className="text-right">
+                        <p className="text-[15px] font-extrabold leading-tight text-[#263d72]">Admin</p>
+                        <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">Super Admin</p>
+                      </div>
+                      <ChevronRight
+                        className={cx(
+                          'size-4 text-[#7a8aa4] transition',
+                          profileMenuOpen && 'rotate-90 text-[#2d67e1]',
+                        )}
+                      />
+                    </button>
+
+                    {profileMenuOpen ? (
+                      <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                        {['Sign in', 'Sign up', 'Logout'].map((item) => (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => handleProfileAction(item)}
+                            className="block w-full px-4 py-3 text-left text-[13px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+                          >
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
             </header>
 
-            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {stats.map((stat) => (
                 <StatCard key={stat.title} stat={stat} />
               ))}
             </section>
 
-            <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
-              <article className={`${panelClass} p-3 sm:p-4`}>
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+              <article className={dataPanelClass}>
                 <SectionHeader icon={CalendarDays} title="Today Follow-ups" />
 
-                <div className="mt-4 space-y-3 lg:hidden">
+                <div className="space-y-3 p-4 lg:hidden">
                   {todayFollowUps.map((followUp) => (
                     <FollowUpCard
                       key={`${followUp.customer}-${followUp.ivrs}`}
@@ -470,7 +545,7 @@ function App() {
                   ))}
                 </div>
 
-                <div className="mt-4 hidden overflow-hidden rounded-[14px] border border-[#eaf0f7] lg:block">
+                <div className="mx-4 mt-4 hidden overflow-hidden rounded-[12px] border border-[#e5edf6] bg-white lg:block">
                   <div className="overflow-x-auto">
                     <table className="crm-table min-w-[760px] w-full">
                       <thead>
@@ -508,7 +583,7 @@ function App() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex justify-center">
+                <div className="flex justify-center px-4 py-4">
                   <button
                     type="button"
                     onClick={() => notify('All follow-ups opened')}
@@ -520,10 +595,10 @@ function App() {
                 </div>
               </article>
 
-              <aside className={`${panelClass} p-3 sm:p-4`}>
+              <aside className={`${panelClass} overflow-hidden`}>
                 <SectionHeader icon={Zap} title="Quick Actions" iconTone="success" />
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-1">
                   {quickActions.map((action) => {
                     const Icon = action.icon;
 
@@ -533,7 +608,7 @@ function App() {
                         type="button"
                         onClick={() => notify(`${action.label} action started`)}
                         className={cx(
-                          'flex w-full items-center justify-between rounded-[12px] bg-gradient-to-r px-4 py-4 text-left text-white shadow-[0_12px_24px_rgba(22,65,145,0.18)] transition hover:brightness-[1.03] sm:min-h-[92px] xl:min-h-0',
+                          'flex w-full items-center justify-between rounded-[10px] bg-gradient-to-r px-4 py-4 text-left text-white shadow-[0_12px_24px_rgba(22,65,145,0.16)] transition hover:-translate-y-0.5 hover:brightness-[1.03] sm:min-h-[92px] xl:min-h-0',
                           action.bg,
                         )}
                       >
@@ -551,17 +626,17 @@ function App() {
               </aside>
             </section>
 
-            <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <article className={`${panelClass} p-3 sm:p-4`}>
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <article className={dataPanelClass}>
                 <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" onAction={() => notify('All recent leads opened')} />
 
-                <div className="mt-4 space-y-3 lg:hidden">
+                <div className="space-y-3 p-4 lg:hidden">
                   {recentLeads.map((lead) => (
                     <RecentLeadCard key={`${lead.customer}-${lead.mobile}`} lead={lead} onView={() => notify(`${lead.customer} lead opened`)} />
                   ))}
                 </div>
 
-                <div className="mt-4 hidden overflow-hidden rounded-[14px] border border-[#eaf0f7] lg:block">
+                <div className="mx-4 mb-4 mt-4 hidden overflow-hidden rounded-[12px] border border-[#e5edf6] bg-white lg:block">
                   <div className="overflow-x-auto">
                     <table className="crm-table min-w-[700px] w-full">
                       <thead>
@@ -592,7 +667,7 @@ function App() {
                 </div>
               </article>
 
-              <aside className={`${panelClass} p-3 sm:p-4`}>
+              <aside className={dataPanelClass}>
                 <SectionHeader
                   icon={Clock3}
                   title="Overdue Follow-ups"
@@ -601,7 +676,7 @@ function App() {
                   onAction={() => notify('All overdue follow-ups opened')}
                 />
 
-                <div className="mt-4 divide-y divide-[#eef3f8] rounded-[14px] border border-[#eaf0f7] bg-white px-4">
+                <div className="m-4 divide-y divide-[#edf2f8] overflow-hidden rounded-[12px] border border-[#e5edf6] bg-[#fbfdff] px-4">
                   {overdueFollowUps.map((item) => (
                     <div
                       key={`${item.customer}-${item.project}`}
@@ -616,7 +691,7 @@ function App() {
               </aside>
             </section>
 
-            <footer className="flex flex-col gap-2 px-1 pb-1 text-center text-[12px] font-semibold text-[#7b88a2] sm:text-left lg:flex-row lg:items-center lg:justify-between">
+            <footer className="flex flex-col gap-2 border-t border-[#e4ebf4] px-1 pb-1 pt-3 text-center text-[12px] font-semibold text-[#7b88a2] sm:text-left lg:flex-row lg:items-center lg:justify-between">
               <p>Copyright 2024 Malwa Solar CRM. All rights reserved.</p>
               <p className="inline-flex items-center justify-center gap-1.5 lg:justify-end">
                 Made with
@@ -629,16 +704,232 @@ function App() {
         </main>
       </div>
 
-      {toast ? (
-        <div
-          key={toast.id}
-          className="fixed bottom-5 right-5 z-[80] rounded-[12px] border border-[#dce7f5] bg-white px-4 py-3 text-[13px] font-extrabold text-[#223768] shadow-[0_16px_34px_rgba(21,43,83,0.16)]"
-          role="status"
-          aria-live="polite"
+      <Toast toast={toast} />
+    </div>
+  );
+}
+
+function Toast({ toast }) {
+  if (!toast) {
+    return null;
+  }
+
+  return (
+    <div
+      key={toast.id}
+      className="fixed bottom-5 right-5 z-[80] rounded-[12px] border border-[#dce7f5] bg-white px-4 py-3 text-[13px] font-extrabold text-[#223768] shadow-[0_16px_34px_rgba(21,43,83,0.16)]"
+      role="status"
+      aria-live="polite"
+    >
+      {toast.message}
+    </div>
+  );
+}
+
+function SignInPage({ onNotify }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const features = [
+    {
+      title: 'Lead Management',
+      text: 'Capture, track & convert leads',
+      icon: Users,
+    },
+    {
+      title: 'Follow-ups',
+      text: 'Never miss your next follow-up',
+      icon: CalendarDays,
+    },
+    {
+      title: 'Analytics',
+      text: 'Real-time insights & performance',
+      icon: BarChart3,
+    },
+    {
+      title: 'Secure & Reliable',
+      text: 'Your data is safe with us',
+      icon: ShieldCheck,
+    },
+  ];
+
+  return (
+    <div className="flex min-h-screen flex-col bg-[#eef3f7] px-3 py-4 text-[#172648] sm:px-5 lg:px-7">
+      <main className="mx-auto grid h-auto min-h-[90vh] w-[95vw] max-w-[1960px] overflow-hidden rounded-[24px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.18)] lg:grid-cols-[55fr_45fr]">
+        <section
+          className="relative isolate min-h-[620px] overflow-hidden bg-cover bg-no-repeat px-7 py-8 sm:min-h-[720px] sm:px-12 sm:py-12 lg:min-h-full lg:rounded-l-[24px] lg:px-[5.2vw] lg:py-[4.2vw] xl:px-[5.8vw] 2xl:px-[6.2vw]"
+          style={{
+            backgroundImage: `url(${signInBgImage})`,
+            backgroundPosition: 'left center',
+          }}
         >
-          {toast.message}
-        </div>
-      ) : null}
+          <div className="relative z-10 flex min-w-0 items-center gap-3">
+            <MiniBrandMark plain />
+            <div className="min-w-0">
+              <p className="font-display text-[20px] font-extrabold leading-tight text-[#087532] sm:text-[28px] xl:text-[30px]">
+                Malwa Solar Energy
+              </p>
+              <p className="mt-1 text-[13px] font-extrabold uppercase tracking-[0.24em] text-[#252b35] sm:text-[18px]">
+                CRM System
+              </p>
+            </div>
+          </div>
+
+          <div className="relative z-10 mt-14 max-w-[760px] sm:mt-20 lg:mt-[7.4vh] xl:mt-[8.2vh]">
+            <h1 className="font-display text-[clamp(2.6rem,7vw,4rem)] font-extrabold leading-[1.12] text-[#102446] lg:text-[clamp(3rem,3.35vw,4.15rem)]">
+              Powering a
+              <span className="mt-1 block text-[#087532]">Sustainable Future</span>
+            </h1>
+            <p className="mt-8 max-w-[380px] text-[clamp(1.55rem,4.5vw,2rem)] font-bold leading-[1.58] text-[#2e3645]">
+              One Solar Solution
+              <span className="block">
+                at a Time <Leaf className="mb-1 inline size-6 fill-current text-[#5abd2d]" />
+              </span>
+            </p>
+          </div>
+
+          <div className="relative z-10 mt-12 rounded-[24px] border border-white/20 bg-[linear-gradient(105deg,rgba(29,166,67,0.92)_0%,rgba(12,137,132,0.88)_48%,rgba(13,108,202,0.92)_100%)] p-6 text-white shadow-[0_18px_34px_rgba(11,71,118,0.24)] sm:p-7 lg:absolute lg:bottom-[5.2vh] lg:left-[3.8vw] lg:right-[3.3vw] lg:mt-0">
+            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+              {features.map((feature) => (
+                <LoginFeature key={feature.title} feature={feature} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="flex items-center justify-center bg-white px-5 py-9 sm:px-10 sm:py-12 lg:px-[5vw]">
+          <div className="w-full max-w-[720px] lg:max-w-[560px] 2xl:max-w-[680px]">
+            <div>
+              <h2 className="font-display text-[30px] font-extrabold text-[#102446] sm:text-[36px] lg:text-[38px]">
+                Welcome Back!
+              </h2>
+              <p className="mt-5 text-[16px] font-semibold text-[#5c6676] sm:text-[20px]">
+                Login to your Malwa Solar Energy CRM account
+              </p>
+            </div>
+
+            <form
+              className="mt-9 space-y-6 sm:mt-11 sm:space-y-7"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onNotify('Login submitted');
+              }}
+            >
+              <label className="block">
+                <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Email / Mobile Number</span>
+                <span className="mt-4 flex h-[62px] items-center gap-5 rounded-[9px] border border-[#d6dde8] bg-white px-5 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] focus-within:border-[#1486d7] focus-within:ring-4 focus-within:ring-[#1486d7]/10">
+                  <UserRound className="size-6 text-[#7a8494]" />
+                  <input
+                    type="text"
+                    placeholder="Enter email or mobile number"
+                    className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796] sm:text-[18px]"
+                  />
+                </span>
+              </label>
+
+              <label className="block">
+                <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Password</span>
+                <span className="mt-4 flex h-[62px] items-center gap-5 rounded-[9px] border border-[#d6dde8] bg-white px-5 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] focus-within:border-[#1486d7] focus-within:ring-4 focus-within:ring-[#1486d7]/10">
+                  <LockKeyhole className="size-6 text-[#7a8494]" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796] sm:text-[18px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="text-[#7a8494] transition hover:text-[#156bd9]"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <Eye className="size-5" />
+                  </button>
+                </span>
+              </label>
+
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <label className="inline-flex items-center gap-3 text-[15px] font-bold text-[#5a6574] sm:text-[16px]">
+                  <input
+                    type="checkbox"
+                    defaultChecked
+                    className="size-5 rounded accent-[#17a34a]"
+                  />
+                  Remember me
+                </label>
+                <button
+                  type="button"
+                  onClick={() => onNotify('Forgot password selected')}
+                  className="text-left text-[15px] font-bold text-[#055ee4] transition hover:text-[#034bb6] sm:text-right sm:text-[16px]"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+
+              <button
+                type="submit"
+                className="flex h-[64px] w-full items-center justify-center gap-3 rounded-[9px] bg-[linear-gradient(90deg,#20b947_0%,#169e9a_51%,#116fd0_100%)] text-[20px] font-extrabold text-white shadow-[0_14px_28px_rgba(21,116,171,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(21,116,171,0.28)]"
+              >
+                <LogIn className="size-5" />
+                Login
+              </button>
+
+              <div className="flex items-center gap-4">
+                <span className="h-px flex-1 bg-[#e0e5ee]" />
+                <span className="grid size-12 place-items-center rounded-full border border-[#e5eaf2] bg-white text-[14px] font-bold text-[#6a7586]">
+                  OR
+                </span>
+                <span className="h-px flex-1 bg-[#e0e5ee]" />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onNotify('Google login selected')}
+                className="flex h-[64px] w-full items-center justify-center gap-4 rounded-[9px] border border-[#d6dde8] bg-white text-[18px] font-bold text-[#111827] shadow-[0_6px_16px_rgba(20,35,60,0.04)] transition hover:border-[#c7d3e5] hover:bg-[#fbfdff] sm:text-[20px]"
+              >
+                <span className="font-display text-[25px] font-extrabold text-[#4285f4]">
+                  G
+                </span>
+                Login with Google
+              </button>
+
+              <p className="pt-3 text-center text-[15px] font-semibold text-[#5a6574] sm:text-[16px]">
+                Don't have an account?
+                <button
+                  type="button"
+                  onClick={() => onNotify('Contact administrator selected')}
+                  className="ml-2 font-bold text-[#055ee4] transition hover:text-[#034bb6]"
+                >
+                  Contact Administrator
+                </button>
+              </p>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <footer className="mx-auto flex w-full max-w-[1470px] flex-col gap-2 px-3 py-6 text-center text-[14px] font-semibold text-[#566173] sm:flex-row sm:items-center sm:justify-between sm:text-left">
+        <p>© 2024 Malwa Solar Energy CRM. All rights reserved.</p>
+        <p className="inline-flex items-center justify-center gap-1.5 sm:justify-end">
+          Made with
+          <Heart className="size-4 fill-current text-[#ff2f2f]" />
+          for a Sustainable Future
+          <Leaf className="size-4 fill-current text-[#4db52f]" />
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+function LoginFeature({ feature }) {
+  const Icon = feature.icon;
+
+  return (
+    <div className="text-center">
+      <div className="mx-auto grid size-16 place-items-center rounded-full bg-white/28 text-white ring-1 ring-white/20 sm:size-[72px] lg:size-[78px]">
+        <Icon className="size-8 sm:size-9" />
+      </div>
+      <p className="mt-5 text-[15px] font-extrabold sm:text-[16px]">{feature.title}</p>
+      <p className="mx-auto mt-3 max-w-[160px] text-[13px] font-semibold leading-7 text-white/92 sm:text-[14px]">
+        {feature.text}
+      </p>
     </div>
   );
 }
@@ -647,7 +938,7 @@ function StatCard({ stat }) {
   const Icon = stat.icon;
 
   return (
-    <article className={`${panelClass} flex min-h-[102px] items-center gap-3 px-3 py-4 sm:gap-4 sm:px-4`}>
+    <article className={`${panelClass} flex min-h-[106px] items-center gap-3 px-3 py-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)] sm:gap-4 sm:px-4`}>
       <div
         className={cx(
           'flex size-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-white shadow-[0_12px_24px_rgba(24,86,190,0.18)] sm:size-[52px]',
@@ -689,17 +980,19 @@ function SectionHeader({ icon: Icon, title, actionLabel, onAction, iconTone = 'p
     }[iconTone] ?? 'text-[#2d67e1]';
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8eef6] bg-[#f8fbff]/95 px-4 py-3.5">
       <div className="flex items-center gap-2.5">
-        <Icon className={cx('size-[18px]', iconClass)} />
-        <h2 className="font-display text-[16px] font-extrabold text-[#223768]">{title}</h2>
+        <span className="grid size-8 place-items-center rounded-[8px] bg-white shadow-[inset_0_0_0_1px_rgba(220,230,243,0.9)]">
+          <Icon className={cx('size-[17px]', iconClass)} />
+        </span>
+        <h2 className="font-display text-[15px] font-extrabold text-[#223768] sm:text-[16px]">{title}</h2>
       </div>
 
       {actionLabel ? (
         <button
           type="button"
           onClick={onAction}
-          className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#2d67e1] transition hover:opacity-80"
+          className="inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[13px] font-extrabold text-[#2d67e1] transition hover:bg-[#eef5ff]"
         >
           {actionLabel}
           <ArrowRight className="size-4" />
