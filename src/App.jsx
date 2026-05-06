@@ -227,7 +227,7 @@ function cx(...classes) {
 }
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState('signin');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
   const [activeSidebarItem, setActiveSidebarItem] = useState('Dashboard');
@@ -261,7 +261,13 @@ function App() {
   if (currentPage === 'signin') {
     return (
       <>
-        <SignInPage onNotify={notify} />
+        <SignInPage
+          onLogin={() => {
+            setCurrentPage('dashboard');
+            notify('Dashboard opened');
+          }}
+          onNotify={notify}
+        />
         <Toast toast={toast} />
       </>
     );
@@ -726,7 +732,7 @@ function Toast({ toast }) {
   );
 }
 
-function SignInPage({ onNotify }) {
+function SignInPage({ onLogin, onNotify }) {
   const [showPassword, setShowPassword] = useState(false);
   const features = [
     {
@@ -810,7 +816,7 @@ function SignInPage({ onNotify }) {
               className="mt-9 space-y-6 sm:mt-11 sm:space-y-7"
               onSubmit={(event) => {
                 event.preventDefault();
-                onNotify('Login submitted');
+                onLogin();
               }}
             >
               <label className="block">
