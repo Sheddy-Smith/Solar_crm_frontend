@@ -18,15 +18,39 @@ body {
   color: #20345f;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
 button:focus-visible,
-input:focus-visible {
+button:focus-visible {
   outline: 2px solid rgba(45, 103, 225, 0.42);
   outline-offset: 2px;
+}
+
+input:focus,
+input:focus-visible,
+select:focus,
+select:focus-visible,
+textarea:focus,
+textarea:focus-visible {
+  outline: none;
 }
 
 #root {
@@ -141,9 +165,22 @@ input:focus-visible {
   background: #f8fbff;
 }
 
+@media (max-width: 1280px) {
+  .crm-table th,
+  .crm-table td {
+    padding: 12px 13px;
+  }
+}
+
 @media (max-width: 767px) {
   .header-banner::before,
   .header-banner::after {
     width: 28px;
+  }
+
+  .crm-table th,
+  .crm-table td {
+    padding: 11px 12px;
+    font-size: 12px;
   }
 }

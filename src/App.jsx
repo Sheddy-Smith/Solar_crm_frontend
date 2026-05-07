@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -9,7 +9,10 @@ import {
   ChevronRight,
   ClipboardPlus,
   Clock3,
+  ChevronLeft,
   Eye,
+  Download,
+  Flag,
   FilePlus2,
   FileText,
   FolderKanban,
@@ -19,10 +22,16 @@ import {
   Leaf,
   LockKeyhole,
   LogIn,
+  Mail,
+  MapPin,
   Menu,
   MessageSquareMore,
   Minus,
+  MoreVertical,
+  Plus,
+  Save,
   ReceiptText,
+  RefreshCw,
   Search,
   Settings,
   ShieldCheck,
@@ -52,6 +61,13 @@ const sidebarItems = [
   { label: 'AMC & Warranty', icon: ShieldCheck },
   { label: 'Settings', icon: Settings, disabled: true },
 ];
+
+const leadSubItems = ['Lead List', 'Create Lead'];
+
+const leadSubRoutes = {
+  'Lead List': '/lead/list',
+  'Create Lead': '/lead/create',
+};
 
 const stats = [
   {
@@ -182,6 +198,109 @@ const recentLeads = [
   },
 ];
 
+const leadListRows = [
+  {
+    customer: 'Amit Sharma',
+    mobile: '9876543210',
+    ivrs: 'IVRS123456',
+    project: '5kW On-Grid',
+    type: 'On-Grid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    nextFollowUp: '20 May 2024',
+  },
+  {
+    customer: 'Sunil Verma',
+    mobile: '9123456780',
+    ivrs: 'IVRS123457',
+    project: '10kW On-Grid',
+    type: 'On-Grid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
+    nextFollowUp: '20 May 2024',
+  },
+  {
+    customer: 'Pooja Mehta',
+    mobile: '9988776655',
+    ivrs: 'IVRS123458',
+    project: '3kW On-Grid',
+    type: 'On-Grid',
+    status: 'New',
+    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    nextFollowUp: '21 May 2024',
+  },
+  {
+    customer: 'Rajesh Gupta',
+    mobile: '8877665544',
+    ivrs: 'IVRS123459',
+    project: '7.5kW On-Grid',
+    type: 'On-Grid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
+    nextFollowUp: '21 May 2024',
+  },
+  {
+    customer: 'Manish Tiwari',
+    mobile: '7766554433',
+    ivrs: 'IVRS123460',
+    project: '10kW On-Grid',
+    type: 'On-Grid',
+    status: 'New',
+    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
+    nextFollowUp: '22 May 2024',
+  },
+  {
+    customer: 'Deepak Joshi',
+    mobile: '7894561230',
+    ivrs: 'IVRS123461',
+    project: '10kW On-Grid',
+    type: 'On-Grid',
+    status: 'Quotation',
+    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
+    nextFollowUp: '23 May 2024',
+  },
+  {
+    customer: 'Anjali Patel',
+    mobile: '9696969696',
+    ivrs: 'IVRS123462',
+    project: '3kW On-Grid',
+    type: 'On-Grid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
+    nextFollowUp: '23 May 2024',
+  },
+  {
+    customer: 'Vikas Yadav',
+    mobile: '9585836585',
+    ivrs: 'IVRS123463',
+    project: '5kW On-Grid',
+    type: 'On-Grid',
+    status: 'New',
+    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    nextFollowUp: '24 May 2024',
+  },
+  {
+    customer: 'Kavita Rana',
+    mobile: '8524567890',
+    ivrs: 'IVRS123464',
+    project: '7.5kW On-Grid',
+    type: 'On-Grid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    nextFollowUp: '24 May 2024',
+  },
+  {
+    customer: 'Suresh Kumar',
+    mobile: '7418529630',
+    ivrs: 'IVRS123465',
+    project: '5kW On-Grid',
+    type: 'On-Grid',
+    status: 'Lost',
+    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
+    nextFollowUp: '25 May 2024',
+  },
+];
+
 const overdueFollowUps = [
   { customer: 'Amit Sharma', project: '5kW On-Grid', delay: '2 Days Overdue' },
   { customer: 'Sunil Verma', project: '10kW On-Grid', delay: '2 Days Overdue' },
@@ -243,6 +362,12 @@ function App() {
     if (action === 'Sign in') {
       setCurrentPage('signin');
       notify('Sign in opened');
+      return;
+    }
+
+    if (action === 'Logout') {
+      setCurrentPage('signin');
+      notify('Logged out');
       return;
     }
 
@@ -317,17 +442,18 @@ function App() {
               <nav className="space-y-0.5">
                 {sidebarItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = item.label === activeSidebarItem;
-                  const showLeadDivider = item.label === 'Lead';
+                  const isLeadSection = item.label === 'Lead';
+                  const isLeadOpen = isLeadSection && (activeSidebarItem === 'Lead' || leadSubItems.includes(activeSidebarItem));
+                  const isActive = item.label === activeSidebarItem || isLeadOpen;
 
                   return (
-                    <div key={item.label} className={cx(showLeadDivider && !desktopSidebarCollapsed && 'border-b border-white/50 pb-1')}>
+                    <div key={item.label}>
                       <button
                         type="button"
                         onClick={() => {
-                          setActiveSidebarItem(item.label);
+                          setActiveSidebarItem(isLeadSection ? 'Lead List' : item.label);
                           setMobileSidebarOpen(false);
-                          notify(`${item.label} section selected`);
+                          notify(`${isLeadSection ? 'Lead List' : item.label} section selected`);
                         }}
                         title={desktopSidebarCollapsed ? item.label : undefined}
                         aria-label={item.label}
@@ -350,9 +476,43 @@ function App() {
                           {item.label}
                         </span>
                         {item.showChevron && !desktopSidebarCollapsed ? (
-                          <ChevronRight className="size-4 shrink-0 text-white/90" />
+                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', isLeadOpen && '-rotate-90')} />
                         ) : null}
                       </button>
+                      {isLeadOpen && !desktopSidebarCollapsed ? (
+                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                          <div className="space-y-1">
+                            {leadSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem;
+
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  data-route={leadSubRoutes[subItem]}
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened. Route can be connected later.`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span
+                                    className={cx(
+                                      'size-1.5 rounded-full',
+                                      isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]',
+                                    )}
+                                  />
+                                  <span>{subItem}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -361,7 +521,10 @@ function App() {
               {!desktopSidebarCollapsed ? (
                 <button
                   type="button"
-                  onClick={() => notify('Logout clicked')}
+                  onClick={() => {
+                    setCurrentPage('signin');
+                    notify('Logged out');
+                  }}
                   className="mt-12 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/[0.09] px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]"
                 >
                   <LogOut className="size-[17px] shrink-0" />
@@ -437,7 +600,7 @@ function App() {
                       </button>
 
                       {profileMenuOpen ? (
-                        <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                        <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
                           {['Sign in', 'Sign up', 'Logout'].map((item) => (
                             <button
                               key={`mobile-${item}`}
@@ -454,7 +617,7 @@ function App() {
                   </div>
                 </div>
 
-                <label className="flex h-11 items-center rounded-[10px] border border-[#dfe7f2] bg-[#fbfcff] px-4 lg:col-span-1 xl:col-span-1">
+                <label className="flex h-11 items-center rounded-[10px] border border-black/20 bg-[#fbfcff] px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 lg:col-span-1 xl:col-span-1">
                   <Search className="size-4 text-[#7486a3]" />
                   <input
                     type="search"
@@ -513,7 +676,7 @@ function App() {
                     </button>
 
                     {profileMenuOpen ? (
-                      <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                      <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
                         {['Sign in', 'Sign up', 'Logout'].map((item) => (
                           <button
                             key={item}
@@ -531,6 +694,28 @@ function App() {
               </div>
             </header>
 
+            {activeSidebarItem === 'Lead List' ? (
+              <LeadListPage
+                onCreateLead={() => {
+                  setActiveSidebarItem('Create Lead');
+                  notify('Create Lead opened');
+                }}
+                onNotify={notify}
+              />
+            ) : activeSidebarItem === 'Create Lead' ? (
+              <CreateLeadPage
+                onCancel={() => {
+                  setActiveSidebarItem('Lead List');
+                  notify('Lead List opened');
+                }}
+                onDashboard={() => {
+                  setActiveSidebarItem('Dashboard');
+                  notify('Dashboard opened');
+                }}
+                onNotify={notify}
+              />
+            ) : (
+              <>
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {stats.map((stat) => (
                 <StatCard key={stat.title} stat={stat} />
@@ -706,6 +891,8 @@ function App() {
                 <Leaf className="size-3.5 text-[#1bc35f]" />
               </p>
             </footer>
+              </>
+            )}
           </div>
         </main>
       </div>
@@ -723,7 +910,7 @@ function Toast({ toast }) {
   return (
     <div
       key={toast.id}
-      className="fixed bottom-5 right-5 z-[80] rounded-[12px] border border-[#dce7f5] bg-white px-4 py-3 text-[13px] font-extrabold text-[#223768] shadow-[0_16px_34px_rgba(21,43,83,0.16)]"
+      className="fixed bottom-5 left-4 right-4 z-[80] rounded-[12px] border border-[#dce7f5] bg-white px-4 py-3 text-center text-[13px] font-extrabold text-[#223768] shadow-[0_16px_34px_rgba(21,43,83,0.16)] sm:left-auto sm:right-5 sm:max-w-[360px] sm:text-left"
       role="status"
       aria-live="polite"
     >
@@ -759,9 +946,9 @@ function SignInPage({ onLogin, onNotify }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#eef3f7] px-3 py-4 text-[#172648] sm:px-5 lg:px-7">
-      <main className="mx-auto grid h-auto min-h-[90vh] w-[95vw] max-w-[1960px] overflow-hidden rounded-[24px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.18)] lg:grid-cols-[55fr_45fr]">
+      <main className="mx-auto grid h-auto min-h-[90vh] w-[95vw] max-w-[1960px] overflow-hidden rounded-[22px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.18)] sm:rounded-[24px] lg:grid-cols-[55fr_45fr]">
         <section
-          className="relative isolate min-h-[620px] overflow-hidden bg-cover bg-no-repeat px-7 py-8 sm:min-h-[720px] sm:px-12 sm:py-12 lg:min-h-full lg:rounded-l-[24px] lg:px-[5.2vw] lg:py-[4.2vw] xl:px-[5.8vw] 2xl:px-[6.2vw]"
+          className="relative isolate min-h-[560px] overflow-hidden bg-cover bg-no-repeat px-6 py-8 sm:min-h-[680px] sm:px-12 sm:py-12 lg:min-h-full lg:rounded-l-[24px] lg:px-[5.2vw] lg:py-[4.2vw] xl:px-[5.8vw] 2xl:px-[6.2vw]"
           style={{
             backgroundImage: `url(${signInBgImage})`,
             backgroundPosition: 'left center',
@@ -779,7 +966,7 @@ function SignInPage({ onLogin, onNotify }) {
             </div>
           </div>
 
-          <div className="relative z-10 mt-14 max-w-[760px] sm:mt-20 lg:mt-[7.4vh] xl:mt-[8.2vh]">
+          <div className="relative z-10 mt-12 max-w-[760px] sm:mt-20 lg:mt-[7.4vh] xl:mt-[8.2vh]">
             <h1 className="font-display text-[clamp(2.6rem,7vw,4rem)] font-extrabold leading-[1.12] text-[#102446] lg:text-[clamp(3rem,3.35vw,4.15rem)]">
               Powering a
               <span className="mt-1 block text-[#087532]">Sustainable Future</span>
@@ -792,8 +979,8 @@ function SignInPage({ onLogin, onNotify }) {
             </p>
           </div>
 
-          <div className="relative z-10 mt-12 rounded-[24px] border border-white/20 bg-[linear-gradient(105deg,rgba(29,166,67,0.92)_0%,rgba(12,137,132,0.88)_48%,rgba(13,108,202,0.92)_100%)] p-6 text-white shadow-[0_18px_34px_rgba(11,71,118,0.24)] sm:p-7 lg:absolute lg:bottom-[5.2vh] lg:left-[3.8vw] lg:right-[3.3vw] lg:mt-0">
-            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="relative z-10 mt-10 rounded-[22px] border border-white/20 bg-[linear-gradient(105deg,rgba(29,166,67,0.92)_0%,rgba(12,137,132,0.88)_48%,rgba(13,108,202,0.92)_100%)] p-5 text-white shadow-[0_18px_34px_rgba(11,71,118,0.24)] sm:mt-12 sm:rounded-[24px] sm:p-7 lg:absolute lg:bottom-[5.2vh] lg:left-[3.8vw] lg:right-[3.3vw] lg:mt-0">
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
               {features.map((feature) => (
                 <LoginFeature key={feature.title} feature={feature} />
               ))}
@@ -821,7 +1008,7 @@ function SignInPage({ onLogin, onNotify }) {
             >
               <label className="block">
                 <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Email / Mobile Number</span>
-                <span className="mt-4 flex h-[62px] items-center gap-5 rounded-[9px] border border-[#d6dde8] bg-white px-5 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] focus-within:border-[#1486d7] focus-within:ring-4 focus-within:ring-[#1486d7]/10">
+                <span className="mt-4 flex h-[62px] items-center gap-5 rounded-[9px] border border-black/20 bg-white px-5 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
                   <UserRound className="size-6 text-[#7a8494]" />
                   <input
                     type="text"
@@ -833,7 +1020,7 @@ function SignInPage({ onLogin, onNotify }) {
 
               <label className="block">
                 <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Password</span>
-                <span className="mt-4 flex h-[62px] items-center gap-5 rounded-[9px] border border-[#d6dde8] bg-white px-5 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] focus-within:border-[#1486d7] focus-within:ring-4 focus-within:ring-[#1486d7]/10">
+                <span className="mt-4 flex h-[62px] items-center gap-5 rounded-[9px] border border-black/20 bg-white px-5 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
                   <LockKeyhole className="size-6 text-[#7a8494]" />
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -888,7 +1075,7 @@ function SignInPage({ onLogin, onNotify }) {
               <button
                 type="button"
                 onClick={() => onNotify('Google login selected')}
-                className="flex h-[64px] w-full items-center justify-center gap-4 rounded-[9px] border border-[#d6dde8] bg-white text-[18px] font-bold text-[#111827] shadow-[0_6px_16px_rgba(20,35,60,0.04)] transition hover:border-[#c7d3e5] hover:bg-[#fbfdff] sm:text-[20px]"
+                className="flex h-[64px] w-full items-center justify-center gap-4 rounded-[9px] border border-black/20 bg-white text-[18px] font-bold text-[#111827] shadow-[0_6px_16px_rgba(20,35,60,0.04)] transition hover:border-blue-500 hover:bg-[#fbfdff] sm:text-[20px]"
               >
                 <span className="font-display text-[25px] font-extrabold text-[#4285f4]">
                   G
@@ -937,6 +1124,585 @@ function LoginFeature({ feature }) {
         {feature.text}
       </p>
     </div>
+  );
+}
+
+function LeadListPage({ onCreateLead, onNotify }) {
+  const [followUpDate, setFollowUpDate] = useState('');
+  const followUpDateInputRef = useRef(null);
+  const headers = [
+    '#',
+    'Customer Name',
+    'Mobile Number',
+    'IVRS Number',
+    'Project Name',
+    'Project Type',
+    'Status',
+    'Assigned To',
+    'Next Follow-up',
+    'Action',
+  ];
+
+  const openFollowUpDatePicker = () => {
+    const input = followUpDateInputRef.current;
+    if (!input) {
+      return;
+    }
+
+    if (typeof input.showPicker === 'function') {
+      input.showPicker();
+      return;
+    }
+
+    input.focus();
+    input.click();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 rounded-[14px] bg-white/60 p-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="font-display text-[24px] font-extrabold leading-tight text-[#111827] sm:text-[28px]">
+            Lead List
+          </h1>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] font-bold">
+            <button type="button" onClick={() => onNotify('Dashboard breadcrumb selected')} className="text-[#0b65e5]">
+              Dashboard
+            </button>
+            <ChevronRight className="size-3.5 text-[#9aa8bc]" />
+            <span className="text-[#53647f]">Lead</span>
+            <ChevronRight className="size-3.5 text-[#9aa8bc]" />
+            <span className="text-[#111827]">Lead List</span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => onNotify('Lead export started')}
+            data-action="lead-export"
+            className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
+          >
+            <Download className="size-4" />
+            Export
+          </button>
+          <button
+            type="button"
+            onClick={onCreateLead}
+            data-route={leadSubRoutes['Create Lead']}
+            className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#12a54f] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9145]"
+          >
+            <Plus className="size-4" />
+            Create Lead
+          </button>
+        </div>
+      </div>
+
+      <section className={`${panelClass} relative z-40 overflow-visible p-4 sm:p-5`}>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1.4fr_1fr_1fr_1fr_1.1fr_auto] 2xl:items-end">
+          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+            <input
+              type="search"
+              placeholder="Search by name, mobile, IVRS..."
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
+            />
+            <Search className="size-4 text-[#7386a3]" />
+          </label>
+
+          <FilterSelect label="Project Type" options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']} />
+          <FilterSelect label="Status" options={['All', 'New', 'Follow-up', 'Quotation', 'Lost']} />
+          <FilterSelect label="Assigned To" options={['All', 'Rohit Singh', 'Neha Kumari', 'Vikram Patel']} />
+
+          <label className="block">
+            <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Follow-up Date</span>
+            <button
+              type="button"
+              onClick={openFollowUpDatePicker}
+              className="relative flex h-11 w-full items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-left text-[13px] font-bold text-[#6f7f98] transition hover:bg-[#fbfdff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            >
+              <CalendarDays className="size-4 text-[#7386a3]" />
+              <span className={cx('pointer-events-none', followUpDate ? 'text-[#30466d]' : 'text-[#6f7f98]')}>
+                {followUpDate || 'Select date range'}
+              </span>
+              <input
+                ref={followUpDateInputRef}
+                type="date"
+                value={followUpDate}
+                onChange={(event) => setFollowUpDate(event.target.value)}
+                className="pointer-events-none absolute bottom-0 left-4 h-px w-px opacity-0"
+                tabIndex={-1}
+                aria-label="Select follow-up date"
+              />
+            </button>
+          </label>
+
+          <button
+            type="button"
+            onClick={() => onNotify('Lead filters reset')}
+            data-action="lead-reset-filters"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          >
+            <RefreshCw className="size-4 text-[#0b65e5]" />
+            Reset Filters
+          </button>
+        </div>
+      </section>
+
+      <section className={`${panelClass} relative z-10 overflow-hidden p-3 sm:p-4`}>
+        <div className="space-y-3 lg:hidden">
+          {leadListRows.map((lead, index) => (
+            <LeadListMobileCard
+              key={`${lead.ivrs}-${lead.mobile}`}
+              index={index + 1}
+              lead={lead}
+              onNotify={onNotify}
+            />
+          ))}
+        </div>
+
+        <div className="hidden overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+          <div className="overflow-x-auto">
+            <table className="crm-table min-w-[1180px] w-full">
+              <thead>
+                <tr>
+                  {headers.map((header) => (
+                    <th key={header}>{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {leadListRows.map((lead, index) => (
+                  <tr key={`${lead.ivrs}-${lead.mobile}`}>
+                    <td className="font-extrabold text-[#233a6b]">{index + 1}</td>
+                    <td className="font-bold text-[#233a6b]">{lead.customer}</td>
+                    <td>{lead.mobile}</td>
+                    <td>{lead.ivrs}</td>
+                    <td className="font-bold text-[#233a6b]">{lead.project}</td>
+                    <td>{lead.type}</td>
+                    <td>
+                      <StatusBadge status={lead.status} />
+                    </td>
+                    <td>
+                      <AssigneeCell assignee={lead.assignedTo} compact />
+                    </td>
+                    <td className={cx('font-extrabold', index < 2 ? 'text-[#f04438]' : 'text-[#233a6b]')}>
+                      {lead.nextFollowUp}
+                    </td>
+                    <td>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onNotify(`${lead.customer} lead opened`)}
+                          data-action="lead-view"
+                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
+                          aria-label={`View ${lead.customer}`}
+                        >
+                          <Eye className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onNotify(`${lead.customer} more actions opened`)}
+                          data-action="lead-more-actions"
+                          className="inline-flex size-8 items-center justify-center rounded-[8px] text-[#53647f] transition hover:bg-[#f5f9ff]"
+                          aria-label={`More actions for ${lead.customer}`}
+                        >
+                          <MoreVertical className="size-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+          <p>Showing 1 to 10 of 125 entries</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <PaginationButton onClick={() => onNotify('Previous page selected')}>
+              <ChevronLeft className="size-4" />
+            </PaginationButton>
+            <PaginationButton active onClick={() => onNotify('Page 1 selected')}>1</PaginationButton>
+            <PaginationButton onClick={() => onNotify('Page 2 selected')}>2</PaginationButton>
+            <PaginationButton onClick={() => onNotify('Page 3 selected')}>3</PaginationButton>
+            <span className="px-2 text-[#53647f]">...</span>
+            <PaginationButton onClick={() => onNotify('Page 13 selected')}>13</PaginationButton>
+            <PaginationButton onClick={() => onNotify('Next page selected')}>
+              <ChevronRight className="size-4" />
+            </PaginationButton>
+          </div>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function CreateLeadPage({ onCancel, onDashboard, onNotify }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 rounded-[14px] bg-white/60 p-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="font-display text-[24px] font-extrabold leading-tight text-[#111827] sm:text-[28px]">
+            Create Lead
+          </h1>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] font-bold">
+            <button
+              type="button"
+              onClick={onDashboard}
+              className="rounded-[7px] border border-black/20 px-2 py-1 text-[#0b65e5] transition hover:bg-white"
+            >
+              Dashboard
+            </button>
+            <ChevronRight className="size-3.5 text-[#9aa8bc]" />
+            <span className="text-[#53647f]">Lead</span>
+            <ChevronRight className="size-3.5 text-[#9aa8bc]" />
+            <span className="text-[#111827]">Create Lead</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <button
+            type="button"
+            onClick={onCancel}
+            data-action="create-lead-cancel"
+            data-route={leadSubRoutes['Lead List']}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-extrabold text-[#233a6b] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:bg-[#f8fbff] sm:w-auto"
+          >
+            <X className="size-4" />
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="create-lead-form"
+            data-action="create-lead-save"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-[#10a64e] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9145] sm:w-auto"
+          >
+            <Save className="size-4" />
+            Save Lead
+          </button>
+        </div>
+      </div>
+
+      <form
+        id="create-lead-form"
+        className="grid gap-4 xl:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onNotify('Lead saved');
+        }}
+      >
+        <LeadFormSection
+          title="1. Basic Information"
+          icon={ReceiptText}
+          tone="success"
+          className="xl:min-h-[286px]"
+        >
+          <div className="grid gap-4 lg:grid-cols-3">
+            <LeadInput label="Customer Name" required icon={UserRound} placeholder="Enter customer name" />
+            <LeadPhoneInput label="Mobile Number" required placeholder="Enter mobile number" />
+            <LeadInput label="IVRS Number" required icon={CalendarDays} placeholder="Enter IVRS number" rightHint />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <LeadPhoneInput label="Alternate Number" placeholder="Enter alternate number" />
+            <LeadInput label="Email Address" icon={Mail} placeholder="Enter email address" type="email" />
+          </div>
+        </LeadFormSection>
+
+        <LeadFormSection title="2. Project Information" icon={ClipboardPlus} tone="primary" className="xl:min-h-[286px]">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <LeadInput label="Project Name" icon={CalendarDays} placeholder="Enter project name" />
+            <LeadSelect label="Project Type" placeholder="Select project type" options={['On-Grid', 'Off-Grid', 'Hybrid']} />
+          </div>
+          <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <LeadSelect label="Source" placeholder="Select source" options={['Website', 'Referral', 'Walk-in', 'Campaign']} />
+            <LeadInput label="Estimated Capacity (kW)" icon={CalendarDays} placeholder="Enter capacity (e.g. 5, 10, 20)" />
+          </div>
+        </LeadFormSection>
+
+        <LeadFormSection title="3. Assignment & Follow-up" icon={UserRound} tone="purple" className="xl:min-h-[256px]">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <LeadSelect label="Assigned Employee" required placeholder="Select employee" options={['Rohit Singh', 'Neha Kumari', 'Vikram Patel']} />
+            <LeadDateInput label="Follow-up Date" required />
+            <LeadSelect label="Lead Status" placeholder="New" options={['New', 'Follow-up', 'Quotation', 'Lost']} badgeValue="New" />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-[0.75fr_1.75fr]">
+            <LeadSelect label="Priority" icon={Flag} placeholder="Select priority" options={['High', 'Medium', 'Low']} />
+            <LeadTextarea label="Remarks" icon={MapPin} placeholder="Enter remarks (optional)" compact />
+          </div>
+        </LeadFormSection>
+
+        <LeadFormSection title="4. Location Information" titleSuffix="(Optional)" icon={MapPin} tone="warning" className="xl:min-h-[256px]">
+          <LeadTextarea label="Address" icon={MapPin} placeholder="Enter full address" />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <LeadInput label="Latitude" optional icon={MapPin} placeholder="Enter latitude" />
+            <LeadInput label="Longitude" optional icon={MapPin} placeholder="Enter longitude" />
+          </div>
+        </LeadFormSection>
+
+        <CreateLeadNotice />
+      </form>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function LeadFormSection({ title, titleSuffix, icon: Icon, tone = 'primary', className, children }) {
+  const toneClass =
+    {
+      primary: 'text-[#0b65e5] bg-[#edf5ff]',
+      success: 'text-[#078c3e] bg-[#e9f8ee]',
+      purple: 'text-[#4f38ef] bg-[#f0edff]',
+      warning: 'text-[#ff9700] bg-[#fff4df]',
+    }[tone] ?? 'text-[#0b65e5] bg-[#edf5ff]';
+
+  return (
+    <section className={cx(`${panelClass} p-5`, className)}>
+      <div className="mb-5 flex items-center gap-3">
+        <span className={cx('grid size-8 place-items-center rounded-[9px]', toneClass)}>
+          <Icon className="size-[17px]" />
+        </span>
+        <h2 className={cx('text-[15px] font-extrabold', toneClass.split(' ')[0])}>
+          {title}
+          {titleSuffix ? <span className="ml-1 font-bold text-[#53647f]">{titleSuffix}</span> : null}
+        </h2>
+      </div>
+      <div className="space-y-5">{children}</div>
+    </section>
+  );
+}
+
+function LeadInput({ label, placeholder, icon: Icon, required = false, optional = false, type = 'text', rightHint = false }) {
+  return (
+    <label className="block min-w-0">
+      <LeadLabel label={label} required={required} optional={optional} rightHint={rightHint} />
+      <span className="mt-2 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+        {Icon ? <Icon className="size-4 shrink-0 text-[#8391a8]" /> : null}
+        <input
+          type={type}
+          placeholder={placeholder}
+          className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+        />
+      </span>
+    </label>
+  );
+}
+
+function LeadPhoneInput({ label, placeholder, required = false }) {
+  return (
+    <label className="block min-w-0">
+      <LeadLabel label={label} required={required} />
+      <span className="mt-2 flex h-11 overflow-hidden rounded-[8px] border border-black/20 bg-white transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+        <select className="w-[68px] border-r border-black/20 bg-white px-3 text-[13px] font-extrabold text-[#233a6b] outline-none">
+          <option>+91</option>
+          <option>+1</option>
+          <option>+44</option>
+        </select>
+        <input
+          type="tel"
+          placeholder={placeholder}
+          className="min-w-0 flex-1 bg-transparent px-3 text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+        />
+      </span>
+    </label>
+  );
+}
+
+function LeadSelect({ label, placeholder, options, required = false, icon: Icon, badgeValue }) {
+  return (
+    <label className="block min-w-0">
+      <LeadLabel label={label} required={required} />
+      <span className="mt-2 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+        {Icon ? <Icon className="size-4 shrink-0 text-[#8391a8]" /> : null}
+        {badgeValue ? (
+          <span className="rounded-[7px] bg-[#e8f8eb] px-3 py-1 text-[12px] font-extrabold text-[#18a34a]">
+            {badgeValue}
+          </span>
+        ) : null}
+        <select className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#53647f] outline-none">
+          <option>{placeholder}</option>
+          {options.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+      </span>
+    </label>
+  );
+}
+
+function LeadDateInput({ label, required = false }) {
+  const dateInputRef = useRef(null);
+  const [date, setDate] = useState('');
+
+  const openPicker = () => {
+    const input = dateInputRef.current;
+    if (!input) {
+      return;
+    }
+
+    if (typeof input.showPicker === 'function') {
+      input.showPicker();
+      return;
+    }
+
+    input.focus();
+    input.click();
+  };
+
+  return (
+    <label className="block min-w-0">
+      <LeadLabel label={label} required={required} />
+      <button
+        type="button"
+        onClick={openPicker}
+        className="relative mt-2 flex h-11 w-full items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 text-left transition hover:bg-[#fbfdff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+      >
+        <CalendarDays className="size-4 shrink-0 text-[#8391a8]" />
+        <span className={cx('text-[13px] font-bold', date ? 'text-[#30466d]' : 'text-[#8a98af]')}>
+          {date || 'Select follow-up date'}
+        </span>
+        <input
+          ref={dateInputRef}
+          type="date"
+          value={date}
+          onChange={(event) => setDate(event.target.value)}
+          className="pointer-events-none absolute bottom-0 left-4 h-px w-px opacity-0"
+          tabIndex={-1}
+          aria-label={label}
+        />
+      </button>
+    </label>
+  );
+}
+
+function LeadTextarea({ label, placeholder, icon: Icon, compact = false }) {
+  return (
+    <label className="block min-w-0">
+      <LeadLabel label={label} />
+      <span
+        className={cx(
+          'mt-2 flex items-start gap-3 rounded-[8px] border border-black/20 bg-white px-3 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100',
+          compact ? 'min-h-[62px]' : 'min-h-[74px]',
+        )}
+      >
+        {Icon ? <Icon className="mt-0.5 size-4 shrink-0 text-[#8391a8]" /> : null}
+        <textarea
+          placeholder={placeholder}
+          rows={compact ? 2 : 3}
+          className="min-h-full min-w-0 flex-1 resize-y bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+        />
+      </span>
+    </label>
+  );
+}
+
+function LeadLabel({ label, required = false, optional = false, rightHint = false }) {
+  return (
+    <span className="flex min-h-[18px] items-center gap-1 text-[12px] font-extrabold text-[#34466c]">
+      <span>
+        {label}
+        {optional ? <span className="ml-1 font-bold text-[#7a879b]">(Optional)</span> : null}
+      </span>
+      {required ? <span className="text-[#f04438]">*</span> : null}
+      {rightHint ? <span className="ml-auto grid size-4 place-items-center rounded-full border border-[#93a2b8] text-[10px] text-[#617089]">i</span> : null}
+    </span>
+  );
+}
+
+function CreateLeadNotice() {
+  return (
+    <div className="rounded-[12px] border border-[#bfe7ca] bg-[#f0fbf3] p-4 xl:col-span-2">
+      <div className="flex gap-4">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#d8f4df] text-[#0b8e3c]">
+          <ShieldCheck className="size-6" />
+        </span>
+        <div>
+          <p className="text-[13px] font-extrabold text-[#0c7d3a]">Important Note</p>
+          <p className="mt-1 text-[13px] font-semibold leading-6 text-[#276747]">
+            Mobile Number and IVRS Number are mandatory. IVRS Number must be unique. Duplicate IVRS will not be allowed.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FilterSelect({ label, options }) {
+  return (
+    <label>
+      <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{label}</span>
+      <select className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+        {options.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function PaginationButton({ active = false, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cx(
+        'inline-flex size-9 items-center justify-center rounded-[8px] border text-[13px] font-extrabold transition',
+        active
+          ? 'border-[#11a650] bg-[#11a650] text-white shadow-[0_10px_18px_rgba(17,166,80,0.22)]'
+          : 'border-[#dce7f5] bg-white text-[#284276] hover:bg-[#f8fbff]',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function LeadListMobileCard({ index, lead, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e5edf6] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#233a6b]">{lead.customer}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{lead.project}</p>
+        </div>
+        <StatusBadge status={lead.status} />
+      </div>
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Mobile" value={lead.mobile} />
+        <InfoCell label="IVRS" value={lead.ivrs} />
+        <InfoCell label="Project Type" value={lead.type} />
+        <InfoCell label="Next Follow-up" value={lead.nextFollowUp} valueClass={index <= 2 ? 'text-[#f04438]' : undefined} />
+        <InfoCell label="Assigned To" valueNode={<AssigneeCell assignee={lead.assignedTo} compact />} />
+      </div>
+      <button
+        type="button"
+        onClick={() => onNotify(`${lead.customer} lead opened`)}
+        data-action="lead-view-mobile"
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-3 py-2 text-[12px] font-extrabold text-[#2d67e1]"
+      >
+        View Lead
+        <Eye className="size-3.5" />
+      </button>
+    </article>
+  );
+}
+
+function DashboardFooter() {
+  return (
+    <footer className="flex flex-col gap-2 border-t border-[#e4ebf4] px-1 pb-1 pt-3 text-center text-[12px] font-semibold text-[#7b88a2] sm:text-left lg:flex-row lg:items-center lg:justify-between">
+      <p>Copyright 2024 Malwa Solar CRM. All rights reserved.</p>
+      <p className="inline-flex items-center justify-center gap-1.5 lg:justify-end">
+        Made with
+        <Heart className="size-3.5 fill-current text-[#ff4b4f]" />
+        for a Sustainable Future
+        <Leaf className="size-3.5 text-[#1bc35f]" />
+      </p>
+    </footer>
   );
 }
 
