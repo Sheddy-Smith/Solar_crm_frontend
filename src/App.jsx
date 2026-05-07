@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
+  AlertTriangle,
   BarChart3,
   Bell,
   Boxes,
   CalendarDays,
+  CheckCircle2,
   ChevronRight,
   ClipboardPlus,
   Clock3,
@@ -28,6 +30,7 @@ import {
   MessageSquareMore,
   Minus,
   MoreVertical,
+  Phone,
   Plus,
   Save,
   ReceiptText,
@@ -43,10 +46,11 @@ import {
   UsersRound,
   Wrench,
   X,
+  XCircle,
   Zap,
 } from 'lucide-react';
-import headerImage from '../Data/header_image.png';
 import signInBgImage from './assets/data/Sign_in_bg_hd.png';
+import navBarImage from './assets/data/nav_bar_img.png';
 
 const sidebarItems = [
   { label: 'Dashboard', icon: Home, active: true },
@@ -63,6 +67,7 @@ const sidebarItems = [
 ];
 
 const leadSubItems = ['Lead List', 'Create Lead'];
+const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Follow-up History', 'Admin Approval'];
 
 const leadSubRoutes = {
   'Lead List': '/lead/list',
@@ -443,7 +448,7 @@ function App() {
                 {sidebarItems.map((item) => {
                   const Icon = item.icon;
                   const isLeadSection = item.label === 'Lead';
-                  const isLeadOpen = isLeadSection && (activeSidebarItem === 'Lead' || leadSubItems.includes(activeSidebarItem));
+                  const isLeadOpen = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
                   const isActive = item.label === activeSidebarItem || isLeadOpen;
 
                   return (
@@ -628,7 +633,7 @@ function App() {
 
                 <div className="header-banner relative min-w-0 overflow-hidden rounded-[10px] border border-[#e5edf6] bg-white p-1 lg:col-span-2 xl:col-span-1">
                   <img
-                    src={headerImage}
+                    src={navBarImage}
                     alt="Solar header"
                     className="h-[52px] w-full rounded-[8px] object-cover object-center sm:h-[58px]"
                   />
@@ -700,6 +705,10 @@ function App() {
                   setActiveSidebarItem('Create Lead');
                   notify('Create Lead opened');
                 }}
+                onOpenLead={() => {
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
                 onNotify={notify}
               />
             ) : activeSidebarItem === 'Create Lead' ? (
@@ -711,6 +720,42 @@ function App() {
                 onDashboard={() => {
                   setActiveSidebarItem('Dashboard');
                   notify('Dashboard opened');
+                }}
+                onRequestApproval={() => {
+                  setActiveSidebarItem('Admin Approval');
+                  notify('Admin Approval opened');
+                }}
+                onNotify={notify}
+              />
+            ) : activeSidebarItem === 'Lead Details' ? (
+              <LeadDetailsPage
+                onBackToList={() => {
+                  setActiveSidebarItem('Lead List');
+                  notify('Lead List opened');
+                }}
+                onCreateLead={() => {
+                  setActiveSidebarItem('Create Lead');
+                  notify('Edit Lead opened');
+                }}
+                onFollowUpHistory={() => {
+                  setActiveSidebarItem('Follow-up History');
+                  notify('Follow-up History opened');
+                }}
+                onNotify={notify}
+              />
+            ) : activeSidebarItem === 'Follow-up History' ? (
+              <FollowUpHistoryPage
+                onBackToDetails={() => {
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
+                onNotify={notify}
+              />
+            ) : activeSidebarItem === 'Admin Approval' ? (
+              <AdminApprovalPage
+                onLeadDetails={() => {
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
                 }}
                 onNotify={notify}
               />
@@ -1127,7 +1172,7 @@ function LoginFeature({ feature }) {
   );
 }
 
-function LeadListPage({ onCreateLead, onNotify }) {
+function LeadListPage({ onCreateLead, onOpenLead, onNotify }) {
   const [followUpDate, setFollowUpDate] = useState('');
   const followUpDateInputRef = useRef(null);
   const headers = [
@@ -1255,6 +1300,7 @@ function LeadListPage({ onCreateLead, onNotify }) {
               key={`${lead.ivrs}-${lead.mobile}`}
               index={index + 1}
               lead={lead}
+              onOpenLead={onOpenLead}
               onNotify={onNotify}
             />
           ))}
@@ -1292,7 +1338,7 @@ function LeadListPage({ onCreateLead, onNotify }) {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
-                          onClick={() => onNotify(`${lead.customer} lead opened`)}
+                          onClick={onOpenLead}
                           data-action="lead-view"
                           className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
                           aria-label={`View ${lead.customer}`}
@@ -1340,7 +1386,9 @@ function LeadListPage({ onCreateLead, onNotify }) {
   );
 }
 
-function CreateLeadPage({ onCancel, onDashboard, onNotify }) {
+function CreateLeadPage({ onCancel, onDashboard, onRequestApproval, onNotify }) {
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 rounded-[14px] bg-white/60 p-3 sm:flex-row sm:items-end sm:justify-between">
@@ -1391,7 +1439,7 @@ function CreateLeadPage({ onCancel, onDashboard, onNotify }) {
         className="grid gap-4 xl:grid-cols-2"
         onSubmit={(event) => {
           event.preventDefault();
-          onNotify('Lead saved');
+          setDuplicateModalOpen(true);
         }}
       >
         <LeadFormSection
@@ -1447,6 +1495,17 @@ function CreateLeadPage({ onCancel, onDashboard, onNotify }) {
       </form>
 
       <DashboardFooter />
+
+      {duplicateModalOpen ? (
+        <DuplicateIvrsModal
+          onClose={() => setDuplicateModalOpen(false)}
+          onRequestApproval={() => {
+            setDuplicateModalOpen(false);
+            onRequestApproval();
+          }}
+          onNotify={onNotify}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1631,6 +1690,378 @@ function CreateLeadNotice() {
   );
 }
 
+function LeadDetailsPage({ onBackToList, onCreateLead, onFollowUpHistory, onNotify }) {
+  const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
+
+  const quickDetailActions = [
+    { label: 'Add Follow-up', icon: ShieldCheck, tone: 'green', onClick: () => setFollowUpModalOpen(true) },
+    { label: 'Create Quotation (UI)', icon: CalendarDays, tone: 'blue', onClick: () => onNotify('Quotation page will open here') },
+    { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => onNotify('Assign Lead action selected') },
+    { label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => onNotify('Change Status action selected') },
+    { label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => onNotify('Add Note action selected') },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Lead Details"
+        crumbs={[
+          { label: 'Dashboard', onClick: onBackToList },
+          { label: 'Lead', onClick: onBackToList },
+          { label: 'Lead Details' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={onCreateLead} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
+              <FileText className="size-4" />
+              Edit Lead
+            </button>
+            <button type="button" onClick={() => setFollowUpModalOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
+              <Plus className="size-4" />
+              Add Follow-up
+            </button>
+            <button type="button" onClick={() => onNotify('Lead options opened')} className="inline-flex size-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]" aria-label="More lead actions">
+              <MoreVertical className="size-4" />
+            </button>
+          </>
+        )}
+      />
+
+      <div className="flex flex-col gap-3 rounded-[12px] border border-[#f4cf83] bg-[#fff8e8] p-4 text-[13px] font-extrabold text-[#a76200] sm:flex-row sm:items-center sm:justify-between">
+        <span className="inline-flex items-center gap-2"><AlertTriangle className="size-4" /> IVRS Number: IVRS123456</span>
+        <span className="rounded-[8px] bg-[#fff0cf] px-3 py-1">Duplicate Check: Unique</span>
+        <span className="rounded-[8px] bg-[#dff6e7] px-3 py-1 text-[#087a39]">Status: Follow-up</span>
+      </div>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <InfoPanel title="1. Basic Information" icon={CalendarDays} tone="success">
+              <DetailRow label="Customer Name" value="Amit Sharma" />
+              <DetailRow label="Mobile Number" value="9876543210" />
+              <DetailRow label="Alternate Number" value="+91 9123456780" />
+              <DetailRow label="IVRS Number" valueNode={<span className="inline-flex items-center gap-2">IVRS123456 <StatusBadge status="Verified" /></span>} />
+              <DetailRow label="Email Address" value="amit.sharma@email.com" />
+              <DetailRow label="Address" value="123, Green Avenue, Indore, Madhya Pradesh - 452001" />
+              <DetailRow label="Source" value="Website" />
+              <DetailRow label="Assigned To" valueNode={<AssigneeCell assignee={{ name: 'Rohit Singh', initials: 'RS', tone: 'amber' }} compact />} />
+              <DetailRow label="Created On" value="20 May 2024, 10:30 AM" />
+            </InfoPanel>
+
+            <InfoPanel title="2. Project Information" icon={ClipboardPlus} tone="primary">
+              <DetailRow label="Project Name" value="5kW On-Grid" />
+              <DetailRow label="Project Type" value="On-Grid" />
+              <DetailRow label="Requirement Details" value="Customer is interested in installing 5kW On-Grid solar system for home." />
+              <DetailRow label="Estimated Capacity" value="5 kW" />
+              <DetailRow label="Follow-up Date" value="20 May 2024" />
+              <DetailRow label="Lead Status" valueNode={<StatusBadge status="Follow-up" />} />
+              <DetailRow label="Priority" valueNode={<span className="rounded-[8px] bg-[#fff0dc] px-2.5 py-1 text-[11px] font-extrabold text-[#f39b20]">Medium</span>} />
+            </InfoPanel>
+          </div>
+
+          <InfoPanel title="3. Follow-up History" icon={Phone} actionLabel="View All Follow-ups" onAction={onFollowUpHistory}>
+            <div className="space-y-5">
+              {[
+                ['Follow-up Completed', 'Customer is interested and asked for site visit. Will share quotation after site visit.', '18 May 2024, 04:30 PM', 'success'],
+                ['Follow-up Scheduled', 'Site visit scheduled on 20 May 2024.', '16 May 2024, 11:00 AM', 'primary'],
+                ['Initial Call', 'Initial discussion done. Customer is interested in solar system.', '15 May 2024, 10:15 AM', 'slate'],
+              ].map(([title, text, date, tone]) => (
+                <TimelineItem key={title} title={title} text={text} date={date} tone={tone} />
+              ))}
+            </div>
+          </InfoPanel>
+        </div>
+
+        <div className="space-y-4">
+          <InfoPanel title="IVRS Intelligence" icon={ShieldCheck} tone="success">
+            <div className="rounded-[10px] border border-[#d7f0df] bg-[#effbf3] p-4">
+              <p className="font-extrabold text-[#087a39]">IVRS: <span className="text-[#1e3261]">IVRS123456</span></p>
+              <p className="mt-2 text-[12px] font-bold text-[#087a39]">This IVRS Number is unique. No duplicate found.</p>
+            </div>
+          </InfoPanel>
+          <InfoPanel title="Linked Leads (Same Mobile Number)" icon={Phone} tone="danger" actionLabel="View All Linked Leads" onAction={() => onNotify('Linked leads opened')}>
+            <p className="mb-3 font-extrabold text-[#1e3261]">Mobile: 9876543210 <span className="ml-2 rounded-[8px] bg-[#dff6e7] px-2 py-1 text-[11px] text-[#087a39]">3 Leads</span></p>
+            {['5kW On-Grid', '10kW On-Grid', '3kW On-Grid'].map((item, index) => (
+              <div key={item} className="mb-2 flex items-center justify-between rounded-[8px] border border-[#edf2f8] bg-white px-3 py-2 text-[12px] font-bold text-[#263d72]">
+                <span>{item}</span>
+                <StatusBadge status={index === 0 ? 'Won' : index === 1 ? 'Follow-up' : 'Lost'} />
+              </div>
+            ))}
+          </InfoPanel>
+          <InfoPanel title="Quick Actions" icon={Zap} tone="success">
+            <div className="grid gap-3">
+              {quickDetailActions.map((action) => (
+                <MiniActionButton key={action.label} {...action} />
+              ))}
+            </div>
+          </InfoPanel>
+        </div>
+      </section>
+
+      <DashboardFooter />
+      {followUpModalOpen ? <AddFollowUpModal onClose={() => setFollowUpModalOpen(false)} onSave={() => { setFollowUpModalOpen(false); onNotify('Follow-up saved'); }} /> : null}
+    </div>
+  );
+}
+
+function FollowUpHistoryPage({ onBackToDetails, onNotify }) {
+  const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
+  const timeline = [
+    { title: 'Follow-up Completed', tag: 'Completed', text: 'Customer is interested in 5kW On-Grid system. Discussed product quality, subsidy and installation timeline.', date: '18 May 2024\n04:30 PM', tone: 'success', icon: Phone },
+    { title: 'Follow-up Scheduled', tag: 'Scheduled', text: 'Site visit scheduled on 20 May 2024 at 11:00 AM.', date: '16 May 2024\n11:00 AM', tone: 'primary', icon: CalendarDays },
+    { title: 'Site Visit Completed', tag: 'Completed', text: 'Site visit completed. Customer is satisfied with the site assessment.', date: '20 May 2024\n01:45 PM', tone: 'purple', icon: Users },
+    { title: 'Note Added', tag: 'Note', text: 'Customer will share electricity bill on WhatsApp for better system sizing.', date: '21 May 2024\n02:20 PM', tone: 'warning', icon: Flag },
+    { title: 'Initial Call', tag: 'Missed Call', text: 'Initial call made to customer.', date: '15 May 2024\n10:15 AM', tone: 'danger', icon: Phone },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Follow-up History"
+        crumbs={[{ label: 'Dashboard', onClick: onBackToDetails }, { label: 'Lead', onClick: onBackToDetails }, { label: 'Lead Details', onClick: onBackToDetails }, { label: 'Follow-up History' }]}
+        actions={(
+          <>
+            <button type="button" onClick={() => setFollowUpModalOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)]">
+              <Plus className="size-4" />
+              Add Follow-up
+            </button>
+            <button type="button" onClick={() => onNotify('Follow-up options opened')} className="inline-flex size-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b]"><MoreVertical className="size-4" /></button>
+          </>
+        )}
+      />
+
+      <section className={`${panelClass} p-4`}>
+        <div className="grid gap-4 lg:grid-cols-[auto_1fr_auto_auto] lg:items-center">
+          <span className="grid size-12 place-items-center rounded-full bg-[#e4f8ea] text-[#18a34a]"><Users className="size-6" /></span>
+          <div>
+            <p className="text-[17px] font-extrabold text-[#1e3261]">Amit Sharma <StatusBadge status="Follow-up" /></p>
+            <p className="mt-2 flex flex-wrap gap-4 text-[13px] font-bold text-[#314a79]">Mobile: 9876543210 <span>IVRS: IVRS123456</span> <span>Project: 5kW On-Grid</span> <span>Assigned To: Rohit Singh</span></p>
+          </div>
+          <div><p className="text-[12px] font-extrabold text-[#53647f]">Lead Status</p><StatusBadge status="Follow-up" /></div>
+          <div><p className="text-[12px] font-extrabold text-[#53647f]">Next Follow-up</p><p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">25 May 2024, 11:00 AM</p></div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <InfoPanel title="Follow-up Timeline" icon={ShieldCheck}>
+          <div className="space-y-8">
+            {timeline.map((item) => <HistoryItem key={item.title} item={item} />)}
+          </div>
+          <div className="mt-6 text-center">
+            <button type="button" onClick={() => onNotify('More history loaded')} className="inline-flex items-center gap-2 rounded-[8px] border border-[#d8e4f4] bg-white px-5 py-2 text-[13px] font-extrabold text-[#0b65e5]">Load More History <Download className="size-4" /></button>
+          </div>
+        </InfoPanel>
+
+        <div className="space-y-4">
+          <InfoPanel title="Follow-up Summary" icon={ReceiptText} tone="success">
+            {[
+              ['Total Follow-ups', '5', 'text-[#1e3261]'],
+              ['Completed', '2', 'text-[#0d9f4a]'],
+              ['Scheduled', '2', 'text-[#0b65e5]'],
+              ['Notes', '1', 'text-[#d98200]'],
+              ['Missed', '0', 'text-[#e3342f]'],
+            ].map(([label, value, color]) => (
+              <div key={label} className="flex justify-between border-b border-[#edf2f8] py-2 text-[13px] font-bold"><span>{label}</span><span className={color}>{value}</span></div>
+            ))}
+          </InfoPanel>
+          <InfoPanel title="Next Follow-up Details" icon={CalendarDays} tone="primary">
+            <DetailRow label="Date" value="25 May 2024" />
+            <DetailRow label="Time" value="11:00 AM" />
+            <DetailRow label="Type" value="Site Visit" />
+            <DetailRow label="Assigned To" valueNode={<AssigneeCell assignee={{ name: 'Rohit Singh', initials: 'RS', tone: 'amber' }} compact />} />
+            <DetailRow label="Reminder" value="1 Day Before" />
+            <button type="button" onClick={() => setFollowUpModalOpen(true)} className="mt-3 w-full rounded-[8px] bg-[#0d9f4a] px-4 py-2.5 text-[13px] font-extrabold text-white">Edit Next Follow-up</button>
+          </InfoPanel>
+          <InfoPanel title="Quick Actions" icon={Zap} tone="success">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <MiniActionButton label="Add Follow-up" icon={ShieldCheck} tone="green" onClick={() => setFollowUpModalOpen(true)} />
+              <MiniActionButton label="Schedule Site Visit" icon={CalendarDays} tone="blue" onClick={() => onNotify('Site visit scheduled')} />
+              <MiniActionButton label="Add Note" icon={Users} tone="purple" onClick={() => onNotify('Note added')} />
+              <MiniActionButton label="Change Lead Status" icon={Clock3} tone="amber" onClick={() => onNotify('Lead status change selected')} />
+            </div>
+          </InfoPanel>
+        </div>
+      </section>
+
+      <DashboardFooter />
+      {followUpModalOpen ? <AddFollowUpModal onClose={() => setFollowUpModalOpen(false)} onSave={() => { setFollowUpModalOpen(false); onNotify('Follow-up saved'); }} /> : null}
+    </div>
+  );
+}
+
+function AdminApprovalPage({ onLeadDetails, onNotify }) {
+  const rows = ['IVRS123456', 'IVRS789012', 'IVRS345678', 'IVRS901234', 'IVRS112233', 'IVRS445566', 'IVRS778899', 'IVRS667788'];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading title="Admin Approval - IVRS Request" crumbs={[{ label: 'Dashboard', onClick: onLeadDetails }, { label: 'Admin' }, { label: 'IVRS Approval' }]} />
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ['Pending Approvals', '8', 'warning', ReceiptText],
+          ['Approved Today', '5', 'success', CheckCircle2],
+          ['Rejected Today', '1', 'danger', XCircle],
+          ['Total Requests', '42', 'primary', FileText],
+        ].map(([label, value, tone, Icon]) => <ApprovalStat key={label} label={label} value={value} tone={tone} Icon={Icon} />)}
+      </section>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <article className={`${panelClass} overflow-hidden`}>
+          <div className="flex flex-col gap-3 border-b border-[#edf2f8] p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap gap-6 text-[13px] font-extrabold">
+              {['Pending (8)', 'Approved', 'Rejected', 'All'].map((tab, index) => <button key={tab} type="button" onClick={() => onNotify(`${tab} tab selected`)} className={cx('pb-2', index === 0 ? 'border-b-2 border-[#0d9f4a] text-[#0d9f4a]' : 'text-[#53647f]')}>{tab}</button>)}
+            </div>
+            <div className="flex gap-3">
+              <label className="flex h-10 min-w-[260px] items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <Search className="size-4 text-[#7585a2]" />
+                <input className="min-w-0 flex-1 bg-transparent text-[13px] font-bold outline-none" placeholder="Search by IVRS, name, mobile..." />
+              </label>
+              <button type="button" onClick={() => onNotify('Approval filters opened')} className="rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#233a6b]">Filters</button>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="crm-table min-w-[880px] w-full">
+              <thead><tr>{['#', 'IVRS Number', 'Customer Name', 'Mobile Number', 'Project Type', 'Requested By', 'Requested On', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+              <tbody>
+                {rows.map((ivrs, index) => (
+                  <tr key={ivrs}>
+                    <td>{index + 1}</td>
+                    <td className="font-extrabold text-[#233a6b]">{ivrs}</td>
+                    <td>{['Amit Sharma', 'Sunil Patidar', 'Neha Jain', 'Vikram Singh', 'Pooja Verma', 'Manish Gupta', 'Jatin Agrawal', 'Kavita Joshi'][index]}</td>
+                    <td>{['9876543210', '9827456781', '9893012345', '9753124680', '9135782469', '9222334455', '9340011223', '9870098765'][index]}</td>
+                    <td>{['5kW On-Grid', '10kW On-Grid', '3kW On-Grid', '5kW On-Grid', 'On-Grid', '10kW On-Grid', '5kW On-Grid', '3kW On-Grid'][index]}</td>
+                    <td>Rohit Singh</td>
+                    <td>20 May 2024<br />{['10:30 AM', '10:15 AM', '09:45 AM', '09:30 AM', '09:10 AM', '08:50 AM', '08:35 AM', '08:20 AM'][index]}</td>
+                    <td><div className="flex gap-2"><button type="button" onClick={() => onNotify(`${ivrs} approved`)} className="rounded-[7px] bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#087a39]">Approve</button><button type="button" onClick={() => onNotify(`${ivrs} rejected`)} className="rounded-[7px] bg-[#ffe9e6] px-2.5 py-1 text-[11px] font-extrabold text-[#e3342f]">Reject</button></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between px-4 py-4 text-[13px] font-bold text-[#53647f]"><span>Showing 1 to 8 of 8 entries</span><PaginationButton active onClick={() => onNotify('Page 1 selected')}>1</PaginationButton></div>
+        </article>
+        <div className="space-y-4">
+          <InfoPanel title="IVRS Request Details" icon={CalendarDays} tone="primary">
+            <DetailRow label="IVRS Number" value="IVRS123456" />
+            <DetailRow label="Customer Name" value="Amit Sharma" />
+            <DetailRow label="Mobile Number" value="9876543210" />
+            <DetailRow label="Project Type" value="5kW On-Grid" />
+            <DetailRow label="Requested By" valueNode={<AssigneeCell assignee={{ name: 'Rohit Singh', initials: 'RS', tone: 'amber' }} compact />} />
+            <DetailRow label="Requested On" value="20 May 2024, 10:30 AM" />
+          </InfoPanel>
+          <InfoPanel title="IVRS Intelligence" icon={AlertTriangle} tone="warning">
+            <div className="rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4 text-[13px] font-bold text-[#087a39]">IVRS: <span className="text-[#1e3261]">IVRS123456</span><p className="mt-2">This IVRS Number is unique. No duplicate found.</p></div>
+          </InfoPanel>
+          <InfoPanel title="Note" icon={InfoIcon} tone="primary">
+            <p className="text-[13px] font-semibold leading-6 text-[#53647f]">Please verify customer details and project type before approving.</p>
+          </InfoPanel>
+          <InfoPanel title="Quick Actions" icon={Zap} tone="success">
+            <MiniActionButton label="View Lead Details" icon={Search} tone="blue" onClick={onLeadDetails} />
+            <MiniActionButton label="View IVRS Intelligence" icon={ShieldCheck} tone="blue" onClick={() => onNotify('IVRS intelligence opened')} />
+            <MiniActionButton label="Refresh List" icon={RefreshCw} tone="blue" onClick={() => onNotify('Approval list refreshed')} />
+          </InfoPanel>
+        </div>
+      </section>
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function DuplicateIvrsModal({ onClose, onRequestApproval, onNotify }) {
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="max-h-[92vh] w-full max-w-[650px] overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div className="flex gap-3"><span className="grid size-10 place-items-center rounded-full bg-[#fff0dc] text-[#f59e0b]"><AlertTriangle className="size-6" /></span><div><h2 className="font-display text-[20px] font-extrabold text-[#111827]">Duplicate IVRS Detected</h2><p className="mt-1 text-[13px] font-semibold text-[#53647f]">The IVRS Number you entered already exists in our system.</p></div></div>
+          <button type="button" onClick={onClose} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
+        </div>
+        <div className="rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4"><p className="text-[12px] font-extrabold text-[#a76200]">Entered IVRS Number</p><p className="mt-1 text-[22px] font-extrabold text-[#111827]">IVRS123456</p></div>
+        <p className="mt-5 text-[13px] font-extrabold text-[#1e3261]">Existing Lead(s) with this IVRS Number</p>
+        <div className="mt-3 overflow-hidden rounded-[10px] border border-[#e7eef7]"><table className="crm-table min-w-[540px] w-full"><thead><tr>{['#', 'Customer Name', 'Mobile Number', 'Project Name', 'Lead Status', 'Assigned To', 'Created On'].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>{['5kW On-Grid', '10kW On-Grid', '3kW On-Grid'].map((project, index) => <tr key={project}><td>{index + 1}</td><td>Amit Sharma</td><td>9876543210</td><td>{project}</td><td><StatusBadge status={index === 0 ? 'Follow-up' : index === 1 ? 'Won' : 'Lost'} /></td><td>Rohit Singh</td><td>{index === 0 ? '18 May 2024' : index === 1 ? '10 May 2024' : '02 May 2024'}</td></tr>)}</tbody></table></div>
+        <div className="mt-5 rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4 text-[13px] font-semibold text-[#314a79]"><p className="font-extrabold text-[#d98200]">System Rule (IVRS Protection)</p><p className="mt-2">Same IVRS = Same Customer</p><p>Different project with same IVRS requires Admin Approval.</p><p>You cannot create a new lead with the same IVRS without approval.</p></div>
+        <div className="mt-5 space-y-3 text-[13px] font-bold text-[#1e3261]"><p>What would you like to do?</p><label className="flex items-center gap-2"><input type="radio" defaultChecked className="accent-[#0d9f4a]" /> Request Admin Approval to create new lead with this IVRS</label><label className="flex items-center gap-2"><input type="radio" className="accent-[#0d9f4a]" /> Cancel and use a different IVRS Number</label></div>
+        <div className="mt-6 flex flex-col justify-end gap-3 sm:flex-row"><button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={onRequestApproval} className="h-11 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Request Approval</button></div>
+      </div>
+    </div>
+  );
+}
+
+function AddFollowUpModal({ onClose, onSave }) {
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="max-h-[92vh] w-full max-w-[900px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="flex items-center gap-3 font-display text-[20px] font-extrabold text-[#111827]"><CalendarDays className="size-5 text-[#0b65e5]" /> Add Follow-up</h2><button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button></div>
+        <div className="grid gap-5 p-6 md:grid-cols-2 xl:grid-cols-4">
+          <ReadonlyField label="Lead Name" value="Amit Sharma" />
+          <ReadonlyField label="Mobile Number" value="9876543210" />
+          <ReadonlyField label="IVRS Number" value="IVRS123456" />
+          <ReadonlyField label="Project Name" value="5kW On-Grid" />
+          <LeadSelect label="Follow-up Type" required icon={Phone} placeholder="Phone Call" options={['Site Visit', 'WhatsApp', 'Email']} />
+          <LeadDateInput label="Follow-up Date" required />
+          <LeadInput label="Follow-up Time" required icon={Clock3} placeholder="04:30 PM" />
+          <LeadSelect label="Talked To" icon={Users} placeholder="Amit Sharma (Self)" options={['Family Member', 'Site Owner']} />
+          <div className="md:col-span-2 xl:col-span-4"><LeadTextarea label="Follow-up Notes" icon={FileText} placeholder="Customer is interested in 5kW On-Grid system..." /></div>
+          <LeadDateInput label="Next Follow-up Date" required />
+          <LeadInput label="Next Follow-up Time" icon={Clock3} placeholder="11:00 AM" />
+          <LeadSelect label="Reminder" icon={Bell} placeholder="1 Day Before" options={['2 Hours Before', 'Same Day']} />
+          <LeadSelect label="Assigned To" icon={Users} placeholder="Rohit Singh" options={['Neha Kumari', 'Vikram Patel']} />
+          <LeadSelect label="Priority" icon={Flag} placeholder="Medium" options={['High', 'Low']} />
+          <LeadInput label="Attachment" optional icon={FileText} placeholder="Upload file" />
+        </div>
+        <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <label className="inline-flex items-center gap-3 text-[13px] font-bold text-[#314a79]"><input type="checkbox" defaultChecked className="size-5 rounded accent-[#0d9f4a]" /> Add to today follow-ups</label>
+          <div className="flex gap-3"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={onSave} className="h-10 rounded-[8px] bg-[linear-gradient(90deg,#0d9f4a,#116fd0)] px-6 text-[13px] font-extrabold text-white">Save Follow-up</button></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageHeading({ title, crumbs, actions }) {
+  return (
+    <div className="flex flex-col gap-4 rounded-[14px] bg-white/60 p-2 sm:flex-row sm:items-end sm:justify-between">
+      <div><h1 className="font-display text-[24px] font-extrabold text-[#111827] sm:text-[28px]">{title}</h1><div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] font-bold">{crumbs.map((crumb, index) => <span key={`${crumb.label}-${index}`} className="inline-flex items-center gap-2">{crumb.onClick ? <button type="button" onClick={crumb.onClick} className="text-[#0b65e5]">{crumb.label}</button> : <span className="text-[#53647f]">{crumb.label}</span>}{index < crumbs.length - 1 ? <ChevronRight className="size-3.5 text-[#9aa8bc]" /> : null}</span>)}</div></div>
+      {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
+    </div>
+  );
+}
+
+function InfoPanel({ title, icon: Icon, tone = 'primary', actionLabel, onAction, children }) {
+  const toneClass = { primary: 'text-[#0b65e5]', success: 'text-[#0d9f4a]', danger: 'text-[#ef4444]', warning: 'text-[#f59e0b]', purple: 'text-[#5944e8]' }[tone] ?? 'text-[#0b65e5]';
+  return <article className={`${panelClass} p-5`}><div className="mb-4 flex items-center justify-between gap-3"><h2 className={`flex items-center gap-2 text-[15px] font-extrabold ${toneClass}`}><Icon className="size-4" />{title}</h2>{actionLabel ? <button type="button" onClick={onAction} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#0b65e5]">{actionLabel}<ArrowRight className="size-4" /></button> : null}</div>{children}</article>;
+}
+
+function DetailRow({ label, value, valueNode }) {
+  return <div className="grid gap-2 py-2 text-[13px] sm:grid-cols-[155px_1fr]"><span className="font-bold text-[#53647f]">{label}</span><span className="font-extrabold text-[#1e3261]">{valueNode ?? value}</span></div>;
+}
+
+function TimelineItem({ title, text, date, tone }) {
+  const toneClass = { success: 'bg-[#e8f8eb] text-[#0d9f4a]', primary: 'bg-[#e8f2ff] text-[#0b65e5]', slate: 'bg-[#eef2f7] text-[#7585a2]' }[tone] ?? 'bg-[#eef2f7] text-[#7585a2]';
+  return <div className="flex gap-4"><span className={`grid size-10 shrink-0 place-items-center rounded-full ${toneClass}`}><Phone className="size-4" /></span><div className="min-w-0 flex-1"><div className="flex flex-col gap-1 sm:flex-row sm:justify-between"><p className="font-extrabold text-[#1e3261]">{title}</p><p className="text-[12px] font-bold text-[#53647f]">{date}</p></div><p className="mt-1 text-[12px] font-bold text-[#53647f]">By Rohit Singh</p><p className="mt-1 text-[13px] font-semibold text-[#53647f]">{text}</p></div></div>;
+}
+
+function HistoryItem({ item }) {
+  const Icon = item.icon;
+  const toneClass = { success: 'bg-[#0d9f4a]', primary: 'bg-[#0b65e5]', purple: 'bg-[#5944e8]', warning: 'bg-[#f59e0b]', danger: 'bg-[#ef4444]' }[item.tone] ?? 'bg-[#7585a2]';
+  return <div className="grid gap-4 sm:grid-cols-[40px_1fr_auto]"><span className={`grid size-10 place-items-center rounded-full text-white ${toneClass}`}><Icon className="size-5" /></span><div><p className="font-extrabold text-[#1e3261]">{item.title} <span className="ml-2 rounded-[7px] bg-[#e8f8eb] px-2 py-1 text-[11px] text-[#0d9f4a]">{item.tag}</span></p><p className="mt-2 text-[12px] font-bold text-[#53647f]">By Rohit Singh</p><p className="mt-2 text-[13px] font-semibold text-[#53647f]">{item.text}</p></div><p className="whitespace-pre-line text-right text-[13px] font-bold text-[#53647f]">{item.date}</p></div>;
+}
+
+function MiniActionButton({ label, icon: Icon, tone = 'blue', onClick }) {
+  const toneClass = { green: 'border-[#d7f0df] bg-[#effbf3] text-[#087a39]', blue: 'border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]', purple: 'border-[#e2ddff] bg-[#f7f5ff] text-[#5944e8]', amber: 'border-[#f6dda9] bg-[#fff8e8] text-[#b76b00]', slate: 'border-[#d9e4f2] bg-[#f8fbff] text-[#1e3261]' }[tone] ?? 'border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]';
+  return <button type="button" onClick={onClick} className={`flex w-full items-center gap-3 rounded-[8px] border px-4 py-3 text-left text-[13px] font-extrabold transition hover:-translate-y-0.5 ${toneClass}`}><Icon className="size-4" />{label}</button>;
+}
+
+function ApprovalStat({ label, value, tone, Icon }) {
+  const toneClass = { warning: 'bg-[#fff0dc] text-[#f59e0b]', success: 'bg-[#e8f8eb] text-[#0d9f4a]', danger: 'bg-[#ffe9e6] text-[#ef4444]', primary: 'bg-[#e8f2ff] text-[#0b65e5]' }[tone];
+  return <article className={`${panelClass} flex items-center gap-4 p-5`}><span className={`grid size-11 place-items-center rounded-full ${toneClass}`}><Icon className="size-5" /></span><div><p className="text-[13px] font-bold text-[#53647f]">{label}</p><p className="mt-1 font-display text-[22px] font-extrabold text-[#111827]">{value}</p></div></article>;
+}
+
+function InfoIcon(props) {
+  return <AlertTriangle {...props} />;
+}
+
+function ReadonlyField({ label, value }) {
+  return <label className="block"><span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{label}</span><span className="flex h-11 items-center rounded-[8px] border border-black/20 bg-[#f8fafc] px-4 text-[13px] font-extrabold text-[#1e3261]">{value}</span></label>;
+}
+
 function FilterSelect({ label, options }) {
   return (
     <label>
@@ -1661,7 +2092,7 @@ function PaginationButton({ active = false, children, onClick }) {
   );
 }
 
-function LeadListMobileCard({ index, lead, onNotify }) {
+function LeadListMobileCard({ index, lead, onOpenLead, onNotify }) {
   return (
     <article className="rounded-[14px] border border-[#e5edf6] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
       <div className="flex items-start justify-between gap-3">
@@ -1681,7 +2112,7 @@ function LeadListMobileCard({ index, lead, onNotify }) {
       </div>
       <button
         type="button"
-        onClick={() => onNotify(`${lead.customer} lead opened`)}
+        onClick={onOpenLead}
         data-action="lead-view-mobile"
         className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-3 py-2 text-[12px] font-extrabold text-[#2d67e1]"
       >
