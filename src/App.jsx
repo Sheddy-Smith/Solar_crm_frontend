@@ -11,8 +11,10 @@ import {
   ChevronRight,
   ClipboardPlus,
   Clock3,
+  Cloud,
   ChevronLeft,
   Eye,
+  Database,
   Download,
   Flag,
   FilePlus2,
@@ -20,6 +22,7 @@ import {
   FolderKanban,
   Heart,
   Home,
+  HardDrive,
   IndianRupee,
   Leaf,
   LockKeyhole,
@@ -70,10 +73,11 @@ const leadSubItems = ['Lead List', 'Create Lead'];
 const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Follow-up History', 'Admin Approval'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const employeeRelatedPages = [...employeeSubItems];
-const accountsSubItems = ['Accounts List', 'Chart of Accounts', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List'];
+const accountsSubItems = ['Accounts List', 'Transactions List', 'Chart of Accounts', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List'];
 const accountsRelatedPages = ['Accounts Overview', ...accountsSubItems];
 const inventorySubItems = ['Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
 const inventoryRelatedPages = [...inventorySubItems];
+const settingsRelatedPages = ['Settings', 'Master Type', 'Payment Mode'];
 
 const leadSubRoutes = {
   'Lead List': '/lead/list',
@@ -89,6 +93,7 @@ const employeeSubRoutes = {
 const accountsSubRoutes = {
   'Accounts Overview': '/accounts/overview',
   'Accounts List': '/accounts/list',
+  'Transactions List': '/accounts/transactions',
   'Chart of Accounts': '/accounts/chart-of-accounts',
   'Payment Received': '/accounts/payment-received',
   'Payment Made': '/accounts/payment-made',
@@ -879,6 +884,99 @@ const accountTransactionRows = [
   { id: 4, date: '17 May 2024', reference: 'EXP-2024-0678', accountName: 'Office Expense', type: 'Expense', amount: 5420, paymentMode: 'Cash', status: 'Completed' },
 ];
 
+const transactionListRows = [
+  { id: 1, transactionNo: 'TRX-2024-0542', date: '07 May 2024', accountName: 'Sunlight Enterprises', type: 'Receipt', referenceNo: 'RCPT-0891', description: 'Payment received for INV-2024-0891', debit: 0, credit: 75000, balance: 5500440, status: 'Completed' },
+  { id: 2, transactionNo: 'TRX-2024-0541', date: '07 May 2024', accountName: 'Green Power Solutions', type: 'Payment', referenceNo: 'PMT-0654', description: 'Payment made to Green Power Solutions', debit: 45000, credit: 0, balance: 5425440, status: 'Completed' },
+  { id: 3, transactionNo: 'TRX-2024-0540', date: '06 May 2024', accountName: 'Bright Solar Pvt. Ltd.', type: 'Receipt', referenceNo: 'RCPT-0890', description: 'Advance received against project', debit: 0, credit: 150000, balance: 5470440, status: 'Completed' },
+  { id: 4, transactionNo: 'TRX-2024-0539', date: '06 May 2024', accountName: 'Electro Components Ltd.', type: 'Payment', referenceNo: 'PMT-0653', description: 'Payment for electrical components', debit: 32500, credit: 0, balance: 5320440, status: 'Completed' },
+  { id: 5, transactionNo: 'TRX-2024-0538', date: '05 May 2024', accountName: 'Bank of India (0123)', type: 'Transfer', referenceNo: 'TRF-0211', description: 'Fund transfer to HDFC Bank', debit: 0, credit: 200000, balance: 5352940, status: 'Completed' },
+  { id: 6, transactionNo: 'TRX-2024-0537', date: '04 May 2024', accountName: 'Sun Solar Systems', type: 'Payment', referenceNo: 'PMT-0652', description: 'Payment for solar panels', debit: 85000, credit: 0, balance: 5552940, status: 'Completed' },
+  { id: 7, transactionNo: 'TRX-2024-0536', date: '03 May 2024', accountName: 'Ravi Electricals', type: 'Receipt', referenceNo: 'RCPT-0889', description: 'Payment received for INV-2024-0889', debit: 0, credit: 60000, balance: 5637940, status: 'Completed' },
+  { id: 8, transactionNo: 'TRX-2024-0535', date: '02 May 2024', accountName: 'Cash Account', type: 'Payment', referenceNo: 'PMT-0651', description: 'Site expenses cash payment', debit: 5800, credit: 0, balance: 5577940, status: 'Completed' },
+  { id: 9, transactionNo: 'TRX-2024-0534', date: '01 May 2024', accountName: 'Green Power Solutions', type: 'Receipt', referenceNo: 'RCPT-0888', description: 'Advance received', debit: 0, credit: 100000, balance: 5583740, status: 'Completed' },
+  { id: 10, transactionNo: 'TRX-2024-0533', date: '30 Apr 2024', accountName: 'HDFC Bank (9876)', type: 'Transfer', referenceNo: 'TRF-0210', description: 'Funds transferred from Bank of India', debit: 0, credit: 300000, balance: 5483740, status: 'Completed' },
+];
+
+const chartOfAccountsRows = [
+  { id: 1, code: '1000', name: 'Assets', accountType: 'Asset', group: 'Assets', parentAccount: '-', normalBalance: 'Debit', status: 'Active' },
+  { id: 2, code: '1100', name: 'Current Assets', accountType: 'Asset', group: 'Assets', parentAccount: '1000 - Assets', normalBalance: 'Debit', status: 'Active' },
+  { id: 3, code: '1110', name: 'Cash in Hand', accountType: 'Asset', group: 'Current Assets', parentAccount: '1100 - Current Assets', normalBalance: 'Debit', status: 'Active' },
+  { id: 4, code: '1120', name: 'Cash at Bank', accountType: 'Asset', group: 'Current Assets', parentAccount: '1100 - Current Assets', normalBalance: 'Debit', status: 'Active' },
+  { id: 5, code: '1130', name: 'Accounts Receivable', accountType: 'Asset', group: 'Current Assets', parentAccount: '1100 - Current Assets', normalBalance: 'Debit', status: 'Active' },
+  { id: 6, code: '1200', name: 'Fixed Assets', accountType: 'Asset', group: 'Assets', parentAccount: '1000 - Assets', normalBalance: 'Debit', status: 'Active' },
+  { id: 7, code: '1210', name: 'Plant & Machinery', accountType: 'Asset', group: 'Fixed Assets', parentAccount: '1200 - Fixed Assets', normalBalance: 'Debit', status: 'Active' },
+  { id: 8, code: '1220', name: 'Furniture & Fixtures', accountType: 'Asset', group: 'Fixed Assets', parentAccount: '1200 - Fixed Assets', normalBalance: 'Debit', status: 'Active' },
+  { id: 9, code: '2000', name: 'Liabilities', accountType: 'Liability', group: 'Liabilities', parentAccount: '-', normalBalance: 'Credit', status: 'Active' },
+  { id: 10, code: '2100', name: 'Current Liabilities', accountType: 'Liability', group: 'Liabilities', parentAccount: '2000 - Liabilities', normalBalance: 'Credit', status: 'Active' },
+];
+
+const paymentReceivedRows = [
+  { id: 1, receiptNo: 'RCPT-2024-0217', date: '07 May 2024', customerName: 'Sunlight Enterprises', projectRef: 'INV-2024-0891', paymentMode: 'NEFT', account: 'HDFC Bank (9876)', amount: 75000, status: 'Completed' },
+  { id: 2, receiptNo: 'RCPT-2024-0216', date: '07 May 2024', customerName: 'Green Power Solutions', projectRef: 'INV-2024-0889', paymentMode: 'RTGS', account: 'HDFC Bank (9876)', amount: 45000, status: 'Completed' },
+  { id: 3, receiptNo: 'RCPT-2024-0215', date: '06 May 2024', customerName: 'Bright Solar Pvt. Ltd.', projectRef: 'ADV-2024-0034', paymentMode: 'Cash', account: 'Cash Account', amount: 150000, status: 'Completed' },
+  { id: 4, receiptNo: 'RCPT-2024-0214', date: '06 May 2024', customerName: 'Electro Components Ltd.', projectRef: 'INV-2024-0890', paymentMode: 'NEFT', account: 'ICICI Bank (4321)', amount: 32500, status: 'Completed' },
+  { id: 5, receiptNo: 'RCPT-2024-0213', date: '05 May 2024', customerName: 'Bank of India (0123)', projectRef: 'TRF-2024-0011', paymentMode: 'Transfer', account: 'HDFC Bank (9976)', amount: 200000, status: 'Completed' },
+  { id: 6, receiptNo: 'RCPT-2024-0212', date: '04 May 2024', customerName: 'Ravi Electricals', projectRef: 'INV-2024-0888', paymentMode: 'NEFT', account: 'Axis Bank (6789)', amount: 60000, status: 'Completed' },
+  { id: 7, receiptNo: 'RCPT-2024-0211', date: '03 May 2024', customerName: 'Sun Solar Systems', projectRef: 'INV-2024-0887', paymentMode: 'UPI', account: 'Axis Bank (6789)', amount: 85000, status: 'Completed' },
+  { id: 8, receiptNo: 'RCPT-2024-0210', date: '02 May 2024', customerName: 'Ultra Power Projects', projectRef: 'ADV-2024-0033', paymentMode: 'Cash', account: 'Cash Account', amount: 5800, status: 'Completed' },
+  { id: 9, receiptNo: 'RCPT-2024-0209', date: '01 May 2024', customerName: 'Green Power Solutions', projectRef: 'INV-2024-0886', paymentMode: 'NEFT', account: 'HDFC Bank (9976)', amount: 100000, status: 'Completed' },
+  { id: 10, receiptNo: 'RCPT-2024-0208', date: '30 Apr 2024', customerName: 'Shree Ram Traders', projectRef: 'INV-2024-0885', paymentMode: 'Cheque', account: 'ICICI Bank (4321)', amount: 300000, status: 'Completed' },
+];
+
+const paymentMadeRows = [
+  { id: 1, paymentNo: 'PMT-2024-0235', date: '07 May 2024', payeeName: 'Ravi Electricals', referenceNo: 'INV-2024-0891', account: 'HDFC Bank (9876)', paymentMode: 'NEFT', amount: 45000, status: 'Completed' },
+  { id: 2, paymentNo: 'PMT-2024-0234', date: '07 May 2024', payeeName: 'Sun Solar Systems', referenceNo: 'INV-2024-0889', account: 'HDFC Bank (9876)', paymentMode: 'RTGS', amount: 75000, status: 'Completed' },
+  { id: 3, paymentNo: 'PMT-2024-0233', date: '06 May 2024', payeeName: 'Green Power Solutions', referenceNo: 'INV-2024-0888', account: 'ICICI Bank (4321)', paymentMode: 'NEFT', amount: 60000, status: 'Completed' },
+  { id: 4, paymentNo: 'PMT-2024-0232', date: '06 May 2024', payeeName: 'Ultra Power Projects', referenceNo: 'ADV-2024-0033', account: 'Cash Account', paymentMode: 'Cash', amount: 5800, status: 'Completed' },
+  { id: 5, paymentNo: 'PMT-2024-0231', date: '05 May 2024', payeeName: 'Electro Components Ltd.', referenceNo: 'INV-2024-0890', account: 'HDFC Bank (9876)', paymentMode: 'UPI', amount: 32500, status: 'Completed' },
+  { id: 6, paymentNo: 'PMT-2024-0230', date: '04 May 2024', payeeName: 'Bright Solar Pvt. Ltd.', referenceNo: 'INV-2024-0887', account: 'Axis Bank (6789)', paymentMode: 'NEFT', amount: 150000, status: 'Completed' },
+  { id: 7, paymentNo: 'PMT-2024-0229', date: '03 May 2024', payeeName: 'Krishna Electricals', referenceNo: 'INV-2024-0886', account: 'ICICI Bank (4321)', paymentMode: 'Cheque', amount: 25000, status: 'Completed' },
+  { id: 8, paymentNo: 'PMT-2024-0228', date: '02 May 2024', payeeName: 'Shree Ram Traders', referenceNo: 'INV-2024-0885', account: 'HDFC Bank (9876)', paymentMode: 'RTGS', amount: 90000, status: 'Completed' },
+  { id: 9, paymentNo: 'PMT-2024-0227', date: '01 May 2024', payeeName: 'Office Rent', referenceNo: 'APR-2024', account: 'Cash Account', paymentMode: 'Cash', amount: 18000, status: 'Completed' },
+  { id: 10, paymentNo: 'PMT-2024-0226', date: '30 Apr 2024', payeeName: 'ABC Transport', referenceNo: 'BILL-2024-054', account: 'HDFC Bank (9876)', paymentMode: 'UPI', amount: 12000, status: 'Completed' },
+];
+
+const paymentModeRows = [
+  { id: 1, code: 'PM-001', name: 'Cash', type: 'Cash', description: 'Payments made or received in cash', status: 'Active' },
+  { id: 2, code: 'PM-002', name: 'Cheque', type: 'Cheque', description: 'Payments made or received by cheque', status: 'Active' },
+  { id: 3, code: 'PM-003', name: 'NEFT', type: 'Bank Transfer', description: 'National Electronic Funds Transfer', status: 'Active' },
+  { id: 4, code: 'PM-004', name: 'RTGS', type: 'Bank Transfer', description: 'Real Time Gross Settlement', status: 'Active' },
+  { id: 5, code: 'PM-005', name: 'IMPS', type: 'Bank Transfer', description: 'Immediate Payment Service', status: 'Active' },
+  { id: 6, code: 'PM-006', name: 'UPI', type: 'Digital', description: 'Unified Payments Interface', status: 'Active' },
+  { id: 7, code: 'PM-007', name: 'Net Banking', type: 'Digital', description: 'Internet / Net Banking', status: 'Active' },
+  { id: 8, code: 'PM-008', name: 'Card', type: 'Digital', description: 'Debit / Credit Card Payments', status: 'Active' },
+  { id: 9, code: 'PM-009', name: 'Wallet', type: 'Digital', description: 'Mobile Wallet Payments', status: 'Active' },
+  { id: 10, code: 'PM-010', name: 'DD', type: 'Cheque', description: 'Demand Draft', status: 'Inactive' },
+  { id: 11, code: 'PM-011', name: 'Bank Deposit', type: 'Bank Transfer', description: 'Direct Bank Deposit', status: 'Active' },
+  { id: 12, code: 'PM-012', name: 'Others', type: 'Others', description: 'Any other mode of payment', status: 'Active' },
+];
+
+const bankAccountRows = [
+  { id: 1, accountName: 'HDFC Operating A/c', bankName: 'HDFC Bank', accountNumber: '50200012345678', ifsc: 'HDFC0001234', accountType: 'Current Account', branch: 'Indore Main Branch', balance: 12548750.5, status: 'Active' },
+  { id: 2, accountName: 'ICICI Current Account', bankName: 'ICICI Bank', accountNumber: '123405000678', ifsc: 'ICIC0001234', accountType: 'Current Account', branch: 'Indore Branch', balance: 8536210, status: 'Active' },
+  { id: 3, accountName: 'Axis Business Account', bankName: 'Axis Bank', accountNumber: '917020024567890', ifsc: 'UTIB0001234', accountType: 'Current Account', branch: 'Indore Branch', balance: 6245300, status: 'Active' },
+  { id: 4, accountName: 'SBI Current Account', bankName: 'State Bank of India', accountNumber: '000000347896532', ifsc: 'SBIN0001234', accountType: 'Current Account', branch: 'Vijay Nagar Branch', balance: 10230450, status: 'Active' },
+  { id: 5, accountName: 'PNB Current Account', bankName: 'Punjab National Bank', accountNumber: '1234000100012345', ifsc: 'PUNB0123400', accountType: 'Current Account', branch: 'Indore Branch', balance: 4560780, status: 'Inactive' },
+  { id: 6, accountName: 'HDFC OD Account', bankName: 'HDFC Bank', accountNumber: '50200087654321', ifsc: 'HDFC0001234', accountType: 'OD Account', branch: 'Indore Main Branch', balance: 7825000, status: 'Active' },
+  { id: 7, accountName: 'ICICI Cash Credit', bankName: 'ICICI Bank', accountNumber: '123405000879', ifsc: 'ICIC0001234', accountType: 'Cash Credit', branch: 'Indore Branch', balance: 1200000, status: 'Active' },
+  { id: 8, accountName: 'IDFC First Business A/c', bankName: 'IDFC First Bank', accountNumber: '10171486412345', ifsc: 'IDFB0001017', accountType: 'Current Account', branch: 'Indore Branch', balance: 1875430, status: 'Active' },
+  { id: 9, accountName: 'Bank of Baroda A/c', bankName: 'Bank of Baroda', accountNumber: '308301000123456', ifsc: 'BARB0IND308', accountType: 'Current Account', branch: 'Indore Branch', balance: 1250600, status: 'Inactive' },
+  { id: 10, accountName: 'Yes Bank Current A/c', bankName: 'Yes Bank', accountNumber: '002896700012345', ifsc: 'YESB0000028', accountType: 'Current Account', branch: 'Indore Branch', balance: 1545245, status: 'Active' },
+];
+
+const chequeRows = [
+  { id: 1, chequeNo: '000123', date: '07 May 2024', bankAccount: 'HDFC Bank - 9876', payeeName: 'Ravi Electricals', amount: 45000, chequeType: 'Issued', status: 'Issued', clearedDate: '-' },
+  { id: 2, chequeNo: '000122', date: '06 May 2024', bankAccount: 'ICICI Bank - 4321', payeeName: 'Sun Solar Systems', amount: 75000, chequeType: 'Issued', status: 'Pending', clearedDate: '-' },
+  { id: 3, chequeNo: '000121', date: '05 May 2024', bankAccount: 'HDFC Bank - 9876', payeeName: 'Green Power Solutions', amount: 60000, chequeType: 'Issued', status: 'Issued', clearedDate: '-' },
+  { id: 4, chequeNo: '000120', date: '04 May 2024', bankAccount: 'Axis Bank - 6789', payeeName: 'Ultra Power Projects', amount: 150000, chequeType: 'Issued', status: 'Deposited', clearedDate: '06 May 2024' },
+  { id: 5, chequeNo: '000119', date: '03 May 2024', bankAccount: 'ICICI Bank - 4321', payeeName: 'Electro Components Ltd.', amount: 32500, chequeType: 'Issued', status: 'Cleared', clearedDate: '06 May 2024' },
+  { id: 6, chequeNo: '000118', date: '02 May 2024', bankAccount: 'HDFC Bank - 9876', payeeName: 'Krishna Electricals', amount: 25000, chequeType: 'Issued', status: 'Cleared', clearedDate: '05 May 2024' },
+  { id: 7, chequeNo: '000117', date: '01 May 2024', bankAccount: 'Axis Bank - 6789', payeeName: 'Bright Solar Pvt. Ltd.', amount: 100000, chequeType: 'Issued', status: 'Cleared', clearedDate: '03 May 2024' },
+  { id: 8, chequeNo: '000116', date: '30 Apr 2024', bankAccount: 'SBI Bank - 1234', payeeName: 'ABC Transport', amount: 18000, chequeType: 'Issued', status: 'Cancelled', clearedDate: '-' },
+  { id: 9, chequeNo: '000115', date: '29 Apr 2024', bankAccount: 'HDFC Bank - 9876', payeeName: 'Office Rent', amount: 15000, chequeType: 'Issued', status: 'Cleared', clearedDate: '02 May 2024' },
+  { id: 10, chequeNo: '000114', date: '28 Apr 2024', bankAccount: 'ICICI Bank - 4321', payeeName: 'Shree Ram Traders', amount: 90000, chequeType: 'Issued', status: 'Pending', clearedDate: '-' },
+];
+
 const accountSummaryRows = [
   { label: 'Total Invoices', value: 'Rs 3,10,25,600', icon: FileText, tone: 'red' },
   { label: 'Total Payments Received', value: 'Rs 2,35,40,280', icon: ReceiptText, tone: 'red' },
@@ -1031,18 +1129,20 @@ function App() {
                   const isEmployeeSection = item.label === 'Employee Management';
                   const isAccountsSection = item.label === 'Accounts';
                   const isInventorySection = item.label === 'Inventory';
+                  const isSettingsSection = item.label === 'Settings';
                   const isLeadOpen = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
                   const isEmployeeOpen = isEmployeeSection && (activeSidebarItem === 'Employee Management' || employeeRelatedPages.includes(activeSidebarItem));
                   const isAccountsOpen = isAccountsSection && (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem));
                   const isInventoryOpen = isInventorySection && (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem));
-                  const isActive = item.label === activeSidebarItem || isLeadOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen;
+                  const isSettingsOpen = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
+                  const isActive = item.label === activeSidebarItem || isLeadOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isSettingsOpen;
 
                   return (
                     <div key={item.label}>
                       <button
                         type="button"
                         onClick={() => {
-                          const nextItem = isLeadSection ? 'Lead List' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : item.label;
+                          const nextItem = isLeadSection ? 'Lead List' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : isSettingsSection ? 'Settings' : item.label;
                           setActiveSidebarItem(nextItem);
                           setMobileSidebarOpen(false);
                           notify(`${nextItem} section selected`);
@@ -1403,6 +1503,15 @@ function App() {
               <ReportsPage onNotify={notify} />
             ) : activeSidebarItem === 'Project Management' ? (
               <ProjectManagementPage onNotify={notify} />
+            ) : settingsRelatedPages.includes(activeSidebarItem) ? (
+              <SettingsMasterPage
+                activeSection={activeSidebarItem}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
             ) : accountsRelatedPages.includes(activeSidebarItem) ? (
               <AccountsManagementPage
                 activeSection={activeSidebarItem}
@@ -2366,6 +2475,30 @@ function AccountsManagementPage({ activeSection, onOpenSection, onNotify }) {
     return <AccountsListPage onNotify={onNotify} />;
   }
 
+  if (activeSection === 'Transactions List') {
+    return <TransactionsListPage onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Chart of Accounts') {
+    return <ChartOfAccountsPage onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Payment Received') {
+    return <PaymentReceivedListPage onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Payment Made') {
+    return <PaymentMadeListPage onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Bank Accounts') {
+    return <BankAccountsListPage onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Cheques List') {
+    return <ChequesListPage onNotify={onNotify} />;
+  }
+
   return (
     <div className="space-y-4">
       <PageHeading
@@ -2628,6 +2761,1130 @@ function AccountsListPage({ onNotify }) {
       {modalType === 'Accounts Settings' ? <AccountUtilityModal type="Accounts Settings" accounts={accountRows} onClose={() => setModalType(null)} onSaveTransaction={() => setModalType(null)} onNotify={onNotify} /> : null}
     </div>
   );
+}
+
+function TransactionsListPage({ onNotify }) {
+  const [transactions, setTransactions] = useState(transactionListRows);
+  const [query, setQuery] = useState('');
+  const [type, setType] = useState('All Types');
+  const [account, setAccount] = useState('All Accounts');
+  const [dateRange, setDateRange] = useState('01 Apr 2024 - 07 May 2024');
+  const [status, setStatus] = useState('All Status');
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [modalType, setModalType] = useState(null);
+
+  const accountOptions = ['All Accounts', ...Array.from(new Set(transactions.map((transaction) => transaction.accountName)))];
+  const filteredTransactions = transactions.filter((transaction) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [
+      transaction.transactionNo,
+      transaction.accountName,
+      transaction.type,
+      transaction.referenceNo,
+      transaction.description,
+    ].some((value) => String(value).toLowerCase().includes(queryText));
+    const typeMatch = type === 'All Types' || transaction.type === type;
+    const accountMatch = account === 'All Accounts' || transaction.accountName === account;
+    const statusMatch = status === 'All Status' || transaction.status === status;
+    return queryMatch && typeMatch && accountMatch && statusMatch;
+  });
+
+  const saveTransaction = (transaction) => {
+    const amount = Number(transaction.amount) || Number(transaction.debit) || Number(transaction.credit) || 0;
+    const entrySide = transaction.entrySide || (transaction.debit > 0 ? 'Debit' : 'Credit');
+    const nextTransaction = {
+      id: transaction.id || Date.now(),
+      transactionNo: transaction.transactionNo || `TRX-2024-${String(543 + transactions.length).padStart(4, '0')}`,
+      date: transaction.date || 'Today',
+      accountName: transaction.accountName || 'New Account',
+      type: transaction.type || 'Receipt',
+      referenceNo: transaction.referenceNo || `${transaction.type === 'Payment' ? 'PMT' : transaction.type === 'Transfer' ? 'TRF' : 'RCPT'}-${String(Date.now()).slice(-4)}`,
+      description: transaction.description || 'Manual ledger transaction',
+      debit: entrySide === 'Debit' ? amount : 0,
+      credit: entrySide === 'Credit' ? amount : 0,
+      balance: Number(transaction.balance) || 5500440 + (entrySide === 'Credit' ? amount : -amount),
+      status: transaction.status || 'Completed',
+    };
+
+    setTransactions((current) => (
+      current.some((item) => item.id === nextTransaction.id)
+        ? current.map((item) => (item.id === nextTransaction.id ? nextTransaction : item))
+        : [nextTransaction, ...current]
+    ));
+    setSelectedTransaction(null);
+    setModalType(null);
+    onNotify(`${nextTransaction.transactionNo} saved`);
+  };
+
+  const resetFilters = () => {
+    setQuery('');
+    setType('All Types');
+    setAccount('All Accounts');
+    setDateRange('01 Apr 2024 - 07 May 2024');
+    setStatus('All Status');
+    onNotify('Transaction filters reset');
+  };
+
+  const openTransaction = (transaction) => {
+    setSelectedTransaction(transaction);
+    setModalType('Transaction Details');
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Transactions List"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') },
+          { label: 'Transactions List' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => { setSelectedTransaction(null); setModalType('New Transaction'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />New Transaction</button>
+            <button type="button" onClick={() => setModalType('Import Transactions')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button>
+            <button type="button" onClick={() => onNotify('Transactions exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => setModalType('Transaction Settings')} aria-label="Transaction settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button>
+          </>
+        )}
+      />
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        <TransactionMetricCard label="Total Transactions" value="542" caption="All Time" icon={RefreshCw} tone="green" onClick={() => { resetFilters(); onNotify('All transactions selected'); }} />
+        <TransactionMetricCard label="Total Receipts" value="Rs 2,45,67,890" caption="211 Transactions" icon={Download} tone="blue" onClick={() => setType('Receipt')} />
+        <TransactionMetricCard label="Total Payments" value="Rs 1,87,32,450" caption="217 Transactions" icon={ArrowUpRight} tone="green" onClick={() => setType('Payment')} />
+        <TransactionMetricCard label="Total Transfers" value="Rs 15,80,000" caption="23 Transactions" icon={RefreshCw} tone="amber" onClick={() => setType('Transfer')} />
+        <TransactionMetricCard label="Opening Balance" value="Rs 12,45,000" caption="As on 01 Apr 2024" icon={ReceiptText} tone="purple" onClick={() => onNotify('Opening balance ledger opened')} />
+        <TransactionMetricCard label="Closing Balance" value="Rs 55,00,440" caption="As on 07 May 2024" icon={ReceiptText} tone="blue" onClick={() => onNotify('Closing balance ledger opened')} />
+      </section>
+
+      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className={`${panelClass} p-4 sm:p-5`}>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.45fr_0.75fr_0.75fr_1.05fr_0.75fr] xl:items-end">
+            <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by transaction no., account, type, reference..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <ReportSelect label="Transaction Type" value={type} onChange={setType} options={['All Types', 'Receipt', 'Payment', 'Transfer', 'Journal Entry']} />
+            <ReportSelect label="Account" value={account} onChange={setAccount} options={accountOptions} />
+            <ReportSelect label="Date Range" value={dateRange} onChange={setDateRange} options={['01 Apr 2024 - 07 May 2024', 'This Month', 'Last 30 Days', 'This Financial Year']} />
+            <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Completed', 'Pending', 'Reconciled']} />
+          </div>
+        </div>
+        <div className={`${panelClass} grid gap-3 p-4 sm:grid-cols-2 2xl:grid-cols-1`}>
+          <button type="button" onClick={() => onNotify(`Transaction filters applied: ${filteredTransactions.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filters</button>
+          <button type="button" onClick={resetFilters} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
+        </div>
+      </section>
+
+      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_350px]">
+        <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+          <h2 className="px-1 pb-4 font-display text-[15px] font-extrabold text-[#06135a]">Transactions List</h2>
+          <div className="space-y-3 xl:hidden">
+            {filteredTransactions.map((transaction, index) => (
+              <TransactionListMobileCard key={transaction.id} transaction={transaction} index={index + 1} onOpen={() => openTransaction(transaction)} />
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+            <table className="crm-table min-w-[1240px] w-full">
+              <thead><tr>{['#', 'Transaction No.', 'Date', 'Account Name', 'Type', 'Reference No.', 'Description', 'Debit (Rs)', 'Credit (Rs)', 'Balance (Rs)', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <tbody>
+                {filteredTransactions.map((transaction, index) => (
+                  <tr key={transaction.id}>
+                    <td>{index + 1}</td>
+                    <td className="font-extrabold text-[#1e3261]">{transaction.transactionNo}</td>
+                    <td>{transaction.date}</td>
+                    <td className="font-extrabold text-[#1e3261]">{transaction.accountName}</td>
+                    <td><TransactionTypeBadge type={transaction.type} /></td>
+                    <td className="font-extrabold text-[#1e3261]">{transaction.referenceNo}</td>
+                    <td>{transaction.description}</td>
+                    <td className="font-extrabold text-[#1e3261]">{formatLedgerAmount(transaction.debit)}</td>
+                    <td className="font-extrabold text-[#1e3261]">{formatLedgerAmount(transaction.credit)}</td>
+                    <td className="font-extrabold text-[#1e3261]">{formatLedgerCurrency(transaction.balance)}</td>
+                    <td><TransactionStatusBadge status={transaction.status} /></td>
+                    <td><UserActionButton label={`Open ${transaction.transactionNo}`} icon={MoreVertical} tone="blue" onClick={() => openTransaction(transaction)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <InventoryPagination text={`Showing 1 to ${filteredTransactions.length} of 542 entries`} totalPage="55" onNotify={onNotify} prefix="Transactions List" />
+        </article>
+
+        <aside className="grid gap-4">
+          <TransactionTypeOverview onNotify={onNotify} />
+          <TransactionVolumeCard onNotify={onNotify} />
+          <RecentTransactionsCard transactions={transactions.slice(0, 3)} onNotify={onNotify} />
+        </aside>
+      </section>
+
+      <DashboardFooter />
+
+      {modalType === 'New Transaction' || modalType === 'Edit Transaction' ? (
+        <TransactionFormModal transaction={selectedTransaction} accounts={accountOptions.filter((item) => item !== 'All Accounts')} onClose={() => { setSelectedTransaction(null); setModalType(null); }} onSave={saveTransaction} />
+      ) : null}
+      {modalType === 'Transaction Details' ? (
+        <TransactionDetailModal
+          transaction={selectedTransaction}
+          onClose={() => { setSelectedTransaction(null); setModalType(null); }}
+          onEdit={() => setModalType('Edit Transaction')}
+          onNotify={onNotify}
+        />
+      ) : null}
+      {modalType === 'Import Transactions' ? <InventoryImportModal title="Transactions Import" onClose={() => setModalType(null)} onNotify={onNotify} /> : null}
+      {modalType === 'Transaction Settings' ? <AccountUtilityModal type="Accounts Settings" accounts={accountRows} onClose={() => setModalType(null)} onSaveTransaction={() => setModalType(null)} onNotify={onNotify} /> : null}
+    </div>
+  );
+}
+
+function TransactionMetricCard({ label, value, caption, icon: Icon, tone, onClick }) {
+  const toneClass = {
+    green: 'bg-[#0d9f4a] text-white',
+    blue: 'bg-[#0b65e5] text-white',
+    amber: 'bg-[#f59e0b] text-white',
+    purple: 'bg-[#b56ce8] text-white',
+  }[tone] ?? 'bg-[#e8f2ff] text-[#0b65e5]';
+
+  return (
+    <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[128px] items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]`}>
+      <span className={cx('grid size-12 shrink-0 place-items-center rounded-full', toneClass)}><Icon className="size-6" /></span>
+      <span className="min-w-0">
+        <span className="block text-[12px] font-bold text-[#53647f]">{label}</span>
+        <span className="mt-1 block font-display text-[22px] font-extrabold text-[#111827]">{value}</span>
+        <span className="mt-2 block text-[11px] font-bold text-[#314a79]">{caption}</span>
+      </span>
+    </button>
+  );
+}
+
+function TransactionListMobileCard({ transaction, index, onOpen }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 truncate text-[15px] font-extrabold text-[#1e3261]">{transaction.transactionNo}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{transaction.date} - {transaction.accountName}</p>
+        </div>
+        <TransactionTypeBadge type={transaction.type} />
+      </div>
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Reference" value={transaction.referenceNo} />
+        <InfoCell label="Debit" value={formatLedgerAmount(transaction.debit)} />
+        <InfoCell label="Credit" value={formatLedgerAmount(transaction.credit)} />
+        <InfoCell label="Balance" value={formatLedgerCurrency(transaction.balance)} />
+      </div>
+      <button type="button" onClick={onOpen} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]">
+        <FileText className="size-4" />
+        View Transaction
+      </button>
+    </article>
+  );
+}
+
+function TransactionTypeBadge({ type }) {
+  const classes = {
+    Receipt: 'bg-[#e8f8eb] text-[#0d9f4a]',
+    Payment: 'bg-[#ffe9e6] text-[#ef4444]',
+    Transfer: 'bg-[#fff0dc] text-[#d98200]',
+    'Journal Entry': 'bg-[#e8f2ff] text-[#0b65e5]',
+  }[type] ?? 'bg-[#eef2f7] text-[#53647f]';
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{type}</span>;
+}
+
+function TransactionTypeOverview({ onNotify }) {
+  return (
+    <article className={`${panelClass} p-5`}>
+      <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Transaction Type Overview</h2>
+      <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center 2xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)]">
+        <button type="button" onClick={() => onNotify('Transaction type chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#20a864 0 38.93%, #ef4444 38.93% 78.97%, #f7b731 78.97% 83.21%, #2d7ff9 83.21% 100%)' }} aria-label="Open transaction type chart"><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
+        <div className="space-y-3">
+          <StockLegend color="bg-[#20a864]" label="Receipts" value="211 (38.93%)" />
+          <StockLegend color="bg-[#ef4444]" label="Payments" value="217 (40.04%)" />
+          <StockLegend color="bg-[#f7b731]" label="Transfers" value="23 (4.24%)" />
+          <StockLegend color="bg-[#2d7ff9]" label="Journal Entries" value="91 (16.79%)" />
+          <div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]"><span>Total Transactions</span><span className="float-right">542</span></div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function TransactionVolumeCard({ onNotify }) {
+  const rows = [
+    ['Sunlight Enterprises', 'Rs 75,45,000'],
+    ['Green Power Solutions', 'Rs 68,20,000'],
+    ['Bright Solar Pvt. Ltd.', 'Rs 42,15,000'],
+    ['Ravi Electricals', 'Rs 25,30,000'],
+    ['Electro Components Ltd.', 'Rs 18,75,000'],
+  ];
+  return (
+    <article className={`${panelClass} p-5`}>
+      <div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Top Accounts by Volume</h2><button type="button" onClick={() => onNotify('Top accounts by volume opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div>
+      <div className="mt-4 space-y-3">
+        {rows.map(([label, value]) => (
+          <button key={label} type="button" onClick={() => onNotify(`${label} ledger opened`)} className="flex w-full items-center gap-3 rounded-[8px] p-1 text-left transition hover:bg-[#f8fbff]">
+            <span className="grid size-7 shrink-0 place-items-center rounded-[8px] bg-[#e8f2ff] text-[#0b65e5]"><ReceiptText className="size-3.5" /></span>
+            <span className="min-w-0 flex-1 truncate text-[12px] font-bold text-[#314a79]">{label}</span>
+            <span className="text-[12px] font-extrabold text-[#1e3261]">{value}</span>
+          </button>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function RecentTransactionsCard({ transactions, onNotify }) {
+  return (
+    <article className={`${panelClass} p-5`}>
+      <div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Transactions</h2><button type="button" onClick={() => onNotify('Recent transactions opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div>
+      <div className="mt-4 space-y-4">
+        {transactions.map((transaction) => (
+          <button key={transaction.id} type="button" onClick={() => onNotify(`${transaction.transactionNo} opened`)} className="flex w-full items-center gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]">
+            <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px]', transaction.type === 'Payment' ? 'bg-[#ffe9e6] text-[#ef4444]' : 'bg-[#e8f8eb] text-[#0d9f4a]')}>
+              {transaction.type === 'Payment' ? <ArrowUpRight className="size-4" /> : <Download className="size-4" />}
+            </span>
+            <span className="min-w-0 flex-1"><span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{transaction.transactionNo}</span><span className="mt-1 block truncate text-[11px] font-bold text-[#53647f]">{transaction.type} from {transaction.accountName}</span></span>
+            <span className="shrink-0 text-[11px] font-bold text-[#314a79]">{transaction.date}</span>
+          </button>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function TransactionFormModal({ transaction, accounts, onClose, onSave }) {
+  const [form, setForm] = useState(transaction ? {
+    ...transaction,
+    entrySide: transaction.debit > 0 ? 'Debit' : 'Credit',
+    amount: String(transaction.debit > 0 ? transaction.debit : transaction.credit),
+  } : {
+    transactionNo: '',
+    date: '07 May 2024',
+    accountName: accounts[0] ?? 'Sunlight Enterprises',
+    type: 'Receipt',
+    referenceNo: '',
+    description: '',
+    entrySide: 'Credit',
+    amount: '75000',
+    status: 'Completed',
+  });
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-[720px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{transaction ? 'Edit Transaction' : 'New Transaction'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close transaction editor"><X className="size-5" /></button></div>
+        <div className="grid gap-4 p-6 sm:grid-cols-2">
+          <ModalTextInput label="Transaction No." value={form.transactionNo} onChange={(value) => updateField('transactionNo', value)} placeholder="Auto if blank" />
+          <ModalTextInput label="Date" value={form.date} onChange={(value) => updateField('date', value)} placeholder="07 May 2024" />
+          <ReportSelect label="Account" value={form.accountName} onChange={(value) => updateField('accountName', value)} options={accounts.length ? accounts : ['Sunlight Enterprises']} />
+          <ReportSelect label="Type" value={form.type} onChange={(value) => updateField('type', value)} options={['Receipt', 'Payment', 'Transfer', 'Journal Entry']} />
+          <ModalTextInput label="Reference No." value={form.referenceNo} onChange={(value) => updateField('referenceNo', value)} placeholder="RCPT-0891" />
+          <ModalTextInput label="Description" value={form.description} onChange={(value) => updateField('description', value)} placeholder="Transaction description" />
+          <ReportSelect label="Entry Side" value={form.entrySide} onChange={(value) => updateField('entrySide', value)} options={['Credit', 'Debit']} />
+          <ModalTextInput label="Amount" value={String(form.amount)} onChange={(value) => updateField('amount', value)} placeholder="0" />
+          <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Completed', 'Pending', 'Reconciled']} />
+        </div>
+        <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-5 sm:flex-row"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white"><Save className="size-4" />Save Transaction</button></div>
+      </div>
+    </div>
+  );
+}
+
+function TransactionDetailModal({ transaction, onClose, onEdit, onNotify }) {
+  if (!transaction) {
+    return null;
+  }
+
+  return (
+    <DetailModalShell title={transaction.transactionNo} onClose={onClose}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <InfoCell label="Date" value={transaction.date} />
+        <InfoCell label="Account" value={transaction.accountName} />
+        <InfoCell label="Type" valueNode={<TransactionTypeBadge type={transaction.type} />} />
+        <InfoCell label="Reference" value={transaction.referenceNo} />
+        <InfoCell label="Debit" value={formatLedgerAmount(transaction.debit)} />
+        <InfoCell label="Credit" value={formatLedgerAmount(transaction.credit)} />
+        <InfoCell label="Balance" value={formatLedgerCurrency(transaction.balance)} />
+        <InfoCell label="Status" valueNode={<TransactionStatusBadge status={transaction.status} />} />
+      </div>
+      <p className="mt-5 rounded-[10px] border border-[#e7eef7] bg-[#f8fbff] p-4 text-[13px] font-bold leading-6 text-[#53647f]">{transaction.description}</p>
+      <div className="mt-5 flex flex-col justify-end gap-3 sm:flex-row">
+        <button type="button" onClick={() => onNotify(`${transaction.transactionNo} voucher downloaded`)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Download Voucher</button>
+        <button type="button" onClick={onEdit} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white">Edit Transaction</button>
+      </div>
+    </DetailModalShell>
+  );
+}
+
+function formatLedgerAmount(value) {
+  return Number(value || 0) > 0 ? Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+}
+
+function formatLedgerCurrency(value) {
+  return Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
+  if (activeSection === 'Payment Mode' || activeSection === 'Master Type') {
+    return <PaymentModeListPage onNotify={onNotify} />;
+  }
+
+  const settingsOptionIcons = {
+    'Company Profile': Home,
+    'Business Information': FileText,
+    Branches: MapPin,
+    'Financial Year': CalendarDays,
+    Users: Users,
+    'Roles & Permissions': ShieldCheck,
+    'User Activity Log': Clock3,
+    'IP Restrictions': LockKeyhole,
+    'System Settings': Settings,
+    'Date & Time Format': CalendarDays,
+    'Currency Settings': IndianRupee,
+    'Language Settings': MessageSquareMore,
+    'Chart of Accounts': ReceiptText,
+    'Account Prefix': FileText,
+    'Opening Balance': IndianRupee,
+    'Payment Settings': ReceiptText,
+    'Payment Mode': ReceiptText,
+    'Product Categories': Boxes,
+    'Units of Measurement': Wrench,
+    'Tax Settings': ReceiptText,
+    'Stock Settings': Boxes,
+    'Project Status': FolderKanban,
+    'Project Types': FolderKanban,
+    'Task Priorities': Flag,
+    'Milestone Settings': Trophy,
+    'Email Settings': Mail,
+    'SMS Settings': MessageSquareMore,
+    'WhatsApp Settings': Phone,
+    'Notification Settings': Bell,
+    'Document Settings': FileText,
+    'Approval Settings': ShieldCheck,
+    'Backup & Restore': RefreshCw,
+    'System Maintenance': Wrench,
+  };
+
+  const settingsGroupIconTone = {
+    'Organization Settings': 'bg-[#e8f8eb] text-[#14853a]',
+    'User & Access Management': 'bg-[#e8f2ff] text-[#0b65e5]',
+    'General Settings': 'bg-[#f3edff] text-[#7b46dc]',
+    'Accounts Settings': 'bg-[#fff0dc] text-[#ea580c]',
+    'Inventory Settings': 'bg-[#e7faf8] text-[#0f766e]',
+    'Project Settings': 'bg-[#ffeaf4] text-[#db2777]',
+    'Communication Settings': 'bg-[#e9f8ec] text-[#15803d]',
+    'Other Settings': 'bg-[#fff7e8] text-[#ca8a04]',
+  };
+
+  const settingGroups = [
+    { title: 'Organization Settings', tone: 'text-[#14853a]', items: [['Company Profile', 'Manage company details, logo and address'], ['Business Information', 'Business type, GST, PAN and registration details'], ['Branches', 'Add and manage branches'], ['Financial Year', 'Manage financial year and accounting period']] },
+    { title: 'User & Access Management', tone: 'text-[#0b65e5]', items: [['Users', 'Add, edit and manage system users'], ['Roles & Permissions', 'Manage roles and set permissions'], ['User Activity Log', 'View users activity and login history'], ['IP Restrictions', 'Manage IP based access restrictions']] },
+    { title: 'General Settings', tone: 'text-[#7b46dc]', items: [['System Settings', 'General system configuration'], ['Date & Time Format', 'Set date, time and timezone'], ['Currency Settings', 'Manage currency and exchange rate'], ['Language Settings', 'Manage system languages']] },
+    { title: 'Accounts Settings', tone: 'text-[#ea580c]', items: [['Chart of Accounts', 'Manage accounts and ledger groups'], ['Account Prefix', 'Configure account code prefix'], ['Opening Balance', 'Manage opening balances'], ['Payment Settings', 'Payment terms and due days'], ['Payment Mode', 'Configure payment mode masters']] },
+    { title: 'Inventory Settings', tone: 'text-[#0f766e]', items: [['Product Categories', 'Manage product categories'], ['Units of Measurement', 'Manage units (NOS, KG, LTR, etc.)'], ['Tax Settings', 'Manage GST and other tax settings'], ['Stock Settings', 'Configure stock and warehouse settings']] },
+    { title: 'Project Settings', tone: 'text-[#db2777]', items: [['Project Status', 'Manage project statuses'], ['Project Types', 'Manage project types'], ['Task Priorities', 'Manage task priorities'], ['Milestone Settings', 'Configure project milestones']] },
+    { title: 'Communication Settings', tone: 'text-[#15803d]', items: [['Email Settings', 'Configure SMTP and email templates'], ['SMS Settings', 'Configure SMS gateway'], ['WhatsApp Settings', 'Configure WhatsApp integration'], ['Notification Settings', 'Manage system notifications']] },
+    { title: 'Other Settings', tone: 'text-[#ca8a04]', items: [['Document Settings', 'Manage document numbering'], ['Approval Settings', 'Configure approval workflows'], ['Backup & Restore', 'Backup and restore system data'], ['System Maintenance', 'System cleanup and maintenance']] },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading title="Settings" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Settings' }]} />
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
+          <p className="text-[24px] font-extrabold text-[#111827]">Manage all system settings and preferences</p>
+          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100"><Search className="size-4 text-[#7386a3]" /><input type="search" placeholder="Search settings..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" onChange={() => onNotify('Settings search updated')} /></label>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {settingGroups.map((group) => (
+          <article key={group.title} className={`${panelClass} p-5`}>
+            <h2 className={cx('font-display text-[18px] font-extrabold', group.tone)}>{group.title}</h2>
+            <div className="mt-4 space-y-2">
+              {group.items.map(([label, note]) => {
+                const Icon = settingsOptionIcons[label] ?? Settings;
+                const iconTone = settingsGroupIconTone[group.title] ?? 'bg-[#eef2f7] text-[#53647f]';
+                return (
+                <button key={label} type="button" onClick={() => {
+                  if (label === 'Payment Settings' || label === 'Payment Mode') {
+                    onOpenSection('Payment Mode');
+                    return;
+                  }
+                  onNotify(`${label} opened`);
+                }} className="flex w-full items-start justify-between gap-3 rounded-[10px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
+                  <span className="flex min-w-0 items-start gap-3">
+                    <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px]', iconTone)}>
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-extrabold text-[#1e3261]">{label}</span>
+                      <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{note}</span>
+                    </span>
+                  </span>
+                  <ChevronRight className="mt-0.5 size-4 shrink-0 text-[#7c8da8]" />
+                </button>
+                );
+              })}
+            </div>
+          </article>
+        ))}
+      </section>
+
+      <section className={`${panelClass} p-5`}>
+        <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Quick System Info</h2>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {[
+            ['Version', 'v2.1.0'],
+            ['Admin', 'Super Admin'],
+            ['Last Backup', '20 May 2024 10:30 AM'],
+            ['Database', 'Connected'],
+            ['Storage Used', '2.45 GB / 10 GB'],
+            ['Active Users', '12'],
+          ].map(([label, value]) => (
+            <button key={label} type="button" onClick={() => onNotify(`${label} details opened`)} className="rounded-[12px] border border-[#e7eef7] bg-white p-4 text-left transition hover:bg-[#f8fbff]">
+              <p className="text-[12px] font-extrabold text-[#8a98af]">{label}</p>
+              <p className="mt-2 text-[14px] font-extrabold text-[#1e3261]">{value}</p>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ChartOfAccountsPage({ onNotify }) {
+  const [rows, setRows] = useState(chartOfAccountsRows);
+  const [query, setQuery] = useState('');
+  const [type, setType] = useState('All Types');
+  const [group, setGroup] = useState('All Groups');
+  const [status, setStatus] = useState('All Status');
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [modalType, setModalType] = useState(null);
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.code, row.name, row.group, row.parentAccount].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const typeMatch = type === 'All Types' || row.accountType === type;
+    const groupMatch = group === 'All Groups' || row.group === group;
+    const statusMatch = status === 'All Status' || row.status === status;
+    return queryMatch && typeMatch && groupMatch && statusMatch;
+  });
+
+  const saveRow = (form) => {
+    const next = {
+      id: form.id || Date.now(),
+      code: form.code || `C${rows.length + 1}`,
+      name: form.name || 'New Account',
+      accountType: form.accountType || 'Asset',
+      group: form.group || 'Assets',
+      parentAccount: form.parentAccount || '-',
+      normalBalance: form.normalBalance || 'Debit',
+      status: form.status || 'Active',
+    };
+    setRows((current) => (current.some((item) => item.id === next.id) ? current.map((item) => (item.id === next.id ? next : item)) : [next, ...current]));
+    setSelectedRow(null);
+    setModalType(null);
+    onNotify(`${next.name} saved`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Charts of Accounts"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') },
+          { label: 'Charts of Accounts' },
+        ]}
+        actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('Add Account'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />Add Account</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Charts exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Chart settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>}
+      />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <OpsStatCard label="Total Accounts" value="156" caption="All Accounts" icon={ReceiptText} tone="blue" onClick={() => onNotify('Total accounts opened')} />
+        <OpsStatCard label="Asset Accounts" value="42" caption="26.92% of total" icon={CheckCircle2} tone="green" onClick={() => setType('Asset')} />
+        <OpsStatCard label="Liability Accounts" value="28" caption="17.95% of total" icon={AlertTriangle} tone="amber" onClick={() => setType('Liability')} />
+        <OpsStatCard label="Income Accounts" value="31" caption="19.87% of total" icon={BarChart3} tone="purple" onClick={() => setType('Income')} />
+        <OpsStatCard label="Expense Accounts" value="55" caption="35.26% of total" icon={IndianRupee} tone="cyan" onClick={() => setType('Expense')} />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="space-y-4">
+          <section className={`${panelClass} p-4 sm:p-5`}>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.45fr_0.75fr_0.75fr_0.75fr_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100"><Search className="size-4 text-[#7386a3]" /><input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by account name or code..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" /></label>
+              <ReportSelect label="Account Type" value={type} onChange={setType} options={['All Types', 'Asset', 'Liability', 'Income', 'Expense']} />
+              <ReportSelect label="Account Group" value={group} onChange={setGroup} options={['All Groups', 'Assets', 'Current Assets', 'Fixed Assets', 'Liabilities', 'Income', 'Expenses']} />
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Inactive']} />
+              <button type="button" onClick={() => onNotify(`Chart filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filters</button>
+              <button type="button" onClick={() => { setQuery(''); setType('All Types'); setGroup('All Groups'); setStatus('All Status'); onNotify('Chart filters reset'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
+            </div>
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+            <h2 className="px-1 pb-4 font-display text-[15px] font-extrabold text-[#06135a]">Charts of Accounts List</h2>
+            <div className="space-y-3 xl:hidden">{filteredRows.map((row, index) => <ChartAccountMobileCard key={row.id} row={row} index={index + 1} onOpen={() => { setSelectedRow(row); setModalType('Edit Account'); }} />)}</div>
+            <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1240px] w-full">
+                <thead><tr>{['#', 'Account Code', 'Account Name', 'Account Type', 'Group', 'Parent Account', 'Normal Balance', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <tbody>{filteredRows.map((row, index) => <tr key={row.id}><td>{index + 1}</td><td className="font-extrabold text-[#1e3261]">{row.code}</td><td className="font-extrabold text-[#1e3261]">{row.name}</td><td>{row.accountType}</td><td>{row.group}</td><td>{row.parentAccount}</td><td>{row.normalBalance}</td><td><AccountStatusBadge status={row.status} /></td><td><UserActionButton label={`Edit ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => { setSelectedRow(row); setModalType('Edit Account'); }} /></td></tr>)}</tbody>
+              </table>
+            </div>
+            <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 156 entries`} totalPage="16" onNotify={onNotify} prefix="Chart Of Accounts" />
+          </article>
+        </div>
+
+        <aside className="grid gap-4">
+          <article className={`${panelClass} p-5`}><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Account Type Overview</h2><div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)]"><button type="button" onClick={() => onNotify('Chart type overview opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#20a864 0 26.92%, #f59e0b 26.92% 44.87%, #9b5de5 44.87% 64.74%, #0891b2 64.74% 100%)' }} aria-label="Open account type overview"><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button><div className="space-y-3"><StockLegend color="bg-[#20a864]" label="Asset" value="42 (26.92%)" /><StockLegend color="bg-[#f59e0b]" label="Liability" value="28 (17.95%)" /><StockLegend color="bg-[#9b5de5]" label="Income" value="31 (19.87%)" /><StockLegend color="bg-[#0891b2]" label="Expense" value="55 (35.26%)" /><div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]"><span>Total Accounts</span><span className="float-right">156</span></div></div></div></article>
+          <AccountsListSideCard title="Top Level Groups" rows={[['Assets', '42 Accounts'], ['Liabilities', '28 Accounts'], ['Income', '31 Accounts'], ['Expenses', '55 Accounts']]} onNotify={onNotify} />
+          <article className={`${panelClass} p-5`}><div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Accounts Added</h2><button type="button" onClick={() => onNotify('Recent chart accounts opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div><div className="mt-4 space-y-4">{[['1230', 'Vehicles', '19 May 2024'], ['4110', 'Other Income', '18 May 2024'], ['5120', 'Office Expenses', '17 May 2024']].map(([code, name, date]) => <button key={code} type="button" onClick={() => onNotify(`${code} opened`)} className="flex w-full items-center gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]"><span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#e8f8eb] text-[#0d9f4a]"><FileText className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{code}</span><span className="mt-1 block truncate text-[11px] font-bold text-[#53647f]">{name}</span></span><span className="shrink-0 text-[11px] font-bold text-[#314a79]">{date}</span></button>)}</div></article>
+        </aside>
+      </section>
+
+      <DashboardFooter />
+
+      {modalType === 'Add Account' || modalType === 'Edit Account' ? <ChartAccountModal row={selectedRow} onClose={() => { setModalType(null); setSelectedRow(null); }} onSave={saveRow} /> : null}
+      {modalType === 'Import' ? <InventoryImportModal title="Chart Of Accounts Import" onClose={() => setModalType(null)} onNotify={onNotify} /> : null}
+      {modalType === 'Settings' ? <AccountUtilityModal type="Accounts Settings" accounts={accountRows} onClose={() => setModalType(null)} onSaveTransaction={() => setModalType(null)} onNotify={onNotify} /> : null}
+    </div>
+  );
+}
+
+function PaymentReceivedListPage({ onNotify }) {
+  return <PaymentsLedgerPage mode="received" onNotify={onNotify} />;
+}
+
+function PaymentMadeListPage({ onNotify }) {
+  return <PaymentsLedgerPage mode="made" onNotify={onNotify} />;
+}
+
+function PaymentsLedgerPage({ mode, onNotify }) {
+  const isReceived = mode === 'received';
+  const [rows, setRows] = useState(isReceived ? paymentReceivedRows : paymentMadeRows);
+  const [query, setQuery] = useState('');
+  const [dateRange, setDateRange] = useState('01 Apr 2024 - 07 May 2024');
+  const [paymentMode, setPaymentMode] = useState('All');
+  const [account, setAccount] = useState('All Accounts');
+  const [status, setStatus] = useState('All Status');
+  const [payeeType, setPayeeType] = useState('All');
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [modalType, setModalType] = useState(null);
+
+  const normalizedRows = rows.map((row) => isReceived ? {
+    ...row,
+    docNo: row.receiptNo,
+    partyName: row.customerName,
+    refNo: row.projectRef,
+  } : {
+    ...row,
+    docNo: row.paymentNo,
+    partyName: row.payeeName,
+    refNo: row.referenceNo,
+  });
+
+  const accountOptions = ['All Accounts', ...Array.from(new Set(normalizedRows.map((row) => row.account)))];
+  const modeOptions = ['All', ...Array.from(new Set(normalizedRows.map((row) => row.paymentMode)))];
+  const filteredRows = normalizedRows.filter((row) => {
+    const queryMatch = [row.docNo, row.partyName, row.refNo, row.account, row.paymentMode].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
+    const paymentModeMatch = paymentMode === 'All' || row.paymentMode === paymentMode;
+    const accountMatch = account === 'All Accounts' || row.account === account;
+    const statusMatch = status === 'All Status' || row.status === status;
+    const payeeTypeMatch = payeeType === 'All' || (payeeType === 'Customer' ? !row.partyName.toLowerCase().includes('office') : payeeType === 'Vendor' ? row.partyName.toLowerCase().includes('ltd.') || row.partyName.toLowerCase().includes('electrical') : true);
+    return queryMatch && paymentModeMatch && accountMatch && statusMatch && payeeTypeMatch;
+  });
+
+  const saveRow = (form) => {
+    const next = isReceived ? {
+      id: form.id || Date.now(),
+      receiptNo: form.docNo || `RCPT-2024-${String(218 + rows.length).padStart(4, '0')}`,
+      date: form.date || 'Today',
+      customerName: form.partyName || 'New Customer',
+      projectRef: form.refNo || 'INV-2024-0000',
+      paymentMode: form.paymentMode || 'NEFT',
+      account: form.account || accountRows[0].name,
+      amount: Number(form.amount) || 0,
+      status: form.status || 'Completed',
+    } : {
+      id: form.id || Date.now(),
+      paymentNo: form.docNo || `PMT-2024-${String(236 + rows.length).padStart(4, '0')}`,
+      date: form.date || 'Today',
+      payeeName: form.partyName || 'New Payee',
+      referenceNo: form.refNo || 'INV-2024-0000',
+      paymentMode: form.paymentMode || 'NEFT',
+      account: form.account || accountRows[0].name,
+      amount: Number(form.amount) || 0,
+      status: form.status || 'Completed',
+    };
+    setRows((current) => [next, ...current]);
+    setModalType(null);
+    setSelectedRow(null);
+    onNotify(`${next[isReceived ? 'receiptNo' : 'paymentNo']} saved`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={isReceived ? 'Payment Received List' : 'Payment Made List'}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') },
+          { label: isReceived ? 'Payment Received List' : 'Payment Made List' },
+        ]}
+        actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('New Payment'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />New Payment</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify(`${isReceived ? 'Receipts' : 'Payments'} exported`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Payment settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>}
+      />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <OpsStatCard label={isReceived ? 'Total Receipts' : 'Total Payments'} value={isReceived ? '217' : '235'} caption="All Time" icon={ReceiptText} tone="green" onClick={() => onNotify('All entries opened')} />
+        <OpsStatCard label={isReceived ? 'Total Amount Received' : 'Total Amount Paid'} value={isReceived ? 'Rs 2,45,67,890' : 'Rs 2,34,75,890'} caption="All Time" icon={IndianRupee} tone="blue" onClick={() => onNotify('Amount summary opened')} />
+        <OpsStatCard label={isReceived ? 'This Month Received' : 'This Month Payments'} value={isReceived ? 'Rs 18,75,430' : 'Rs 18,60,450'} caption="01 May 2024 - 31 May 2024" icon={CalendarDays} tone="purple" onClick={() => setDateRange('This Month')} />
+        <OpsStatCard label={isReceived ? 'Outstanding Amount' : 'Outstanding Payments'} value={isReceived ? 'Rs 55,00,440' : 'Rs 12,40,300'} caption="As on 07 May 2024" icon={AlertTriangle} tone="amber" onClick={() => setStatus('Pending')} />
+        <OpsStatCard label={isReceived ? 'Average Receipt' : 'Average Payment'} value={isReceived ? 'Rs 1,13,192' : 'Rs 99,04,632'} caption="All Time" icon={BarChart3} tone="cyan" onClick={() => onNotify('Average trend opened')} />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="space-y-4">
+          <section className={`${panelClass} p-4 sm:p-5`}>
+            <div className={cx('grid gap-4 md:grid-cols-2 xl:items-end', isReceived ? 'xl:grid-cols-[1.45fr_0.95fr_0.75fr_0.75fr_0.75fr_auto_auto]' : 'xl:grid-cols-[1.45fr_0.95fr_0.75fr_0.75fr_0.75fr_0.75fr_auto_auto]')}>
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100"><Search className="size-4 text-[#7386a3]" /><input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder={isReceived ? 'Search by receipt no., customer, project...' : 'Search by payment no., payee, project, reference...'} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" /></label>
+              <ReportSelect label="Date Range" value={dateRange} onChange={setDateRange} options={['01 Apr 2024 - 07 May 2024', 'This Month', 'Last 30 Days']} />
+              {!isReceived ? <ReportSelect label="Payee Type" value={payeeType} onChange={setPayeeType} options={['All', 'Vendor', 'Customer', 'Expense']} /> : null}
+              <ReportSelect label="Payment Mode" value={paymentMode} onChange={setPaymentMode} options={modeOptions} />
+              <ReportSelect label="Account" value={account} onChange={setAccount} options={accountOptions} />
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Completed', 'Pending', 'Cancelled']} />
+              <button type="button" onClick={() => onNotify(`${isReceived ? 'Receipt' : 'Payment'} filters applied: ${filteredRows.length}`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filters</button>
+              <button type="button" onClick={() => { setQuery(''); setDateRange('01 Apr 2024 - 07 May 2024'); setPayeeType('All'); setPaymentMode('All'); setAccount('All Accounts'); setStatus('All Status'); onNotify('Filters reset'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
+            </div>
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+            <h2 className="px-1 pb-4 font-display text-[15px] font-extrabold text-[#06135a]">{isReceived ? 'Payment Received List' : 'Payment Made List'}</h2>
+            <div className="space-y-3 xl:hidden">{filteredRows.map((row, index) => <PaymentEntryMobileCard key={row.id} row={row} index={index + 1} isReceived={isReceived} onOpen={() => { setSelectedRow(row); setModalType('View Payment'); }} />)}</div>
+            <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1260px] w-full">
+                <thead><tr>{['#', isReceived ? 'Receipt No.' : 'Payment No.', 'Date', isReceived ? 'Customer Name' : 'Payee Name', isReceived ? 'Project / Ref.' : 'Reference / Bill No.', 'Account', 'Payment Mode', 'Amount (Rs)', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <tbody>{filteredRows.map((row, index) => <tr key={row.id}><td>{index + 1}</td><td className="font-extrabold text-[#1e3261]">{row.docNo}</td><td>{row.date}</td><td className="font-extrabold text-[#1e3261]">{row.partyName}</td><td>{row.refNo}</td><td>{row.account}</td><td>{row.paymentMode}</td><td className="font-extrabold text-[#1e3261]">{formatInventoryCurrency(row.amount)}</td><td><TransactionStatusBadge status={row.status} /></td><td><UserActionButton label={`Open ${row.docNo}`} icon={MoreVertical} tone="blue" onClick={() => { setSelectedRow(row); setModalType('View Payment'); }} /></td></tr>)}</tbody>
+              </table>
+            </div>
+            <InventoryPagination text={`Showing 1 to ${filteredRows.length} of ${isReceived ? 217 : 235} entries`} totalPage={isReceived ? '22' : '24'} onNotify={onNotify} prefix={isReceived ? 'Payment Received' : 'Payment Made'} />
+          </article>
+        </div>
+
+        <aside className="grid gap-4">
+          <article className={`${panelClass} p-5`}><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">{isReceived ? 'Receipt by Payment Mode' : 'Payments by Status'}</h2><div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)]"><button type="button" onClick={() => onNotify('Payment chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: isReceived ? 'conic-gradient(#20a864 0 51.61%, #2d7ff9 51.61% 69.12%, #f7b731 69.12% 82.02%, #ef4444 82.02% 91.70%, #9b5de5 91.70% 100%)' : 'conic-gradient(#20a864 0 88.51%, #2d7ff9 88.51% 94.47%, #f7b731 94.47% 97.45%, #ef4444 97.45% 100%)' }} aria-label="Open payment chart"><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button><div className="space-y-3">{isReceived ? <><StockLegend color="bg-[#20a864]" label="NEFT" value="112 (51.61%)" /><StockLegend color="bg-[#2d7ff9]" label="RTGS" value="38 (17.51%)" /><StockLegend color="bg-[#f7b731]" label="Cash" value="28 (12.90%)" /><StockLegend color="bg-[#ef4444]" label="UPI" value="21 (9.68%)" /><StockLegend color="bg-[#9b5de5]" label="Cheque" value="18 (8.30%)" /></> : <><StockLegend color="bg-[#20a864]" label="Completed" value="208 (88.51%)" /><StockLegend color="bg-[#2d7ff9]" label="Pending" value="14 (5.96%)" /><StockLegend color="bg-[#f7b731]" label="Partial" value="7 (2.98%)" /><StockLegend color="bg-[#ef4444]" label="Cancelled" value="6 (2.55%)" /></>}<div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]"><span>Total {isReceived ? 'Receipts' : 'Payments'}</span><span className="float-right">{isReceived ? '217' : '235'}</span></div></div></div></article>
+          <AccountsListSideCard title={isReceived ? 'Top Customers by Amount' : 'Top Payees by Amount'} rows={(isReceived ? [['Sunlight Enterprises', 'Rs 75,00,000'], ['Green Power Solutions', 'Rs 68,20,000'], ['Bright Solar Pvt. Ltd.', 'Rs 42,15,000'], ['Electro Components Ltd.', 'Rs 18,75,000'], ['Sun Solar Systems', 'Rs 16,25,000']] : [['Bright Solar Pvt. Ltd.', 'Rs 3,40,00,000'], ['Sun Solar Systems', 'Rs 2,75,00,000'], ['Green Power Solutions', 'Rs 2,40,00,000'], ['Ravi Electricals', 'Rs 2,10,00,000'], ['Electro Components Ltd.', 'Rs 1,95,00,000']])} onNotify={onNotify} showViewAll />
+          <article className={`${panelClass} p-5`}><div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">{isReceived ? 'Recent Receipts' : 'Recent Payments'}</h2><button type="button" onClick={() => onNotify('Recent payments opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div><div className="mt-4 space-y-4">{filteredRows.slice(0, 3).map((row) => <button key={row.id} type="button" onClick={() => onNotify(`${row.docNo} opened`)} className="flex w-full items-center gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]"><span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#e8f8eb] text-[#0d9f4a]"><Download className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{row.docNo}</span><span className="mt-1 block truncate text-[11px] font-bold text-[#53647f]">{row.partyName}</span></span><span className="shrink-0 text-[11px] font-bold text-[#314a79]">{row.date}</span></button>)}</div></article>
+        </aside>
+      </section>
+
+      <DashboardFooter />
+      {modalType === 'New Payment' || modalType === 'Edit Payment' ? <PaymentEntryModal isReceived={isReceived} row={selectedRow} accountOptions={accountOptions.filter((item) => item !== 'All Accounts')} modeOptions={modeOptions.filter((item) => item !== 'All')} onClose={() => { setSelectedRow(null); setModalType(null); }} onSave={saveRow} /> : null}
+      {modalType === 'View Payment' ? <PaymentEntryDetailModal isReceived={isReceived} row={selectedRow} onClose={() => { setSelectedRow(null); setModalType(null); }} onEdit={() => setModalType('Edit Payment')} onNotify={onNotify} /> : null}
+      {modalType === 'Import' ? <InventoryImportModal title={isReceived ? 'Payment Received Import' : 'Payment Made Import'} onClose={() => setModalType(null)} onNotify={onNotify} /> : null}
+      {modalType === 'Settings' ? <AccountUtilityModal type="Accounts Settings" accounts={accountRows} onClose={() => setModalType(null)} onSaveTransaction={() => setModalType(null)} onNotify={onNotify} /> : null}
+    </div>
+  );
+}
+
+function BankAccountsListPage({ onNotify }) {
+  const [rows, setRows] = useState(bankAccountRows);
+  const [query, setQuery] = useState('');
+  const [type, setType] = useState('All Types');
+  const [bankName, setBankName] = useState('All Banks');
+  const [status, setStatus] = useState('All Status');
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [modalType, setModalType] = useState(null);
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.accountName, row.accountNumber, row.ifsc, row.bankName].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const typeMatch = type === 'All Types' || row.accountType === type;
+    const bankMatch = bankName === 'All Banks' || row.bankName === bankName;
+    const statusMatch = status === 'All Status' || row.status === status;
+    return queryMatch && typeMatch && bankMatch && statusMatch;
+  });
+
+  const saveRow = (form) => {
+    const next = {
+      id: form.id || Date.now(),
+      accountName: form.accountName || 'New Bank A/c',
+      bankName: form.bankName || 'HDFC Bank',
+      accountNumber: form.accountNumber || '000000000000',
+      ifsc: form.ifsc || 'BANK000000',
+      accountType: form.accountType || 'Current Account',
+      branch: form.branch || 'Indore Branch',
+      balance: Number(form.balance) || 0,
+      status: form.status || 'Active',
+    };
+    setRows((current) => (current.some((item) => item.id === next.id) ? current.map((item) => (item.id === next.id ? next : item)) : [next, ...current]));
+    setModalType(null);
+    setSelectedRow(null);
+    onNotify(`${next.accountName} saved`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading title="Bank Accounts List" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') }, { label: 'Bank Accounts List' }]} actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('Add Bank Account'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />Add Bank Account</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Bank accounts exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Bank account settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>} />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <OpsStatCard label="Total Accounts" value="15" caption="All Accounts" icon={ReceiptText} tone="blue" onClick={() => onNotify('All bank accounts opened')} />
+        <OpsStatCard label="Active Accounts" value="13" caption="86.67% of total" icon={CheckCircle2} tone="green" onClick={() => setStatus('Active')} />
+        <OpsStatCard label="Inactive Accounts" value="2" caption="13.33% of total" icon={Minus} tone="amber" onClick={() => setStatus('Inactive')} />
+        <OpsStatCard label="Total Balance (All)" value="Rs 5,87,45,230.50" caption="All Accounts" icon={IndianRupee} tone="purple" onClick={() => onNotify('All balances opened')} />
+        <OpsStatCard label="Total Balance (Active)" value="Rs 5,42,18,765.50" caption="Active Accounts" icon={BarChart3} tone="cyan" onClick={() => setStatus('Active')} />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="space-y-4">
+          <section className={`${panelClass} p-4 sm:p-5`}>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.45fr_0.75fr_0.75fr_0.75fr_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100"><Search className="size-4 text-[#7386a3]" /><input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by bank name, account number, IFSC..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" /></label>
+              <ReportSelect label="Account Type" value={type} onChange={setType} options={['All Types', 'Current Account', 'OD Account', 'Cash Credit']} />
+              <ReportSelect label="Bank Name" value={bankName} onChange={setBankName} options={['All Banks', ...Array.from(new Set(rows.map((row) => row.bankName)))]} />
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Inactive']} />
+              <button type="button" onClick={() => onNotify(`Bank filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filters</button>
+              <button type="button" onClick={() => { setQuery(''); setType('All Types'); setBankName('All Banks'); setStatus('All Status'); onNotify('Bank filters reset'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
+            </div>
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+            <h2 className="px-1 pb-4 font-display text-[15px] font-extrabold text-[#06135a]">Bank Accounts List</h2>
+            <div className="space-y-3 xl:hidden">{filteredRows.map((row, index) => <BankAccountMobileCard key={row.id} row={row} index={index + 1} onOpen={() => { setSelectedRow(row); setModalType('Edit Bank Account'); }} />)}</div>
+            <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block"><table className="crm-table min-w-[1320px] w-full"><thead><tr>{['#', 'Account Name', 'Bank Name', 'Account Number', 'IFSC Code', 'Account Type', 'Branch', 'Balance (Rs)', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{filteredRows.map((row, index) => <tr key={row.id}><td>{index + 1}</td><td className="font-extrabold text-[#1e3261]">{row.accountName}</td><td>{row.bankName}</td><td>{row.accountNumber}</td><td>{row.ifsc}</td><td>{row.accountType}</td><td>{row.branch}</td><td className="font-extrabold text-[#1e3261]">{formatCurrencyPrecise(row.balance)}</td><td><AccountStatusBadge status={row.status} /></td><td><UserActionButton label={`Edit ${row.accountName}`} icon={MoreVertical} tone="blue" onClick={() => { setSelectedRow(row); setModalType('Edit Bank Account'); }} /></td></tr>)}</tbody></table></div>
+            <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 15 entries`} totalPage="2" onNotify={onNotify} prefix="Bank Accounts" />
+          </article>
+        </div>
+        <aside className="grid gap-4">
+          <article className={`${panelClass} p-5`}><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Balance by Account Type</h2><div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)]"><button type="button" onClick={() => onNotify('Balance by type chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#2d7ff9 0 62.64%, #20a864 62.64% 75.97%, #f59e0b 75.97% 96.40%, #9b5de5 96.40% 100%)' }} aria-label="Open balance chart"><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button><div className="space-y-3"><StockLegend color="bg-[#2d7ff9]" label="Current Account" value="Rs 3,67,97,765.50 (62.64%)" /><StockLegend color="bg-[#20a864]" label="OD Account" value="Rs 78,25,000.00 (13.33%)" /><StockLegend color="bg-[#f59e0b]" label="Cash Credit" value="Rs 1,20,00,000.00 (20.43%)" /><StockLegend color="bg-[#9b5de5]" label="Other" value="Rs 21,22,465.00 (3.60%)" /></div></div></article>
+          <AccountsListSideCard title="Top Balances" rows={filteredRows.slice(0, 5).map((row) => [row.accountName, formatCurrencyPrecise(row.balance)])} onNotify={onNotify} showViewAll />
+          <article className={`${panelClass} p-5`}><div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Activities</h2><button type="button" onClick={() => onNotify('Bank activities opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div><div className="mt-4 space-y-4">{[['HDFC Operating A/c added', '20 May 2024'], ['ICICI Cash Credit updated', '18 May 2024'], ['PNB Current Account deactivated', '15 May 2024']].map(([title, date]) => <button key={title} type="button" onClick={() => onNotify(title)} className="flex w-full items-center gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]"><span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#e8f8eb] text-[#0d9f4a]"><CheckCircle2 className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{title}</span><span className="mt-1 block truncate text-[11px] font-bold text-[#53647f]">by Admin</span></span><span className="shrink-0 text-[11px] font-bold text-[#314a79]">{date}</span></button>)}</div></article>
+        </aside>
+      </section>
+      <DashboardFooter />
+      {modalType === 'Add Bank Account' || modalType === 'Edit Bank Account' ? <BankAccountModal row={selectedRow} onClose={() => { setSelectedRow(null); setModalType(null); }} onSave={saveRow} /> : null}
+      {modalType === 'Import' ? <InventoryImportModal title="Bank Accounts Import" onClose={() => setModalType(null)} onNotify={onNotify} /> : null}
+      {modalType === 'Settings' ? <AccountUtilityModal type="Accounts Settings" accounts={accountRows} onClose={() => setModalType(null)} onSaveTransaction={() => setModalType(null)} onNotify={onNotify} /> : null}
+    </div>
+  );
+}
+
+function ChequesListPage({ onNotify }) {
+  const [rows, setRows] = useState(chequeRows);
+  const [query, setQuery] = useState('');
+  const [bankAccount, setBankAccount] = useState('All Accounts');
+  const [status, setStatus] = useState('All Status');
+  const [chequeType, setChequeType] = useState('All Type');
+  const [dateRange, setDateRange] = useState('01 Apr 2024 - 07 May 2024');
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [modalType, setModalType] = useState(null);
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.chequeNo, row.bankAccount, row.payeeName].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
+    const accountMatch = bankAccount === 'All Accounts' || row.bankAccount === bankAccount;
+    const statusMatch = status === 'All Status' || row.status === status;
+    const typeMatch = chequeType === 'All Type' || row.chequeType === chequeType;
+    return queryMatch && accountMatch && statusMatch && typeMatch;
+  });
+
+  const saveRow = (form) => {
+    const next = {
+      id: form.id || Date.now(),
+      chequeNo: form.chequeNo || String(114 + rows.length).padStart(6, '0'),
+      date: form.date || 'Today',
+      bankAccount: form.bankAccount || 'HDFC Bank - 9876',
+      payeeName: form.payeeName || 'New Payee',
+      amount: Number(form.amount) || 0,
+      chequeType: form.chequeType || 'Issued',
+      status: form.status || 'Issued',
+      clearedDate: form.clearedDate || '-',
+    };
+    setRows((current) => [next, ...current]);
+    setSelectedRow(null);
+    setModalType(null);
+    onNotify(`Cheque ${next.chequeNo} saved`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading title="Bank Cheques List" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') }, { label: 'Cheques List' }]} actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('New Cheque'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />New Cheque</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Cheques exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Cheque settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>} />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <OpsStatCard label="Total Cheques" value="142" caption="All Time" icon={ReceiptText} tone="blue" onClick={() => onNotify('Total cheques opened')} />
+        <OpsStatCard label="Issued Cheques" value="98" caption="69.01% of total" icon={CheckCircle2} tone="green" onClick={() => setStatus('Issued')} />
+        <OpsStatCard label="Pending Cheques" value="18" caption="12.68% of total" icon={AlertTriangle} tone="amber" onClick={() => setStatus('Pending')} />
+        <OpsStatCard label="Deposited Cheques" value="22" caption="15.49% of total" icon={IndianRupee} tone="purple" onClick={() => setStatus('Deposited')} />
+        <OpsStatCard label="Cancelled Cheques" value="4" caption="2.82% of total" icon={XCircle} tone="cyan" onClick={() => setStatus('Cancelled')} />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="space-y-4">
+          <section className={`${panelClass} p-4 sm:p-5`}>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.45fr_0.75fr_0.75fr_0.75fr_0.95fr_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100"><Search className="size-4 text-[#7386a3]" /><input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by cheque no., bank, account, payee..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" /></label>
+              <ReportSelect label="Bank Account" value={bankAccount} onChange={setBankAccount} options={['All Accounts', ...Array.from(new Set(rows.map((row) => row.bankAccount)))]} />
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Issued', 'Pending', 'Deposited', 'Cleared', 'Cancelled']} />
+              <ReportSelect label="Cheque Type" value={chequeType} onChange={setChequeType} options={['All Type', 'Issued']} />
+              <ReportSelect label="Date Range" value={dateRange} onChange={setDateRange} options={['01 Apr 2024 - 07 May 2024', 'This Month', 'Last 30 Days']} />
+              <button type="button" onClick={() => onNotify(`Cheque filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filters</button>
+              <button type="button" onClick={() => { setQuery(''); setBankAccount('All Accounts'); setStatus('All Status'); setChequeType('All Type'); setDateRange('01 Apr 2024 - 07 May 2024'); onNotify('Cheque filters reset'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
+            </div>
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+            <h2 className="px-1 pb-4 font-display text-[15px] font-extrabold text-[#06135a]">Cheques List</h2>
+            <div className="space-y-3 xl:hidden">{filteredRows.map((row, index) => <ChequeMobileCard key={row.id} row={row} index={index + 1} onOpen={() => { setSelectedRow(row); setModalType('View Cheque'); }} />)}</div>
+            <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block"><table className="crm-table min-w-[1320px] w-full"><thead><tr>{['#', 'Cheque No.', 'Date', 'Bank Account', 'Payee Name', 'Amount (Rs)', 'Cheque Type', 'Status', 'Cleared Date', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{filteredRows.map((row, index) => <tr key={row.id}><td>{index + 1}</td><td className="font-extrabold text-[#1e3261]">{row.chequeNo}</td><td>{row.date}</td><td>{row.bankAccount}</td><td className="font-extrabold text-[#1e3261]">{row.payeeName}</td><td className="font-extrabold text-[#1e3261]">{formatLedgerCurrency(row.amount)}</td><td>{row.chequeType}</td><td><ChequeStatusBadge status={row.status} /></td><td>{row.clearedDate}</td><td><UserActionButton label={`Open cheque ${row.chequeNo}`} icon={MoreVertical} tone="blue" onClick={() => { setSelectedRow(row); setModalType('View Cheque'); }} /></td></tr>)}</tbody></table></div>
+            <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 142 entries`} totalPage="15" onNotify={onNotify} prefix="Cheques List" />
+          </article>
+        </div>
+
+        <aside className="grid gap-4">
+          <article className={`${panelClass} p-5`}><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Cheques by Status</h2><div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)]"><button type="button" onClick={() => onNotify('Cheque status chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#2d7ff9 0 69.01%, #f7b731 69.01% 81.69%, #20a864 81.69% 97.18%, #ef4444 97.18% 100%)' }} aria-label="Open cheque status chart"><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button><div className="space-y-3"><StockLegend color="bg-[#2d7ff9]" label="Issued" value="98 (69.01%)" /><StockLegend color="bg-[#f7b731]" label="Pending" value="18 (12.68%)" /><StockLegend color="bg-[#20a864]" label="Deposited" value="22 (15.49%)" /><StockLegend color="bg-[#ef4444]" label="Cancelled" value="4 (2.82%)" /></div></div></article>
+          <AccountsListSideCard title="Cheques by Bank Account" rows={[['HDFC Bank - 9876', 'Rs 3,25,750.00'], ['ICICI Bank - 4321', 'Rs 2,10,50,000.00'], ['Axis Bank - 6789', 'Rs 1,95,000.00'], ['SBI Bank - 1234', 'Rs 55,250.00']]} onNotify={onNotify} showViewAll />
+          <article className={`${panelClass} p-5`}><div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Cheques Added</h2><button type="button" onClick={() => onNotify('Recent cheques opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div><div className="mt-4 space-y-4">{filteredRows.slice(0, 3).map((row) => <button key={row.id} type="button" onClick={() => onNotify(`Cheque ${row.chequeNo} opened`)} className="flex w-full items-center gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]"><span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#e8f8eb] text-[#0d9f4a]"><ReceiptText className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{row.chequeNo}</span><span className="mt-1 block truncate text-[11px] font-bold text-[#53647f]">{row.payeeName}</span></span><span className="shrink-0 text-[11px] font-bold text-[#314a79]">{row.date}</span></button>)}</div></article>
+        </aside>
+      </section>
+
+      <DashboardFooter />
+      {modalType === 'New Cheque' || modalType === 'Edit Cheque' ? <ChequeModal row={selectedRow} onClose={() => { setModalType(null); setSelectedRow(null); }} onSave={saveRow} /> : null}
+      {modalType === 'View Cheque' ? <ChequeDetailModal row={selectedRow} onClose={() => { setModalType(null); setSelectedRow(null); }} onEdit={() => setModalType('Edit Cheque')} onNotify={onNotify} /> : null}
+      {modalType === 'Import' ? <InventoryImportModal title="Cheques Import" onClose={() => setModalType(null)} onNotify={onNotify} /> : null}
+      {modalType === 'Settings' ? <AccountUtilityModal type="Accounts Settings" accounts={accountRows} onClose={() => setModalType(null)} onSaveTransaction={() => setModalType(null)} onNotify={onNotify} /> : null}
+    </div>
+  );
+}
+
+function PaymentModeListPage({ onNotify }) {
+  const [rows, setRows] = useState(paymentModeRows);
+  const [query, setQuery] = useState('');
+  const [type, setType] = useState('All Types');
+  const [status, setStatus] = useState('All Status');
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [modalType, setModalType] = useState(null);
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.code, row.name, row.type, row.description].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const typeMatch = type === 'All Types' || row.type === type;
+    const statusMatch = status === 'All Status' || row.status === status;
+    return queryMatch && typeMatch && statusMatch;
+  });
+
+  const saveRow = (form) => {
+    const next = {
+      id: form.id || Date.now(),
+      code: form.code || `PM-${String(rows.length + 1).padStart(3, '0')}`,
+      name: form.name || 'New Mode',
+      type: form.type || 'Digital',
+      description: form.description || 'Payment mode description',
+      status: form.status || 'Active',
+    };
+    setRows((current) => (current.some((item) => item.id === next.id) ? current.map((item) => (item.id === next.id ? next : item)) : [next, ...current]));
+    setSelectedRow(null);
+    setModalType(null);
+    onNotify(`${next.name} saved`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading title="Payment Mode List" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') }, { label: 'Payment Mode List' }]} actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('Add Payment Mode'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />Add Payment Mode</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Payment mode exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Payment mode settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>} />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <OpsStatCard label="Total Payment Modes" value="12" caption="All Modes" icon={ReceiptText} tone="blue" onClick={() => onNotify('All payment modes opened')} />
+        <OpsStatCard label="Active Modes" value="11" caption="91.67% of total" icon={CheckCircle2} tone="green" onClick={() => setStatus('Active')} />
+        <OpsStatCard label="Inactive Modes" value="1" caption="8.33% of total" icon={Minus} tone="amber" onClick={() => setStatus('Inactive')} />
+        <OpsStatCard label="Bank Modes" value="5" caption="41.67% of total" icon={IndianRupee} tone="purple" onClick={() => setType('Bank Transfer')} />
+        <OpsStatCard label="Digital Modes" value="3" caption="25.00% of total" icon={BarChart3} tone="cyan" onClick={() => setType('Digital')} />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="space-y-4">
+          <section className={`${panelClass} p-4 sm:p-5`}>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.45fr_0.75fr_0.75fr_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100"><Search className="size-4 text-[#7386a3]" /><input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by payment mode name or code..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" /></label>
+              <ReportSelect label="Type" value={type} onChange={setType} options={['All Types', 'Cash', 'Cheque', 'Bank Transfer', 'Digital', 'Others']} />
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Inactive']} />
+              <button type="button" onClick={() => onNotify(`Payment mode filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filters</button>
+              <button type="button" onClick={() => { setQuery(''); setType('All Types'); setStatus('All Status'); onNotify('Payment mode filters reset'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
+            </div>
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+            <h2 className="px-1 pb-4 font-display text-[15px] font-extrabold text-[#06135a]">Payment Mode List</h2>
+            <div className="space-y-3 xl:hidden">{filteredRows.map((row, index) => <PaymentModeMobileCard key={row.id} row={row} index={index + 1} onOpen={() => { setSelectedRow(row); setModalType('Edit Payment Mode'); }} />)}</div>
+            <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block"><table className="crm-table min-w-[1120px] w-full"><thead><tr>{['#', 'Code', 'Payment Mode Name', 'Type', 'Description', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{filteredRows.map((row, index) => <tr key={row.id}><td>{index + 1}</td><td className="font-extrabold text-[#1e3261]">{row.code}</td><td className="font-extrabold text-[#1e3261]">{row.name}</td><td>{row.type}</td><td>{row.description}</td><td><AccountStatusBadge status={row.status} /></td><td><UserActionButton label={`Edit ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => { setSelectedRow(row); setModalType('Edit Payment Mode'); }} /></td></tr>)}</tbody></table></div>
+            <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 12 entries`} totalPage="1" onNotify={onNotify} prefix="Payment Mode" />
+          </article>
+        </div>
+
+        <aside className="grid gap-4">
+          <article className={`${panelClass} p-5`}><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Payment Mode Type Overview</h2><div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)]"><button type="button" onClick={() => onNotify('Payment mode type chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#20a864 0 41.67%, #2d7ff9 41.67% 58.34%, #f7b731 58.34% 83.34%, #9b5de5 83.34% 100%)' }} aria-label="Open payment mode type chart"><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button><div className="space-y-3"><StockLegend color="bg-[#20a864]" label="Bank Transfer" value="5 (41.67%)" /><StockLegend color="bg-[#2d7ff9]" label="Cash" value="2 (16.67%)" /><StockLegend color="bg-[#f7b731]" label="Digital" value="3 (25.00%)" /><StockLegend color="bg-[#9b5de5]" label="Cheque" value="2 (16.67%)" /><div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]"><span>Total Modes</span><span className="float-right">12</span></div></div></div></article>
+          <article className={`${panelClass} p-5`}><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Status Overview</h2><div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)]"><button type="button" onClick={() => onNotify('Payment mode status chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#20a864 0 91.67%, #ef4444 91.67% 100%)' }} aria-label="Open payment mode status chart"><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button><div className="space-y-3"><StockLegend color="bg-[#20a864]" label="Active" value="11 (91.67%)" /><StockLegend color="bg-[#ef4444]" label="Inactive" value="1 (8.33%)" /></div></div></article>
+          <article className={`${panelClass} p-5`}><div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Activities</h2><button type="button" onClick={() => onNotify('Payment mode activities opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div><div className="mt-4 space-y-4">{[['Bank Deposit added', '20 May 2024'], ['Card updated', '18 May 2024'], ['DD deactivated', '15 May 2024']].map(([title, date]) => <button key={title} type="button" onClick={() => onNotify(title)} className="flex w-full items-center gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]"><span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#e8f8eb] text-[#0d9f4a]"><CheckCircle2 className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{title}</span><span className="mt-1 block truncate text-[11px] font-bold text-[#53647f]">by Admin</span></span><span className="shrink-0 text-[11px] font-bold text-[#314a79]">{date}</span></button>)}</div></article>
+        </aside>
+      </section>
+      <DashboardFooter />
+      {modalType === 'Add Payment Mode' || modalType === 'Edit Payment Mode' ? <PaymentModeModal row={selectedRow} onClose={() => { setSelectedRow(null); setModalType(null); }} onSave={saveRow} /> : null}
+      {modalType === 'Import' ? <InventoryImportModal title="Payment Mode Import" onClose={() => setModalType(null)} onNotify={onNotify} /> : null}
+      {modalType === 'Settings' ? <AccountUtilityModal type="Accounts Settings" accounts={accountRows} onClose={() => setModalType(null)} onSaveTransaction={() => setModalType(null)} onNotify={onNotify} /> : null}
+    </div>
+  );
+}
+
+function OpsStatCard({ label, value, caption, icon: Icon, tone, onClick }) {
+  const toneClass = {
+    blue: 'bg-[#0b65e5] text-white',
+    green: 'bg-[#0d9f4a] text-white',
+    amber: 'bg-[#f59e0b] text-white',
+    purple: 'bg-[#b56ce8] text-white',
+    cyan: 'bg-[#0891b2] text-white',
+  }[tone] ?? 'bg-[#0b65e5] text-white';
+  return (
+    <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[120px] items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]`}>
+      <span className={cx('grid size-12 shrink-0 place-items-center rounded-full', toneClass)}><Icon className="size-6" /></span>
+      <span className="min-w-0"><span className="block text-[12px] font-bold text-[#53647f]">{label}</span><span className="mt-1 block font-display text-[22px] font-extrabold text-[#111827]">{value}</span><span className="mt-2 block text-[11px] font-bold text-[#314a79]">{caption}</span></span>
+    </button>
+  );
+}
+
+function ChartAccountMobileCard({ row, index, onOpen }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p><p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.name}</p><p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.code} - {row.accountType}</p></div><AccountStatusBadge status={row.status} /></div>
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2"><InfoCell label="Group" value={row.group} /><InfoCell label="Parent" value={row.parentAccount} /><InfoCell label="Normal Balance" value={row.normalBalance} /></div>
+      <button type="button" onClick={onOpen} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />Edit Account</button>
+    </article>
+  );
+}
+
+function PaymentEntryMobileCard({ row, index, isReceived, onOpen }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p><p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.docNo}</p><p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.partyName}</p></div><TransactionStatusBadge status={row.status} /></div>
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2"><InfoCell label={isReceived ? 'Project / Ref.' : 'Reference'} value={row.refNo} /><InfoCell label="Payment Mode" value={row.paymentMode} /><InfoCell label="Account" value={row.account} /><InfoCell label="Amount" value={formatInventoryCurrency(row.amount)} /></div>
+      <button type="button" onClick={onOpen} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View Entry</button>
+    </article>
+  );
+}
+
+function BankAccountMobileCard({ row, index, onOpen }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p><p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.accountName}</p><p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.bankName} - {row.accountType}</p></div><AccountStatusBadge status={row.status} /></div>
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2"><InfoCell label="A/c Number" value={row.accountNumber} /><InfoCell label="IFSC" value={row.ifsc} /><InfoCell label="Branch" value={row.branch} /><InfoCell label="Balance" value={formatCurrencyPrecise(row.balance)} /></div>
+      <button type="button" onClick={onOpen} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />Edit Bank Account</button>
+    </article>
+  );
+}
+
+function PaymentModeMobileCard({ row, index, onOpen }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p><p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.name}</p><p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.code} - {row.type}</p></div><AccountStatusBadge status={row.status} /></div>
+      <p className="mt-4 text-[12px] font-bold text-[#314a79]">{row.description}</p>
+      <button type="button" onClick={onOpen} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />Edit Payment Mode</button>
+    </article>
+  );
+}
+
+function ChequeMobileCard({ row, index, onOpen }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p><p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.chequeNo}</p><p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.bankAccount}</p></div><ChequeStatusBadge status={row.status} /></div>
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2"><InfoCell label="Payee" value={row.payeeName} /><InfoCell label="Amount" value={formatInventoryCurrency(row.amount)} /><InfoCell label="Date" value={row.date} /><InfoCell label="Cleared Date" value={row.clearedDate} /></div>
+      <button type="button" onClick={onOpen} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View Cheque</button>
+    </article>
+  );
+}
+
+function PaymentEntryModal({ isReceived, row, accountOptions, modeOptions, onClose, onSave }) {
+  const [form, setForm] = useState(row ?? {
+    docNo: '',
+    date: '07 May 2024',
+    partyName: '',
+    refNo: '',
+    account: accountOptions[0] ?? 'HDFC Bank (9876)',
+    paymentMode: modeOptions[0] ?? 'NEFT',
+    amount: 0,
+    status: 'Completed',
+  });
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: field === 'amount' ? Number(value) || 0 : value }));
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Payment Entry' : 'New Payment Entry'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close payment editor"><X className="size-5" /></button></div>
+        <div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label={isReceived ? 'Receipt No.' : 'Payment No.'} value={form.docNo ?? ''} onChange={(value) => updateField('docNo', value)} placeholder="Auto if blank" /><ModalTextInput label="Date" value={form.date ?? ''} onChange={(value) => updateField('date', value)} placeholder="07 May 2024" /><ModalTextInput label={isReceived ? 'Customer Name' : 'Payee Name'} value={form.partyName ?? ''} onChange={(value) => updateField('partyName', value)} placeholder="Name" /><ModalTextInput label={isReceived ? 'Project / Ref.' : 'Reference / Bill No.'} value={form.refNo ?? ''} onChange={(value) => updateField('refNo', value)} placeholder="INV-2024-0000" /><ReportSelect label="Account" value={form.account ?? accountOptions[0]} onChange={(value) => updateField('account', value)} options={accountOptions.length ? accountOptions : ['HDFC Bank (9876)']} /><ReportSelect label="Payment Mode" value={form.paymentMode ?? modeOptions[0]} onChange={(value) => updateField('paymentMode', value)} options={modeOptions.length ? modeOptions : ['NEFT']} /><ModalTextInput label="Amount" value={String(form.amount ?? 0)} onChange={(value) => updateField('amount', value)} placeholder="0" /><ReportSelect label="Status" value={form.status ?? 'Completed'} onChange={(value) => updateField('status', value)} options={['Completed', 'Pending', 'Cancelled']} /></div>
+        <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Entry</button></div>
+      </div>
+    </div>
+  );
+}
+
+function ChequeModal({ row, onClose, onSave }) {
+  const [form, setForm] = useState(row ?? { chequeNo: '', date: '07 May 2024', bankAccount: 'HDFC Bank - 9876', payeeName: '', amount: 0, chequeType: 'Issued', status: 'Issued', clearedDate: '-' });
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: field === 'amount' ? Number(value) || 0 : value }));
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Cheque' : 'New Cheque'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close cheque modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Cheque No." value={form.chequeNo} onChange={(value) => updateField('chequeNo', value)} placeholder="000123" /><ModalTextInput label="Date" value={form.date} onChange={(value) => updateField('date', value)} placeholder="07 May 2024" /><ReportSelect label="Bank Account" value={form.bankAccount} onChange={(value) => updateField('bankAccount', value)} options={Array.from(new Set(chequeRows.map((item) => item.bankAccount)))} /><ModalTextInput label="Payee Name" value={form.payeeName} onChange={(value) => updateField('payeeName', value)} placeholder="Payee name" /><ModalTextInput label="Amount" value={String(form.amount)} onChange={(value) => updateField('amount', value)} placeholder="0" /><ReportSelect label="Cheque Type" value={form.chequeType} onChange={(value) => updateField('chequeType', value)} options={['Issued']} /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Issued', 'Pending', 'Deposited', 'Cleared', 'Cancelled']} /><ModalTextInput label="Cleared Date" value={form.clearedDate} onChange={(value) => updateField('clearedDate', value)} placeholder="06 May 2024 / -" /></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Cheque</button></div></div></div>
+  );
+}
+
+function ChequeDetailModal({ row, onClose, onEdit, onNotify }) {
+  if (!row) return null;
+  return (
+    <DetailModalShell title={`Cheque ${row.chequeNo}`} onClose={onClose}>
+      <div className="grid gap-3 sm:grid-cols-2"><InfoCell label="Date" value={row.date} /><InfoCell label="Bank Account" value={row.bankAccount} /><InfoCell label="Payee" value={row.payeeName} /><InfoCell label="Amount" value={formatInventoryCurrency(row.amount)} /><InfoCell label="Status" valueNode={<ChequeStatusBadge status={row.status} />} /><InfoCell label="Cleared Date" value={row.clearedDate} /></div>
+      <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => onNotify(`Cheque ${row.chequeNo} print queued`)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Print Cheque</button><button type="button" onClick={onEdit} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white">Edit Cheque</button></div>
+    </DetailModalShell>
+  );
+}
+
+function ChequeStatusBadge({ status }) {
+  const classes = {
+    Issued: 'bg-[#e8f2ff] text-[#0b65e5]',
+    Pending: 'bg-[#fff0dc] text-[#d98200]',
+    Deposited: 'bg-[#dcfce7] text-[#15803d]',
+    Cleared: 'bg-[#e8f8eb] text-[#0d9f4a]',
+    Cancelled: 'bg-[#ffe9e6] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function PaymentEntryDetailModal({ isReceived, row, onClose, onEdit, onNotify }) {
+  if (!row) return null;
+  return (
+    <DetailModalShell title={row.docNo} onClose={onClose}>
+      <div className="grid gap-3 sm:grid-cols-2"><InfoCell label="Date" value={row.date} /><InfoCell label={isReceived ? 'Customer' : 'Payee'} value={row.partyName} /><InfoCell label={isReceived ? 'Project / Ref.' : 'Reference'} value={row.refNo} /><InfoCell label="Account" value={row.account} /><InfoCell label="Payment Mode" value={row.paymentMode} /><InfoCell label="Amount" value={formatInventoryCurrency(row.amount)} /><InfoCell label="Status" valueNode={<TransactionStatusBadge status={row.status} />} /></div>
+      <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => onNotify(`${row.docNo} voucher downloaded`)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Download Voucher</button><button type="button" onClick={onEdit} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white">Edit Entry</button></div>
+    </DetailModalShell>
+  );
+}
+
+function ChartAccountModal({ row, onClose, onSave }) {
+  const [form, setForm] = useState(row ?? { code: '', name: '', accountType: 'Asset', group: 'Assets', parentAccount: '-', normalBalance: 'Debit', status: 'Active' });
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Account' : 'Add Account'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close account modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Account Code" value={form.code} onChange={(value) => updateField('code', value)} placeholder="1000" /><ModalTextInput label="Account Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Account name" /><ReportSelect label="Account Type" value={form.accountType} onChange={(value) => updateField('accountType', value)} options={['Asset', 'Liability', 'Income', 'Expense']} /><ReportSelect label="Group" value={form.group} onChange={(value) => updateField('group', value)} options={['Assets', 'Current Assets', 'Fixed Assets', 'Liabilities', 'Income', 'Expenses']} /><ModalTextInput label="Parent Account" value={form.parentAccount} onChange={(value) => updateField('parentAccount', value)} placeholder="1000 - Assets" /><ReportSelect label="Normal Balance" value={form.normalBalance} onChange={(value) => updateField('normalBalance', value)} options={['Debit', 'Credit']} /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Account</button></div></div></div>
+  );
+}
+
+function BankAccountModal({ row, onClose, onSave }) {
+  const [form, setForm] = useState(row ?? { accountName: '', bankName: 'HDFC Bank', accountNumber: '', ifsc: '', accountType: 'Current Account', branch: 'Indore Branch', balance: 0, status: 'Active' });
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: field === 'balance' ? Number(value) || 0 : value }));
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Bank Account' : 'Add Bank Account'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close bank account modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Account Name" value={form.accountName} onChange={(value) => updateField('accountName', value)} placeholder="Account name" /><ReportSelect label="Bank Name" value={form.bankName} onChange={(value) => updateField('bankName', value)} options={['HDFC Bank', 'ICICI Bank', 'Axis Bank', 'State Bank of India', 'Punjab National Bank']} /><ModalTextInput label="Account Number" value={form.accountNumber} onChange={(value) => updateField('accountNumber', value)} placeholder="Account number" /><ModalTextInput label="IFSC Code" value={form.ifsc} onChange={(value) => updateField('ifsc', value)} placeholder="IFSC" /><ReportSelect label="Account Type" value={form.accountType} onChange={(value) => updateField('accountType', value)} options={['Current Account', 'OD Account', 'Cash Credit']} /><ModalTextInput label="Branch" value={form.branch} onChange={(value) => updateField('branch', value)} placeholder="Branch name" /><ModalTextInput label="Balance" value={String(form.balance)} onChange={(value) => updateField('balance', value)} placeholder="0" /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Bank Account</button></div></div></div>
+  );
+}
+
+function PaymentModeModal({ row, onClose, onSave }) {
+  const [form, setForm] = useState(row ?? { code: '', name: '', type: 'Digital', description: '', status: 'Active' });
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Payment Mode' : 'Add Payment Mode'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close payment mode modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Code" value={form.code} onChange={(value) => updateField('code', value)} placeholder="PM-001" /><ModalTextInput label="Payment Mode Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Mode name" /><ReportSelect label="Type" value={form.type} onChange={(value) => updateField('type', value)} options={['Cash', 'Cheque', 'Bank Transfer', 'Digital', 'Others']} /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /><div className="sm:col-span-2"><ModalTextInput label="Description" value={form.description} onChange={(value) => updateField('description', value)} placeholder="Description" /></div></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Payment Mode</button></div></div></div>
+  );
+}
+
+function formatCurrencyPrecise(value) {
+  return `Rs ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function AccountListStatCard({ label, value, caption, icon: Icon, tone, onClick }) {
