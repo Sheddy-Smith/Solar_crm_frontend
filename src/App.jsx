@@ -23,6 +23,7 @@ import {
   Heart,
   Home,
   HardDrive,
+  Info,
   IndianRupee,
   Leaf,
   LockKeyhole,
@@ -3193,17 +3194,17 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
     <div className="space-y-4">
       <PageHeading title="Settings" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Settings' }]} />
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
-          <p className="text-[24px] font-extrabold text-[#111827]">Manage all system settings and preferences</p>
-          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100"><Search className="size-4 text-[#7386a3]" /><input type="search" placeholder="Search settings..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" onChange={() => onNotify('Settings search updated')} /></label>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] lg:items-center">
+          <p className="text-[18px] font-extrabold leading-tight text-[#111827] sm:text-[20px] lg:text-[24px]">Manage all system settings and preferences</p>
+          <label className="flex h-11 w-full items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100"><Search className="size-4 text-[#7386a3]" /><input type="search" placeholder="Search settings..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" onChange={() => onNotify('Settings search updated')} /></label>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 2xl:grid-cols-4">
         {settingGroups.map((group) => (
-          <article key={group.title} className={`${panelClass} p-5`}>
-            <h2 className={cx('font-display text-[18px] font-extrabold', group.tone)}>{group.title}</h2>
-            <div className="mt-4 space-y-2">
+          <article key={group.title} className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className={cx('font-display text-[16px] font-extrabold sm:text-[18px]', group.tone)}>{group.title}</h2>
+            <div className="mt-4 space-y-2.5">
               {group.items.map(([label, note]) => {
                 const Icon = settingsOptionIcons[label] ?? Settings;
                 const iconTone = settingsGroupIconTone[group.title] ?? 'bg-[#eef2f7] text-[#53647f]';
@@ -3216,12 +3217,12 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
                   onNotify(`${label} opened`);
                 }} className="flex w-full items-start justify-between gap-3 rounded-[10px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
                   <span className="flex min-w-0 items-start gap-3">
-                    <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px]', iconTone)}>
+                    <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px] sm:size-10', iconTone)}>
                       <Icon className="size-4" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-[13px] font-extrabold text-[#1e3261]">{label}</span>
-                      <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{note}</span>
+                      <span className="block text-[13px] font-extrabold leading-[1.2] text-[#1e3261]">{label}</span>
+                      <span className="mt-1 block text-[12px] font-bold leading-[1.3] text-[#53647f]">{note}</span>
                     </span>
                   </span>
                   <ChevronRight className="mt-0.5 size-4 shrink-0 text-[#7c8da8]" />
@@ -3233,22 +3234,64 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
         ))}
       </section>
 
-      <section className={`${panelClass} p-5`}>
-        <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Quick System Info</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {[
-            ['Version', 'v2.1.0'],
-            ['Admin', 'Super Admin'],
-            ['Last Backup', '20 May 2024 10:30 AM'],
-            ['Database', 'Connected'],
-            ['Storage Used', '2.45 GB / 10 GB'],
-            ['Active Users', '12'],
-          ].map(([label, value]) => (
-            <button key={label} type="button" onClick={() => onNotify(`${label} details opened`)} className="rounded-[12px] border border-[#e7eef7] bg-white p-4 text-left transition hover:bg-[#f8fbff]">
-              <p className="text-[12px] font-extrabold text-[#8a98af]">{label}</p>
-              <p className="mt-2 text-[14px] font-extrabold text-[#1e3261]">{value}</p>
-            </button>
-          ))}
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <h2 className="font-display text-[16px] font-extrabold text-[#06135a] sm:text-[18px]">Quick System Info</h2>
+        <div className="mt-4 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[0.8fr_0.95fr_1.2fr_0.85fr_1.55fr_0.75fr]">
+          <button type="button" onClick={() => onNotify('Version details opened')} className="flex items-center gap-3 text-left">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]"><Info className="size-4" /></span>
+            <span>
+              <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Version</span>
+              <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">v2.1.0</span>
+            </span>
+          </button>
+
+          <button type="button" onClick={() => onNotify('Admin details opened')} className="flex items-center gap-3 text-left">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e8f2ff] text-[#2563eb]"><UserRound className="size-4" /></span>
+            <span>
+              <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Admin</span>
+              <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">Super Admin</span>
+            </span>
+          </button>
+
+          <button type="button" onClick={() => onNotify('Backup details opened')} className="flex items-center gap-3 text-left">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e6f8fc] text-[#0891b2]"><Cloud className="size-4" /></span>
+            <span>
+              <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Last Backup</span>
+              <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">20 May 2024 10:30 AM</span>
+            </span>
+          </button>
+
+          <button type="button" onClick={() => onNotify('Database details opened')} className="flex items-center gap-3 text-left">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e6f8f6] text-[#0d9488]"><Database className="size-4" /></span>
+            <span>
+              <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Database</span>
+              <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">Connected</span>
+            </span>
+          </button>
+
+          <button type="button" onClick={() => onNotify('Storage details opened')} className="text-left">
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]"><HardDrive className="size-4" /></span>
+              <span>
+                <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Storage Used</span>
+                <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">2.45 GB / 10 GB</span>
+              </span>
+            </div>
+            <div className="mt-2.5 flex items-center gap-2 pl-[52px]">
+              <div className="h-2 w-full rounded-full bg-[#e7edf8]">
+                <div className="h-2 w-[24%] rounded-full bg-[#2d7ff9]" />
+              </div>
+              <span className="text-[12px] font-extrabold text-[#314a79]">24%</span>
+            </div>
+          </button>
+
+          <button type="button" onClick={() => onNotify('Active users details opened')} className="flex items-center gap-3 text-left">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e8f2ff] text-[#2563eb]"><UsersRound className="size-4" /></span>
+            <span>
+              <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Active Users</span>
+              <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">12</span>
+            </span>
+          </button>
         </div>
       </section>
 
