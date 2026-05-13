@@ -8,6 +8,7 @@ import {
   Boxes,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   ClipboardPlus,
   Clock3,
@@ -19,6 +20,7 @@ import {
   Flag,
   FilePlus2,
   FileText,
+  Filter,
   FolderKanban,
   Heart,
   Home,
@@ -53,21 +55,21 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
-import signInBgImage from './assets/data/Sign_in_bg_hd.png';
+import signInBgImage from './assets/data/Sign_in_bg.png';
 import navBarImage from './assets/data/nav_bar_img.png';
 
 const sidebarItems = [
   { label: 'Dashboard', icon: Home, active: true },
   { label: 'Lead', icon: Users, showChevron: true },
   { label: 'Project Management', icon: FolderKanban },
-  { label: 'Liaisoning & Commissioning', icon: ShieldCheck },
-  { label: 'O&M', icon: Wrench },
+  { label: 'Liaisoning & Commissioning', icon: ShieldCheck, showChevron: true },
+  { label: 'O&M', icon: Wrench, showChevron: true },
   { label: 'Accounts', icon: ReceiptText, showChevron: true },
   { label: 'Inventory', icon: Boxes, showChevron: true },
   { label: 'Reports', icon: BarChart3 },
   { label: 'Employee Management', icon: UsersRound, showChevron: true },
-  { label: 'AMC & Warranty', icon: ShieldCheck },
-  { label: 'Settings', icon: Settings },
+  { label: 'AMC & Warranty', icon: ShieldCheck, showChevron: true },
+  { label: 'Settings', icon: Settings, showChevron: true },
 ];
 
 const leadSubItems = ['Lead List', 'Create Lead'];
@@ -78,7 +80,102 @@ const accountsSubItems = ['Accounts List', 'Transactions List', 'Chart of Accoun
 const accountsRelatedPages = ['Accounts Overview', ...accountsSubItems];
 const inventorySubItems = ['Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
 const inventoryRelatedPages = [...inventorySubItems];
-const settingsRelatedPages = ['Settings', 'Master Type', 'Payment Mode'];
+const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents'];
+const liaisonRelatedPages = [...liaisonSubItems];
+const omSubItems = ['O&M Overview', 'Maintenance Tasks', 'Breakdown Tickets', 'Site Visits', 'Asset Management', 'Spare Parts', 'Energy Performance', 'O&M Reports'];
+const omRelatedPages = ['O&M', ...omSubItems];
+const amcSubItems = ['AMC Contracts', 'Warranties', 'Service Requests', 'Visits / Maintenance', 'Renewals', 'Claims', 'Documents'];
+const amcRelatedPages = [...amcSubItems];
+const organizationSettingsPages = ['Company Profile', 'Business Information', 'Branches', 'Financial Year'];
+const settingsCardGroups = [
+  {
+    title: 'Organization Settings',
+    tone: 'text-[#14853a]',
+    items: [
+      { key: 'Company Profile', label: 'Company Profile', note: 'Manage company details, logo and address' },
+      { key: 'Business Information', label: 'Business Information', note: 'Business type, GST, PAN and registration details' },
+      { key: 'Branches', label: 'Branches', note: 'Add and manage branches' },
+      { key: 'Financial Year', label: 'Financial Year', note: 'Manage financial year and accounting period' },
+    ],
+  },
+  {
+    title: 'User & Access Management',
+    tone: 'text-[#0b65e5]',
+    items: [
+      { key: 'Settings Users', label: 'Users', note: 'Add, edit and manage system users' },
+      { key: 'Settings Roles & Permissions', label: 'Roles & Permissions', note: 'Manage roles and set permissions' },
+      { key: 'Settings User Activity Log', label: 'User Activity Log', note: 'View users activity and login history' },
+      { key: 'Settings IP Restrictions', label: 'IP Restrictions', note: 'Manage IP based access restrictions' },
+    ],
+  },
+  {
+    title: 'General Settings',
+    tone: 'text-[#7b46dc]',
+    items: [
+      { key: 'System Settings', label: 'System Settings', note: 'General system configuration' },
+      { key: 'Date & Time Format', label: 'Date & Time Format', note: 'Set date, time and timezone' },
+      { key: 'Currency Settings', label: 'Currency Settings', note: 'Manage currency and exchange rate' },
+      { key: 'Language Settings', label: 'Language Settings', note: 'Manage system languages' },
+    ],
+  },
+  {
+    title: 'Accounts Settings',
+    tone: 'text-[#ea580c]',
+    items: [
+      { key: 'Chart of Accounts', label: 'Chart of Accounts', note: 'Manage accounts and ledger groups' },
+      { key: 'Account Prefix', label: 'Account Prefix', note: 'Configure account code prefix' },
+      { key: 'Opening Balance', label: 'Opening Balance', note: 'Manage opening balances' },
+      { key: 'Payment Settings', label: 'Payment Settings', note: 'Payment terms and due days' },
+      { key: 'Payment Mode', label: 'Payment Mode', note: 'Configure payment mode masters' },
+    ],
+  },
+  {
+    title: 'Inventory Settings',
+    tone: 'text-[#0f766e]',
+    items: [
+      { key: 'Product Categories', label: 'Product Categories', note: 'Manage product categories' },
+      { key: 'Units of Measurement', label: 'Units of Measurement', note: 'Manage units (NOS, KG, LTR, etc.)' },
+      { key: 'Tax Settings', label: 'Tax Settings', note: 'Manage GST and other tax settings' },
+      { key: 'Stock Settings', label: 'Stock Settings', note: 'Configure stock and warehouse settings' },
+    ],
+  },
+  {
+    title: 'Project Settings',
+    tone: 'text-[#db2777]',
+    items: [
+      { key: 'Project Status', label: 'Project Status', note: 'Manage project statuses' },
+      { key: 'Project Types', label: 'Project Types', note: 'Manage project types' },
+      { key: 'Task Priorities', label: 'Task Priorities', note: 'Manage task priorities' },
+      { key: 'Milestone Settings', label: 'Milestone Settings', note: 'Configure project milestones' },
+    ],
+  },
+  {
+    title: 'Communication Settings',
+    tone: 'text-[#15803d]',
+    items: [
+      { key: 'Email Settings', label: 'Email Settings', note: 'Configure SMTP and email templates' },
+      { key: 'SMS Settings', label: 'SMS Settings', note: 'Configure SMS gateway' },
+      { key: 'WhatsApp Settings', label: 'WhatsApp Settings', note: 'Configure WhatsApp integration' },
+      { key: 'Notification Settings', label: 'Notification Settings', note: 'Manage system notifications' },
+    ],
+  },
+  {
+    title: 'Other Settings',
+    tone: 'text-[#ca8a04]',
+    items: [
+      { key: 'Document Settings', label: 'Document Settings', note: 'Manage document numbering' },
+      { key: 'Approval Settings', label: 'Approval Settings', note: 'Configure approval workflows' },
+      { key: 'Backup & Restore', label: 'Backup & Restore', note: 'Backup and restore system data' },
+      { key: 'System Maintenance', label: 'System Maintenance', note: 'System cleanup and maintenance' },
+    ],
+  },
+];
+const settingsSidebarGroups = settingsCardGroups.map((group) => ({
+  title: group.title,
+  items: group.items.map(({ key, label }) => ({ key, label })),
+}));
+const settingsDisplayNameMap = Object.fromEntries(settingsCardGroups.flatMap((group) => group.items.map((item) => [item.key, item.label])));
+const settingsRelatedPages = ['Settings', 'Master Type', ...settingsCardGroups.flatMap((group) => group.items.map((item) => item.key))];
 
 const leadSubRoutes = {
   'Lead List': '/lead/list',
@@ -110,6 +207,36 @@ const inventorySubRoutes = {
   'Stock Transfer': '/inventory/stock-transfer',
   Adjustments: '/inventory/adjustments',
   Warehouses: '/inventory/warehouses',
+};
+
+const liaisonSubRoutes = {
+  Applications: '/liaisoning/applications',
+  Approvals: '/liaisoning/approvals',
+  Inspections: '/liaisoning/inspections',
+  Commissioning: '/liaisoning/commissioning',
+  Compliance: '/liaisoning/compliance',
+  Documents: '/liaisoning/documents',
+};
+
+const omSubRoutes = {
+  'O&M Overview': '/om/overview',
+  'Maintenance Tasks': '/om/maintenance-tasks',
+  'Breakdown Tickets': '/om/breakdown-tickets',
+  'Site Visits': '/om/site-visits',
+  'Asset Management': '/om/asset-management',
+  'Spare Parts': '/om/spare-parts',
+  'Energy Performance': '/om/energy-performance',
+  'O&M Reports': '/om/reports',
+};
+
+const amcSubRoutes = {
+  'AMC Contracts': '/amc/contracts',
+  Warranties: '/amc/warranties',
+  'Service Requests': '/amc/service-requests',
+  'Visits / Maintenance': '/amc/visits-maintenance',
+  Renewals: '/amc/renewals',
+  Claims: '/amc/claims',
+  Documents: '/amc/documents',
 };
 
 const leadCategoryTabs = [
@@ -435,6 +562,22 @@ const leadListRows = [
   },
 ];
 
+function getLeadRowsForCategory(category) {
+  if (!category) {
+    return leadListRows;
+  }
+
+  if (category.shortLabel === 'New') {
+    return leadListRows.filter((lead) => lead.status === 'New');
+  }
+
+  if (category.shortLabel === 'Lost') {
+    return leadListRows.filter((lead) => lead.status === 'Lost');
+  }
+
+  return leadListRows.filter((lead) => category.leads.includes(lead.customer));
+}
+
 const overdueFollowUps = [
   { customer: 'Amit Sharma', project: '5kW On-Grid', delay: '2 Days Overdue' },
   { customer: 'Sunil Verma', project: '10kW On-Grid', delay: '2 Days Overdue' },
@@ -623,6 +766,66 @@ const userDetailLeads = [
   { name: 'Pooja Mehta', project: '3kW On-Grid', status: 'New' },
   { name: 'Deepak Joshi', project: '10kW On-Grid', status: 'Quotation' },
   { name: 'Kavita Rana', project: '7.5kW On-Grid', status: 'Follow-up' },
+];
+
+const settingsUsersSeed = [
+  { id: 1, name: 'Super Admin', email: 'admin@malwasolar.com', phone: '+91 98765 43210', role: 'Super Admin', branch: 'Head Office, Ludhiana', status: 'Active', lastLogin: '20 May 2024 10:30 AM', joinedOn: '10 Jan 2024', assignee: { name: 'Super Admin', initials: 'SA', tone: 'amber' }, isYou: true },
+  { id: 2, name: 'Ravi Kumar', email: 'ravi.kumar@malwasolar.com', phone: '+91 98765 43211', role: 'Admin', branch: 'Head Office, Ludhiana', status: 'Active', lastLogin: '20 May 2024 09:15 AM', joinedOn: '12 Jan 2024', assignee: { name: 'Ravi Kumar', initials: 'RK', tone: 'sky' } },
+  { id: 3, name: 'Neha Sharma', email: 'neha.sharma@malwasolar.com', phone: '+91 98765 43212', role: 'Manager', branch: 'Sangrur Branch', status: 'Active', lastLogin: '19 May 2024 04:45 PM', joinedOn: '18 Jan 2024', assignee: { name: 'Neha Sharma', initials: 'NS', tone: 'emerald' } },
+  { id: 4, name: 'Amit Singh', email: 'amit.singh@malwasolar.com', phone: '+91 98765 43213', role: 'Engineer', branch: 'Chandigarh Branch', status: 'Active', lastLogin: '19 May 2024 03:20 PM', joinedOn: '01 Feb 2024', assignee: { name: 'Amit Singh', initials: 'AS', tone: 'amber' } },
+  { id: 5, name: 'Pooja Gupta', email: 'pooja.gupta@malwasolar.com', phone: '+91 98765 43214', role: 'Accountant', branch: 'Jaipur Branch', status: 'Inactive', lastLogin: '15 May 2024 11:05 AM', joinedOn: '06 Feb 2024', assignee: { name: 'Pooja Gupta', initials: 'PG', tone: 'sky' } },
+  { id: 6, name: 'Manoj Kumar', email: 'manoj.kumar@malwasolar.com', phone: '+91 98765 43215', role: 'Technician', branch: 'Indore Branch', status: 'Active', lastLogin: '20 May 2024 08:50 AM', joinedOn: '11 Feb 2024', assignee: { name: 'Manoj Kumar', initials: 'MK', tone: 'emerald' } },
+  { id: 7, name: 'Sunil Kumar', email: 'sunil.kumar@malwasolar.com', phone: '+91 98765 43216', role: 'Site Incharge', branch: 'Patiala Branch', status: 'Active', lastLogin: '19 May 2024 06:30 PM', joinedOn: '20 Feb 2024', assignee: { name: 'Sunil Kumar', initials: 'SK', tone: 'amber' } },
+  { id: 8, name: 'Vikram Patel', email: 'vikram.patel@malwasolar.com', phone: '+91 98765 43217', role: 'Viewer', branch: 'Bangalore Branch', status: 'Inactive', lastLogin: '10 May 2024 02:10 PM', joinedOn: '28 Feb 2024', assignee: { name: 'Vikram Patel', initials: 'VP', tone: 'sky' } },
+];
+
+const settingsRolesSeed = [
+  { id: 1, name: 'Super Admin', type: 'System Role', users: 3, status: 'Active', tone: 'green' },
+  { id: 2, name: 'Admin', type: 'System Role', users: 8, status: 'Active', tone: 'blue' },
+  { id: 3, name: 'Manager', type: 'Custom Role', users: 12, status: 'Active', tone: 'amber' },
+  { id: 4, name: 'Engineer', type: 'Custom Role', users: 9, status: 'Active', tone: 'cyan' },
+  { id: 5, name: 'Accountant', type: 'Custom Role', users: 4, status: 'Active', tone: 'purple' },
+  { id: 6, name: 'Technician', type: 'Custom Role', users: 6, status: 'Active', tone: 'green' },
+  { id: 7, name: 'Viewer', type: 'Custom Role', users: 5, status: 'Active', tone: 'blue' },
+  { id: 8, name: 'Guest', type: 'Custom Role', users: 1, status: 'Inactive', tone: 'pink' },
+];
+
+const settingsActivitySeed = [
+  { id: 1, time: '20 May 2024 10:30 AM', user: settingsUsersSeed[0], action: 'Login', module: 'Authentication', description: 'User logged in successfully', ip: '103.152.45.12', status: 'Success' },
+  { id: 2, time: '20 May 2024 10:25 AM', user: settingsUsersSeed[1], action: 'Create', module: 'Leads', description: 'Lead "Malwa Industries Pvt. Ltd." created', ip: '103.152.45.12', status: 'Success' },
+  { id: 3, time: '20 May 2024 10:20 AM', user: settingsUsersSeed[2], action: 'Update', module: 'Projects', description: 'Project "Ludhiana Factory (100 kWp)" updated', ip: '103.152.45.18', status: 'Success' },
+  { id: 4, time: '20 May 2024 10:15 AM', user: settingsUsersSeed[3], action: 'Delete', module: 'Documents', description: 'Document "Site Survey Report.pdf" deleted', ip: '103.152.45.21', status: 'Success' },
+  { id: 5, time: '20 May 2024 09:50 AM', user: settingsUsersSeed[4], action: 'Create', module: 'AMC Contracts', description: 'AMC Contract "AMC-2024-002" created', ip: '103.152.45.30', status: 'Success' },
+  { id: 6, time: '20 May 2024 09:30 AM', user: settingsUsersSeed[5], action: 'Update', module: 'O&M Tasks', description: 'Task "Inverter Cleaning" status changed to In Progress', ip: '103.152.45.22', status: 'Success' },
+  { id: 7, time: '20 May 2024 09:10 AM', user: settingsUsersSeed[6], action: 'Login Failed', module: 'Authentication', description: 'Failed login attempt with incorrect password', ip: '103.152.45.99', status: 'Failed' },
+  { id: 8, time: '20 May 2024 08:45 AM', user: settingsUsersSeed[7], action: 'Download', module: 'Reports', description: 'Downloaded report "Sales Summary - Apr 2024"', ip: '103.152.45.25', status: 'Success' },
+  { id: 9, time: '20 May 2024 08:30 AM', user: settingsUsersSeed[0], action: 'Update', module: 'Users', description: 'User role updated for "Pooja Gupta"', ip: '103.152.45.12', status: 'Success' },
+  { id: 10, time: '20 May 2024 08:15 AM', user: settingsUsersSeed[1], action: 'Create', module: 'Service Request', description: 'Service Request "SR-2024-015" created', ip: '103.152.45.12', status: 'Success' },
+];
+
+const settingsIpRulesSeed = [
+  { id: 1, name: 'Head Office Network', type: 'Allow', ipRange: '103.152.45.0/24', description: 'Head Office - Ludhiana', status: 'Active', priority: '1', createdOn: '15 Mar 2024' },
+  { id: 2, name: 'Sangrur Branch', type: 'Allow', ipRange: '103.162.10.0/24', description: 'Sangrur Branch Office', status: 'Active', priority: '2', createdOn: '18 Mar 2024' },
+  { id: 3, name: 'Chandigarh Office', type: 'Allow', ipRange: '103.179.20.0/24', description: 'Chandigarh Branch', status: 'Active', priority: '3', createdOn: '20 Mar 2024' },
+  { id: 4, name: 'Jaipur Branch', type: 'Allow', ipRange: '103.186.30.5', description: 'Jaipur Branch Static IP', status: 'Active', priority: '4', createdOn: '22 Mar 2024' },
+  { id: 5, name: 'Partner Network', type: 'Allow', ipRange: '203.198.15.0/24', description: 'Authorized Partner Network', status: 'Active', priority: '5', createdOn: '25 Mar 2024' },
+  { id: 6, name: 'Suspicious IP Range 1', type: 'Block', ipRange: '103.152.99.0/24', description: 'Malicious Activity Detected', status: 'Active', priority: '-', createdOn: '10 Apr 2024' },
+  { id: 7, name: 'Suspicious IP Range 2', type: 'Block', ipRange: '45.77.0.0/16', description: 'Brute Force Attempts', status: 'Active', priority: '-', createdOn: '12 Apr 2024' },
+  { id: 8, name: 'Tor Exit Nodes', type: 'Block', ipRange: '185.220.101.0/24', description: 'Tor Exit Node IPs', status: 'Active', priority: '-', createdOn: '15 Apr 2024' },
+];
+
+const settingsBlockedAttemptsSeed = [
+  { id: 1, attemptedAt: '20 May 2024 10:32 AM', ip: '103.152.45.99', source: 'Punjab, India', reason: 'Invalid password attempts exceeded', action: 'Blocked' },
+  { id: 2, attemptedAt: '20 May 2024 09:48 AM', ip: '45.77.18.24', source: 'Frankfurt, Germany', reason: 'Blacklisted IP range match', action: 'Blocked' },
+  { id: 3, attemptedAt: '19 May 2024 11:20 PM', ip: '185.220.101.44', source: 'Anonymous relay', reason: 'Tor exit node detected', action: 'Blocked' },
+  { id: 4, attemptedAt: '19 May 2024 06:14 PM', ip: '103.152.99.15', source: 'Ludhiana, India', reason: 'Known malicious activity', action: 'Blocked' },
+];
+
+const settingsIpAuditSeed = [
+  { id: 1, time: '20 May 2024 09:40 AM', actor: 'Super Admin', action: 'Rule Added', target: 'Partner Network', result: 'Success' },
+  { id: 2, time: '19 May 2024 05:15 PM', actor: 'Ravi Kumar', action: 'Rule Updated', target: 'Jaipur Branch', result: 'Success' },
+  { id: 3, time: '19 May 2024 11:10 AM', actor: 'Super Admin', action: 'Cache Cleared', target: 'IP Access Cache', result: 'Success' },
+  { id: 4, time: '18 May 2024 02:35 PM', actor: 'Neha Sharma', action: 'Import Attempt', target: 'Blacklist import CSV', result: 'Queued' },
 ];
 
 const projectManagementRows = [
@@ -1024,16 +1227,52 @@ const dataPanelClass =
 
 const tableHeaders = ['Customer Name', 'Mobile Number', 'IVRS Number', 'Project Name', 'Assigned To', 'Follow-up Date', 'Action'];
 const recentHeaders = ['Customer Name', 'Mobile Number', 'Project Name', 'Status', 'Assigned To', 'Created On'];
+const APP_PREFERENCES_KEY = 'malwa-solar-crm:ui-preferences';
+const availableSections = new Set([
+  ...sidebarItems.map((item) => item.label),
+  ...leadRelatedPages,
+  ...employeeRelatedPages,
+  ...accountsRelatedPages,
+  ...inventoryRelatedPages,
+  ...liaisonRelatedPages,
+  ...omRelatedPages,
+  ...amcRelatedPages,
+  ...settingsRelatedPages,
+]);
 
 function cx(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
+function readStoredPreferences() {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(APP_PREFERENCES_KEY);
+    if (!storedValue) {
+      return {};
+    }
+
+    const parsedValue = JSON.parse(storedValue);
+    return parsedValue && typeof parsedValue === 'object' ? parsedValue : {};
+  } catch {
+    return {};
+  }
+}
+
+function isKnownSection(section) {
+  return typeof section === 'string' && availableSections.has(section);
+}
+
 function App() {
-  const [currentPage, setCurrentPage] = useState('signin');
+  const initialPreferencesRef = useRef(readStoredPreferences());
+  const initialPreferences = initialPreferencesRef.current;
+  const [currentPage, setCurrentPage] = useState(initialPreferences.currentPage === 'dashboard' ? 'dashboard' : 'signin');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
-  const [activeSidebarItem, setActiveSidebarItem] = useState('Dashboard');
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
+  const [activeSidebarItem, setActiveSidebarItem] = useState(isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -1066,6 +1305,58 @@ function App() {
     const timer = window.setTimeout(() => setToast(null), 2200);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(
+      APP_PREFERENCES_KEY,
+      JSON.stringify({
+        currentPage,
+        activeSidebarItem,
+        desktopSidebarCollapsed,
+      }),
+    );
+  }, [activeSidebarItem, currentPage, desktopSidebarCollapsed]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const pageLabel = currentPage === 'signin' ? 'Sign In' : activeSidebarItem;
+    document.title = `${pageLabel} | Malwa Solar CRM`;
+  }, [activeSidebarItem, currentPage]);
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!profileMenuOpen) {
+        return;
+      }
+
+      if (event.target instanceof Element && event.target.closest('[data-profile-menu="true"]')) {
+        return;
+      }
+
+      setProfileMenuOpen(false);
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setProfileMenuOpen(false);
+        setMobileSidebarOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [profileMenuOpen]);
 
   if (currentPage === 'signin') {
     return (
@@ -1130,20 +1421,26 @@ function App() {
                   const isEmployeeSection = item.label === 'Employee Management';
                   const isAccountsSection = item.label === 'Accounts';
                   const isInventorySection = item.label === 'Inventory';
+                  const isLiaisonSection = item.label === 'Liaisoning & Commissioning';
+                  const isOmSection = item.label === 'O&M';
+                  const isAmcSection = item.label === 'AMC & Warranty';
                   const isSettingsSection = item.label === 'Settings';
                   const isLeadOpen = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
                   const isEmployeeOpen = isEmployeeSection && (activeSidebarItem === 'Employee Management' || employeeRelatedPages.includes(activeSidebarItem));
                   const isAccountsOpen = isAccountsSection && (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem));
                   const isInventoryOpen = isInventorySection && (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem));
+                  const isLiaisonOpen = isLiaisonSection && (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem));
+                  const isOmOpen = isOmSection && omRelatedPages.includes(activeSidebarItem);
+                  const isAmcOpen = isAmcSection && (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem));
                   const isSettingsOpen = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
-                  const isActive = item.label === activeSidebarItem || isLeadOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isSettingsOpen;
+                  const isActive = item.label === activeSidebarItem || isLeadOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsOpen;
 
                   return (
                     <div key={item.label}>
                       <button
                         type="button"
                         onClick={() => {
-                          const nextItem = isLeadSection ? 'Lead List' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : isSettingsSection ? 'Settings' : item.label;
+                          const nextItem = isLeadSection ? 'Lead List' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'O&M Overview' : isAmcSection ? 'AMC Contracts' : isSettingsSection ? 'Settings' : item.label;
                           setActiveSidebarItem(nextItem);
                           setMobileSidebarOpen(false);
                           notify(`${nextItem} section selected`);
@@ -1169,7 +1466,7 @@ function App() {
                           {item.label}
                         </span>
                         {item.showChevron && !desktopSidebarCollapsed ? (
-                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen) && '-rotate-90')} />
+                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsOpen) && '-rotate-90')} />
                         ) : null}
                         {item.disabled && !desktopSidebarCollapsed ? (
                           <span className="rounded-[6px] bg-white/16 px-2 py-1 text-[9px] font-extrabold text-white/90">
@@ -1313,6 +1610,143 @@ function App() {
                           </div>
                         </div>
                       ) : null}
+                      {isLiaisonOpen && !desktopSidebarCollapsed ? (
+                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                          <div className="space-y-1">
+                            {liaisonSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem;
+
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  data-route={liaisonSubRoutes[subItem]}
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                  <span>{subItem === 'O&M Overview' ? 'Overview' : subItem === 'O&M Reports' ? 'Reports' : subItem}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                      {isOmOpen && !desktopSidebarCollapsed ? (
+                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                          <div className="space-y-1">
+                            {omSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem;
+
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  data-route={omSubRoutes[subItem]}
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                  <span>{subItem}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                      {isAmcOpen && !desktopSidebarCollapsed ? (
+                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                          <div className="space-y-1">
+                            {amcSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem;
+
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  data-route={amcSubRoutes[subItem]}
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                  <span>{subItem}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                      {isSettingsOpen && !desktopSidebarCollapsed ? (
+                        <div className="my-2 rounded-[10px] bg-white px-3 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                          <div className="space-y-3">
+                            {settingsSidebarGroups.map((group) => (
+                              <div key={group.title} className="border-b border-[#edf2f8] pb-3 last:border-b-0 last:pb-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const firstItem = group.items[0];
+                                    if (!firstItem) {
+                                      return;
+                                    }
+                                    setActiveSidebarItem(firstItem.key);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${group.title} opened`);
+                                  }}
+                                  className="flex w-full items-center justify-between gap-3 px-2 py-1 text-left"
+                                >
+                                  <span className="text-[12px] font-extrabold text-[#30466d]">{group.title}</span>
+                                  <ChevronRight className="size-4 text-[#91a0b7]" />
+                                </button>
+                                <div className="mt-2 space-y-1">
+                                  {group.items.map((item) => {
+                                    const isSubActive = activeSidebarItem === item.key;
+
+                                    return (
+                                      <button
+                                        key={item.key}
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveSidebarItem(item.key);
+                                          setMobileSidebarOpen(false);
+                                          notify(`${item.label} opened`);
+                                        }}
+                                        className={cx(
+                                          'flex w-full items-center gap-3 rounded-[8px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                          isSubActive ? 'bg-[#eefbf1] text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                        )}
+                                      >
+                                        <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                        <span>{item.label}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -1388,7 +1822,7 @@ function App() {
                       );
                     })}
 
-                    <div className="relative">
+                    <div className="relative" data-profile-menu="true">
                       <button
                         type="button"
                         onClick={() => setProfileMenuOpen((current) => !current)}
@@ -1430,6 +1864,7 @@ function App() {
                   <img
                     src={navBarImage}
                     alt="Solar header"
+                    decoding="async"
                     className="h-[52px] w-full rounded-[8px] object-cover object-center sm:h-[58px]"
                   />
                 </div>
@@ -1454,7 +1889,7 @@ function App() {
                     );
                   })}
 
-                  <div className="relative ml-auto">
+                  <div className="relative ml-auto" data-profile-menu="true">
                     <button
                       type="button"
                       onClick={() => setProfileMenuOpen((current) => !current)}
@@ -1494,18 +1929,53 @@ function App() {
               </div>
             </header>
 
-            {activeSidebarItem === 'Users' ? (
+            {activeSidebarItem === 'Settings Users' ? (
+              <SettingsUsersPage onNotify={notify} />
+            ) : activeSidebarItem === 'Settings Roles & Permissions' ? (
+              <SettingsRolesPermissionsPage onNotify={notify} />
+            ) : activeSidebarItem === 'Settings User Activity Log' ? (
+              <SettingsUserActivityLogPage onNotify={notify} />
+            ) : activeSidebarItem === 'Settings IP Restrictions' ? (
+              <SettingsIpRestrictionsPage onNotify={notify} />
+            ) : activeSidebarItem === 'Users' ? (
               <UserManagementPage onNotify={notify} />
             ) : activeSidebarItem === 'Roles & Permissions' ? (
               <RolesPermissionsPage onNotify={notify} />
             ) : activeSidebarItem === 'Activity Logs' ? (
-              <ActivityLogsPage onNotify={notify} />
+              <SettingsUserActivityLogPage onNotify={notify} />
             ) : activeSidebarItem === 'Reports' ? (
               <ReportsPage onNotify={notify} />
             ) : activeSidebarItem === 'Project Management' ? (
               <ProjectManagementPage onNotify={notify} />
             ) : settingsRelatedPages.includes(activeSidebarItem) ? (
               <SettingsMasterPage
+                activeSection={activeSidebarItem}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : liaisonRelatedPages.includes(activeSidebarItem) ? (
+              <LiaisoningCommissioningPage
+                activeSection={activeSidebarItem}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : omRelatedPages.includes(activeSidebarItem) ? (
+              <OmPage
+                activeSection={activeSidebarItem}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : amcRelatedPages.includes(activeSidebarItem) ? (
+              <AmcWarrantyPage
                 activeSection={activeSidebarItem}
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
@@ -1827,10 +2297,14 @@ function SignInPage({ onLogin, onNotify }) {
         <section
           className="relative isolate min-h-[560px] overflow-hidden bg-cover bg-no-repeat px-6 py-8 sm:min-h-[680px] sm:px-12 sm:py-12 lg:min-h-full lg:rounded-l-[24px] lg:px-[5.2vw] lg:py-[4.2vw] xl:px-[5.8vw] 2xl:px-[6.2vw]"
           style={{
-            backgroundImage: `url(${signInBgImage})`,
+            backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.86) 0%, rgba(241,250,244,0.72) 46%, rgba(232,244,255,0.74) 100%), url(${signInBgImage})`,
             backgroundPosition: 'left center',
           }}
         >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.88),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(17,111,208,0.14),transparent_28%)]" aria-hidden="true" />
+          <div className="absolute -left-12 top-16 size-40 rounded-full bg-white/40 blur-3xl sm:size-52" aria-hidden="true" />
+          <div className="absolute bottom-12 right-8 size-44 rounded-full bg-[#0d9f4a]/12 blur-3xl sm:size-56" aria-hidden="true" />
+
           <div className="relative z-10 flex min-w-0 items-center gap-3">
             <MiniBrandMark plain />
             <div className="min-w-0">
@@ -1844,16 +2318,25 @@ function SignInPage({ onLogin, onNotify }) {
           </div>
 
           <div className="relative z-10 mt-12 max-w-[760px] sm:mt-20 lg:mt-[7.4vh] xl:mt-[8.2vh]">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/72 px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.12em] text-[#116fd0] shadow-[0_10px_24px_rgba(17,39,84,0.08)] backdrop-blur-sm">
+              <ShieldCheck className="size-4 text-[#0d9f4a]" />
+              Secure solar operations workspace
+            </span>
             <h1 className="font-display text-[clamp(2.6rem,7vw,4rem)] font-extrabold leading-[1.12] text-[#102446] lg:text-[clamp(3rem,3.35vw,4.15rem)]">
-              Powering a
+              Run your solar pipeline
               <span className="mt-1 block text-[#087532]">Sustainable Future</span>
             </h1>
-            <p className="mt-8 max-w-[380px] text-[clamp(1.55rem,4.5vw,2rem)] font-bold leading-[1.58] text-[#2e3645]">
-              One Solar Solution
-              <span className="block">
-                at a Time <Leaf className="mb-1 inline size-6 fill-current text-[#5abd2d]" />
-              </span>
+            <p className="mt-6 max-w-[620px] text-[15px] font-bold leading-8 text-[#364255] sm:text-[18px]">
+              Leads, follow-ups, site visits, approvals aur revenue tracking ko ek clean workspace mein manage karo.
+              Team ko speed bhi milegi aur process visibility bhi.
             </p>
+            <div className="mt-7 flex flex-wrap gap-3 text-[12px] font-extrabold text-[#314a79] sm:text-[13px]">
+              {['Role-based access', 'Daily pipeline visibility', 'Faster follow-ups'].map((item) => (
+                <span key={item} className="rounded-full border border-white/55 bg-white/72 px-4 py-2 shadow-[0_8px_18px_rgba(17,39,84,0.07)] backdrop-blur-sm">
+                  {item}
+                </span>
+              ))}
+            </div>
           </div>
 
           <div className="relative z-10 mt-10 rounded-[22px] border border-white/20 bg-[linear-gradient(105deg,rgba(29,166,67,0.92)_0%,rgba(12,137,132,0.88)_48%,rgba(13,108,202,0.92)_100%)] p-5 text-white shadow-[0_18px_34px_rgba(11,71,118,0.24)] sm:mt-12 sm:rounded-[24px] sm:p-7 lg:absolute lg:bottom-[5.2vh] lg:left-[3.8vw] lg:right-[3.3vw] lg:mt-0">
@@ -1890,6 +2373,8 @@ function SignInPage({ onLogin, onNotify }) {
                   <input
                     type="text"
                     placeholder="Enter email or mobile number"
+                    autoComplete="username"
+                    spellCheck={false}
                     className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796] sm:text-[18px]"
                   />
                 </span>
@@ -1902,6 +2387,7 @@ function SignInPage({ onLogin, onNotify }) {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Enter your password"
+                    autoComplete="current-password"
                     className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796] sm:text-[18px]"
                   />
                   <button
@@ -1940,6 +2426,10 @@ function SignInPage({ onLogin, onNotify }) {
                 <LogIn className="size-5" />
                 Login
               </button>
+
+              <p className="text-center text-[13px] font-bold text-[#6a7586]">
+                Protected access for sales, project, liaisoning aur service teams.
+              </p>
 
               <div className="flex items-center gap-4">
                 <span className="h-px flex-1 bg-[#e0e5ee]" />
@@ -2008,6 +2498,7 @@ function LeadListPage({ onCreateLead, onOpenLead, onNotify }) {
   const [followUpDate, setFollowUpDate] = useState('');
   const [activeLeadCategory, setActiveLeadCategory] = useState(null);
   const followUpDateInputRef = useRef(null);
+  const leadTableSectionRef = useRef(null);
   const headers = [
     '#',
     'Customer Name',
@@ -2035,6 +2526,16 @@ function LeadListPage({ onCreateLead, onOpenLead, onNotify }) {
     input.focus();
     input.click();
   };
+
+  const visibleLeadRows = getLeadRowsForCategory(activeLeadCategory);
+
+  useEffect(() => {
+    if (!activeLeadCategory) {
+      return;
+    }
+
+    leadTableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [activeLeadCategory]);
 
   return (
     <div className="space-y-4">
@@ -2107,12 +2608,13 @@ function LeadListPage({ onCreateLead, onOpenLead, onNotify }) {
                   type="button"
                   onClick={() => {
                     setActiveLeadCategory(category);
-                    onNotify(`${category.label} details opened`);
+                    onNotify(`${category.label} list opened`);
                   }}
                   data-action={`open-${category.shortLabel.toLowerCase()}-leads`}
                   className={cx(
                     'group inline-flex h-[54px] min-w-[168px] items-center justify-between gap-3 rounded-[12px] border px-3.5 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
                     tone.button,
+                    activeLeadCategory?.label === category.label ? 'ring-2 ring-[#0b65e5] ring-offset-2 ring-offset-white' : '',
                   )}
                 >
                   <span className="inline-flex min-w-0 items-center gap-3">
@@ -2174,7 +2676,11 @@ function LeadListPage({ onCreateLead, onOpenLead, onNotify }) {
 
           <button
             type="button"
-            onClick={() => onNotify('Lead filters reset')}
+            onClick={() => {
+              setFollowUpDate('');
+              setActiveLeadCategory(null);
+              onNotify('Lead filters reset');
+            }}
             data-action="lead-reset-filters"
             className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
           >
@@ -2184,9 +2690,50 @@ function LeadListPage({ onCreateLead, onOpenLead, onNotify }) {
         </div>
       </section>
 
-      <section className={`${panelClass} relative z-10 overflow-hidden p-3 sm:p-4`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 overflow-hidden p-3 sm:p-4`}>
+        {activeLeadCategory ? (
+          <div className="mb-4 rounded-[14px] border border-[#d8e6f6] bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_100%)] p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#0b65e5]">
+                  Category View
+                </p>
+                <h2 className="mt-2 font-display text-[20px] font-extrabold text-[#1e3261]">
+                  {activeLeadCategory.label} List
+                </h2>
+                <p className="mt-2 max-w-[760px] text-[13px] font-semibold leading-6 text-[#53647f]">
+                  {activeLeadCategory.description}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveLeadCategory(null);
+                  onNotify('Category view cleared');
+                }}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"
+              >
+                <X className="size-4" />
+                Clear View
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-[12px] font-bold text-[#53647f]">
+              <span className="rounded-full bg-white px-3 py-1.5 text-[#1e3261] shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
+                Showing {visibleLeadRows.length} demo leads
+              </span>
+              <span className="rounded-full bg-white px-3 py-1.5 text-[#1e3261] shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
+                Priority: {activeLeadCategory.priority}
+              </span>
+              <span className="rounded-full bg-white px-3 py-1.5 text-[#1e3261] shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
+                Next action: {activeLeadCategory.nextAction}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
         <div className="space-y-3 lg:hidden">
-          {leadListRows.map((lead, index) => (
+          {visibleLeadRows.map((lead, index) => (
             <LeadListMobileCard
               key={`${lead.ivrs}-${lead.mobile}`}
               index={index + 1}
@@ -2208,7 +2755,7 @@ function LeadListPage({ onCreateLead, onOpenLead, onNotify }) {
                 </tr>
               </thead>
               <tbody>
-                {leadListRows.map((lead, index) => (
+                {visibleLeadRows.map((lead, index) => (
                   <tr key={`${lead.ivrs}-${lead.mobile}`}>
                     <td className="font-extrabold text-[#233a6b]">{index + 1}</td>
                     <td className="font-bold text-[#233a6b]">{lead.customer}</td>
@@ -2255,7 +2802,9 @@ function LeadListPage({ onCreateLead, onOpenLead, onNotify }) {
         </div>
 
         <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-          <p>Showing 1 to 10 of 125 entries</p>
+          <p>
+            Showing 1 to {visibleLeadRows.length} of {activeLeadCategory ? visibleLeadRows.length : 125} entries
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <PaginationButton onClick={() => onNotify('Previous page selected')}>
               <ChevronLeft className="size-4" />
@@ -2273,146 +2822,6 @@ function LeadListPage({ onCreateLead, onOpenLead, onNotify }) {
       </section>
 
       <DashboardFooter />
-      {activeLeadCategory ? (
-        <LeadCategoryModal
-          category={activeLeadCategory}
-          onClose={() => setActiveLeadCategory(null)}
-          onCreateLead={() => {
-            const categoryLabel = activeLeadCategory.label;
-            setActiveLeadCategory(null);
-            onCreateLead();
-            onNotify(`Create Lead opened from ${categoryLabel}`);
-          }}
-          onNotify={onNotify}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function LeadCategoryModal({ category, onClose, onCreateLead, onNotify }) {
-  const Icon = category.icon;
-  const tone = leadCategoryToneClasses[category.tone] || leadCategoryToneClasses.green;
-  const visibleLeads = category.leads.map((name, index) => {
-    const row = leadListRows.find((lead) => lead.customer === name) || leadListRows[index];
-    return row;
-  });
-
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
-      <div className="max-h-[92vh] w-full max-w-[760px] overflow-y-auto rounded-[18px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-        <div className={cx('h-2 bg-gradient-to-r', tone.accent)} />
-        <div className="p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex min-w-0 gap-3">
-              <span className={cx('grid size-12 shrink-0 place-items-center rounded-[14px]', tone.icon)}>
-                <Icon className="size-5" />
-              </span>
-              <div className="min-w-0">
-                <h2 className="font-display text-[22px] font-extrabold leading-tight text-[#111827]">
-                  {category.label}
-                </h2>
-                <p className="mt-2 max-w-[560px] text-[13px] font-semibold leading-6 text-[#53647f]">
-                  {category.description}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[#d9e4f2] bg-white text-[#7585a2] transition hover:bg-[#f8fbff]"
-              aria-label="Close lead category details"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <LeadCategoryInfoCard label="Total leads" value={category.count} />
-            <LeadCategoryInfoCard label="Priority" value={category.priority} />
-            <LeadCategoryInfoCard label="Next action" value={category.nextAction} compact />
-          </div>
-
-          <div className="mt-5 rounded-[14px] border border-[#e7eef7] bg-[#fbfdff] p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-display text-[16px] font-extrabold text-[#1e3261]">Sample leads</p>
-                <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">
-                  Any lead can be added or moved into this category later.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNotify(`${category.label} list filters applied`)}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]"
-              >
-                <Search className="size-3.5" />
-                Filter list
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              {visibleLeads.map((lead) => (
-                <div
-                  key={`${category.label}-${lead.ivrs}`}
-                  className="flex flex-col gap-3 rounded-[12px] border border-[#e8eef6] bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-extrabold text-[#233a6b]">{lead.customer}</p>
-                    <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">
-                      {lead.project} | {lead.mobile} | {lead.ivrs}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge status={category.shortLabel === 'Hot' ? 'Follow-up' : category.shortLabel === 'Lost' ? 'Lost' : lead.status} />
-                    <button
-                      type="button"
-                      onClick={() => onNotify(`${lead.customer} opened from ${category.label}`)}
-                      className="inline-flex h-8 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]"
-                    >
-                      View
-                      <ArrowRight className="size-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-[12px] border border-[#d9f2e4] bg-[#f3fff7] p-4 text-[13px] font-semibold leading-6 text-[#276747]">
-            Any lead can be added to any bucket. The UI is ready now; category rules and API logic can be connected later.
-          </div>
-
-          <div className="mt-6 flex flex-col justify-end gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]"
-            >
-              Close
-            </button>
-            <button
-              type="button"
-              onClick={onCreateLead}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[linear-gradient(90deg,#18b957,#0b72d9)] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_24px_rgba(13,159,74,0.2)] transition hover:-translate-y-0.5"
-            >
-              <Plus className="size-4" />
-              Add Lead
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LeadCategoryInfoCard({ label, value, compact = false }) {
-  return (
-    <div className="rounded-[12px] border border-[#e7eef7] bg-white p-3 shadow-[0_8px_18px_rgba(17,39,84,0.04)]">
-      <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#8493ab]">{label}</p>
-      <p className={cx('mt-2 font-extrabold text-[#1e3261]', compact ? 'text-[13px] leading-5' : 'text-[20px]')}>
-        {value}
-      </p>
     </div>
   );
 }
@@ -3132,15 +3541,67 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
     return <PaymentModeListPage onNotify={onNotify} />;
   }
 
+  if (activeSection === 'Business Information') {
+    return <BusinessInformationSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Branches') {
+    return <BranchManagementSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Company Profile') {
+    return <CompanyProfileSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Financial Year') {
+    return <FinancialYearSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'System Settings') {
+    return <SystemSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Date & Time Format') {
+    return <DateTimeFormatSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Currency Settings') {
+    return <CurrencySettingsPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Language Settings') {
+    return <LanguageSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Settings Users') {
+    return <SettingsUsersPage onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Settings Roles & Permissions') {
+    return <SettingsRolesPermissionsPage onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Settings User Activity Log') {
+    return <SettingsUserActivityLogPage onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Settings IP Restrictions') {
+    return <SettingsIpRestrictionsPage onNotify={onNotify} />;
+  }
+
+  if (activeSection !== 'Settings') {
+    return <SettingsCategoryPlaceholderPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
   const settingsOptionIcons = {
     'Company Profile': Home,
     'Business Information': FileText,
     Branches: MapPin,
     'Financial Year': CalendarDays,
-    Users: Users,
-    'Roles & Permissions': ShieldCheck,
-    'User Activity Log': Clock3,
-    'IP Restrictions': LockKeyhole,
+    'Settings Users': Users,
+    'Settings Roles & Permissions': ShieldCheck,
+    'Settings User Activity Log': Clock3,
+    'Settings IP Restrictions': LockKeyhole,
     'System Settings': Settings,
     'Date & Time Format': CalendarDays,
     'Currency Settings': IndianRupee,
@@ -3179,17 +3640,6 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
     'Other Settings': 'bg-[#fff7e8] text-[#ca8a04]',
   };
 
-  const settingGroups = [
-    { title: 'Organization Settings', tone: 'text-[#14853a]', items: [['Company Profile', 'Manage company details, logo and address'], ['Business Information', 'Business type, GST, PAN and registration details'], ['Branches', 'Add and manage branches'], ['Financial Year', 'Manage financial year and accounting period']] },
-    { title: 'User & Access Management', tone: 'text-[#0b65e5]', items: [['Users', 'Add, edit and manage system users'], ['Roles & Permissions', 'Manage roles and set permissions'], ['User Activity Log', 'View users activity and login history'], ['IP Restrictions', 'Manage IP based access restrictions']] },
-    { title: 'General Settings', tone: 'text-[#7b46dc]', items: [['System Settings', 'General system configuration'], ['Date & Time Format', 'Set date, time and timezone'], ['Currency Settings', 'Manage currency and exchange rate'], ['Language Settings', 'Manage system languages']] },
-    { title: 'Accounts Settings', tone: 'text-[#ea580c]', items: [['Chart of Accounts', 'Manage accounts and ledger groups'], ['Account Prefix', 'Configure account code prefix'], ['Opening Balance', 'Manage opening balances'], ['Payment Settings', 'Payment terms and due days'], ['Payment Mode', 'Configure payment mode masters']] },
-    { title: 'Inventory Settings', tone: 'text-[#0f766e]', items: [['Product Categories', 'Manage product categories'], ['Units of Measurement', 'Manage units (NOS, KG, LTR, etc.)'], ['Tax Settings', 'Manage GST and other tax settings'], ['Stock Settings', 'Configure stock and warehouse settings']] },
-    { title: 'Project Settings', tone: 'text-[#db2777]', items: [['Project Status', 'Manage project statuses'], ['Project Types', 'Manage project types'], ['Task Priorities', 'Manage task priorities'], ['Milestone Settings', 'Configure project milestones']] },
-    { title: 'Communication Settings', tone: 'text-[#15803d]', items: [['Email Settings', 'Configure SMTP and email templates'], ['SMS Settings', 'Configure SMS gateway'], ['WhatsApp Settings', 'Configure WhatsApp integration'], ['Notification Settings', 'Manage system notifications']] },
-    { title: 'Other Settings', tone: 'text-[#ca8a04]', items: [['Document Settings', 'Manage document numbering'], ['Approval Settings', 'Configure approval workflows'], ['Backup & Restore', 'Backup and restore system data'], ['System Maintenance', 'System cleanup and maintenance']] },
-  ];
-
   return (
     <div className="space-y-4">
       <PageHeading title="Settings" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Settings' }]} />
@@ -3201,28 +3651,32 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 2xl:grid-cols-4">
-        {settingGroups.map((group) => (
+        {settingsCardGroups.map((group) => (
           <article key={group.title} className={`${panelClass} p-4 sm:p-5`}>
             <h2 className={cx('font-display text-[16px] font-extrabold sm:text-[18px]', group.tone)}>{group.title}</h2>
             <div className="mt-4 space-y-2.5">
-              {group.items.map(([label, note]) => {
-                const Icon = settingsOptionIcons[label] ?? Settings;
+              {group.items.map((item) => {
+                const Icon = settingsOptionIcons[item.key] ?? Settings;
                 const iconTone = settingsGroupIconTone[group.title] ?? 'bg-[#eef2f7] text-[#53647f]';
                 return (
-                <button key={label} type="button" onClick={() => {
-                  if (label === 'Payment Settings' || label === 'Payment Mode') {
+                <button key={item.key} type="button" onClick={() => {
+                  if (organizationSettingsPages.includes(item.key)) {
+                    onOpenSection(item.key);
+                    return;
+                  }
+                  if (item.key === 'Payment Settings' || item.key === 'Payment Mode') {
                     onOpenSection('Payment Mode');
                     return;
                   }
-                  onNotify(`${label} opened`);
+                  onOpenSection(item.key);
                 }} className="flex w-full items-start justify-between gap-3 rounded-[10px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
                   <span className="flex min-w-0 items-start gap-3">
                     <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px] sm:size-10', iconTone)}>
                       <Icon className="size-4" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-[13px] font-extrabold leading-[1.2] text-[#1e3261]">{label}</span>
-                      <span className="mt-1 block text-[12px] font-bold leading-[1.3] text-[#53647f]">{note}</span>
+                      <span className="block text-[13px] font-extrabold leading-[1.2] text-[#1e3261]">{item.label}</span>
+                      <span className="mt-1 block text-[12px] font-bold leading-[1.3] text-[#53647f]">{item.note}</span>
                     </span>
                   </span>
                   <ChevronRight className="mt-0.5 size-4 shrink-0 text-[#7c8da8]" />
@@ -3292,6 +3746,5062 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
               <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">12</span>
             </span>
           </button>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function SettingsNavigationRail({ activeSection, onOpenSection, onNotify }) {
+  const railGroups = [
+    { title: 'Organization Settings', items: organizationSettingsPages.map((item) => ({ key: item, label: item })) },
+    ...settingsSidebarGroups.map((group) => ({
+      title: group.title,
+      items: group.items.map((item) => ({
+        key: item.key,
+        label: item.label,
+      })),
+    })),
+  ];
+
+  return (
+    <div className="space-y-3">
+      <article className={`${panelClass} overflow-hidden p-3`}>
+        <div className="flex items-center justify-between gap-3 rounded-[10px] bg-[linear-gradient(135deg,#f0fbf3_0%,#f7fbff_100%)] px-3 py-3">
+          <div>
+            <p className="text-[13px] font-extrabold text-[#14853a]">Settings Navigation</p>
+            <p className="mt-1 text-[11px] font-bold text-[#6f7f98]">All configuration areas in one place</p>
+          </div>
+          <span className="grid size-9 place-items-center rounded-[10px] bg-white text-[#0d9f4a] shadow-[0_8px_18px_rgba(17,39,84,0.08)]">
+            <Settings className="size-4" />
+          </span>
+        </div>
+
+        <div className="mt-3 space-y-3">
+          {railGroups.map((group) => {
+            const hasActiveItem = group.items.some((item) => activeSection === item.key);
+            return (
+              <div key={group.title} className="rounded-[12px] border border-[#e7eef7] bg-white px-3 py-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const firstItem = group.items[0];
+                    if (!firstItem) {
+                      return;
+                    }
+                    onOpenSection(firstItem.key);
+                    onNotify(`${group.title} opened`);
+                  }}
+                  className="flex w-full items-center justify-between gap-3 text-left"
+                >
+                  <span className={cx('text-[12px] font-extrabold', hasActiveItem ? 'text-[#14853a]' : 'text-[#314a79]')}>
+                    {group.title}
+                  </span>
+                  <ChevronRight className={cx('size-4 transition', hasActiveItem ? 'rotate-90 text-[#14853a]' : 'text-[#91a0b7]')} />
+                </button>
+
+                <div className="mt-2 space-y-1.5">
+                  {group.items.map((item) => {
+                    const isActive = activeSection === item.key;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => onOpenSection(item.key)}
+                        className={cx(
+                          'flex w-full items-center gap-3 rounded-[8px] px-3 py-2.5 text-left text-[12px] font-bold transition',
+                          isActive
+                            ? 'bg-[#eefbf1] text-[#078c3e] shadow-[inset_0_0_0_1px_rgba(20,184,76,0.14)]'
+                            : 'text-[#53647f] hover:bg-[#f8fbff] hover:text-[#234069]',
+                        )}
+                      >
+                        <span className={cx('size-1.5 rounded-full', isActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function SettingsFieldLabel({ label, required = false }) {
+  return (
+    <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">
+      {label}
+      {required ? <span className="ml-1 text-[#ef4444]">*</span> : null}
+    </span>
+  );
+}
+
+function SettingsInputField({ label, value, onChange, required = false, type = 'text', placeholder = '' }) {
+  return (
+    <label className="block min-w-0">
+      <SettingsFieldLabel label={label} required={required} />
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+      />
+    </label>
+  );
+}
+
+function SettingsSelectField({ label, value, onChange, options, required = false }) {
+  return (
+    <label className="block min-w-0">
+      <SettingsFieldLabel label={label} required={required} />
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+      >
+        {options.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function SettingsTextareaField({ label, value, onChange, required = false, rows = 4 }) {
+  return (
+    <label className="block min-w-0">
+      <SettingsFieldLabel label={label} required={required} />
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={rows}
+        className="w-full rounded-[8px] border border-black/20 bg-white px-4 py-3 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+      />
+    </label>
+  );
+}
+
+function SettingsSectionCard({ title, children, className = '' }) {
+  return (
+    <article className={cx(`${panelClass} p-4 sm:p-5`, className)}>
+      <h2 className="font-display text-[15px] font-extrabold text-[#111827]">{title}</h2>
+      <div className="mt-4">{children}</div>
+    </article>
+  );
+}
+
+function SettingsAttachmentRow({ fileName, size, tone = 'red', onOpen }) {
+  const toneClass = {
+    red: 'bg-[#ffe8e6] text-[#ef4444]',
+    green: 'bg-[#e8f8eb] text-[#16a34a]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+  }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center justify-between gap-3 rounded-[10px] border border-[#e7eef7] bg-white px-3 py-3 text-left transition hover:bg-[#f8fbff]"
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        <span className={cx('grid size-8 shrink-0 place-items-center rounded-[8px]', toneClass)}>
+          <FileText className="size-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{fileName}</span>
+        </span>
+      </span>
+      <span className="flex items-center gap-3">
+        <span className="text-[12px] font-bold text-[#7585a2]">{size}</span>
+        <Download className="size-4 text-[#0b65e5]" />
+      </span>
+    </button>
+  );
+}
+
+function GeneralSettingsDetailShell({ title, onOpenSection, onNotify, actions, children }) {
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={title}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onOpenSection('Settings') },
+          { label: 'General Settings', onClick: () => onNotify('General settings opened') },
+          { label: title },
+        ]}
+        actions={actions ?? <button type="button" onClick={() => onNotify(`${title} changes saved`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>}
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+        <SettingsNavigationRail activeSection={title} onOpenSection={onOpenSection} onNotify={onNotify} />
+        <div className="space-y-4">{children}</div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function SettingsInfoNote({ text }) {
+  return (
+    <div className="flex items-start gap-3 rounded-[12px] border border-[#d9e8fb] bg-[#f5f9ff] px-4 py-3 text-[12px] font-bold text-[#4e6487]">
+      <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-white text-[#0b65e5] shadow-[0_6px_14px_rgba(17,39,84,0.08)]">
+        <Info className="size-3.5" />
+      </span>
+      <span>{text}</span>
+    </div>
+  );
+}
+
+function SettingsStatusBadge({ label, tone = 'green' }) {
+  const toneClass = {
+    green: 'bg-[#e8f8eb] text-[#0d9f4a]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+    amber: 'bg-[#fff0dc] text-[#f59e0b]',
+    red: 'bg-[#ffe9e6] text-[#ef4444]',
+    slate: 'bg-[#eef2f7] text-[#53647f]',
+  }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[11px] font-extrabold', toneClass)}>{label}</span>;
+}
+
+function SettingsPreviewRow({ label, value, valueClass = 'text-[#1e3261]' }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-[#edf2f8] py-3 last:border-b-0 last:pb-0">
+      <span className="text-[12px] font-bold text-[#7585a2]">{label}</span>
+      <span className={cx('text-[12px] font-extrabold', valueClass)}>{value}</span>
+    </div>
+  );
+}
+
+function getSettingsDateSeparator(value) {
+  return {
+    '- (Hyphen)': '-',
+    '/ (Slash)': '/',
+    '. (Dot)': '.',
+  }[value] ?? '-';
+}
+
+function getSettingsTimeSeparator(value) {
+  return {
+    ': (Colon)': ':',
+    '. (Dot)': '.',
+  }[value] ?? ':';
+}
+
+function buildSettingsDatePreview(format, separator) {
+  const order =
+    format === 'MM-DD-YYYY'
+      ? ['05', '31', '2024']
+      : format === 'YYYY-MM-DD'
+        ? ['2024', '05', '31']
+        : ['31', '05', '2024'];
+
+  return order.join(separator);
+}
+
+function buildSettingsTimePreview(format, separator, includeSeconds = false) {
+  if (format === '24 Hours') {
+    return includeSeconds ? `10${separator}30${separator}45` : `10${separator}30`;
+  }
+
+  return includeSeconds ? `10${separator}30${separator}45 AM` : `10${separator}30 AM`;
+}
+
+function getCurrencySeparator(value) {
+  return {
+    ', (Comma)': ',',
+    '. (Dot)': '.',
+    'Space': ' ',
+  }[value] ?? ',';
+}
+
+function formatCurrencyPreview(amount, config) {
+  const decimalPlaces = Number(config.decimalPlaces) || 0;
+  const negative = amount < 0;
+  const absolute = Math.abs(amount);
+  const decimalSeparator = getCurrencySeparator(config.decimalSeparator);
+  const thousandSeparator = getCurrencySeparator(config.thousandSeparator);
+  const [integerPart, decimalPart = ''] = absolute.toFixed(decimalPlaces).split('.');
+  const groupedInteger = Number(integerPart).toLocaleString('en-IN').replaceAll(',', thousandSeparator);
+  const formattedNumber = decimalPlaces > 0 ? `${groupedInteger}${decimalSeparator}${decimalPart}` : groupedInteger;
+  const signedNumber = negative ? `-${formattedNumber}` : formattedNumber;
+
+  return config.currencyPosition === 'Before Amount (₹100.00)'
+    ? `${config.currencySymbol}${signedNumber}`
+    : `${signedNumber} ${config.currencySymbol}`;
+}
+
+function getLanguagePreviewRows(defaultLanguage) {
+  const rows = {
+    English: [
+      ['Dashboard', 'Welcome to Malwa Solar Energy CRM'],
+      ['Leads', 'Leads'],
+      ['Projects', 'Projects'],
+      ['Accounts', 'Accounts'],
+      ['Reports', 'Reports'],
+      ['Settings', 'Settings'],
+    ],
+    'Hindi (हिंदी)': [
+      ['Dashboard', 'मालवा सोलर एनर्जी CRM में आपका स्वागत है'],
+      ['Leads', 'लीड्स'],
+      ['Projects', 'प्रोजेक्ट्स'],
+      ['Accounts', 'अकाउंट्स'],
+      ['Reports', 'रिपोर्ट्स'],
+      ['Settings', 'सेटिंग्स'],
+    ],
+    'Punjabi (ਪੰਜਾਬੀ)': [
+      ['Dashboard', 'ਮਲਵਾ ਸੋਲਰ ਐਨਰਜੀ CRM ਵਿੱਚ ਤੁਹਾਡਾ ਸੁਆਗਤ ਹੈ'],
+      ['Leads', 'ਲੀਡਸ'],
+      ['Projects', 'ਪ੍ਰੋਜੈਕਟਸ'],
+      ['Accounts', 'ਅਕਾਊਂਟਸ'],
+      ['Reports', 'ਰਿਪੋਰਟਸ'],
+      ['Settings', 'ਸੈਟਿੰਗਸ'],
+    ],
+    'Gujarati (ગુજરાતી)': [
+      ['Dashboard', 'માલવા સોલર એનર્જી CRM માં આપનું સ્વાગત છે'],
+      ['Leads', 'લીડ્સ'],
+      ['Projects', 'પ્રોજેક્ટ્સ'],
+      ['Accounts', 'એકાઉન્ટ્સ'],
+      ['Reports', 'રિપોર્ટ્સ'],
+      ['Settings', 'સેટિંગ્સ'],
+    ],
+  };
+
+  return rows[defaultLanguage] ?? rows.English;
+}
+
+function SystemSettingsPage({ onOpenSection, onNotify }) {
+  const [activeTab, setActiveTab] = useState('General');
+  const [form, setForm] = useState({
+    systemName: 'Malwa Solar Energy CRM',
+    companyEmail: 'info@malwasolar.com',
+    companyPhone: '+91 98765 43210',
+    defaultTimeZone: '(GMT +05:30) Asia/Kolkata',
+    itemsPerPage: '25',
+    defaultLanguage: 'English',
+  });
+
+  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const tabs = ['General', 'Security', 'Email', 'Notifications', 'Backup', 'API Settings', 'Other'];
+  const statusRows = [
+    ['System Version', <SettingsStatusBadge label="v2.5.1" tone="green" />],
+    ['Last Updated', '20 May 2024 08:15 AM'],
+    ['Database Status', <SettingsStatusBadge label="Connected" tone="green" />],
+    ['Storage Used', '30% (6.0 GB / 20 GB)'],
+    ['Active Users', '42'],
+    ['System Uptime', '15d 6h 32m'],
+  ];
+
+  return (
+    <GeneralSettingsDetailShell title="System Settings" onOpenSection={onOpenSection} onNotify={onNotify}>
+      <section className={`${panelClass} overflow-hidden`}>
+        <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+          <p className="text-[15px] font-extrabold text-[#111827]">Configure general system preferences and application-wide settings.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => {
+                  setActiveTab(tab);
+                  onNotify(`${tab} settings opened`);
+                }}
+                className={cx(
+                  'inline-flex items-center rounded-full px-4 py-2 text-[12px] font-extrabold transition',
+                  activeTab === tab ? 'bg-[#eefbf1] text-[#078c3e] shadow-[inset_0_0_0_1px_rgba(20,184,76,0.16)]' : 'bg-white text-[#53647f] hover:bg-[#f8fbff]',
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-4 p-4 sm:p-5 2xl:grid-cols-[minmax(0,1.3fr)_330px]">
+          <SettingsSectionCard title="General Information" className="shadow-none">
+            <div className="grid gap-4 md:grid-cols-2">
+              <SettingsInputField label="System Name" value={form.systemName} onChange={(value) => updateField('systemName', value)} required />
+
+              <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                <SettingsFieldLabel label="System Logo" />
+                <div className="flex items-center gap-4">
+                  <MiniBrandMark />
+                  <div className="min-w-0">
+                    <button type="button" onClick={() => onNotify('Change logo opened')} className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">Change Logo</button>
+                    <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Recommended size: 200x60px PNG, JPG</p>
+                  </div>
+                </div>
+              </div>
+
+              <SettingsInputField label="Company Email" value={form.companyEmail} onChange={(value) => updateField('companyEmail', value)} />
+
+              <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                <SettingsFieldLabel label="Favicon" />
+                <div className="flex items-center gap-4">
+                  <span className="grid size-14 place-items-center rounded-[14px] bg-[#fff8e8] text-[#f59e0b]">
+                    <SunFavicon />
+                  </span>
+                  <div className="min-w-0">
+                    <button type="button" onClick={() => onNotify('Change favicon opened')} className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">Change Favicon</button>
+                    <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Recommended size: 32x32px ICO, PNG</p>
+                  </div>
+                </div>
+              </div>
+
+              <SettingsInputField label="Company Phone" value={form.companyPhone} onChange={(value) => updateField('companyPhone', value)} />
+              <SettingsSelectField label="Items Per Page" value={form.itemsPerPage} onChange={(value) => updateField('itemsPerPage', value)} options={['10', '25', '50', '100']} />
+              <SettingsSelectField label="Default Time Zone" value={form.defaultTimeZone} onChange={(value) => updateField('defaultTimeZone', value)} options={['(GMT +05:30) Asia/Kolkata', '(GMT +04:00) Dubai', '(GMT +00:00) UTC']} />
+              <SettingsSelectField label="Default Language" value={form.defaultLanguage} onChange={(value) => updateField('defaultLanguage', value)} options={['English', 'Hindi (हिंदी)', 'Punjabi (ਪੰਜਾਬੀ)', 'Gujarati (ગુજરાતી)']} />
+            </div>
+          </SettingsSectionCard>
+
+          <div className="space-y-4">
+            <SettingsSectionCard title="System Status">
+              <div className="space-y-1">
+                {statusRows.map(([label, value]) => (
+                  <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-[#edf2f8] py-3 last:border-b-0">
+                    <span className="text-[12px] font-bold text-[#7585a2]">{label}</span>
+                    <span className="text-right text-[12px] font-extrabold text-[#1e3261]">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </SettingsSectionCard>
+
+            <SettingsSectionCard title="Quick Links">
+              <div className="space-y-2.5">
+                {[
+                  'Clear System Cache',
+                  'View System Logs',
+                  'Database Backup',
+                  'System Health Check',
+                ].map((item) => (
+                  <button key={item} type="button" onClick={() => onNotify(`${item} opened`)} className="flex w-full items-center gap-3 rounded-[10px] border border-[#e7eef7] bg-white px-3 py-3 text-left transition hover:bg-[#f8fbff]">
+                    <span className="grid size-8 place-items-center rounded-full bg-[#eefbf1] text-[#0d9f4a]">
+                      <CheckCircle2 className="size-4" />
+                    </span>
+                    <span className="text-[13px] font-extrabold text-[#1e3261]">{item}</span>
+                  </button>
+                ))}
+              </div>
+            </SettingsSectionCard>
+          </div>
+        </div>
+      </section>
+    </GeneralSettingsDetailShell>
+  );
+}
+
+function DateTimeFormatSettingsPage({ onOpenSection, onNotify }) {
+  const [form, setForm] = useState({
+    dateFormat: 'DD-MM-YYYY',
+    timeFormat: '12 Hours (AM/PM)',
+    dateSeparator: '- (Hyphen)',
+    timeSeparator: ': (Colon)',
+    firstDay: 'Monday',
+  });
+
+  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const dateSeparator = getSettingsDateSeparator(form.dateSeparator);
+  const timeSeparator = getSettingsTimeSeparator(form.timeSeparator);
+  const datePreview = buildSettingsDatePreview(form.dateFormat, dateSeparator);
+  const shortTimePreview = buildSettingsTimePreview(form.timeFormat, timeSeparator, false);
+  const longTimePreview = buildSettingsTimePreview(form.timeFormat, timeSeparator, true);
+
+  return (
+    <GeneralSettingsDetailShell title="Date & Time Format" onOpenSection={onOpenSection} onNotify={onNotify}>
+      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.3fr)_360px]">
+        <SettingsSectionCard title="Date Format Settings">
+          <div className="space-y-4">
+            <div>
+              <SettingsSelectField label="Date Format" value={form.dateFormat} onChange={(value) => updateField('dateFormat', value)} options={['DD-MM-YYYY', 'DD/MM/YYYY', 'MM-DD-YYYY', 'YYYY-MM-DD']} />
+              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Example: {datePreview}</p>
+            </div>
+            <div>
+              <SettingsSelectField label="Time Format" value={form.timeFormat} onChange={(value) => updateField('timeFormat', value)} options={['12 Hours (AM/PM)', '24 Hours']} />
+              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Example: {shortTimePreview}</p>
+            </div>
+            <div>
+              <SettingsSelectField label="Date Separator" value={form.dateSeparator} onChange={(value) => updateField('dateSeparator', value)} options={['- (Hyphen)', '/ (Slash)', '. (Dot)']} />
+              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Example: {datePreview}</p>
+            </div>
+            <div>
+              <SettingsSelectField label="Time Separator" value={form.timeSeparator} onChange={(value) => updateField('timeSeparator', value)} options={[': (Colon)', '. (Dot)']} />
+              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Example: {shortTimePreview}</p>
+            </div>
+            <SettingsSelectField label="First Day of Week" value={form.firstDay} onChange={(value) => updateField('firstDay', value)} options={['Monday', 'Sunday', 'Saturday']} />
+          </div>
+        </SettingsSectionCard>
+
+        <SettingsSectionCard title="Preview">
+          <div className="rounded-[12px] border border-[#e7eef7] bg-white px-4 py-2">
+            <SettingsPreviewRow label="Date" value={datePreview} />
+            <SettingsPreviewRow label="Time (Short)" value={shortTimePreview} />
+            <SettingsPreviewRow label="Time (Long)" value={longTimePreview} />
+            <SettingsPreviewRow label="Date & Time" value={`${datePreview} ${shortTimePreview}`} />
+            <SettingsPreviewRow label="Day" value={form.firstDay} />
+            <SettingsPreviewRow label="Week" value="22" />
+            <SettingsPreviewRow label="Month" value="May" />
+            <SettingsPreviewRow label="Year" value="2024" />
+          </div>
+        </SettingsSectionCard>
+      </section>
+
+      <SettingsInfoNote text="Note: These settings will be applied throughout the system including reports, exports and notifications." />
+    </GeneralSettingsDetailShell>
+  );
+}
+
+function CurrencySettingsPage({ onOpenSection, onNotify }) {
+  const [form, setForm] = useState({
+    defaultCurrency: 'INR - Indian Rupee (₹)',
+    currencySymbol: '₹',
+    currencyPosition: 'Before Amount (₹100.00)',
+    decimalPlaces: '2',
+    thousandSeparator: ', (Comma)',
+    decimalSeparator: '. (Dot)',
+  });
+
+  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const previewRows = [
+    ['Positive Amount', formatCurrencyPreview(1234.56, form), 'text-[#0d9f4a]'],
+    ['Negative Amount', formatCurrencyPreview(-1234.56, form), 'text-[#ef4444]'],
+    ['Large Amount', formatCurrencyPreview(1234566.78, form), 'text-[#1e3261]'],
+    ['Small Amount', formatCurrencyPreview(10.5, form), 'text-[#1e3261]'],
+  ];
+
+  return (
+    <GeneralSettingsDetailShell title="Currency Settings" onOpenSection={onOpenSection} onNotify={onNotify}>
+      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.3fr)_330px]">
+        <SettingsSectionCard title="Currency Configuration">
+          <div className="space-y-4">
+            <SettingsSelectField label="Default Currency" value={form.defaultCurrency} onChange={(value) => updateField('defaultCurrency', value)} options={['INR - Indian Rupee (₹)', 'USD - US Dollar ($)', 'AED - UAE Dirham (د.إ)', 'EUR - Euro (€)']} />
+            <div>
+              <SettingsInputField label="Currency Symbol" value={form.currencySymbol} onChange={(value) => updateField('currencySymbol', value)} />
+              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Currency symbol will be used in the system.</p>
+            </div>
+            <SettingsSelectField label="Currency Position" value={form.currencyPosition} onChange={(value) => updateField('currencyPosition', value)} options={['Before Amount (₹100.00)', 'After Amount (100.00 ₹)']} />
+            <SettingsSelectField label="Decimal Places" value={form.decimalPlaces} onChange={(value) => updateField('decimalPlaces', value)} options={['0', '2', '3']} />
+            <div>
+              <SettingsSelectField label="Thousand Separator" value={form.thousandSeparator} onChange={(value) => updateField('thousandSeparator', value)} options={[', (Comma)', '. (Dot)', 'Space']} />
+              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Example: {formatCurrencyPreview(1000000.5, form)}</p>
+            </div>
+            <div>
+              <SettingsSelectField label="Decimal Separator" value={form.decimalSeparator} onChange={(value) => updateField('decimalSeparator', value)} options={['. (Dot)', ', (Comma)']} />
+              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Example: {formatCurrencyPreview(100.5, form)}</p>
+            </div>
+          </div>
+        </SettingsSectionCard>
+
+        <div className="space-y-4">
+          <SettingsSectionCard title="Currency Preview">
+            <div className="rounded-[12px] border border-[#e7eef7] bg-white px-4 py-2">
+              {previewRows.map(([label, value, tone]) => (
+                <SettingsPreviewRow key={label} label={label} value={value} valueClass={tone} />
+              ))}
+            </div>
+          </SettingsSectionCard>
+
+          <SettingsSectionCard title="Quick Links">
+            <div className="space-y-2.5">
+              {['Add Currency', 'Manage Currencies', 'Currency Rates'].map((item) => (
+                <button key={item} type="button" onClick={() => onNotify(`${item} opened`)} className="flex w-full items-center gap-3 rounded-[10px] border border-[#e7eef7] bg-white px-3 py-3 text-left transition hover:bg-[#f8fbff]">
+                  <span className="grid size-8 place-items-center rounded-full bg-[#eef3ff] text-[#0b65e5]">
+                    <IndianRupee className="size-4" />
+                  </span>
+                  <span className="text-[13px] font-extrabold text-[#1e3261]">{item}</span>
+                </button>
+              ))}
+            </div>
+          </SettingsSectionCard>
+        </div>
+      </section>
+    </GeneralSettingsDetailShell>
+  );
+}
+
+function LanguageSettingsPage({ onOpenSection, onNotify }) {
+  const [defaultLanguage, setDefaultLanguage] = useState('English');
+  const languages = [
+    { name: 'English', code: 'en', status: 'Default', tone: 'blue' },
+    { name: 'Hindi (हिंदी)', code: 'hi', status: 'Active', tone: 'green' },
+    { name: 'Punjabi (ਪੰਜਾਬੀ)', code: 'pa', status: 'Active', tone: 'green' },
+    { name: 'Gujarati (ગુજરાતી)', code: 'gu', status: 'Inactive', tone: 'red' },
+  ];
+  const previewRows = getLanguagePreviewRows(defaultLanguage);
+
+  return (
+    <GeneralSettingsDetailShell title="Language Settings" onOpenSection={onOpenSection} onNotify={onNotify}>
+      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.35fr)_330px]">
+        <SettingsSectionCard title="Default Language">
+          <div className="space-y-5">
+            <div>
+              <SettingsSelectField label="System Default Language" value={defaultLanguage} onChange={setDefaultLanguage} options={['English', 'Hindi (हिंदी)', 'Punjabi (ਪੰਜਾਬੀ)', 'Gujarati (ગુજરાતી)']} />
+              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Select the default language for the system.</p>
+            </div>
+
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-[14px] font-extrabold text-[#1e3261]">Available Languages</h3>
+                <button type="button" onClick={() => onNotify('Add language opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-4 text-[12px] font-extrabold text-white transition hover:bg-[#067832]">
+                  <Plus className="size-4" />
+                  Add Language
+                </button>
+              </div>
+
+              <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
+                <table className="crm-table min-w-[560px] w-full">
+                  <thead>
+                    <tr>{['Language', 'Code', 'Status', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {languages.map((language) => (
+                      <tr key={language.code}>
+                        <td className="font-extrabold text-[#1e3261]">{language.name}</td>
+                        <td>{language.code}</td>
+                        <td><SettingsStatusBadge label={language.status} tone={language.tone} /></td>
+                        <td>
+                          <button type="button" onClick={() => onNotify(`${language.name} editor opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5] transition hover:bg-[#f8fbff]">
+                            <FileText className="size-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </SettingsSectionCard>
+
+        <SettingsSectionCard title="Language Preview">
+          <div className="rounded-[12px] border border-[#e7eef7] bg-white px-4 py-2">
+            {previewRows.map(([label, value]) => (
+              <SettingsPreviewRow key={label} label={label} value={value} />
+            ))}
+          </div>
+        </SettingsSectionCard>
+      </section>
+
+      <SettingsInfoNote text="Note: Some language changes may require login again to take effect." />
+    </GeneralSettingsDetailShell>
+  );
+}
+
+function SunFavicon() {
+  return (
+    <svg viewBox="0 0 44 44" className="size-8" aria-hidden="true">
+      <circle cx="22" cy="22" r="8.5" fill="#ffc928" />
+      <path d="M22 5v5M22 34v5M5 22h5M34 22h5M10.4 10.4l3.6 3.6M30 30l3.6 3.6M10.4 33.6l3.6-3.6M30 14l3.6-3.6" stroke="#f59e0b" strokeLinecap="round" strokeWidth="3" />
+    </svg>
+  );
+}
+
+function OrganizationSettingsPlaceholderPage({ activeSection, onOpenSection, onNotify }) {
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={activeSection}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onOpenSection('Settings') },
+          { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
+          { label: activeSection },
+        ]}
+        actions={
+          <>
+            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />Back to Settings</button>
+            <button type="button" onClick={() => onNotify(`${activeSection} changes saved`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+          </>
+        }
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+        <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+        <SettingsSectionCard title={`${activeSection} Details`}>
+          <div className="rounded-[12px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6 text-center">
+            <p className="text-[15px] font-extrabold text-[#1e3261]">{activeSection} page structure ready</p>
+            <p className="mt-2 text-[13px] font-bold text-[#53647f]">Is section ka detailed form next pass me expand kiya ja sakta hai. Abhi navigation aur save flow clickable hai.</p>
+          </div>
+        </SettingsSectionCard>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
+  const [form, setForm] = useState({
+    businessName: 'Malwa Solar Energy Pvt. Ltd.',
+    phone: '+91 98765 43210',
+    tagline: 'Powering a Sustainable Future',
+    email: 'info@malwasolar.com',
+    nature: 'Manufacturing & Installation',
+    website: 'https://www.malwasolar.com',
+    description: 'We provide end-to-end solar energy solutions including consultation, system design, supply, installation and maintenance for residential, commercial and industrial clients.',
+    establishedYear: '2021',
+    employees: '51-100 Employees',
+    entityType: 'Private Limited',
+    cin: 'U40106PB2021PTC045678',
+    incorporationDate: '01/04/2021',
+    incorporationPlace: 'Ludhiana, Punjab',
+    pan: 'AAGCM1234A',
+    address1: '123, Industrial Area, Phase 1',
+    address2: 'Near Transport Nagar',
+    city: 'Ludhiana',
+    state: 'Punjab',
+    pin: '141003',
+    country: 'India',
+    gst: '03AAGCM1234A1Z5',
+    tan: 'PTLM12345G',
+    gstType: 'Regular',
+    workingHours: '09:30 AM - 06:30 PM',
+    workingDays: 'Monday - Saturday',
+    currency: 'INR (Rs)',
+    timezone: '(GMT +05:30) Asia/Kolkata',
+  });
+
+  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Business Information"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onOpenSection('Settings') },
+          { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
+          { label: 'Business Information' },
+        ]}
+        actions={
+          <>
+            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />Back to Settings</button>
+            <button type="button" onClick={() => onNotify('Business information saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+          </>
+        }
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+        <SettingsNavigationRail activeSection="Business Information" onOpenSection={onOpenSection} onNotify={onNotify} />
+
+        <div className="space-y-4">
+          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+            <SettingsSectionCard title="Business Details">
+              <div className="grid gap-4 md:grid-cols-2">
+                <SettingsInputField label="Business Name" value={form.businessName} onChange={(value) => updateField('businessName', value)} required />
+                <SettingsInputField label="Business Phone" value={form.phone} onChange={(value) => updateField('phone', value)} />
+                <SettingsInputField label="Business Tagline / Slogan" value={form.tagline} onChange={(value) => updateField('tagline', value)} />
+                <SettingsInputField label="Business Email" value={form.email} onChange={(value) => updateField('email', value)} />
+                <SettingsSelectField label="Nature of Business" value={form.nature} onChange={(value) => updateField('nature', value)} options={['Manufacturing & Installation', 'Solar EPC', 'Consultation', 'Trading']} required />
+                <SettingsInputField label="Website" value={form.website} onChange={(value) => updateField('website', value)} />
+                <div className="md:col-span-2">
+                  <SettingsTextareaField label="Business Description" value={form.description} onChange={(value) => updateField('description', value)} rows={4} />
+                </div>
+                <SettingsInputField label="Established Year" value={form.establishedYear} onChange={(value) => updateField('establishedYear', value)} />
+                <SettingsSelectField label="No. of Employees" value={form.employees} onChange={(value) => updateField('employees', value)} options={['1-10 Employees', '11-50 Employees', '51-100 Employees', '100+ Employees']} />
+              </div>
+            </SettingsSectionCard>
+
+            <SettingsSectionCard title="Registration Details">
+              <div className="space-y-4">
+                <SettingsSelectField label="Legal Structure / Entity Type" value={form.entityType} onChange={(value) => updateField('entityType', value)} options={['Private Limited', 'Partnership', 'Proprietorship', 'LLP']} />
+                <SettingsInputField label="Registration Number (CIN)" value={form.cin} onChange={(value) => updateField('cin', value)} />
+                <SettingsInputField label="Date of Incorporation" value={form.incorporationDate} onChange={(value) => updateField('incorporationDate', value)} />
+                <SettingsInputField label="Place of Incorporation" value={form.incorporationPlace} onChange={(value) => updateField('incorporationPlace', value)} />
+                <SettingsInputField label="PAN Number" value={form.pan} onChange={(value) => updateField('pan', value)} />
+              </div>
+            </SettingsSectionCard>
+          </section>
+
+          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+            <SettingsSectionCard title="Business Address">
+              <div className="grid gap-4 md:grid-cols-2">
+                <SettingsInputField label="Address Line 1" value={form.address1} onChange={(value) => updateField('address1', value)} required />
+                <SettingsInputField label="Address Line 2" value={form.address2} onChange={(value) => updateField('address2', value)} />
+                <SettingsInputField label="City" value={form.city} onChange={(value) => updateField('city', value)} required />
+                <SettingsSelectField label="State" value={form.state} onChange={(value) => updateField('state', value)} options={['Punjab', 'Delhi', 'Madhya Pradesh', 'Rajasthan']} required />
+                <SettingsInputField label="PIN Code" value={form.pin} onChange={(value) => updateField('pin', value)} required />
+                <SettingsSelectField label="Country" value={form.country} onChange={(value) => updateField('country', value)} options={['India', 'UAE', 'Nepal']} required />
+              </div>
+            </SettingsSectionCard>
+
+            <SettingsSectionCard title="Tax Details">
+              <div className="space-y-4">
+                <SettingsInputField label="GST Number" value={form.gst} onChange={(value) => updateField('gst', value)} />
+                <SettingsInputField label="PAN Number" value={form.pan} onChange={(value) => updateField('pan', value)} />
+                <SettingsInputField label="TAN Number" value={form.tan} onChange={(value) => updateField('tan', value)} />
+                <SettingsSelectField label="GST Type" value={form.gstType} onChange={(value) => updateField('gstType', value)} options={['Regular', 'Composition', 'Unregistered']} />
+              </div>
+            </SettingsSectionCard>
+          </section>
+
+          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+            <SettingsSectionCard title="Business Operations">
+              <div className="grid gap-4 md:grid-cols-3">
+                <SettingsInputField label="Working Hours" value={form.workingHours} onChange={(value) => updateField('workingHours', value)} />
+                <SettingsSelectField label="Working Days" value={form.workingDays} onChange={(value) => updateField('workingDays', value)} options={['Monday - Saturday', 'Monday - Friday', 'All Days']} />
+                <SettingsSelectField label="Currency" value={form.currency} onChange={(value) => updateField('currency', value)} options={['INR (Rs)', 'USD ($)', 'AED']} />
+                <div className="md:col-span-2">
+                  <SettingsSelectField label="Default Time Zone" value={form.timezone} onChange={(value) => updateField('timezone', value)} options={['(GMT +05:30) Asia/Kolkata', '(GMT +04:00) Dubai', '(GMT +00:00) UTC']} />
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <SettingsFieldLabel label="Business Logo for Documents (Optional)" />
+                <div className="mt-2 flex flex-col gap-3 rounded-[12px] border border-[#e7eef7] p-4 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="grid size-14 place-items-center rounded-full bg-[#effbf3] text-[#0d9f4a]">
+                      <Leaf className="size-7" />
+                    </div>
+                    <div>
+                      <p className="text-[14px] font-extrabold text-[#14853a]">Malwa Solar Energy</p>
+                      <p className="mt-1 text-[12px] font-bold text-[#7585a2]">JPG, PNG (Max. 2MB)</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => onNotify('Logo upload opened')} className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">Choose File</button>
+                </div>
+              </div>
+            </SettingsSectionCard>
+
+            <SettingsSectionCard title="Attachments">
+              <div className="space-y-4">
+                <div>
+                  <p className="mb-2 text-[12px] font-extrabold text-[#34466c]">Business Registration Certificate</p>
+                  <SettingsAttachmentRow fileName="Registration_Certificate.pdf" size="245 KB" tone="red" onOpen={() => onNotify('Registration certificate downloaded')} />
+                </div>
+                <div>
+                  <p className="mb-2 text-[12px] font-extrabold text-[#34466c]">Other Document (Optional)</p>
+                  <SettingsAttachmentRow fileName="Business_Other_Document.pdf" size="512 KB" tone="green" onOpen={() => onNotify('Other business document downloaded')} />
+                </div>
+              </div>
+            </SettingsSectionCard>
+          </section>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
+  const [form, setForm] = useState({
+    companyName: 'Malwa Solar Energy Pvt. Ltd.',
+    companyType: 'Private Limited',
+    gstNumber: '03AAGCM1234A1Z5',
+    panNumber: 'AAGCM1234A',
+    tanNumber: 'PTLM12345G',
+    cin: 'U40106PB2021PTC045678',
+    phone: '+91 98765 43210',
+    email: 'info@malwasolar.com',
+    website: 'https://www.malwasolar.com',
+    incorporationDate: '01/04/2021',
+    startDate: '01/05/2021',
+    companySize: '51-100 Employees',
+    industryType: 'Solar Energy',
+    currency: 'INR (Rs)',
+    timezone: '(GMT +05:30) Asia/Kolkata',
+    address1: '123, Industrial Area, Phase 1',
+    address2: 'Near Transport Nagar',
+    city: 'Ludhiana',
+    state: 'Punjab',
+    pinCode: '141003',
+    country: 'India',
+    bankName: 'HDFC Bank',
+    accountNumber: '50200012345678',
+    ifsc: 'HDFC0005020',
+    branch: 'Ludhiana - Industrial Area',
+    contactName: 'Amanpreet Singh',
+    designation: 'Managing Director',
+    contactPhone: '+91 98765 43210',
+    contactEmail: 'amanpreet@malwasolar.com',
+    notes: 'Company notes...',
+  });
+
+  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Company Profile"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onOpenSection('Settings') },
+          { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
+          { label: 'Company Profile' },
+        ]}
+        actions={
+          <>
+            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
+            <button type="button" onClick={() => onNotify('Company profile saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+          </>
+        }
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+        <SettingsNavigationRail activeSection="Company Profile" onOpenSection={onOpenSection} onNotify={onNotify} />
+
+        <div className="space-y-4">
+          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+            <SettingsSectionCard title="Basic Information">
+              <div className="grid gap-4 md:grid-cols-2">
+                <SettingsInputField label="Company Name" value={form.companyName} onChange={(value) => updateField('companyName', value)} required />
+                <SettingsSelectField label="Company Type" value={form.companyType} onChange={(value) => updateField('companyType', value)} options={['Private Limited', 'Partnership', 'Proprietorship', 'LLP']} />
+
+                <div>
+                  <SettingsFieldLabel label="Company Logo" />
+                  <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="grid size-14 place-items-center rounded-full bg-[#effbf3] text-[#0d9f4a]">
+                        <Leaf className="size-7" />
+                      </div>
+                      <div>
+                        <p className="text-[14px] font-extrabold text-[#14853a]">Malwa Solar Energy</p>
+                        <p className="mt-1 text-[12px] font-bold text-[#7585a2]">Current logo</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="text-[12px] font-bold text-[#7585a2]">Upload new logo<br />JPG, PNG (Max. 2MB)</div>
+                    <button type="button" onClick={() => onNotify('Company logo upload opened')} className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">Choose File</button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <SettingsInputField label="GST Number" value={form.gstNumber} onChange={(value) => updateField('gstNumber', value)} required />
+                  <SettingsInputField label="PAN Number" value={form.panNumber} onChange={(value) => updateField('panNumber', value)} required />
+                  <SettingsInputField label="TAN Number" value={form.tanNumber} onChange={(value) => updateField('tanNumber', value)} />
+                  <SettingsInputField label="Corporate Identification Number (CIN)" value={form.cin} onChange={(value) => updateField('cin', value)} />
+                </div>
+
+                <SettingsInputField label="Phone Number" value={form.phone} onChange={(value) => updateField('phone', value)} required />
+                <SettingsInputField label="Email Address" value={form.email} onChange={(value) => updateField('email', value)} required />
+                <SettingsInputField label="Website" value={form.website} onChange={(value) => updateField('website', value)} />
+              </div>
+            </SettingsSectionCard>
+
+            <div className="space-y-4">
+              <SettingsSectionCard title="Business Details">
+                <div className="space-y-4">
+                  <SettingsInputField label="Date of Incorporation" value={form.incorporationDate} onChange={(value) => updateField('incorporationDate', value)} />
+                  <SettingsInputField label="Start of Business" value={form.startDate} onChange={(value) => updateField('startDate', value)} />
+                  <SettingsSelectField label="Company Size" value={form.companySize} onChange={(value) => updateField('companySize', value)} options={['1-10 Employees', '11-50 Employees', '51-100 Employees', '100+ Employees']} />
+                  <SettingsSelectField label="Industry Type" value={form.industryType} onChange={(value) => updateField('industryType', value)} options={['Solar Energy', 'Manufacturing', 'Services', 'Infrastructure']} />
+                  <SettingsSelectField label="Default Currency" value={form.currency} onChange={(value) => updateField('currency', value)} options={['INR (Rs)', 'USD ($)', 'AED']} />
+                  <SettingsSelectField label="Time Zone" value={form.timezone} onChange={(value) => updateField('timezone', value)} options={['(GMT +05:30) Asia/Kolkata', '(GMT +04:00) Dubai', '(GMT +00:00) UTC']} />
+                </div>
+              </SettingsSectionCard>
+
+              <SettingsSectionCard title="Bank Details">
+                <div className="space-y-4">
+                  <SettingsInputField label="Default Bank Name" value={form.bankName} onChange={(value) => updateField('bankName', value)} />
+                  <SettingsInputField label="Bank Account Number" value={form.accountNumber} onChange={(value) => updateField('accountNumber', value)} />
+                  <SettingsInputField label="IFSC Code" value={form.ifsc} onChange={(value) => updateField('ifsc', value)} />
+                  <SettingsInputField label="Branch" value={form.branch} onChange={(value) => updateField('branch', value)} />
+                </div>
+              </SettingsSectionCard>
+
+              <SettingsSectionCard title="Notes">
+                <SettingsTextareaField label=" " value={form.notes} onChange={(value) => updateField('notes', value)} rows={3} />
+              </SettingsSectionCard>
+            </div>
+          </section>
+
+          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+            <SettingsSectionCard title="Registered Address">
+              <div className="grid gap-4 md:grid-cols-2">
+                <SettingsInputField label="Address Line 1" value={form.address1} onChange={(value) => updateField('address1', value)} required />
+                <SettingsInputField label="Address Line 2" value={form.address2} onChange={(value) => updateField('address2', value)} />
+                <SettingsInputField label="City" value={form.city} onChange={(value) => updateField('city', value)} required />
+                <SettingsSelectField label="State" value={form.state} onChange={(value) => updateField('state', value)} options={['Punjab', 'Delhi', 'Madhya Pradesh', 'Rajasthan']} required />
+                <SettingsInputField label="PIN Code" value={form.pinCode} onChange={(value) => updateField('pinCode', value)} required />
+                <SettingsSelectField label="Country" value={form.country} onChange={(value) => updateField('country', value)} options={['India', 'UAE', 'Nepal']} required />
+              </div>
+            </SettingsSectionCard>
+
+            <div className="space-y-4">
+              <SettingsSectionCard title="Contact Person">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <SettingsInputField label="Contact Person Name" value={form.contactName} onChange={(value) => updateField('contactName', value)} />
+                  <SettingsInputField label="Designation" value={form.designation} onChange={(value) => updateField('designation', value)} />
+                  <SettingsInputField label="Phone Number" value={form.contactPhone} onChange={(value) => updateField('contactPhone', value)} />
+                  <div className="md:col-span-2">
+                    <SettingsInputField label="Email Address" value={form.contactEmail} onChange={(value) => updateField('contactEmail', value)} />
+                  </div>
+                </div>
+              </SettingsSectionCard>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+
+  const rows = [
+    { id: 1, year: '2024-25', startDate: '01 Apr 2024', endDate: '31 Mar 2025', period: 'FY 2024-25', status: 'Active', current: true },
+    { id: 2, year: '2023-24', startDate: '01 Apr 2023', endDate: '31 Mar 2024', period: 'FY 2023-24', status: 'Active', current: false },
+    { id: 3, year: '2022-23', startDate: '01 Apr 2022', endDate: '31 Mar 2023', period: 'FY 2022-23', status: 'Active', current: false },
+    { id: 4, year: '2021-22', startDate: '01 Apr 2021', endDate: '31 Mar 2022', period: 'FY 2021-22', status: 'Active', current: false },
+    { id: 5, year: '2020-21', startDate: '01 Apr 2020', endDate: '31 Mar 2021', period: 'FY 2020-21', status: 'Active', current: false },
+    { id: 6, year: '2019-20', startDate: '01 Apr 2019', endDate: '31 Mar 2020', period: 'FY 2019-20', status: 'Active', current: false },
+    { id: 7, year: '2018-19', startDate: '01 Apr 2018', endDate: '31 Mar 2019', period: 'FY 2018-19', status: 'Closed', current: false },
+    { id: 8, year: '2017-18', startDate: '01 Apr 2017', endDate: '31 Mar 2018', period: 'FY 2017-18', status: 'Closed', current: false },
+  ];
+
+  const filteredRows = rows.filter((row) => [row.year, row.period, row.startDate, row.endDate].some((value) => value.toLowerCase().includes(query.toLowerCase())));
+  const currentYear = rows[0];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Financial Year Settings"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onOpenSection('Settings') },
+          { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
+          { label: 'Financial Year Settings' },
+        ]}
+        actions={<button type="button" onClick={() => onNotify('Add financial year flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add Financial Year</button>}
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+        <SettingsNavigationRail activeSection="Financial Year" onOpenSection={onOpenSection} onNotify={onNotify} />
+
+        <div className="space-y-4">
+          <SettingsSectionCard title="Current Financial Year">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_0.8fr_0.8fr_0.6fr] xl:items-center">
+              <div className="flex items-center gap-4">
+                <div className="grid size-12 place-items-center rounded-[12px] bg-[#e8f8eb] text-[#16a34a]">
+                  <CalendarDays className="size-6" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-display text-[22px] font-extrabold text-[#14853a]">{currentYear.year}</p>
+                    <span className="rounded-full bg-[#e8f8eb] px-3 py-1 text-[11px] font-extrabold text-[#14853a]">Current Year</span>
+                  </div>
+                  <p className="mt-2 text-[13px] font-bold text-[#314a79]">{currentYear.startDate} to {currentYear.endDate}</p>
+                </div>
+              </div>
+              <InfoCell label="Start Date" value={currentYear.startDate} />
+              <InfoCell label="End Date" value={currentYear.endDate} />
+              <div className="min-w-0">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#8a98af]">Status</p>
+                <div className="mt-1.5"><OpsPillBadge label={currentYear.status} tone="green" /></div>
+              </div>
+            </div>
+          </SettingsSectionCard>
+
+          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Financial Years List</h2>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                  <Search className="size-4 text-[#7386a3]" />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search financial years..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                </label>
+                <button type="button" onClick={() => onNotify('Financial year filters opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+                <button type="button" onClick={() => onNotify('Financial years exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredRows.map((row, index) => (
+                <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[12px] font-extrabold text-[#8493ab]">#{index + 1}</p>
+                      <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.year}</p>
+                    </div>
+                    <button type="button" onClick={() => onNotify(`${row.year} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                  </div>
+                  <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                    <InfoCell label="Start Date" value={row.startDate} />
+                    <InfoCell label="End Date" value={row.endDate} />
+                    <InfoCell label="Year Period" value={row.period} />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {row.current ? <OpsPillBadge label="Current Year" tone="green" /> : null}
+                    <OpsPillBadge label={row.status} tone={row.status === 'Closed' ? 'slate' : 'green'} />
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[980px] w-full">
+                <thead>
+                  <tr>{['#', 'Financial Year', 'Start Date', 'End Date', 'Year Period', 'Status', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td>{index + 1}</td>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <span className="font-extrabold text-[#1e3261]">{row.year}</span>
+                          {row.current ? <span className="rounded-full bg-[#e8f8eb] px-3 py-1 text-[11px] font-extrabold text-[#14853a]">Current Year</span> : null}
+                        </div>
+                      </td>
+                      <td>{row.startDate}</td>
+                      <td>{row.endDate}</td>
+                      <td>{row.period}</td>
+                      <td><OpsPillBadge label={row.status} tone={row.status === 'Closed' ? 'slate' : 'green'} /></td>
+                      <td><UserActionButton label={`Open ${row.year}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.year} opened`)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 8 entries`} totalPage="1" onNotify={onNotify} prefix="Financial Year" />
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+
+  const rows = [
+    { id: 1, name: 'Head Office', code: 'HO-001', location: 'Ludhiana, Punjab', contact: '+91 98765 43210', email: 'info@malwasolar.com', status: 'Active' },
+    { id: 2, name: 'Delhi Branch', code: 'DL-002', location: 'New Delhi, Delhi', contact: '+91 98765 43211', email: 'delhi@malwasolar.com', status: 'Active' },
+    { id: 3, name: 'Chandigarh Branch', code: 'CH-003', location: 'Chandigarh, Punjab', contact: '+91 98765 43212', email: 'chandigarh@malwasolar.com', status: 'Active' },
+    { id: 4, name: 'Jaipur Branch', code: 'RJ-004', location: 'Jaipur, Rajasthan', contact: '+91 98765 43213', email: 'jaipur@malwasolar.com', status: 'Active' },
+    { id: 5, name: 'Indore Branch', code: 'MP-005', location: 'Indore, Madhya Pradesh', contact: '+91 98765 43214', email: 'indore@malwasolar.com', status: 'Active' },
+    { id: 6, name: 'Bangalore Branch', code: 'KA-006', location: 'Bangalore, Karnataka', contact: '+91 98765 43215', email: 'bangalore@malwasolar.com', status: 'Active' },
+    { id: 7, name: 'Ahmedabad Branch', code: 'GJ-007', location: 'Ahmedabad, Gujarat', contact: '+91 98765 43216', email: 'ahmedabad@malwasolar.com', status: 'Inactive' },
+    { id: 8, name: 'Lucknow Branch', code: 'UP-008', location: 'Lucknow, Uttar Pradesh', contact: '+91 98765 43217', email: 'lucknow@malwasolar.com', status: 'Active' },
+  ];
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.name, row.code, row.location, row.email].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const statusMatch = status === 'All Status' || row.status === status;
+    return queryMatch && statusMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Branch Management"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onOpenSection('Settings') },
+          { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
+          { label: 'Branch Management' },
+        ]}
+        actions={<button type="button" onClick={() => onNotify('Add branch flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add Branch</button>}
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+        <SettingsNavigationRail activeSection="Branches" onOpenSection={onOpenSection} onNotify={onNotify} />
+
+        <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Branches List</h2>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">Manage all branches and their locations</p>
+            </div>
+            <button type="button" onClick={() => onNotify('Branches exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
+            <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search branches..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Inactive']} hideLabel />
+          </div>
+
+          <div className="mt-4 space-y-3 xl:hidden">
+            {filteredRows.map((row, index) => (
+              <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[12px] font-extrabold text-[#8493ab]">#{index + 1} • {row.code}</p>
+                    <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.name}</p>
+                  </div>
+                  <AccountStatusBadge status={row.status} />
+                </div>
+                <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                  <InfoCell label="Location" value={row.location} />
+                  <InfoCell label="Contact Number" value={row.contact} />
+                  <InfoCell label="Email" value={row.email} />
+                </div>
+                <button type="button" onClick={() => onNotify(`${row.name} branch opened`)} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />View Branch</button>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+            <table className="crm-table min-w-[980px] w-full">
+              <thead>
+                <tr>{['#', 'Branch Name', 'Branch Code', 'Location', 'Contact Number', 'Email', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr>
+              </thead>
+              <tbody>
+                {filteredRows.map((row, index) => (
+                  <tr key={row.id}>
+                    <td>{index + 1}</td>
+                    <td className="font-extrabold text-[#1e3261]">{row.name}</td>
+                    <td>{row.code}</td>
+                    <td>{row.location}</td>
+                    <td>{row.contact}</td>
+                    <td>{row.email}</td>
+                    <td><AccountStatusBadge status={row.status} /></td>
+                    <td><UserActionButton label={`Open ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.name} branch opened`)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 8 entries`} totalPage="1" onNotify={onNotify} prefix="Branch" />
+        </article>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ModuleSubnavCard({ title, items, activeSection, onOpenSection, icon: Icon }) {
+  return (
+    <article className={`${panelClass} p-4`}>
+      <div className="flex items-center gap-2 text-[14px] font-extrabold text-[#14853a]">
+        <Icon className="size-4" />
+        <span>{title}</span>
+      </div>
+      <div className="mt-4 space-y-1.5">
+        {items.map((item) => {
+          const isActive = activeSection === item;
+          const label = item === 'O&M Overview' ? 'Overview' : item === 'O&M Reports' ? 'Reports' : item;
+          return (
+            <button
+              key={item}
+              type="button"
+              onClick={() => onOpenSection(item)}
+              className={cx('flex w-full items-center gap-3 rounded-[8px] px-3 py-3 text-left text-[13px] font-bold transition', isActive ? 'bg-[#eefbf1] text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]')}
+            >
+              <span className={cx('size-1.5 rounded-full', isActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+              <span>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
+function LiaisonSubnavTabs({ activeSection, onOpenSection }) {
+  return (
+    <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-display text-[16px] font-extrabold text-[#1e3261]">Liaisoning Subcategories</p>
+          <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">
+            Module pages ko yahan se horizontally switch karein.
+          </p>
+        </div>
+      </div>
+
+      <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">
+        <div className="flex min-w-max gap-3">
+          {liaisonSubItems.map((item) => {
+            const isActive = activeSection === item;
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onOpenSection(item)}
+                className={cx(
+                  'inline-flex h-[54px] min-w-[170px] items-center justify-between gap-3 rounded-[12px] border px-4 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
+                  isActive
+                    ? 'border-[#bcefd1] bg-[#f1fff6] text-[#087a39] ring-2 ring-[#dff6e7]'
+                    : 'border-[#d9e4f2] bg-white text-[#314a79] hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
+                )}
+              >
+                <span className="inline-flex min-w-0 items-center gap-3">
+                  <span className={cx('size-2 rounded-full', isActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                  <span className="truncate text-[13px] font-extrabold">{item}</span>
+                </span>
+                <ChevronRight className={cx('size-4 shrink-0', isActive ? 'text-[#14b84c]' : 'text-[#9aa8bc]')} />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function OmSubnavTabs({ activeSection, onOpenSection }) {
+  return (
+    <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-display text-[16px] font-extrabold text-[#1e3261]">O&M Subcategories</p>
+          <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">
+            O&M module pages ko yahan se horizontally switch karein.
+          </p>
+        </div>
+      </div>
+
+      <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">
+        <div className="flex min-w-max gap-3">
+          {omSubItems.map((item) => {
+            const isActive = activeSection === item;
+            const label = item === 'O&M Overview' ? 'Overview' : item === 'O&M Reports' ? 'Reports' : item;
+
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onOpenSection(item)}
+                className={cx(
+                  'inline-flex h-[54px] min-w-[170px] items-center justify-between gap-3 rounded-[12px] border px-4 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
+                  isActive
+                    ? 'border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] ring-2 ring-[#fff0dc]'
+                    : 'border-[#d9e4f2] bg-white text-[#314a79] hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
+                )}
+              >
+                <span className="inline-flex min-w-0 items-center gap-3">
+                  <span className={cx('size-2 rounded-full', isActive ? 'bg-[#f59e0b]' : 'bg-[#b9c4d6]')} />
+                  <span className="truncate text-[13px] font-extrabold">{label}</span>
+                </span>
+                <ChevronRight className={cx('size-4 shrink-0', isActive ? 'text-[#f59e0b]' : 'text-[#9aa8bc]')} />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function OpsPillBadge({ label, tone }) {
+  const toneClass = {
+    green: 'bg-[#e8f8eb] text-[#14853a]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+    amber: 'bg-[#fff0dc] text-[#f59e0b]',
+    purple: 'bg-[#f2eafe] text-[#8b5cf6]',
+    red: 'bg-[#ffe9e6] text-[#ef4444]',
+    slate: 'bg-[#eef2f7] text-[#53647f]',
+  }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[11px] font-extrabold', toneClass)}>{label}</span>;
+}
+
+function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSection, onNotify, accent = 'green' }) {
+  const activeLabel = activeSection === 'O&M Overview' ? 'Overview' : activeSection === 'O&M Reports' ? 'Reports' : activeSection;
+  const isOmModule = moduleTitle === 'O&M';
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={moduleTitle}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: moduleTitle },
+          { label: activeLabel },
+        ]}
+      />
+
+      {isOmModule ? (
+        <section className="space-y-4">
+          <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+          <SettingsSectionCard title={activeLabel}>
+            <div className="rounded-[12px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6 text-center">
+              <p className="text-[15px] font-extrabold text-[#1e3261]">{activeLabel} module ready for integration</p>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">Subcategory navigation clickable hai. Is screen ko next step me workflow-specific forms aur reports ke saath expand kiya ja sakta hai.</p>
+            </div>
+          </SettingsSectionCard>
+        </section>
+      ) : (
+        <section className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+          <ModuleSubnavCard title={moduleTitle} items={items} activeSection={activeSection} onOpenSection={onOpenSection} icon={accent === 'green' ? ShieldCheck : Wrench} />
+          <SettingsSectionCard title={activeLabel}>
+            <div className="rounded-[12px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6 text-center">
+              <p className="text-[15px] font-extrabold text-[#1e3261]">{activeLabel} module ready for integration</p>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">Subcategory navigation clickable hai. Is screen ko next step me workflow-specific forms aur reports ke saath expand kiya ja sakta hai.</p>
+            </div>
+          </SettingsSectionCard>
+        </section>
+      )}
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function LiaisoningCommissioningPage({ activeSection, onOpenSection, onNotify }) {
+  if (activeSection === 'Applications') {
+    return <LiaisonApplicationsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Approvals') {
+    return <LiaisonApprovalsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Inspections') {
+    return <LiaisonInspectionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Commissioning') {
+    return <LiaisonCommissioningPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Compliance') {
+    return <LiaisonCompliancePage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Documents') {
+    return <LiaisonDocumentsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  return <OperationsPlaceholderPage moduleTitle="Liaisoning & Commissioning" activeSection={activeSection} items={liaisonSubItems} onOpenSection={onOpenSection} onNotify={onNotify} accent="green" />;
+}
+
+function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [applicationType, setApplicationType] = useState('All Application Type');
+  const [branch, setBranch] = useState('All Branch');
+
+  const rows = [
+    { id: 1, code: 'LC-2024-0001', company: 'Malwa Industrial Pvt. Ltd.', type: 'Net Metering', capacity: '100.00', location: 'Ludhiana, Punjab', stage: 'Approval', stageTone: 'amber', status: 'Pending', statusTone: 'amber', submittedOn: '20 Apr 2024' },
+    { id: 2, code: 'LC-2024-0002', company: 'Sharma Textiles', type: 'Net Metering', capacity: '50.00', location: 'Sangrur, Punjab', stage: 'Inspection', stageTone: 'blue', status: 'In Progress', statusTone: 'blue', submittedOn: '18 Apr 2024' },
+    { id: 3, code: 'LC-2024-0003', company: 'ABC Motors', type: 'Captive Consumption', capacity: '250.00', location: 'Chandigarh', stage: 'Inspection', stageTone: 'blue', status: 'In Progress', statusTone: 'blue', submittedOn: '15 Apr 2024' },
+    { id: 4, code: 'LC-2024-0004', company: 'Green Field School', type: 'Net Metering', capacity: '30.00', location: 'Ludhiana, Punjab', stage: 'Documentation', stageTone: 'purple', status: 'Pending', statusTone: 'amber', submittedOn: '12 Apr 2024' },
+    { id: 5, code: 'LC-2024-0005', company: 'XYZ Cold Storage', type: 'Captive Consumption', capacity: '150.00', location: 'Patiala, Punjab', stage: 'Approval', stageTone: 'amber', status: 'Pending', statusTone: 'amber', submittedOn: '10 Apr 2024' },
+    { id: 6, code: 'LC-2024-0006', company: 'Future Electronics', type: 'Net Metering', capacity: '75.00', location: 'Mohali, Punjab', stage: 'Commissioning', stageTone: 'green', status: 'In Progress', statusTone: 'blue', submittedOn: '05 Apr 2024' },
+    { id: 7, code: 'LC-2024-0007', company: 'Happy Farms', type: 'Net Metering', capacity: '25.00', location: 'Barnala, Punjab', stage: 'Commissioned', stageTone: 'green', status: 'Completed', statusTone: 'green', submittedOn: '28 Mar 2024' },
+    { id: 8, code: 'LC-2024-0008', company: 'Sunrise Hospital', type: 'Captive Consumption', capacity: '200.00', location: 'Jalandhar, Punjab', stage: 'Commissioned', stageTone: 'green', status: 'Completed', statusTone: 'green', submittedOn: '22 Mar 2024' },
+  ];
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.code, row.company, row.location].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const typeMatch = applicationType === 'All Application Type' || row.type === applicationType;
+    const branchMatch = branch === 'All Branch' || row.location.includes(branch);
+    return queryMatch && statusMatch && typeMatch && branchMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Liaisoning & Commissioning"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Liaisoning & Commissioning' },
+        ]}
+        actions={<button type="button" onClick={() => onNotify('New application flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />New Application</button>}
+      />
+
+      <section className="space-y-4">
+        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+        <div className="space-y-4">
+          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+            <OpsStatCard label="Total Applications" value="128" caption="This Financial Year" icon={FileText} tone="green" onClick={() => onNotify('Total applications opened')} />
+            <OpsStatCard label="Pending Approval" value="24" caption="Awaiting action" icon={Clock3} tone="blue" onClick={() => setStatus('Pending')} />
+            <OpsStatCard label="Under Inspection" value="18" caption="In progress" icon={Search} tone="amber" onClick={() => setStatus('In Progress')} />
+            <OpsStatCard label="Commissioned" value="86" caption="Completed" icon={Settings} tone="purple" onClick={() => setStatus('Completed')} />
+            <OpsStatCard label="Compliance Due" value="12" caption="Upcoming" icon={CalendarDays} tone="cyan" onClick={() => onNotify('Compliance due opened')} />
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_170px_220px_180px_240px_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <Search className="size-4 text-[#7386a3]" />
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search applications..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+              </label>
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Pending', 'In Progress', 'Completed']} hideLabel />
+              <ReportSelect label="Application Type" value={applicationType} onChange={setApplicationType} options={['All Application Type', 'Net Metering', 'Captive Consumption']} hideLabel />
+              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Patiala', 'Mohali', 'Barnala', 'Jalandhar']} hideLabel />
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
+                <CalendarDays className="size-4 text-[#7386a3]" />
+                <span>01/04/2024 - 31/03/2025</span>
+              </label>
+              <button type="button" onClick={() => onNotify(`Liaison filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+              <button type="button" onClick={() => onNotify('Liaison applications exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+            </div>
+
+            <h2 className="mt-5 font-display text-[15px] font-extrabold text-[#06135a]">Applications List</h2>
+
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredRows.map((row) => (
+                <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.code}</p>
+                      <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.company}</p>
+                    </div>
+                    <button type="button" onClick={() => onNotify(`${row.code} details opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                  </div>
+                  <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                    <InfoCell label="Application Type" value={row.type} />
+                    <InfoCell label="Capacity (kWp)" value={row.capacity} />
+                    <InfoCell label="Location" value={row.location} />
+                    <InfoCell label="Submitted On" value={row.submittedOn} />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <OpsPillBadge label={row.stage} tone={row.stageTone} />
+                    <OpsPillBadge label={row.status} tone={row.statusTone} />
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1180px] w-full">
+                <thead><tr>{['#', 'Application No.', 'Applicant / Company', 'Application Type', 'Capacity (kWp)', 'Location', 'Current Stage', 'Status', 'Submitted On', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td>{index + 1}</td>
+                      <td className="font-extrabold text-[#0b65e5]">{row.code}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.company}</td>
+                      <td>{row.type}</td>
+                      <td>{row.capacity}</td>
+                      <td>{row.location}</td>
+                      <td><OpsPillBadge label={row.stage} tone={row.stageTone} /></td>
+                      <td><OpsPillBadge label={row.status} tone={row.statusTone} /></td>
+                      <td>{row.submittedOn}</td>
+                      <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.code} details opened`)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 128 entries`} totalPage="16" onNotify={onNotify} prefix="Application" />
+          </article>
+
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            {[
+              { label: 'Applications', note: 'View and manage all applications', icon: FileText, tone: 'blue' },
+              { label: 'Approvals', note: 'Pending and completed approvals', icon: CheckCircle2, tone: 'green' },
+              { label: 'Inspections', note: 'Schedule and track inspections', icon: ClipboardPlus, tone: 'blue' },
+              { label: 'Commissioning', note: 'Manage commissioning activities', icon: Zap, tone: 'green' },
+              { label: 'Compliance', note: 'Compliance and documents', icon: ShieldCheck, tone: 'amber' },
+              { label: 'Reports', note: 'View reports and analytics', icon: BarChart3, tone: 'purple' },
+            ].map((item) => (
+              <button key={item.label} type="button" onClick={() => item.label === 'Reports' ? onNotify('Liaison reports opened') : onOpenSection(item.label)} className={`${panelClass} flex items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]`}>
+                <span className={cx('grid size-11 shrink-0 place-items-center rounded-[12px]', item.tone === 'green' ? 'bg-[#e8f8eb] text-[#16a34a]' : item.tone === 'amber' ? 'bg-[#fff0dc] text-[#f59e0b]' : item.tone === 'purple' ? 'bg-[#f2eafe] text-[#8b5cf6]' : 'bg-[#e8f2ff] text-[#0b65e5]')}>
+                  <item.icon className="size-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-extrabold text-[#1e3261]">{item.label}</span>
+                  <span className="mt-1 block text-[12px] font-bold leading-[1.45] text-[#53647f]">{item.note}</span>
+                </span>
+                <ChevronRight className="ml-auto mt-1 size-4 shrink-0 text-[#7a8aa4]" />
+              </button>
+            ))}
+          </section>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function LiaisonApprovalsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('All Approvals');
+
+  const approvalTabs = ['All Approvals', 'LC Applications', 'Statutory Approvals', 'Commissioning Requests'];
+  const approvalRows = [
+    { id: 1, appId: 'LC-APP-2024-048', type: 'LC Application', typeTone: 'green', customer: 'Ravi Industries Pvt. Ltd.', project: '2 MW Rooftop Project', applicationDate: '20 May 2024', submittedBy: { name: 'Ravi Kumar', role: 'Project Manager', initials: 'RK', tone: 'blue' }, status: 'Pending', dueDate: '27 May 2024', dueNote: '3 days left', dueTone: 'amber' },
+    { id: 2, appId: 'STAT-APP-2024-047', type: 'Statutory Approval', typeTone: 'blue', customer: 'Malwa Textiles', project: '1.5 MW Rooftop Project', applicationDate: '18 May 2024', submittedBy: { name: 'Neha Sharma', role: 'Compliance Officer', initials: 'NS', tone: 'indigo' }, status: 'Pending', dueDate: '26 May 2024', dueNote: '2 days left', dueTone: 'amber' },
+    { id: 3, appId: 'COM-REQ-2024-046', type: 'Commissioning Request', typeTone: 'purple', customer: 'Greenfield Hospital', project: '1 MW Rooftop Project', applicationDate: '17 May 2024', submittedBy: { name: 'Amit Singh', role: 'Project Engineer', initials: 'AS', tone: 'green' }, status: 'Under Review', dueDate: '25 May 2024', dueNote: '1 day left', dueTone: 'red' },
+    { id: 4, appId: 'LC-APP-2024-045', type: 'LC Application', typeTone: 'green', customer: 'Sharma Cold Storage', project: '750 KW Rooftop Project', applicationDate: '15 May 2024', submittedBy: { name: 'Vikram Kumar', role: 'Project Manager', initials: 'VK', tone: 'emerald' }, status: 'Approved', dueDate: '20 May 2024', dueNote: 'Completed', dueTone: 'green' },
+    { id: 5, appId: 'STAT-APP-2024-044', type: 'Statutory Approval', typeTone: 'blue', customer: 'City Mall', project: '2.5 MW Rooftop Project', applicationDate: '14 May 2024', submittedBy: { name: 'Pooja Gupta', role: 'Compliance Officer', initials: 'PG', tone: 'purple' }, status: 'Approved', dueDate: '19 May 2024', dueNote: 'Completed', dueTone: 'green' },
+    { id: 6, appId: 'COM-REQ-2024-043', type: 'Commissioning Request', typeTone: 'purple', customer: 'ABC Corporation', project: '1.2 MW Rooftop Project', applicationDate: '13 May 2024', submittedBy: { name: 'Manoj Kumar', role: 'Project Engineer', initials: 'MK', tone: 'amber' }, status: 'Pending', dueDate: '21 May 2024', dueNote: 'Today', dueTone: 'red' },
+    { id: 7, appId: 'LC-APP-2024-042', type: 'LC Application', typeTone: 'green', customer: 'DLF Warehouse', project: '500 KW Rooftop Project', applicationDate: '10 May 2024', submittedBy: { name: 'Sunil Kumar', role: 'Project Manager', initials: 'SK', tone: 'cyan' }, status: 'Rejected', dueDate: '17 May 2024', dueNote: 'Closed', dueTone: 'red' },
+    { id: 8, appId: 'STAT-APP-2024-041', type: 'Statutory Approval', typeTone: 'blue', customer: 'Minerva School', project: '300 KW Rooftop Project', applicationDate: '09 May 2024', submittedBy: { name: 'Neha Sharma', role: 'Compliance Officer', initials: 'NS', tone: 'indigo' }, status: 'Under Review', dueDate: '16 May 2024', dueNote: 'In review', dueTone: 'blue' },
+    { id: 9, appId: 'COM-REQ-2024-040', type: 'Commissioning Request', typeTone: 'purple', customer: 'Sarla Farms', project: '250 KW Rooftop Project', applicationDate: '08 May 2024', submittedBy: { name: 'Amit Singh', role: 'Project Engineer', initials: 'AS', tone: 'green' }, status: 'Approved', dueDate: '15 May 2024', dueNote: 'Completed', dueTone: 'green' },
+    { id: 10, appId: 'LC-APP-2024-039', type: 'LC Application', typeTone: 'green', customer: 'Jain Resort', project: '650 KW Rooftop Project', applicationDate: '07 May 2024', submittedBy: { name: 'Ravi Kumar', role: 'Project Manager', initials: 'RK', tone: 'blue' }, status: 'Pending', dueDate: '14 May 2024', dueNote: 'Overdue', dueTone: 'red' },
+  ];
+
+  const filteredRows = approvalRows.filter((row) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [row.appId, row.type, row.customer, row.project, row.submittedBy.name].some((value) => value.toLowerCase().includes(queryText));
+    const tabMatch = activeTab === 'All Approvals' || row.type === activeTab.slice(0, -1);
+    return queryMatch && tabMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Liaisoning & Commissioning Approvals"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
+          { label: 'Approvals' },
+        ]}
+      />
+
+      <section className="space-y-4">
+        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Review and approve LC applications, statutory approvals, and commissioning requests.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+            <LiaisonApprovalStatCard label="Total Applications" value="48" caption="All Time" icon={FileText} tone="green" onClick={() => setActiveTab('All Approvals')} />
+            <LiaisonApprovalStatCard label="Pending Approvals" value="14" caption="Requires Action" icon={Clock3} tone="blue" onClick={() => onNotify('Pending approvals opened')} />
+            <LiaisonApprovalStatCard label="Approved" value="28" caption="This Year" icon={CheckCircle2} tone="amber" onClick={() => onNotify('Approved approvals opened')} />
+            <LiaisonApprovalStatCard label="Rejected" value="6" caption="This Year" icon={XCircle} tone="purple" onClick={() => onNotify('Rejected approvals opened')} />
+            <LiaisonApprovalStatCard label="Due This Week" value="5" caption="Action Needed" icon={CalendarDays} tone="cyan" onClick={() => onNotify('Due this week opened')} />
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="-mx-1 overflow-x-auto px-1">
+                <div className="flex min-w-max gap-2">
+                  {approvalTabs.map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveTab(tab)}
+                      className={cx(
+                        'rounded-[10px] border-b-2 px-4 py-3 text-[13px] font-extrabold transition',
+                        activeTab === tab
+                          ? 'border-[#16a34a] text-[#11823f]'
+                          : 'border-transparent text-[#34466c] hover:text-[#0b65e5]',
+                      )}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <label className="flex h-11 min-w-0 items-center gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 sm:w-[260px]">
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    type="search"
+                    placeholder="Search applications..."
+                    className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
+                  />
+                  <Search className="size-4 text-[#7386a3]" />
+                </label>
+                <button type="button" onClick={() => onNotify(`Approval filters opened for ${activeTab}`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                  <Filter className="size-4 text-[#0b65e5]" />
+                  Filter
+                </button>
+                <button type="button" onClick={() => onNotify('Approval list exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                  <Download className="size-4 text-[#0b65e5]" />
+                  Export
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3 xl:hidden">
+              {filteredRows.map((row, index) => (
+                <LiaisonApprovalMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+              ))}
+            </div>
+
+            <div className="mt-5 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1280px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Application ID', 'Type', 'Project / Customer', 'Application Date', 'Submitted By', 'Status', 'Due Date', 'Actions'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.appId}</td>
+                      <td><LiaisonApprovalTypeBadge type={row.type} tone={row.typeTone} /></td>
+                      <td>
+                        <div>
+                          <p className="font-extrabold text-[#1e3261]">{row.customer}</p>
+                          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.project}</p>
+                        </div>
+                      </td>
+                      <td className="font-extrabold text-[#223768]">{row.applicationDate}</td>
+                      <td><LiaisonApprovalSubmittedBy user={row.submittedBy} /></td>
+                      <td><LiaisonApprovalStatusBadge status={row.status} /></td>
+                      <td><LiaisonApprovalDueDate dueDate={row.dueDate} dueNote={row.dueNote} dueTone={row.dueTone} /></td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => onNotify(`${row.appId} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <Eye className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => onNotify(`${row.appId} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <ChevronDown className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+              <p>Showing 1 to {filteredRows.length} of 48 entries</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => onNotify('Previous approvals page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton active onClick={() => onNotify('Approvals page 1 selected')}>1</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Approvals page 2 selected')}>2</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Approvals page 3 selected')}>3</PaginationButton>
+                <span className="px-2 text-[#53647f]">...</span>
+                <PaginationButton onClick={() => onNotify('Approvals page 5 selected')}>5</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Next approvals page selected')}><ChevronRight className="size-4" /></PaginationButton>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function LiaisonApprovalStatCard({ label, value, caption, icon: Icon, tone, onClick }) {
+  const toneClass = {
+    green: 'bg-[linear-gradient(135deg,#21c45d,#11a94c)] text-white',
+    blue: 'bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-white',
+    amber: 'bg-[linear-gradient(135deg,#ffb224,#f38200)] text-white',
+    purple: 'bg-[linear-gradient(135deg,#a855f7,#7c3aed)] text-white',
+    cyan: 'bg-[linear-gradient(135deg,#22c7d6,#0ea5e9)] text-white',
+  }[tone] ?? 'bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-white';
+
+  const captionClass = {
+    green: 'text-[#2f5a83]',
+    blue: 'text-[#ef7d00]',
+    amber: 'text-[#16a34a]',
+    purple: 'text-[#ef4444]',
+    cyan: 'text-[#ef7d00]',
+  }[tone] ?? 'text-[#53647f]';
+
+  return (
+    <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[116px] items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]`}>
+      <span className={cx('grid size-12 shrink-0 place-items-center rounded-[14px] shadow-[0_10px_24px_rgba(37,99,235,0.18)]', toneClass)}>
+        <Icon className="size-5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[13px] font-extrabold text-[#1e3261]">{label}</span>
+        <span className="mt-1 block font-display text-[22px] font-extrabold text-[#111827]">{value}</span>
+        <span className={cx('mt-2 block text-[12px] font-extrabold', captionClass)}>{caption}</span>
+      </span>
+    </button>
+  );
+}
+
+function LiaisonApprovalTypeBadge({ type, tone }) {
+  const classes = {
+    green: 'bg-[#e8f8eb] text-[#16a34a]',
+    blue: 'bg-[#e8f2ff] text-[#2563eb]',
+    purple: 'bg-[#f3edff] text-[#7c3aed]',
+  }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{type}</span>;
+}
+
+function LiaisonApprovalStatusBadge({ status }) {
+  const classes = {
+    Pending: 'bg-[#fff0dc] text-[#f38200]',
+    Approved: 'bg-[#e8f8eb] text-[#16a34a]',
+    Rejected: 'bg-[#ffe9e6] text-[#ef4444]',
+    'Under Review': 'bg-[#e8f2ff] text-[#2563eb]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function LiaisonApprovalSubmittedBy({ user }) {
+  const tones = {
+    blue: 'bg-[#324fa8]',
+    indigo: 'bg-[#4057b2]',
+    green: 'bg-[#43b07a]',
+    emerald: 'bg-[#16a34a]',
+    purple: 'bg-[#a855f7]',
+    amber: 'bg-[#c49a00]',
+    cyan: 'bg-[#0ea5a9]',
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className={cx('grid size-7 shrink-0 place-items-center rounded-full text-[10px] font-extrabold text-white', tones[user.tone] ?? 'bg-[#324fa8]')}>
+        {user.initials}
+      </span>
+      <div className="min-w-0">
+        <p className="font-extrabold text-[#1e3261]">{user.name}</p>
+        <p className="mt-0.5 text-[11px] font-bold text-[#53647f]">{user.role}</p>
+      </div>
+    </div>
+  );
+}
+
+function LiaisonApprovalDueDate({ dueDate, dueNote, dueTone }) {
+  const toneClass = {
+    amber: 'text-[#f38200]',
+    red: 'text-[#ef4444]',
+    green: 'text-[#16a34a]',
+    blue: 'text-[#2563eb]',
+  }[dueTone] ?? 'text-[#53647f]';
+
+  return (
+    <div>
+      <p className="font-extrabold text-[#1e3261]">{dueDate}</p>
+      <p className={cx('mt-1 text-[12px] font-extrabold', toneClass)}>{dueNote}</p>
+    </div>
+  );
+}
+
+function LiaisonApprovalMobileCard({ row, index, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.appId}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.customer}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.project}</p>
+        </div>
+        <LiaisonApprovalStatusBadge status={row.status} />
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <LiaisonApprovalTypeBadge type={row.type} tone={row.typeTone} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Application Date" value={row.applicationDate} />
+        <InfoCell label="Due Date" valueNode={<LiaisonApprovalDueDate dueDate={row.dueDate} dueNote={row.dueNote} dueTone={row.dueTone} />} />
+        <InfoCell label="Submitted By" valueNode={<LiaisonApprovalSubmittedBy user={row.submittedBy} />} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => onNotify(`${row.appId} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+          <Eye className="size-4" />
+          View
+        </button>
+        <button type="button" onClick={() => onNotify(`${row.appId} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+          <ChevronDown className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function LiaisonInspectionsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [applicationType, setApplicationType] = useState('All Application Type');
+  const [branch, setBranch] = useState('All Branch');
+  const [inspector, setInspector] = useState('All Inspector');
+
+  const inspectionRows = [
+    { id: 1, inspectionNo: 'LC-INS-2024-0096', applicationNo: 'LC-2024-0006', company: 'Future Electronics', applicationType: 'Net Metering', location: 'Mohali, Punjab', inspector: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue' }, scheduledDate: '13 May 2024', status: 'Scheduled', issues: 0 },
+    { id: 2, inspectionNo: 'LC-INS-2024-0095', applicationNo: 'LC-2024-0005', company: 'XYZ Cold Storage', applicationType: 'Captive Consumption', location: 'Patiala, Punjab', inspector: { name: 'Amit Singh', initials: 'AS', tone: 'cyan' }, scheduledDate: '12 May 2024', status: 'In Progress', issues: 1 },
+    { id: 3, inspectionNo: 'LC-INS-2024-0094', applicationNo: 'LC-2024-0004', company: 'Green Field School', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', inspector: { name: 'Neha Sharma', initials: 'NS', tone: 'green' }, scheduledDate: '10 May 2024', status: 'Completed', issues: 0 },
+    { id: 4, inspectionNo: 'LC-INS-2024-0093', applicationNo: 'LC-2024-0003', company: 'ABC Motors', applicationType: 'Captive Consumption', location: 'Chandigarh', inspector: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple' }, scheduledDate: '09 May 2024', status: 'Completed', issues: 2 },
+    { id: 5, inspectionNo: 'LC-INS-2024-0092', applicationNo: 'LC-2024-0002', company: 'Sharma Textiles', applicationType: 'Net Metering', location: 'Sangrur, Punjab', inspector: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple' }, scheduledDate: '08 May 2024', status: 'Completed', issues: 0 },
+    { id: 6, inspectionNo: 'LC-INS-2024-0091', applicationNo: 'LC-2024-0001', company: 'Malwa Industrial Pvt. Ltd.', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', inspector: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue' }, scheduledDate: '07 May 2024', status: 'Completed', issues: 1 },
+    { id: 7, inspectionNo: 'LC-INS-2024-0090', applicationNo: 'LC-2024-0010', company: 'Jain Resort', applicationType: 'Captive Consumption', location: 'Jalandhar, Punjab', inspector: { name: 'Amit Singh', initials: 'AS', tone: 'cyan' }, scheduledDate: '06 May 2024', status: 'Pending', issues: 0 },
+    { id: 8, inspectionNo: 'LC-INS-2024-0089', applicationNo: 'LC-2024-0009', company: 'Punjab Warehouse', applicationType: 'Net Metering', location: 'Amritsar, Punjab', inspector: { name: 'Neha Sharma', initials: 'NS', tone: 'green' }, scheduledDate: '05 May 2024', status: 'Pending', issues: 0 },
+    { id: 9, inspectionNo: 'LC-INS-2024-0088', applicationNo: 'LC-2024-0008', company: 'Metro Shopping Mall', applicationType: 'Captive Consumption', location: 'Bathinda, Punjab', inspector: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple' }, scheduledDate: '04 May 2024', status: 'Cancelled', issues: 0 },
+    { id: 10, inspectionNo: 'LC-INS-2024-0087', applicationNo: 'LC-2024-0007', company: 'Sunrise Hospital', applicationType: 'Net Metering', location: 'Pathankot, Punjab', inspector: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple' }, scheduledDate: '03 May 2024', status: 'Completed', issues: 0 },
+  ];
+
+  const filteredRows = inspectionRows.filter((row) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [row.inspectionNo, row.applicationNo, row.company, row.location, row.inspector.name].some((value) => value.toLowerCase().includes(queryText));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const typeMatch = applicationType === 'All Application Type' || row.applicationType === applicationType;
+    const branchMatch = branch === 'All Branch' || row.location.includes(branch);
+    const inspectorMatch = inspector === 'All Inspector' || row.inspector.name === inspector;
+    return queryMatch && statusMatch && typeMatch && branchMatch && inspectorMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Liaisoning & Commissioning - Inspections"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
+          { label: 'Inspections' },
+        ]}
+        actions={(
+          <button type="button" onClick={() => onNotify('New inspection opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+            <Plus className="size-4" />
+            New Inspection
+          </button>
+        )}
+      />
+
+      <section className="space-y-4">
+        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Track and manage site inspections for LC applications and projects.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+            <LiaisonApprovalStatCard label="Total Inspections" value="96" caption="This Financial Year" icon={ClipboardPlus} tone="green" onClick={() => onNotify('Total inspections opened')} />
+            <LiaisonApprovalStatCard label="Pending Inspections" value="18" caption="Awaiting Schedule" icon={Search} tone="blue" onClick={() => setStatus('Pending')} />
+            <LiaisonApprovalStatCard label="Completed Inspections" value="62" caption="This Financial Year" icon={Eye} tone="amber" onClick={() => setStatus('Completed')} />
+            <LiaisonApprovalStatCard label="Issues Found" value="14" caption="Requires Action" icon={Flag} tone="purple" onClick={() => onNotify('Issues found opened')} />
+            <LiaisonApprovalStatCard label="Scheduled Today" value="06" caption="Today" icon={CalendarDays} tone="cyan" onClick={() => setStatus('Scheduled')} />
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_170px_180px_170px_170px_230px_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search inspections..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                <Search className="size-4 text-[#7386a3]" />
+              </label>
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Scheduled', 'Pending', 'In Progress', 'Completed', 'Cancelled']} hideLabel />
+              <ReportSelect label="Application Type" value={applicationType} onChange={setApplicationType} options={['All Application Type', 'Net Metering', 'Captive Consumption']} hideLabel />
+              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Mohali', 'Patiala', 'Ludhiana', 'Chandigarh', 'Sangrur', 'Jalandhar', 'Amritsar', 'Bathinda', 'Pathankot']} hideLabel />
+              <ReportSelect label="Inspector" value={inspector} onChange={setInspector} options={['All Inspector', 'Ravi Kumar', 'Amit Singh', 'Neha Sharma', 'Vikram Kumar', 'Pooja Gupta']} hideLabel />
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
+                <CalendarDays className="size-4 text-[#7386a3]" />
+                <span>01/04/2024 - 31/03/2025</span>
+              </label>
+              <button type="button" onClick={() => onNotify(`Inspection filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Search className="size-4 text-[#0b65e5]" />
+                Filter
+              </button>
+              <button type="button" onClick={() => onNotify('Inspections exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Download className="size-4 text-[#0b65e5]" />
+                Export
+              </button>
+            </div>
+
+            <h2 className="mt-5 font-display text-[18px] font-extrabold text-[#06135a]">Inspections List</h2>
+
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredRows.map((row, index) => (
+                <LiaisonInspectionMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+              ))}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1320px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Inspection No.', 'Application No.', 'Project / Company', 'Application Type', 'Location', 'Inspector', 'Scheduled Date', 'Status', 'Issues', 'Actions'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.inspectionNo}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.applicationNo}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.company}</td>
+                      <td>{row.applicationType}</td>
+                      <td>{row.location}</td>
+                      <td><LiaisonApprovalSubmittedBy user={row.inspector} /></td>
+                      <td className="font-extrabold text-[#223768]">{row.scheduledDate}</td>
+                      <td><LiaisonInspectionStatusBadge status={row.status} /></td>
+                      <td className={cx('font-extrabold', row.issues > 0 ? 'text-[#ef4444]' : 'text-[#1e3261]')}>{row.issues}</td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => onNotify(`${row.inspectionNo} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <Eye className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => onNotify(`${row.inspectionNo} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+              <p>Showing 1 to {filteredRows.length} of 96 entries</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => onNotify('Previous inspections page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton active onClick={() => onNotify('Inspections page 1 selected')}>1</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Inspections page 2 selected')}>2</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Inspections page 3 selected')}>3</PaginationButton>
+                <span className="px-2 text-[#53647f]">...</span>
+                <PaginationButton onClick={() => onNotify('Inspections page 10 selected')}>10</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Next inspections page selected')}><ChevronRight className="size-4" /></PaginationButton>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function LiaisonInspectionStatusBadge({ status }) {
+  const classes = {
+    Scheduled: 'bg-[#e8f2ff] text-[#2563eb]',
+    'In Progress': 'bg-[#e8f2ff] text-[#2563eb]',
+    Completed: 'bg-[#e8f8eb] text-[#16a34a]',
+    Pending: 'bg-[#fff0dc] text-[#f38200]',
+    Cancelled: 'bg-[#ffe9e6] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function LiaisonInspectionMobileCard({ row, index, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.inspectionNo}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.company}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.applicationNo} | {row.applicationType}</p>
+        </div>
+        <LiaisonInspectionStatusBadge status={row.status} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Location" value={row.location} />
+        <InfoCell label="Scheduled Date" value={row.scheduledDate} />
+        <InfoCell label="Inspector" valueNode={<LiaisonApprovalSubmittedBy user={row.inspector} />} />
+        <InfoCell label="Issues" value={String(row.issues)} valueClass={row.issues > 0 ? 'text-[#ef4444]' : undefined} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => onNotify(`${row.inspectionNo} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+          <Eye className="size-4" />
+          View
+        </button>
+        <button type="button" onClick={() => onNotify(`${row.inspectionNo} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+          <MoreVertical className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function LiaisonCommissioningPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [applicationType, setApplicationType] = useState('All Application Type');
+  const [branch, setBranch] = useState('All Branch');
+  const [engineer, setEngineer] = useState('All Engineer');
+
+  const commissioningRows = [
+    { id: 1, commissioningNo: 'LC-COM-2024-0086', applicationNo: 'LC-APP-2024-0048', company: 'Ravi Industries Pvt. Ltd.', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', engineer: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue' }, scheduledDate: '20 May 2024', status: 'Scheduled', commissionedOn: '-' },
+    { id: 2, commissioningNo: 'LC-COM-2024-0085', applicationNo: 'LC-APP-2024-0046', company: 'Greenfield Hospital', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', engineer: { name: 'Amit Singh', initials: 'AS', tone: 'cyan' }, scheduledDate: '18 May 2024', status: 'In Progress', commissionedOn: '-' },
+    { id: 3, commissioningNo: 'LC-COM-2024-0084', applicationNo: 'LC-APP-2024-0044', company: 'City Mall', applicationType: 'Captive Consumption', location: 'Sangrur, Punjab', engineer: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple' }, scheduledDate: '16 May 2024', status: 'Completed', commissionedOn: '16 May 2024' },
+    { id: 4, commissioningNo: 'LC-COM-2024-0083', applicationNo: 'LC-APP-2024-0042', company: 'DLF Warehouse', applicationType: 'Net Metering', location: 'Patiala, Punjab', engineer: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple' }, scheduledDate: '15 May 2024', status: 'Completed', commissionedOn: '15 May 2024' },
+    { id: 5, commissioningNo: 'LC-COM-2024-0082', applicationNo: 'LC-APP-2024-0041', company: 'Minerva School', applicationType: 'Net Metering', location: 'Bathinda, Punjab', engineer: { name: 'Neha Sharma', initials: 'NS', tone: 'green' }, scheduledDate: '14 May 2024', status: 'Completed', commissionedOn: '14 May 2024' },
+    { id: 6, commissioningNo: 'LC-COM-2024-0081', applicationNo: 'LC-APP-2024-0039', company: 'Jain Resort', applicationType: 'Captive Consumption', location: 'Jalandhar, Punjab', engineer: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue' }, scheduledDate: '12 May 2024', status: 'Completed', commissionedOn: '12 May 2024' },
+    { id: 7, commissioningNo: 'LC-COM-2024-0080', applicationNo: 'LC-APP-2024-0038', company: 'Punjab Warehouse', applicationType: 'Net Metering', location: 'Amritsar, Punjab', engineer: { name: 'Amit Singh', initials: 'AS', tone: 'cyan' }, scheduledDate: '10 May 2024', status: 'Delayed', commissionedOn: '-' },
+    { id: 8, commissioningNo: 'LC-COM-2024-0079', applicationNo: 'LC-APP-2024-0037', company: 'Metro Shopping Mall', applicationType: 'Captive Consumption', location: 'Mohali, Punjab', engineer: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple' }, scheduledDate: '09 May 2024', status: 'Pending', commissionedOn: '-' },
+    { id: 9, commissioningNo: 'LC-COM-2024-0078', applicationNo: 'LC-APP-2024-0036', company: 'Sunrise Hospital', applicationType: 'Net Metering', location: 'Pathankot, Punjab', engineer: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple' }, scheduledDate: '08 May 2024', status: 'Scheduled', commissionedOn: '-' },
+    { id: 10, commissioningNo: 'LC-COM-2024-0077', applicationNo: 'LC-APP-2024-0035', company: 'ABC Corporation', applicationType: 'Captive Consumption', location: 'Chandigarh', engineer: { name: 'Neha Sharma', initials: 'NS', tone: 'green' }, scheduledDate: '07 May 2024', status: 'Pending', commissionedOn: '-' },
+  ];
+
+  const filteredRows = commissioningRows.filter((row) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [row.commissioningNo, row.applicationNo, row.company, row.location, row.engineer.name].some((value) => value.toLowerCase().includes(queryText));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const typeMatch = applicationType === 'All Application Type' || row.applicationType === applicationType;
+    const branchMatch = branch === 'All Branch' || row.location.includes(branch);
+    const engineerMatch = engineer === 'All Engineer' || row.engineer.name === engineer;
+    return queryMatch && statusMatch && typeMatch && branchMatch && engineerMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Liaisoning & Commissioning - Commissioning"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
+          { label: 'Commissioning' },
+        ]}
+        actions={(
+          <button type="button" onClick={() => onNotify('New commissioning opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+            <Plus className="size-4" />
+            New Commissioning
+          </button>
+        )}
+      />
+
+      <section className="space-y-4">
+        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Manage commissioning activities and track completion status for all LC approved projects.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+            <LiaisonApprovalStatCard label="Total Commissioning" value="86" caption="This Financial Year" icon={ClipboardPlus} tone="green" onClick={() => onNotify('Total commissioning opened')} />
+            <LiaisonApprovalStatCard label="Pending Commissioning" value="22" caption="Awaiting Execution" icon={Clock3} tone="blue" onClick={() => setStatus('Pending')} />
+            <LiaisonApprovalStatCard label="Completed Commissioning" value="54" caption="This Financial Year" icon={Settings} tone="amber" onClick={() => setStatus('Completed')} />
+            <LiaisonApprovalStatCard label="Delayed" value="08" caption="Requires Attention" icon={Flag} tone="purple" onClick={() => setStatus('Delayed')} />
+            <LiaisonApprovalStatCard label="Scheduled Today" value="05" caption="Today" icon={CalendarDays} tone="cyan" onClick={() => setStatus('Scheduled')} />
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_170px_180px_170px_170px_230px_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search commissioning..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                <Search className="size-4 text-[#7386a3]" />
+              </label>
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Scheduled', 'Pending', 'In Progress', 'Completed', 'Delayed']} hideLabel />
+              <ReportSelect label="Application Type" value={applicationType} onChange={setApplicationType} options={['All Application Type', 'Net Metering', 'Captive Consumption']} hideLabel />
+              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Patiala', 'Bathinda', 'Jalandhar', 'Amritsar', 'Mohali', 'Pathankot', 'Chandigarh']} hideLabel />
+              <ReportSelect label="Engineer" value={engineer} onChange={setEngineer} options={['All Engineer', 'Ravi Kumar', 'Amit Singh', 'Vikram Kumar', 'Pooja Gupta', 'Neha Sharma']} hideLabel />
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
+                <CalendarDays className="size-4 text-[#7386a3]" />
+                <span>01/04/2024 - 31/03/2025</span>
+              </label>
+              <button type="button" onClick={() => onNotify(`Commissioning filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Search className="size-4 text-[#0b65e5]" />
+                Filter
+              </button>
+              <button type="button" onClick={() => onNotify('Commissioning exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Download className="size-4 text-[#0b65e5]" />
+                Export
+              </button>
+            </div>
+
+            <h2 className="mt-5 font-display text-[18px] font-extrabold text-[#06135a]">Commissioning List</h2>
+
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredRows.map((row, index) => (
+                <LiaisonCommissioningMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+              ))}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1380px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Commissioning No.', 'Application No.', 'Project / Company', 'Application Type', 'Location', 'Commissioning Engineer', 'Scheduled Date', 'Status', 'Commissioned On', 'Actions'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.commissioningNo}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.applicationNo}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.company}</td>
+                      <td>{row.applicationType}</td>
+                      <td>{row.location}</td>
+                      <td><LiaisonApprovalSubmittedBy user={row.engineer} /></td>
+                      <td className="font-extrabold text-[#223768]">{row.scheduledDate}</td>
+                      <td><LiaisonCommissioningStatusBadge status={row.status} /></td>
+                      <td className="font-extrabold text-[#223768]">{row.commissionedOn}</td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => onNotify(`${row.commissioningNo} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <Eye className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => onNotify(`${row.commissioningNo} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+              <p>Showing 1 to {filteredRows.length} of 86 entries</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => onNotify('Previous commissioning page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton active onClick={() => onNotify('Commissioning page 1 selected')}>1</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Commissioning page 2 selected')}>2</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Commissioning page 3 selected')}>3</PaginationButton>
+                <span className="px-2 text-[#53647f]">...</span>
+                <PaginationButton onClick={() => onNotify('Commissioning page 9 selected')}>9</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Next commissioning page selected')}><ChevronRight className="size-4" /></PaginationButton>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function LiaisonCommissioningStatusBadge({ status }) {
+  const classes = {
+    Scheduled: 'bg-[#e8f2ff] text-[#2563eb]',
+    'In Progress': 'bg-[#e8f2ff] text-[#2563eb]',
+    Completed: 'bg-[#e8f8eb] text-[#16a34a]',
+    Pending: 'bg-[#fff0dc] text-[#f38200]',
+    Delayed: 'bg-[#ffe9e6] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function LiaisonCommissioningMobileCard({ row, index, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.commissioningNo}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.company}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.applicationNo} | {row.applicationType}</p>
+        </div>
+        <LiaisonCommissioningStatusBadge status={row.status} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Location" value={row.location} />
+        <InfoCell label="Scheduled Date" value={row.scheduledDate} />
+        <InfoCell label="Engineer" valueNode={<LiaisonApprovalSubmittedBy user={row.engineer} />} />
+        <InfoCell label="Commissioned On" value={row.commissionedOn} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => onNotify(`${row.commissioningNo} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+          <Eye className="size-4" />
+          View
+        </button>
+        <button type="button" onClick={() => onNotify(`${row.commissioningNo} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+          <MoreVertical className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function LiaisonCompliancePage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [applicationType, setApplicationType] = useState('All Application Type');
+  const [branch, setBranch] = useState('All Branch');
+  const [department, setDepartment] = useState('All Department');
+
+  const complianceRows = [
+    { id: 1, complianceId: 'LC-CMP-2024-0102', applicationNo: 'LC-APP-2024-0048', company: 'Ravi Industries Pvt. Ltd.', complianceType: 'Statutory Clearance', requirement: 'Pollution NOC', status: 'Compliant', dueDate: '15 May 2024', submittedOn: '12 May 2024', remarks: 'All norms met', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', department: 'Regulatory' },
+    { id: 2, complianceId: 'LC-CMP-2024-0101', applicationNo: 'LC-APP-2024-0046', company: 'Greenfield Hospital', complianceType: 'Electrical Safety', requirement: 'Electrical Safety Certificate', status: 'Pending', dueDate: '20 May 2024', submittedOn: '-', remarks: 'Awaiting document', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', department: 'Electrical' },
+    { id: 3, complianceId: 'LC-CMP-2024-0100', applicationNo: 'LC-APP-2024-0044', company: 'City Mall', complianceType: 'Fire Safety', requirement: 'Fire NOC', status: 'Compliant', dueDate: '18 May 2024', submittedOn: '16 May 2024', remarks: 'Compliant', applicationType: 'Captive Consumption', location: 'Sangrur, Punjab', department: 'Safety' },
+    { id: 4, complianceId: 'LC-CMP-2024-0099', applicationNo: 'LC-APP-2024-0042', company: 'DLF Warehouse', complianceType: 'Land Use Approval', requirement: 'Land Use Certificate', status: 'Non-Compliant', dueDate: '10 May 2024', submittedOn: '08 May 2024', remarks: 'Zone mismatch', applicationType: 'Net Metering', location: 'Patiala, Punjab', department: 'Regulatory' },
+    { id: 5, complianceId: 'LC-CMP-2024-0098', applicationNo: 'LC-APP-2024-0041', company: 'Minerva School', complianceType: 'Environmental Clearance', requirement: 'EC Certificate', status: 'Compliant', dueDate: '22 May 2024', submittedOn: '20 May 2024', remarks: 'Valid', applicationType: 'Net Metering', location: 'Bathinda, Punjab', department: 'Environment' },
+    { id: 6, complianceId: 'LC-CMP-2024-0097', applicationNo: 'LC-APP-2024-0039', company: 'Jain Resort', complianceType: 'Grid Connectivity', requirement: 'Connectivity Approval', status: 'Pending', dueDate: '25 May 2024', submittedOn: '-', remarks: 'Under review', applicationType: 'Captive Consumption', location: 'Jalandhar, Punjab', department: 'Electrical' },
+    { id: 7, complianceId: 'LC-CMP-2024-0096', applicationNo: 'LC-APP-2024-0038', company: 'Punjab Warehouse', complianceType: 'Building Plan Approval', requirement: 'Building Plan Sanction', status: 'Compliant', dueDate: '12 May 2024', submittedOn: '10 May 2024', remarks: 'Approved', applicationType: 'Net Metering', location: 'Amritsar, Punjab', department: 'Civil' },
+    { id: 8, complianceId: 'LC-CMP-2024-0095', applicationNo: 'LC-APP-2024-0037', company: 'Metro Shopping Mall', complianceType: 'Water Connection', requirement: 'Water Connection NOC', status: 'Non-Compliant', dueDate: '14 May 2024', submittedOn: '13 May 2024', remarks: 'Document expired', applicationType: 'Captive Consumption', location: 'Mohali, Punjab', department: 'Utility' },
+    { id: 9, complianceId: 'LC-CMP-2024-0094', applicationNo: 'LC-APP-2024-0036', company: 'Sunrise Hospital', complianceType: 'Local Body Approval', requirement: 'Municipal Approval', status: 'Compliant', dueDate: '11 May 2024', submittedOn: '09 May 2024', remarks: 'All clear', applicationType: 'Net Metering', location: 'Pathankot, Punjab', department: 'Regulatory' },
+    { id: 10, complianceId: 'LC-CMP-2024-0093', applicationNo: 'LC-APP-2024-0035', company: 'ABC Corporation', complianceType: 'Labor Compliance', requirement: 'Labor NOC', status: 'Pending', dueDate: '30 May 2024', submittedOn: '-', remarks: 'Awaiting NOC', applicationType: 'Captive Consumption', location: 'Chandigarh', department: 'Admin' },
+  ];
+
+  const filteredRows = complianceRows.filter((row) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [row.complianceId, row.applicationNo, row.company, row.requirement, row.remarks].some((value) => value.toLowerCase().includes(queryText));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const typeMatch = applicationType === 'All Application Type' || row.applicationType === applicationType;
+    const branchMatch = branch === 'All Branch' || row.location.includes(branch);
+    const departmentMatch = department === 'All Department' || row.department === department;
+    return queryMatch && statusMatch && typeMatch && branchMatch && departmentMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Liaisoning & Commissioning - Compliance"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
+          { label: 'Compliance' },
+        ]}
+        actions={(
+          <button type="button" onClick={() => onNotify('New compliance item opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+            <Plus className="size-4" />
+            New Compliance Item
+          </button>
+        )}
+      />
+
+      <section className="space-y-4">
+        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Track compliance requirements, document submissions, and regulatory adherence for LC approved projects.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+            <LiaisonApprovalStatCard label="Total Compliance Items" value="102" caption="This Financial Year" icon={ShieldCheck} tone="green" onClick={() => onNotify('Total compliance items opened')} />
+            <LiaisonApprovalStatCard label="Pending Items" value="23" caption="Action Required" icon={FileText} tone="blue" onClick={() => setStatus('Pending')} />
+            <LiaisonApprovalStatCard label="Compliant" value="65" caption="Completed" icon={CheckCircle2} tone="amber" onClick={() => setStatus('Compliant')} />
+            <LiaisonApprovalStatCard label="Non-Compliant" value="07" caption="Requires Attention" icon={AlertTriangle} tone="purple" onClick={() => setStatus('Non-Compliant')} />
+            <LiaisonApprovalStatCard label="Due This Month" value="07" caption="Upcoming Deadlines" icon={CalendarDays} tone="cyan" onClick={() => onNotify('Due this month opened')} />
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_170px_180px_170px_170px_230px_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search compliance items..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                <Search className="size-4 text-[#7386a3]" />
+              </label>
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Compliant', 'Pending', 'Non-Compliant']} hideLabel />
+              <ReportSelect label="Application Type" value={applicationType} onChange={setApplicationType} options={['All Application Type', 'Net Metering', 'Captive Consumption']} hideLabel />
+              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Patiala', 'Bathinda', 'Jalandhar', 'Amritsar', 'Mohali', 'Pathankot', 'Chandigarh']} hideLabel />
+              <ReportSelect label="Department" value={department} onChange={setDepartment} options={['All Department', 'Regulatory', 'Electrical', 'Safety', 'Environment', 'Civil', 'Utility', 'Admin']} hideLabel />
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
+                <CalendarDays className="size-4 text-[#7386a3]" />
+                <span>01/04/2024 - 31/03/2025</span>
+              </label>
+              <button type="button" onClick={() => onNotify(`Compliance filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Search className="size-4 text-[#0b65e5]" />
+                Filter
+              </button>
+              <button type="button" onClick={() => onNotify('Compliance exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Download className="size-4 text-[#0b65e5]" />
+                Export
+              </button>
+            </div>
+
+            <h2 className="mt-5 font-display text-[18px] font-extrabold text-[#06135a]">Compliance List</h2>
+
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredRows.map((row, index) => (
+                <LiaisonComplianceMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+              ))}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1500px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Compliance ID', 'Application No.', 'Project / Company', 'Compliance Type', 'Requirement', 'Status', 'Due Date', 'Submitted On', 'Remarks', 'Actions'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.complianceId}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.applicationNo}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.company}</td>
+                      <td>{row.complianceType}</td>
+                      <td>{row.requirement}</td>
+                      <td><LiaisonComplianceStatusBadge status={row.status} /></td>
+                      <td className={cx('font-extrabold', row.status === 'Pending' ? 'text-[#ef4444]' : 'text-[#223768]')}>{row.dueDate}</td>
+                      <td className="font-extrabold text-[#223768]">{row.submittedOn}</td>
+                      <td>{row.remarks}</td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => onNotify(`${row.complianceId} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <Eye className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => onNotify(`${row.complianceId} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+              <p>Showing 1 to {filteredRows.length} of 102 entries</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => onNotify('Previous compliance page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton active onClick={() => onNotify('Compliance page 1 selected')}>1</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Compliance page 2 selected')}>2</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Compliance page 3 selected')}>3</PaginationButton>
+                <span className="px-2 text-[#53647f]">...</span>
+                <PaginationButton onClick={() => onNotify('Compliance page 11 selected')}>11</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Next compliance page selected')}><ChevronRight className="size-4" /></PaginationButton>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function LiaisonComplianceStatusBadge({ status }) {
+  const classes = {
+    Compliant: 'bg-[#e8f8eb] text-[#16a34a]',
+    Pending: 'bg-[#fff0dc] text-[#f38200]',
+    'Non-Compliant': 'bg-[#ffe9e6] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function LiaisonComplianceMobileCard({ row, index, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.complianceId}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.company}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.applicationNo} | {row.complianceType}</p>
+        </div>
+        <LiaisonComplianceStatusBadge status={row.status} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Requirement" value={row.requirement} />
+        <InfoCell label="Due Date" value={row.dueDate} valueClass={row.status === 'Pending' ? 'text-[#ef4444]' : undefined} />
+        <InfoCell label="Submitted On" value={row.submittedOn} />
+        <InfoCell label="Remarks" value={row.remarks} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => onNotify(`${row.complianceId} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+          <Eye className="size-4" />
+          View
+        </button>
+        <button type="button" onClick={() => onNotify(`${row.complianceId} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+          <MoreVertical className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [documentType, setDocumentType] = useState('All Document Type');
+  const [applicationType, setApplicationType] = useState('All Application Type');
+  const [status, setStatus] = useState('All Status');
+  const [branch, setBranch] = useState('All Branch');
+
+  const documentRows = [
+    { id: 1, name: 'Pollution NOC.pdf', fileType: 'pdf', documentType: 'Statutory Clearance', relatedTo: 'LC Application', applicationNo: 'LC-APP-2024-0048', company: 'Ravi Industries Pvt. Ltd.', uploadedBy: { name: 'Ravi Kumar', role: 'Project Manager', initials: 'RK', tone: 'blue' }, uploadDate: '20 May 2024', status: 'Approved', applicationType: 'Net Metering', location: 'Ludhiana, Punjab' },
+    { id: 2, name: 'Electrical Safety Certificate.pdf', fileType: 'pdf', documentType: 'Safety Certificate', relatedTo: 'Inspection', applicationNo: 'LC-INS-2024-0096', company: 'Future Electronics', uploadedBy: { name: 'Amit Singh', role: 'Site Engineer', initials: 'AS', tone: 'cyan' }, uploadDate: '13 May 2024', status: 'Under Review', applicationType: 'Net Metering', location: 'Mohali, Punjab' },
+    { id: 3, name: 'Load Test Report.xlsx', fileType: 'xlsx', documentType: 'Test Report', relatedTo: 'Commissioning', applicationNo: 'LC-COM-2024-0086', company: 'Ravi Industries Pvt. Ltd.', uploadedBy: { name: 'Vikram Kumar', role: 'Commissioning Eng.', initials: 'VK', tone: 'emerald' }, uploadDate: '22 May 2024', status: 'Approved', applicationType: 'Net Metering', location: 'Ludhiana, Punjab' },
+    { id: 4, name: 'Land Use Certificate.pdf', fileType: 'pdf', documentType: 'Land Approval', relatedTo: 'Compliance', applicationNo: 'LC-CMP-2024-0099', company: 'DLF Warehouse', uploadedBy: { name: 'Neha Sharma', role: 'Compliance Officer', initials: 'NS', tone: 'green' }, uploadDate: '10 May 2024', status: 'Pending Review', applicationType: 'Net Metering', location: 'Patiala, Punjab' },
+    { id: 5, name: 'Building Plan Approval.docx', fileType: 'docx', documentType: 'Building Plan', relatedTo: 'Compliance', applicationNo: 'LC-CMP-2024-0096', company: 'Punjab Warehouse', uploadedBy: { name: 'Ravi Kumar', role: 'Project Manager', initials: 'RK', tone: 'blue' }, uploadDate: '12 May 2024', status: 'Approved', applicationType: 'Net Metering', location: 'Amritsar, Punjab' },
+    { id: 6, name: 'Fire NOC.pdf', fileType: 'pdf', documentType: 'Fire Safety', relatedTo: 'Compliance', applicationNo: 'LC-CMP-2024-0100', company: 'City Mall', uploadedBy: { name: 'Pooja Gupta', role: 'Compliance Officer', initials: 'PG', tone: 'purple' }, uploadDate: '18 May 2024', status: 'Rejected', applicationType: 'Captive Consumption', location: 'Sangrur, Punjab' },
+    { id: 7, name: 'Meter Test Report.xlsx', fileType: 'xlsx', documentType: 'Test Report', relatedTo: 'Inspection', applicationNo: 'LC-INS-2024-0094', company: 'Green Field School', uploadedBy: { name: 'Amit Singh', role: 'Site Engineer', initials: 'AS', tone: 'cyan' }, uploadDate: '10 May 2024', status: 'Under Review', applicationType: 'Net Metering', location: 'Ludhiana, Punjab' },
+    { id: 8, name: 'Commissioning Certificate.pdf', fileType: 'pdf', documentType: 'Commissioning Certificate', relatedTo: 'Commissioning', applicationNo: 'LC-COM-2024-0084', company: 'Green Field School', uploadedBy: { name: 'Vikram Kumar', role: 'Commissioning Eng.', initials: 'VK', tone: 'emerald' }, uploadDate: '16 May 2024', status: 'Approved', applicationType: 'Captive Consumption', location: 'Sangrur, Punjab' },
+    { id: 9, name: 'Connectivity Approval.pdf', fileType: 'pdf', documentType: 'Connectivity Approval', relatedTo: 'Compliance', applicationNo: 'LC-CMP-2024-0097', company: 'Jain Resort', uploadedBy: { name: 'Neha Sharma', role: 'Compliance Officer', initials: 'NS', tone: 'green' }, uploadDate: '25 May 2024', status: 'Approved', applicationType: 'Captive Consumption', location: 'Jalandhar, Punjab' },
+    { id: 10, name: 'Site Inspection Report.docx', fileType: 'docx', documentType: 'Inspection Report', relatedTo: 'Inspection', applicationNo: 'LC-INS-2024-0092', company: 'Sharma Textiles', uploadedBy: { name: 'Pooja Gupta', role: 'Site Engineer', initials: 'PG', tone: 'purple' }, uploadDate: '08 May 2024', status: 'Under Review', applicationType: 'Net Metering', location: 'Sangrur, Punjab' },
+  ];
+
+  const filteredRows = documentRows.filter((row) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [row.name, row.documentType, row.relatedTo, row.applicationNo, row.company, row.uploadedBy.name].some((value) => value.toLowerCase().includes(queryText));
+    const typeMatch = documentType === 'All Document Type' || row.documentType === documentType;
+    const applicationMatch = applicationType === 'All Application Type' || row.applicationType === applicationType;
+    const statusMatch = status === 'All Status' || row.status === status;
+    const branchMatch = branch === 'All Branch' || row.location.includes(branch);
+    return queryMatch && typeMatch && applicationMatch && statusMatch && branchMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Liaisoning & Commissioning - Documents"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
+          { label: 'Documents' },
+        ]}
+        actions={(
+          <button type="button" onClick={() => onNotify('Upload document opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+            <Plus className="size-4" />
+            Upload Document
+          </button>
+        )}
+      />
+
+      <section className="space-y-4">
+        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Manage and track all documents related to LC applications, approvals, inspections, commissioning and compliance.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+            <LiaisonApprovalStatCard label="Total Documents" value="256" caption="All Documents" icon={FolderKanban} tone="green" onClick={() => onNotify('Total documents opened')} />
+            <LiaisonApprovalStatCard label="Pending Review" value="34" caption="Requires Action" icon={FileText} tone="blue" onClick={() => setStatus('Under Review')} />
+            <LiaisonApprovalStatCard label="Approved" value="162" caption="Approved Documents" icon={CheckCircle2} tone="amber" onClick={() => setStatus('Approved')} />
+            <LiaisonApprovalStatCard label="Rejected" value="18" caption="Rejected Documents" icon={XCircle} tone="purple" onClick={() => setStatus('Rejected')} />
+            <LiaisonApprovalStatCard label="Archived" value="42" caption="Archived Documents" icon={HardDrive} tone="cyan" onClick={() => onNotify('Archived documents opened')} />
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_170px_180px_150px_170px_230px_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search documents..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                <Search className="size-4 text-[#7386a3]" />
+              </label>
+              <ReportSelect label="Document Type" value={documentType} onChange={setDocumentType} options={['All Document Type', 'Statutory Clearance', 'Safety Certificate', 'Test Report', 'Land Approval', 'Building Plan', 'Fire Safety', 'Commissioning Certificate', 'Connectivity Approval', 'Inspection Report']} hideLabel />
+              <ReportSelect label="Application Type" value={applicationType} onChange={setApplicationType} options={['All Application Type', 'Net Metering', 'Captive Consumption']} hideLabel />
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Approved', 'Under Review', 'Pending Review', 'Rejected']} hideLabel />
+              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Mohali', 'Patiala', 'Amritsar', 'Sangrur', 'Jalandhar']} hideLabel />
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
+                <CalendarDays className="size-4 text-[#7386a3]" />
+                <span>01/04/2024 - 31/03/2025</span>
+              </label>
+              <button type="button" onClick={() => onNotify(`Document filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Filter className="size-4 text-[#0b65e5]" />
+                Filter
+              </button>
+              <button type="button" onClick={() => onNotify('Documents exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Download className="size-4 text-[#0b65e5]" />
+                Export
+              </button>
+            </div>
+
+            <h2 className="mt-5 font-display text-[18px] font-extrabold text-[#06135a]">Documents List</h2>
+
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredRows.map((row, index) => (
+                <LiaisonDocumentMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+              ))}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1560px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Document Name', 'Document Type', 'Related To', 'Application No.', 'Project / Company', 'Uploaded By', 'Upload Date', 'Status', 'Actions'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
+                      <td><LiaisonDocumentNameCell name={row.name} fileType={row.fileType} /></td>
+                      <td>{row.documentType}</td>
+                      <td>{row.relatedTo}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.applicationNo}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.company}</td>
+                      <td><LiaisonApprovalSubmittedBy user={row.uploadedBy} /></td>
+                      <td className="font-extrabold text-[#223768]">{row.uploadDate}</td>
+                      <td><LiaisonDocumentStatusBadge status={row.status} /></td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => onNotify(`${row.name} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <Eye className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => onNotify(`${row.name} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+              <p>Showing 1 to {filteredRows.length} of 256 entries</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => onNotify('Previous documents page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton active onClick={() => onNotify('Documents page 1 selected')}>1</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Documents page 2 selected')}>2</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Documents page 3 selected')}>3</PaginationButton>
+                <span className="px-2 text-[#53647f]">...</span>
+                <PaginationButton onClick={() => onNotify('Documents page 26 selected')}>26</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Next documents page selected')}><ChevronRight className="size-4" /></PaginationButton>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function LiaisonDocumentNameCell({ name, fileType }) {
+  const toneClass = {
+    pdf: 'bg-[#ffe9e6] text-[#ef4444]',
+    xlsx: 'bg-[#e8f8eb] text-[#16a34a]',
+    docx: 'bg-[#e8f2ff] text-[#2563eb]',
+  }[fileType] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className={cx('inline-flex min-w-[38px] items-center justify-center rounded-[8px] px-2 py-1 text-[10px] font-extrabold uppercase', toneClass)}>
+        {fileType}
+      </span>
+      <span className="font-extrabold text-[#1e3261]">{name}</span>
+    </div>
+  );
+}
+
+function LiaisonDocumentStatusBadge({ status }) {
+  const classes = {
+    Approved: 'bg-[#e8f8eb] text-[#16a34a]',
+    'Under Review': 'bg-[#e8f2ff] text-[#2563eb]',
+    'Pending Review': 'bg-[#fff0dc] text-[#f38200]',
+    Rejected: 'bg-[#ffe9e6] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function LiaisonDocumentMobileCard({ row, index, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <div className="mt-1">
+            <LiaisonDocumentNameCell name={row.name} fileType={row.fileType} />
+          </div>
+          <p className="mt-2 text-[12px] font-bold text-[#53647f]">{row.applicationNo} | {row.relatedTo}</p>
+        </div>
+        <LiaisonDocumentStatusBadge status={row.status} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Document Type" value={row.documentType} />
+        <InfoCell label="Project / Company" value={row.company} />
+        <InfoCell label="Uploaded By" valueNode={<LiaisonApprovalSubmittedBy user={row.uploadedBy} />} />
+        <InfoCell label="Upload Date" value={row.uploadDate} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => onNotify(`${row.name} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+          <Eye className="size-4" />
+          View
+        </button>
+        <button type="button" onClick={() => onNotify(`${row.name} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+          <MoreVertical className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function OmPage({ activeSection, onOpenSection, onNotify }) {
+  if (activeSection === 'Maintenance Tasks') {
+    return <OmMaintenanceTasksPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Breakdown Tickets') {
+    return <OmBreakdownTicketsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Site Visits') {
+    return <OmSiteVisitsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Asset Management') {
+    return <OmAssetManagementPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Spare Parts') {
+    return <OmSparePartsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Energy Performance') {
+    return <OmEnergyPerformancePage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'O&M Reports') {
+    return <OmReportsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection !== 'O&M Overview') {
+    return <OperationsPlaceholderPage moduleTitle="O&M" activeSection={activeSection} items={omSubItems} onOpenSection={onOpenSection} onNotify={onNotify} accent="amber" />;
+  }
+
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [site, setSite] = useState('All Site');
+  const [priority, setPriority] = useState('All Priority');
+  const [assetType, setAssetType] = useState('All Asset Type');
+  const [activeTab, setActiveTab] = useState('Active Tasks');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const taskRows = [
+    { id: 1, code: 'TASK-2024-0001', site: 'Ludhiana Factory (100 kWp)', type: 'Preventive Maintenance', assignee: 'Ravi Kumar', priority: 'High', priorityTone: 'red', status: 'In Progress', statusTone: 'blue', dueDate: '21 Apr 2024' },
+    { id: 2, code: 'TASK-2024-0002', site: 'Sangrur Unit (50 kWp)', type: 'Module Cleaning', assignee: 'Neha Sharma', priority: 'Medium', priorityTone: 'amber', status: 'Pending', statusTone: 'amber', dueDate: '22 Apr 2024' },
+    { id: 3, code: 'TASK-2024-0003', site: 'Chandigarh Showroom (80 kWp)', type: 'Inverter Check', assignee: 'Amit Verma', priority: 'High', priorityTone: 'red', status: 'In Progress', statusTone: 'blue', dueDate: '21 Apr 2024' },
+    { id: 4, code: 'TASK-2024-0004', site: 'Green Field School (30 kWp)', type: 'Electrical Inspection', assignee: 'Sandeep Singh', priority: 'Medium', priorityTone: 'amber', status: 'Pending', statusTone: 'amber', dueDate: '23 Apr 2024' },
+    { id: 5, code: 'TASK-2024-0005', site: 'XYZ Cold Storage (120 kWp)', type: 'Thermal Scanning', assignee: 'Manoj Patel', priority: 'Low', priorityTone: 'green', status: 'In Progress', statusTone: 'blue', dueDate: '24 Apr 2024' },
+  ];
+
+  const quickActions = [
+    { label: 'Create Maintenance Task', icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Raise Breakdown Ticket', icon: AlertTriangle, tone: 'amber' },
+    { label: 'Schedule Site Visit', icon: CalendarDays, tone: 'green' },
+    { label: 'Add O&M Report', icon: FileText, tone: 'blue' },
+    { label: 'Request Spare Part', icon: Boxes, tone: 'purple' },
+  ];
+
+  const alerts = [
+    { id: 1, title: 'Inverter Fault - Site: Sangrur Unit', subtitle: 'Ticket #BRK-2024-0015', time: '10 minutes ago', tone: 'red' },
+    { id: 2, title: 'High Temperature - Site: Mohali Plant', subtitle: 'Check System Immediately', time: '25 minutes ago', tone: 'amber' },
+    { id: 3, title: 'Site Visit Due - Ludhiana Factory', subtitle: 'Scheduled for Tomorrow', time: '1 hour ago', tone: 'blue' },
+  ];
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  const filteredRows = taskRows.filter((row) => {
+    const queryMatch = [row.code, row.site, row.type, row.assignee].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const siteMatch = site === 'All Site' || row.site.includes(site);
+    const priorityMatch = priority === 'All Priority' || row.priority === priority;
+    const assetTypeMatch = assetType === 'All Asset Type' || row.type.includes(assetType);
+    const dateMatch = isDateWithinRange(row.dueDate, dateFrom, dateTo);
+    return queryMatch && statusMatch && siteMatch && priorityMatch && assetTypeMatch && dateMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="O&M Overview"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'O&M', onClick: () => onNotify('O&M breadcrumb selected') },
+          { label: 'Overview' },
+        ]}
+        actions={
+          <>
+            <button type="button" onClick={() => onNotify('O&M report exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export Report</button>
+            <button type="button" onClick={() => onNotify('Create O&M task opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Create Task</button>
+          </>
+        }
+      />
+
+      <section className="space-y-4">
+        <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <div className="space-y-4">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+            <OpsStatCard label="Total Sites" value="128" caption="All Operational Sites" icon={FileText} tone="green" onClick={() => onNotify('Total sites opened')} />
+            <OpsStatCard label="Active Tasks" value="56" caption="In Progress" icon={ClipboardPlus} tone="blue" onClick={() => setActiveTab('Active Tasks')} />
+            <OpsStatCard label="Breakdown Tickets" value="15" caption="Open Tickets" icon={AlertTriangle} tone="amber" onClick={() => setActiveTab('Breakdown Tickets')} />
+            <OpsStatCard label="Today's Site Visits" value="18" caption="Scheduled Visits" icon={CalendarDays} tone="purple" onClick={() => setActiveTab('Upcoming Site Visits')} />
+            <OpsStatCard label="System Availability" value="98.35%" caption="This Month" icon={BarChart3} tone="cyan" onClick={() => onNotify('System availability opened')} />
+          </section>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_160px_160px_160px_170px_240px_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <Search className="size-4 text-[#7386a3]" />
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search sites, tasks, tickets..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+              </label>
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'In Progress', 'Pending', 'Completed']} hideLabel />
+              <ReportSelect label="Site" value={site} onChange={setSite} options={['All Site', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Green Field', 'XYZ Cold Storage']} hideLabel />
+              <ReportSelect label="Priority" value={priority} onChange={setPriority} options={['All Priority', 'High', 'Medium', 'Low']} hideLabel />
+              <ReportSelect label="Asset Type" value={assetType} onChange={setAssetType} options={['All Asset Type', 'Preventive', 'Module', 'Inverter', 'Electrical', 'Thermal']} hideLabel />
+              <ReportDateRangePicker
+                open={dateRangeOpen}
+                onToggle={() => setDateRangeOpen((value) => !value)}
+                onClose={() => setDateRangeOpen(false)}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                setDateFrom={setDateFrom}
+                setDateTo={setDateTo}
+                formattedRange={formattedRange}
+                hideLabel
+              />
+              <button type="button" onClick={() => { setDateRangeOpen(false); onNotify(`O&M filters applied: ${filteredRows.length} results for ${formattedRange}`); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+            </div>
+          </article>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(340px,1.1fr)]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Task Status</h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+                <button type="button" onClick={() => onNotify('Task status chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#16a34a 0 45%, #2d7ff9 45% 65%, #f7b731 65% 87%, #ef4444 87% 100%)' }}><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
+                <div className="space-y-3">
+                  <StockLegend color="bg-[#16a34a]" label="Completed" value="124 (45%)" />
+                  <StockLegend color="bg-[#2d7ff9]" label="In Progress" value="56 (20%)" />
+                  <StockLegend color="bg-[#f7b731]" label="Pending" value="62 (22%)" />
+                  <StockLegend color="bg-[#ef4444]" label="Overdue" value="34 (12%)" />
+                  <div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]"><span>Total: 276 Tasks</span></div>
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Breakdown Tickets</h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+                <button type="button" onClick={() => onNotify('Breakdown tickets chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#ef4444 0 25%, #ff9f1a 25% 58%, #f7b731 58% 71%, #16a34a 71% 100%)' }}><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
+                <div className="space-y-3">
+                  <StockLegend color="bg-[#ef4444]" label="Open" value="15 (25%)" />
+                  <StockLegend color="bg-[#ff9f1a]" label="In Progress" value="20 (33%)" />
+                  <StockLegend color="bg-[#f7b731]" label="On Hold" value="8 (13%)" />
+                  <StockLegend color="bg-[#16a34a]" label="Resolved" value="17 (29%)" />
+                  <div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]"><span>Total: 60 Tickets</span></div>
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">System Availability Trend</h2>
+                <ReportSelect label="Trend" value="Last 6 Months" onChange={() => onNotify('Trend range changed')} options={['Last 6 Months', 'Last 3 Months', 'This Year']} hideLabel className="w-[146px]" />
+              </div>
+              <div className="mt-5 overflow-x-auto">
+                <svg viewBox="0 0 460 180" className="min-w-[420px]">
+                  {[85, 90, 95, 100].map((tick, index) => {
+                    const y = 22 + index * 36;
+                    return (
+                      <g key={tick}>
+                        <line x1="38" x2="440" y1={y} y2={y} stroke="#e8eef6" strokeWidth="1" />
+                        <text x="30" y={y + 4} textAnchor="end" fontSize="11" fontWeight="800" fill="#53647f">{100 - index * 5}%</text>
+                      </g>
+                    );
+                  })}
+                  <polyline fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points="42,96 66,88 90,64 114,65 138,70 162,76 186,72 210,63 234,64 258,60 282,52 306,74 330,76 354,75 378,76 402,70 426,66 448,66" />
+                  {[['Oct 2024', 80], ['Nov 2024', 156], ['Dec 2024', 232], ['Jan 2025', 308], ['Feb 2025', 384], ['Mar 2025', 438]].map(([label, x]) => (
+                    <text key={label} x={x} y="162" textAnchor="middle" fontSize="11" fontWeight="800" fill="#53647f">{label}</text>
+                  ))}
+                  {[ [42,96],[66,88],[90,64],[114,65],[138,70],[162,76],[186,72],[210,63],[234,64],[258,60],[282,52],[306,74],[330,76],[354,75],[378,76],[402,70],[426,66],[448,66] ].map(([x, y], index) => (
+                    <circle key={index} cx={x} cy={y} r="3.5" fill="#fff" stroke="#16a34a" strokeWidth="2" />
+                  ))}
+                </svg>
+              </div>
+            </article>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+              <div className="flex flex-wrap items-center gap-3 border-b border-[#edf2f8] pb-4">
+                {['Active Tasks', 'Breakdown Tickets', 'Upcoming Site Visits'].map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(tab);
+                      onNotify(`${tab} tab opened`);
+                    }}
+                    className={cx('rounded-[8px] px-2 py-1 text-[13px] font-extrabold transition', activeTab === tab ? 'text-[#078c3e]' : 'text-[#53647f] hover:text-[#1e3261]')}
+                  >
+                    {tab}
+                    {activeTab === tab ? <span className="mt-2 block h-[2px] rounded-full bg-[#11a650]" /> : null}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 space-y-3 xl:hidden">
+                {filteredRows.map((row) => (
+                  <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.code}</p>
+                        <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.site}</p>
+                      </div>
+                      <button type="button" onClick={() => onNotify(`${row.code} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                    </div>
+                    <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                      <InfoCell label="Task Type" value={row.type} />
+                      <InfoCell label="Assigned To" value={row.assignee} />
+                      <InfoCell label="Due Date" value={row.dueDate} />
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <OpsPillBadge label={row.priority} tone={row.priorityTone} />
+                      <OpsPillBadge label={row.status} tone={row.statusTone} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                <table className="crm-table min-w-[1040px] w-full">
+                  <thead><tr>{['#', 'Task ID', 'Site / Project', 'Task Type', 'Assigned To', 'Priority', 'Status', 'Due Date', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {filteredRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#0b65e5]">{row.code}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.site}</td>
+                        <td>{row.type}</td>
+                        <td>{row.assignee}</td>
+                        <td><OpsPillBadge label={row.priority} tone={row.priorityTone} /></td>
+                        <td><OpsPillBadge label={row.status} tone={row.statusTone} /></td>
+                        <td>{row.dueDate}</td>
+                        <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.code} opened`)} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-col gap-3 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+                <p>Showing 1 to {filteredRows.length} of 56 entries</p>
+                <button type="button" onClick={() => onNotify('All O&M tasks opened')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#078c3e]">View All Tasks <ArrowRight className="size-4" /></button>
+              </div>
+            </article>
+
+            <div className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Quick Actions</h2>
+                <div className="mt-4 space-y-2">
+                  {quickActions.map((item) => (
+                    <button key={item.label} type="button" onClick={() => onNotify(`${item.label} opened`)} className="flex w-full items-center gap-3 rounded-[10px] px-2 py-2 text-left transition hover:bg-[#f8fbff]">
+                      <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px]', item.tone === 'green' ? 'bg-[#e8f8eb] text-[#16a34a]' : item.tone === 'amber' ? 'bg-[#fff0dc] text-[#f59e0b]' : item.tone === 'purple' ? 'bg-[#f2eafe] text-[#8b5cf6]' : 'bg-[#e8f2ff] text-[#0b65e5]')}>
+                        <item.icon className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1 text-[13px] font-extrabold text-[#1e3261]">{item.label}</span>
+                      <ChevronRight className="size-4 shrink-0 text-[#7a8aa4]" />
+                    </button>
+                  ))}
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Alerts</h2>
+                  <button type="button" onClick={() => onNotify('All alerts opened')} className="text-[12px] font-extrabold text-[#078c3e]">View All Alerts</button>
+                </div>
+                <div className="mt-4 space-y-4">
+                  {alerts.map((alert) => (
+                    <button key={alert.id} type="button" onClick={() => onNotify(`${alert.title} opened`)} className="flex w-full items-start gap-3 text-left transition hover:opacity-90">
+                      <span className={cx('grid size-9 shrink-0 place-items-center rounded-full', alert.tone === 'red' ? 'bg-[#ffe9e6] text-[#ef4444]' : alert.tone === 'amber' ? 'bg-[#fff0dc] text-[#f59e0b]' : 'bg-[#e8f2ff] text-[#0b65e5]')}>
+                        {alert.tone === 'red' ? <AlertTriangle className="size-4" /> : alert.tone === 'amber' ? <AlertTriangle className="size-4" /> : <Info className="size-4" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-extrabold text-[#1e3261]">{alert.title}</span>
+                        <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{alert.subtitle}</span>
+                      </span>
+                      <span className="shrink-0 text-[11px] font-bold text-[#7585a2]">{alert.time}</span>
+                    </button>
+                  ))}
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            {[
+              { label: 'Total Assets', value: '432', caption: 'All Assets', icon: Boxes, tone: 'blue' },
+              { label: 'Inverters', value: '128', caption: 'Active', icon: ShieldCheck, tone: 'green' },
+              { label: 'Solar Modules', value: '12,560', caption: 'Total Installed', icon: FileText, tone: 'amber' },
+              { label: 'Spare Parts in Stock', value: '1,256', caption: 'Items Available', icon: Wrench, tone: 'purple' },
+              { label: 'AMC Contracts', value: '156', caption: 'Active Contracts', icon: CalendarDays, tone: 'cyan' },
+            ].map((item) => (
+              <OpsStatCard key={item.label} label={item.label} value={item.value} caption={item.caption} icon={item.icon} tone={item.tone} onClick={() => onNotify(`${item.label} opened`)} />
+            ))}
+          </section>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function OmMaintenanceTasksPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [taskType, setTaskType] = useState('All Task Type');
+  const [priority, setPriority] = useState('All Priority');
+  const [site, setSite] = useState('All Site');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, taskId: 'MT-2024-0276', title: 'Inverter Cleaning & Inspection', siteAsset: 'Ludhiana Site (25 MW)', taskType: 'Preventive', priority: 'High', priorityTone: 'red', assignedTo: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue', role: 'Maintenance Lead' }, status: 'In Progress', dueDate: '20 May 2024', dueNote: '2 days left', dueTone: 'amber', createdOn: '10 May 2024' },
+    { id: 2, taskId: 'MT-2024-0275', title: 'Panel Cleaning', siteAsset: 'Patiala Site (10 MW)', taskType: 'Preventive', priority: 'Medium', priorityTone: 'amber', assignedTo: { name: 'Amit Singh', initials: 'AS', tone: 'cyan', role: 'Site Engineer' }, status: 'Pending', dueDate: '22 May 2024', dueNote: '4 days left', dueTone: 'amber', createdOn: '11 May 2024' },
+    { id: 3, taskId: 'MT-2024-0274', title: 'Transformer Oil Check', siteAsset: 'Bathinda Site (5 MW)', taskType: 'Preventive', priority: 'High', priorityTone: 'red', assignedTo: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple', role: 'Field Engineer' }, status: 'In Progress', dueDate: '18 May 2024', dueNote: 'Due today', dueTone: 'red', createdOn: '08 May 2024' },
+    { id: 4, taskId: 'MT-2024-0273', title: 'String Monitoring Check', siteAsset: 'Mohali Site (8 MW)', taskType: 'Preventive', priority: 'Low', priorityTone: 'green', assignedTo: { name: 'Neha Sharma', initials: 'NS', tone: 'green', role: 'O&M Engineer' }, status: 'Completed', dueDate: '15 May 2024', dueNote: 'Completed', dueTone: 'green', createdOn: '05 May 2024' },
+    { id: 5, taskId: 'MT-2024-0272', title: 'ACDB Panel Inspection', siteAsset: 'Jalandhar Site (12 MW)', taskType: 'Corrective', priority: 'High', priorityTone: 'red', assignedTo: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple', role: 'Site Engineer' }, status: 'Pending', dueDate: '21 May 2024', dueNote: '3 days left', dueTone: 'amber', createdOn: '10 May 2024' },
+    { id: 6, taskId: 'MT-2024-0271', title: 'DC Cable Tightening', siteAsset: 'Hoshiarpur Site (7 MW)', taskType: 'Preventive', priority: 'Medium', priorityTone: 'amber', assignedTo: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue', role: 'Maintenance Lead' }, status: 'In Progress', dueDate: '23 May 2024', dueNote: '5 days left', dueTone: 'amber', createdOn: '11 May 2024' },
+    { id: 7, taskId: 'MT-2024-0270', title: 'Battery Bank Inspection', siteAsset: 'Amritsar Site (3 MW)', taskType: 'Corrective', priority: 'High', priorityTone: 'red', assignedTo: { name: 'Amit Singh', initials: 'AS', tone: 'cyan', role: 'Site Engineer' }, status: 'Overdue', dueDate: '17 May 2024', dueNote: '1 day overdue', dueTone: 'red', createdOn: '07 May 2024' },
+    { id: 8, taskId: 'MT-2024-0269', title: 'Fence Inspection & Repair', siteAsset: 'Sangrur Site (6 MW)', taskType: 'Corrective', priority: 'Low', priorityTone: 'green', assignedTo: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple', role: 'Field Engineer' }, status: 'Pending', dueDate: '25 May 2024', dueNote: '7 days left', dueTone: 'green', createdOn: '12 May 2024' },
+    { id: 9, taskId: 'MT-2024-0268', title: 'Lightning Arrestor Check', siteAsset: 'Barnala Site (2 MW)', taskType: 'Preventive', priority: 'Medium', priorityTone: 'amber', assignedTo: { name: 'Neha Sharma', initials: 'NS', tone: 'green', role: 'O&M Engineer' }, status: 'Completed', dueDate: '14 May 2024', dueNote: 'Completed', dueTone: 'green', createdOn: '04 May 2024' },
+    { id: 10, taskId: 'MT-2024-0267', title: 'SCADA System Check', siteAsset: 'Faridkot Site (4 MW)', taskType: 'Preventive', priority: 'Medium', priorityTone: 'amber', assignedTo: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple', role: 'Site Engineer' }, status: 'In Progress', dueDate: '24 May 2024', dueNote: '6 days left', dueTone: 'amber', createdOn: '11 May 2024' },
+  ];
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  const filteredRows = rows.filter((row) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [row.taskId, row.title, row.siteAsset, row.assignedTo.name].some((value) => value.toLowerCase().includes(queryText));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const taskTypeMatch = taskType === 'All Task Type' || row.taskType === taskType;
+    const priorityMatch = priority === 'All Priority' || row.priority === priority;
+    const siteMatch = site === 'All Site' || row.siteAsset.includes(site);
+    const dateMatch = isDateWithinRange(row.createdOn, dateFrom, dateTo);
+    return queryMatch && statusMatch && taskTypeMatch && priorityMatch && siteMatch && dateMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Maintenance Tasks"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
+          { label: 'Maintenance Tasks' },
+        ]}
+        actions={(
+          <button type="button" onClick={() => onNotify('Create task opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+            <Plus className="size-4" />
+            Create Task
+          </button>
+        )}
+      />
+
+      <section className="space-y-4">
+        <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Manage and track all maintenance tasks across operational sites.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+            <OpsStatCard label="Total Tasks" value="276" caption="All Tasks" icon={ClipboardPlus} tone="green" onClick={() => onNotify('Total tasks opened')} />
+            <OpsStatCard label="In Progress" value="56" caption="View Tasks" icon={ClipboardPlus} tone="blue" onClick={() => setStatus('In Progress')} />
+            <OpsStatCard label="Pending" value="62" caption="View Tasks" icon={Clock3} tone="amber" onClick={() => setStatus('Pending')} />
+            <OpsStatCard label="Completed" value="124" caption="View Tasks" icon={CheckCircle2} tone="purple" onClick={() => setStatus('Completed')} />
+            <OpsStatCard label="Overdue" value="34" caption="View Tasks" icon={CalendarDays} tone="cyan" onClick={() => setStatus('Overdue')} />
+          </section>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_180px_180px_170px_180px_230px_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search tasks..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                <Search className="size-4 text-[#7386a3]" />
+              </label>
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'In Progress', 'Pending', 'Completed', 'Overdue']} hideLabel />
+              <ReportSelect label="Task Type" value={taskType} onChange={setTaskType} options={['All Task Type', 'Preventive', 'Corrective']} hideLabel />
+              <ReportSelect label="Priority" value={priority} onChange={setPriority} options={['All Priority', 'High', 'Medium', 'Low']} hideLabel />
+              <ReportSelect label="Site" value={site} onChange={setSite} options={['All Site', 'Ludhiana', 'Patiala', 'Bathinda', 'Mohali', 'Jalandhar', 'Hoshiarpur', 'Amritsar', 'Sangrur', 'Barnala', 'Faridkot']} hideLabel />
+              <ReportDateRangePicker
+                open={dateRangeOpen}
+                onToggle={() => setDateRangeOpen((value) => !value)}
+                onClose={() => setDateRangeOpen(false)}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                setDateFrom={setDateFrom}
+                setDateTo={setDateTo}
+                formattedRange={formattedRange}
+                hideLabel
+              />
+              <button type="button" onClick={() => { setDateRangeOpen(false); onNotify(`Maintenance filters applied: ${filteredRows.length} results for ${formattedRange}`); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Filter className="size-4 text-[#0b65e5]" />
+                Filter
+              </button>
+              <button type="button" onClick={() => onNotify('Maintenance tasks exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Download className="size-4 text-[#0b65e5]" />
+                Export
+              </button>
+            </div>
+
+            <h2 className="mt-5 font-display text-[18px] font-extrabold text-[#06135a]">Maintenance Tasks List</h2>
+
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredRows.map((row, index) => (
+                <OmMaintenanceTaskMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+              ))}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1460px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Task ID', 'Task Title', 'Site / Asset', 'Task Type', 'Priority', 'Assigned To', 'Status', 'Due Date', 'Created On', 'Actions'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.taskId}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.title}</td>
+                      <td>{row.siteAsset}</td>
+                      <td>{row.taskType}</td>
+                      <td><OmTaskPriorityBadge priority={row.priority} tone={row.priorityTone} /></td>
+                      <td><LiaisonApprovalSubmittedBy user={row.assignedTo} /></td>
+                      <td><OmTaskStatusBadge status={row.status} /></td>
+                      <td><OmTaskDueDateCell dueDate={row.dueDate} dueNote={row.dueNote} dueTone={row.dueTone} /></td>
+                      <td className="font-extrabold text-[#223768]">{row.createdOn}</td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => onNotify(`${row.taskId} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <Eye className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => onNotify(`${row.taskId} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+              <p>Showing 1 to {filteredRows.length} of 276 entries</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => onNotify('Previous maintenance page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton active onClick={() => onNotify('Maintenance page 1 selected')}>1</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Maintenance page 2 selected')}>2</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Maintenance page 3 selected')}>3</PaginationButton>
+                <span className="px-2 text-[#53647f]">...</span>
+                <PaginationButton onClick={() => onNotify('Maintenance page 28 selected')}>28</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Next maintenance page selected')}><ChevronRight className="size-4" /></PaginationButton>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function OmTaskPriorityBadge({ priority, tone }) {
+  const classes = {
+    red: 'bg-[#ffe9e6] text-[#ef4444]',
+    amber: 'bg-[#fff0dc] text-[#f38200]',
+    green: 'bg-[#e8f8eb] text-[#16a34a]',
+  }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{priority}</span>;
+}
+
+function OmTaskStatusBadge({ status }) {
+  const classes = {
+    'In Progress': 'bg-[#e8f2ff] text-[#2563eb]',
+    Pending: 'bg-[#fff0dc] text-[#f38200]',
+    Completed: 'bg-[#e8f8eb] text-[#16a34a]',
+    Overdue: 'bg-[#ffe9e6] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function OmTaskDueDateCell({ dueDate, dueNote, dueTone }) {
+  const toneClass = {
+    amber: 'text-[#f38200]',
+    red: 'text-[#ef4444]',
+    green: 'text-[#16a34a]',
+  }[dueTone] ?? 'text-[#53647f]';
+
+  return (
+    <div>
+      <p className="font-extrabold text-[#1e3261]">{dueDate}</p>
+      <p className={cx('mt-1 text-[12px] font-extrabold', toneClass)}>{dueNote}</p>
+    </div>
+  );
+}
+
+function OmMaintenanceTaskMobileCard({ row, index, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.taskId}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.title}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.siteAsset}</p>
+        </div>
+        <OmTaskStatusBadge status={row.status} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Task Type" value={row.taskType} />
+        <InfoCell label="Priority" valueNode={<OmTaskPriorityBadge priority={row.priority} tone={row.priorityTone} />} />
+        <InfoCell label="Assigned To" valueNode={<LiaisonApprovalSubmittedBy user={row.assignedTo} />} />
+        <InfoCell label="Due Date" valueNode={<OmTaskDueDateCell dueDate={row.dueDate} dueNote={row.dueNote} dueTone={row.dueTone} />} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => onNotify(`${row.taskId} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+          <Eye className="size-4" />
+          View
+        </button>
+        <button type="button" onClick={() => onNotify(`${row.taskId} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+          <MoreVertical className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function OmBreakdownTicketsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [priority, setPriority] = useState('All Priority');
+  const [site, setSite] = useState('All Site');
+  const [assetType, setAssetType] = useState('All Asset Type');
+  const [assignedTo, setAssignedTo] = useState('All Assigned To');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, ticketId: 'BD-2024-0060', subject: 'Inverter not starting', siteAsset: 'Ludhiana Site (25 MW)', assetType: 'Inverter', priority: 'High', priorityTone: 'red', status: 'Open', reportedBy: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue', role: 'Project Lead' }, assignedTo: { name: 'Amit Singh', initials: 'AS', tone: 'slate', role: 'Service Engineer' }, reportedOn: '20 May 2024\n10:15 AM', dueDate: '21 May 2024\n06:00 PM' },
+    { id: 2, ticketId: 'BD-2024-0059', subject: 'ACDB tripping frequently', siteAsset: 'Patiala Site (10 MW)', assetType: 'ACDB', priority: 'Medium', priorityTone: 'amber', status: 'In Progress', reportedBy: { name: 'Neha Sharma', initials: 'NS', tone: 'indigo', role: 'Site Manager' }, assignedTo: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple', role: 'Field Engineer' }, reportedOn: '19 May 2024\n11:45 AM', dueDate: '21 May 2024\n06:00 PM' },
+    { id: 3, ticketId: 'BD-2024-0058', subject: 'Transformer overheating', siteAsset: 'Bathinda Site (5 MW)', assetType: 'Transformer', priority: 'High', priorityTone: 'red', status: 'In Progress', reportedBy: { name: 'Pooja Gupta', initials: 'PG', tone: 'slate', role: 'Operations' }, assignedTo: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue', role: 'Maintenance Lead' }, reportedOn: '18 May 2024\n02:20 PM', dueDate: '20 May 2024\n06:00 PM' },
+    { id: 4, ticketId: 'BD-2024-0057', subject: 'String combiner fuse blown', siteAsset: 'Mohali Site (8 MW)', assetType: 'String Combiner', priority: 'Low', priorityTone: 'green', status: 'Resolved', reportedBy: { name: 'Amit Singh', initials: 'AS', tone: 'cyan', role: 'Site Engineer' }, assignedTo: { name: 'Neha Sharma', initials: 'NS', tone: 'green', role: 'O&M Engineer' }, reportedOn: '17 May 2024\n09:30 AM', dueDate: '18 May 2024\n05:00 PM' },
+    { id: 5, ticketId: 'BD-2024-0056', subject: 'Communication failure in SCADA', siteAsset: 'Jalandhar Site (12 MW)', assetType: 'SCADA', priority: 'High', priorityTone: 'red', status: 'Open', reportedBy: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue', role: 'Project Lead' }, assignedTo: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple', role: 'Site Engineer' }, reportedOn: '16 May 2024\n04:10 PM', dueDate: '17 May 2024\n06:00 PM' },
+    { id: 6, ticketId: 'BD-2024-0055', subject: 'DC cable damaged', siteAsset: 'Hoshiarpur Site (7 MW)', assetType: 'DC Cable', priority: 'Medium', priorityTone: 'amber', status: 'On Hold', reportedBy: { name: 'Vikram Kumar', initials: 'VK', tone: 'slate', role: 'Field Engineer' }, assignedTo: { name: 'Amit Singh', initials: 'AS', tone: 'cyan', role: 'Service Engineer' }, reportedOn: '15 May 2024\n12:05 PM', dueDate: '19 May 2024\n06:00 PM' },
+    { id: 7, ticketId: 'BD-2024-0054', subject: 'Meter not responding', siteAsset: 'Amritsar Site (3 MW)', assetType: 'Energy Meter', priority: 'Low', priorityTone: 'green', status: 'Resolved', reportedBy: { name: 'Neha Sharma', initials: 'NS', tone: 'green', role: 'O&M Engineer' }, assignedTo: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple', role: 'Site Engineer' }, reportedOn: '14 May 2024\n10:25 AM', dueDate: '15 May 2024\n05:00 PM' },
+    { id: 8, ticketId: 'BD-2024-0053', subject: 'Panel door lock broken', siteAsset: 'Sangrur Site (6 MW)', assetType: 'AC Panel', priority: 'Low', priorityTone: 'green', status: 'Resolved', reportedBy: { name: 'Pooja Gupta', initials: 'PG', tone: 'slate', role: 'Operations' }, assignedTo: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple', role: 'Field Engineer' }, reportedOn: '13 May 2024\n03:40 PM', dueDate: '14 May 2024\n05:00 PM' },
+    { id: 9, ticketId: 'BD-2024-0052', subject: 'Battery voltage low', siteAsset: 'Barnala Site (2 MW)', assetType: 'Battery Bank', priority: 'Medium', priorityTone: 'amber', status: 'In Progress', reportedBy: { name: 'Amit Singh', initials: 'AS', tone: 'cyan', role: 'Site Engineer' }, assignedTo: { name: 'Neha Sharma', initials: 'NS', tone: 'green', role: 'O&M Engineer' }, reportedOn: '12 May 2024\n08:50 AM', dueDate: '14 May 2024\n06:00 PM' },
+    { id: 10, ticketId: 'BD-2024-0051', subject: 'Lightning arrester failed', siteAsset: 'Faridkot Site (4 MW)', assetType: 'Lightning Arrester', priority: 'High', priorityTone: 'red', status: 'Open', reportedBy: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue', role: 'Project Lead' }, assignedTo: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple', role: 'Field Engineer' }, reportedOn: '11 May 2024\n02:15 PM', dueDate: '12 May 2024\n06:00 PM' },
+  ];
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  const filteredRows = rows.filter((row) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [row.ticketId, row.subject, row.siteAsset, row.assetType, row.reportedBy.name, row.assignedTo.name].some((value) => value.toLowerCase().includes(queryText));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const priorityMatch = priority === 'All Priority' || row.priority === priority;
+    const siteMatch = site === 'All Site' || row.siteAsset.includes(site);
+    const assetMatch = assetType === 'All Asset Type' || row.assetType === assetType;
+    const assigneeMatch = assignedTo === 'All Assigned To' || row.assignedTo.name === assignedTo;
+    const dateMatch = isDateWithinRange(row.reportedOn, dateFrom, dateTo);
+    return queryMatch && statusMatch && priorityMatch && siteMatch && assetMatch && assigneeMatch && dateMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Breakdown Tickets"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
+          { label: 'Breakdown Tickets' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Breakdown report exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">
+              <Download className="size-4 text-[#0b65e5]" />
+              Export Report
+            </button>
+            <button type="button" onClick={() => onNotify('Create ticket opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+              <Plus className="size-4" />
+              Create Ticket
+            </button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Track, manage and resolve all equipment breakdowns and restore operations quickly.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            <OpsStatCard label="Total Tickets" value="60" caption="All Breakdown Tickets" icon={AlertTriangle} tone="cyan" onClick={() => onNotify('Total tickets opened')} />
+            <OpsStatCard label="Open" value="15" caption="Require Immediate Action" icon={AlertTriangle} tone="amber" onClick={() => setStatus('Open')} />
+            <OpsStatCard label="In Progress" value="18" caption="Under Resolution" icon={Wrench} tone="blue" onClick={() => setStatus('In Progress')} />
+            <OpsStatCard label="On Hold" value="8" caption="Waiting for Update" icon={Clock3} tone="purple" onClick={() => setStatus('On Hold')} />
+            <OpsStatCard label="Resolved" value="17" caption="Successfully Resolved" icon={CheckCircle2} tone="green" onClick={() => setStatus('Resolved')} />
+            <OpsStatCard label="Overdue" value="7" caption="Past Due Date" icon={CalendarDays} tone="red" onClick={() => onNotify('Overdue tickets opened')} />
+          </section>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_170px_170px_170px_170px_180px_230px_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search tickets..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                <Search className="size-4 text-[#7386a3]" />
+              </label>
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Open', 'In Progress', 'On Hold', 'Resolved']} hideLabel />
+              <ReportSelect label="Priority" value={priority} onChange={setPriority} options={['All Priority', 'High', 'Medium', 'Low']} hideLabel />
+              <ReportSelect label="Site" value={site} onChange={setSite} options={['All Site', 'Ludhiana', 'Patiala', 'Bathinda', 'Mohali', 'Jalandhar', 'Hoshiarpur', 'Amritsar', 'Sangrur', 'Barnala', 'Faridkot']} hideLabel />
+              <ReportSelect label="Asset Type" value={assetType} onChange={setAssetType} options={['All Asset Type', 'Inverter', 'ACDB', 'Transformer', 'String Combiner', 'SCADA', 'DC Cable', 'Energy Meter', 'AC Panel', 'Battery Bank', 'Lightning Arrester']} hideLabel />
+              <ReportSelect label="Assigned To" value={assignedTo} onChange={setAssignedTo} options={['All Assigned To', 'Amit Singh', 'Vikram Kumar', 'Ravi Kumar', 'Neha Sharma', 'Pooja Gupta']} hideLabel />
+              <ReportDateRangePicker
+                open={dateRangeOpen}
+                onToggle={() => setDateRangeOpen((value) => !value)}
+                onClose={() => setDateRangeOpen(false)}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                setDateFrom={setDateFrom}
+                setDateTo={setDateTo}
+                formattedRange={formattedRange}
+                hideLabel
+              />
+              <button type="button" onClick={() => { setDateRangeOpen(false); onNotify(`Breakdown filters applied: ${filteredRows.length} results for ${formattedRange}`); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Filter className="size-4 text-[#0b65e5]" />
+                Filter
+              </button>
+            </div>
+
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Breakdown Tickets List</h2>
+              <button type="button" onClick={() => onNotify('Breakdown tickets exported')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#0b65e5]">
+                <Download className="size-4" />
+                Export
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredRows.map((row, index) => (
+                <OmBreakdownTicketMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+              ))}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1640px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Ticket ID', 'Subject', 'Site / Asset', 'Asset Type', 'Priority', 'Status', 'Reported By', 'Assigned To', 'Reported On', 'Due Date', 'Actions'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.ticketId}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.subject}</td>
+                      <td>{row.siteAsset}</td>
+                      <td>{row.assetType}</td>
+                      <td><OmTaskPriorityBadge priority={row.priority} tone={row.priorityTone} /></td>
+                      <td><OmBreakdownStatusBadge status={row.status} /></td>
+                      <td><LiaisonApprovalSubmittedBy user={row.reportedBy} /></td>
+                      <td><LiaisonApprovalSubmittedBy user={row.assignedTo} /></td>
+                      <td className="whitespace-pre-line font-extrabold text-[#223768]">{row.reportedOn}</td>
+                      <td className="whitespace-pre-line font-extrabold text-[#223768]">{row.dueDate}</td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => onNotify(`${row.ticketId} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <Eye className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => onNotify(`${row.ticketId} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#eef2f7] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+              <p>Showing 1 to {filteredRows.length} of 60 entries</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => onNotify('Previous breakdown page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton onClick={() => onNotify('First breakdown page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton active onClick={() => onNotify('Breakdown page 1 selected')}>1</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Breakdown page 2 selected')}>2</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Breakdown page 3 selected')}>3</PaginationButton>
+                <span className="px-2 text-[#53647f]">...</span>
+                <PaginationButton onClick={() => onNotify('Breakdown page 6 selected')}>6</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Next breakdown page selected')}><ChevronRight className="size-4" /></PaginationButton>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function OmBreakdownStatusBadge({ status }) {
+  const classes = {
+    Open: 'bg-[#ffe9e6] text-[#ef4444]',
+    'In Progress': 'bg-[#e8f2ff] text-[#2563eb]',
+    'On Hold': 'bg-[#f3edff] text-[#7c3aed]',
+    Resolved: 'bg-[#e8f8eb] text-[#16a34a]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function OmBreakdownTicketMobileCard({ row, index, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.ticketId}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.subject}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.siteAsset}</p>
+        </div>
+        <OmBreakdownStatusBadge status={row.status} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Asset Type" value={row.assetType} />
+        <InfoCell label="Priority" valueNode={<OmTaskPriorityBadge priority={row.priority} tone={row.priorityTone} />} />
+        <InfoCell label="Reported By" valueNode={<LiaisonApprovalSubmittedBy user={row.reportedBy} />} />
+        <InfoCell label="Assigned To" valueNode={<LiaisonApprovalSubmittedBy user={row.assignedTo} />} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Reported On" value={row.reportedOn.replace('\n', ' ')} />
+        <InfoCell label="Due Date" value={row.dueDate.replace('\n', ' ')} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => onNotify(`${row.ticketId} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+          <Eye className="size-4" />
+          View
+        </button>
+        <button type="button" onClick={() => onNotify(`${row.ticketId} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+          <MoreVertical className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function OmSiteVisitsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [visitType, setVisitType] = useState('All Visit Type');
+  const [site, setSite] = useState('All Site');
+  const [engineer, setEngineer] = useState('All Engineer');
+  const [priority, setPriority] = useState('All Priority');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, visitId: 'SV-2024-0118', visitType: 'Preventive Maintenance', siteAsset: 'Ludhiana Site (25 MW)', purpose: 'Inverter & Panel Inspection', scheduledDate: '20 May 2024\n09:00 AM', engineer: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue', role: 'Maintenance Lead' }, status: 'Completed', priority: 'High', priorityTone: 'red', createdOn: '18 May 2024' },
+    { id: 2, visitId: 'SV-2024-0117', visitType: 'Corrective Visit', siteAsset: 'Patiala Site (10 MW)', purpose: 'ACDB Tripping Issue', scheduledDate: '21 May 2024\n11:00 AM', engineer: { name: 'Amit Singh', initials: 'AS', tone: 'cyan', role: 'Site Engineer' }, status: 'In Progress', priority: 'Medium', priorityTone: 'amber', createdOn: '19 May 2024' },
+    { id: 3, visitId: 'SV-2024-0116', visitType: 'Inspection', siteAsset: 'Bathinda Site (5 MW)', purpose: 'Transformer Inspection', scheduledDate: '22 May 2024\n10:00 AM', engineer: { name: 'Neha Sharma', initials: 'NS', tone: 'indigo', role: 'O&M Engineer' }, status: 'Scheduled', priority: 'High', priorityTone: 'red', createdOn: '20 May 2024' },
+    { id: 4, visitId: 'SV-2024-0115', visitType: 'Preventive Maintenance', siteAsset: 'Mohali Site (8 MW)', purpose: 'String Monitoring Check', scheduledDate: '23 May 2024\n09:30 AM', engineer: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple', role: 'Field Engineer' }, status: 'Scheduled', priority: 'Medium', priorityTone: 'amber', createdOn: '20 May 2024' },
+    { id: 5, visitId: 'SV-2024-0114', visitType: 'Corrective Visit', siteAsset: 'Jalandhar Site (12 MW)', purpose: 'Communication Failure in SCADA', scheduledDate: '18 May 2024\n02:00 PM', engineer: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple', role: 'Site Engineer' }, status: 'Completed', priority: 'High', priorityTone: 'red', createdOn: '17 May 2024' },
+    { id: 6, visitId: 'SV-2024-0113', visitType: 'Inspection', siteAsset: 'Hoshiarpur Site (7 MW)', purpose: 'DC Cable Inspection', scheduledDate: '19 May 2024\n11:30 AM', engineer: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue', role: 'Maintenance Lead' }, status: 'Completed', priority: 'Low', priorityTone: 'green', createdOn: '17 May 2024' },
+    { id: 7, visitId: 'SV-2024-0112', visitType: 'Preventive Maintenance', siteAsset: 'Amritsar Site (3 MW)', purpose: 'Battery Bank Check', scheduledDate: '20 May 2024\n10:00 AM', engineer: { name: 'Amit Singh', initials: 'AS', tone: 'cyan', role: 'Site Engineer' }, status: 'In Progress', priority: 'Medium', priorityTone: 'amber', createdOn: '18 May 2024' },
+    { id: 8, visitId: 'SV-2024-0111', visitType: 'Corrective Visit', siteAsset: 'Sangrur Site (6 MW)', purpose: 'Panel Door Lock Broken', scheduledDate: '17 May 2024\n03:30 PM', engineer: { name: 'Neha Sharma', initials: 'NS', tone: 'indigo', role: 'O&M Engineer' }, status: 'Completed', priority: 'Low', priorityTone: 'green', createdOn: '16 May 2024' },
+    { id: 9, visitId: 'SV-2024-0110', visitType: 'Inspection', siteAsset: 'Barnala Site (2 MW)', purpose: 'Lightning Arrester Check', scheduledDate: '16 May 2024\n09:00 AM', engineer: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple', role: 'Site Engineer' }, status: 'Completed', priority: 'Low', priorityTone: 'green', createdOn: '15 May 2024' },
+    { id: 10, visitId: 'SV-2024-0109', visitType: 'Preventive Maintenance', siteAsset: 'Faridkot Site (4 MW)', purpose: 'SCADA System Check', scheduledDate: '15 May 2024\n01:00 PM', engineer: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple', role: 'Field Engineer' }, status: 'Cancelled', priority: 'Low', priorityTone: 'green', createdOn: '14 May 2024' },
+  ];
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  const filteredRows = rows.filter((row) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [row.visitId, row.visitType, row.siteAsset, row.purpose, row.engineer.name].some((value) => value.toLowerCase().includes(queryText));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const typeMatch = visitType === 'All Visit Type' || row.visitType === visitType;
+    const siteMatch = site === 'All Site' || row.siteAsset.includes(site);
+    const engineerMatch = engineer === 'All Engineer' || row.engineer.name === engineer;
+    const priorityMatch = priority === 'All Priority' || row.priority === priority;
+    const dateMatch = isDateWithinRange(row.scheduledDate, dateFrom, dateTo);
+    return queryMatch && statusMatch && typeMatch && siteMatch && engineerMatch && priorityMatch && dateMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Site Visits"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
+          { label: 'Site Visits' },
+        ]}
+        actions={(
+          <button type="button" onClick={() => onNotify('Schedule visit opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+            <Plus className="size-4" />
+            Schedule Visit
+          </button>
+        )}
+      />
+
+      <section className="space-y-4">
+        <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Schedule, manage and track all site visits for inspection, maintenance and issue resolution.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+            <OpsStatCard label="Total Visits" value="118" caption="All Site Visits" icon={CalendarDays} tone="cyan" onClick={() => onNotify('Total visits opened')} />
+            <OpsStatCard label="Scheduled" value="32" caption="Upcoming Visits" icon={CalendarDays} tone="amber" onClick={() => setStatus('Scheduled')} />
+            <OpsStatCard label="In Progress" value="24" caption="Currently Ongoing" icon={Wrench} tone="blue" onClick={() => setStatus('In Progress')} />
+            <OpsStatCard label="Completed" value="52" caption="Successfully Completed" icon={CheckCircle2} tone="green" onClick={() => setStatus('Completed')} />
+            <OpsStatCard label="Cancelled" value="10" caption="Cancelled Visits" icon={XCircle} tone="red" onClick={() => setStatus('Cancelled')} />
+          </section>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_170px_170px_170px_170px_170px_230px_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search site visits..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                <Search className="size-4 text-[#7386a3]" />
+              </label>
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Scheduled', 'In Progress', 'Completed', 'Cancelled']} hideLabel />
+              <ReportSelect label="Visit Type" value={visitType} onChange={setVisitType} options={['All Visit Type', 'Preventive Maintenance', 'Corrective Visit', 'Inspection']} hideLabel />
+              <ReportSelect label="Site" value={site} onChange={setSite} options={['All Site', 'Ludhiana', 'Patiala', 'Bathinda', 'Mohali', 'Jalandhar', 'Hoshiarpur', 'Amritsar', 'Sangrur', 'Barnala', 'Faridkot']} hideLabel />
+              <ReportSelect label="Engineer" value={engineer} onChange={setEngineer} options={['All Engineer', 'Ravi Kumar', 'Amit Singh', 'Neha Sharma', 'Vikram Kumar', 'Pooja Gupta']} hideLabel />
+              <ReportSelect label="Priority" value={priority} onChange={setPriority} options={['All Priority', 'High', 'Medium', 'Low']} hideLabel />
+              <ReportDateRangePicker
+                open={dateRangeOpen}
+                onToggle={() => setDateRangeOpen((value) => !value)}
+                onClose={() => setDateRangeOpen(false)}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                setDateFrom={setDateFrom}
+                setDateTo={setDateTo}
+                formattedRange={formattedRange}
+                hideLabel
+              />
+              <button type="button" onClick={() => { setDateRangeOpen(false); onNotify(`Site visit filters applied: ${filteredRows.length} results for ${formattedRange}`); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Filter className="size-4 text-[#0b65e5]" />
+                Filter
+              </button>
+              <button type="button" onClick={() => onNotify('Site visits exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Download className="size-4 text-[#0b65e5]" />
+                Export
+              </button>
+            </div>
+
+            <h2 className="mt-5 font-display text-[18px] font-extrabold text-[#06135a]">Site Visits List</h2>
+
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredRows.map((row, index) => (
+                <OmSiteVisitMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+              ))}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1560px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Visit ID', 'Visit Type', 'Site / Asset', 'Purpose', 'Scheduled Date', 'Engineer', 'Status', 'Priority', 'Created On', 'Actions'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.visitId}</td>
+                      <td>{row.visitType}</td>
+                      <td>{row.siteAsset}</td>
+                      <td>{row.purpose}</td>
+                      <td className="whitespace-pre-line font-extrabold text-[#223768]">{row.scheduledDate}</td>
+                      <td><LiaisonApprovalSubmittedBy user={row.engineer} /></td>
+                      <td><OmSiteVisitStatusBadge status={row.status} /></td>
+                      <td><OmTaskPriorityBadge priority={row.priority} tone={row.priorityTone} /></td>
+                      <td className="font-extrabold text-[#223768]">{row.createdOn}</td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => onNotify(`${row.visitId} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <Eye className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => onNotify(`${row.visitId} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#eef2f7] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+              <p>Showing 1 to {filteredRows.length} of 118 entries</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => onNotify('Previous site visits page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton onClick={() => onNotify('First site visits page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton active onClick={() => onNotify('Site visits page 1 selected')}>1</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Site visits page 2 selected')}>2</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Site visits page 3 selected')}>3</PaginationButton>
+                <span className="px-2 text-[#53647f]">...</span>
+                <PaginationButton onClick={() => onNotify('Site visits page 12 selected')}>12</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Next site visits page selected')}><ChevronRight className="size-4" /></PaginationButton>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function OmSiteVisitStatusBadge({ status }) {
+  const classes = {
+    Scheduled: 'bg-[#e8f2ff] text-[#2563eb]',
+    'In Progress': 'bg-[#e8f2ff] text-[#2563eb]',
+    Completed: 'bg-[#e8f8eb] text-[#16a34a]',
+    Cancelled: 'bg-[#ffe9e6] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function OmSiteVisitMobileCard({ row, index, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.visitId}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.purpose}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.siteAsset}</p>
+        </div>
+        <OmSiteVisitStatusBadge status={row.status} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Visit Type" value={row.visitType} />
+        <InfoCell label="Priority" valueNode={<OmTaskPriorityBadge priority={row.priority} tone={row.priorityTone} />} />
+        <InfoCell label="Engineer" valueNode={<LiaisonApprovalSubmittedBy user={row.engineer} />} />
+        <InfoCell label="Scheduled Date" value={row.scheduledDate.replace('\n', ' ')} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => onNotify(`${row.visitId} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+          <Eye className="size-4" />
+          View
+        </button>
+        <button type="button" onClick={() => onNotify(`${row.visitId} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+          <MoreVertical className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function OmAssetManagementPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [assetType, setAssetType] = useState('All Asset Type');
+  const [site, setSite] = useState('All Site');
+  const [status, setStatus] = useState('All Status');
+  const [manufacturer, setManufacturer] = useState('All Manufacturer');
+  const [priority, setPriority] = useState('All Priority');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, assetId: 'AST-2024-0256', assetName: 'Inverter-01', assetType: 'Inverter', siteLocation: 'Ludhiana Site (25 MW)', manufacturer: 'Sungrow', capacity: '250 kW', status: 'Operational', priority: 'High', priorityTone: 'red', installedOn: '12 Mar 2024' },
+    { id: 2, assetId: 'AST-2024-0255', assetName: 'Inverter-02', assetType: 'Inverter', siteLocation: 'Patiala Site (10 MW)', manufacturer: 'Sungrow', capacity: '250 kW', status: 'Operational', priority: 'High', priorityTone: 'red', installedOn: '15 Mar 2024' },
+    { id: 3, assetId: 'AST-2024-0218', assetName: 'Transformer-01', assetType: 'Transformer', siteLocation: 'Bathinda Site (5 MW)', manufacturer: 'Siemens', capacity: '5 MVA', status: 'Under Maintenance', priority: 'High', priorityTone: 'red', installedOn: '05 Feb 2024' },
+    { id: 4, assetId: 'AST-2024-0209', assetName: 'ACDB-01', assetType: 'ACDB', siteLocation: 'Mohali Site (8 MW)', manufacturer: 'L&T', capacity: '1250A', status: 'Operational', priority: 'Medium', priorityTone: 'amber', installedOn: '28 Feb 2024' },
+    { id: 5, assetId: 'AST-2024-0187', assetName: 'SCADA Panel-01', assetType: 'SCADA Panel', siteLocation: 'Jalandhar Site (12 MW)', manufacturer: 'Schneider', capacity: '-', status: 'Operational', priority: 'Medium', priorityTone: 'amber', installedOn: '10 Feb 2024' },
+    { id: 6, assetId: 'AST-2024-0175', assetName: 'DC Combiner Box-01', assetType: 'DC Combiner Box', siteLocation: 'Hoshiarpur Site (7 MW)', manufacturer: 'Legrand', capacity: '1000V DC', status: 'Operational', priority: 'Low', priorityTone: 'green', installedOn: '18 Jan 2024' },
+    { id: 7, assetId: 'AST-2024-0164', assetName: 'Energy Meter-01', assetType: 'Energy Meter', siteLocation: 'Amritsar Site (3 MW)', manufacturer: 'Schneider', capacity: '-', status: 'Under Maintenance', priority: 'Medium', priorityTone: 'amber', installedOn: '22 Jan 2024' },
+    { id: 8, assetId: 'AST-2024-0152', assetName: 'Panel Board-01', assetType: 'Panel Board', siteLocation: 'Sangrur Site (6 MW)', manufacturer: 'Siemens', capacity: '630A', status: 'Operational', priority: 'Medium', priorityTone: 'amber', installedOn: '14 Jan 2024' },
+    { id: 9, assetId: 'AST-2024-0141', assetName: 'String Monitor-01', assetType: 'String Monitor', siteLocation: 'Barnala Site (2 MW)', manufacturer: 'Huawei', capacity: '-', status: 'Operational', priority: 'Low', priorityTone: 'green', installedOn: '11 Jan 2024' },
+    { id: 10, assetId: 'AST-2024-0130', assetName: 'Lightning Arrester-01', assetType: 'Lightning Arrester', siteLocation: 'Faridkot Site (4 MW)', manufacturer: 'Citel', capacity: '-', status: 'Retired', priority: 'Low', priorityTone: 'green', installedOn: '19 Dec 2023' },
+  ];
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  const filteredRows = rows.filter((row) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [row.assetId, row.assetName, row.assetType, row.siteLocation, row.manufacturer].some((value) => value.toLowerCase().includes(queryText));
+    const typeMatch = assetType === 'All Asset Type' || row.assetType === assetType;
+    const siteMatch = site === 'All Site' || row.siteLocation.includes(site);
+    const statusMatch = status === 'All Status' || row.status === status;
+    const manufacturerMatch = manufacturer === 'All Manufacturer' || row.manufacturer === manufacturer;
+    const priorityMatch = priority === 'All Priority' || row.priority === priority;
+    const dateMatch = isDateWithinRange(row.installedOn, dateFrom, dateTo);
+    return queryMatch && typeMatch && siteMatch && statusMatch && manufacturerMatch && priorityMatch && dateMatch;
+  });
+
+  const breakdownRows = [
+    { label: 'Inverter', value: '80 (31.25%)', color: '#1d9bf0' },
+    { label: 'Transformer', value: '32 (12.50%)', color: '#22c55e' },
+    { label: 'ACDB', value: '28 (10.94%)', color: '#f59e0b' },
+    { label: 'SCADA Panel', value: '24 (9.38%)', color: '#a855f7' },
+    { label: 'DC Combiner Box', value: '20 (7.81%)', color: '#06b6d4' },
+    { label: 'Others', value: '72 (28.12%)', color: '#f43f5e' },
+  ];
+
+  const recentMaintenance = [
+    { name: 'Transformer-01', site: 'Bathinda Site (5 MW)', date: '20 May 2024', status: 'In Progress', tone: 'amber' },
+    { name: 'Inverter-05', site: 'Ludhiana Site (25 MW)', date: '19 May 2024', status: 'Scheduled', tone: 'blue' },
+    { name: 'ACDB-02', site: 'Patiala Site (10 MW)', date: '18 May 2024', status: 'Completed', tone: 'green' },
+    { name: 'SCADA Panel-02', site: 'Jalandhar Site (12 MW)', date: '16 May 2024', status: 'In Progress', tone: 'amber' },
+    { name: 'String Monitor-03', site: 'Mohali Site (8 MW)', date: '15 May 2024', status: 'Completed', tone: 'green' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Asset Management"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
+          { label: 'Asset Management' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Asset report exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">
+              <Download className="size-4 text-[#0b65e5]" />
+              Export Report
+            </button>
+            <button type="button" onClick={() => onNotify('Add asset opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+              <Plus className="size-4" />
+              Add Asset
+            </button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Track and manage all physical assets and equipment across operational sites.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+            <OpsStatCard label="Total Assets" value="256" caption="All Assets" icon={Boxes} tone="cyan" onClick={() => onNotify('Total assets opened')} />
+            <OpsStatCard label="Operational" value="198" caption="77.34%" icon={CheckCircle2} tone="green" onClick={() => setStatus('Operational')} />
+            <OpsStatCard label="Under Maintenance" value="28" caption="10.94%" icon={Wrench} tone="amber" onClick={() => setStatus('Under Maintenance')} />
+            <OpsStatCard label="Inactive" value="16" caption="6.25%" icon={Clock3} tone="purple" onClick={() => setStatus('Inactive')} />
+            <OpsStatCard label="Retired" value="14" caption="5.47%" icon={XCircle} tone="red" onClick={() => setStatus('Retired')} />
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_170px_170px_170px_180px_170px_230px_auto_auto] xl:items-end">
+                  <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                    <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search assets..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                    <Search className="size-4 text-[#7386a3]" />
+                  </label>
+                  <ReportSelect label="Asset Type" value={assetType} onChange={setAssetType} options={['All Asset Type', 'Inverter', 'Transformer', 'ACDB', 'SCADA Panel', 'DC Combiner Box', 'Energy Meter', 'Panel Board', 'String Monitor', 'Lightning Arrester']} hideLabel />
+                  <ReportSelect label="Site" value={site} onChange={setSite} options={['All Site', 'Ludhiana', 'Patiala', 'Bathinda', 'Mohali', 'Jalandhar', 'Hoshiarpur', 'Amritsar', 'Sangrur', 'Barnala', 'Faridkot']} hideLabel />
+                  <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Operational', 'Under Maintenance', 'Inactive', 'Retired']} hideLabel />
+                  <ReportSelect label="Manufacturer" value={manufacturer} onChange={setManufacturer} options={['All Manufacturer', 'Sungrow', 'Siemens', 'L&T', 'Schneider', 'Legrand', 'Huawei', 'Citel']} hideLabel />
+                  <ReportSelect label="Priority" value={priority} onChange={setPriority} options={['All Priority', 'High', 'Medium', 'Low']} hideLabel />
+                  <ReportDateRangePicker
+                    open={dateRangeOpen}
+                    onToggle={() => setDateRangeOpen((value) => !value)}
+                    onClose={() => setDateRangeOpen(false)}
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
+                    setDateFrom={setDateFrom}
+                    setDateTo={setDateTo}
+                    formattedRange={formattedRange}
+                    hideLabel
+                  />
+                  <button type="button" onClick={() => { setDateRangeOpen(false); onNotify(`Asset filters applied: ${filteredRows.length} results for ${formattedRange}`); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                    <Filter className="size-4 text-[#0b65e5]" />
+                    Filter
+                  </button>
+                  <button type="button" onClick={() => { setQuery(''); setAssetType('All Asset Type'); setSite('All Site'); setStatus('All Status'); setManufacturer('All Manufacturer'); setPriority('All Priority'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); setDateRangeOpen(false); onNotify('Asset filters reset'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                    <RefreshCw className="size-4 text-[#0b65e5]" />
+                    Reset
+                  </button>
+                </div>
+              </article>
+
+              <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+                <h2 className="px-1 pb-4 font-display text-[18px] font-extrabold text-[#06135a]">Assets List</h2>
+
+                <div className="space-y-3 xl:hidden">
+                  {filteredRows.map((row, index) => (
+                    <OmAssetMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                  <table className="crm-table min-w-[1440px] w-full">
+                    <thead>
+                      <tr>
+                        {['#', 'Asset ID', 'Asset Name', 'Asset Type', 'Site / Location', 'Manufacturer', 'Capacity / Rating', 'Status', 'Priority', 'Installed On', 'Actions'].map((header) => (
+                          <th key={header}>{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRows.map((row, index) => (
+                        <tr key={row.id}>
+                          <td className="font-extrabold text-[#223768]">{index + 1}</td>
+                          <td className="font-extrabold text-[#2643a2]">{row.assetId}</td>
+                          <td className="font-extrabold text-[#1e3261]">{row.assetName}</td>
+                          <td>{row.assetType}</td>
+                          <td>{row.siteLocation}</td>
+                          <td>{row.manufacturer}</td>
+                          <td>{row.capacity}</td>
+                          <td><OmAssetStatusBadge status={row.status} /></td>
+                          <td><OmTaskPriorityBadge priority={row.priority} tone={row.priorityTone} /></td>
+                          <td className="font-extrabold text-[#223768]">{row.installedOn}</td>
+                          <td>
+                            <div className="flex items-center justify-end gap-2">
+                              <button type="button" onClick={() => onNotify(`${row.assetId} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                                <Eye className="size-4" />
+                              </button>
+                              <button type="button" onClick={() => onNotify(`${row.assetId} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#eef2f7] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                                <MoreVertical className="size-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+                  <p>Showing 1 to {filteredRows.length} of 256 entries</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <PaginationButton onClick={() => onNotify('Previous assets page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                    <PaginationButton active onClick={() => onNotify('Assets page 1 selected')}>1</PaginationButton>
+                    <PaginationButton onClick={() => onNotify('Assets page 2 selected')}>2</PaginationButton>
+                    <PaginationButton onClick={() => onNotify('Assets page 3 selected')}>3</PaginationButton>
+                    <span className="px-2 text-[#53647f]">...</span>
+                    <PaginationButton onClick={() => onNotify('Assets page 26 selected')}>26</PaginationButton>
+                    <PaginationButton onClick={() => onNotify('Next assets page selected')}><ChevronRight className="size-4" /></PaginationButton>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <aside className="grid gap-4">
+              <article className={`${panelClass} p-5`}>
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Asset Type Breakdown</h2>
+                <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => onNotify('Asset type breakdown opened')}
+                    className="mx-auto size-[112px] rounded-full border border-[#edf2f8]"
+                    style={{ background: 'conic-gradient(#1d9bf0 0 31.25%, #22c55e 31.25% 43.75%, #f59e0b 43.75% 54.69%, #a855f7 54.69% 64.07%, #06b6d4 64.07% 71.88%, #f43f5e 71.88% 100%)' }}
+                    aria-label="Open asset type breakdown"
+                  >
+                    <span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" />
+                  </button>
+                  <div className="space-y-3">
+                    {breakdownRows.map((row) => (
+                      <StockLegend key={row.label} label={row.label} value={row.value} dotColor={row.color} />
+                    ))}
+                    <div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]">
+                      <span>Total Assets</span>
+                      <span className="float-right">256</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-5`}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Maintenance</h2>
+                  <button type="button" onClick={() => onNotify('All asset maintenance opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+                </div>
+                <div className="mt-4 space-y-4">
+                  {recentMaintenance.map((item) => (
+                    <button key={`${item.name}-${item.date}`} type="button" onClick={() => onNotify(`${item.name} opened`)} className="flex w-full items-start gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]">
+                      <span className={cx('grid size-9 shrink-0 place-items-center rounded-full', item.tone === 'green' ? 'bg-[#e8f8eb] text-[#16a34a]' : item.tone === 'blue' ? 'bg-[#e8f2ff] text-[#2563eb]' : 'bg-[#fff0dc] text-[#f59e0b]')}>
+                        <Wrench className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-extrabold text-[#1e3261]">{item.name}</span>
+                        <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{item.site}</span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className="block text-[12px] font-extrabold text-[#314a79]">{item.date}</span>
+                        <span className={cx('mt-1 block text-[11px] font-extrabold', item.tone === 'green' ? 'text-[#16a34a]' : item.tone === 'blue' ? 'text-[#2563eb]' : 'text-[#f59e0b]')}>{item.status}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </article>
+            </aside>
+          </section>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function OmAssetStatusBadge({ status }) {
+  const classes = {
+    Operational: 'bg-[#e8f8eb] text-[#16a34a]',
+    'Under Maintenance': 'bg-[#fff0dc] text-[#f38200]',
+    Inactive: 'bg-[#f3edff] text-[#7c3aed]',
+    Retired: 'bg-[#ffe9e6] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function OmAssetMobileCard({ row, index, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.assetId}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.assetName}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.siteLocation}</p>
+        </div>
+        <OmAssetStatusBadge status={row.status} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Asset Type" value={row.assetType} />
+        <InfoCell label="Manufacturer" value={row.manufacturer} />
+        <InfoCell label="Capacity / Rating" value={row.capacity} />
+        <InfoCell label="Priority" valueNode={<OmTaskPriorityBadge priority={row.priority} tone={row.priorityTone} />} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => onNotify(`${row.assetId} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+          <Eye className="size-4" />
+          View
+        </button>
+        <button type="button" onClick={() => onNotify(`${row.assetId} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+          <MoreVertical className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function OmSparePartsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('All Categories');
+  const [subCategory, setSubCategory] = useState('All Sub Categories');
+  const [manufacturer, setManufacturer] = useState('All Manufacturers');
+  const [site, setSite] = useState('All Sites');
+  const [status, setStatus] = useState('All Status');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, partId: 'SP-2024-00125', partName: 'Inverter IGBT Module', category: 'Electrical', subCategory: 'Inverter Parts', manufacturer: 'Infineon', siteLocation: 'Ludhiana Site (25 MW)', uom: 'Nos', stockQty: 24, minStock: 10, status: 'In Stock', unitCost: 12500, totalValue: 300000, updatedOn: '20 May 2024' },
+    { id: 2, partId: 'SP-2024-00124', partName: 'ACDB MCCB 1250A', category: 'Electrical', subCategory: 'ACDB Parts', manufacturer: 'Schneider', siteLocation: 'Patiala Site (10 MW)', uom: 'Nos', stockQty: 8, minStock: 5, status: 'Low Stock', unitCost: 18800, totalValue: 150400, updatedOn: '19 May 2024' },
+    { id: 3, partId: 'SP-2024-00123', partName: 'DC Fuse 20A 1000V', category: 'Electrical', subCategory: 'DC Components', manufacturer: 'Bussmann', siteLocation: 'Bathinda Site (5 MW)', uom: 'Nos', stockQty: 150, minStock: 50, status: 'In Stock', unitCost: 350, totalValue: 52500, updatedOn: '18 May 2024' },
+    { id: 4, partId: 'SP-2024-00122', partName: 'PV Connector MC4', category: 'Electrical', subCategory: 'PV Accessories', manufacturer: 'Staubli', siteLocation: 'Mohali Site (8 MW)', uom: 'Nos', stockQty: 320, minStock: 100, status: 'In Stock', unitCost: 45, totalValue: 14400, updatedOn: '17 May 2024' },
+    { id: 5, partId: 'SP-2024-00121', partName: 'Transformer Oil 25 Ltr', category: 'Mechanical', subCategory: 'Transformer Parts', manufacturer: 'Servo', siteLocation: 'Jalandhar Site (12 MW)', uom: 'Ltr', stockQty: 60, minStock: 20, status: 'In Stock', unitCost: 2500, totalValue: 150000, updatedOn: '16 May 2024' },
+    { id: 6, partId: 'SP-2024-00120', partName: 'Cooling Fan 24V DC', category: 'Electrical', subCategory: 'Inverter Parts', manufacturer: 'ebm-papst', siteLocation: 'Hoshiarpur Site (7 MW)', uom: 'Nos', stockQty: 12, minStock: 10, status: 'Low Stock', unitCost: 2800, totalValue: 33600, updatedOn: '15 May 2024' },
+    { id: 7, partId: 'SP-2024-00119', partName: 'String Combiner SPD', category: 'Electrical', subCategory: 'Protection', manufacturer: 'Citel', siteLocation: 'Amritsar Site (3 MW)', uom: 'Nos', stockQty: 0, minStock: 5, status: 'Out of Stock', unitCost: 1950, totalValue: 0, updatedOn: '14 May 2024' },
+    { id: 8, partId: 'SP-2024-00118', partName: 'Panel Cleaning Brush', category: 'Tools & Safety', subCategory: 'Cleaning Tools', manufacturer: 'Unger', siteLocation: 'Sangrur Site (6 MW)', uom: 'Nos', stockQty: 15, minStock: 10, status: 'In Stock', unitCost: 650, totalValue: 9750, updatedOn: '13 May 2024' },
+    { id: 9, partId: 'SP-2024-00117', partName: 'Heat Shrink Sleeve', category: 'Electrical', subCategory: 'Cables & Accessories', manufacturer: '3M', siteLocation: 'Barnala Site (2 MW)', uom: 'Nos', stockQty: 90, minStock: 25, status: 'In Stock', unitCost: 25, totalValue: 2250, updatedOn: '12 May 2024' },
+    { id: 10, partId: 'SP-2024-00116', partName: 'Allen Bolt SS M8x20', category: 'Mechanical', subCategory: 'Fasteners', manufacturer: 'Generic', siteLocation: 'Faridkot Site (4 MW)', uom: 'Nos', stockQty: 0, minStock: 20, status: 'Out of Stock', unitCost: 4, totalValue: 0, updatedOn: '11 May 2024' },
+    { id: 11, partId: 'SP-2024-00115', partName: 'MC4 Crimping Tool', category: 'Tools & Safety', subCategory: 'Installation Tools', manufacturer: 'Phoenix Contact', siteLocation: 'Ludhiana Site (25 MW)', uom: 'Nos', stockQty: 6, minStock: 2, status: 'In Stock', unitCost: 3200, totalValue: 19200, updatedOn: '10 May 2024' },
+    { id: 12, partId: 'SP-2024-00114', partName: 'Surge Protection Device', category: 'Electrical', subCategory: 'Protection', manufacturer: 'OBO', siteLocation: 'Patiala Site (10 MW)', uom: 'Nos', stockQty: 14, minStock: 6, status: 'In Stock', unitCost: 4100, totalValue: 57400, updatedOn: '09 May 2024' },
+    { id: 13, partId: 'SP-2024-00113', partName: 'Cable Tie UV Black', category: 'Electrical', subCategory: 'Cables & Accessories', manufacturer: 'HellermannTyton', siteLocation: 'Mohali Site (8 MW)', uom: 'Pack', stockQty: 4, minStock: 5, status: 'Low Stock', unitCost: 950, totalValue: 3800, updatedOn: '08 May 2024' },
+    { id: 14, partId: 'SP-2024-00112', partName: 'Earthing Clamp GI', category: 'Mechanical', subCategory: 'Fasteners', manufacturer: 'Jainson', siteLocation: 'Amritsar Site (3 MW)', uom: 'Nos', stockQty: 40, minStock: 15, status: 'In Stock', unitCost: 120, totalValue: 4800, updatedOn: '07 May 2024' },
+    { id: 15, partId: 'SP-2024-00111', partName: 'SCADA Communication Cable', category: 'Electrical', subCategory: 'DC Components', manufacturer: 'Belden', siteLocation: 'Jalandhar Site (12 MW)', uom: 'Mtr', stockQty: 0, minStock: 30, status: 'Out of Stock', unitCost: 85, totalValue: 0, updatedOn: '06 May 2024' },
+  ];
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  const resetFilters = () => {
+    setQuery('');
+    setCategory('All Categories');
+    setSubCategory('All Sub Categories');
+    setManufacturer('All Manufacturers');
+    setSite('All Sites');
+    setStatus('All Status');
+    setDateFrom('2024-04-01');
+    setDateTo('2025-03-31');
+    setDateRangeOpen(false);
+    onNotify('Spare parts filters reset');
+  };
+
+  const filteredRows = rows.filter((row) => {
+    const queryText = query.toLowerCase();
+    const queryMatch = [row.partId, row.partName, row.category, row.subCategory, row.manufacturer, row.siteLocation].some((value) => value.toLowerCase().includes(queryText));
+    const categoryMatch = category === 'All Categories' || row.category === category;
+    const subCategoryMatch = subCategory === 'All Sub Categories' || row.subCategory === subCategory;
+    const manufacturerMatch = manufacturer === 'All Manufacturers' || row.manufacturer === manufacturer;
+    const siteMatch = site === 'All Sites' || row.siteLocation.includes(site);
+    const statusMatch = status === 'All Status' || row.status === status;
+    const dateMatch = isDateWithinRange(row.updatedOn, dateFrom, dateTo);
+    return queryMatch && categoryMatch && subCategoryMatch && manufacturerMatch && siteMatch && statusMatch && dateMatch;
+  });
+
+  const categoryBreakdown = [
+    { label: 'Electrical', value: '264 (51.56%)', color: '#1d9bf0' },
+    { label: 'Mechanical', value: '128 (25.00%)', color: '#22c55e' },
+    { label: 'Tools & Safety', value: '48 (9.38%)', color: '#f59e0b' },
+    { label: 'Cables & Accessories', value: '44 (8.59%)', color: '#a855f7' },
+    { label: 'Others', value: '28 (5.47%)', color: '#f43f5e' },
+  ];
+
+  const lowStockRows = [
+    { name: 'ACDB MCCB 1250A', site: 'Patiala Site (10 MW)', ratio: '8 / 5', note: 'Low Stock' },
+    { name: 'Cooling Fan 24V DC', site: 'Hoshiarpur Site (7 MW)', ratio: '12 / 10', note: 'Low Stock' },
+    { name: 'Heat Shrink Sleeve', site: 'Barnala Site (2 MW)', ratio: '90 / 25', note: 'Low Stock' },
+    { name: 'Transformer Oil 25 Ltr', site: 'Jalandhar Site (12 MW)', ratio: '60 / 20', note: 'Low Stock' },
+    { name: 'Inverter IGBT Module', site: 'Ludhiana Site (25 MW)', ratio: '24 / 10', note: 'Low Stock' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Spare Parts"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
+          { label: 'Spare Parts' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify(`Spare parts report exported for ${filteredRows.length} rows (${formattedRange})`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">
+              <Download className="size-4 text-[#0b65e5]" />
+              Export Report
+            </button>
+            <button type="button" onClick={() => onNotify(`Import parts sheet ready for ${formattedRange}`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">
+              <Download className="size-4 text-[#0b65e5]" />
+              Import Parts
+            </button>
+            <button type="button" onClick={() => onNotify('Add spare part drawer opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+              <Plus className="size-4" />
+              Add Spare Part
+            </button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Track and manage all spare parts inventory, stock levels, valuation and consumption across sites.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+            <OpsStatCard label="Total Parts" value="512" caption="All Spare Parts" icon={Boxes} tone="cyan" onClick={resetFilters} />
+            <OpsStatCard label="In Stock" value="328" caption="64.06%" icon={Home} tone="green" onClick={() => setStatus('In Stock')} />
+            <OpsStatCard label="Low Stock" value="76" caption="14.84%" icon={AlertTriangle} tone="amber" onClick={() => setStatus('Low Stock')} />
+            <OpsStatCard label="Out of Stock" value="28" caption="5.47%" icon={ClipboardPlus} tone="purple" onClick={() => setStatus('Out of Stock')} />
+            <OpsStatCard label="Total Value" value="Rs 18,72,450" caption="Inventory Value" icon={IndianRupee} tone="cyan" onClick={() => onNotify('Inventory value opened')} />
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex h-11 min-w-[220px] flex-[1.3_1_250px] items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                    <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search spare parts..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                    <Search className="size-4 text-[#7386a3]" />
+                  </label>
+                  <ReportSelect className="w-[145px]" label="Categories" value={category} onChange={setCategory} options={['All Categories', 'Electrical', 'Mechanical', 'Tools & Safety']} hideLabel />
+                  <ReportSelect className="w-[165px]" label="Sub Categories" value={subCategory} onChange={setSubCategory} options={['All Sub Categories', 'Inverter Parts', 'ACDB Parts', 'DC Components', 'PV Accessories', 'Transformer Parts', 'Protection', 'Cleaning Tools', 'Cables & Accessories', 'Fasteners']} hideLabel />
+                  <ReportSelect className="w-[155px]" label="Manufacturers" value={manufacturer} onChange={setManufacturer} options={['All Manufacturers', 'Infineon', 'Schneider', 'Bussmann', 'Staubli', 'Servo', 'ebm-papst', 'Citel', 'Unger', '3M', 'Generic']} hideLabel />
+                  <ReportSelect className="w-[130px]" label="Sites" value={site} onChange={setSite} options={['All Sites', 'Ludhiana', 'Patiala', 'Bathinda', 'Mohali', 'Jalandhar', 'Hoshiarpur', 'Amritsar', 'Sangrur', 'Barnala', 'Faridkot']} hideLabel />
+                  <ReportSelect className="w-[130px]" label="Status" value={status} onChange={setStatus} options={['All Status', 'In Stock', 'Low Stock', 'Out of Stock']} hideLabel />
+                  <div className="w-[210px] shrink-0">
+                    <ReportDateRangePicker
+                      open={dateRangeOpen}
+                      onToggle={() => setDateRangeOpen((value) => !value)}
+                      onClose={() => setDateRangeOpen(false)}
+                      dateFrom={dateFrom}
+                      dateTo={dateTo}
+                      setDateFrom={setDateFrom}
+                      setDateTo={setDateTo}
+                      formattedRange={formattedRange}
+                      hideLabel
+                    />
+                  </div>
+                  <button type="button" onClick={() => { setDateRangeOpen(false); onNotify(`Spare parts filters applied: ${filteredRows.length} results for ${formattedRange}`); }} className="inline-flex h-11 w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                    <Filter className="size-4 text-[#0b65e5]" />
+                    Filter
+                  </button>
+                  <button type="button" onClick={resetFilters} className="inline-flex h-11 w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                    <RefreshCw className="size-4 text-[#0b65e5]" />
+                    Reset
+                  </button>
+                </div>
+              </article>
+
+              <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+                <h2 className="px-1 pb-4 font-display text-[18px] font-extrabold text-[#06135a]">Spare Parts List</h2>
+
+                <div className="space-y-3 xl:hidden">
+                  {filteredRows.map((row, index) => (
+                    <OmSparePartMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                  <table className="crm-table crm-table--dense min-w-[1180px] w-full">
+                    <thead>
+                      <tr>
+                        {['#', 'Part ID', 'Part Name', 'Category', 'Sub Category', 'Manufacturer', 'Site / Location', 'UOM', 'Stock Qty', 'Min. Stock', 'Status', 'Unit Cost (Rs)', 'Total Value (Rs)', 'Actions'].map((header) => (
+                          <th key={header}>{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRows.map((row, index) => (
+                        <tr key={row.id}>
+                          <td className="font-extrabold text-[#223768]">{index + 1}</td>
+                          <td className="font-extrabold text-[#2643a2]">{row.partId}</td>
+                          <td className="max-w-[130px] whitespace-normal font-extrabold leading-5 text-[#1e3261]">{row.partName}</td>
+                          <td>{row.category}</td>
+                          <td className="max-w-[110px] whitespace-normal leading-5">{row.subCategory}</td>
+                          <td>{row.manufacturer}</td>
+                          <td className="max-w-[130px] whitespace-normal leading-5">{row.siteLocation}</td>
+                          <td>{row.uom}</td>
+                          <td className="font-extrabold text-[#223768]">{row.stockQty}</td>
+                          <td className="font-extrabold text-[#223768]">{row.minStock}</td>
+                          <td><OmSparePartStatusBadge status={row.status} /></td>
+                          <td className="font-extrabold text-[#223768]">{row.unitCost.toLocaleString('en-IN')}</td>
+                          <td className="font-extrabold text-[#223768]">{row.totalValue.toLocaleString('en-IN')}</td>
+                          <td>
+                            <div className="flex items-center justify-end gap-2">
+                              <button type="button" onClick={() => onNotify(`${row.partId} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                                <Eye className="size-4" />
+                              </button>
+                              <button type="button" onClick={() => onNotify(`${row.partId} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#eef2f7] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                                <MoreVertical className="size-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+                  <p>Showing 1 to {filteredRows.length} of 512 entries</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <PaginationButton onClick={() => onNotify('Previous spare parts page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                    <PaginationButton onClick={() => onNotify('First spare parts page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                    <PaginationButton active onClick={() => onNotify('Spare parts page 1 selected')}>1</PaginationButton>
+                    <PaginationButton onClick={() => onNotify('Spare parts page 2 selected')}>2</PaginationButton>
+                    <PaginationButton onClick={() => onNotify('Spare parts page 3 selected')}>3</PaginationButton>
+                    <span className="px-2 text-[#53647f]">...</span>
+                    <PaginationButton onClick={() => onNotify('Spare parts page 52 selected')}>52</PaginationButton>
+                    <PaginationButton onClick={() => onNotify('Next spare parts page selected')}><ChevronRight className="size-4" /></PaginationButton>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <aside className="grid gap-4 self-start">
+              <article className={`${panelClass} p-5`}>
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Spare Parts by Category</h2>
+                <div className="mt-5 grid grid-cols-[104px_minmax(0,1fr)] items-center gap-5">
+                  <button
+                    type="button"
+                    onClick={() => onNotify('Spare parts category breakdown opened')}
+                    className="mx-auto size-[104px] rounded-full border border-[#edf2f8]"
+                    style={{ background: 'conic-gradient(#1d9bf0 0 51.56%, #22c55e 51.56% 76.56%, #f59e0b 76.56% 85.94%, #a855f7 85.94% 94.53%, #f43f5e 94.53% 100%)' }}
+                    aria-label="Open spare parts category breakdown"
+                  >
+                    <span className="m-auto mt-[19px] block size-[46px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" />
+                  </button>
+                  <div className="space-y-2.5">
+                    {categoryBreakdown.map((row) => (
+                      <StockLegend key={row.label} label={row.label} value={row.value} dotColor={row.color} />
+                    ))}
+                    <div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]">
+                      <span>Total Parts</span>
+                      <span className="float-right">512</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-5`}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Low Stock Alert</h2>
+                  <button type="button" onClick={() => onNotify('Low stock alerts opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {lowStockRows.map((item) => (
+                    <button key={`${item.name}-${item.site}`} type="button" onClick={() => onNotify(`${item.name} opened`)} className="grid w-full grid-cols-[32px_minmax(0,1fr)_auto] items-start gap-3 rounded-[10px] px-2 py-2 text-left transition hover:bg-[#f8fbff]">
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fff0dc] text-[#f59e0b]">
+                        <AlertTriangle className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-extrabold leading-5 text-[#1e3261]">{item.name}</span>
+                        <span className="mt-1 block text-[12px] font-bold leading-5 text-[#53647f]">{item.site}</span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className="block whitespace-nowrap text-[12px] font-extrabold text-[#314a79]">{item.ratio}</span>
+                        <span className="mt-1 block whitespace-nowrap text-[11px] font-extrabold text-[#f59e0b]">{item.note}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-5`}>
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Inventory Value Summary</h2>
+                <div className="mt-5 grid grid-cols-2 gap-4">
+                  <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                    <div className="flex items-center gap-3">
+                      <span className="grid size-10 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]">
+                        <IndianRupee className="size-5" />
+                      </span>
+                      <div>
+                        <p className="font-display text-[20px] font-extrabold leading-tight text-[#1e3261]">Rs 18,72,450</p>
+                        <p className="text-[12px] font-bold text-[#53647f]">Total Inventory Value</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                    <div className="flex items-center gap-3">
+                      <span className="grid size-10 place-items-center rounded-full bg-[#fff0dc] text-[#f59e0b]">
+                        <IndianRupee className="size-5" />
+                      </span>
+                      <div>
+                        <p className="font-display text-[20px] font-extrabold leading-tight text-[#1e3261]">Rs 1,85,250</p>
+                        <p className="text-[12px] font-bold text-[#53647f]">Low Stock Value</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </aside>
+          </section>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function OmSparePartStatusBadge({ status }) {
+  const classes = {
+    'In Stock': 'bg-[#e8f8eb] text-[#16a34a]',
+    'Low Stock': 'bg-[#fff0dc] text-[#f38200]',
+    'Out of Stock': 'bg-[#ffe9e6] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function OmSparePartMobileCard({ row, index, onNotify }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.partId}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.partName}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.siteLocation}</p>
+        </div>
+        <OmSparePartStatusBadge status={row.status} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Category" value={row.category} />
+        <InfoCell label="Sub Category" value={row.subCategory} />
+        <InfoCell label="Stock Qty" value={`${row.stockQty} ${row.uom}`} />
+        <InfoCell label="Min. Stock" value={String(row.minStock)} />
+        <InfoCell label="Unit Cost" value={`Rs ${row.unitCost.toLocaleString('en-IN')}`} />
+        <InfoCell label="Total Value" value={`Rs ${row.totalValue.toLocaleString('en-IN')}`} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => onNotify(`${row.partId} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+          <Eye className="size-4" />
+          View
+        </button>
+        <button type="button" onClick={() => onNotify(`${row.partId} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+          <MoreVertical className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function OmEnergyPerformancePage({ activeSection, onOpenSection, onNotify }) {
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+  const [generationRange, setGenerationRange] = useState('Monthly');
+  const [ratioRange, setRatioRange] = useState('Monthly');
+
+  const performanceRows = [
+    { siteName: 'Ludhiana Site', capacity: '25,000', generated: '3,55,200', consumed: '1,02,300', ratio: '84.65%', yield: '1,616', savings: '2,48,760', status: 'Excellent', statusTone: 'green', trendTone: 'green', readingDate: '21 May 2024' },
+    { siteName: 'Patiala Site', capacity: '10,000', generated: '2,65,800', consumed: '68,400', ratio: '81.21%', yield: '1,594', savings: '1,78,920', status: 'Good', statusTone: 'blue', trendTone: 'green', readingDate: '20 May 2024' },
+    { siteName: 'Bathinda Site', capacity: '5,000', generated: '1,56,600', consumed: '41,200', ratio: '79.34%', yield: '1,566', savings: '1,03,680', status: 'Good', statusTone: 'blue', trendTone: 'blue', readingDate: '19 May 2024' },
+    { siteName: 'Mohali Site', capacity: '8,000', generated: '1,73,200', consumed: '45,600', ratio: '83.12%', yield: '1,665', savings: '1,14,240', status: 'Excellent', statusTone: 'green', trendTone: 'green', readingDate: '18 May 2024' },
+    { siteName: 'Jalandhar Site', capacity: '12,000', generated: '1,36,800', consumed: '34,600', ratio: '78.56%', yield: '1,473', savings: '90,840', status: 'Average', statusTone: 'amber', trendTone: 'amber', readingDate: '17 May 2024' },
+  ];
+
+  const siteMixRows = [
+    { label: 'Ludhiana Site (25 MW)', value: '28.6%', color: '#1492e6' },
+    { label: 'Patiala Site (10 MW)', value: '21.3%', color: '#16a34a' },
+    { label: 'Bathinda Site (5 MW)', value: '16.8%', color: '#f59e0b' },
+    { label: 'Mohali Site (8 MW)', value: '13.9%', color: '#8b5cf6' },
+    { label: 'Jalandhar Site (12 MW)', value: '11.0%', color: '#06b6d4' },
+    { label: 'Others', value: '8.4%', color: '#f43f5e' },
+  ];
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+  const filteredPerformanceRows = performanceRows.filter((row) => isDateWithinRange(row.readingDate, dateFrom, dateTo));
+
+  const energyXAxisLabels = ['Apr\n2024', 'May\n2024', 'Jun\n2024', 'Jul\n2024', 'Aug\n2024', 'Sep\n2024', 'Nov\n2024', 'Dec\n2024', 'Jan\n2025', 'Feb\n2025', 'Mar\n2025'];
+  const ratioXAxisLabels = ['Apr\n2024', 'May\n2024', 'Jun\n2024', 'Jul\n2024', 'Aug\n2024', 'Sep\n2024', 'Oct\n2024', 'Nov\n2024', 'Dec\n2024', 'Jan\n2025', 'Feb\n2025', 'Mar\n2025'];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Energy Performance"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
+          { label: 'Energy Performance' },
+        ]}
+        actions={(
+          <>
+            <ReportDateRangePicker
+              open={dateRangeOpen}
+              onToggle={() => setDateRangeOpen((value) => !value)}
+              onClose={() => setDateRangeOpen(false)}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              setDateFrom={setDateFrom}
+              setDateTo={setDateTo}
+              formattedRange={formattedRange}
+              hideLabel
+            />
+            <button type="button" onClick={() => onNotify(`Energy report exported for ${filteredPerformanceRows.length} sites (${formattedRange})`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">
+              <Download className="size-4 text-[#0b65e5]" />
+              Export Report
+            </button>
+            <button type="button" onClick={() => { setDateRangeOpen(false); onNotify(`Energy view refreshed for ${formattedRange}`); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+              <Filter className="size-4" />
+              Filter
+            </button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            Monitor energy generation, consumption and performance efficiency across all operational sites.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+            <OpsStatCard label="Total Energy Generated" value="12,45,600 kWh" caption="12.58% vs Last Year" icon={Zap} tone="green" onClick={() => onNotify('Energy generated opened')} />
+            <OpsStatCard label="Total Energy Consumed" value="3,25,400 kWh" caption="8.34% vs Last Year" icon={PlugIcon} tone="blue" onClick={() => onNotify('Energy consumed opened')} />
+            <OpsStatCard label="Performance Ratio" value="82.45%" caption="6.21% vs Last Year" icon={GaugeIcon} tone="purple" onClick={() => onNotify('Performance ratio opened')} />
+            <OpsStatCard label="Specific Yield" value="1,587 kWh/kWp" caption="7.18% vs Last Year" icon={BarChart3} tone="amber" onClick={() => onNotify('Specific yield opened')} />
+            <OpsStatCard label="Energy Savings" value="Rs 8,72,920" caption="11.47% vs Last Year" icon={IndianRupee} tone="cyan" onClick={() => onNotify('Energy savings opened')} />
+          </section>
+
+          <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.88fr)_336px]">
+            <article className={`${panelClass} self-start p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Energy Generation vs Consumption (kWh)</h2>
+                <ReportSelect label="Range" value={generationRange} onChange={(value) => { setGenerationRange(value); onNotify(`${value} generation trend selected`); }} options={['Monthly', 'Quarterly', 'Yearly']} hideLabel className="w-[116px]" />
+              </div>
+              <div className="mt-5 overflow-x-auto">
+                <svg viewBox="0 0 640 260" className="min-w-[600px]">
+                  {[0, 50, 100, 150, 200].map((tick, index) => {
+                    const y = 30 + index * 42;
+                    return (
+                      <g key={tick}>
+                        <line x1="48" x2="610" y1={y} y2={y} stroke="#e8eef6" strokeWidth="1" />
+                        <text x="36" y={y + 4} textAnchor="end" fontSize="11" fontWeight="800" fill="#53647f">{index === 0 ? '2L' : index === 1 ? '1.5L' : index === 2 ? '1L' : index === 3 ? '50K' : '0'}</text>
+                      </g>
+                    );
+                  })}
+                  {energyXAxisLabels.map((label, index) => {
+                    const x = 78 + index * 48;
+                    const greenHeight = [112, 124, 116, 122, 126, 132, 125, 131, 116, 111, 119][index];
+                    const blueHeight = [64, 78, 75, 81, 79, 82, 80, 81, 69, 63, 67][index];
+                    return (
+                      <g key={label}>
+                        <rect x={x} y={188 - greenHeight} width="14" height={greenHeight} rx="6" fill="#16a34a" />
+                        <rect x={x + 18} y={188 - blueHeight} width="14" height={blueHeight} rx="6" fill="#2563eb" />
+                        <text x={x + 16} y="222" textAnchor="middle" fontSize="10.5" fontWeight="800" fill="#53647f">
+                          <tspan x={x + 16} dy="0">{label.split('\n')[0]}</tspan>
+                          <tspan x={x + 16} dy="12">{label.split('\n')[1]}</tspan>
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            </article>
+
+            <article className={`${panelClass} self-start p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Performance Ratio Trend (%)</h2>
+                <ReportSelect label="Range" value={ratioRange} onChange={(value) => { setRatioRange(value); onNotify(`${value} PR trend selected`); }} options={['Monthly', 'Quarterly', 'Yearly']} hideLabel className="w-[116px]" />
+              </div>
+              <div className="mt-5 overflow-x-auto">
+                <svg viewBox="0 0 520 260" className="min-w-[480px]">
+                  {[20, 40, 60, 80, 100].map((tick, index) => {
+                    const y = 28 + index * 40;
+                    return (
+                      <g key={tick}>
+                        <line x1="42" x2="490" y1={y} y2={y} stroke="#e8eef6" strokeWidth="1" />
+                        <text x="34" y={y + 4} textAnchor="end" fontSize="11" fontWeight="800" fill="#53647f">{100 - index * 20}%</text>
+                      </g>
+                    );
+                  })}
+                  <polyline fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points="52,92 86,90 120,78 154,78 188,77 222,94 256,83 290,80 324,77 358,85 392,82 426,81" />
+                  {[[52,92],[86,90],[120,78],[154,78],[188,77],[222,94],[256,83],[290,80],[324,77],[358,85],[392,82],[426,81]].map(([x, y], index) => (
+                    <circle key={index} cx={x} cy={y} r="4" fill="#fff" stroke="#16a34a" strokeWidth="2" />
+                  ))}
+                  {ratioXAxisLabels.map((label, index) => (
+                    <text key={label} x={52 + index * 34} y="224" textAnchor="middle" fontSize="10" fontWeight="800" fill="#53647f">
+                      <tspan x={52 + index * 34} dy="0">{label.split('\n')[0]}</tspan>
+                      <tspan x={52 + index * 34} dy="12">{label.split('\n')[1]}</tspan>
+                    </text>
+                  ))}
+                </svg>
+              </div>
+            </article>
+
+            <article className={`${panelClass} self-start p-5`}>
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Energy Performance by Site</h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] xl:grid-cols-1 min-[1760px]:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+                <button type="button" onClick={() => onNotify('Energy performance by site opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#1492e6 0 28.6%, #16a34a 28.6% 49.9%, #f59e0b 49.9% 66.7%, #8b5cf6 66.7% 80.6%, #06b6d4 80.6% 91.6%, #f43f5e 91.6% 100%)' }}><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
+                <div className="space-y-3">
+                  {siteMixRows.map((row) => (
+                    <StockLegend key={row.label} label={row.label} value={row.value} dotColor={row.color} />
+                  ))}
+                  <div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]">
+                    <span>Total Generation</span>
+                    <span className="float-right">12,45,600 kWh</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_336px]">
+            <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+              <h2 className="px-1 pb-4 font-display text-[18px] font-extrabold text-[#06135a]">Site-wise Energy Performance</h2>
+              <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                <table className="crm-table crm-table--dense min-w-[1180px] w-full">
+                  <thead>
+                    <tr>
+                      {['#', 'Site Name', 'Capacity (kWp)', 'Energy Generated (kWh)', 'Energy Consumed (kWh)', 'Performance Ratio (%)', 'Specific Yield (kWh/kWp)', 'Energy Savings (Rs)', 'Status', 'Trend'].map((header) => (
+                        <th key={header}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPerformanceRows.map((row, index) => (
+                      <tr key={row.siteName}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.siteName}</td>
+                        <td className="font-extrabold text-[#223768]">{row.capacity}</td>
+                        <td className="font-extrabold text-[#2643a2]">{row.generated}</td>
+                        <td className="font-extrabold text-[#2643a2]">{row.consumed}</td>
+                        <td>{row.ratio}</td>
+                        <td>{row.yield}</td>
+                        <td className="font-extrabold text-[#223768]">{row.savings}</td>
+                        <td><OmEnergyStatusBadge status={row.status} tone={row.statusTone} /></td>
+                        <td><OmMiniTrend tone={row.trendTone} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 space-y-3 xl:hidden">
+                {filteredPerformanceRows.map((row, index) => (
+                  <OmEnergyMobileCard key={row.siteName} row={row} index={index + 1} />
+                ))}
+              </div>
+              <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+                <p>Showing 1 to {filteredPerformanceRows.length} of 6 entries</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <PaginationButton onClick={() => onNotify('Previous energy page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                  <PaginationButton active onClick={() => onNotify('Energy page 1 selected')}>1</PaginationButton>
+                  <PaginationButton onClick={() => onNotify('Energy page 2 selected')}>2</PaginationButton>
+                  <PaginationButton onClick={() => onNotify('Next energy page selected')}><ChevronRight className="size-4" /></PaginationButton>
+                </div>
+              </div>
+            </article>
+
+            <aside className="space-y-4 self-start">
+              <article className={`${panelClass} p-5`}>
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Environmental Impact</h2>
+                <div className="mt-5 grid gap-4 min-[420px]:grid-cols-2 xl:grid-cols-2">
+                  <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                    <div className="flex items-center gap-3">
+                      <span className="grid size-10 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]">
+                        <Leaf className="size-5" />
+                      </span>
+                      <div>
+                        <p className="font-display text-[26px] font-extrabold text-[#1e3261]">9,842</p>
+                        <p className="max-w-[120px] text-[12px] font-bold leading-5 text-[#53647f]">CO2 Emission Avoided (Tonnes)</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                    <div className="flex items-center gap-3">
+                      <span className="grid size-10 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]">
+                        <Leaf className="size-5" />
+                      </span>
+                      <div>
+                        <p className="font-display text-[24px] font-extrabold text-[#1e3261]">21,36,500</p>
+                        <p className="max-w-[120px] text-[12px] font-bold leading-5 text-[#53647f]">Equivalent Trees Planted</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-5`}>
+                <div className="grid gap-4 min-[420px]:grid-cols-2 xl:grid-cols-2">
+                  <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                    <p className="text-[13px] font-extrabold text-[#06135a]">Peak Generation</p>
+                    <p className="mt-4 font-display text-[28px] font-extrabold text-[#1e3261]">3,78,450 <span className="text-[18px]">kWh</span></p>
+                    <p className="mt-2 text-[12px] font-bold text-[#53647f]">On 21 May 2024</p>
+                    <p className="mt-1 text-[12px] font-extrabold text-[#0b65e5]">(10:30 AM)</p>
+                  </div>
+                  <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                    <p className="text-[13px] font-extrabold text-[#06135a]">Capacity Utilization</p>
+                    <div className="mt-4 flex items-center gap-4">
+                      <div className="grid size-[86px] place-items-center rounded-full border-[6px] border-[#16a34a] border-r-[#e8eef6] border-b-[#e8eef6] border-l-[#16a34a]">
+                        <span className="font-display text-[22px] font-extrabold text-[#1e3261]">76%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </aside>
+          </section>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
+  const [reportType, setReportType] = useState('All Report Types');
+  const [site, setSite] = useState('All Sites');
+  const [status, setStatus] = useState('All Status');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const reportRows = [
+    { id: 1, reportId: 'RPT-2024-0128', reportName: 'Monthly Performance Report - Mar 2025', reportType: 'Performance Report', site: 'Ludhiana Site (25 MW)', period: 'Mar 2025', generatedOn: '02 Apr 2025 09:15 AM', generatedBy: 'Ravi Kumar', status: 'Completed' },
+    { id: 2, reportId: 'RPT-2024-0127', reportName: 'Maintenance Summary - Mar 2025', reportType: 'Maintenance Report', site: 'Patiala Site (10 MW)', period: 'Mar 2025', generatedOn: '01 Apr 2025 06:10 PM', generatedBy: 'Amit Singh', status: 'Completed' },
+    { id: 3, reportId: 'RPT-2024-0126', reportName: 'Breakdown Analysis - Mar 2025', reportType: 'Breakdown Report', site: 'Bathinda Site (5 MW)', period: 'Mar 2025', generatedOn: '01 Apr 2025 05:35 PM', generatedBy: 'Neha Sharma', status: 'In Progress' },
+    { id: 4, reportId: 'RPT-2024-0125', reportName: 'Compliance Report - Q4 2024-25', reportType: 'Compliance Report', site: 'All Sites', period: 'Jan - Mar 2025', generatedOn: '31 Mar 2025 11:20 AM', generatedBy: 'Vikram Kumar', status: 'Completed' },
+    { id: 5, reportId: 'RPT-2024-0124', reportName: 'Spare Parts Inventory - Mar 2025', reportType: 'Inventory Report', site: 'All Sites', period: 'Mar 2025', generatedOn: '30 Mar 2025 04:45 PM', generatedBy: 'Pooja Gupta', status: 'Completed' },
+    { id: 6, reportId: 'RPT-2024-0123', reportName: 'Energy Performance Summary - Mar 2025', reportType: 'Energy Report', site: 'All Sites', period: 'Mar 2025', generatedOn: '30 Mar 2025 03:30 PM', generatedBy: 'Ravi Kumar', status: 'Overdue' },
+  ];
+
+  const typeMixRows = [
+    { label: 'Performance Report', value: '38 (29.6%)', color: '#1d9bf0' },
+    { label: 'Maintenance Report', value: '32 (25.0%)', color: '#16a34a' },
+    { label: 'Breakdown Report', value: '22 (17.19%)', color: '#f59e0b' },
+    { label: 'Compliance Report', value: '16 (12.50%)', color: '#a855f7' },
+    { label: 'Inventory Report', value: '12 (9.3%)', color: '#06b6d4' },
+    { label: 'Other Reports', value: '8 (6.25%)', color: '#f43f5e' },
+  ];
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+  const filteredReportRows = reportRows.filter((row) => {
+    const typeMatch = reportType === 'All Report Types' || row.reportType === reportType;
+    const siteMatch = site === 'All Sites' || row.site === site;
+    const statusMatch = status === 'All Status' || row.status === status;
+    const dateMatch = isDateWithinRange(row.generatedOn, dateFrom, dateTo);
+    return typeMatch && siteMatch && statusMatch && dateMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="O&M Reports"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
+          { label: 'O&M Reports' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('O&M reports exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">
+              <Download className="size-4 text-[#0b65e5]" />
+              Export Report
+            </button>
+            <button type="button" onClick={() => onNotify('Custom report opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+              <Filter className="size-4" />
+              Custom Report
+            </button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <div className="space-y-4">
+          <p className="text-[14px] font-bold text-[#324871]">
+            View, analyze and export operational & maintenance reports across all sites.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+            <OpsStatCard label="Total Reports" value="128" caption="18.75% vs Last Period" icon={FileText} tone="blue" onClick={() => onNotify('Total reports opened')} />
+            <OpsStatCard label="Scheduled Reports" value="74" caption="57.81% of Total" icon={CheckCircle2} tone="green" onClick={() => onNotify('Scheduled reports opened')} />
+            <OpsStatCard label="Generated On Time" value="68" caption="91.89% of Scheduled" icon={Clock3} tone="amber" onClick={() => onNotify('Generated on time opened')} />
+            <OpsStatCard label="Overdue Reports" value="6" caption="8.11% of Scheduled" icon={ClipboardPlus} tone="purple" onClick={() => onNotify('Overdue reports opened')} />
+            <OpsStatCard label="Reports Downloaded" value="342" caption="This Period" icon={Download} tone="cyan" onClick={() => onNotify('Downloads opened')} />
+          </section>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[260px_180px_170px_170px_auto_auto] xl:items-end">
+              <ReportDateRangePicker
+                open={dateRangeOpen}
+                onToggle={() => setDateRangeOpen((value) => !value)}
+                onClose={() => setDateRangeOpen(false)}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                setDateFrom={setDateFrom}
+                setDateTo={setDateTo}
+                formattedRange={formattedRange}
+                hideLabel
+              />
+              <ReportSelect label="Report Types" value={reportType} onChange={setReportType} options={['All Report Types', 'Performance Report', 'Maintenance Report', 'Breakdown Report', 'Compliance Report', 'Inventory Report', 'Energy Report']} hideLabel />
+              <ReportSelect label="Sites" value={site} onChange={setSite} options={['All Sites', 'Ludhiana Site (25 MW)', 'Patiala Site (10 MW)', 'Bathinda Site (5 MW)']} hideLabel />
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Completed', 'In Progress', 'Overdue']} hideLabel />
+              <button type="button" onClick={() => { setReportType('All Report Types'); setSite('All Sites'); setStatus('All Status'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); setDateRangeOpen(false); onNotify('Reports reset'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <RefreshCw className="size-4 text-[#0b65e5]" />
+                Reset
+              </button>
+              <button type="button" onClick={() => { setDateRangeOpen(false); onNotify(`Report filters applied: ${filteredReportRows.length} results for ${formattedRange}`); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#1d4ed8]">
+                <Filter className="size-4" />
+                Apply Filter
+              </button>
+            </div>
+          </article>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.45fr)_minmax(320px,0.95fr)]">
+            <article className={`${panelClass} p-5`}>
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Reports by Type</h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+                <button type="button" onClick={() => onNotify('Reports by type opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#1d9bf0 0 29.6%, #16a34a 29.6% 54.6%, #f59e0b 54.6% 71.79%, #a855f7 71.79% 84.29%, #06b6d4 84.29% 93.59%, #f43f5e 93.59% 100%)' }}><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
+                <div className="space-y-3">
+                  {typeMixRows.map((row) => (
+                    <StockLegend key={row.label} label={row.label} value={row.value} dotColor={row.color} />
+                  ))}
+                  <div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]">
+                    <span>Total</span>
+                    <span className="float-right">128</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Reports Trend (Monthly)</h2>
+                <ReportSelect label="Range" value="Monthly" onChange={() => onNotify('Reports trend range changed')} options={['Monthly', 'Quarterly', 'Yearly']} hideLabel className="w-[116px]" />
+              </div>
+              <div className="mt-5 overflow-x-auto">
+                <svg viewBox="0 0 620 240" className="min-w-[560px]">
+                  {[0, 10, 20, 30, 40].map((tick, index) => {
+                    const y = 24 + index * 40;
+                    return (
+                      <g key={tick}>
+                        <line x1="42" x2="590" y1={y} y2={y} stroke="#e8eef6" strokeWidth="1" />
+                        <text x="32" y={y + 4} textAnchor="end" fontSize="11" fontWeight="800" fill="#53647f">{40 - index * 10}</text>
+                      </g>
+                    );
+                  })}
+                  <polyline fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points="58,138 102,126 146,112 190,98 234,102 278,118 322,92 366,90 410,78 454,84 498,72 542,98" />
+                  {[8,10,12,14,13,11,15,16,18,17,19,15].map((value, index) => (
+                    <g key={value + index}>
+                      <circle cx={58 + index * 44} cy={[138,126,112,98,102,118,92,90,78,84,72,98][index]} r="4" fill="#fff" stroke="#2563eb" strokeWidth="2" />
+                      <text x={58 + index * 44} y={[126,114,100,86,90,106,80,78,66,72,60,86][index]} textAnchor="middle" fontSize="11" fontWeight="800" fill="#1e3261">{value}</text>
+                    </g>
+                  ))}
+                  {['Apr\n2024','May\n2024','Jun\n2024','Jul\n2024','Aug\n2024','Sep\n2024','Oct\n2024','Nov\n2024','Dec\n2024','Jan\n2025','Feb\n2025','Mar\n2025'].map((label, index) => (
+                    <text key={label} x={58 + index * 44} y="220" textAnchor="middle" fontSize="11" fontWeight="800" fill="#53647f">{label}</text>
+                  ))}
+                </svg>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-5`}>
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Reports Status</h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+                <button type="button" onClick={() => onNotify('Reports status opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#16a34a 0 79.69%, #f59e0b 79.69% 93.75%, #e11d48 93.75% 100%)' }}><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
+                <div className="space-y-3">
+                  <StockLegend label="Completed" value="102 (79.69%)" dotColor="#16a34a" />
+                  <StockLegend label="In Progress" value="18 (14.06%)" dotColor="#f59e0b" />
+                  <StockLegend label="Overdue" value="8 (6.25%)" dotColor="#e11d48" />
+                  <div className="border-t border-[#edf2f8] pt-3 text-[12px] font-extrabold text-[#314a79]">
+                    <span>Total</span>
+                    <span className="float-right">128</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+            <h2 className="px-1 pb-4 font-display text-[18px] font-extrabold text-[#06135a]">Recent Reports</h2>
+            <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1500px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Report ID', 'Report Name', 'Report Type', 'Site', 'Period', 'Generated On', 'Generated By', 'Status', 'Actions'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReportRows.map((row, index) => (
+                    <tr key={row.reportId}>
+                      <td>{index + 1}</td>
+                      <td className="font-extrabold text-[#2643a2]">{row.reportId}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.reportName}</td>
+                      <td>{row.reportType}</td>
+                      <td>{row.site}</td>
+                      <td>{row.period}</td>
+                      <td className="font-extrabold text-[#223768]">{row.generatedOn}</td>
+                      <td>{row.generatedBy}</td>
+                      <td><OmReportStatusBadge status={row.status} /></td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => onNotify(`${row.reportId} downloaded`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <Download className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => onNotify(`${row.reportId} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                            <Eye className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredReportRows.map((row, index) => (
+                <article key={row.reportId} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[12px] font-extrabold text-[#8a98af]">#{index + 1}</p>
+                      <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.reportId}</p>
+                      <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.reportName}</p>
+                    </div>
+                    <OmReportStatusBadge status={row.status} />
+                  </div>
+                  <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                    <InfoCell label="Report Type" value={row.reportType} />
+                    <InfoCell label="Site" value={row.site} />
+                    <InfoCell label="Period" value={row.period} />
+                    <InfoCell label="Generated By" value={row.generatedBy} />
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+              <p>Showing 1 to {filteredReportRows.length} of 128 entries</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => onNotify('Previous reports page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton onClick={() => onNotify('First reports page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+                <PaginationButton active onClick={() => onNotify('Reports page 1 selected')}>1</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Reports page 2 selected')}>2</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Reports page 3 selected')}>3</PaginationButton>
+                <span className="px-2 text-[#53647f]">...</span>
+                <PaginationButton onClick={() => onNotify('Reports page 22 selected')}>22</PaginationButton>
+                <PaginationButton onClick={() => onNotify('Next reports page selected')}><ChevronRight className="size-4" /></PaginationButton>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function PlugIcon(props) {
+  return <Database {...props} />;
+}
+
+function GaugeIcon(props) {
+  return <Clock3 {...props} />;
+}
+
+function OmEnergyStatusBadge({ status, tone }) {
+  const classes = {
+    green: 'bg-[#e8f8eb] text-[#16a34a]',
+    blue: 'bg-[#e8f2ff] text-[#2563eb]',
+    amber: 'bg-[#fff0dc] text-[#f59e0b]',
+  }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function OmMiniTrend({ tone }) {
+  const stroke = tone === 'amber' ? '#f59e0b' : tone === 'blue' ? '#60a5fa' : '#16a34a';
+  const points = tone === 'amber' ? '0,22 12,10 24,20 36,8 48,14 60,6' : tone === 'blue' ? '0,18 12,8 24,16 36,4 48,12 60,6' : '0,18 12,6 24,16 36,4 48,10 60,2';
+
+  return (
+    <svg viewBox="0 0 60 24" className="h-6 w-16">
+      <polyline fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={points} />
+    </svg>
+  );
+}
+
+function OmEnergyMobileCard({ row, index }) {
+  return (
+    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
+          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.siteName}</p>
+        </div>
+        <OmEnergyStatusBadge status={row.status} tone={row.statusTone} />
+      </div>
+      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+        <InfoCell label="Capacity" value={row.capacity} />
+        <InfoCell label="Generated" value={row.generated} />
+        <InfoCell label="Consumed" value={row.consumed} />
+        <InfoCell label="PR" value={row.ratio} />
+        <InfoCell label="Specific Yield" value={row.yield} />
+        <InfoCell label="Savings" value={row.savings} />
+      </div>
+    </article>
+  );
+}
+
+function OmReportStatusBadge({ status }) {
+  const classes = {
+    Completed: 'bg-[#e8f8eb] text-[#16a34a]',
+    'In Progress': 'bg-[#e8f2ff] text-[#2563eb]',
+    Overdue: 'bg-[#ffe9e6] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
+  if (activeSection !== 'AMC Contracts') {
+    return <OperationsPlaceholderPage moduleTitle="AMC & Warranty" activeSection={activeSection} items={amcSubItems} onOpenSection={onOpenSection} onNotify={onNotify} accent="amber" />;
+  }
+
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [contractType, setContractType] = useState('All Contract Type');
+  const [branch, setBranch] = useState('All Branch');
+  const [customer, setCustomer] = useState('All Customer');
+
+  const rows = [
+    { id: 1, code: 'AMC-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', site: 'Ludhiana Factory (100 kWp)', type: 'Comprehensive', startDate: '01 Apr 2024', endDate: '31 Mar 2025', duration: '12 Months', status: 'Active', nextRenewal: '01 Apr 2025' },
+    { id: 2, code: 'AMC-2024-0002', customer: 'Sharma Textiles', site: 'Sangrur Unit (50 kWp)', type: 'Non-Comprehensive', startDate: '15 Apr 2024', endDate: '14 Apr 2025', duration: '12 Months', status: 'Active', nextRenewal: '15 Apr 2025' },
+    { id: 3, code: 'AMC-2024-0003', customer: 'ABC Motors', site: 'Chandigarh Showroom (80 kWp)', type: 'Comprehensive', startDate: '10 May 2024', endDate: '09 May 2025', duration: '12 Months', status: 'Active', nextRenewal: '10 May 2025' },
+    { id: 4, code: 'AMC-2024-0004', customer: 'Green Field School', site: 'Ludhiana (30 kWp)', type: 'Non-Comprehensive', startDate: '01 Jun 2024', endDate: '31 May 2025', duration: '12 Months', status: 'Active', nextRenewal: '01 Jun 2025' },
+    { id: 5, code: 'AMC-2024-0005', customer: 'XYZ Cold Storage', site: 'Patiala (120 kWp)', type: 'Comprehensive', startDate: '20 Jun 2024', endDate: '19 Jun 2025', duration: '12 Months', status: 'Expiring Soon', nextRenewal: '20 Jun 2025' },
+    { id: 6, code: 'AMC-2024-0006', customer: 'Future Electronics', site: 'Mohali (40 kWp)', type: 'Non-Comprehensive', startDate: '05 Jul 2024', endDate: '04 Jul 2025', duration: '12 Months', status: 'Expiring Soon', nextRenewal: '05 Jul 2025' },
+    { id: 7, code: 'AMC-2024-0007', customer: 'Happy Farms', site: 'Barnala (25 kWp)', type: 'Comprehensive', startDate: '01 Aug 2024', endDate: '31 Jul 2025', duration: '12 Months', status: 'Active', nextRenewal: '01 Aug 2025' },
+    { id: 8, code: 'AMC-2024-0008', customer: 'Sunrise Hospital', site: 'Jalandhar (60 kWp)', type: 'Comprehensive', startDate: '12 Aug 2024', endDate: '11 Aug 2025', duration: '12 Months', status: 'Active', nextRenewal: '12 Aug 2025' },
+  ];
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.code, row.customer, row.site].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const typeMatch = contractType === 'All Contract Type' || row.type === contractType;
+    const branchMatch = branch === 'All Branch' || row.site.includes(branch);
+    const customerMatch = customer === 'All Customer' || row.customer === customer;
+    return queryMatch && statusMatch && typeMatch && branchMatch && customerMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="AMC & Warranty"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'AMC & Warranty' },
+          { label: 'AMC Contracts' },
+        ]}
+        actions={<button type="button" onClick={() => onNotify('New AMC contract flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />New AMC Contract</button>}
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+        <ModuleSubnavCard title="AMC & Warranty" items={amcSubItems} activeSection={activeSection} onOpenSection={onOpenSection} icon={Wrench} />
+
+        <div className="space-y-4">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            <OpsStatCard label="Total Contracts" value="156" caption="All Active & Inactive" icon={FileText} tone="green" onClick={() => onNotify('Total contracts opened')} />
+            <OpsStatCard label="Active Contracts" value="112" caption="Currently Active" icon={ShieldCheck} tone="blue" onClick={() => setStatus('Active')} />
+            <OpsStatCard label="Expiring Soon" value="18" caption="Within 30 Days" icon={Clock3} tone="purple" onClick={() => setStatus('Expiring Soon')} />
+            <OpsStatCard label="Renewals Due" value="26" caption="This Month" icon={CalendarDays} tone="amber" onClick={() => onNotify('Renewals due opened')} />
+            <OpsStatCard label="Warranties" value="243" caption="Products Under Warranty" icon={ClipboardPlus} tone="cyan" onClick={() => onOpenSection('Warranties')} />
+            <OpsStatCard label="Open Service Requests" value="15" caption="Need Attention" icon={Wrench} tone="red" onClick={() => onOpenSection('Service Requests')} />
+          </section>
+
+          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_160px_190px_180px_180px_240px_auto_auto] xl:items-end">
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <Search className="size-4 text-[#7386a3]" />
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search contracts..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+              </label>
+              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Expiring Soon']} hideLabel />
+              <ReportSelect label="Contract Type" value={contractType} onChange={setContractType} options={['All Contract Type', 'Comprehensive', 'Non-Comprehensive']} hideLabel />
+              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Patiala', 'Mohali', 'Barnala', 'Jalandhar']} hideLabel />
+              <ReportSelect label="Customer" value={customer} onChange={setCustomer} options={['All Customer', ...rows.map((row) => row.customer)]} hideLabel />
+              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
+                <CalendarDays className="size-4 text-[#7386a3]" />
+                <span>01/04/2024 - 31/03/2025</span>
+              </label>
+              <button type="button" onClick={() => onNotify(`AMC filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+              <button type="button" onClick={() => onNotify('AMC contracts exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+            </div>
+
+            <h2 className="mt-5 font-display text-[15px] font-extrabold text-[#06135a]">AMC Contracts List</h2>
+
+            <div className="mt-4 space-y-3 xl:hidden">
+              {filteredRows.map((row) => (
+                <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.code}</p>
+                      <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.customer}</p>
+                    </div>
+                    <button type="button" onClick={() => onNotify(`${row.code} details opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                  </div>
+                  <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                    <InfoCell label="Project / Site" value={row.site} />
+                    <InfoCell label="Contract Type" value={row.type} />
+                    <InfoCell label="Start Date" value={row.startDate} />
+                    <InfoCell label="End Date" value={row.endDate} />
+                    <InfoCell label="Next Renewal" value={row.nextRenewal} />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <OpsPillBadge label={row.status} tone={row.status === 'Active' ? 'green' : 'amber'} />
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+              <table className="crm-table min-w-[1220px] w-full">
+                <thead><tr>{['#', 'Contract No.', 'Customer / Company', 'Project / Site', 'Contract Type', 'Start Date', 'End Date', 'Duration', 'Status', 'Next Renewal', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td>{index + 1}</td>
+                      <td className="font-extrabold text-[#0b65e5]">{row.code}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.customer}</td>
+                      <td>{row.site}</td>
+                      <td>{row.type}</td>
+                      <td>{row.startDate}</td>
+                      <td>{row.endDate}</td>
+                      <td>{row.duration}</td>
+                      <td><OpsPillBadge label={row.status} tone={row.status === 'Active' ? 'green' : 'amber'} /></td>
+                      <td>{row.nextRenewal}</td>
+                      <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.code} details opened`)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 156 entries`} totalPage="20" onNotify={onNotify} prefix="AMC Contract" />
+          </article>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Contract Type Summary</h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+                <button type="button" onClick={() => onNotify('Contract type chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#4169f6 0 50%, #ff8a00 50% 86%, #f6b532 86% 96%, #a8b5d3 96% 100%)' }}><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
+                <div className="space-y-3">
+                  <StockLegend color="bg-[#4169f6]" label="Comprehensive" value="78 (50%)" />
+                  <StockLegend color="bg-[#ff8a00]" label="Non-Comprehensive" value="56 (36%)" />
+                  <StockLegend color="bg-[#f6b532]" label="Labour Only" value="15 (10%)" />
+                  <StockLegend color="bg-[#a8b5d3]" label="Others" value="7 (4%)" />
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Expiry Overview</h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+                <button type="button" onClick={() => onNotify('Expiry overview chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#ef4444 0 12%, #ff8a00 12% 27%, #f6b532 27% 41%, #a8b5d3 41% 100%)' }}><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
+                <div className="space-y-3">
+                  <StockLegend color="bg-[#ef4444]" label="Expiring in 0-30 days" value="18 (12%)" />
+                  <StockLegend color="bg-[#ff8a00]" label="Expiring in 31-60 days" value="24 (15%)" />
+                  <StockLegend color="bg-[#f6b532]" label="Expiring in 61-90 days" value="21 (14%)" />
+                  <StockLegend color="bg-[#a8b5d3]" label="More than 90 days" value="93 (59%)" />
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Quick Actions</h2>
+              <div className="mt-5 grid gap-3 min-[440px]:grid-cols-2 xl:grid-cols-3">
+                {[
+                  { label: 'New AMC Contract', icon: FilePlus2, tone: 'amber' },
+                  { label: 'Renewal Reminder', icon: CalendarDays, tone: 'green' },
+                  { label: 'Service Request', icon: Wrench, tone: 'blue' },
+                  { label: 'Visit / Maintenance', icon: ClipboardPlus, tone: 'green' },
+                  { label: 'Reports', icon: BarChart3, tone: 'purple' },
+                ].map((item) => (
+                  <button key={item.label} type="button" onClick={() => onNotify(`${item.label} opened`)} className="rounded-[12px] border border-[#e7eef7] bg-white p-3 text-center transition hover:-translate-y-0.5 hover:bg-[#f8fbff]">
+                    <span className={cx('mx-auto grid size-11 place-items-center rounded-[12px]', item.tone === 'green' ? 'bg-[#e8f8eb] text-[#16a34a]' : item.tone === 'amber' ? 'bg-[#fff0dc] text-[#f59e0b]' : item.tone === 'purple' ? 'bg-[#f2eafe] text-[#8b5cf6]' : 'bg-[#e8f2ff] text-[#0b65e5]')}>
+                      <item.icon className="size-5" />
+                    </span>
+                    <p className="mt-3 text-[13px] font-extrabold text-[#1e3261]">{item.label}</p>
+                  </button>
+                ))}
+              </div>
+            </article>
+          </section>
         </div>
       </section>
 
@@ -5289,10 +10799,10 @@ function InventoryStatusOverview({ onNotify }) {
 
 function StockLegend({ color, dotColor, label, value }) {
   return (
-    <p className="flex items-center gap-3 text-[12px] font-bold text-[#314a79]">
-      <span className={cx('size-2.5 rounded-full', color)} style={dotColor ? { backgroundColor: dotColor } : undefined} />
-      <span className="min-w-0 flex-1">{label}</span>
-      <span>{value}</span>
+    <p className="grid grid-cols-[10px_minmax(0,1fr)_92px] items-start gap-2 text-[11.5px] font-bold text-[#314a79]">
+      <span className={cx('mt-1 size-2.5 rounded-full', color)} style={dotColor ? { backgroundColor: dotColor } : undefined} />
+      <span className="min-w-0 leading-5">{label}</span>
+      <span className="whitespace-nowrap text-right">{value}</span>
     </p>
   );
 }
@@ -6278,6 +11788,1069 @@ function ProjectStatusBadge({ status }) {
     'On Hold': 'bg-[#ffe9e6] text-[#ef4444]',
   }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
   return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function getSettingsDisplayLabel(section) {
+  return settingsDisplayNameMap[section] ?? section;
+}
+
+function SettingsMetricCard({ title, value, subtitle, icon: Icon, tone = 'green', detail, detailTone = 'default', onClick }) {
+  const toneClass = {
+    green: 'bg-[#e8f8eb] text-[#0d9f4a]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+    amber: 'bg-[#fff0dc] text-[#f59e0b]',
+    purple: 'bg-[#f3edff] text-[#8b5cf6]',
+    cyan: 'bg-[#e6f8fb] text-[#0891b2]',
+    red: 'bg-[#ffe9e6] text-[#ef4444]',
+  }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  const detailClass =
+    {
+      positive: 'text-[#0d9f4a]',
+      negative: 'text-[#ef4444]',
+      muted: 'text-[#7585a2]',
+      default: 'text-[#30466d]',
+    }[detailTone] ?? 'text-[#30466d]';
+
+  const Wrapper = onClick ? 'button' : 'article';
+
+  return (
+    <Wrapper
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={cx(`${panelClass} flex min-h-[116px] items-center gap-4 p-5 text-left`, onClick && 'transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]')}
+    >
+      <span className={cx('grid size-12 shrink-0 place-items-center rounded-[14px]', toneClass)}>
+        <Icon className="size-5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[13px] font-extrabold text-[#30466d]">{title}</span>
+        <span className="mt-1 block font-display text-[18px] font-extrabold text-[#111827] sm:text-[20px]">{value}</span>
+        <span className="mt-2 block text-[12px] font-bold text-[#53647f]">{subtitle}</span>
+        {detail ? <span className={cx('mt-2 block text-[11px] font-extrabold', detailClass)}>{detail}</span> : null}
+      </span>
+    </Wrapper>
+  );
+}
+
+function SettingsTokenBadge({ label, tone = 'green' }) {
+  const toneClass = {
+    green: 'bg-[#e8f8eb] text-[#0d9f4a]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+    amber: 'bg-[#fff0dc] text-[#d98200]',
+    purple: 'bg-[#f3edff] text-[#7c3aed]',
+    cyan: 'bg-[#e6f8fb] text-[#0891b2]',
+    red: 'bg-[#ffe9e6] text-[#ef4444]',
+    slate: 'bg-[#eef2f7] text-[#53647f]',
+  }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', toneClass)}>{label}</span>;
+}
+
+function SettingsRoleBadge({ role }) {
+  const tone =
+    {
+      'Super Admin': 'purple',
+      Admin: 'blue',
+      Manager: 'amber',
+      Engineer: 'blue',
+      Accountant: 'cyan',
+      Technician: 'green',
+      'Site Incharge': 'amber',
+      Viewer: 'slate',
+      Guest: 'red',
+    }[role] ?? 'slate';
+
+  return <SettingsTokenBadge label={role} tone={tone} />;
+}
+
+function SettingsResultBadge({ status }) {
+  const tone =
+    {
+      Active: 'green',
+      Inactive: 'red',
+      Success: 'green',
+      Failed: 'red',
+      Queued: 'amber',
+      Blocked: 'red',
+      Allow: 'green',
+      Block: 'red',
+    }[status] ?? 'slate';
+
+  return <SettingsTokenBadge label={status} tone={tone} />;
+}
+
+function SettingsActionBadge({ action }) {
+  const tone =
+    {
+      Login: 'green',
+      Create: 'green',
+      Update: 'blue',
+      Delete: 'red',
+      Download: 'purple',
+      'Login Failed': 'amber',
+    }[action] ?? 'slate';
+
+  return <SettingsTokenBadge label={action} tone={tone} />;
+}
+
+function SettingsSidebarInfoCard({ title, icon: Icon, children }) {
+  return (
+    <article className={`${panelClass} p-5`}>
+      <h3 className="flex items-center gap-2 text-[15px] font-extrabold text-[#06135a]">
+        <Icon className="size-4 text-[#0b65e5]" />
+        {title}
+      </h3>
+      <div className="mt-4">{children}</div>
+    </article>
+  );
+}
+
+function SettingsPermissionToggle({ value, onClick, label }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label} className="inline-flex size-7 items-center justify-center rounded-[8px] transition hover:bg-[#f8fbff]">
+      {value === true ? (
+        <span className="grid size-5 place-items-center rounded-[5px] bg-[#0d9f4a] text-white">
+          <CheckCircle2 className="size-4" />
+        </span>
+      ) : value === 'partial' ? (
+        <span className="grid size-5 place-items-center rounded-[5px] bg-[#fff0dc] text-[#f59e0b]">
+          <Minus className="size-4" />
+        </span>
+      ) : (
+        <span className="size-5 rounded-[5px] border border-[#cbd5e1] bg-white" />
+      )}
+    </button>
+  );
+}
+
+function createSettingsRolePermissions(roleName) {
+  const template = [
+    { module: 'Dashboard', description: 'View dashboard and analytics' },
+    { module: 'Lead Management', description: 'Manage leads and inquiries' },
+    { module: 'Project Management', description: 'Create and manage projects' },
+    { module: 'Liaisoning & Commissioning', description: 'Manage LC applications and approvals' },
+    { module: 'O&M', description: 'Operation and maintenance activities' },
+    { module: 'Accounts', description: 'Invoices, payments and accounting' },
+    { module: 'Inventory', description: 'Stock and warehouse management' },
+    { module: 'Reports', description: 'View and export reports' },
+  ];
+
+  const guestMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: false };
+  const viewerMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: true };
+  const managerMatrix = {
+    Dashboard: { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: true },
+    'Lead Management': { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    'Project Management': { View: true, Add: true, Edit: 'partial', Delete: false, Export: true },
+    'Liaisoning & Commissioning': { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: false },
+    'O&M': { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: true },
+    Accounts: { View: true, Add: 'partial', Edit: false, Delete: false, Export: true },
+    Inventory: { View: true, Add: 'partial', Edit: true, Delete: false, Export: true },
+    Reports: { View: true, Add: false, Edit: false, Delete: false, Export: true },
+  };
+
+  return template.map((row, index) => {
+    if (roleName === 'Super Admin') {
+      return {
+        ...row,
+        permissions: {
+          View: true,
+          Add: index === 0 ? 'partial' : true,
+          Edit: index === 0 ? 'partial' : true,
+          Delete: index === 0 ? false : true,
+          Export: true,
+        },
+      };
+    }
+
+    if (roleName === 'Admin') {
+      return {
+        ...row,
+        permissions: {
+          View: true,
+          Add: index === 0 ? false : true,
+          Edit: index === 0 ? false : true,
+          Delete: ['Lead Management', 'Project Management', 'Inventory'].includes(row.module),
+          Export: true,
+        },
+      };
+    }
+
+    if (roleName === 'Viewer') {
+      return { ...row, permissions: viewerMatrix };
+    }
+
+    if (roleName === 'Guest') {
+      return { ...row, permissions: guestMatrix };
+    }
+
+    return { ...row, permissions: managerMatrix[row.module] ?? guestMatrix };
+  });
+}
+
+function SettingsUsersPage({ onNotify }) {
+  const [users, setUsers] = useState(settingsUsersSeed);
+  const [query, setQuery] = useState('');
+  const [role, setRole] = useState('All Roles');
+  const [status, setStatus] = useState('All Status');
+  const [branch, setBranch] = useState('All Branches');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
+  const [addUserOpen, setAddUserOpen] = useState(false);
+
+  const filteredUsers = users.filter((user) => {
+    const queryMatch = [user.name, user.email, user.phone, user.branch].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const roleMatch = role === 'All Roles' || user.role === role;
+    const statusMatch = status === 'All Status' || user.status === status;
+    const branchMatch = branch === 'All Branches' || user.branch === branch;
+    return queryMatch && roleMatch && statusMatch && branchMatch;
+  });
+
+  const activeUsers = users.filter((user) => user.status === 'Active').length;
+  const inactiveUsers = users.filter((user) => user.status === 'Inactive').length;
+  const adminsCount = users.filter((user) => ['Super Admin', 'Admin'].includes(user.role)).length;
+
+  const saveUser = (payload) => {
+    if (editingUser) {
+      setUsers((current) => current.map((item) => (item.id === payload.id ? payload : item)));
+      setEditingUser(null);
+      onNotify(`${payload.name} updated`);
+      return;
+    }
+
+    setUsers((current) => [payload, ...current]);
+    setAddUserOpen(false);
+    onNotify(`${payload.name} added`);
+  };
+
+  const toggleUserStatus = (user) => {
+    const nextStatus = user.status === 'Active' ? 'Inactive' : 'Active';
+    setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, status: nextStatus } : item)));
+    onNotify(`${user.name} marked ${nextStatus}`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Users List"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
+          { label: 'User & Access Management', onClick: () => onNotify('User & Access Management opened') },
+          { label: 'Users' },
+        ]}
+        actions={<button type="button" onClick={() => setAddUserOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add New User</button>}
+      />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <SettingsMetricCard title="Total Users" value={String(users.length)} subtitle="All System Users" icon={Users} tone="green" />
+        <SettingsMetricCard title="Active Users" value={String(activeUsers)} subtitle="Currently Active" detail="5 from last month" detailTone="positive" icon={UsersRound} tone="blue" />
+        <SettingsMetricCard title="Inactive Users" value={String(inactiveUsers)} subtitle="Currently Inactive" detail="1 from last month" detailTone="negative" icon={UserRound} tone="amber" />
+        <SettingsMetricCard title="Admins" value={String(adminsCount)} subtitle="Super Admins" icon={ShieldCheck} tone="purple" />
+        <SettingsMetricCard title="New This Month" value="6" subtitle="Newly Added Users" detail="2 from last month" detailTone="positive" icon={UserPlus} tone="cyan" />
+      </section>
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.45fr_0.8fr_0.8fr_0.95fr_auto_auto] xl:items-end">
+          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+            <Search className="size-4 text-[#7386a3]" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search users by name, email, phone..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+          </label>
+          <ReportSelect label="Role" value={role} onChange={setRole} options={['All Roles', ...new Set(users.map((user) => user.role))]} hideLabel />
+          <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Inactive']} hideLabel />
+          <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branches', ...new Set(users.map((user) => user.branch))]} hideLabel />
+          <button type="button" onClick={() => onNotify(`Users exported: ${filteredUsers.length} rows`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+          <button type="button" onClick={() => onNotify(`Filters applied: ${filteredUsers.length} users`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filter</button>
+        </div>
+      </section>
+
+      <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+        <div className="space-y-3 lg:hidden">
+          {filteredUsers.map((user, index) => (
+            <article key={user.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[12px] font-extrabold text-[#8a98af]">#{index + 1}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <AssigneeCell assignee={user.assignee} />
+                    {user.isYou ? <SettingsTokenBadge label="You" tone="green" /> : null}
+                  </div>
+                </div>
+                <SettingsResultBadge status={user.status} />
+              </div>
+              <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                <InfoCell label="Email" value={user.email} />
+                <InfoCell label="Phone" value={user.phone} />
+                <InfoCell label="Role" valueNode={<SettingsRoleBadge role={user.role} />} />
+                <InfoCell label="Branch" value={user.branch} />
+                <InfoCell label="Last Login" value={user.lastLogin} />
+              </div>
+              <div className="mt-4 flex gap-2">
+                <button type="button" onClick={() => setSelectedUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
+                <button type="button" onClick={() => setEditingUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />Edit</button>
+                <button type="button" onClick={() => toggleUserStatus(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#284276]"><RefreshCw className="size-4" />Status</button>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+          <table className="crm-table min-w-[1300px] w-full">
+            <thead>
+              <tr>{['#', 'User Name', 'Email', 'Phone Number', 'Role', 'Branch / Location', 'Status', 'Last Login', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map((user, index) => (
+                <tr key={user.id}>
+                  <td>{index + 1}</td>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <AssigneeCell assignee={user.assignee} compact />
+                      {user.isYou ? <SettingsTokenBadge label="You" tone="green" /> : null}
+                    </div>
+                  </td>
+                  <td>{user.email}</td>
+                  <td>{user.phone}</td>
+                  <td><SettingsRoleBadge role={user.role} /></td>
+                  <td>{user.branch}</td>
+                  <td><SettingsResultBadge status={user.status} /></td>
+                  <td>{user.lastLogin}</td>
+                  <td>
+                    <div className="flex items-center justify-end gap-2">
+                      <UserActionButton label={`View ${user.name}`} icon={Eye} tone="blue" onClick={() => setSelectedUser(user)} />
+                      <UserActionButton label={`Edit ${user.name}`} icon={FileText} tone="blue" onClick={() => setEditingUser(user)} />
+                      <UserActionButton label={`Toggle ${user.name}`} icon={RefreshCw} tone="blue" onClick={() => toggleUserStatus(user)} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+          <p>Showing 1 to {filteredUsers.length} of {users.length} entries</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <PaginationButton onClick={() => onNotify('Previous users page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+            <PaginationButton active onClick={() => onNotify('Users page 1 selected')}>1</PaginationButton>
+            <PaginationButton onClick={() => onNotify('Users page 2 selected')}>2</PaginationButton>
+            <PaginationButton onClick={() => onNotify('Users page 3 selected')}>3</PaginationButton>
+            <span className="px-2 text-[#53647f]">...</span>
+            <PaginationButton onClick={() => onNotify('Users page 6 selected')}>6</PaginationButton>
+            <PaginationButton onClick={() => onNotify('Next users page selected')}><ChevronRight className="size-4" /></PaginationButton>
+          </div>
+        </div>
+      </section>
+
+      <DashboardFooter />
+
+      {selectedUser ? <SettingsUserProfileModal user={selectedUser} onClose={() => setSelectedUser(null)} onEdit={() => { setEditingUser(selectedUser); setSelectedUser(null); }} onToggleStatus={toggleUserStatus} onNotify={onNotify} /> : null}
+      {addUserOpen ? <SettingsUserFormModal onClose={() => setAddUserOpen(false)} onSave={saveUser} /> : null}
+      {editingUser ? <SettingsUserFormModal initialUser={editingUser} onClose={() => setEditingUser(null)} onSave={saveUser} /> : null}
+    </div>
+  );
+}
+
+function SettingsUserFormModal({ initialUser = null, onClose, onSave }) {
+  const [form, setForm] = useState(() => initialUser ?? {
+    id: Date.now(),
+    name: '',
+    email: '',
+    phone: '',
+    role: 'Manager',
+    branch: 'Head Office, Ludhiana',
+    status: 'Active',
+    lastLogin: 'Never',
+    joinedOn: 'Today',
+    assignee: { name: 'New User', initials: 'NU', tone: 'emerald' },
+  });
+
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+  const save = () => {
+    const name = form.name.trim() || 'New User';
+    const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NU';
+    onSave({
+      ...form,
+      name,
+      email: form.email.trim() || `${name.toLowerCase().replace(/\s+/g, '.')}@malwasolar.com`,
+      phone: form.phone.trim() || '+91 90000 00000',
+      assignee: { ...form.assignee, name, initials },
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-[720px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
+          <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{initialUser ? 'Edit User' : 'Add New User'}</h2>
+          <button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="grid gap-4 p-6 sm:grid-cols-2">
+          <ModalTextInput label="User Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Enter user name" />
+          <ModalTextInput label="Email" value={form.email} onChange={(value) => updateField('email', value)} placeholder="Enter email address" />
+          <ModalTextInput label="Phone Number" value={form.phone} onChange={(value) => updateField('phone', value)} placeholder="+91 98765 43210" />
+          <ReportSelect label="Role" value={form.role} onChange={(value) => updateField('role', value)} options={['Super Admin', 'Admin', 'Manager', 'Engineer', 'Accountant', 'Technician', 'Site Incharge', 'Viewer', 'Guest']} />
+          <ReportSelect label="Branch" value={form.branch} onChange={(value) => updateField('branch', value)} options={['Head Office, Ludhiana', 'Sangrur Branch', 'Chandigarh Branch', 'Jaipur Branch', 'Indore Branch', 'Patiala Branch', 'Bangalore Branch']} />
+          <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} />
+        </div>
+        <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-5 sm:flex-row">
+          <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+          <button type="button" onClick={save} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white"><Save className="size-4" />Save User</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNotify }) {
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-[640px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <AssigneeCell assignee={user.assignee} />
+            <p className="mt-2 text-[13px] font-bold text-[#53647f]">{user.email}</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <InfoCell label="Phone Number" value={user.phone} />
+          <InfoCell label="Role" valueNode={<SettingsRoleBadge role={user.role} />} />
+          <InfoCell label="Branch" value={user.branch} />
+          <InfoCell label="Status" valueNode={<SettingsResultBadge status={user.status} />} />
+          <InfoCell label="Last Login" value={user.lastLogin} />
+          <InfoCell label="Joined On" value={user.joinedOn} />
+        </div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <MiniActionButton label="Edit User" icon={FileText} tone="blue" onClick={onEdit} />
+          <MiniActionButton label="Reset Password" icon={LockKeyhole} tone="purple" onClick={() => onNotify(`Password reset sent to ${user.name}`)} />
+          <MiniActionButton label={user.status === 'Active' ? 'Deactivate' : 'Activate'} icon={RefreshCw} tone="amber" onClick={() => onToggleStatus(user)} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsRolesPermissionsPage({ onNotify }) {
+  const [roles, setRoles] = useState(settingsRolesSeed);
+  const [selectedRoleName, setSelectedRoleName] = useState('Manager');
+  const [activeTab, setActiveTab] = useState('Permissions');
+  const [query, setQuery] = useState('');
+  const [permissionRows, setPermissionRows] = useState(() => createSettingsRolePermissions('Manager'));
+  const [addRoleOpen, setAddRoleOpen] = useState(false);
+
+  const filteredRoles = roles.filter((role) => role.name.toLowerCase().includes(query.toLowerCase()));
+  const selectedRole = roles.find((role) => role.name === selectedRoleName) ?? roles[0];
+  const selectedRoleUsers = settingsUsersSeed.filter((user) => user.role === selectedRole.name);
+
+  const switchRole = (roleName) => {
+    setSelectedRoleName(roleName);
+    setPermissionRows(createSettingsRolePermissions(roleName));
+    onNotify(`${roleName} role selected`);
+  };
+
+  const updatePermission = (moduleName, permissionName) => {
+    setPermissionRows((current) => current.map((row) => {
+      if (row.module !== moduleName) {
+        return row;
+      }
+
+      const currentValue = row.permissions[permissionName];
+      const nextValue = currentValue === false ? 'partial' : currentValue === 'partial' ? true : false;
+      return { ...row, permissions: { ...row.permissions, [permissionName]: nextValue } };
+    }));
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Roles & Permissions"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
+          { label: 'User & Access Management', onClick: () => onNotify('User & Access Management opened') },
+          { label: 'Roles & Permissions' },
+        ]}
+        actions={
+          <>
+            <label className="flex h-11 w-full min-w-[220px] items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:w-[240px]">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search roles..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <button type="button" onClick={() => setAddRoleOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add New Role</button>
+          </>
+        }
+      />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <SettingsMetricCard title="Total Roles" value={String(roles.length)} subtitle="All System Roles" icon={UsersRound} tone="green" />
+        <SettingsMetricCard title="Active Roles" value={String(roles.filter((role) => role.status === 'Active').length)} subtitle="Currently Active" detail="13% from last month" detailTone="positive" icon={ShieldCheck} tone="blue" />
+        <SettingsMetricCard title="Inactive Roles" value={String(roles.filter((role) => role.status === 'Inactive').length)} subtitle="Currently Inactive" detail="1 from last month" detailTone="negative" icon={UserPlus} tone="amber" />
+        <SettingsMetricCard title="Total Permissions" value="186" subtitle="Across All Modules" icon={LockKeyhole} tone="purple" />
+        <SettingsMetricCard title="Custom Roles" value={String(roles.filter((role) => role.type === 'Custom Role').length)} subtitle="Created Roles" icon={ClipboardPlus} tone="cyan" />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.38fr)]">
+        <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Roles List</h2>
+            <button type="button" onClick={() => onNotify('Role list exported')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+          </div>
+
+          <div className="mt-4 space-y-3 xl:hidden">
+            {filteredRoles.map((role) => (
+              <button key={role.id} type="button" onClick={() => switchRole(role.name)} className={cx('w-full rounded-[14px] border p-4 text-left transition', selectedRoleName === role.name ? 'border-[#d4efdd] bg-[#f5fff8]' : 'border-[#e7eef7] bg-white hover:bg-[#f8fbff]')}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[15px] font-extrabold text-[#1e3261]">{role.name}</p>
+                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">{role.type}</p>
+                  </div>
+                  <SettingsResultBadge status={role.status} />
+                </div>
+                <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                  <InfoCell label="Users" value={String(role.users)} />
+                  <InfoCell label="Type" valueNode={<SettingsTokenBadge label={role.type} tone={role.type === 'System Role' ? 'green' : 'blue'} />} />
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+            <table className="crm-table min-w-[620px] w-full">
+              <thead><tr>{['#', 'Role Name', 'Users', 'Status', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <tbody>
+                {filteredRoles.map((role, index) => (
+                  <tr key={role.id} className={cx(selectedRoleName === role.name && 'bg-[#f7fff9]')}>
+                    <td>{index + 1}</td>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <span className={cx('grid size-10 place-items-center rounded-[12px]', getRoleToneClass(role.tone))}>
+                          <UsersRound className="size-5" />
+                        </span>
+                        <div>
+                          <p className="font-extrabold text-[#1e3261]">{role.name}</p>
+                          <p className="mt-1 text-[11px] font-bold text-[#6f7f98]">{role.type}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{role.users}</td>
+                    <td><SettingsResultBadge status={role.status} /></td>
+                    <td><div className="flex items-center justify-end gap-2"><UserActionButton label={`Open ${role.name}`} icon={Eye} tone="blue" onClick={() => switchRole(role.name)} /><UserActionButton label={`More actions for ${role.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${role.name} actions opened`)} /></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-4 px-1 pt-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+            <p>Showing 1 to {filteredRoles.length} of {roles.length} entries</p>
+            <div className="flex items-center gap-2">
+              <PaginationButton onClick={() => onNotify('Previous role page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+              <PaginationButton active onClick={() => onNotify('Roles page 1 selected')}>1</PaginationButton>
+              <PaginationButton onClick={() => onNotify('Next role page selected')}><ChevronRight className="size-4" /></PaginationButton>
+            </div>
+          </div>
+        </article>
+
+        <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Role Details & Permissions</h2>
+            <ReportSelect label="Select Role" value={selectedRoleName} onChange={switchRole} options={roles.map((role) => role.name)} hideLabel className="sm:w-[220px]" />
+          </div>
+          <div className="mt-5 flex gap-6 border-b border-[#edf2f8] text-[13px] font-extrabold">
+            {['Role Details', 'Permissions'].map((tab) => (
+              <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={cx('pb-3 transition', activeTab === tab ? 'border-b-2 border-[#0d9f4a] text-[#078c3e]' : 'border-b-2 border-transparent text-[#53647f] hover:text-[#0b65e5]')}>{tab}</button>
+            ))}
+          </div>
+
+          {activeTab === 'Role Details' ? (
+            <div className="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+              <article className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                <p className="text-[14px] font-extrabold text-[#1e3261]">{selectedRole.name}</p>
+                <p className="mt-2 text-[12px] font-bold text-[#53647f]">{selectedRole.type}</p>
+                <div className="mt-4 grid gap-3 text-[12px] sm:grid-cols-2">
+                  <InfoCell label="Status" valueNode={<SettingsResultBadge status={selectedRole.status} />} />
+                  <InfoCell label="Users Assigned" value={String(selectedRole.users)} />
+                  <InfoCell label="Access Type" value="Module level access" />
+                  <InfoCell label="Last Updated" value="20 May 2024" />
+                </div>
+              </article>
+              <article className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                <p className="text-[14px] font-extrabold text-[#1e3261]">Users with this Role</p>
+                <div className="mt-4 space-y-3">
+                  {(selectedRoleUsers.length ? selectedRoleUsers : settingsUsersSeed.slice(0, 3)).map((user) => (
+                    <div key={user.id} className="flex items-center justify-between gap-3 rounded-[10px] border border-[#edf2f8] px-3 py-3">
+                      <div>
+                        <AssigneeCell assignee={user.assignee} compact />
+                        <p className="mt-1 text-[12px] font-bold text-[#53647f]">{user.email}</p>
+                      </div>
+                      <SettingsResultBadge status={user.status} />
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </div>
+          ) : (
+            <div className="mt-5">
+              <div className="mb-4 flex flex-wrap items-center gap-5 text-[12px] font-extrabold text-[#30466d]">
+                <span className="inline-flex items-center gap-2"><span className="grid size-5 place-items-center rounded-[5px] bg-[#0d9f4a] text-white"><CheckCircle2 className="size-4" /></span>Full Access</span>
+                <span className="inline-flex items-center gap-2"><span className="grid size-5 place-items-center rounded-[5px] bg-[#fff0dc] text-[#f59e0b]"><Minus className="size-4" /></span>Partial Access</span>
+                <span className="inline-flex items-center gap-2"><span className="size-5 rounded-[5px] border border-[#cbd5e1] bg-white" />No Access</span>
+              </div>
+              <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
+                <table className="crm-table min-w-[880px] w-full">
+                  <thead><tr>{['Module', 'View', 'Add', 'Edit', 'Delete', 'Export'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {permissionRows.map((row) => (
+                      <tr key={row.module}>
+                        <td><div><p className="font-extrabold text-[#1e3261]">{row.module}</p><p className="mt-1 text-[11px] font-bold text-[#6f7f98]">{row.description}</p></div></td>
+                        {['View', 'Add', 'Edit', 'Delete', 'Export'].map((permission) => (
+                          <td key={`${row.module}-${permission}`}><SettingsPermissionToggle value={row.permissions[permission]} onClick={() => updatePermission(row.module, permission)} label={`${row.module} ${permission}`} /></td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button type="button" onClick={() => setPermissionRows(createSettingsRolePermissions(selectedRoleName))} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">Cancel</button>
+                <button type="button" onClick={() => onNotify(`${selectedRoleName} permissions saved`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]">Save Permissions</button>
+              </div>
+            </div>
+          )}
+        </article>
+      </section>
+
+      <DashboardFooter />
+
+      {addRoleOpen ? (
+        <AddRoleModal
+          onClose={() => setAddRoleOpen(false)}
+          onSave={(roleName) => {
+            const newRole = { id: Date.now(), name: roleName, type: 'Custom Role', users: 0, status: 'Active', tone: 'blue' };
+            setRoles((current) => [...current, newRole]);
+            setAddRoleOpen(false);
+            switchRole(roleName);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ActivityIcon(props) {
+  return <Heart {...props} />;
+}
+
+function SettingsUserActivityLogPage({ onNotify }) {
+  const [query, setQuery] = useState('');
+  const [user, setUser] = useState('All Users');
+  const [action, setAction] = useState('All Actions');
+  const [moduleName, setModuleName] = useState('All Modules');
+  const [status, setStatus] = useState('All Status');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+
+  const filteredLogs = settingsActivitySeed.filter((log) => {
+    const queryMatch = [log.user.name, log.action, log.module, log.ip, log.description].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const userMatch = user === 'All Users' || log.user.name === user;
+    const actionMatch = action === 'All Actions' || log.action === action;
+    const moduleMatch = moduleName === 'All Modules' || log.module === moduleName;
+    const statusMatch = status === 'All Status' || log.status === status;
+    return queryMatch && userMatch && actionMatch && moduleMatch && statusMatch;
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="User Activity Logs"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
+          { label: 'User & Access Management', onClick: () => onNotify('User & Access Management opened') },
+          { label: 'User Activity Logs' },
+        ]}
+        actions={<><button type="button" onClick={() => onNotify('Activity logs exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => onNotify(`Showing ${filteredLogs.length} filtered log entries`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filter</button></>}
+      />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <SettingsMetricCard title="Total Activities" value="2,458" subtitle="All Time" icon={ActivityIcon} tone="green" />
+        <SettingsMetricCard title="Today's Activities" value="156" subtitle="20 May 2024" icon={CalendarDays} tone="blue" />
+        <SettingsMetricCard title="Active Users Today" value="28" subtitle="20 May 2024" icon={Users} tone="amber" />
+        <SettingsMetricCard title="Security Events" value="12" subtitle="Last 7 Days" icon={ShieldCheck} tone="purple" />
+        <SettingsMetricCard title="Failed Login Attempts" value="18" subtitle="Last 7 Days" icon={ClipboardPlus} tone="cyan" />
+      </section>
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.25fr_0.82fr_0.82fr_0.82fr_0.82fr_auto_auto] xl:items-end">
+          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+            <Search className="size-4 text-[#7386a3]" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by user, action, module, ip..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+          </label>
+          <ReportSelect label="User" value={user} onChange={setUser} options={['All Users', ...new Set(settingsActivitySeed.map((log) => log.user.name))]} hideLabel />
+          <ReportSelect label="Action" value={action} onChange={setAction} options={['All Actions', ...new Set(settingsActivitySeed.map((log) => log.action))]} hideLabel />
+          <ReportSelect label="Module" value={moduleName} onChange={setModuleName} options={['All Modules', ...new Set(settingsActivitySeed.map((log) => log.module))]} hideLabel />
+          <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Success', 'Failed']} hideLabel />
+          <label className="block"><input type="text" readOnly value={`${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`} className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]" /></label>
+          <button type="button" onClick={() => { setQuery(''); setUser('All Users'); setAction('All Actions'); setModuleName('All Modules'); setStatus('All Status'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('Activity log filters reset'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
+        </div>
+      </section>
+
+      <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+        <div className="space-y-3 lg:hidden">
+          {filteredLogs.map((log, index) => (
+            <article key={log.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="text-[12px] font-extrabold text-[#8a98af]">#{index + 1}</p><p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{log.time}</p></div>
+                <SettingsResultBadge status={log.status} />
+              </div>
+              <div className="mt-4 grid gap-3 text-[12px]">
+                <InfoCell label="User" valueNode={<AssigneeCell assignee={log.user.assignee} compact />} />
+                <InfoCell label="Action" valueNode={<SettingsActionBadge action={log.action} />} />
+                <InfoCell label="Module" value={log.module} />
+                <InfoCell label="Description" value={log.description} />
+                <InfoCell label="IP Address" value={log.ip} />
+              </div>
+              <button type="button" onClick={() => onNotify(`Activity log ${log.id} opened`)} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View Details</button>
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+          <table className="crm-table min-w-[1380px] w-full">
+            <thead><tr>{['#', 'Date & Time', 'User', 'Action', 'Module', 'Description', 'IP Address', 'Status', 'Details'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+            <tbody>
+              {filteredLogs.map((log, index) => (
+                <tr key={log.id}>
+                  <td>{index + 1}</td>
+                  <td className="font-extrabold text-[#1e3261]">{log.time}</td>
+                  <td><AssigneeCell assignee={log.user.assignee} compact /></td>
+                  <td><SettingsActionBadge action={log.action} /></td>
+                  <td>{log.module}</td>
+                  <td className="max-w-[320px] whitespace-normal leading-5">{log.description}</td>
+                  <td>{log.ip}</td>
+                  <td><SettingsResultBadge status={log.status} /></td>
+                  <td><UserActionButton label={`Open log ${log.id}`} icon={Eye} tone="blue" onClick={() => onNotify(`Activity log ${log.id} opened`)} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+          <p>Showing 1 to {filteredLogs.length} of 2,458 entries</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <PaginationButton onClick={() => onNotify('Previous activity page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+            <PaginationButton active onClick={() => onNotify('Activity page 1 selected')}>1</PaginationButton>
+            <PaginationButton onClick={() => onNotify('Activity page 2 selected')}>2</PaginationButton>
+            <PaginationButton onClick={() => onNotify('Activity page 3 selected')}>3</PaginationButton>
+            <span className="px-2 text-[#53647f]">...</span>
+            <PaginationButton onClick={() => onNotify('Activity page 246 selected')}>246</PaginationButton>
+            <PaginationButton onClick={() => onNotify('Next activity page selected')}><ChevronRight className="size-4" /></PaginationButton>
+          </div>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function SettingsIpRestrictionsPage({ onNotify }) {
+  const [rules, setRules] = useState(settingsIpRulesSeed);
+  const [activeTab, setActiveTab] = useState('IP Access Rules');
+  const [ruleFilter, setRuleFilter] = useState('All Rules');
+  const [query, setQuery] = useState('');
+  const [editingRule, setEditingRule] = useState(null);
+  const [addRuleOpen, setAddRuleOpen] = useState(false);
+  const [securityConfig, setSecurityConfig] = useState({
+    strictMode: true,
+    whitelistOnly: false,
+    loginAlert: true,
+    syncDelay: true,
+  });
+
+  const filteredRules = rules.filter((rule) => {
+    const queryMatch = [rule.name, rule.ipRange, rule.description].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const filterMatch = ruleFilter === 'All Rules' || rule.type === ruleFilter.replace(' Rules', '');
+    return queryMatch && filterMatch;
+  });
+
+  const allowCount = rules.filter((rule) => rule.type === 'Allow').length;
+  const blockCount = rules.filter((rule) => rule.type === 'Block').length;
+  const lastBlocked = settingsBlockedAttemptsSeed[0];
+
+  const saveRule = (payload) => {
+    if (editingRule) {
+      setRules((current) => current.map((item) => (item.id === payload.id ? payload : item)));
+      setEditingRule(null);
+      onNotify(`${payload.name} updated`);
+      return;
+    }
+
+    setRules((current) => [payload, ...current]);
+    setAddRuleOpen(false);
+    onNotify(`${payload.name} added`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="IP Restriction / Security Settings"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
+          { label: 'User & Access Management', onClick: () => onNotify('User & Access Management opened') },
+          { label: 'IP Restrictions' },
+        ]}
+        actions={<><button type="button" onClick={() => setAddRuleOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><ShieldCheck className="size-4" />Add IP Rule</button><button type="button" onClick={() => setActiveTab('Audit Log')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><ClipboardPlus className="size-4 text-[#0b65e5]" />Audit Log</button></>}
+      />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SettingsMetricCard title="IP Protection Status" value="Enabled" subtitle="System is protected" icon={ShieldCheck} tone="green" />
+        <SettingsMetricCard title="Allowed IPs" value={String(allowCount)} subtitle="IPs whitelisted" icon={Database} tone="blue" />
+        <SettingsMetricCard title="Blocked IPs" value={String(blockCount)} subtitle="IPs blacklisted" icon={XCircle} tone="amber" />
+        <SettingsMetricCard title="Last Blocked Attempt" value={lastBlocked.attemptedAt} subtitle={lastBlocked.ip} icon={LockKeyhole} tone="purple" />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+          <div className="scroll-soft flex gap-6 overflow-x-auto border-b border-[#e5edf6]">
+            {['IP Access Rules', 'Security Settings', 'Blocked Attempts', 'Audit Log'].map((tab) => (
+              <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={cx('shrink-0 border-b-2 pb-3 text-[13px] font-extrabold transition', activeTab === tab ? 'border-[#0d9f4a] text-[#087a39]' : 'border-transparent text-[#53647f] hover:text-[#0b65e5]')}>{tab}</button>
+            ))}
+          </div>
+
+          {activeTab === 'IP Access Rules' ? (
+            <div className="mt-5">
+              <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
+                <ReportSelect label="Rule Type" value={ruleFilter} onChange={setRuleFilter} options={['All Rules', 'Allow Rules', 'Block Rules']} hideLabel />
+                <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                  <Search className="size-4 text-[#7386a3]" />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search IP or description..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+                </label>
+              </div>
+
+              <div className="mt-4 space-y-3 xl:hidden">
+                {filteredRules.map((rule, index) => (
+                  <article key={rule.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div><p className="text-[12px] font-extrabold text-[#8a98af]">#{index + 1}</p><p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{rule.name}</p></div>
+                      <SettingsTokenBadge label={rule.type} tone={rule.type === 'Allow' ? 'green' : 'red'} />
+                    </div>
+                    <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                      <InfoCell label="IP Address / Range" value={rule.ipRange} />
+                      <InfoCell label="Description" value={rule.description} />
+                      <InfoCell label="Status" valueNode={<SettingsResultBadge status={rule.status} />} />
+                      <InfoCell label="Priority" value={rule.priority} />
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <button type="button" onClick={() => setEditingRule(rule)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />Edit</button>
+                      <button type="button" onClick={() => onNotify(`${rule.name} actions opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#1e3261]"><MoreVertical className="size-4" />Actions</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                <table className="crm-table min-w-[1120px] w-full">
+                  <thead><tr>{['#', 'Rule Name', 'Type', 'IP Address / Range', 'Description', 'Status', 'Priority', 'Created On', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {filteredRules.map((rule, index) => (
+                      <tr key={rule.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#1e3261]">{rule.name}</td>
+                        <td><SettingsTokenBadge label={rule.type} tone={rule.type === 'Allow' ? 'green' : 'red'} /></td>
+                        <td>{rule.ipRange}</td>
+                        <td>{rule.description}</td>
+                        <td><SettingsResultBadge status={rule.status} /></td>
+                        <td>{rule.priority}</td>
+                        <td>{rule.createdOn}</td>
+                        <td><UserActionButton label={`Edit ${rule.name}`} icon={MoreVertical} tone="blue" onClick={() => setEditingRule(rule)} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : activeTab === 'Security Settings' ? (
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              {[
+                ['Strict Security Mode', 'Enable additional checks for unauthorized access.', 'strictMode'],
+                ['Whitelist Priority', 'Allowed IP rules are checked before fallback access.', 'whitelistOnly'],
+                ['Login Alerts', 'Send alerts when blocked attempts are detected.', 'loginAlert'],
+                ['Auto Sync Delay', 'Apply IP restriction changes with safe staggered sync.', 'syncDelay'],
+              ].map(([label, note, key]) => (
+                <button key={key} type="button" onClick={() => setSecurityConfig((current) => ({ ...current, [key]: !current[key] }))} className="rounded-[12px] border border-[#e7eef7] bg-white p-4 text-left transition hover:bg-[#f8fbff]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="text-[14px] font-extrabold text-[#1e3261]">{label}</p><p className="mt-2 text-[12px] font-bold leading-5 text-[#53647f]">{note}</p></div>
+                    <span className={cx('inline-flex h-6 w-11 items-center rounded-full p-1 transition', securityConfig[key] ? 'bg-[#0d9f4a]' : 'bg-[#dbe4f1]')}><span className={cx('size-4 rounded-full bg-white transition', securityConfig[key] ? 'translate-x-5' : 'translate-x-0')} /></span>
+                  </div>
+                </button>
+              ))}
+              <div className="md:col-span-2"><button type="button" onClick={() => onNotify('Security settings saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]">Save Security Settings</button></div>
+            </div>
+          ) : activeTab === 'Blocked Attempts' ? (
+            <div className="mt-5 grid gap-3">
+              {settingsBlockedAttemptsSeed.map((attempt) => (
+                <article key={attempt.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div><p className="text-[14px] font-extrabold text-[#1e3261]">{attempt.ip}</p><p className="mt-1 text-[12px] font-bold text-[#53647f]">{attempt.attemptedAt} • {attempt.source}</p></div>
+                    <SettingsResultBadge status={attempt.action} />
+                  </div>
+                  <p className="mt-3 text-[13px] font-semibold text-[#314a79]">{attempt.reason}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
+              <table className="crm-table min-w-[760px] w-full">
+                <thead><tr>{['#', 'Date & Time', 'Actor', 'Action', 'Target', 'Result'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <tbody>
+                  {settingsIpAuditSeed.map((log, index) => (
+                    <tr key={log.id}>
+                      <td>{index + 1}</td>
+                      <td>{log.time}</td>
+                      <td className="font-extrabold text-[#1e3261]">{log.actor}</td>
+                      <td>{log.action}</td>
+                      <td>{log.target}</td>
+                      <td><SettingsResultBadge status={log.result} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="mt-5 flex flex-col gap-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+            <p>Showing 1 to {activeTab === 'IP Access Rules' ? filteredRules.length : activeTab === 'Blocked Attempts' ? settingsBlockedAttemptsSeed.length : settingsIpAuditSeed.length} of {activeTab === 'IP Access Rules' ? rules.length : activeTab === 'Blocked Attempts' ? settingsBlockedAttemptsSeed.length : settingsIpAuditSeed.length} entries</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <PaginationButton onClick={() => onNotify('Previous security page selected')}><ChevronLeft className="size-4" /></PaginationButton>
+              <PaginationButton active onClick={() => onNotify('Security page 1 selected')}>1</PaginationButton>
+              <PaginationButton onClick={() => onNotify('Security page 2 selected')}>2</PaginationButton>
+              <PaginationButton onClick={() => onNotify('Security page 3 selected')}>3</PaginationButton>
+              <span className="px-2 text-[#53647f]">...</span>
+              <PaginationButton onClick={() => onNotify('Security page 10 selected')}>10</PaginationButton>
+              <PaginationButton onClick={() => onNotify('Next security page selected')}><ChevronRight className="size-4" /></PaginationButton>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <SettingsSidebarInfoCard title="Rule Configuration Tips" icon={Info}>
+            <ul className="space-y-3 pl-4 text-[13px] font-bold leading-5 text-[#53647f]">
+              <li>Use CIDR notation for IP ranges. Example: 192.168.1.0/24</li>
+              <li>Higher priority rules are matched first.</li>
+              <li>Block rules always override allow rules.</li>
+              <li>Keep your allowed IP list updated.</li>
+            </ul>
+          </SettingsSidebarInfoCard>
+
+          <SettingsSidebarInfoCard title="Quick Actions" icon={Zap}>
+            <div className="space-y-2">
+              <MiniActionButton label="Add IP Rule" icon={ShieldCheck} tone="blue" onClick={() => setAddRuleOpen(true)} />
+              <MiniActionButton label="Import IP List" icon={Download} tone="purple" onClick={() => onNotify('Import IP list flow opened')} />
+              <MiniActionButton label="Export IP Rules" icon={Download} tone="green" onClick={() => onNotify('IP rules exported')} />
+              <MiniActionButton label="Clear Cache" icon={RefreshCw} tone="amber" onClick={() => onNotify('IP cache cleared')} />
+            </div>
+          </SettingsSidebarInfoCard>
+
+          <SettingsSidebarInfoCard title="Note" icon={LockKeyhole}>
+            <p className="text-[13px] font-bold leading-6 text-[#53647f]">Changes to IP restrictions may take up to 5 minutes to apply across the system.</p>
+          </SettingsSidebarInfoCard>
+        </div>
+      </section>
+
+      <DashboardFooter />
+
+      {addRuleOpen ? <SettingsIpRuleModal onClose={() => setAddRuleOpen(false)} onSave={saveRule} /> : null}
+      {editingRule ? <SettingsIpRuleModal initialRule={editingRule} onClose={() => setEditingRule(null)} onSave={saveRule} /> : null}
+    </div>
+  );
+}
+
+function SettingsIpRuleModal({ initialRule = null, onClose, onSave }) {
+  const [form, setForm] = useState(() => initialRule ?? {
+    id: Date.now(),
+    name: '',
+    type: 'Allow',
+    ipRange: '',
+    description: '',
+    status: 'Active',
+    priority: '1',
+    createdOn: '20 May 2024',
+  });
+
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{initialRule ? 'Edit IP Rule' : 'Add IP Rule'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button></div>
+        <div className="grid gap-4 p-6 sm:grid-cols-2">
+          <ModalTextInput label="Rule Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Enter rule name" />
+          <ReportSelect label="Rule Type" value={form.type} onChange={(value) => updateField('type', value)} options={['Allow', 'Block']} />
+          <div className="sm:col-span-2"><ModalTextInput label="IP Address / Range" value={form.ipRange} onChange={(value) => updateField('ipRange', value)} placeholder="103.152.45.0/24" /></div>
+          <div className="sm:col-span-2"><ModalTextInput label="Description" value={form.description} onChange={(value) => updateField('description', value)} placeholder="Describe what this rule is for" /></div>
+          <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} />
+          <ModalTextInput label="Priority" value={form.priority} onChange={(value) => updateField('priority', value)} placeholder="1" />
+        </div>
+        <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-5 sm:flex-row"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave({ ...form, name: form.name.trim() || 'New IP Rule', ipRange: form.ipRange.trim() || '0.0.0.0/32', description: form.description.trim() || 'IP rule description' })} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white"><Save className="size-4" />Save Rule</button></div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsCategoryPlaceholderPage({ activeSection, onOpenSection, onNotify }) {
+  const title = getSettingsDisplayLabel(activeSection);
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={title}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onOpenSection('Settings') },
+          { label: title },
+        ]}
+        actions={<button type="button" onClick={() => onNotify(`${title} changes saved`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>}
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <article className={`${panelClass} p-5`}>
+          <div className="rounded-[14px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6">
+            <p className="text-[18px] font-extrabold text-[#1e3261]">{title} page structure ready</p>
+            <p className="mt-3 max-w-[740px] text-[13px] font-bold leading-6 text-[#53647f]">Yeh settings screen ab sidebar se fully wired hai. Agle step me is section ke domain-specific fields, validations, import/export workflow aur backend APIs connect kiye ja sakte hain.</p>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <SettingsInputField label={`${title} Name`} value={title} onChange={() => {}} />
+              <SettingsInputField label="Default Value" value="Configured" onChange={() => {}} />
+              <div className="md:col-span-2"><SettingsTextareaField label="Notes" value={`This ${title.toLowerCase()} module is ready for detailed business rules.`} onChange={() => {}} rows={4} /></div>
+            </div>
+          </div>
+        </article>
+
+        <div className="space-y-4">
+          <SettingsSidebarInfoCard title="What Works" icon={CheckCircle2}>
+            <div className="space-y-3 text-[13px] font-bold text-[#53647f]">
+              <p>Sidebar sub-category navigation is active.</p>
+              <p>Buttons, breadcrumbs and save actions are clickable.</p>
+              <p>Layout is responsive for desktop and mobile.</p>
+            </div>
+          </SettingsSidebarInfoCard>
+
+          <SettingsSidebarInfoCard title="Next Integration" icon={ArrowRight}>
+            <div className="space-y-2">
+              <MiniActionButton label="Open Settings Home" icon={Settings} tone="blue" onClick={() => onOpenSection('Settings')} />
+              <MiniActionButton label="Preview Save Flow" icon={Save} tone="green" onClick={() => onNotify(`${title} save flow previewed`)} />
+            </div>
+          </SettingsSidebarInfoCard>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
 }
 
 function UserManagementPage({ onNotify }) {
@@ -7532,10 +14105,10 @@ function ReportsPage({ onNotify }) {
   );
 }
 
-function ReportDateRangePicker({ open, onToggle, onClose, dateFrom, dateTo, setDateFrom, setDateTo, formattedRange }) {
+function ReportDateRangePicker({ open, onToggle, onClose, dateFrom, dateTo, setDateFrom, setDateTo, formattedRange, hideLabel = false }) {
   return (
     <div className="relative">
-      <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Date Range</span>
+      {!hideLabel ? <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Date Range</span> : null}
       <button
         type="button"
         onClick={onToggle}
@@ -7816,6 +14389,51 @@ function formatReportDate(value) {
     month: 'short',
     year: 'numeric',
   });
+}
+
+function parseDashboardDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = String(value).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+  const explicitDateMatch = normalized.match(/(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})/);
+  if (explicitDateMatch) {
+    const explicitDate = new Date(`${explicitDateMatch[1]} 00:00:00`);
+    if (!Number.isNaN(explicitDate.getTime())) {
+      return explicitDate;
+    }
+  }
+
+  const isoDateMatch = normalized.match(/(\d{4}-\d{2}-\d{2})/);
+  if (isoDateMatch) {
+    const isoDate = new Date(`${isoDateMatch[1]}T00:00:00`);
+    if (!Number.isNaN(isoDate.getTime())) {
+      return isoDate;
+    }
+  }
+
+  const fallbackDate = new Date(normalized);
+  if (!Number.isNaN(fallbackDate.getTime())) {
+    return fallbackDate;
+  }
+
+  return null;
+}
+
+function isDateWithinRange(value, dateFrom, dateTo) {
+  const parsedValue = parseDashboardDate(value);
+  if (!parsedValue) {
+    return true;
+  }
+
+  const rangeStart = new Date(`${dateFrom}T00:00:00`);
+  const rangeEnd = new Date(`${dateTo}T23:59:59`);
+  if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+    return true;
+  }
+
+  return parsedValue >= rangeStart && parsedValue <= rangeEnd;
 }
 
 function CreateLeadPage({ onCancel, onDashboard, onRequestApproval, onNotify }) {
