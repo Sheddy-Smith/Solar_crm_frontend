@@ -11793,6 +11793,42 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     return <ProjectDetailsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
+  if (activeSection === 'Project Timeline') {
+    return <ProjectTimelinePage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Project Site Survey') {
+    return <ProjectSiteSurveyPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Project Installation') {
+    return <ProjectInstallationPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Project Team Assignment') {
+    return <ProjectTeamAssignmentPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Project Material Planning') {
+    return <ProjectMaterialPlanningPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Project Work Orders') {
+    return <ProjectWorkOrdersPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Project Expenses') {
+    return <ProjectExpensesPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Project Documents') {
+    return <ProjectDocumentsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Project Approvals') {
+    return <ProjectApprovalsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
   return <ProjectModulePlaceholderPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
@@ -12573,6 +12609,2647 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
   );
 }
 
+function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
+  const [viewMode, setViewMode] = useState('Gantt View');
+
+  const project = {
+    name: '20kW On-Grid System',
+    address: '123, Scheme No. 54, Vijay Nagar',
+    city: 'Indore, Madhya Pradesh - 452010',
+    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    startDate: '2024-05-10',
+    targetDate: '2024-05-30',
+    progress: 65,
+    daysLeft: '10 Days',
+  };
+
+  const timelineGroups = [
+    {
+      title: '1. Project Planning',
+      start: '10 May 24',
+      end: '15 May 24',
+      duration: '6 days',
+      color: '#16a34a',
+      bar: { start: 1, span: 6, label: 'Project Planning' },
+      children: [
+        { title: 'Requirement Analysis', start: '10 May 24', end: '11 May 24', duration: '2 days', bar: { start: 1, span: 2, label: 'Requirement Analysis' } },
+        { title: 'Site Feasibility Study', start: '12 May 24', end: '13 May 24', duration: '2 days', bar: { start: 3, span: 2 } },
+        { title: 'System Design', start: '14 May 24', end: '15 May 24', duration: '2 days', bar: { start: 5, span: 2 } },
+      ],
+    },
+    {
+      title: '2. Approvals & Documentation',
+      start: '16 May 24',
+      end: '20 May 24',
+      duration: '5 days',
+      color: '#2563eb',
+      bar: { start: 9, span: 5, label: 'Approvals & Documentation' },
+      children: [
+        { title: 'Document Preparation', start: '16 May 24', end: '17 May 24', duration: '2 days', bar: { start: 9, span: 2, tone: '#60a5fa' } },
+        { title: 'Submission & Follow-up', start: '18 May 24', end: '19 May 24', duration: '2 days', bar: { start: 11, span: 2 } },
+        { title: 'Approval Received', start: '20 May 24', end: '20 May 24', duration: '1 day', bar: { start: 13, span: 1, label: 'Approval Received' } },
+      ],
+    },
+    {
+      title: '3. Procurement',
+      start: '21 May 24',
+      end: '25 May 24',
+      duration: '5 days',
+      color: '#8b5cf6',
+      bar: { start: 15, span: 5, label: 'Procurement' },
+      children: [
+        { title: 'Material Ordering', start: '21 May 24', end: '22 May 24', duration: '2 days', bar: { start: 15, span: 2, tone: '#a78bfa' } },
+        { title: 'Material Delivery', start: '23 May 24', end: '25 May 24', duration: '3 days', bar: { start: 18, span: 3, label: 'Material Delivery' } },
+      ],
+    },
+    {
+      title: '4. Installation',
+      start: '26 May 24',
+      end: '30 May 24',
+      duration: '5 days',
+      color: '#f59e0b',
+      bar: { start: 21, span: 5, label: 'Installation' },
+      children: [
+        { title: 'Site Preparation', start: '26 May 24', end: '27 May 24', duration: '2 days', bar: { start: 21, span: 2, tone: '#fb923c' } },
+        { title: 'System Installation', start: '28 May 24', end: '29 May 24', duration: '2 days', bar: { start: 23, span: 2 } },
+        { title: 'Testing & Commissioning', start: '30 May 24', end: '30 May 24', duration: '1 day', bar: { start: 25, span: 1, label: 'Testing & Commissioning' } },
+      ],
+    },
+  ];
+
+  const overallBreakdown = [
+    { label: 'Completed', value: '13 (65%)', color: '#16a34a' },
+    { label: 'In Progress', value: '5 (25%)', color: '#2563eb' },
+    { label: 'Pending', value: '2 (10%)', color: '#f59e0b' },
+    { label: 'Not Started', value: '0 (0%)', color: '#cbd5e1' },
+  ];
+
+  const summaryCards = [
+    { label: 'Total Tasks', value: '20', icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Completed', value: '13', icon: CheckCircle2, tone: 'green' },
+    { label: 'In Progress', value: '5', icon: Clock3, tone: 'cyan' },
+    { label: 'Pending', value: '2', icon: AlertTriangle, tone: 'amber' },
+    { label: 'Not Started', value: '0', icon: XCircle, tone: 'slate' },
+  ];
+
+  const viewTabs = ['Gantt View', 'Milestone View', 'List View'];
+  const ganttDays = ['6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '1', '2', '3'];
+  const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M'];
+
+  const flattenedRows = timelineGroups.flatMap((group) => [
+    { key: group.title, isGroup: true, title: group.title, start: group.start, end: group.end, duration: group.duration, color: group.color, bar: group.bar },
+    ...group.children.map((child) => ({ ...child, key: `${group.title}-${child.title}`, isGroup: false, color: group.color })),
+  ]);
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Timeline"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project List', onClick: () => onOpenSection('Project List') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Timeline' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Timeline baseline opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><CalendarDays className="size-4 text-[#0b65e5]" />Baseline</button>
+            <button type="button" onClick={() => onNotify('Timeline exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('Update progress opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><CheckCircle2 className="size-4" />Update Progress</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 xl:grid-cols-[2fr_repeat(5,minmax(0,1fr))] xl:items-center">
+          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
+            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+              </div>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+            </div>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
+            <AssigneeCell assignee={project.manager} compact />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Progress</p>
+            <ProjectProgressBar value={project.progress} />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Days Left</p>
+            <p className="text-[28px] font-extrabold text-[#16a34a]">{project.daysLeft}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className={`${panelClass} p-3 sm:p-4`}>
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {viewTabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setViewMode(tab)}
+                className={cx(
+                  'inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
+                  viewMode === tab ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => onNotify('Timeline moved to today')} className="inline-flex h-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">Today</button>
+            <button type="button" onClick={() => onNotify('Zoom in')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><Search className="size-4" /></button>
+            <button type="button" onClick={() => onNotify('Zoom out')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><Minus className="size-4" /></button>
+            <ReportSelect label="Timeline View" value="Days" onChange={() => onNotify('Timeline view changed')} options={['Days']} hideLabel className="w-[90px]" />
+            <button type="button" onClick={() => onNotify('Timeline fullscreen opened')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><ArrowUpRight className="size-4" /></button>
+          </div>
+        </div>
+      </section>
+
+      <section className={`${panelClass} overflow-hidden`}>
+        <div className="grid xl:grid-cols-[480px_minmax(0,1fr)]">
+          <div className="overflow-x-auto border-b border-[#e7eef7] xl:border-b-0 xl:border-r">
+            <table className="crm-table min-w-[480px] w-full">
+              <thead>
+                <tr>
+                  {['#', 'Task / Milestone', 'Start Date', 'End Date', 'Duration'].map((header) => <th key={header}>{header}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {flattenedRows.map((row, index) => (
+                  <tr key={row.key}>
+                    <td>{row.isGroup ? index + 1 : ''}</td>
+                    <td>
+                      <div className={cx('flex items-center gap-2', !row.isGroup && 'pl-4')}>
+                        <span className={cx('size-2.5 rounded-full', row.isGroup ? '' : 'bg-transparent')} style={row.isGroup ? { backgroundColor: row.color } : undefined} />
+                        <span className={cx(row.isGroup ? 'font-extrabold text-[#1e3261]' : 'font-bold text-[#53647f]')}>{row.title}</span>
+                      </div>
+                    </td>
+                    <td>{row.start}</td>
+                    <td>{row.end}</td>
+                    <td>{row.duration}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="overflow-x-auto">
+            <div className="min-w-[900px]">
+              <div className="grid grid-cols-[repeat(29,minmax(0,1fr))] border-b border-[#e7eef7] bg-[#fbfdff] px-4 py-3">
+                {ganttDays.map((day, index) => (
+                  <div key={`${day}-${index}`} className="text-center">
+                    <p className={cx('text-[12px] font-extrabold', day === '14' ? 'text-[#2563eb]' : 'text-[#314a79]')}>{day}</p>
+                    <p className="mt-1 text-[11px] font-bold text-[#8a9ab4]">{weekDays[index]}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="relative px-4 py-3">
+                <div className="absolute inset-0 grid grid-cols-[repeat(29,minmax(0,1fr))]">
+                  {ganttDays.map((day, index) => <div key={`grid-${day}-${index}`} className="border-r border-[#edf2f8]" />)}
+                </div>
+                <div className="relative space-y-3">
+                  {flattenedRows.map((row) => (
+                    <div key={`bar-${row.key}`} className="relative h-9">
+                      <div
+                        className={cx('absolute top-1/2 h-4 -translate-y-1/2 rounded-full', row.isGroup ? 'opacity-100' : 'opacity-90')}
+                        style={{
+                          left: `${((row.bar.start - 1) / 29) * 100}%`,
+                          width: `${(row.bar.span / 29) * 100}%`,
+                          backgroundColor: row.bar.tone ?? row.color,
+                        }}
+                      />
+                      {row.bar.label ? (
+                        <span
+                          className="absolute top-1/2 -translate-y-1/2 text-[12px] font-extrabold text-[#314a79]"
+                          style={{ left: `calc(${((row.bar.start - 1 + row.bar.span) / 29) * 100}% + 10px)` }}
+                        >
+                          {row.bar.label}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1fr_1.15fr_1fr_0.9fr]">
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Overall Progress</h2>
+          <div className="mt-5 grid gap-5 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
+            <div className="mx-auto flex size-[160px] items-center justify-center rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#16a34a 0 65%, #2563eb 65% 90%, #f59e0b 90% 100%, #e7eef7 100% 100%)' }}>
+              <div className="grid size-[86px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(237,242,248,0.9)]">
+                <span className="text-[32px] font-extrabold text-[#1f3360]">65%</span>
+                <span className="text-[12px] font-bold text-[#6f7f98]">Completed</span>
+              </div>
+            </div>
+            <div className="space-y-4">
+              {overallBreakdown.map((item) => (
+                <div key={item.label} className="flex items-center justify-between gap-3 text-[13px] font-bold text-[#314a79]">
+                  <span className="inline-flex items-center gap-3"><span className="size-2.5 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>
+                  <span className="font-extrabold">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </article>
+
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Task Summary</h2>
+          <div className="mt-5 grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
+            {summaryCards.map((card) => {
+              const Icon = card.icon;
+              const toneClass = card.tone === 'green' ? 'bg-[#effbf3] text-[#16a34a]' : card.tone === 'amber' ? 'bg-[#fff5e8] text-[#f59e0b]' : card.tone === 'cyan' ? 'bg-[#eefafb] text-[#0891b2]' : card.tone === 'slate' ? 'bg-[#eef2f7] text-[#7a8ba7]' : 'bg-[#eef5ff] text-[#2563eb]';
+              return (
+                <div key={card.label} className="rounded-[14px] border border-[#edf2f8] bg-white p-4 text-center">
+                  <span className={cx('mx-auto grid size-10 place-items-center rounded-full', toneClass)}><Icon className="size-4" /></span>
+                  <p className="mt-3 text-[12px] font-extrabold text-[#53647f]">{card.label}</p>
+                  <p className="mt-2 font-display text-[28px] font-extrabold text-[#111827]">{card.value}</p>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Timeline</h2>
+          <div className="mt-5 grid gap-5 sm:grid-cols-2">
+            <InfoCell label="Project Start" value={formatProjectDisplayDate(project.startDate)} />
+            <InfoCell label="Target Date" value={formatProjectDisplayDate(project.targetDate)} />
+            <InfoCell label="Days Left" value={project.daysLeft} valueClass="text-[#16a34a]" />
+            <InfoCell label="Project Duration" value="21 Days" />
+          </div>
+        </article>
+
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Legend</h2>
+          <div className="mt-5 space-y-4">
+            {[
+              ['Project Planning', '#16a34a'],
+              ['Approvals & Documentation', '#2563eb'],
+              ['Procurement', '#8b5cf6'],
+              ['Installation', '#f59e0b'],
+            ].map(([label, color]) => (
+              <div key={label} className="flex items-center gap-3 text-[13px] font-bold text-[#314a79]">
+                <span className="size-3 rounded-full" style={{ backgroundColor: color }} />
+                {label}
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
+  const [activeSurveyTab, setActiveSurveyTab] = useState('Site Details');
+
+  const project = {
+    name: '20kW On-Grid System',
+    address: '123, Scheme No. 54, Vijay Nagar',
+    city: 'Indore, Madhya Pradesh - 452010',
+    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    surveyBy: { name: 'Vikram Singh', initials: 'VS', tone: 'green' },
+    customer: 'Amit Sharma',
+    site: 'Indore, MP',
+    surveyDate: '2024-05-12',
+    surveyId: 'SS-2024-0012',
+  };
+
+  const surveyTabs = [
+    { label: 'Overview', icon: Home },
+    { label: 'Site Details', icon: MapPin },
+    { label: 'Roof Details', icon: Boxes },
+    { label: 'Electrical Details', icon: Zap },
+    { label: 'Photos & Documents', icon: FileText },
+    { label: 'Observations', icon: Info },
+    { label: 'Checklist', icon: ClipboardPlus },
+    { label: 'Summary', icon: BarChart3 },
+  ];
+
+  const statCards = [
+    { label: 'Total Usable Roof Area', value: '1560 sq ft', caption: '144.9 sq m', icon: Boxes, tone: 'purple' },
+    { label: 'Recommended Capacity', value: '20.00 kWp', caption: 'On-Grid System', icon: FolderKanban, tone: 'blue' },
+    { label: 'Estimated Generation', value: '80 Units/Day', caption: '~ 2400 Units/Month', icon: Zap, tone: 'green' },
+    { label: 'Shading Loss', value: '2.8%', caption: 'Low', icon: AlertTriangle, tone: 'amber' },
+    { label: 'Roof Condition', value: 'Good', caption: 'Load Bearing: Good', icon: CheckCircle2, tone: 'cyan' },
+    { label: 'Overall Feasibility', value: 'Feasible', caption: 'Recommended', icon: ClipboardPlus, tone: 'blue' },
+  ];
+
+  const siteSurveyRows = [
+    ['Building Type', 'Residential'],
+    ['No. of Floors', '2'],
+    ['Roof Type', 'RCC Flat Roof'],
+    ['Roof Height', '28 ft'],
+    ['Grid Availability', 'Yes'],
+    ['Nearest Grid Distance', '0.35 km'],
+    ['Main ACDB Location', 'Ground Floor (South Side)'],
+    ['Internet Connectivity', 'Available'],
+    ['Safety Access', 'Good'],
+    ['Remarks', 'Site is suitable for 20kW On-Grid solar installation.'],
+  ];
+
+  const locationRows = [
+    ['Latitude', '22.7196° N'],
+    ['Longitude', '75.8577° E'],
+    ['Elevation', '553 m'],
+    ['Access Type', 'Road'],
+    ['Location Type', 'Residential'],
+  ];
+
+  const roofRows = [
+    ['Total Roof Area', '1920 sq ft'],
+    ['Usable Roof Area', '1560 sq ft (81.25%)'],
+    ['Roof Orientation', 'South'],
+    ['Tilt Angle', '0°'],
+    ['Azimuth Angle', '180°'],
+  ];
+
+  const photos = [
+    { title: 'Front View', date: '12 May 2024 | 10:30 AM' },
+    { title: 'Roof Top - North Side', date: '12 May 2024 | 10:32 AM' },
+    { title: 'Roof Top - South Side', date: '12 May 2024 | 10:33 AM' },
+    { title: 'Electrical Panel Location', date: '12 May 2024 | 10:35 AM' },
+  ];
+
+  const documents = [
+    { name: 'Site Survey Report.pdf', note: 'Uploaded on 12 May 2024', size: '2.4 MB', tone: 'red' },
+    { name: 'Electrical Single Line Diagram.pdf', note: 'Uploaded on 12 May 2024', size: '1.2 MB', tone: 'red' },
+    { name: 'Roof Layout Plan.dwg', note: 'Uploaded on 12 May 2024', size: '1.8 MB', tone: 'amber' },
+    { name: 'Load Calculation Sheet.xlsx', note: 'Uploaded on 12 May 2024', size: '980 KB', tone: 'green' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Site Survey"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project List', onClick: () => onOpenSection('Project List') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Site Survey' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Survey report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Edit survey opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Survey</button>
+            <button type="button" onClick={() => onNotify('New survey opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Survey</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 xl:grid-cols-[2.2fr_repeat(5,minmax(0,1fr))] xl:items-center">
+          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
+            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+              </div>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+            </div>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
+            <AssigneeCell assignee={project.manager} compact />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Customer / Site</p>
+            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.customer}</p>
+            <p className="text-[13px] font-bold text-[#53647f]">{project.site}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Survey Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.surveyDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Survey By</p>
+            <AssigneeCell assignee={project.surveyBy} compact />
+            <p className="text-[12px] font-bold text-[#53647f]">Site Engineer</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Survey ID</p>
+            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.surveyId}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className={`${panelClass} p-3 sm:p-4`}>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {surveyTabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeSurveyTab === tab.label;
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={() => setActiveSurveyTab(tab.label)}
+                className={cx(
+                  'inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
+                  active ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
+                )}
+              >
+                <Icon className="size-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeSurveyTab === 'Site Details' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[1.05fr_1fr_1.45fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Location</h2>
+              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8] bg-[linear-gradient(135deg,#f8fbff,#eef5ff)] p-4">
+                <div className="relative h-[240px] rounded-[12px] border border-[#d9e4f2] bg-[linear-gradient(135deg,#f8fafc,#eef5ff)]">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(37,99,235,0.08),transparent_28%),radial-gradient(circle_at_80%_20%,rgba(239,68,68,0.08),transparent_26%),radial-gradient(circle_at_35%_75%,rgba(22,163,74,0.08),transparent_22%)]" />
+                  <div className="absolute inset-0 [background-image:linear-gradient(to_right,rgba(148,163,184,0.16)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.16)_1px,transparent_1px)] [background-size:28px_28px]" />
+                  <span className="absolute left-[46%] top-[43%] grid size-10 place-items-center rounded-full bg-[#16a34a] text-white shadow-[0_14px_24px_rgba(22,163,74,0.28)]"><MapPin className="size-5" /></span>
+                </div>
+                <div className="mt-4 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[15px] font-extrabold text-[#1e3261]">123, Scheme No. 54, Vijay Nagar</p>
+                    <p className="mt-1 text-[13px] font-bold text-[#53647f]">Indore, Madhya Pradesh - 452010</p>
+                  </div>
+                  <button type="button" onClick={() => onNotify('Open in maps clicked')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />Open in Maps</button>
+                </div>
+                <div className="mt-5 space-y-3">
+                  {locationRows.map(([label, value]) => (
+                    <div key={label} className="grid gap-2 text-[13px] sm:grid-cols-[120px_1fr]">
+                      <span className="font-bold text-[#53647f]">{label}</span>
+                      <span className="font-extrabold text-[#1e3261]">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Survey Details</h2>
+              <div className="mt-5 space-y-4">
+                {siteSurveyRows.map(([label, value]) => (
+                  <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[170px_1fr]">
+                    <span className="font-bold text-[#53647f]">{label}</span>
+                    <span className="font-extrabold text-[#1e3261]">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof Layout & Usable Area</h2>
+              <div className="mt-5 grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+                <div className="rounded-[14px] border border-[#edf2f8] bg-white p-4">
+                  <div className="relative mx-auto h-[290px] w-[240px] rounded-[12px] border-2 border-[#c9d8ee] bg-[linear-gradient(135deg,#f8fbff,#eef5ff)]">
+                    <div className="absolute inset-0 [background-image:linear-gradient(to_right,rgba(96,165,250,0.18)_1px,transparent_1px),linear-gradient(to_bottom,rgba(96,165,250,0.18)_1px,transparent_1px)] [background-size:22px_22px]" />
+                    <div className="absolute left-[16px] top-[18px] h-[182px] w-[170px] rounded-[4px] border-2 border-[#2563eb] bg-[rgba(37,99,235,0.12)]" />
+                    <div className="absolute left-[178px] top-[18px] h-[102px] w-[28px] rounded-[4px] border-2 border-[#2563eb] bg-white/70" />
+                    <div className="absolute bottom-[18px] right-[18px] h-[42px] w-[92px] rounded-[4px] border-2 border-[#2563eb] bg-white/80" />
+                    <div className="absolute left-[22px] top-[-22px] text-[12px] font-extrabold text-[#314a79]">48 ft</div>
+                    <div className="absolute right-[-30px] top-[112px] text-[12px] font-extrabold text-[#314a79]">32 ft</div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-6 text-[12px] font-extrabold text-[#314a79]">
+                    <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] border border-[#2563eb] bg-[rgba(37,99,235,0.18)]" />Usable Area</span>
+                    <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] border border-[#94a3b8] bg-white" />Obstacle</span>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {roofRows.map(([label, value]) => (
+                    <div key={label} className="grid gap-2 text-[13px] sm:grid-cols-[150px_1fr]">
+                      <span className="font-bold text-[#53647f]">{label}</span>
+                      <span className="font-extrabold text-[#1e3261]">{value}</span>
+                    </div>
+                  ))}
+                  <div className="pt-4">
+                    <button type="button" onClick={() => onNotify('Roof 3D view opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Boxes className="size-4 text-[#0b65e5]" />View 3D View</button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[1.2fr_0.95fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Photos</h2>
+                <button type="button" onClick={() => setActiveSurveyTab('Photos & Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Photos</button>
+              </div>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {photos.map((photo) => (
+                  <button key={photo.title} type="button" onClick={() => onNotify(`${photo.title} opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-left transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
+                    <img src={navBarImage} alt={photo.title} className="h-[120px] w-full rounded-[10px] object-cover" />
+                    <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{photo.title}</p>
+                    <p className="mt-2 text-[12px] font-bold text-[#53647f]">{photo.date}</p>
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Documents</h2>
+                <button type="button" onClick={() => setActiveSurveyTab('Photos & Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Documents</button>
+              </div>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {documents.map((doc) => (
+                  <div key={doc.name} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                    <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', doc.tone === 'green' ? 'bg-[#16a34a]' : doc.tone === 'amber' ? 'bg-[#f59e0b]' : 'bg-[#ef4444]')}>
+                      <FileText className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-extrabold text-[#1e3261]">{doc.name}</span>
+                      <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{doc.note}</span>
+                    </span>
+                    <span className="shrink-0 text-[12px] font-extrabold text-[#314a79]">{doc.size}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+        </>
+      ) : (
+        <article className={`${panelClass} p-8 text-center`}>
+          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
+            <FolderKanban className="size-8" />
+          </span>
+          <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeSurveyTab}</h2>
+          <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
+            Is survey tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi main screen aur tab navigation fully working hai, aur aap Site Details par wapas ja sakte ho.
+          </p>
+          <button type="button" onClick={() => setActiveSurveyTab('Site Details')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Site Details</button>
+        </article>
+      )}
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
+  const [activeInstallationTab, setActiveInstallationTab] = useState('Overview');
+
+  const project = {
+    name: '20kW On-Grid System',
+    address: '123, Scheme No. 54, Vijay Nagar',
+    city: 'Indore, Madhya Pradesh - 452010',
+    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    installationLead: { name: 'Vikram Singh', initials: 'VS', tone: 'green' },
+    startDate: '2024-05-18',
+    targetDate: '2024-05-28',
+    installationId: 'INS-2024-0015',
+  };
+
+  const installationTabs = [
+    { label: 'Overview', icon: Home },
+    { label: 'System Configuration', icon: Boxes },
+    { label: 'Material & Equipment', icon: FolderKanban },
+    { label: 'Work Progress', icon: BarChart3 },
+    { label: 'Quality Checklist', icon: CheckCircle2 },
+    { label: 'Safety', icon: ShieldCheck },
+    { label: 'Documents', icon: FileText },
+    { label: 'Summary', icon: ClipboardPlus },
+  ];
+
+  const statCards = [
+    { label: 'Total Capacity', value: '20.00 kWp', caption: 'On-Grid System', icon: FolderKanban, tone: 'blue' },
+    { label: 'Installation Progress', value: '65%', caption: '13 of 20 Tasks Completed', icon: CheckCircle2, tone: 'green' },
+    { label: 'Panels Installed', value: '32 / 40', caption: '80% Completed', icon: Boxes, tone: 'purple' },
+    { label: 'Inverters Installed', value: '1 / 1', caption: '100% Completed', icon: Zap, tone: 'amber' },
+    { label: 'Safety Compliance', value: '100%', caption: 'All Good', icon: ShieldCheck, tone: 'cyan' },
+    { label: 'Workforce On Site', value: '8', caption: 'Technicians', icon: Users, tone: 'blue' },
+  ];
+
+  const installationDetails = [
+    ['Installation Type', 'On-Grid'],
+    ['System Type', 'Rooftop Solar'],
+    ['Capacity (kWp)', '20.00'],
+    ['No. of Panels', '40'],
+    ['Panel Capacity', '550 Wp Each'],
+    ['Inverter', '1 x 20kW'],
+    ['Mounting Structure', 'GI - Tilt'],
+    ['Installation Start Date', '18 May 2024'],
+    ['Target Completion Date', '28 May 2024'],
+    ['Expected Generation', '80 Units/Day'],
+    ['Installation Status', 'In Progress'],
+    ['Remarks', 'Installation is going as per plan.'],
+  ];
+
+  const progressRows = [
+    { task: '1. Material Delivery', status: 'Completed', progress: 100, start: '18 May 2024', end: '18 May 2024' },
+    { task: '2. Mounting Structure', status: 'Completed', progress: 100, start: '19 May 2024', end: '21 May 2024' },
+    { task: '3. Panel Installation', status: 'In Progress', progress: 70, start: '22 May 2024', end: '24 May 2024' },
+    { task: '4. DC Wiring', status: 'In Progress', progress: 60, start: '23 May 2024', end: '25 May 2024' },
+    { task: '5. Inverter Installation', status: 'Completed', progress: 100, start: '25 May 2024', end: '25 May 2024' },
+    { task: '6. AC Wiring', status: 'Pending', progress: 0, start: '26 May 2024', end: '27 May 2024' },
+    { task: '7. Testing & Commissioning', status: 'Pending', progress: 0, start: '28 May 2024', end: '28 May 2024' },
+  ];
+
+  const siteWeatherRows = [
+    ['Installation Site', '123, Scheme No. 54, Vijay Nagar, Indore, MP'],
+    ['Roof Type', 'RCC Flat Roof'],
+    ['Roof Condition', 'Good'],
+    ['Weather', 'Clear'],
+    ['Temperature', '32°C'],
+    ['Wind Speed', '12 km/h'],
+    ['Humidity', '45%'],
+    ["Today's Condition", 'Suitable for Installation'],
+  ];
+
+  const photos = [
+    { title: 'Structure Setup', date: '18 May 2024 | 09:30 AM' },
+    { title: 'Panel Installation', date: '22 May 2024 | 11:15 AM' },
+    { title: 'Inverter Placement', date: '25 May 2024 | 03:20 PM' },
+    { title: 'ACDB Installation', date: '25 May 2024 | 04:10 PM' },
+  ];
+
+  const teamMembers = [
+    { name: 'Vikram Singh', role: 'Site Engineer', initials: 'VS', tone: 'green' },
+    { name: 'Ramesh Yadav', role: 'Technician', initials: 'RS', tone: 'cyan' },
+    { name: 'Amit Joshi', role: 'Electrician', initials: 'AJ', tone: 'purple' },
+    { name: 'Pooja Mehta', role: 'Helper', initials: 'PM', tone: 'pink' },
+  ];
+
+  const upcomingActivities = [
+    { title: 'AC Wiring', date: '26 May 2024', status: 'Upcoming', tone: 'blue' },
+    { title: 'Testing & Commissioning', date: '28 May 2024', status: 'Upcoming', tone: 'purple' },
+    { title: 'Handover to Customer', date: '30 May 2024', status: 'Planned', tone: 'amber' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Installation"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project List', onClick: () => onOpenSection('Project List') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Installation' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Installation report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Edit installation opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Installation</button>
+            <button type="button" onClick={() => onNotify('New installation opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Installation</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 xl:grid-cols-[2.2fr_repeat(5,minmax(0,1fr))] xl:items-center">
+          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
+            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+              </div>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+            </div>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
+            <AssigneeCell assignee={project.manager} compact />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation Lead</p>
+            <AssigneeCell assignee={project.installationLead} compact />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
+            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className={`${panelClass} p-3 sm:p-4`}>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {installationTabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeInstallationTab === tab.label;
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={() => setActiveInstallationTab(tab.label)}
+                className={cx(
+                  'inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
+                  active ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
+                )}
+              >
+                <Icon className="size-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeInstallationTab === 'Overview' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[0.95fr_1.45fr_0.95fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Details</h2>
+              <div className="mt-5 space-y-4">
+                {installationDetails.map(([label, value]) => (
+                  <div key={label} className="grid gap-2 text-[13px] sm:grid-cols-[170px_1fr]">
+                    <span className="font-bold text-[#53647f]">{label}</span>
+                    <span className={cx('font-extrabold text-[#1e3261]', label === 'Installation Status' && 'inline-flex w-fit rounded-[8px] bg-[#f4ecff] px-2.5 py-1 text-[12px] text-[#8b5cf6]')}>{value}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Progress</h2>
+              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+                <div className="grid grid-cols-[1.45fr_0.8fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Task / Milestone</span>
+                  <span>Status</span>
+                  <span>Progress</span>
+                  <span>Start Date</span>
+                  <span>End Date</span>
+                </div>
+                {progressRows.map((row) => (
+                  <div key={row.task} className="grid grid-cols-[1.45fr_0.8fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.task}</span>
+                    <span><ProjectPhaseBadge status={row.status} /></span>
+                    <span className="space-y-1">
+                      <ProjectProgressBar value={row.progress} color={row.progress === 100 ? 'green' : row.progress > 0 ? 'blue' : 'amber'} />
+                      <span className="block text-[11px] font-extrabold text-[#53647f]">{row.progress}%</span>
+                    </span>
+                    <span>{row.start}</span>
+                    <span>{row.end}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 text-center">
+                <button type="button" onClick={() => setActiveInstallationTab('Work Progress')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><ArrowRight className="size-4" />View Detailed Work Progress</button>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site & Weather Details</h2>
+              <div className="mt-5 space-y-4">
+                {siteWeatherRows.map(([label, value]) => (
+                  <div key={label} className="grid gap-2 text-[13px] sm:grid-cols-[130px_1fr]">
+                    <span className="font-bold text-[#53647f]">{label}</span>
+                    <span className={cx('font-extrabold text-[#1e3261]', label === "Today's Condition" && 'inline-flex w-fit rounded-[999px] bg-[#eefbf1] px-3 py-1 text-[12px] text-[#15803d]')}>
+                      {label === 'Weather' ? <span className="inline-flex items-center gap-2"><Cloud className="size-4 text-[#f59e0b]" />{value}</span> : value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[1.45fr_0.75fr_0.8fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Photos</h2>
+                <button type="button" onClick={() => onNotify('All installation photos opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Photos</button>
+              </div>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {photos.map((photo) => (
+                  <button key={photo.title} type="button" onClick={() => onNotify(`${photo.title} opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-left transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
+                    <img src={navBarImage} alt={photo.title} className="h-[120px] w-full rounded-[10px] object-cover" />
+                    <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{photo.title}</p>
+                    <p className="mt-2 text-[12px] font-bold text-[#53647f]">{photo.date}</p>
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Team on Site</h2>
+                <button type="button" onClick={() => onOpenSection('Project Team Assignment')} className="text-[12px] font-extrabold text-[#0b65e5]">View Team</button>
+              </div>
+              <div className="mt-5 space-y-4">
+                {teamMembers.map((member) => (
+                  <div key={member.name} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                    <div className={cx('grid size-11 place-items-center rounded-full text-[13px] font-extrabold text-white', member.tone === 'green' ? 'bg-[#16a34a]' : member.tone === 'cyan' ? 'bg-[#14b8a6]' : member.tone === 'purple' ? 'bg-[#8b5cf6]' : 'bg-[#d946ef]')}>
+                      {member.initials}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14px] font-extrabold text-[#1e3261]">{member.name}</p>
+                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">{member.role}</p>
+                    </div>
+                    <button type="button" onClick={() => onNotify(`Calling ${member.name}`)} className="grid size-10 place-items-center rounded-[10px] border border-[#dce6f3] text-[#2563eb] transition hover:bg-[#f8fbff]"><Phone className="size-4" /></button>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Upcoming Activity</h2>
+              <div className="mt-5 space-y-4">
+                {upcomingActivities.map((activity) => (
+                  <div key={activity.title} className="flex items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                    <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', activity.tone === 'blue' ? 'bg-[#2f80ff]' : activity.tone === 'purple' ? 'bg-[#8b5cf6]' : 'bg-[#f59e0b]')}>
+                      <CalendarDays className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[14px] font-extrabold text-[#1e3261]">{activity.title}</p>
+                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">{activity.date}</p>
+                    </div>
+                    <span className={cx('shrink-0 rounded-[999px] px-2.5 py-1 text-[11px] font-extrabold', activity.tone === 'amber' ? 'bg-[#fff4df] text-[#b45309]' : 'bg-[#eef4ff] text-[#2563eb]')}>
+                      {activity.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 text-center">
+                <button type="button" onClick={() => onNotify('All installation activities opened')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><ArrowRight className="size-4" />View All Activities</button>
+              </div>
+            </article>
+          </section>
+        </>
+      ) : (
+        <article className={`${panelClass} p-8 text-center`}>
+          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
+            <FolderKanban className="size-8" />
+          </span>
+          <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeInstallationTab}</h2>
+          <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
+            Is installation tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi main screen aur tab navigation fully working hai, aur aap Overview par wapas ja sakte ho.
+          </p>
+          <button type="button" onClick={() => setActiveInstallationTab('Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Overview</button>
+        </article>
+      )}
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
+  const [activeTeamTab, setActiveTeamTab] = useState('Team Overview');
+
+  const project = {
+    name: '20kW On-Grid System',
+    address: '123, Scheme No. 54, Vijay Nagar',
+    city: 'Indore, Madhya Pradesh - 452010',
+    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    startDate: '2024-05-18',
+    targetDate: '2024-05-28',
+    installationId: 'INS-2024-0015',
+    progress: 65,
+  };
+
+  const teamTabs = [
+    { label: 'Team Overview', icon: Users },
+    { label: 'Roles & Responsibilities', icon: ShieldCheck },
+    { label: 'Work Allocation', icon: BarChart3 },
+    { label: 'Schedule', icon: CalendarDays },
+    { label: 'Attendance', icon: CheckCircle2 },
+    { label: 'Communication', icon: Mail },
+    { label: 'Team Documents', icon: FileText },
+  ];
+
+  const statCards = [
+    { label: 'Total Team Members', value: '8', caption: 'Assigned to Project', icon: Users, tone: 'blue' },
+    { label: 'On Site', value: '6', caption: 'Active on Site', icon: UserRound, tone: 'green' },
+    { label: 'Pending Approval', value: '1', caption: 'Awaiting Approval', icon: AlertTriangle, tone: 'amber' },
+    { label: 'Work Completed', value: '13 / 20', caption: 'Tasks Completed', icon: ClipboardPlus, tone: 'purple' },
+    { label: 'Man Days Planned', value: '48', caption: 'Total Man Days', icon: CalendarDays, tone: 'cyan' },
+    { label: 'Man Days Used', value: '36', caption: '(75%)', icon: Database, tone: 'blue' },
+  ];
+
+  const teamMembers = [
+    { id: 1, name: 'Vikram Singh', role: 'Site Engineer', department: 'Engineering', skills: 'Installation, QA', onSite: true, contact: '+91 98765 43211', status: 'Active', initials: 'VS', tone: 'green' },
+    { id: 2, name: 'Ramesh Yadav', role: 'Technician', department: 'Installation', skills: 'Mounting, Wiring', onSite: true, contact: '+91 98765 43212', status: 'Active', initials: 'RY', tone: 'cyan' },
+    { id: 3, name: 'Amit Joshi', role: 'Electrician', department: 'Electrical', skills: 'AC Wiring, Panel', onSite: true, contact: '+91 98765 43213', status: 'Active', initials: 'AJ', tone: 'blue' },
+    { id: 4, name: 'Pooja Mehta', role: 'Helper', department: 'Installation', skills: 'Support, Handling', onSite: true, contact: '+91 98765 43214', status: 'Active', initials: 'PM', tone: 'pink' },
+    { id: 5, name: 'Sunil Patidar', role: 'Safety Officer', department: 'HSE', skills: 'Safety, Compliance', onSite: true, contact: '+91 98765 43215', status: 'Active', initials: 'SP', tone: 'amber' },
+    { id: 6, name: 'Neha Jain', role: 'QA Engineer', department: 'Quality', skills: 'Inspection, Testing', onSite: false, contact: '+91 98765 43216', status: 'Off Site', initials: 'NJ', tone: 'blue' },
+    { id: 7, name: 'Deepak Sharma', role: 'Logistics Incharge', department: 'Logistics', skills: 'Material, Transport', onSite: false, contact: '+91 98765 43217', status: 'Off Site', initials: 'DS', tone: 'slate' },
+    { id: 8, name: 'Manish Gupta', role: 'Supervisor', department: 'Operations', skills: 'Supervision, Planning', onSite: false, contact: '+91 98765 43218', status: 'On Leave', initials: 'MG', tone: 'violet' },
+  ];
+
+  const roleDistribution = [
+    { label: 'Engineering', value: 1, color: '#2f80ff' },
+    { label: 'Installation', value: 3, color: '#16a34a' },
+    { label: 'Electrical', value: 1, color: '#f59e0b' },
+    { label: 'HSE', value: 1, color: '#8b5cf6' },
+    { label: 'Quality', value: 1, color: '#06b6d4' },
+    { label: 'Logistics', value: 1, color: '#94a3b8' },
+  ];
+
+  const upcomingAssignments = [
+    { title: 'DC Wiring & Termination', note: 'Assigned to: Amit Joshi', date: '21 May 2024', status: 'Upcoming' },
+    { title: 'Inverter Installation', note: 'Assigned to: Vikram Singh', date: '22 May 2024', status: 'Upcoming' },
+    { title: 'ACDB Connection', note: 'Assigned to: Amit Joshi', date: '23 May 2024', status: 'Upcoming' },
+  ];
+
+  const taskAllocation = [
+    { id: 1, task: 'Material Delivery', assignee: 'Deepak Sharma', role: 'Logistics Incharge', startDate: '18 May 2024', endDate: '18 May 2024', priority: 'Medium', status: 'Completed', progress: 100 },
+    { id: 2, task: 'Mounting Structure Installation', assignee: 'Ramesh Yadav', role: 'Technician', startDate: '19 May 2024', endDate: '21 May 2024', priority: 'High', status: 'Completed', progress: 100 },
+    { id: 3, task: 'Panel Installation', assignee: 'Ramesh Yadav', role: 'Technician', startDate: '22 May 2024', endDate: '24 May 2024', priority: 'High', status: 'In Progress', progress: 70 },
+    { id: 4, task: 'DC Wiring', assignee: 'Amit Joshi', role: 'Electrician', startDate: '23 May 2024', endDate: '25 May 2024', priority: 'High', status: 'In Progress', progress: 60 },
+    { id: 5, task: 'Inverter Installation', assignee: 'Vikram Singh', role: 'Site Engineer', startDate: '25 May 2024', endDate: '26 May 2024', priority: 'Medium', status: 'Pending', progress: 0 },
+    { id: 6, task: 'Testing & Commissioning', assignee: 'Neha Jain', role: 'QA Engineer', startDate: '27 May 2024', endDate: '28 May 2024', priority: 'High', status: 'Pending', progress: 0 },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Team Assignment"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project List', onClick: () => onOpenSection('Project List') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Team Assignment' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Team report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Edit assignment opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Assignment</button>
+            <button type="button" onClick={() => onNotify('Assign team opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Assign Team</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
+          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
+            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+              </div>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+            </div>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
+            <AssigneeCell assignee={project.manager} compact />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
+            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Progress</p>
+            <p className="text-[22px] font-extrabold text-[#1e3261]">{project.progress}%</p>
+            <ProjectProgressBar value={project.progress} color="blue" />
+          </div>
+        </div>
+      </section>
+
+      <section className={`${panelClass} p-3 sm:p-4`}>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {teamTabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTeamTab === tab.label;
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={() => setActiveTeamTab(tab.label)}
+                className={cx(
+                  'inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
+                  active ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
+                )}
+              >
+                <Icon className="size-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeTeamTab === 'Team Overview' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[1.55fr_0.85fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Assigned Team Members</h2>
+              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+                <div className="grid grid-cols-[0.45fr_1.25fr_1.1fr_1fr_1.25fr_0.7fr_1fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>#</span>
+                  <span>Name</span>
+                  <span>Role</span>
+                  <span>Department</span>
+                  <span>Primary Skills</span>
+                  <span>On Site</span>
+                  <span>Contact</span>
+                  <span>Status</span>
+                </div>
+                {teamMembers.map((member) => (
+                  <div key={member.id} className="grid grid-cols-[0.45fr_1.25fr_1.1fr_1fr_1.25fr_0.7fr_1fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{member.id}</span>
+                    <span className="flex items-center gap-2">
+                      <span className={cx('grid size-8 place-items-center rounded-full text-[10px] font-extrabold text-white', member.tone === 'green' ? 'bg-[#16a34a]' : member.tone === 'cyan' ? 'bg-[#14b8a6]' : member.tone === 'blue' ? 'bg-[#2f80ff]' : member.tone === 'amber' ? 'bg-[#f59e0b]' : member.tone === 'slate' ? 'bg-[#64748b]' : member.tone === 'violet' ? 'bg-[#8b5cf6]' : 'bg-[#d946ef]')}>
+                        {member.initials}
+                      </span>
+                      <span className="font-extrabold text-[#1e3261]">{member.name}</span>
+                    </span>
+                    <span>{member.role}</span>
+                    <span>{member.department}</span>
+                    <span>{member.skills}</span>
+                    <span>{member.onSite ? <CheckCircle2 className="size-4 text-[#16a34a]" /> : <Minus className="size-4 text-[#94a3b8]" />}</span>
+                    <span>{member.contact}</span>
+                    <span className={cx('inline-flex w-fit rounded-[999px] px-2.5 py-1 text-[11px] font-extrabold', member.status === 'Active' ? 'bg-[#eefbf1] text-[#15803d]' : member.status === 'Off Site' ? 'bg-[#eef4ff] text-[#2563eb]' : 'bg-[#fff4df] text-[#b45309]')}>
+                      {member.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <div className="space-y-4">
+              <ProjectDonutCard title="Role Distribution" data={roleDistribution} totalLabel="Total" totalValue="8" />
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Upcoming Assignments</h2>
+                  <button type="button" onClick={() => onNotify('All assignments opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+                </div>
+                <div className="mt-5 space-y-4">
+                  {upcomingAssignments.map((assignment) => (
+                    <div key={assignment.title} className="flex items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#eef4ff] text-[#2563eb]">
+                        <CalendarDays className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-extrabold text-[#1e3261]">{assignment.title}</p>
+                        <p className="mt-1 text-[12px] font-bold text-[#53647f]">{assignment.note}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-[12px] font-extrabold text-[#1e3261]">{assignment.date}</p>
+                        <span className="mt-2 inline-flex rounded-[999px] bg-[#eef4ff] px-2.5 py-1 text-[11px] font-extrabold text-[#2563eb]">{assignment.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Task Allocation</h2>
+            <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+              <div className="grid grid-cols-[0.45fr_1.55fr_1fr_1fr_1fr_1fr_0.8fr_0.95fr_1fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                <span>#</span>
+                <span>Task / Milestone</span>
+                <span>Assigned To</span>
+                <span>Role</span>
+                <span>Start Date</span>
+                <span>End Date</span>
+                <span>Priority</span>
+                <span>Status</span>
+                <span>Progress</span>
+              </div>
+              {taskAllocation.map((row) => (
+                <div key={row.id} className="grid grid-cols-[0.45fr_1.55fr_1fr_1fr_1fr_1fr_0.8fr_0.95fr_1fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <span className="font-extrabold text-[#1e3261]">{row.id}</span>
+                  <span className="font-extrabold text-[#1e3261]">{row.task}</span>
+                  <span>{row.assignee}</span>
+                  <span>{row.role}</span>
+                  <span>{row.startDate}</span>
+                  <span>{row.endDate}</span>
+                  <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', row.priority === 'High' ? 'bg-[#ffeded] text-[#dc2626]' : 'bg-[#fff4df] text-[#b45309]')}>{row.priority}</span>
+                  <span><ProjectPhaseBadge status={row.status} /></span>
+                  <span className="space-y-1">
+                    <span className="block text-[11px] font-extrabold text-[#53647f]">{row.progress}%</span>
+                    <ProjectProgressBar value={row.progress} color={row.progress === 100 ? 'green' : row.progress > 0 ? 'blue' : 'amber'} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </article>
+        </>
+      ) : (
+        <article className={`${panelClass} p-8 text-center`}>
+          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
+            <FolderKanban className="size-8" />
+          </span>
+          <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeTeamTab}</h2>
+          <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
+            Is team tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi main screen aur tab navigation fully working hai, aur aap Team Overview par wapas ja sakte ho.
+          </p>
+          <button type="button" onClick={() => setActiveTeamTab('Team Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Team Overview</button>
+        </article>
+      )}
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify }) {
+  const [activeMaterialTab, setActiveMaterialTab] = useState('Material Overview');
+
+  const project = {
+    name: '20kW On-Grid System',
+    address: '123, Scheme No. 54, Vijay Nagar',
+    city: 'Indore, Madhya Pradesh - 452010',
+    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    startDate: '2024-05-18',
+    targetDate: '2024-05-28',
+    installationId: 'INS-2024-0015',
+    progress: 65,
+  };
+
+  const materialTabs = [
+    { label: 'Material Overview', icon: Boxes },
+    { label: 'Bill of Materials', icon: FileText },
+    { label: 'Procurement Plan', icon: ClipboardPlus },
+    { label: 'Inventory Check', icon: Database },
+    { label: 'Material Requests', icon: ReceiptText },
+    { label: 'Delivery & GRN', icon: FolderKanban },
+    { label: 'Vendor Management', icon: UsersRound },
+    { label: 'Reports', icon: BarChart3 },
+  ];
+
+  const statCards = [
+    { label: 'Total Items', value: '48', caption: 'All Materials', icon: Boxes, tone: 'blue' },
+    { label: 'Planned Value', value: 'Rs 2,48,560', caption: 'Including Taxes', icon: IndianRupee, tone: 'green' },
+    { label: 'Procured Value', value: 'Rs 1,62,300', caption: '65.30% of Planned', icon: FolderKanban, tone: 'purple' },
+    { label: 'Delivered Value', value: 'Rs 1,21,750', caption: '48.93% of Planned', icon: LogIn, tone: 'amber' },
+    { label: 'Installed Value', value: 'Rs 76,850', caption: '30.91% of Planned', icon: CheckCircle2, tone: 'cyan' },
+    { label: 'Pending Value', value: 'Rs 86,550', caption: '34.70% of Planned', icon: ClipboardPlus, tone: 'blue' },
+  ];
+
+  const materialPlanRows = [
+    { id: 1, category: 'Solar Panels', items: 2, uom: 'Nos', plannedQty: 40, procuredQty: 40, deliveredQty: 40, installedQty: 20, pendingQty: 20, plannedValue: '1,20,000', status: 'In Progress' },
+    { id: 2, category: 'Inverters', items: 1, uom: 'Nos', plannedQty: 1, procuredQty: 1, deliveredQty: 1, installedQty: 1, pendingQty: 0, plannedValue: '45,000', status: 'Completed' },
+    { id: 3, category: 'Mounting Structure', items: 6, uom: 'Set', plannedQty: 1, procuredQty: 1, deliveredQty: 1, installedQty: 0, pendingQty: 0, plannedValue: '28,000', status: 'In Progress' },
+    { id: 4, category: 'DC Cables', items: 2, uom: 'Mtr', plannedQty: 200, procuredQty: 180, deliveredQty: 150, installedQty: 80, pendingQty: 50, plannedValue: '10,800', status: 'In Progress' },
+    { id: 5, category: 'AC Cables', items: 2, uom: 'Mtr', plannedQty: 120, procuredQty: 100, deliveredQty: 80, installedQty: 40, pendingQty: 40, plannedValue: '7,200', status: 'In Progress' },
+    { id: 6, category: 'Connectors (MC4)', items: 2, uom: 'Pair', plannedQty: 20, procuredQty: 20, deliveredQty: 20, installedQty: 10, pendingQty: 10, plannedValue: '2,800', status: 'In Progress' },
+    { id: 7, category: 'ACDB / DCDB', items: 2, uom: 'Nos', plannedQty: 1, procuredQty: 1, deliveredQty: 1, installedQty: 0, pendingQty: 1, plannedValue: '6,500', status: 'Pending' },
+    { id: 8, category: 'Earthing Material', items: 4, uom: 'Nos', plannedQty: 1, procuredQty: 0, deliveredQty: 0, installedQty: 0, pendingQty: 1, plannedValue: '3,500', status: 'Pending' },
+    { id: 9, category: 'Consumables', items: 5, uom: 'Lot', plannedQty: 1, procuredQty: 0, deliveredQty: 0, installedQty: 0, pendingQty: 1, plannedValue: '2,760', status: 'Pending' },
+    { id: 10, category: 'Safety & Others', items: 4, uom: 'Lot', plannedQty: 1, procuredQty: 1, deliveredQty: 0, installedQty: 0, pendingQty: 1, plannedValue: '2,000', status: 'Pending' },
+  ];
+
+  const materialStatusData = [
+    { label: 'Completed', value: 10, color: '#16a34a' },
+    { label: 'In Progress', value: 20, color: '#2f80ff' },
+    { label: 'Pending', value: 12, color: '#f59e0b' },
+    { label: 'Not Planned', value: 6, color: '#cbd5e1' },
+  ];
+
+  const categoryValueRows = [
+    ['Solar Panels', '48.23%', '1,20,000'],
+    ['Inverters', '18.09%', '45,000'],
+    ['Mounting Structure', '11.26%', '28,000'],
+    ['DC Cables', '4.35%', '10,800'],
+    ['AC Cables', '2.90%', '7,200'],
+    ['Others', '15.17%', '37,560'],
+  ];
+
+  const upcomingRequirements = [
+    { material: 'ACDB / DCDB', requiredBy: '22 May 2024', qty: '1', uom: 'Nos', priority: 'High', status: 'To be Procured' },
+    { material: 'Earthing Material', requiredBy: '22 May 2024', qty: '1', uom: 'Nos', priority: 'High', status: 'To be Procured' },
+    { material: 'Consumables', requiredBy: '24 May 2024', qty: '1', uom: 'Lot', priority: 'Medium', status: 'To be Procured' },
+  ];
+
+  const vendors = [
+    { vendor: 'SunPower Systems', supplied: 12, delivery: '95%', rating: '4.5' },
+    { vendor: 'EnerTech Solutions', supplied: 9, delivery: '90%', rating: '4.3' },
+    { vendor: 'SolarHub India Pvt. Ltd.', supplied: 7, delivery: '92%', rating: '4.2' },
+  ];
+
+  const quickActions = [
+    { label: 'Create Purchase Order', icon: Boxes, tone: 'green' },
+    { label: 'Material Request', icon: ClipboardPlus, tone: 'blue' },
+    { label: 'GRN Entry', icon: FolderKanban, tone: 'purple' },
+    { label: 'Inventory Check', icon: Database, tone: 'amber' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Material Planning"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project List', onClick: () => onOpenSection('Project List') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Material Planning' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Material report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Material plan exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('Create material plan opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Create Material Plan</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
+          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
+            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+              </div>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+            </div>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
+            <AssigneeCell assignee={project.manager} compact />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
+            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Progress</p>
+            <p className="text-[22px] font-extrabold text-[#1e3261]">{project.progress}%</p>
+            <ProjectProgressBar value={project.progress} color="blue" />
+          </div>
+        </div>
+      </section>
+
+      <section className={`${panelClass} p-3 sm:p-4`}>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {materialTabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeMaterialTab === tab.label;
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={() => setActiveMaterialTab(tab.label)}
+                className={cx(
+                  'inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
+                  active ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
+                )}
+              >
+                <Icon className="size-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeMaterialTab === 'Material Overview' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[1.8fr_0.9fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Plan Summary</h2>
+              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+                <div className="grid grid-cols-[0.45fr_1.45fr_0.6fr_0.5fr_0.75fr_0.8fr_0.8fr_0.8fr_0.85fr_0.95fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>#</span>
+                  <span>Material Category</span>
+                  <span>Items</span>
+                  <span>UOM</span>
+                  <span>Planned Quantity</span>
+                  <span>Procured Quantity</span>
+                  <span>Delivered Quantity</span>
+                  <span>Installed Quantity</span>
+                  <span>Pending Quantity</span>
+                  <span>Planned Value (Rs)</span>
+                  <span>Status</span>
+                </div>
+                {materialPlanRows.map((row) => (
+                  <div key={row.id} className="grid grid-cols-[0.45fr_1.45fr_0.6fr_0.5fr_0.75fr_0.8fr_0.8fr_0.8fr_0.85fr_0.95fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.id}</span>
+                    <span className="font-extrabold text-[#1e3261]">{row.category}</span>
+                    <span>{row.items}</span>
+                    <span>{row.uom}</span>
+                    <span>{row.plannedQty}</span>
+                    <span>{row.procuredQty}</span>
+                    <span>{row.deliveredQty}</span>
+                    <span>{row.installedQty}</span>
+                    <span>{row.pendingQty}</span>
+                    <span>{row.plannedValue}</span>
+                    <span><ProjectPhaseBadge status={row.status} /></span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex items-center justify-between text-[13px] font-bold text-[#53647f]">
+                <span>Showing 1 to 10 of 10 entries</span>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => onNotify('Previous materials clicked')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[#284276]">Previous</button>
+                  <button type="button" onClick={() => onNotify('Current page 1')} className="rounded-[8px] bg-[#2f80ff] px-4 py-2 font-extrabold text-white">1</button>
+                  <button type="button" onClick={() => onNotify('Next materials clicked')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[#284276]">Next</button>
+                </div>
+              </div>
+            </article>
+
+            <div className="space-y-4">
+              <ProjectDonutCard title="Material Status Overview" data={materialStatusData} totalLabel="Total Items" totalValue="48" />
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Category-wise Planned Value</h2>
+                <div className="mt-5 space-y-4">
+                  {categoryValueRows.map(([label, percent, value]) => (
+                    <div key={label} className="grid gap-2 sm:grid-cols-[100px_minmax(0,1fr)_120px] sm:items-center">
+                      <span className="text-[13px] font-extrabold text-[#1e3261]">{label}</span>
+                      <div className="h-3 overflow-hidden rounded-full bg-[#edf3fb]">
+                        <div className="h-full rounded-full bg-[#2f80ff]" style={{ width: percent }} />
+                      </div>
+                      <span className="text-right text-[12px] font-extrabold text-[#284276]">Rs {value} ({percent})</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Quick Actions</h2>
+                <div className="mt-5 grid grid-cols-2 gap-4">
+                  {quickActions.map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <button key={action.label} type="button" onClick={() => onNotify(`${action.label} opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-4 text-center transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
+                        <span className={cx('mx-auto grid size-12 place-items-center rounded-[12px]', action.tone === 'green' ? 'bg-[#eefbf1] text-[#16a34a]' : action.tone === 'blue' ? 'bg-[#eef4ff] text-[#2563eb]' : action.tone === 'purple' ? 'bg-[#f4ecff] text-[#8b5cf6]' : 'bg-[#fff4df] text-[#f59e0b]')}>
+                          <Icon className="size-5" />
+                        </span>
+                        <span className="mt-3 block text-[13px] font-extrabold text-[#1e3261]">{action.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Upcoming Requirements</h2>
+                <button type="button" onClick={() => onNotify('All requirements opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Requirements</button>
+              </div>
+              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+                <div className="grid grid-cols-[1.4fr_1fr_0.75fr_0.6fr_0.8fr_1fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Material</span>
+                  <span>Required By</span>
+                  <span>Required Qty</span>
+                  <span>UOM</span>
+                  <span>Priority</span>
+                  <span>Status</span>
+                </div>
+                {upcomingRequirements.map((row) => (
+                  <div key={row.material} className="grid grid-cols-[1.4fr_1fr_0.75fr_0.6fr_0.8fr_1fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.material}</span>
+                    <span>{row.requiredBy}</span>
+                    <span>{row.qty}</span>
+                    <span>{row.uom}</span>
+                    <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', row.priority === 'High' ? 'bg-[#ffeded] text-[#dc2626]' : 'bg-[#fff4df] text-[#b45309]')}>{row.priority}</span>
+                    <span>{row.status}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Top Vendors</h2>
+                <button type="button" onClick={() => onNotify('All vendors opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Vendors</button>
+              </div>
+              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+                <div className="grid grid-cols-[1.5fr_0.8fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Vendor</span>
+                  <span>Supplied Items</span>
+                  <span>On-Time Delivery</span>
+                  <span>Rating</span>
+                </div>
+                {vendors.map((vendor) => (
+                  <div key={vendor.vendor} className="grid grid-cols-[1.5fr_0.8fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{vendor.vendor}</span>
+                    <span>{vendor.supplied}</span>
+                    <span>{vendor.delivery}</span>
+                    <span className="text-[#f59e0b]">★ {vendor.rating}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+        </>
+      ) : (
+        <article className={`${panelClass} p-8 text-center`}>
+          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
+            <FolderKanban className="size-8" />
+          </span>
+          <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeMaterialTab}</h2>
+          <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
+            Is material planning tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi main screen aur tab navigation fully working hai, aur aap Material Overview par wapas ja sakte ho.
+          </p>
+          <button type="button" onClick={() => setActiveMaterialTab('Material Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Material Overview</button>
+        </article>
+      )}
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
+  const [activeOrderTab, setActiveOrderTab] = useState('All Work Orders');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const project = {
+    name: '20kW On-Grid System',
+    address: '123, Scheme No. 54, Vijay Nagar',
+    city: 'Indore, Madhya Pradesh - 452010',
+    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    installationId: 'INS-2024-0015',
+    startDate: '2024-05-18',
+    targetDate: '2024-05-28',
+    progress: 65,
+  };
+
+  const statCards = [
+    { label: 'Total Work Orders', value: '24', caption: 'All Time', icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Completed', value: '12', caption: '50.00%', icon: CheckCircle2, tone: 'green' },
+    { label: 'In Progress', value: '7', caption: '29.17%', icon: FolderKanban, tone: 'blue' },
+    { label: 'Pending', value: '4', caption: '16.67%', icon: ClipboardPlus, tone: 'amber' },
+    { label: 'Overdue', value: '1', caption: '4.16%', icon: AlertTriangle, tone: 'red' },
+  ];
+
+  const orders = [
+    { id: 'WO-2024-0001', task: 'Material Delivery', category: 'Procurement', assignee: { name: 'Deepak Sharma', initials: 'DS', tone: 'slate' }, priority: 'Medium', status: 'Completed', startDate: '18 May 2024', dueDate: '18 May 2024', progress: 100 },
+    { id: 'WO-2024-0002', task: 'Mounting Structure Installation', category: 'Installation', assignee: { name: 'Ramesh Yadav', initials: 'RY', tone: 'cyan' }, priority: 'High', status: 'Completed', startDate: '19 May 2024', dueDate: '21 May 2024', progress: 100 },
+    { id: 'WO-2024-0003', task: 'Panel Installation', category: 'Installation', assignee: { name: 'Ramesh Yadav', initials: 'RY', tone: 'cyan' }, priority: 'High', status: 'In Progress', startDate: '22 May 2024', dueDate: '24 May 2024', progress: 70 },
+    { id: 'WO-2024-0004', task: 'DC Wiring', category: 'Electrical', assignee: { name: 'Amit Joshi', initials: 'AJ', tone: 'blue' }, priority: 'High', status: 'In Progress', startDate: '23 May 2024', dueDate: '25 May 2024', progress: 60 },
+    { id: 'WO-2024-0005', task: 'Inverter Installation', category: 'Electrical', assignee: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, priority: 'Medium', status: 'Completed', startDate: '25 May 2024', dueDate: '25 May 2024', progress: 100 },
+    { id: 'WO-2024-0006', task: 'ACDB & AC Wiring', category: 'Electrical', assignee: { name: 'Amit Joshi', initials: 'AJ', tone: 'blue' }, priority: 'Medium', status: 'Pending', startDate: '26 May 2024', dueDate: '27 May 2024', progress: 0 },
+    { id: 'WO-2024-0007', task: 'Earthing & Bonding', category: 'Electrical', assignee: { name: 'Sunil Patidar', initials: 'SP', tone: 'amber' }, priority: 'Medium', status: 'Pending', startDate: '26 May 2024', dueDate: '27 May 2024', progress: 0 },
+    { id: 'WO-2024-0008', task: 'System Testing', category: 'QA & Testing', assignee: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, priority: 'High', status: 'Pending', startDate: '27 May 2024', dueDate: '28 May 2024', progress: 0 },
+    { id: 'WO-2024-0009', task: 'Cleaning & Site Handover', category: 'Handover', assignee: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, priority: 'Low', status: 'Pending', startDate: '28 May 2024', dueDate: '28 May 2024', progress: 0 },
+    { id: 'WO-2024-0010', task: 'Documentation & Handover', category: 'Handover', assignee: { name: 'Manish Gupta', initials: 'MG', tone: 'violet' }, priority: 'Low', status: 'Overdue', startDate: '24 May 2024', dueDate: '24 May 2024', progress: 0 },
+  ];
+
+  const filteredOrders = orders.filter((order) => {
+    if (activeOrderTab === 'Pending Approval') return order.status === 'Pending';
+    if (activeOrderTab === 'Overdue') return order.status === 'Overdue';
+    if (!searchTerm.trim()) return true;
+    const haystack = `${order.id} ${order.task} ${order.category} ${order.assignee.name}`.toLowerCase();
+    return haystack.includes(searchTerm.toLowerCase());
+  }).filter((order) => {
+    if (!searchTerm.trim()) return true;
+    const haystack = `${order.id} ${order.task} ${order.category} ${order.assignee.name}`.toLowerCase();
+    return haystack.includes(searchTerm.toLowerCase());
+  });
+
+  const statusData = [
+    { label: 'Completed', value: 12, color: '#16a34a' },
+    { label: 'In Progress', value: 7, color: '#2f80ff' },
+    { label: 'Pending', value: 4, color: '#f59e0b' },
+    { label: 'Overdue', value: 1, color: '#ef4444' },
+  ];
+
+  const overdueOrders = [
+    { id: 'WO-2024-0010', task: 'Documentation & Handover', dueDate: '24 May 2024', days: '2 Days' },
+  ];
+
+  const recentActivity = [
+    { title: 'Work Order WO-2024-0002 marked as Completed', actor: 'Ramesh Yadav', time: '20 May 2024, 11:30 AM', tone: 'green' },
+    { title: 'Work Order WO-2024-0003 status changed to In Progress', actor: 'Ramesh Yadav', time: '20 May 2024, 10:15 AM', tone: 'blue' },
+    { title: 'Work Order WO-2024-0001 marked as Completed', actor: 'Deepak Sharma', time: '19 May 2024, 05:45 PM', tone: 'green' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Work Orders"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project List', onClick: () => onOpenSection('Project List') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Work Orders' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Work order report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Work order export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('Create work order opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Create Work Order</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
+          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
+            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+              </div>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+            </div>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
+            <AssigneeCell assignee={project.manager} compact />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
+            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Overall Progress</p>
+            <p className="text-[22px] font-extrabold text-[#1e3261]">{project.progress}%</p>
+            <ProjectProgressBar value={project.progress} color="blue" />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+      </section>
+
+      <article className={`${panelClass} p-4 sm:p-5`}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {['All Work Orders', 'Pending Approval', 'Overdue'].map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveOrderTab(tab)}
+                className={cx(
+                  'inline-flex items-center rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
+                  activeOrderTab === tab ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button type="button" onClick={() => onNotify('Work order filters opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
+            <label className="flex h-11 min-w-[280px] items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4">
+              <Search className="size-4 text-[#7b8ca8]" />
+              <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search work orders..." className="w-full border-none bg-transparent text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8aa0bf]" />
+            </label>
+            <button type="button" onClick={() => { setSearchTerm(''); onNotify('Work order filters reset'); }} className="grid size-11 place-items-center rounded-[10px] border border-[#d9e4f2] bg-white text-[#284276]"><RefreshCw className="size-4 text-[#0b65e5]" /></button>
+          </div>
+        </div>
+
+        <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+          <div className="grid grid-cols-[0.45fr_1.15fr_1.5fr_1fr_1.05fr_0.8fr_0.95fr_0.95fr_0.95fr_0.95fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+            <span>#</span>
+            <span>Work Order ID</span>
+            <span>Task / Activity</span>
+            <span>Category</span>
+            <span>Assigned To</span>
+            <span>Priority</span>
+            <span>Status</span>
+            <span>Start Date</span>
+            <span>Due Date</span>
+            <span>Progress</span>
+          </div>
+          {filteredOrders.map((order, index) => (
+            <div key={order.id} className="grid grid-cols-[0.45fr_1.15fr_1.5fr_1fr_1.05fr_0.8fr_0.95fr_0.95fr_0.95fr_0.95fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+              <span className="font-extrabold text-[#1e3261]">{index + 1}</span>
+              <span className="font-extrabold text-[#1e3261]">{order.id}</span>
+              <span>{order.task}</span>
+              <span>{order.category}</span>
+              <span><AssigneeCell assignee={order.assignee} compact /></span>
+              <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', order.priority === 'High' ? 'bg-[#ffeded] text-[#dc2626]' : order.priority === 'Medium' ? 'bg-[#fff4df] text-[#b45309]' : 'bg-[#eefbf1] text-[#15803d]')}>{order.priority}</span>
+              <span><ProjectPhaseBadge status={order.status} /></span>
+              <span>{order.startDate}</span>
+              <span className={cx(order.status === 'Overdue' && 'font-extrabold text-[#dc2626]')}>{order.dueDate}</span>
+              <span className="space-y-1">
+                <span className="block text-[11px] font-extrabold text-[#53647f]">{order.progress}%</span>
+                <ProjectProgressBar value={order.progress} color={order.status === 'Completed' ? 'green' : order.status === 'In Progress' ? 'blue' : order.status === 'Overdue' ? 'amber' : 'amber'} />
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-[13px] font-bold text-[#53647f]">Showing 1 to {filteredOrders.length} of 24 entries</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => onNotify('Previous work order page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Previous</button>
+            {[1, 2, 3].map((page) => (
+              <button key={page} type="button" onClick={() => onNotify(`Work order page ${page}`)} className={cx('rounded-[8px] px-4 py-2 text-[12px] font-extrabold', page === 1 ? 'bg-[#2f80ff] text-white' : 'border border-[#dce6f3] text-[#284276]')}>{page}</button>
+            ))}
+            <button type="button" onClick={() => onNotify('Next work order page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Next</button>
+            <button type="button" onClick={() => onNotify('Page size chooser opened')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">10 / page</button>
+          </div>
+        </div>
+      </article>
+
+      <section className="grid gap-4 xl:grid-cols-[0.95fr_1.15fr_0.95fr]">
+        <ProjectDonutCard title="Work Order Status" data={statusData} totalLabel="Total" totalValue="24" />
+
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Overdue Work Orders</h2>
+            <button type="button" onClick={() => setActiveOrderTab('Overdue')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+          </div>
+          <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+            <div className="grid grid-cols-[1.1fr_1.45fr_0.95fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+              <span>Work Order ID</span>
+              <span>Task / Activity</span>
+              <span>Due Date</span>
+              <span>Days Overdue</span>
+            </div>
+            {overdueOrders.map((item) => (
+              <div key={item.id} className="grid grid-cols-[1.1fr_1.45fr_0.95fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                <span className="font-extrabold text-[#1e3261]">{item.id}</span>
+                <span>{item.task}</span>
+                <span className="font-extrabold text-[#dc2626]">{item.dueDate}</span>
+                <span className="font-extrabold text-[#dc2626]">{item.days}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Activity</h2>
+            <button type="button" onClick={() => onNotify('All work order activity opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+          </div>
+          <div className="mt-5 space-y-4">
+            {recentActivity.map((item) => (
+              <div key={item.title} className="flex gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', item.tone === 'green' ? 'bg-[#16a34a]' : 'bg-[#2f80ff]')}>
+                  <CheckCircle2 className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-extrabold text-[#1e3261]">{item.title}</p>
+                  <p className="mt-1 text-[12px] font-bold text-[#53647f]">by {item.actor}</p>
+                </div>
+                <span className="shrink-0 text-[11px] font-extrabold text-[#53647f]">{item.time}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
+  const [activeExpenseTab, setActiveExpenseTab] = useState('Expense Overview');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState('2024-05-01');
+  const [dateTo, setDateTo] = useState('2024-05-31');
+  const formattedRange = formatProjectDateRange(dateFrom, dateTo);
+
+  const project = {
+    name: '20kW On-Grid System',
+    address: '123, Scheme No. 54, Vijay Nagar',
+    city: 'Indore, Madhya Pradesh - 452010',
+    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    installationId: 'INS-2024-0015',
+    startDate: '2024-05-18',
+    targetDate: '2024-05-28',
+    totalBudget: 'Rs 2,48,560',
+  };
+
+  const expenseTabs = [
+    { label: 'Expense Overview', icon: IndianRupee },
+    { label: 'Category Breakdown', icon: Boxes },
+    { label: 'Payment Status', icon: CheckCircle2 },
+    { label: 'Vendor Wise', icon: UsersRound },
+    { label: 'Expense Reports', icon: BarChart3 },
+  ];
+
+  const statCards = [
+    { label: 'Total Expenses', value: 'Rs 1,62,300', caption: '65.30% of Budget', icon: IndianRupee, tone: 'blue' },
+    { label: 'Total Budget', value: 'Rs 2,48,560', caption: '100%', icon: ClipboardPlus, tone: 'green' },
+    { label: 'Paid Expenses', value: 'Rs 1,21,850', caption: '50.00% of Budget', icon: CheckCircle2, tone: 'purple' },
+    { label: 'Pending Payments', value: 'Rs 40,450', caption: '16.30% of Budget', icon: Clock3, tone: 'amber' },
+    { label: 'Remaining Budget', value: 'Rs 86,260', caption: '34.70% of Budget', icon: Database, tone: 'cyan' },
+  ];
+
+  const expenseTrendSeries = [
+    { label: 'Actual Expenses', color: '#2f80ff', values: [8000, 8000, 9000, 15000, 21000, 22000, 30000, 31000, 33000, 36000, 45000, 46000] },
+    { label: 'Planned Expenses', color: '#22c55e', values: [8000, 8000, 9000, 12000, 15000, 14000, 17000, 23000, 26000, 30000, 31000, 31000] },
+    { label: 'Budget', color: '#c0cad9', values: [45000, 45000, 45000, 45000, 47000, 47000, 47000, 47000, 47000, 47000, 47000, 47000] },
+  ];
+
+  const expenseCategoryData = [
+    { label: 'Equipment', value: 64800, color: '#2f80ff' },
+    { label: 'Installation', value: 36250, color: '#16a34a' },
+    { label: 'Electrical', value: 22150, color: '#f59e0b' },
+    { label: 'Civil Work', value: 16600, color: '#8b5cf6' },
+    { label: 'Transportation', value: 9200, color: '#22c55e' },
+    { label: 'Others', value: 13300, color: '#94a3b8' },
+  ];
+
+  const paymentStatusData = [
+    { label: 'Paid', value: 121850, color: '#16a34a' },
+    { label: 'Pending', value: 40450, color: '#f59e0b' },
+  ];
+
+  const expenses = [
+    { id: 'EXP-2024-0001', date: '18 May 2024', category: 'Equipment', description: 'Solar Panels (10kW)', vendor: 'SunPower Systems', amount: '64,800', paymentStatus: 'Paid', paymentMode: 'Bank Transfer', invoice: 'INV-1001.pdf' },
+    { id: 'EXP-2024-0002', date: '19 May 2024', category: 'Installation', description: 'Mounting Structure', vendor: 'EnerTech Solutions', amount: '28,500', paymentStatus: 'Paid', paymentMode: 'Bank Transfer', invoice: 'INV-1002.pdf' },
+    { id: 'EXP-2024-0003', date: '20 May 2024', category: 'Electrical', description: 'DC Cables & Connectors', vendor: 'WireTech Industries', amount: '12,650', paymentStatus: 'Paid', paymentMode: 'UPI', invoice: 'INV-1003.pdf' },
+    { id: 'EXP-2024-0004', date: '21 May 2024', category: 'Equipment', description: 'Inverter (20kW)', vendor: 'Sungrow India Pvt. Ltd.', amount: '36,250', paymentStatus: 'Pending', paymentMode: '-', invoice: 'INV-1004.pdf' },
+    { id: 'EXP-2024-0005', date: '22 May 2024', category: 'Civil Work', description: 'RCC Foundation', vendor: 'BuildWell Contractors', amount: '12,300', paymentStatus: 'Pending', paymentMode: '-', invoice: 'INV-1005.pdf' },
+    { id: 'EXP-2024-0006', date: '23 May 2024', category: 'Transportation', description: 'Material Transportation', vendor: 'Rapid Logistics', amount: '6,800', paymentStatus: 'Paid', paymentMode: 'Cash', invoice: 'INV-1006.pdf' },
+    { id: 'EXP-2024-0007', date: '24 May 2024', category: 'Electrical', description: 'ACDB & Accessories', vendor: 'Electric House', amount: '9,500', paymentStatus: 'Pending', paymentMode: '-', invoice: 'INV-1007.pdf' },
+    { id: 'EXP-2024-0008', date: '25 May 2024', category: 'Others', description: 'Safety Items', vendor: 'SafeTech Solutions', amount: '8,300', paymentStatus: 'Paid', paymentMode: 'UPI', invoice: 'INV-1008.pdf' },
+  ];
+
+  const topVendors = [
+    ['SunPower Systems', '64,800 (39.9%)'],
+    ['EnerTech Solutions', '28,500 (17.5%)'],
+    ['Sungrow India Pvt. Ltd.', '36,250 (22.3%)'],
+    ['WireTech Industries', '12,650 (7.8%)'],
+    ['Others', '19,100 (11.7%)'],
+  ];
+
+  const recentExpenses = [
+    { id: 'EXP-2024-0008', title: 'Safety Items', amount: 'Rs 8,300', status: 'Paid', date: '25 May 2024' },
+    { id: 'EXP-2024-0007', title: 'ACDB & Accessories', amount: 'Rs 9,500', status: 'Pending', date: '24 May 2024' },
+    { id: 'EXP-2024-0006', title: 'Material Transportation', amount: 'Rs 6,800', status: 'Paid', date: '23 May 2024' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Expenses"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project List', onClick: () => onOpenSection('Project List') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Expenses' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Expense report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Expense export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('Add expense opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Expense</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
+          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
+            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+              </div>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+            </div>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
+            <AssigneeCell assignee={project.manager} compact />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
+            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Total Budget</p>
+            <p className="text-[22px] font-extrabold text-[#1e3261]">{project.totalBudget}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+      </section>
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {expenseTabs.map((tab) => (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={() => setActiveExpenseTab(tab.label)}
+                className={cx(
+                  'inline-flex items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
+                  activeExpenseTab === tab.label ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
+                )}
+              >
+                <tab.icon className="size-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button type="button" onClick={() => onNotify(`Expense filters opened for ${formattedRange}`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
+            <div className="relative">
+              <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
+            </div>
+          </div>
+        </div>
+
+        {activeExpenseTab === 'Expense Overview' ? (
+          <>
+            <section className="mt-5 grid gap-4 xl:grid-cols-[1.25fr_0.95fr_0.95fr]">
+              <ProjectLineChartCard title="Expense Trend" series={expenseTrendSeries} height={240} onNotify={onNotify} />
+              <ProjectDonutCard title="Expense by Category" data={expenseCategoryData} totalLabel="Total" totalValue="Rs 1,62,300" onNotify={onNotify} />
+              <ProjectDonutCard title="Payment Status" data={paymentStatusData} totalLabel="Total" totalValue="Rs 1,62,300" onNotify={onNotify} />
+            </section>
+
+            <section className="mt-4 grid gap-4 xl:grid-cols-[1.7fr_0.75fr]">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Expense List</h2>
+                <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+                  <div className="grid grid-cols-[0.45fr_1.1fr_0.85fr_0.9fr_1.2fr_1.15fr_0.8fr_0.95fr_0.95fr_0.9fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                    <span>#</span>
+                    <span>Expense ID</span>
+                    <span>Date</span>
+                    <span>Category</span>
+                    <span>Description</span>
+                    <span>Vendor / Supplier</span>
+                    <span>Amount (Rs)</span>
+                    <span>Payment Status</span>
+                    <span>Payment Mode</span>
+                    <span>Invoice / Bill</span>
+                    <span>Actions</span>
+                  </div>
+                  {expenses.map((item, index) => (
+                    <div key={item.id} className="grid grid-cols-[0.45fr_1.1fr_0.85fr_0.9fr_1.2fr_1.15fr_0.8fr_0.95fr_0.95fr_0.9fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                      <span className="font-extrabold text-[#1e3261]">{index + 1}</span>
+                      <span className="font-extrabold text-[#1e3261]">{item.id}</span>
+                      <span>{item.date}</span>
+                      <span>{item.category}</span>
+                      <span>{item.description}</span>
+                      <span>{item.vendor}</span>
+                      <span>{item.amount}</span>
+                      <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.paymentStatus === 'Paid' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.paymentStatus}</span>
+                      <span>{item.paymentMode}</span>
+                      <button type="button" onClick={() => onNotify(`${item.invoice} opened`)} className="text-left font-extrabold text-[#2563eb]">{item.invoice}</button>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => onNotify(`View ${item.id}`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Eye className="size-4" /></button>
+                        <button type="button" onClick={() => onNotify(`Download ${item.invoice}`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Download className="size-4" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-[13px] font-bold text-[#53647f]">Showing 1 to 8 of 24 entries</span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => onNotify('Previous expenses page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Previous</button>
+                    {[1, 2, 3].map((page) => (
+                      <button key={page} type="button" onClick={() => onNotify(`Expenses page ${page}`)} className={cx('rounded-[8px] px-4 py-2 text-[12px] font-extrabold', page === 1 ? 'bg-[#2f80ff] text-white' : 'border border-[#dce6f3] text-[#284276]')}>{page}</button>
+                    ))}
+                    <button type="button" onClick={() => onNotify('Next expenses page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Next</button>
+                  </div>
+                </div>
+              </article>
+
+              <div className="space-y-4">
+                <article className={`${panelClass} p-4 sm:p-5`}>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Top Vendors by Expense</h2>
+                  <div className="mt-5 space-y-3">
+                    {topVendors.map(([vendor, amount]) => (
+                      <div key={vendor} className="flex items-center justify-between gap-3 text-[13px] font-bold">
+                        <span className="text-[#1e3261]">{vendor}</span>
+                        <span className="text-[#284276]">{amount}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => onNotify('All vendors by expense opened')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Vendors</button>
+                </article>
+
+                <article className={`${panelClass} p-4 sm:p-5`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Expenses</h2>
+                    <button type="button" onClick={() => onNotify('All recent expenses opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+                  </div>
+                  <div className="mt-5 space-y-4">
+                    {recentExpenses.map((item) => (
+                      <div key={item.id} className="flex items-start justify-between gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-extrabold text-[#1e3261]">{item.id}</p>
+                          <p className="mt-1 text-[13px] font-bold text-[#1e3261]">{item.title}</p>
+                          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{item.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[13px] font-extrabold text-[#1e3261]">{item.amount}</p>
+                          <span className={cx('mt-2 inline-flex rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.status === 'Paid' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              </div>
+            </section>
+          </>
+        ) : (
+          <article className="mt-5 rounded-[18px] border border-[#dce6f3] bg-white p-8 text-center shadow-[0_18px_40px_rgba(18,48,87,0.06)]">
+            <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
+              <FolderKanban className="size-8" />
+            </span>
+            <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeExpenseTab}</h2>
+            <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
+              Is expense tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi main overview screen aur tab navigation fully working hai.
+            </p>
+            <button type="button" onClick={() => setActiveExpenseTab('Expense Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Expense Overview</button>
+          </article>
+        )}
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
+  const [activeDocumentTab, setActiveDocumentTab] = useState('All Documents');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState('2024-05-01');
+  const [dateTo, setDateTo] = useState('2024-05-31');
+  const formattedRange = formatProjectDateRange(dateFrom, dateTo);
+
+  const project = {
+    name: '20kW On-Grid System',
+    address: '123, Scheme No. 54, Vijay Nagar',
+    city: 'Indore, Madhya Pradesh - 452010',
+    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    installationId: 'INS-2024-0015',
+    startDate: '2024-05-18',
+    targetDate: '2024-05-28',
+    totalDocuments: '62',
+  };
+
+  const statCards = [
+    { label: 'Total Documents', value: '62', caption: 'All Time', icon: FolderKanban, tone: 'blue' },
+    { label: 'Folders', value: '12', caption: 'Organized', icon: FolderKanban, tone: 'green' },
+    { label: 'Files', value: '50', caption: 'Documents', icon: FileText, tone: 'purple' },
+    { label: 'Total Size', value: '1.48 GB', caption: 'Storage Used', icon: HardDrive, tone: 'amber' },
+    { label: 'Restricted Documents', value: '8', caption: 'Access Controlled', icon: LockKeyhole, tone: 'cyan' },
+  ];
+
+  const documentTabs = ['All Documents', 'Project Documents', 'Technical Documents', 'Contracts & Approvals', 'Invoices', 'Photos', 'Reports'];
+
+  const storageData = [
+    { label: 'Project Documents', value: 520, color: '#2f80ff', detail: '520 MB (35%)' },
+    { label: 'Technical Documents', value: 420, color: '#16a34a', detail: '420 MB (28%)' },
+    { label: 'Photos', value: 210, color: '#f59e0b', detail: '210 MB (14%)' },
+    { label: 'Invoices', value: 170, color: '#8b5cf6', detail: '170 MB (11%)' },
+    { label: 'Others', value: 160, color: '#94a3b8', detail: '160 MB (12%)' },
+  ];
+
+  const documents = [
+    { name: 'Site Survey Report.pdf', category: 'Project Documents', fileType: 'PDF', uploadedBy: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, date: '18 May 2024, 10:30 AM', size: '2.45 MB', access: 'Public', tone: 'red' },
+    { name: 'System Design & Layout.pdf', category: 'Technical Documents', fileType: 'PDF', uploadedBy: { name: 'Ramesh Yadav', initials: 'RY', tone: 'blue' }, date: '18 May 2024, 01:15 PM', size: '4.12 MB', access: 'Team', tone: 'red' },
+    { name: 'Equipment Datasheet.zip', category: 'Technical Documents', fileType: 'ZIP', uploadedBy: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' }, date: '19 May 2024, 11:05 AM', size: '28.6 MB', access: 'Team', tone: 'blue' },
+    { name: 'Quotation & BOQ.xlsx', category: 'Project Documents', fileType: 'XLSX', uploadedBy: { name: 'Deepak Sharma', initials: 'DS', tone: 'indigo' }, date: '19 May 2024, 03:20 PM', size: '1.35 MB', access: 'Team', tone: 'green' },
+    { name: 'Client Agreement.pdf', category: 'Contracts & Approvals', fileType: 'PDF', uploadedBy: { name: 'Neha Jain', initials: 'NJ', tone: 'purple' }, date: '20 May 2024, 09:40 AM', size: '1.89 MB', access: 'Restricted', tone: 'red' },
+    { name: 'Installation Plan.pdf', category: 'Technical Documents', fileType: 'PDF', uploadedBy: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, date: '21 May 2024, 10:00 AM', size: '3.75 MB', access: 'Team', tone: 'red' },
+    { name: 'Electrical Single Line Diagram.pdf', category: 'Technical Documents', fileType: 'PDF', uploadedBy: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' }, date: '21 May 2024, 02:30 PM', size: '2.15 MB', access: 'Team', tone: 'red' },
+    { name: 'Material Purchase Invoice - INV1002.pdf', category: 'Invoices', fileType: 'PDF', uploadedBy: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, date: '22 May 2024, 11:25 AM', size: '802 KB', access: 'Team', tone: 'red' },
+    { name: 'GRN - Equipment.pdf', category: 'Project Documents', fileType: 'PDF', uploadedBy: { name: 'Sunil Patidar', initials: 'SP', tone: 'cyan' }, date: '22 May 2024, 04:15 PM', size: '1.21 MB', access: 'Team', tone: 'red' },
+    { name: 'Site Photos - Day 1.jpg', category: 'Photos', fileType: 'JPG', uploadedBy: { name: 'Manish Gupta', initials: 'MG', tone: 'green' }, date: '23 May 2024, 09:10 AM', size: '3.25 MB', access: 'Public', tone: 'purple' },
+  ];
+
+  const recentDocuments = [
+    { name: 'Material Purchase Invoice - INV1004.pdf', meta: '24 May 2024, 11:30 AM', by: 'Pooja Mehta', tone: 'red' },
+    { name: 'Site Photos - Day 2.jpg', meta: '24 May 2024, 10:15 AM', by: 'Sunil Patidar', tone: 'purple' },
+    { name: 'Test Report - Inverter.pdf', meta: '23 May 2024, 04:45 PM', by: 'Neha Jain', tone: 'red' },
+    { name: 'Work Completion Certificate.pdf', meta: '23 May 2024, 02:20 PM', by: 'Vikram Singh', tone: 'red' },
+    { name: 'Handing Over Checklist.pdf', meta: '22 May 2024, 05:10 PM', by: 'Manish Gupta', tone: 'red' },
+  ];
+
+  const filteredDocuments = activeDocumentTab === 'All Documents'
+    ? documents
+    : documents.filter((item) => item.category === activeDocumentTab);
+
+  const totalStorage = storageData.reduce((sum, item) => sum + item.value, 0);
+  const storageGradient = `conic-gradient(${storageData.map((item, index) => {
+    const start = storageData.slice(0, index).reduce((sum, current) => sum + current.value, 0);
+    const end = start + item.value;
+    return `${item.color} ${(start / totalStorage) * 100}% ${(end / totalStorage) * 100}%`;
+  }).join(', ')})`;
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Documents"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project List', onClick: () => onOpenSection('Project List') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Documents' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Project document report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Upload document opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Upload Document</button>
+            <button type="button" onClick={() => onNotify('New folder modal opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Folder</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
+          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
+            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+              </div>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+            </div>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
+            <AssigneeCell assignee={project.manager} compact />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
+            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Total Documents</p>
+            <p className="text-[22px] font-extrabold text-[#1e3261]">{project.totalDocuments}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.72fr_0.68fr]">
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap gap-2 border-b border-[#edf2f8] pb-4">
+              {documentTabs.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveDocumentTab(tab)}
+                  className={cx(
+                    'rounded-[10px] border-b-2 px-3 py-2 text-[13px] font-extrabold transition',
+                    activeDocumentTab === tab ? 'border-[#17a34a] text-[#17a34a]' : 'border-transparent text-[#53647f] hover:text-[#1e3261]',
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-3 lg:flex-row">
+              <label className="relative flex-1">
+                <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8ca8]" />
+                <input type="text" placeholder="Search documents..." className="h-12 w-full rounded-[10px] border border-[#dce6f3] bg-white pl-11 pr-4 text-[14px] font-bold text-[#1e3261] outline-none transition placeholder:text-[#8090aa] focus:border-[#0b65e5]" />
+              </label>
+              {['All Categories', 'All File Types', 'All Uploaded By'].map((label) => (
+                <button key={label} type="button" onClick={() => onNotify(`${label} filter opened`)} className="inline-flex h-12 items-center justify-between gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] lg:min-w-[170px]">
+                  <span>{label}</span>
+                  <ChevronDown className="size-4 text-[#7b8ca8]" />
+                </button>
+              ))}
+              <div className="relative lg:min-w-[220px]">
+                <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
+              </div>
+              <button type="button" onClick={() => onNotify(`Document filters opened for ${formattedRange}`)} className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
+            </div>
+
+            <div className="overflow-hidden rounded-[14px] border border-[#edf2f8]">
+              <div className="grid grid-cols-[0.4fr_2fr_1.25fr_0.8fr_1.15fr_1.2fr_0.8fr_0.85fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                <span className="grid place-items-center"><input type="checkbox" className="size-4 rounded border-[#cbd7e7]" /></span>
+                <span>Name</span>
+                <span>Category</span>
+                <span>File Type</span>
+                <span>Uploaded By</span>
+                <span>Date</span>
+                <span>Size</span>
+                <span>Access</span>
+                <span>Actions</span>
+              </div>
+              {filteredDocuments.map((item) => (
+                <div key={item.name} className="grid grid-cols-[0.4fr_2fr_1.25fr_0.8fr_1.15fr_1.2fr_0.8fr_0.85fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <span className="grid place-items-center"><input type="checkbox" className="size-4 rounded border-[#cbd7e7]" /></span>
+                  <div className="flex items-center gap-3">
+                    <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px] text-white', item.tone === 'red' ? 'bg-[#ff7373]' : item.tone === 'green' ? 'bg-[#22c55e]' : item.tone === 'purple' ? 'bg-[#a855f7]' : 'bg-[#3b82f6]')}>
+                      <FileText className="size-4" />
+                    </span>
+                    <span className="font-extrabold text-[#1e3261]">{item.name}</span>
+                  </div>
+                  <span>{item.category}</span>
+                  <span className={cx('inline-flex w-fit rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', item.fileType === 'PDF' ? 'bg-[#ffefef] text-[#e44d4d]' : item.fileType === 'XLSX' ? 'bg-[#ecf9ef] text-[#16a34a]' : item.fileType === 'ZIP' ? 'bg-[#eef5ff] text-[#2563eb]' : 'bg-[#f5efff] text-[#8b5cf6]')}>{item.fileType}</span>
+                  <AssigneeCell assignee={item.uploadedBy} compact />
+                  <span>{item.date}</span>
+                  <span>{item.size}</span>
+                  <span className={cx('inline-flex w-fit rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', item.access === 'Public' ? 'bg-[#ecf9ef] text-[#16a34a]' : item.access === 'Restricted' ? 'bg-[#fff1df] text-[#d97706]' : 'bg-[#eef5ff] text-[#2563eb]')}>{item.access}</span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => onNotify(`${item.name} preview opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Eye className="size-4" /></button>
+                    <button type="button" onClick={() => onNotify(`${item.name} downloaded`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Download className="size-4" /></button>
+                    <button type="button" onClick={() => onNotify(`${item.name} actions opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><MoreVertical className="size-4" /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-[13px] font-bold text-[#53647f]">Showing 1 to {filteredDocuments.length} of 62 entries</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => onNotify('Previous documents page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Previous</button>
+                {[1, 2, 3, 4, 5].map((page) => (
+                  <button key={page} type="button" onClick={() => onNotify(`Documents page ${page}`)} className={cx('rounded-[8px] px-3.5 py-2 text-[12px] font-extrabold', page === 1 ? 'bg-[#2f80ff] text-white' : 'border border-[#dce6f3] text-[#284276]')}>{page}</button>
+                ))}
+                <span className="px-2 text-[12px] font-extrabold text-[#53647f]">...</span>
+                <button type="button" onClick={() => onNotify('Documents page 7')} className="rounded-[8px] border border-[#dce6f3] px-3.5 py-2 text-[12px] font-extrabold text-[#284276]">7</button>
+                <button type="button" onClick={() => onNotify('Next documents page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Next</button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <div className="space-y-4">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Storage Overview</h2>
+            <div className="mt-5 grid gap-5 sm:grid-cols-[120px_minmax(0,1fr)] xl:grid-cols-1 min-[1400px]:grid-cols-[120px_minmax(0,1fr)]">
+              <div className="mx-auto grid size-[116px] place-items-center rounded-full border border-[#edf2f8]" style={{ background: storageGradient }}>
+                <div className="grid size-[54px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]">
+                  <span className="text-[24px] font-extrabold text-[#1e3261]">1.48</span>
+                  <span className="-mt-1 text-[10px] font-extrabold uppercase text-[#53647f]">GB Used</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {storageData.map((item) => (
+                  <div key={item.label} className="flex items-center justify-between gap-3 text-[12px] font-bold">
+                    <span className="flex items-center gap-2 text-[#1e3261]">
+                      <span className="size-3 rounded-full" style={{ backgroundColor: item.color }} />
+                      {item.label}
+                    </span>
+                    <span className="text-[#53647f]">{item.detail}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-5">
+              <div className="h-2 rounded-full bg-[#ebf0f7]">
+                <div className="h-full w-[29.6%] rounded-full bg-[#2f80ff]" />
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3 text-[12px] font-bold text-[#53647f]">
+                <span>1.48 GB of 5 GB Used</span>
+                <button type="button" onClick={() => onNotify('Storage details opened')} className="font-extrabold text-[#0b65e5]">View Storage Details</button>
+              </div>
+            </div>
+          </article>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Documents</h2>
+              <button type="button" onClick={() => onNotify('All recent documents opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+            </div>
+            <div className="mt-5 space-y-4">
+              {recentDocuments.map((item) => (
+                <div key={item.name} className="flex gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                  <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', item.tone === 'purple' ? 'bg-[#a855f7]' : 'bg-[#ff7373]')}>
+                    <FileText className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-extrabold text-[#1e3261]">{item.name}</p>
+                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">{item.meta}</p>
+                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">by {item.by}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => onNotify('All project documents opened')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Documents</button>
+          </article>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
+  const [activeApprovalTab, setActiveApprovalTab] = useState('All Approvals');
+
+  const project = {
+    name: '20kW On-Grid System',
+    address: '123, Scheme No. 54, Vijay Nagar',
+    city: 'Indore, Madhya Pradesh - 452010',
+    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    installationId: 'INS-2024-0015',
+    startDate: '2024-05-18',
+    targetDate: '2024-05-28',
+  };
+
+  const statCards = [
+    { label: 'Total Approvals', value: '28', caption: 'All Time', icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Approved', value: '16', caption: '57.14%', icon: CheckCircle2, tone: 'green' },
+    { label: 'Pending', value: '8', caption: '28.57%', icon: Clock3, tone: 'amber' },
+    { label: 'Rejected', value: '2', caption: '7.14%', icon: XCircle, tone: 'purple' },
+    { label: 'Cancelled', value: '2', caption: '7.14%', icon: ShieldCheck, tone: 'cyan' },
+  ];
+
+  const approvalTabs = ['All Approvals', 'Pending', 'Approved', 'Rejected', 'My Approvals'];
+
+  const approvalRows = [
+    { id: 'APR-2024-0028', title: 'Material Purchase - Inverter', category: 'Procurement', requestedBy: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, requestedOn: '24 May 2024, 10:30 AM', amount: '36,250', status: 'Pending', approver: { name: 'Ramesh Yadav', initials: 'RY', tone: 'green' } },
+    { id: 'APR-2024-0027', title: 'Site Survey Report', category: 'Technical', requestedBy: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, requestedOn: '24 May 2024, 09:15 AM', amount: '-', status: 'Approved', approver: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' } },
+    { id: 'APR-2024-0026', title: 'DC Cable Purchase', category: 'Procurement', requestedBy: { name: 'Sunil Patidar', initials: 'SP', tone: 'cyan' }, requestedOn: '23 May 2024, 04:20 PM', amount: '12,650', status: 'Pending', approver: { name: 'Manish Gupta', initials: 'MG', tone: 'green' } },
+    { id: 'APR-2024-0025', title: 'Installation Plan', category: 'Technical', requestedBy: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' }, requestedOn: '23 May 2024, 11:05 AM', amount: '-', status: 'Approved', approver: { name: 'Vikram Singh', initials: 'VS', tone: 'green' } },
+    { id: 'APR-2024-0024', title: 'Equipment Datasheet', category: 'Technical', requestedBy: { name: 'Ramesh Yadav', initials: 'RY', tone: 'green' }, requestedOn: '22 May 2024, 03:40 PM', amount: '-', status: 'Approved', approver: { name: 'Deepak Sharma', initials: 'DS', tone: 'indigo' } },
+    { id: 'APR-2024-0023', title: 'Subcontractor Hiring', category: 'HR / Vendor', requestedBy: { name: 'Neha Jain', initials: 'NJ', tone: 'purple' }, requestedOn: '22 May 2024, 02:10 PM', amount: '18,000', status: 'Rejected', approver: { name: 'Ramesh Yadav', initials: 'RY', tone: 'green' } },
+    { id: 'APR-2024-0022', title: 'Advance Payment Request', category: 'Finance', requestedBy: { name: 'Manish Gupta', initials: 'MG', tone: 'green' }, requestedOn: '21 May 2024, 12:25 PM', amount: '45,000', status: 'Pending', approver: { name: 'Vikram Singh', initials: 'VS', tone: 'green' } },
+    { id: 'APR-2024-0021', title: 'Safety Plan & Checklist', category: 'Compliance', requestedBy: { name: 'Sunil Patidar', initials: 'SP', tone: 'cyan' }, requestedOn: '21 May 2024, 09:40 AM', amount: '-', status: 'Approved', approver: { name: 'Neha Jain', initials: 'NJ', tone: 'purple' } },
+    { id: 'APR-2024-0020', title: 'Logistics & Transport', category: 'Operations', requestedBy: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, requestedOn: '20 May 2024, 04:05 PM', amount: '6,800', status: 'Cancelled', approver: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' } },
+    { id: 'APR-2024-0019', title: 'Project Budget Revision', category: 'Finance', requestedBy: { name: 'Deepak Sharma', initials: 'DS', tone: 'indigo' }, requestedOn: '20 May 2024, 11:20 AM', amount: '12,000', status: 'Pending', approver: { name: 'Ramesh Yadav', initials: 'RY', tone: 'green' } },
+  ];
+
+  const filteredApprovals = activeApprovalTab === 'All Approvals'
+    ? approvalRows
+    : activeApprovalTab === 'My Approvals'
+      ? approvalRows.filter((row) => row.approver.name === 'Rohit Singh' || row.approver.name === 'Ramesh Yadav')
+      : approvalRows.filter((row) => row.status === activeApprovalTab);
+
+  const approvalStatusData = [
+    { label: 'Approved', value: 16, color: '#16a34a' },
+    { label: 'Pending', value: 8, color: '#f59e0b' },
+    { label: 'Rejected', value: 2, color: '#ef4444' },
+    { label: 'Cancelled', value: 2, color: '#94a3b8' },
+  ];
+
+  const pendingApprovals = [
+    { title: 'Material Purchase - Inverter', code: 'APR-2024-0028', requester: 'Pooja Mehta', amount: '36,250', due: '25 May 2024', priority: 'High Priority' },
+    { title: 'DC Cable Purchase', code: 'APR-2024-0026', requester: 'Sunil Patidar', amount: '12,650', due: '26 May 2024', priority: 'Medium Priority' },
+    { title: 'Advance Payment Request', code: 'APR-2024-0022', requester: 'Manish Gupta', amount: '45,000', due: '24 May 2024', priority: 'High Priority' },
+    { title: 'Project Budget Revision', code: 'APR-2024-0019', requester: 'Deepak Sharma', amount: '12,000', due: '27 May 2024', priority: 'Medium Priority' },
+  ];
+
+  const workflowSteps = [
+    ['Request Created', 'By Requester', 'green'],
+    ['Submitted', 'To Approver', 'blue'],
+    ['Under Review', 'By Approver', 'amber'],
+    ['Decision', 'Approve / Reject', 'slate'],
+    ['Completed', 'Notification Sent', 'slate'],
+  ];
+
+  const approvalMatrix = [
+    ['Procurement', 'Team Lead', 'Project Manager', 'Finance Manager'],
+    ['Technical', 'Project Engineer', 'Project Manager', 'Technical Head'],
+    ['Finance', 'Requester + TL', 'Finance Manager', 'Director'],
+    ['HR / Vendor', 'HR Executive', 'HR Manager', 'Director'],
+    ['Operations', 'Team Lead', 'Project Manager', 'Operations Head'],
+  ];
+
+  const recentActivity = [
+    { title: 'Approval APR-2024-0027 has been approved', actor: 'Amit Joshi', time: '24 May 2024, 09:45 AM', tone: 'green' },
+    { title: 'Approval APR-2024-0028 is pending for your review', actor: 'Ramesh Yadav', time: '24 May 2024, 10:30 AM', tone: 'amber' },
+    { title: 'Approval APR-2024-0023 has been rejected', actor: 'Ramesh Yadav', time: '22 May 2024, 02:35 PM', tone: 'red' },
+    { title: 'Approval APR-2024-0024 has been approved', actor: 'Deepak Sharma', time: '22 May 2024, 03:55 PM', tone: 'green' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Approvals"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project List', onClick: () => onOpenSection('Project List') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Approvals' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Approvals report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Approvals exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('New approval flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Approval</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
+          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
+            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+              </div>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+            </div>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
+            <AssigneeCell assignee={project.manager} compact />
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
+            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
+          </div>
+          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.7fr_0.68fr]">
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap gap-2 border-b border-[#edf2f8] pb-4 lg:border-b-0 lg:pb-0">
+              {approvalTabs.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveApprovalTab(tab)}
+                  className={cx(
+                    'rounded-[10px] border-b-2 px-3 py-2 text-[13px] font-extrabold transition',
+                    activeApprovalTab === tab ? 'border-[#17a34a] text-[#17a34a]' : 'border-transparent text-[#53647f] hover:text-[#1e3261]',
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button type="button" onClick={() => onNotify('Approval filters opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
+              <label className="relative min-w-[260px]">
+                <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8ca8]" />
+                <input type="text" placeholder="Search approvals..." className="h-11 w-full rounded-[10px] border border-[#dce6f3] bg-white pl-11 pr-4 text-[14px] font-bold text-[#1e3261] outline-none placeholder:text-[#8090aa]" />
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+            <div className="grid grid-cols-[0.45fr_1.15fr_1.45fr_0.9fr_1fr_1.15fr_0.85fr_0.9fr_1.05fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+              <span>#</span>
+              <span>Approval ID</span>
+              <span>Title</span>
+              <span>Category</span>
+              <span>Requested By</span>
+              <span>Requested On</span>
+              <span>Amount (Rs)</span>
+              <span>Status</span>
+              <span>Current Approver</span>
+              <span>Actions</span>
+            </div>
+            {filteredApprovals.map((row, index) => (
+              <div key={row.id} className="grid grid-cols-[0.45fr_1.15fr_1.45fr_0.9fr_1fr_1.15fr_0.85fr_0.9fr_1.05fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                <span className="font-extrabold text-[#1e3261]">{index + 1}</span>
+                <span className="font-extrabold text-[#1e3261]">{row.id}</span>
+                <span>{row.title}</span>
+                <span>{row.category}</span>
+                <AssigneeCell assignee={row.requestedBy} compact />
+                <span>{row.requestedOn}</span>
+                <span>{row.amount}</span>
+                <ProjectPhaseBadge label={row.status} />
+                <AssigneeCell assignee={row.approver} compact />
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => onNotify(`${row.id} opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Eye className="size-4" /></button>
+                  <button type="button" onClick={() => onNotify(`${row.id} actions opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><MoreVertical className="size-4" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[13px] font-bold text-[#53647f]">Showing 1 to {filteredApprovals.length} of 28 entries</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => onNotify('Previous approvals page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Previous</button>
+              {[1, 2, 3].map((page) => (
+                <button key={page} type="button" onClick={() => onNotify(`Approvals page ${page}`)} className={cx('rounded-[8px] px-4 py-2 text-[12px] font-extrabold', page === 1 ? 'bg-[#2f80ff] text-white' : 'border border-[#dce6f3] text-[#284276]')}>{page}</button>
+              ))}
+              <button type="button" onClick={() => onNotify('Next approvals page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Next</button>
+            </div>
+          </div>
+        </article>
+
+        <div className="space-y-4">
+          <ProjectDonutCard title="Approvals by Status" data={approvalStatusData} totalLabel="Total" totalValue="28" onNotify={onNotify} />
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Pending Approvals</h2>
+              <button type="button" onClick={() => setActiveApprovalTab('Pending')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+            </div>
+            <div className="mt-5 space-y-4">
+              {pendingApprovals.map((item) => (
+                <div key={item.code} className="rounded-[12px] border border-[#edf2f8] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-extrabold text-[#1e3261]">{item.title}</p>
+                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">{item.code} - Requested by {item.requester}</p>
+                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">Amount: Rs {item.amount}</p>
+                    </div>
+                    <span className={cx('rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.priority === 'High Priority' ? 'bg-[#fff1f1] text-[#dc2626]' : 'bg-[#fff4df] text-[#d97706]')}>{item.priority}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-3 text-[12px] font-bold text-[#53647f]">
+                    <span>Due: {item.due}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => setActiveApprovalTab('Pending')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Pending Approvals</button>
+          </article>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.05fr_1.2fr_0.9fr]">
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Approval Workflow</h2>
+          <div className="mt-6 flex items-start justify-between gap-3">
+            {workflowSteps.map(([title, note, tone], index) => (
+              <div key={title} className="flex-1 text-center">
+                <div className="flex items-center justify-center">
+                  <span className={cx('grid size-9 place-items-center rounded-full border-2 text-[13px] font-extrabold', tone === 'green' ? 'border-[#16a34a] bg-[#effbf3] text-[#16a34a]' : tone === 'blue' ? 'border-[#2f80ff] bg-[#eef5ff] text-[#2f80ff]' : tone === 'amber' ? 'border-[#f59e0b] bg-[#fff4df] text-[#f59e0b]' : 'border-[#cfd8e6] bg-white text-[#7b8ca8]')}>{index + 1}</span>
+                  {index < workflowSteps.length - 1 && <span className="h-0.5 flex-1 bg-[#d8e3f1]" />}
+                </div>
+                <p className="mt-3 text-[13px] font-extrabold text-[#1e3261]">{title}</p>
+                <p className="mt-1 text-[11px] font-bold text-[#53647f]">{note}</p>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Approval Matrix</h2>
+          <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+            <div className="grid grid-cols-[1.1fr_1fr_1fr_1fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+              <span>Category</span>
+              <span>Level 1</span>
+              <span>Level 2</span>
+              <span>Level 3</span>
+            </div>
+            {approvalMatrix.map((row) => (
+              <div key={row[0]} className="grid grid-cols-[1.1fr_1fr_1fr_1fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                <span className="font-extrabold text-[#1e3261]">{row[0]}</span>
+                <span>{row[1]}</span>
+                <span>{row[2]}</span>
+                <span>{row[3]}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Activity</h2>
+            <button type="button" onClick={() => onNotify('All approval activity opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+          </div>
+          <div className="mt-5 space-y-4">
+            {recentActivity.map((item) => (
+              <div key={item.title} className="flex gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', item.tone === 'green' ? 'bg-[#16a34a]' : item.tone === 'red' ? 'bg-[#ef4444]' : 'bg-[#f59e0b]')}>
+                  {item.tone === 'green' ? <CheckCircle2 className="size-4" /> : item.tone === 'red' ? <XCircle className="size-4" /> : <Clock3 className="size-4" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-extrabold text-[#1e3261]">{item.title}</p>
+                  <p className="mt-1 text-[12px] font-bold text-[#53647f]">by {item.actor}</p>
+                </div>
+                <span className="shrink-0 text-[11px] font-extrabold text-[#53647f]">{item.time}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
 function ProjectModulePlaceholderPage({ activeSection, onOpenSection, onNotify }) {
   return (
     <div className="space-y-4">
@@ -12858,16 +15535,21 @@ function ProjectPerformanceSummary({ stats, onNotify }) {
   );
 }
 
-function ProjectPhaseBadge({ label }) {
+function ProjectPhaseBadge({ label, status }) {
+  const value = label ?? status;
   const toneClass = {
     'In Progress': 'bg-[#f4ecff] text-[#8b5cf6]',
     Installation: 'bg-[#eef5ff] text-[#0b65e5]',
     Planning: 'bg-[#fff5e8] text-[#f59e0b]',
     'On Hold': 'bg-[#ffe9e6] text-[#ef4444]',
     Completed: 'bg-[#effbf3] text-[#14b84c]',
-  }[label] ?? 'bg-[#eef2f7] text-[#53647f]';
+    Pending: 'bg-[#fff4df] text-[#d97706]',
+    Approved: 'bg-[#effbf3] text-[#16a34a]',
+    Rejected: 'bg-[#ffe9e6] text-[#ef4444]',
+    Cancelled: 'bg-[#eef2f7] text-[#64748b]',
+  }[value] ?? 'bg-[#eef2f7] text-[#53647f]';
 
-  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', toneClass)}>{label}</span>;
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', toneClass)}>{value}</span>;
 }
 
 function ProjectMobileCard({ project, index, onLocked }) {
