@@ -5145,7 +5145,7 @@ function getModuleSubnavLabel(item) {
   return item;
 }
 
-function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass }) {
+function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false }) {
   return (
     <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -5156,7 +5156,7 @@ function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenS
       </div>
 
       <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">
-        <div className="flex min-w-max gap-3">
+        <div className={cx('flex min-w-max gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
           {items.map((item) => {
             const isActive = activeSection === item;
             return (
@@ -5165,7 +5165,9 @@ function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenS
                 type="button"
                 onClick={() => onOpenSection(item)}
                 className={cx(
-                  'inline-flex h-[54px] min-w-[170px] items-center justify-between gap-3 rounded-[12px] border px-4 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
+                  'inline-flex h-[54px] items-center justify-between gap-3 rounded-[12px] border px-4 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
+                  compact ? 'min-w-[152px]' : 'min-w-[170px]',
+                  wrapOnDesktop && 'xl:min-w-[148px] xl:flex-1',
                   isActive ? activeClasses : 'border-[#d9e4f2] bg-white text-[#314a79] hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
                 )}
               >
@@ -5299,6 +5301,8 @@ function AmcSubnavTabs({ activeSection, onOpenSection }) {
       activeClasses="border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] ring-2 ring-[#fff0dc]"
       activeDotClass="bg-[#f59e0b]"
       activeIconClass="text-[#f59e0b]"
+      wrapOnDesktop
+      compact
     />
   );
 }
@@ -8873,6 +8877,9 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
   const [contractType, setContractType] = useState('All Contract Type');
   const [branch, setBranch] = useState('All Branch');
   const [customer, setCustomer] = useState('All Customer');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
 
   const rows = [
     { id: 1, code: 'AMC-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', site: 'Ludhiana Factory (100 kWp)', type: 'Comprehensive', startDate: '01 Apr 2024', endDate: '31 Mar 2025', duration: '12 Months', status: 'Active', nextRenewal: '01 Apr 2025' },
@@ -8891,8 +8898,11 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
     const typeMatch = contractType === 'All Contract Type' || row.type === contractType;
     const branchMatch = branch === 'All Branch' || row.site.includes(branch);
     const customerMatch = customer === 'All Customer' || row.customer === customer;
-    return queryMatch && statusMatch && typeMatch && branchMatch && customerMatch;
+    const dateMatch = isDateWithinRange(row.startDate, dateFrom, dateTo) || isDateWithinRange(row.endDate, dateFrom, dateTo) || isDateWithinRange(row.nextRenewal, dateFrom, dateTo);
+    return queryMatch && statusMatch && typeMatch && branchMatch && customerMatch && dateMatch;
   });
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
 
   return (
     <div className="space-y-4">
@@ -8919,22 +8929,31 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
             <OpsStatCard label="Open Service Requests" value="15" caption="Need Attention" icon={Wrench} tone="red" onClick={() => onOpenSection('Service Requests')} />
           </section>
 
-          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_160px_190px_180px_180px_240px_auto_auto] xl:items-end">
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+          <article className={`${panelClass} overflow-visible p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex h-11 min-w-[260px] flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
                 <Search className="size-4 text-[#7386a3]" />
                 <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search contracts..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
               </label>
-              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Expiring Soon']} hideLabel />
-              <ReportSelect label="Contract Type" value={contractType} onChange={setContractType} options={['All Contract Type', 'Comprehensive', 'Non-Comprehensive']} hideLabel />
-              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Patiala', 'Mohali', 'Barnala', 'Jalandhar']} hideLabel />
-              <ReportSelect label="Customer" value={customer} onChange={setCustomer} options={['All Customer', ...rows.map((row) => row.customer)]} hideLabel />
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
-                <CalendarDays className="size-4 text-[#7386a3]" />
-                <span>01/04/2024 - 31/03/2025</span>
-              </label>
-              <button type="button" onClick={() => onNotify(`AMC filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
-              <button type="button" onClick={() => onNotify('AMC contracts exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+              <ReportSelect className="min-w-[190px] flex-1 basis-[190px]" label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Expiring Soon']} hideLabel />
+              <ReportSelect className="min-w-[210px] flex-1 basis-[210px]" label="Contract Type" value={contractType} onChange={setContractType} options={['All Contract Type', 'Comprehensive', 'Non-Comprehensive']} hideLabel />
+              <ReportSelect className="min-w-[180px] flex-1 basis-[180px]" label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Patiala', 'Mohali', 'Barnala', 'Jalandhar']} hideLabel />
+              <ReportSelect className="min-w-[190px] flex-1 basis-[190px]" label="Customer" value={customer} onChange={setCustomer} options={['All Customer', ...rows.map((row) => row.customer)]} hideLabel />
+              <div className="min-w-[250px] flex-1 basis-[250px]">
+                <ReportDateRangePicker
+                  open={dateRangeOpen}
+                  onToggle={() => setDateRangeOpen((current) => !current)}
+                  onClose={() => setDateRangeOpen(false)}
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  setDateFrom={setDateFrom}
+                  setDateTo={setDateTo}
+                  formattedRange={formattedRange}
+                  hideLabel
+                />
+              </div>
+              <button type="button" onClick={() => onNotify(`AMC filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 min-w-[118px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+              <button type="button" onClick={() => onNotify('AMC contracts exported')} className="inline-flex h-11 min-w-[118px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
             </div>
 
             <h2 className="mt-5 font-display text-[15px] font-extrabold text-[#06135a]">AMC Contracts List</h2>
@@ -8964,7 +8983,7 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
             </div>
 
             <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
-              <table className="crm-table min-w-[1220px] w-full">
+              <table className="crm-table min-w-[1280px] w-full 2xl:min-w-[1220px]">
                 <thead><tr>{['#', 'Contract No.', 'Customer / Company', 'Project / Site', 'Contract Type', 'Start Date', 'End Date', 'Duration', 'Status', 'Next Renewal', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
                 <tbody>
                   {filteredRows.map((row, index) => (
@@ -8989,10 +9008,10 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
             <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 156 entries`} totalPage="20" onNotify={onNotify} prefix="AMC Contract" />
           </article>
 
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_360px]">
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Contract Type Summary</h2>
-              <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+              <div className="mt-5 grid gap-5 lg:grid-cols-[118px_minmax(0,1fr)] lg:items-center">
                 <button type="button" onClick={() => onNotify('Contract type chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#4169f6 0 50%, #ff8a00 50% 86%, #f6b532 86% 96%, #a8b5d3 96% 100%)' }}><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
                 <div className="space-y-3">
                   <StockLegend color="bg-[#4169f6]" label="Comprehensive" value="78 (50%)" />
@@ -9005,7 +9024,7 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
 
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Expiry Overview</h2>
-              <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+              <div className="mt-5 grid gap-5 lg:grid-cols-[118px_minmax(0,1fr)] lg:items-center">
                 <button type="button" onClick={() => onNotify('Expiry overview chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#ef4444 0 12%, #ff8a00 12% 27%, #f6b532 27% 41%, #a8b5d3 41% 100%)' }}><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
                 <div className="space-y-3">
                   <StockLegend color="bg-[#ef4444]" label="Expiring in 0-30 days" value="18 (12%)" />
@@ -9018,7 +9037,7 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
 
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Quick Actions</h2>
-              <div className="mt-5 grid gap-3 min-[440px]:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-5 grid gap-3 min-[440px]:grid-cols-2">
                 {[
                   { label: 'New AMC Contract', icon: FilePlus2, tone: 'amber' },
                   { label: 'Renewal Reminder', icon: CalendarDays, tone: 'green' },
