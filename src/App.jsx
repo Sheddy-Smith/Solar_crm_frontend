@@ -11829,6 +11829,10 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     return <ProjectApprovalsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
+  if (activeSection === 'Project Reports') {
+    return <ProjectReportsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
   return <ProjectModulePlaceholderPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
@@ -15243,6 +15247,284 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
             ))}
           </div>
         </article>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
+  const [activeReportTab, setActiveReportTab] = useState('All Reports');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState('2024-05-01');
+  const [dateTo, setDateTo] = useState('2024-05-31');
+  const formattedRange = formatProjectDateRange(dateFrom, dateTo);
+
+  const statCards = [
+    { label: 'Total Reports', value: '128', caption: 'All Time', icon: FileText, tone: 'blue' },
+    { label: 'Reports Generated', value: '96', caption: 'This Month', icon: BarChart3, tone: 'green' },
+    { label: 'Downloads', value: '78', caption: 'This Month', icon: Download, tone: 'purple' },
+    { label: 'Scheduled Reports', value: '12', caption: 'Active', icon: Clock3, tone: 'amber' },
+    { label: 'Custom Reports', value: '14', caption: 'Created by Users', icon: UsersRound, tone: 'cyan' },
+  ];
+
+  const reportTabs = ['All Reports', 'Project Reports', 'Financial Reports', 'Operational Reports', 'Compliance Reports', 'Custom Reports'];
+
+  const categoryData = [
+    { label: 'Project Reports', value: 42, color: '#2f80ff' },
+    { label: 'Financial Reports', value: 36, color: '#16a34a' },
+    { label: 'Operational Reports', value: 24, color: '#f59e0b' },
+    { label: 'Compliance Reports', value: 16, color: '#8b5cf6' },
+    { label: 'Custom Reports', value: 10, color: '#14b8a6' },
+  ];
+
+  const reportTrend = [4, 10, 16, 13, 15, 26, 32, 28, 23, 30, 33, 27, 32, 30, 24, 30, 33, 36, 39, 42];
+  const trendMax = Math.max(...reportTrend, 50);
+  const trendPoints = reportTrend.map((value, index) => {
+    const x = 28 + (index * (392 / (reportTrend.length - 1)));
+    const y = 196 - ((value / trendMax) * 156);
+    return `${x},${y}`;
+  }).join(' ');
+
+  const topDownloads = [
+    ['Project Progress Report', 18, '23.08%'],
+    ['Material Consumption Report', 14, '17.95%'],
+    ['Financial Summary Report', 12, '15.38%'],
+    ['Work Order Status Report', 10, '12.82%'],
+    ['Installation Summary Report', 8, '10.26%'],
+    ['Expense Report', 6, '7.69%'],
+    ['Vendor Performance Report', 4, '5.13%'],
+    ['Compliance Report', 2, '2.56%'],
+  ];
+
+  const reports = [
+    { name: 'Project Progress Report - May 2024', category: 'Project Reports', generatedOn: '31 May 2024, 10:30 AM', generatedBy: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, format: 'PDF', status: 'Completed' },
+    { name: 'Material Consumption Report', category: 'Operational Reports', generatedOn: '31 May 2024, 09:15 AM', generatedBy: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' }, format: 'XLSX', status: 'Completed' },
+    { name: 'Financial Summary Report - Q2', category: 'Financial Reports', generatedOn: '30 May 2024, 05:45 PM', generatedBy: { name: 'Neha Jain', initials: 'NJ', tone: 'purple' }, format: 'PDF', status: 'Completed' },
+    { name: 'Work Order Status Report', category: 'Operational Reports', generatedOn: '30 May 2024, 04:20 PM', generatedBy: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, format: 'XLSX', status: 'Completed' },
+    { name: 'Installation Summary Report', category: 'Project Reports', generatedOn: '29 May 2024, 03:10 PM', generatedBy: { name: 'Deepak Sharma', initials: 'DS', tone: 'indigo' }, format: 'PDF', status: 'Completed' },
+    { name: 'Expense Report - May 2024', category: 'Financial Reports', generatedOn: '29 May 2024, 11:05 AM', generatedBy: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, format: 'XLSX', status: 'Completed' },
+    { name: 'Vendor Performance Report', category: 'Operational Reports', generatedOn: '28 May 2024, 05:30 PM', generatedBy: { name: 'Sunil Patidar', initials: 'SP', tone: 'cyan' }, format: 'PDF', status: 'Completed' },
+    { name: 'Compliance Report', category: 'Compliance Reports', generatedOn: '28 May 2024, 02:45 PM', generatedBy: { name: 'Manish Gupta', initials: 'MG', tone: 'green' }, format: 'PDF', status: 'Completed' },
+  ];
+
+  const scheduledReports = [
+    { title: 'Daily Project Status Report', note: 'Daily at 09:00 AM', status: 'Active' },
+    { title: 'Weekly Financial Summary', note: 'Every Monday at 10:00 AM', status: 'Active' },
+    { title: 'Monthly Expense Report', note: '1st of Every Month at 11:00 AM', status: 'Active' },
+    { title: 'Quarterly Compliance Report', note: '1st of Every Quarter at 09:30 AM', status: 'Active' },
+  ];
+
+  const insightCards = [
+    { title: 'Most Generated', value: 'Project Progress Report', icon: BarChart3, tone: 'blue' },
+    { title: 'Most Downloaded', value: 'Project Progress Report', icon: Download, tone: 'green' },
+    { title: 'Peak Generation Day', value: 'Tuesday', icon: CalendarDays, tone: 'amber' },
+    { title: 'Most Popular Format', value: 'PDF (62%)', icon: FileText, tone: 'red' },
+  ];
+
+  const filteredReports = activeReportTab === 'All Reports' ? reports : reports.filter((item) => item.category === activeReportTab);
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Reports"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Reports' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Schedule report opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><CalendarDays className="size-4 text-[#0b65e5]" />Schedule Report</button>
+            <button type="button" onClick={() => onNotify('Project reports exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('Custom report builder opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Custom Report</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+      </section>
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {reportTabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveReportTab(tab)}
+                className={cx(
+                  'rounded-[10px] border-b-2 px-3 py-2 text-[13px] font-extrabold transition',
+                  activeReportTab === tab ? 'border-[#17a34a] text-[#17a34a]' : 'border-transparent text-[#53647f] hover:text-[#1e3261]',
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col gap-3 lg:flex-row">
+            <button type="button" onClick={() => onNotify(`Project report filters opened for ${formattedRange}`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
+            <div className="relative lg:min-w-[240px]">
+              <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
+            </div>
+            <label className="relative lg:min-w-[220px]">
+              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8ca8]" />
+              <input type="text" placeholder="Search reports..." className="h-11 w-full rounded-[10px] border border-[#dce6f3] bg-white pl-11 pr-4 text-[14px] font-bold text-[#1e3261] outline-none placeholder:text-[#8090aa]" />
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr_0.96fr]">
+        <ProjectDonutCard title="Reports by Category" data={categoryData} totalLabel="Total" totalValue="128" onNotify={onNotify} />
+
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Reports Generated Trend</h2>
+            <button type="button" onClick={() => onNotify('Report trend frequency opened')} className="inline-flex items-center gap-2 rounded-[10px] border border-[#d9e4f2] bg-white px-3 py-2 text-[12px] font-extrabold text-[#284276]">Daily <ChevronDown className="size-4 text-[#7b8ca8]" /></button>
+          </div>
+          <div className="mt-5 rounded-[14px] border border-[#edf2f8] bg-[#fbfdff] p-4">
+            <svg viewBox="0 0 450 230" className="h-[240px] w-full">
+              {[0, 10, 20, 30, 40, 50].map((tick, index) => {
+                const y = 196 - ((tick / 50) * 156);
+                return (
+                  <g key={tick}>
+                    <line x1="28" y1={y} x2="420" y2={y} stroke="#e6edf6" strokeWidth="1" />
+                    <text x="0" y={y + 4} fill="#64748b" fontSize="12" fontWeight="700">{tick}</text>
+                    {index === 0 ? null : null}
+                  </g>
+                );
+              })}
+              <polyline fill="none" stroke="#2f80ff" strokeWidth="3" points={trendPoints} />
+              {reportTrend.map((value, index) => {
+                const x = 28 + (index * (392 / (reportTrend.length - 1)));
+                const y = 196 - ((value / trendMax) * 156);
+                return (
+                  <g key={`${value}-${index}`}>
+                    <circle cx={x} cy={y} r="3.5" fill="#ffffff" stroke="#2f80ff" strokeWidth="2" />
+                    {index % 2 === 0 ? <text x={x - 5} y={y - 10} fill="#1e3261" fontSize="11" fontWeight="800">{value}</text> : null}
+                  </g>
+                );
+              })}
+              {['01 May', '06 May', '11 May', '16 May', '21 May', '26 May', '31 May'].map((label, index) => (
+                <text key={label} x={28 + (index * (392 / 6))} y="220" fill="#64748b" fontSize="12" fontWeight="700">{label}</text>
+              ))}
+            </svg>
+            <div className="mt-2 flex items-center justify-center gap-2 text-[12px] font-extrabold text-[#2f80ff]">
+              <span className="size-2 rounded-full bg-[#2f80ff]" />
+              Reports Generated
+            </div>
+          </div>
+        </article>
+
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Top Report Downloads</h2>
+          <div className="mt-5 space-y-4">
+            {topDownloads.map(([label, value, percent]) => (
+              <div key={label}>
+                <div className="flex items-center justify-between gap-3 text-[13px] font-extrabold text-[#1e3261]">
+                  <span>{label}</span>
+                  <span>{value} ({percent})</span>
+                </div>
+                <div className="mt-2 h-3 rounded-full bg-[#edf2f8]">
+                  <div className="h-full rounded-full bg-[#2f80ff]" style={{ width: `${(Number(value) / 18) * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => onNotify('All report downloads opened')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Downloads</button>
+        </article>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.7fr_0.72fr]">
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Reports</h2>
+          <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+            <div className="grid grid-cols-[0.45fr_1.75fr_1.05fr_1.2fr_0.95fr_0.8fr_0.8fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+              <span>#</span>
+              <span>Report Name</span>
+              <span>Category</span>
+              <span>Generated On</span>
+              <span>Generated By</span>
+              <span>Format</span>
+              <span>Status</span>
+              <span>Actions</span>
+            </div>
+            {filteredReports.map((item, index) => (
+              <div key={item.name} className="grid grid-cols-[0.45fr_1.75fr_1.05fr_1.2fr_0.95fr_0.8fr_0.8fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                <span className="font-extrabold text-[#1e3261]">{index + 1}</span>
+                <span className="font-extrabold text-[#1e3261]">{item.name}</span>
+                <span>{item.category}</span>
+                <span>{item.generatedOn}</span>
+                <AssigneeCell assignee={item.generatedBy} compact />
+                <span className={cx('inline-flex w-fit rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', item.format === 'PDF' ? 'bg-[#ffefef] text-[#e44d4d]' : 'bg-[#ecf9ef] text-[#16a34a]')}>{item.format}</span>
+                <ProjectPhaseBadge label={item.status} />
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => onNotify(`${item.name} opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Eye className="size-4" /></button>
+                  <button type="button" onClick={() => onNotify(`${item.name} downloaded`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Download className="size-4" /></button>
+                  <button type="button" onClick={() => onNotify(`${item.name} actions opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><MoreVertical className="size-4" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[13px] font-bold text-[#53647f]">Showing 1 to {filteredReports.length} of 128 entries</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => onNotify('Previous reports page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Previous</button>
+              {[1, 2, 3].map((page) => (
+                <button key={page} type="button" onClick={() => onNotify(`Project reports page ${page}`)} className={cx('rounded-[8px] px-4 py-2 text-[12px] font-extrabold', page === 1 ? 'bg-[#2f80ff] text-white' : 'border border-[#dce6f3] text-[#284276]')}>{page}</button>
+              ))}
+              <span className="px-2 text-[12px] font-extrabold text-[#53647f]">...</span>
+              <button type="button" onClick={() => onNotify('Project reports page 16')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">16</button>
+              <button type="button" onClick={() => onNotify('Next reports page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Next</button>
+            </div>
+          </div>
+        </article>
+
+        <div className="space-y-4">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Scheduled Reports</h2>
+              <button type="button" onClick={() => onNotify('All scheduled reports opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+            </div>
+            <div className="mt-5 space-y-4">
+              {scheduledReports.map((item) => (
+                <div key={item.title} className="flex items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#eef5ff] text-[#2f80ff]">
+                    <CalendarDays className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-extrabold text-[#1e3261]">{item.title}</p>
+                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">{item.note}</p>
+                  </div>
+                  <span className="inline-flex rounded-[7px] bg-[#ecf9ef] px-2.5 py-1 text-[11px] font-extrabold text-[#16a34a]">{item.status}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Report Insights</h2>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {insightCards.map((item) => (
+                <button key={item.title} type="button" onClick={() => onNotify(`${item.title} opened`)} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
+                  <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', item.tone === 'blue' ? 'bg-[#2f80ff]' : item.tone === 'green' ? 'bg-[#16a34a]' : item.tone === 'amber' ? 'bg-[#f59e0b]' : 'bg-[#ef4444]')}>
+                    <item.icon className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[12px] font-extrabold text-[#53647f]">{item.title}</span>
+                    <span className="mt-1 block text-[13px] font-extrabold text-[#1e3261]">{item.value}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </article>
+        </div>
       </section>
 
       <DashboardFooter />
