@@ -73,7 +73,7 @@ const sidebarItems = [
   { label: 'Reports', icon: BarChart3 },
   { label: 'Employee Management', icon: UsersRound, showChevron: true },
   { label: 'AMC & Warranty', icon: ShieldCheck, showChevron: true },
-  { label: 'Settings', icon: Settings, showChevron: true },
+  { label: 'Settings', icon: Settings, showChevron: false },
 ];
 
 const leadSubItems = ['Lead List', 'Create Lead'];
@@ -1457,8 +1457,9 @@ function App() {
                   const isLiaisonOpen = isLiaisonSection && (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem));
                   const isOmOpen = isOmSection && omRelatedPages.includes(activeSidebarItem);
                   const isAmcOpen = isAmcSection && (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem));
-                  const isSettingsOpen = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
-                  const isActive = item.label === activeSidebarItem || isLeadOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsOpen;
+                  const isSettingsActive = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
+                  const isSettingsOpen = false;
+                  const isActive = item.label === activeSidebarItem || isLeadOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsActive;
 
                   return (
                     <div key={item.label}>
@@ -8880,6 +8881,22 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
     return <AmcServiceRequestsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
+  if (activeSection === 'Visits / Maintenance') {
+    return <AmcVisitsMaintenancePage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Renewals') {
+    return <AmcRenewalsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Claims') {
+    return <AmcClaimsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'AMC Documents') {
+    return <AmcDocumentsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
   if (activeSection !== 'AMC Contracts') {
     return <OperationsPlaceholderPage moduleTitle="AMC & Warranty" activeSection={activeSection} items={amcSubItems} onOpenSection={onOpenSection} onNotify={onNotify} accent="amber" />;
   }
@@ -9523,6 +9540,872 @@ function AmcServiceRequestsPage({ activeSection, onOpenSection, onNotify }) {
                   ))}
                 </div>
                 <button type="button" onClick={() => onNotify('Full service requests report opened')} className="mt-4 text-[12px] font-extrabold text-[#0b65e5]">View All Service Requests</button>
+              </article>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function AmcSimpleDonutCard({ title, total, segments, onClick }) {
+  const totalValue = segments.reduce((sum, item) => sum + item.value, 0) || 1;
+  let progress = 0;
+  const stops = segments
+    .map((item) => {
+      const start = progress;
+      progress += (item.value / totalValue) * 100;
+      return `${item.color} ${start}% ${progress}%`;
+    })
+    .join(', ');
+
+  return (
+    <article className={`${panelClass} p-4 sm:p-5`}>
+      <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">{title}</h2>
+      <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+        <button
+          type="button"
+          onClick={onClick}
+          className="mx-auto size-[128px] rounded-full border border-[#edf2f8]"
+          style={{ background: `conic-gradient(${stops})` }}
+        >
+          <span className="m-auto block size-[58px] rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]">
+            <span className="block pt-[16px] font-display text-[16px] font-extrabold text-[#06135a]">{total}</span>
+            <span className="block text-[11px] font-bold text-[#7b8ba6]">Total</span>
+          </span>
+        </button>
+        <div className="space-y-3">
+          {segments.map((item) => (
+            <StockLegend key={item.label} color={item.dotColor} label={item.label} value={item.text} />
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function AmcInfoListCard({ title, actionLabel = 'View All', onAction, items, renderIcon }) {
+  return (
+    <article className={`${panelClass} p-4 sm:p-5`}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">{title}</h2>
+        <button type="button" onClick={onAction} className="text-[12px] font-extrabold text-[#0b65e5]">
+          {actionLabel}
+        </button>
+      </div>
+      <div className="mt-4 space-y-4">
+        {items.map((item) => (
+          <button
+            key={item.id ?? item.code ?? item.title}
+            type="button"
+            onClick={() => onAction?.(item)}
+            className="flex w-full items-start gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]"
+          >
+            {renderIcon ? renderIcon(item) : null}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{item.title ?? item.code}</span>
+              {item.subtitle ? <span className="mt-1 block text-[11px] font-bold text-[#53647f]">{item.subtitle}</span> : null}
+              {item.meta ? <span className="mt-1 block text-[11px] font-bold text-[#7585a2]">{item.meta}</span> : null}
+            </span>
+            {item.badge ? <span className={item.badgeClass}>{item.badge}</span> : null}
+          </button>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function AmcVisitsMaintenancePage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [visitType, setVisitType] = useState('All Visit Type');
+  const [technician, setTechnician] = useState('All Technician');
+  const [branch, setBranch] = useState('All Branch');
+  const [customer, setCustomer] = useState('All Customer');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, code: 'VIS-2024-0001', contractNo: 'AMC-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', site: 'Ludhiana Factory', visitType: 'Preventive', technician: 'Rohit Sharma', scheduledDate: '01 Apr 2024', completedDate: '01 Apr 2024', status: 'Completed', remarks: 'Inverter & Panel Check' },
+    { id: 2, code: 'VIS-2024-0002', contractNo: 'AMC-2024-0002', customer: 'Sharma Textiles', site: 'Sangrur Unit', visitType: 'Corrective', technician: 'Amit Verma', scheduledDate: '15 Apr 2024', completedDate: '16 Apr 2024', status: 'Completed', remarks: 'Inverter Overheating Fixed' },
+    { id: 3, code: 'VIS-2024-0003', contractNo: 'AMC-2024-0003', customer: 'ABC Motors', site: 'Chandigarh Showroom', visitType: 'Preventive', technician: 'Pawan Kumar', scheduledDate: '10 May 2024', completedDate: '10 May 2024', status: 'Completed', remarks: 'System Cleaned' },
+    { id: 4, code: 'VIS-2024-0004', contractNo: 'AMC-2024-0004', customer: 'Green Field School', site: 'Ludhiana', visitType: 'Corrective', technician: 'Rohit Sharma', scheduledDate: '01 Jun 2024', completedDate: '02 Jun 2024', status: 'In Progress', remarks: 'Battery Performance Issue' },
+    { id: 5, code: 'VIS-2024-0005', contractNo: 'AMC-2024-0005', customer: 'XYZ Cold Storage', site: 'Patiala', visitType: 'Preventive', technician: 'Amit Verma', scheduledDate: '20 Jun 2024', completedDate: '-', status: 'Scheduled', remarks: 'Quarterly Maintenance' },
+    { id: 6, code: 'VIS-2024-0006', contractNo: 'AMC-2024-0006', customer: 'Future Electronics', site: 'Mohali', visitType: 'Corrective', technician: 'Pawan Kumar', scheduledDate: '05 Jul 2024', completedDate: '-', status: 'In Progress', remarks: 'Wiring Check' },
+    { id: 7, code: 'VIS-2024-0007', contractNo: 'AMC-2024-0007', customer: 'Happy Farms', site: 'Barnala', visitType: 'Preventive', technician: 'Rohit Sharma', scheduledDate: '01 Aug 2024', completedDate: '-', status: 'Scheduled', remarks: 'Routine Checkup' },
+    { id: 8, code: 'VIS-2024-0008', contractNo: 'AMC-2024-0008', customer: 'Sunrise Hospital', site: 'Jalandhar', visitType: 'Corrective', technician: 'Amit Verma', scheduledDate: '12 Aug 2024', completedDate: '-', status: 'Overdue', remarks: 'Inverter Fault' },
+    { id: 9, code: 'VIS-2024-0009', contractNo: 'AMC-2024-0009', customer: 'City Mall', site: 'Amritsar', visitType: 'Preventive', technician: 'Pawan Kumar', scheduledDate: '18 Sep 2024', completedDate: '-', status: 'Scheduled', remarks: 'Panel Cleaning' },
+    { id: 10, code: 'VIS-2024-0010', contractNo: 'AMC-2024-0010', customer: 'Elite Residency', site: 'Bathinda', visitType: 'Corrective', technician: 'Rohit Sharma', scheduledDate: '01 Oct 2024', completedDate: '-', status: 'Overdue', remarks: 'Battery Backup Issue' },
+  ];
+
+  const upcomingVisits = [
+    { code: '20 Jun 2024', title: 'XYZ Cold Storage', subtitle: 'Patiala', meta: 'Preventive Maintenance', badge: 'Scheduled', badgeClass: 'rounded-full bg-[#f2eafe] px-2.5 py-1 text-[10px] font-extrabold text-[#8b5cf6]' },
+    { code: '05 Jul 2024', title: 'Future Electronics', subtitle: 'Mohali', meta: 'Wiring Check', badge: 'Scheduled', badgeClass: 'rounded-full bg-[#f2eafe] px-2.5 py-1 text-[10px] font-extrabold text-[#8b5cf6]' },
+    { code: '01 Aug 2024', title: 'Happy Farms', subtitle: 'Barnala', meta: 'Routine Checkup', badge: 'Scheduled', badgeClass: 'rounded-full bg-[#f2eafe] px-2.5 py-1 text-[10px] font-extrabold text-[#8b5cf6]' },
+    { code: '18 Sep 2024', title: 'City Mall', subtitle: 'Amritsar', meta: 'Panel Cleaning', badge: 'Scheduled', badgeClass: 'rounded-full bg-[#f2eafe] px-2.5 py-1 text-[10px] font-extrabold text-[#8b5cf6]' },
+  ];
+
+  const technicianPerformance = [
+    { id: 1, title: 'Rohit Sharma', subtitle: '48 total visits', meta: '38 completed', badge: '4.8★', badgeClass: 'text-[11px] font-extrabold text-[#f59e0b]' },
+    { id: 2, title: 'Amit Verma', subtitle: '42 total visits', meta: '31 completed', badge: '4.6★', badgeClass: 'text-[11px] font-extrabold text-[#f59e0b]' },
+    { id: 3, title: 'Pawan Kumar', subtitle: '38 total visits', meta: '27 completed', badge: '4.5★', badgeClass: 'text-[11px] font-extrabold text-[#f59e0b]' },
+  ];
+
+  const statusToneMap = {
+    Completed: 'green',
+    'In Progress': 'blue',
+    Scheduled: 'purple',
+    Overdue: 'red',
+  };
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.code, row.contractNo, row.customer, row.site, row.technician, row.remarks].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const visitTypeMatch = visitType === 'All Visit Type' || row.visitType === visitType;
+    const technicianMatch = technician === 'All Technician' || row.technician === technician;
+    const branchMatch = branch === 'All Branch' || row.site.includes(branch);
+    const customerMatch = customer === 'All Customer' || row.customer === customer;
+    const dateMatch = isDateWithinRange(row.scheduledDate, dateFrom, dateTo);
+    return queryMatch && statusMatch && visitTypeMatch && technicianMatch && branchMatch && customerMatch && dateMatch;
+  });
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Visits / Maintenance"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'AMC & Warranty' },
+          { label: 'Visits / Maintenance' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Visits report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Visits export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Upload className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('New visit flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />New Visit</button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <AmcSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <OpsStatCard label="Total Visits" value="128" caption="All Time" icon={CalendarDays} tone="blue" onClick={() => onNotify('Total visits opened')} />
+            <OpsStatCard label="Completed Visits" value="96" caption="75.00%" icon={CheckCircle2} tone="green" onClick={() => setStatus('Completed')} />
+            <OpsStatCard label="In Progress" value="18" caption="14.06%" icon={Clock3} tone="amber" onClick={() => setStatus('In Progress')} />
+            <OpsStatCard label="Scheduled" value="14" caption="10.94%" icon={ClipboardPlus} tone="purple" onClick={() => setStatus('Scheduled')} />
+            <OpsStatCard label="Overdue" value="7" caption="5.47%" icon={AlertTriangle} tone="red" onClick={() => setStatus('Overdue')} />
+          </div>
+
+          <AmcSimpleDonutCard
+            title="Visits by Status"
+            total="128"
+            onClick={() => onNotify('Visits by status opened')}
+            segments={[
+              { label: 'Completed', value: 96, text: '96 (75.00%)', color: '#16a34a 0 75%', dotColor: 'bg-[#16a34a]' },
+              { label: 'In Progress', value: 18, text: '18 (14.06%)', color: '#2563eb 75% 89.06%', dotColor: 'bg-[#2563eb]' },
+              { label: 'Scheduled', value: 14, text: '14 (10.94%)', color: '#8b5cf6 89.06% 100%', dotColor: 'bg-[#8b5cf6]' },
+              { label: 'Overdue', value: 7, text: '7 (5.47%)', color: '#ef4444 94.53% 100%', dotColor: 'bg-[#ef4444]' },
+            ]}
+          />
+        </section>
+
+        <article className={`${panelClass} overflow-visible p-4 sm:p-5`}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search visits..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <ReportSelect className="min-w-[145px] flex-1 basis-[145px]" label="Status" value={status} onChange={setStatus} options={['All Status', 'Completed', 'In Progress', 'Scheduled', 'Overdue']} hideLabel />
+            <ReportSelect className="min-w-[150px] flex-1 basis-[150px]" label="Visit Type" value={visitType} onChange={setVisitType} options={['All Visit Type', 'Preventive', 'Corrective']} hideLabel />
+            <ReportSelect className="min-w-[165px] flex-1 basis-[165px]" label="Technician" value={technician} onChange={setTechnician} options={['All Technician', 'Rohit Sharma', 'Amit Verma', 'Pawan Kumar']} hideLabel />
+            <ReportSelect className="min-w-[150px] flex-1 basis-[150px]" label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Patiala', 'Mohali', 'Barnala', 'Jalandhar', 'Amritsar', 'Bathinda']} hideLabel />
+            <ReportSelect className="min-w-[160px] flex-1 basis-[160px]" label="Customer" value={customer} onChange={setCustomer} options={['All Customer', ...rows.map((row) => row.customer)]} hideLabel />
+            <div className="min-w-[250px] flex-1 basis-[250px]">
+              <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
+            </div>
+            <button type="button" onClick={() => onNotify(`Visits filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+            <button type="button" onClick={() => { setQuery(''); setStatus('All Status'); setVisitType('All Visit Type'); setTechnician('All Technician'); setBranch('All Branch'); setCustomer('All Customer'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('Visits filters reset'); }} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Reset</button>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0">
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Visits / Maintenance List</h2>
+              <div className="mt-4 space-y-3 xl:hidden">
+                {filteredRows.map((row) => (
+                  <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.code}</p>
+                        <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.customer}</p>
+                        <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.site}</p>
+                      </div>
+                      <button type="button" onClick={() => onNotify(`${row.code} details opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                    </div>
+                    <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                      <InfoCell label="Contract No." value={row.contractNo} />
+                      <InfoCell label="Visit Type" value={row.visitType} />
+                      <InfoCell label="Technician" value={row.technician} />
+                      <InfoCell label="Scheduled Date" value={row.scheduledDate} />
+                      <InfoCell label="Completed Date" value={row.completedDate} />
+                      <InfoCell label="Remarks" value={row.remarks} />
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <OpsPillBadge label={row.status} tone={statusToneMap[row.status]} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                <table className="crm-table min-w-[1360px] w-full">
+                  <thead><tr>{['#', 'Visit No.', 'Contract No.', 'Customer / Company', 'Site / Location', 'Visit Type', 'Technician', 'Scheduled Date', 'Completed Date', 'Status', 'Remarks', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {filteredRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#0b65e5]">{row.code}</td>
+                        <td>{row.contractNo}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.customer}</td>
+                        <td>{row.site}</td>
+                        <td>{row.visitType}</td>
+                        <td>{row.technician}</td>
+                        <td>{row.scheduledDate}</td>
+                        <td>{row.completedDate}</td>
+                        <td><OpsPillBadge label={row.status} tone={statusToneMap[row.status]} /></td>
+                        <td>{row.remarks}</td>
+                        <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.code} details opened`)} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 128 entries`} totalPage="13" onNotify={onNotify} prefix="Visit" />
+            </div>
+
+            <div className="space-y-4">
+              <AmcInfoListCard
+                title="Upcoming Visits"
+                onAction={() => onNotify('Upcoming visits opened')}
+                items={upcomingVisits}
+                renderIcon={(item) => (
+                  <span className="grid size-11 shrink-0 place-items-center rounded-[10px] bg-[#f5f7fb] text-[#5d6f8f]">
+                    <span className="text-center leading-none">
+                      <span className="block text-[14px] font-extrabold text-[#1e3261]">{item.code.split(' ')[0]}</span>
+                      <span className="block text-[10px] font-bold text-[#7b8ba6]">{item.code.split(' ').slice(1).join(' ')}</span>
+                    </span>
+                  </span>
+                )}
+              />
+
+              <AmcInfoListCard
+                title="Technician Performance"
+                onAction={() => onNotify('Technician performance opened')}
+                items={technicianPerformance}
+                renderIcon={() => (
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#fff7e6] text-[#f59e0b]">
+                    <Trophy className="size-4" />
+                  </span>
+                )}
+              />
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function AmcRenewalsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [contractType, setContractType] = useState('All Contract Type');
+  const [branch, setBranch] = useState('All Branch');
+  const [customer, setCustomer] = useState('All Customer');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, code: 'REN-2024-0001', contractNo: 'AMC-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', contractType: 'Comprehensive', renewalDate: '01 Apr 2024', expiryDate: '31 Mar 2025', amount: '₹18,90,000', status: 'Completed', daysLeft: '-' },
+    { id: 2, code: 'REN-2024-0002', contractNo: 'AMC-2024-0002', customer: 'Sharma Textiles', contractType: 'Non-Comprehensive', renewalDate: '15 Apr 2024', expiryDate: '14 Apr 2025', amount: '₹12,75,000', status: 'Completed', daysLeft: '-' },
+    { id: 3, code: 'REN-2024-0003', contractNo: 'AMC-2024-0003', customer: 'ABC Motors', contractType: 'Comprehensive', renewalDate: '10 May 2024', expiryDate: '09 May 2025', amount: '₹22,68,000', status: 'Completed', daysLeft: '-' },
+    { id: 4, code: 'REN-2024-0004', contractNo: 'AMC-2024-0004', customer: 'Green Field School', contractType: 'Non-Comprehensive', renewalDate: '01 Jun 2024', expiryDate: '31 May 2025', amount: '₹11,50,000', status: 'Completed', daysLeft: '-' },
+    { id: 5, code: 'REN-2024-0005', contractNo: 'AMC-2024-0005', customer: 'XYZ Cold Storage', contractType: 'Comprehensive', renewalDate: '20 Jun 2024', expiryDate: '19 Jun 2025', amount: '₹9,80,000', status: 'Pending', daysLeft: '25 Days' },
+    { id: 6, code: 'REN-2024-0006', contractNo: 'AMC-2024-0006', customer: 'Future Electronics', contractType: 'Non-Comprehensive', renewalDate: '05 Jul 2024', expiryDate: '04 Jul 2025', amount: '₹16,40,000', status: 'Upcoming', daysLeft: '40 Days' },
+    { id: 7, code: 'REN-2024-0007', contractNo: 'AMC-2024-0007', customer: 'Happy Farms', contractType: 'Comprehensive', renewalDate: '01 Aug 2024', expiryDate: '31 Jul 2025', amount: '₹10,90,000', status: 'Upcoming', daysLeft: '67 Days' },
+    { id: 8, code: 'REN-2024-0008', contractNo: 'AMC-2024-0008', customer: 'Sunrise Hospital', contractType: 'Non-Comprehensive', renewalDate: '12 Aug 2024', expiryDate: '11 Aug 2025', amount: '₹13,65,000', status: 'Pending', daysLeft: '74 Days' },
+    { id: 9, code: 'REN-2024-0009', contractNo: 'AMC-2024-0009', customer: 'City Mall', contractType: 'Comprehensive', renewalDate: '18 Sep 2024', expiryDate: '17 Sep 2025', amount: '₹8,25,000', status: 'Overdue', daysLeft: '-12 Days' },
+    { id: 10, code: 'REN-2024-0010', contractNo: 'AMC-2024-0010', customer: 'Elite Residency', contractType: 'Non-Comprehensive', renewalDate: '01 Oct 2024', expiryDate: '30 Sep 2025', amount: '₹9,75,000', status: 'Overdue', daysLeft: '-13 Days' },
+  ];
+
+  const upcomingRenewals = [
+    { code: '20 Jun 2024', title: 'XYZ Cold Storage', subtitle: 'Patiala', meta: 'Comprehensive', badge: '25 Days Left', badgeClass: 'rounded-full bg-[#fff0dc] px-2.5 py-1 text-[10px] font-extrabold text-[#f97316]' },
+    { code: '05 Jul 2024', title: 'Future Electronics', subtitle: 'Mohali', meta: 'Non-Comprehensive', badge: '40 Days Left', badgeClass: 'rounded-full bg-[#e8f2ff] px-2.5 py-1 text-[10px] font-extrabold text-[#2563eb]' },
+    { code: '01 Aug 2024', title: 'Happy Farms', subtitle: 'Barnala', meta: 'Comprehensive', badge: '67 Days Left', badgeClass: 'rounded-full bg-[#e8f2ff] px-2.5 py-1 text-[10px] font-extrabold text-[#2563eb]' },
+    { code: '12 Aug 2024', title: 'Sunrise Hospital', subtitle: 'Jalandhar', meta: 'Non-Comprehensive', badge: '74 Days Left', badgeClass: 'rounded-full bg-[#e8f2ff] px-2.5 py-1 text-[10px] font-extrabold text-[#2563eb]' },
+  ];
+
+  const overdueRenewals = [
+    { code: '18 Sep 2024', title: 'City Mall', subtitle: 'Amritsar', meta: 'Comprehensive', badge: '-12 Days', badgeClass: 'rounded-full bg-[#ffe9e6] px-2.5 py-1 text-[10px] font-extrabold text-[#ef4444]' },
+    { code: '01 Oct 2024', title: 'Elite Residency', subtitle: 'Bathinda', meta: 'Non-Comprehensive', badge: '-13 Days', badgeClass: 'rounded-full bg-[#ffe9e6] px-2.5 py-1 text-[10px] font-extrabold text-[#ef4444]' },
+    { code: '10 May 2024', title: 'ABC Motors', subtitle: 'Chandigarh', meta: 'Comprehensive', badge: '-31 Days', badgeClass: 'rounded-full bg-[#ffe9e6] px-2.5 py-1 text-[10px] font-extrabold text-[#ef4444]' },
+  ];
+
+  const statusToneMap = {
+    Completed: 'green',
+    Pending: 'amber',
+    Upcoming: 'blue',
+    Overdue: 'red',
+  };
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.code, row.contractNo, row.customer, row.contractType, row.amount].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const contractTypeMatch = contractType === 'All Contract Type' || row.contractType === contractType;
+    const branchMatch = branch === 'All Branch' || row.customer.includes(branch) || true;
+    const customerMatch = customer === 'All Customer' || row.customer === customer;
+    const dateMatch = isDateWithinRange(row.renewalDate, dateFrom, dateTo) || isDateWithinRange(row.expiryDate, dateFrom, dateTo);
+    return queryMatch && statusMatch && contractTypeMatch && branchMatch && customerMatch && dateMatch;
+  });
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Renewals"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'AMC & Warranty' },
+          { label: 'Renewals' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Renewal report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Renewals export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Upload className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('New renewal flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />New Renewal</button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <AmcSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <OpsStatCard label="Total Renewals" value="156" caption="All Time" icon={FileText} tone="blue" onClick={() => onNotify('Total renewals opened')} />
+            <OpsStatCard label="Completed Renewals" value="102" caption="65.38%" icon={CalendarDays} tone="green" onClick={() => setStatus('Completed')} />
+            <OpsStatCard label="Pending Renewals" value="32" caption="20.51%" icon={Clock3} tone="amber" onClick={() => setStatus('Pending')} />
+            <OpsStatCard label="Upcoming Renewals" value="22" caption="14.10%" icon={Bell} tone="purple" onClick={() => setStatus('Upcoming')} />
+            <OpsStatCard label="Overdue Renewals" value="7" caption="4.49%" icon={AlertTriangle} tone="red" onClick={() => setStatus('Overdue')} />
+          </div>
+
+          <AmcSimpleDonutCard
+            title="Renewals by Status"
+            total="156"
+            onClick={() => onNotify('Renewals by status opened')}
+            segments={[
+              { label: 'Completed', value: 102, text: '102 (65.38%)', color: '#16a34a', dotColor: 'bg-[#16a34a]' },
+              { label: 'Pending', value: 32, text: '32 (20.51%)', color: '#f59e0b', dotColor: 'bg-[#f59e0b]' },
+              { label: 'Upcoming', value: 22, text: '22 (14.10%)', color: '#2563eb', dotColor: 'bg-[#2563eb]' },
+              { label: 'Overdue', value: 7, text: '7 (4.49%)', color: '#ef4444', dotColor: 'bg-[#ef4444]' },
+            ]}
+          />
+        </section>
+
+        <article className={`${panelClass} overflow-visible p-4 sm:p-5`}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search renewals..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <ReportSelect className="min-w-[150px] flex-1 basis-[150px]" label="Status" value={status} onChange={setStatus} options={['All Status', 'Completed', 'Pending', 'Upcoming', 'Overdue']} hideLabel />
+            <ReportSelect className="min-w-[185px] flex-1 basis-[185px]" label="Contract Type" value={contractType} onChange={setContractType} options={['All Contract Type', 'Comprehensive', 'Non-Comprehensive']} hideLabel />
+            <ReportSelect className="min-w-[150px] flex-1 basis-[150px]" label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Patiala', 'Mohali', 'Barnala', 'Jalandhar', 'Amritsar', 'Bathinda']} hideLabel />
+            <ReportSelect className="min-w-[160px] flex-1 basis-[160px]" label="Customer" value={customer} onChange={setCustomer} options={['All Customer', ...rows.map((row) => row.customer)]} hideLabel />
+            <div className="min-w-[250px] flex-1 basis-[250px]">
+              <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
+            </div>
+            <button type="button" onClick={() => onNotify(`Renewal filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+            <button type="button" onClick={() => { setQuery(''); setStatus('All Status'); setContractType('All Contract Type'); setBranch('All Branch'); setCustomer('All Customer'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('Renewal filters reset'); }} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Reset</button>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0">
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Renewals List</h2>
+              <div className="mt-4 space-y-3 xl:hidden">
+                {filteredRows.map((row) => (
+                  <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.code}</p>
+                        <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.customer}</p>
+                      </div>
+                      <button type="button" onClick={() => onNotify(`${row.code} details opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                    </div>
+                    <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                      <InfoCell label="Contract No." value={row.contractNo} />
+                      <InfoCell label="Contract Type" value={row.contractType} />
+                      <InfoCell label="Renewal Date" value={row.renewalDate} />
+                      <InfoCell label="Expiry Date" value={row.expiryDate} />
+                      <InfoCell label="Amount" value={row.amount} />
+                      <InfoCell label="Days Left" value={row.daysLeft} />
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <OpsPillBadge label={row.status} tone={statusToneMap[row.status]} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                <table className="crm-table min-w-[1180px] w-full">
+                  <thead><tr>{['#', 'Renewal No.', 'Contract No.', 'Customer / Company', 'Contract Type', 'Renewal Date', 'Expiry Date', 'Amount (₹)', 'Status', 'Days Left', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {filteredRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#0b65e5]">{row.code}</td>
+                        <td>{row.contractNo}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.customer}</td>
+                        <td>{row.contractType}</td>
+                        <td>{row.renewalDate}</td>
+                        <td>{row.expiryDate}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.amount}</td>
+                        <td><OpsPillBadge label={row.status} tone={statusToneMap[row.status]} /></td>
+                        <td><span className={cx('rounded-full px-2.5 py-1 text-[10px] font-extrabold', row.daysLeft.startsWith('-') ? 'bg-[#ffe9e6] text-[#ef4444]' : row.daysLeft === '-' ? 'bg-[#eef2f7] text-[#53647f]' : 'bg-[#fff0dc] text-[#f97316]')}>{row.daysLeft}</span></td>
+                        <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.code} details opened`)} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 156 entries`} totalPage="16" onNotify={onNotify} prefix="Renewal" />
+            </div>
+
+            <div className="space-y-4">
+              <AmcInfoListCard title="Upcoming Renewals (Next 60 Days)" onAction={() => onNotify('Upcoming renewals opened')} items={upcomingRenewals} />
+              <AmcInfoListCard title="Overdue Renewals" onAction={() => onNotify('Overdue renewals opened')} items={overdueRenewals} />
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function AmcClaimsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [claimType, setClaimType] = useState('All Claim Type');
+  const [priority, setPriority] = useState('All Priority');
+  const [branch, setBranch] = useState('All Branch');
+  const [customer, setCustomer] = useState('All Customer');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, code: 'CLM-2024-0001', contractNo: 'AMC-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', claimType: 'Inverter Issue', product: 'Sungrow SG110CX', claimDate: '01 Apr 2024', amount: '₹18,900', status: 'Approved', priority: 'High', assignedTo: 'Rohit Sharma' },
+    { id: 2, code: 'CLM-2024-0002', contractNo: 'AMC-2024-0002', customer: 'Sharma Textiles', claimType: 'Performance Issue', product: 'Sungrow SG110CX', claimDate: '15 Apr 2024', amount: '₹12,750', status: 'Under Review', priority: 'Medium', assignedTo: 'Amit Verma' },
+    { id: 3, code: 'CLM-2024-0003', contractNo: 'AMC-2024-0003', customer: 'ABC Motors', claimType: 'Panel Damage', product: 'Jinko JKM540M', claimDate: '10 May 2024', amount: '₹22,680', status: 'Approved', priority: 'High', assignedTo: 'Pawan Kumar' },
+    { id: 4, code: 'CLM-2024-0004', contractNo: 'AMC-2024-0004', customer: 'Green Field School', claimType: 'Battery Issue', product: 'LFP 150Ah', claimDate: '01 Jun 2024', amount: '₹11,500', status: 'Under Review', priority: 'Medium', assignedTo: 'Rohit Sharma' },
+    { id: 5, code: 'CLM-2024-0005', contractNo: 'AMC-2024-0005', customer: 'XYZ Cold Storage', claimType: 'Inverter Failure', product: 'Livguard LFP 100Ah', claimDate: '20 Jun 2024', amount: '₹9,800', status: 'Rejected', priority: 'High', assignedTo: 'Amit Verma' },
+    { id: 6, code: 'CLM-2024-0006', contractNo: 'AMC-2024-0006', customer: 'Future Electronics', claimType: 'Wiring Issue', product: 'DC Cable 6mm²', claimDate: '05 Jul 2024', amount: '₹16,400', status: 'Approved', priority: 'Medium', assignedTo: 'Pawan Kumar' },
+    { id: 7, code: 'CLM-2024-0007', contractNo: 'AMC-2024-0007', customer: 'Happy Farms', claimType: 'Connector Issue', product: 'MC4 Connector', claimDate: '01 Aug 2024', amount: '₹4,350', status: 'Under Review', priority: 'Low', assignedTo: 'Rohit Sharma' },
+    { id: 8, code: 'CLM-2024-0008', contractNo: 'AMC-2024-0008', customer: 'Sunrise Hospital', claimType: 'Panel Cleaning Req.', product: 'Solar Panel', claimDate: '12 Aug 2024', amount: '₹3,200', status: 'Approved', priority: 'Low', assignedTo: 'Amit Verma' },
+    { id: 9, code: 'CLM-2024-0009', contractNo: 'AMC-2024-0009', customer: 'City Mall', claimType: 'Structure Damage', product: 'Mounting Structure', claimDate: '18 Sep 2024', amount: '₹8,250', status: 'Rejected', priority: 'Medium', assignedTo: 'Pawan Kumar' },
+    { id: 10, code: 'CLM-2024-0010', contractNo: 'AMC-2024-0010', customer: 'Elite Residency', claimType: 'Bypass Diode Issue', product: 'Solar Panel', claimDate: '01 Oct 2024', amount: '₹7,950', status: 'Closed', priority: 'Low', assignedTo: 'Rohit Sharma' },
+  ];
+
+  const recentClaims = [
+    { code: 'CLM-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', claimType: 'Inverter Issue', status: 'Approved', claimDate: '01 Apr 2024' },
+    { code: 'CLM-2024-0002', customer: 'Sharma Textiles', claimType: 'Performance Issue', status: 'Under Review', claimDate: '15 Apr 2024' },
+    { code: 'CLM-2024-0003', customer: 'ABC Motors', claimType: 'Panel Damage', status: 'Approved', claimDate: '10 May 2024' },
+    { code: 'CLM-2024-0004', customer: 'Green Field School', claimType: 'Battery Issue', status: 'Under Review', claimDate: '01 Jun 2024' },
+    { code: 'CLM-2024-0005', customer: 'XYZ Cold Storage', claimType: 'Inverter Failure', status: 'Rejected', claimDate: '20 Jun 2024' },
+  ];
+
+  const statusToneMap = {
+    Approved: 'green',
+    'Under Review': 'amber',
+    Rejected: 'red',
+    Closed: 'purple',
+  };
+
+  const priorityToneMap = {
+    High: 'red',
+    Medium: 'amber',
+    Low: 'blue',
+  };
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.code, row.contractNo, row.customer, row.claimType, row.product, row.assignedTo].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const claimTypeMatch = claimType === 'All Claim Type' || row.claimType === claimType;
+    const priorityMatch = priority === 'All Priority' || row.priority === priority;
+    const branchMatch = branch === 'All Branch' || row.customer.includes(branch) || true;
+    const customerMatch = customer === 'All Customer' || row.customer === customer;
+    const dateMatch = isDateWithinRange(row.claimDate, dateFrom, dateTo);
+    return queryMatch && statusMatch && claimTypeMatch && priorityMatch && branchMatch && customerMatch && dateMatch;
+  });
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Claims"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'AMC & Warranty' },
+          { label: 'Claims' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Claims report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Claims export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Upload className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('New claim flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />New Claim</button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <AmcSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <OpsStatCard label="Total Claims" value="98" caption="All Time" icon={ClipboardPlus} tone="purple" onClick={() => onNotify('Total claims opened')} />
+            <OpsStatCard label="Approved Claims" value="54" caption="55.10%" icon={CheckCircle2} tone="green" onClick={() => setStatus('Approved')} />
+            <OpsStatCard label="Under Review" value="21" caption="21.43%" icon={Hourglass} tone="amber" onClick={() => setStatus('Under Review')} />
+            <OpsStatCard label="Rejected Claims" value="12" caption="12.24%" icon={XCircle} tone="blue" onClick={() => setStatus('Rejected')} />
+            <OpsStatCard label="Closed Claims" value="11" caption="11.22%" icon={AlertTriangle} tone="red" onClick={() => setStatus('Closed')} />
+          </div>
+
+          <AmcSimpleDonutCard
+            title="Claims by Status"
+            total="98"
+            onClick={() => onNotify('Claims by status opened')}
+            segments={[
+              { label: 'Approved', value: 54, text: '54 (55.10%)', color: '#16a34a', dotColor: 'bg-[#16a34a]' },
+              { label: 'Under Review', value: 21, text: '21 (21.43%)', color: '#f59e0b', dotColor: 'bg-[#f59e0b]' },
+              { label: 'Rejected', value: 12, text: '12 (12.24%)', color: '#ef4444', dotColor: 'bg-[#ef4444]' },
+              { label: 'Closed', value: 11, text: '11 (11.22%)', color: '#8b5cf6', dotColor: 'bg-[#8b5cf6]' },
+            ]}
+          />
+        </section>
+
+        <article className={`${panelClass} overflow-visible p-4 sm:p-5`}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search claims..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <ReportSelect className="min-w-[150px] flex-1 basis-[150px]" label="Status" value={status} onChange={setStatus} options={['All Status', 'Approved', 'Under Review', 'Rejected', 'Closed']} hideLabel />
+            <ReportSelect className="min-w-[165px] flex-1 basis-[165px]" label="Claim Type" value={claimType} onChange={setClaimType} options={['All Claim Type', 'Inverter Issue', 'Performance Issue', 'Panel Damage', 'Battery Issue', 'Inverter Failure', 'Wiring Issue', 'Connector Issue', 'Panel Cleaning Req.', 'Structure Damage', 'Bypass Diode Issue']} hideLabel />
+            <ReportSelect className="min-w-[150px] flex-1 basis-[150px]" label="Priority" value={priority} onChange={setPriority} options={['All Priority', 'High', 'Medium', 'Low']} hideLabel />
+            <ReportSelect className="min-w-[150px] flex-1 basis-[150px]" label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Patiala', 'Mohali', 'Barnala', 'Jalandhar', 'Amritsar', 'Bathinda']} hideLabel />
+            <ReportSelect className="min-w-[160px] flex-1 basis-[160px]" label="Customer" value={customer} onChange={setCustomer} options={['All Customer', ...rows.map((row) => row.customer)]} hideLabel />
+            <div className="min-w-[250px] flex-1 basis-[250px]">
+              <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
+            </div>
+            <button type="button" onClick={() => onNotify(`Claims filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+            <button type="button" onClick={() => { setQuery(''); setStatus('All Status'); setClaimType('All Claim Type'); setPriority('All Priority'); setBranch('All Branch'); setCustomer('All Customer'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('Claims filters reset'); }} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Reset</button>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0">
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Claims List</h2>
+              <div className="mt-4 space-y-3 xl:hidden">
+                {filteredRows.map((row) => (
+                  <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.code}</p>
+                        <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.customer}</p>
+                      </div>
+                      <button type="button" onClick={() => onNotify(`${row.code} details opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                    </div>
+                    <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                      <InfoCell label="Claim Type" value={row.claimType} />
+                      <InfoCell label="Product / Item" value={row.product} />
+                      <InfoCell label="Amount" value={row.amount} />
+                      <InfoCell label="Assigned To" value={row.assignedTo} />
+                      <InfoCell label="Claim Date" value={row.claimDate} />
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <OpsPillBadge label={row.status} tone={statusToneMap[row.status]} />
+                      <OpsPillBadge label={row.priority} tone={priorityToneMap[row.priority]} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                <table className="crm-table min-w-[1320px] w-full">
+                  <thead><tr>{['#', 'Claim No.', 'Contract No.', 'Customer / Company', 'Claim Type', 'Product / Item', 'Claim Date', 'Amount (₹)', 'Status', 'Priority', 'Assigned To', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {filteredRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#0b65e5]">{row.code}</td>
+                        <td>{row.contractNo}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.customer}</td>
+                        <td>{row.claimType}</td>
+                        <td>{row.product}</td>
+                        <td>{row.claimDate}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.amount}</td>
+                        <td><OpsPillBadge label={row.status} tone={statusToneMap[row.status]} /></td>
+                        <td><OpsPillBadge label={row.priority} tone={priorityToneMap[row.priority]} /></td>
+                        <td>{row.assignedTo}</td>
+                        <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.code} details opened`)} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 98 entries`} totalPage="10" onNotify={onNotify} prefix="Claim" />
+            </div>
+
+            <div className="space-y-4">
+              <AmcSimpleDonutCard
+                title="Claims by Type"
+                total="98"
+                onClick={() => onNotify('Claims by type opened')}
+                segments={[
+                  { label: 'Inverter Issue', value: 32, text: '32 (32.65%)', color: '#2563eb', dotColor: 'bg-[#2563eb]' },
+                  { label: 'Performance Issue', value: 21, text: '21 (21.43%)', color: '#16a34a', dotColor: 'bg-[#16a34a]' },
+                  { label: 'Battery Issue', value: 16, text: '16 (16.33%)', color: '#f59e0b', dotColor: 'bg-[#f59e0b]' },
+                  { label: 'Panel Damage', value: 14, text: '14 (14.29%)', color: '#ef4444', dotColor: 'bg-[#ef4444]' },
+                  { label: 'Others', value: 15, text: '15 (15.31%)', color: '#8b5cf6', dotColor: 'bg-[#8b5cf6]' },
+                ]}
+              />
+
+              <AmcInfoListCard
+                title="Recent Claims"
+                onAction={() => onNotify('Recent claims opened')}
+                items={recentClaims.map((item) => ({
+                  ...item,
+                  title: item.code,
+                  subtitle: item.customer,
+                  meta: item.claimType,
+                  badge: item.status,
+                  badgeClass: cx('rounded-full px-2.5 py-1 text-[10px] font-extrabold', item.status === 'Approved' ? 'bg-[#e8f8eb] text-[#16a34a]' : item.status === 'Under Review' ? 'bg-[#fff0dc] text-[#f97316]' : 'bg-[#ffe9e6] text-[#ef4444]'),
+                }))}
+                renderIcon={(item) => (
+                  <span className={cx('grid size-10 shrink-0 place-items-center rounded-full', item.status === 'Approved' ? 'bg-[#e8f8eb] text-[#16a34a]' : item.status === 'Under Review' ? 'bg-[#fff0dc] text-[#f97316]' : 'bg-[#f2eafe] text-[#8b5cf6]')}>
+                    <AlertTriangle className="size-4" />
+                  </span>
+                )}
+              />
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function AmcDocumentsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [documentType, setDocumentType] = useState('All Document Type');
+  const [category, setCategory] = useState('All Category');
+  const [branch, setBranch] = useState('All Branch');
+  const [customer, setCustomer] = useState('All Customer');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, name: 'AMC Contract - AMC-2024-0001.pdf', documentType: 'Contract', category: 'AMC Contract', relatedTo: 'AMC-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', uploadDate: '01 Apr 2024', uploadedBy: 'Admin', size: '1.24 MB' },
+    { id: 2, name: 'Warranty Certificate - WAR-2024-0001.pdf', documentType: 'Warranty', category: 'Warranty Certificate', relatedTo: 'WAR-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', uploadDate: '01 Apr 2024', uploadedBy: 'Admin', size: '820 KB' },
+    { id: 3, name: 'Invoice - INV-2024-0001.pdf', documentType: 'Invoice', category: 'Invoice', relatedTo: 'INV-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', uploadDate: '05 Apr 2024', uploadedBy: 'Admin', size: '1.15 MB' },
+    { id: 4, name: 'Service Report - SR-2024-0002.pdf', documentType: 'Service Report', category: 'Visit Report', relatedTo: 'SR-2024-0002', customer: 'Sharma Textiles', uploadDate: '16 Apr 2024', uploadedBy: 'Amit Verma', size: '1.02 MB' },
+    { id: 5, name: 'Payment Receipt - REC-2024-0001.pdf', documentType: 'Receipt', category: 'Payment Receipt', relatedTo: 'REC-2024-0001', customer: 'Sharma Textiles', uploadDate: '16 Apr 2024', uploadedBy: 'Admin', size: '612 KB' },
+    { id: 6, name: 'Warranty Terms - WAR-2024-0002.pdf', documentType: 'Warranty', category: 'Terms & Conditions', relatedTo: 'WAR-2024-0002', customer: 'Sharma Textiles', uploadDate: '15 Apr 2024', uploadedBy: 'Admin', size: '540 KB' },
+    { id: 7, name: 'AMC Contract - AMC-2024-0003.pdf', documentType: 'Contract', category: 'AMC Contract', relatedTo: 'AMC-2024-0003', customer: 'ABC Motors', uploadDate: '10 May 2024', uploadedBy: 'Admin', size: '1.32 MB' },
+    { id: 8, name: 'Tax Invoice - INV-2024-0003.pdf', documentType: 'Invoice', category: 'Invoice', relatedTo: 'INV-2024-0003', customer: 'ABC Motors', uploadDate: '10 May 2024', uploadedBy: 'Admin', size: '1.18 MB' },
+    { id: 9, name: 'Site Photos - SP-2024-0004.zip', documentType: 'Other', category: 'Site Photos', relatedTo: 'SF-2024-0004', customer: 'Green Field School', uploadDate: '01 Jun 2024', uploadedBy: 'Rohit Sharma', size: '4.58 MB' },
+    { id: 10, name: 'Maintenance Checklist - MC-2024-0005.pdf', documentType: 'Service Report', category: 'Checklist', relatedTo: 'SR-2024-0005', customer: 'XYZ Cold Storage', uploadDate: '20 Jun 2024', uploadedBy: 'Amit Verma', size: '735 KB' },
+  ];
+
+  const recentUploads = [
+    { title: 'Invoice - INV-2024-0012.pdf', subtitle: 'ABC Motors', meta: '16 May 2024' },
+    { title: 'Service Report - SR-2024-0011.pdf', subtitle: 'Green Field School', meta: '15 May 2024' },
+    { title: 'Payment Receipt - REC-2024-0011.pdf', subtitle: 'Green Field School', meta: '15 May 2024' },
+    { title: 'Warranty Certificate - WAR-2024-0011.pdf', subtitle: 'City Mall', meta: '14 May 2024' },
+    { title: 'AMC Contract - AMC-2024-0011.pdf', subtitle: 'Elite Residency', meta: '13 May 2024' },
+  ];
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.name, row.documentType, row.category, row.relatedTo, row.customer, row.uploadedBy].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const documentTypeMatch = documentType === 'All Document Type' || row.documentType === documentType;
+    const categoryMatch = category === 'All Category' || row.category === category;
+    const branchMatch = branch === 'All Branch' || row.customer.includes(branch) || true;
+    const customerMatch = customer === 'All Customer' || row.customer === customer;
+    const dateMatch = isDateWithinRange(row.uploadDate, dateFrom, dateTo);
+    return queryMatch && documentTypeMatch && categoryMatch && branchMatch && customerMatch && dateMatch;
+  });
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Documents"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'AMC & Warranty' },
+          { label: 'Documents' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('AMC documents report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('AMC documents export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Upload className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('AMC upload document flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Upload className="size-4" />Upload Document</button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <AmcSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <OpsStatCard label="Total Documents" value="342" caption="All Time" icon={FolderKanban} tone="purple" onClick={() => onNotify('Total AMC documents opened')} />
+            <OpsStatCard label="Contract Documents" value="128" caption="37.43%" icon={FileText} tone="green" onClick={() => setCategory('AMC Contract')} />
+            <OpsStatCard label="Warranty Documents" value="96" caption="28.07%" icon={ClipboardPlus} tone="amber" onClick={() => setDocumentType('Warranty')} />
+            <OpsStatCard label="Invoice Documents" value="67" caption="19.59%" icon={ReceiptText} tone="blue" onClick={() => setDocumentType('Invoice')} />
+            <OpsStatCard label="Other Documents" value="51" caption="14.91%" icon={HardDrive} tone="red" onClick={() => setDocumentType('Other')} />
+          </div>
+
+          <AmcSimpleDonutCard
+            title="Documents by Type"
+            total="342"
+            onClick={() => onNotify('Documents by type opened')}
+            segments={[
+              { label: 'Contract', value: 128, text: '128 (37.43%)', color: '#16a34a', dotColor: 'bg-[#16a34a]' },
+              { label: 'Warranty', value: 96, text: '96 (28.07%)', color: '#f59e0b', dotColor: 'bg-[#f59e0b]' },
+              { label: 'Invoice', value: 67, text: '67 (19.59%)', color: '#2563eb', dotColor: 'bg-[#2563eb]' },
+              { label: 'Service Report', value: 30, text: '30 (8.77%)', color: '#8b5cf6', dotColor: 'bg-[#8b5cf6]' },
+              { label: 'Others', value: 21, text: '21 (5.14%)', color: '#ef4444', dotColor: 'bg-[#ef4444]' },
+            ]}
+          />
+        </section>
+
+        <article className={`${panelClass} overflow-visible p-4 sm:p-5`}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search documents..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <ReportSelect className="min-w-[170px] flex-1 basis-[170px]" label="Document Type" value={documentType} onChange={setDocumentType} options={['All Document Type', 'Contract', 'Warranty', 'Invoice', 'Service Report', 'Receipt', 'Other']} hideLabel />
+            <ReportSelect className="min-w-[160px] flex-1 basis-[160px]" label="Category" value={category} onChange={setCategory} options={['All Category', 'AMC Contract', 'Warranty Certificate', 'Invoice', 'Visit Report', 'Payment Receipt', 'Terms & Conditions', 'Site Photos', 'Checklist']} hideLabel />
+            <ReportSelect className="min-w-[150px] flex-1 basis-[150px]" label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Patiala', 'Mohali', 'Barnala', 'Jalandhar', 'Amritsar', 'Bathinda']} hideLabel />
+            <ReportSelect className="min-w-[160px] flex-1 basis-[160px]" label="Customer" value={customer} onChange={setCustomer} options={['All Customer', ...rows.map((row) => row.customer)]} hideLabel />
+            <div className="min-w-[250px] flex-1 basis-[250px]">
+              <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
+            </div>
+            <button type="button" onClick={() => onNotify(`AMC documents filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+            <button type="button" onClick={() => { setQuery(''); setDocumentType('All Document Type'); setCategory('All Category'); setBranch('All Branch'); setCustomer('All Customer'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('AMC documents filters reset'); }} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Reset</button>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0">
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Documents List</h2>
+              <div className="mt-4 space-y-3 xl:hidden">
+                {filteredRows.map((row) => (
+                  <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[13px] font-extrabold text-[#1e3261]">{row.name}</p>
+                        <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.customer}</p>
+                      </div>
+                      <button type="button" onClick={() => onNotify(`${row.name} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                    </div>
+                    <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                      <InfoCell label="Document Type" value={row.documentType} />
+                      <InfoCell label="Category" value={row.category} />
+                      <InfoCell label="Related To" value={row.relatedTo} />
+                      <InfoCell label="Upload Date" value={row.uploadDate} />
+                      <InfoCell label="Uploaded By" value={row.uploadedBy} />
+                      <InfoCell label="File Size" value={row.size} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                <table className="crm-table min-w-[1320px] w-full">
+                  <thead><tr>{['#', 'Document Name', 'Document Type', 'Category', 'Related To', 'Customer / Company', 'Upload Date', 'Uploaded By', 'File Size', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {filteredRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.name}</td>
+                        <td>{row.documentType}</td>
+                        <td>{row.category}</td>
+                        <td>{row.relatedTo}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.customer}</td>
+                        <td>{row.uploadDate}</td>
+                        <td>{row.uploadedBy}</td>
+                        <td>{row.size}</td>
+                        <td><div className="flex items-center gap-2"><UserActionButton label={`Preview ${row.name}`} icon={Eye} tone="blue" onClick={() => onNotify(`${row.name} preview opened`)} /><UserActionButton label={`Download ${row.name}`} icon={Download} tone="blue" onClick={() => onNotify(`${row.name} downloaded`)} /><UserActionButton label={`More for ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.name} options opened`)} /></div></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 342 entries`} totalPage="35" onNotify={onNotify} prefix="AMC Document" />
+            </div>
+
+            <div className="space-y-4">
+              <AmcInfoListCard
+                title="Recent Uploads"
+                onAction={() => onNotify('Recent uploads opened')}
+                items={recentUploads}
+                renderIcon={() => (
+                  <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#f4f8ff] text-[#0b65e5]">
+                    <FileText className="size-4" />
+                  </span>
+                )}
+              />
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Storage Overview</h2>
+                <div className="mt-5">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <p className="text-[12px] font-bold text-[#7b8ba6]">Total Used</p>
+                      <p className="mt-1 font-display text-[28px] font-extrabold text-[#16a34a]">2.48 GB</p>
+                      <p className="mt-1 text-[12px] font-bold text-[#7b8ba6]">of 10 GB</p>
+                    </div>
+                    <p className="text-[12px] font-extrabold text-[#314a79]">24.8% Used</p>
+                  </div>
+                  <div className="mt-5 h-3 rounded-full bg-[#edf2f8]">
+                    <div className="h-3 w-[24.8%] rounded-full bg-[#16a34a]" />
+                  </div>
+                  <button type="button" onClick={() => onNotify('Storage details opened')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View Details</button>
+                </div>
               </article>
             </div>
           </div>
