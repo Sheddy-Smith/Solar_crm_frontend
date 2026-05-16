@@ -3,6 +3,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   AlertTriangle,
+  BadgeCheck,
   BarChart3,
   Bell,
   Boxes,
@@ -25,6 +26,7 @@ import {
   Heart,
   Home,
   HardDrive,
+  Hourglass,
   Info,
   IndianRupee,
   Leaf,
@@ -36,6 +38,7 @@ import {
   MessageSquareMore,
   Minus,
   MoreVertical,
+  PauseCircle,
   Phone,
   Plus,
   Save,
@@ -46,6 +49,7 @@ import {
   ShieldCheck,
   Trophy,
   LogOut,
+  Upload,
   UserPlus,
   UserRound,
   Users,
@@ -8868,6 +8872,14 @@ function OmReportStatusBadge({ status }) {
 }
 
 function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
+  if (activeSection === 'Warranties') {
+    return <AmcWarrantiesPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Service Requests') {
+    return <AmcServiceRequestsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
   if (activeSection !== 'AMC Contracts') {
     return <OperationsPlaceholderPage moduleTitle="AMC & Warranty" activeSection={activeSection} items={amcSubItems} onOpenSection={onOpenSection} onNotify={onNotify} accent="amber" />;
   }
@@ -9056,6 +9068,465 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
             </article>
           </section>
         </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function AmcWarrantiesPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [productType, setProductType] = useState('All Product Type');
+  const [brand, setBrand] = useState('All Brand');
+  const [customer, setCustomer] = useState('All Customer');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, code: 'WAR-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', productType: 'Solar Panel', brandModel: 'Longi / LR5-540', serial: 'LR540202401001', startDate: '01 Apr 2024', endDate: '31 Mar 2029', duration: '5 Years', status: 'Active', coverage: 'Rs 18,90,000' },
+    { id: 2, code: 'WAR-2024-0002', customer: 'Sharma Textiles', productType: 'Inverter', brandModel: 'Sungrow / SG110CX', serial: 'SG110CX2402002', startDate: '15 Apr 2024', endDate: '14 Apr 2029', duration: '5 Years', status: 'Active', coverage: 'Rs 12,75,000' },
+    { id: 3, code: 'WAR-2024-0003', customer: 'ABC Motors', productType: 'Solar Panel', brandModel: 'Jinko / JKM540M', serial: 'JKS40M2403003', startDate: '10 May 2024', endDate: '09 May 2029', duration: '5 Years', status: 'Active', coverage: 'Rs 22,68,000' },
+    { id: 4, code: 'WAR-2024-0004', customer: 'Green Field School', productType: 'Inverter', brandModel: 'Growatt / MAX 60KTL3', serial: 'GR60K2404004', startDate: '01 Jun 2024', endDate: '31 May 2029', duration: '5 Years', status: 'Active', coverage: 'Rs 11,50,000' },
+    { id: 5, code: 'WAR-2024-0005', customer: 'XYZ Cold Storage', productType: 'Battery', brandModel: 'Livguard / LFP 100Ah', serial: 'LG100AH2405005', startDate: '20 Jun 2024', endDate: '19 Jun 2027', duration: '3 Years', status: 'Expiring Soon', coverage: 'Rs 9,80,000' },
+    { id: 6, code: 'WAR-2024-0006', customer: 'Future Electronics', productType: 'Solar Panel', brandModel: 'Canadian Solar / CS6W', serial: 'CS6W2406006', startDate: '05 Jul 2024', endDate: '04 Jul 2029', duration: '5 Years', status: 'Active', coverage: 'Rs 16,40,000' },
+    { id: 7, code: 'WAR-2024-0007', customer: 'Happy Farms', productType: 'Inverter', brandModel: 'GoodWe / GW50K-MT', serial: 'GW50K2407007', startDate: '01 Aug 2024', endDate: '31 Jul 2029', duration: '5 Years', status: 'Active', coverage: 'Rs 10,90,000' },
+    { id: 8, code: 'WAR-2024-0008', customer: 'Sunrise Hospital', productType: 'Battery', brandModel: 'Livguard / LFP 150Ah', serial: 'LG150AH2408008', startDate: '12 Aug 2024', endDate: '11 Aug 2027', duration: '3 Years', status: 'Expiring Soon', coverage: 'Rs 13,65,000' },
+    { id: 9, code: 'WAR-2024-0009', customer: 'City Mall', productType: 'Structure', brandModel: 'Tata Steel / GI', serial: 'TSGI2409009', startDate: '18 Sep 2024', endDate: '17 Sep 2034', duration: '10 Years', status: 'Active', coverage: 'Rs 8,25,000' },
+    { id: 10, code: 'WAR-2024-0010', customer: 'Elite Residency', productType: 'Inverter', brandModel: 'Sungrow / SG50CX', serial: 'SG50CX2410010', startDate: '01 Oct 2024', endDate: '30 Sep 2029', duration: '5 Years', status: 'Active', coverage: 'Rs 9,75,000' },
+  ];
+
+  const expiringRows = [
+    { code: 'WAR-2024-0005', customer: 'XYZ Cold Storage - Battery', dueDate: '19 Jun 2025', daysLeft: '29 Days Left' },
+    { code: 'WAR-2024-0008', customer: 'Sunrise Hospital - Battery', dueDate: '11 Aug 2025', daysLeft: '82 Days Left' },
+    { code: 'WAR-2024-0012', customer: 'City Center - Inverter', dueDate: '25 Aug 2025', daysLeft: '96 Days Left' },
+    { code: 'WAR-2024-0015', customer: 'Royal Town - Battery', dueDate: '05 Sep 2025', daysLeft: '107 Days Left' },
+  ];
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.code, row.customer, row.brandModel, row.serial].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const productTypeMatch = productType === 'All Product Type' || row.productType === productType;
+    const brandMatch = brand === 'All Brand' || row.brandModel.includes(brand);
+    const customerMatch = customer === 'All Customer' || row.customer === customer;
+    const dateMatch = isDateWithinRange(row.startDate, dateFrom, dateTo) || isDateWithinRange(row.endDate, dateFrom, dateTo);
+    return queryMatch && statusMatch && productTypeMatch && brandMatch && customerMatch && dateMatch;
+  });
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Warranties"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'AMC & Warranty' },
+          { label: 'Warranties' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Warranty report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Warranty export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Upload className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('New warranty flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />New Warranty</button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <AmcSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+            <OpsStatCard label="Total Warranties" value="243" caption="All Products" icon={ShieldCheck} tone="blue" onClick={() => onNotify('Total warranties opened')} />
+            <OpsStatCard label="Active Warranties" value="198" caption="81.48%" icon={ShieldCheck} tone="green" onClick={() => setStatus('Active')} />
+            <OpsStatCard label="Expiring Soon" value="26" caption="10.70% (Within 60 Days)" icon={Hourglass} tone="amber" onClick={() => setStatus('Expiring Soon')} />
+            <OpsStatCard label="Expired Warranties" value="19" caption="7.82%" icon={AlertTriangle} tone="red" onClick={() => setStatus('Expired')} />
+            <OpsStatCard label="Total Claim Coverage" value="Rs 2.48 Cr" caption="Rs 2,48,75,300 coverage" icon={ClipboardPlus} tone="purple" onClick={() => onNotify('Claim coverage opened')} />
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Warranty Status Overview</h2>
+            <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+              <button type="button" onClick={() => onNotify('Warranty status overview opened')} className="mx-auto size-[128px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#16a34a 0 81.48%, #f59e0b 81.48% 92.18%, #ef4444 92.18% 100%)' }}><span className="m-auto block size-[58px] rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]"><span className="block pt-[16px] font-display text-[16px] font-extrabold text-[#06135a]">243</span><span className="block text-[11px] font-bold text-[#7b8ba6]">Total</span></span></button>
+              <div className="space-y-3">
+                <StockLegend color="bg-[#16a34a]" label="Active" value="198 (81.48%)" />
+                <StockLegend color="bg-[#f59e0b]" label="Expiring Soon" value="26 (10.70%)" />
+                <StockLegend color="bg-[#ef4444]" label="Expired" value="19 (7.82%)" />
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <article className={`${panelClass} overflow-visible p-4 sm:p-5`}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex h-11 min-w-[250px] flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search warranties..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <ReportSelect className="min-w-[160px] flex-1 basis-[160px]" label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Expiring Soon', 'Expired']} hideLabel />
+            <ReportSelect className="min-w-[170px] flex-1 basis-[170px]" label="Product Type" value={productType} onChange={setProductType} options={['All Product Type', 'Solar Panel', 'Inverter', 'Battery', 'Structure']} hideLabel />
+            <ReportSelect className="min-w-[160px] flex-1 basis-[160px]" label="Brand" value={brand} onChange={setBrand} options={['All Brand', 'Longi', 'Sungrow', 'Jinko', 'Growatt', 'Livguard', 'Canadian Solar', 'GoodWe', 'Tata Steel']} hideLabel />
+            <ReportSelect className="min-w-[170px] flex-1 basis-[170px]" label="Customer" value={customer} onChange={setCustomer} options={['All Customer', ...rows.map((row) => row.customer)]} hideLabel />
+            <div className="min-w-[250px] flex-1 basis-[250px]">
+              <ReportDateRangePicker
+                open={dateRangeOpen}
+                onToggle={() => setDateRangeOpen((current) => !current)}
+                onClose={() => setDateRangeOpen(false)}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                setDateFrom={setDateFrom}
+                setDateTo={setDateTo}
+                formattedRange={formattedRange}
+                hideLabel
+              />
+            </div>
+            <button type="button" onClick={() => onNotify(`Warranty filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+            <button type="button" onClick={() => { setQuery(''); setStatus('All Status'); setProductType('All Product Type'); setBrand('All Brand'); setCustomer('All Customer'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('Warranty filters reset'); }} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Reset</button>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="min-w-0">
+              <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Warranties List</h2>
+
+              <div className="mt-4 space-y-3 xl:hidden">
+                {filteredRows.map((row) => (
+                  <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.code}</p>
+                        <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.customer}</p>
+                      </div>
+                      <button type="button" onClick={() => onNotify(`${row.code} details opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                    </div>
+                    <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                      <InfoCell label="Product Type" value={row.productType} />
+                      <InfoCell label="Brand / Model" value={row.brandModel} />
+                      <InfoCell label="Serial" value={row.serial} />
+                      <InfoCell label="Start Date" value={row.startDate} />
+                      <InfoCell label="End Date" value={row.endDate} />
+                      <InfoCell label="Coverage" value={row.coverage} />
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <OpsPillBadge label={row.status} tone={row.status === 'Active' ? 'green' : row.status === 'Expiring Soon' ? 'amber' : 'red'} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                <table className="crm-table min-w-[1220px] w-full">
+                  <thead><tr>{['#', 'Warranty No.', 'Customer / Company', 'Product Type', 'Brand / Model', 'Serial No.', 'Start Date', 'End Date', 'Duration', 'Status', 'Coverage Amount', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {filteredRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#0b65e5]">{row.code}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.customer}</td>
+                        <td>{row.productType}</td>
+                        <td>{row.brandModel}</td>
+                        <td>{row.serial}</td>
+                        <td>{row.startDate}</td>
+                        <td>{row.endDate}</td>
+                        <td>{row.duration}</td>
+                        <td><OpsPillBadge label={row.status} tone={row.status === 'Active' ? 'green' : row.status === 'Expiring Soon' ? 'amber' : 'red'} /></td>
+                        <td className="font-extrabold text-[#1e3261]">{row.coverage}</td>
+                        <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.code} details opened`)} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 243 entries`} totalPage="25" onNotify={onNotify} prefix="Warranty" />
+            </div>
+
+            <div className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Coverage by Product Type</h2>
+                <div className="mt-5 flex flex-col gap-5">
+                  <button type="button" onClick={() => onNotify('Coverage by product type opened')} className="mx-auto size-[132px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#2563eb 0 50.4%, #16a34a 50.4% 82.02%, #f59e0b 82.02% 95%, #8b5cf6 95% 100%)' }}>
+                    <span className="m-auto flex size-[66px] flex-col items-center justify-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]">
+                      <span className="font-display text-[12px] font-extrabold leading-none text-[#06135a]">Rs 2.48</span>
+                      <span className="font-display text-[12px] font-extrabold leading-none text-[#06135a]">Cr</span>
+                      <span className="mt-0.5 text-[10px] font-bold leading-none text-[#7b8ba6]">Total</span>
+                    </span>
+                  </button>
+                  <div className="space-y-3">
+                    <StockLegend color="bg-[#2563eb]" label="Solar Panels" value="Rs 1,25,40,000 (50.40%)" />
+                    <StockLegend color="bg-[#16a34a]" label="Inverters" value="Rs 78,60,000 (31.62%)" />
+                    <StockLegend color="bg-[#f59e0b]" label="Batteries" value="Rs 32,25,000 (12.97%)" />
+                    <StockLegend color="bg-[#8b5cf6]" label="Structures" value="Rs 12,50,300 (5.03%)" />
+                  </div>
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Expiring Warranties (Next 60 Days)</h2>
+                  <button type="button" onClick={() => onNotify('All expiring warranties opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+                </div>
+                <div className="mt-4 space-y-4">
+                  {expiringRows.map((item) => (
+                    <button key={item.code} type="button" onClick={() => onNotify(`${item.code} expiring warranty opened`)} className="flex w-full items-start gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#fff0dc] text-[#f97316]">
+                        <AlertTriangle className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{item.code}</span>
+                        <span className="mt-1 block text-[11px] font-bold text-[#53647f]">{item.customer}</span>
+                        <span className="mt-1 block text-[11px] font-bold text-[#ef4444]">{item.dueDate}</span>
+                      </span>
+                      <span className="rounded-full bg-[#fff0dc] px-2.5 py-1 text-[10px] font-extrabold text-[#f97316]">{item.daysLeft}</span>
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => onNotify('Full expiring warranties report opened')} className="mt-4 text-[12px] font-extrabold text-[#0b65e5]">View All Expiring Warranties</button>
+              </article>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function AmcServiceRequestsPage({ activeSection, onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All Status');
+  const [priority, setPriority] = useState('All Priority');
+  const [requestType, setRequestType] = useState('All Request Type');
+  const [branch, setBranch] = useState('All Branch');
+  const [customer, setCustomer] = useState('All Customer');
+  const [dateFrom, setDateFrom] = useState('2024-04-01');
+  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+
+  const rows = [
+    { id: 1, code: 'SR-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', site: 'Ludhiana Factory (100 kWp)', requestType: 'Inverter Issue', priority: 'High', status: 'Open', assignedTo: 'Rohit Sharma', requestedOn: '01 Apr 2024', expectedDate: '04 Apr 2024' },
+    { id: 2, code: 'SR-2024-0002', customer: 'Sharma Textiles', site: 'Sangrur Unit (50 kWp)', requestType: 'Performance Issue', priority: 'Medium', status: 'In Progress', assignedTo: 'Amit Verma', requestedOn: '15 Apr 2024', expectedDate: '18 Apr 2024' },
+    { id: 3, code: 'SR-2024-0003', customer: 'ABC Motors', site: 'Chandigarh Showroom (80 kWp)', requestType: 'Panel Cleaning', priority: 'Low', status: 'Completed', assignedTo: 'Pawan Kumar', requestedOn: '10 May 2024', expectedDate: '12 May 2024' },
+    { id: 4, code: 'SR-2024-0004', customer: 'Green Field School', site: 'Ludhiana (30 kWp)', requestType: 'Battery Issue', priority: 'High', status: 'In Progress', assignedTo: 'Rohit Sharma', requestedOn: '01 Jun 2024', expectedDate: '05 Jun 2024' },
+    { id: 5, code: 'SR-2024-0005', customer: 'XYZ Cold Storage', site: 'Patiala (120 kWp)', requestType: 'Inverter Issue', priority: 'High', status: 'On Hold', assignedTo: 'Amit Verma', requestedOn: '20 Jun 2024', expectedDate: '25 Jun 2024' },
+    { id: 6, code: 'SR-2024-0006', customer: 'Future Electronics', site: 'Mohali (40 kWp)', requestType: 'Wiring Issue', priority: 'Medium', status: 'Completed', assignedTo: 'Pawan Kumar', requestedOn: '05 Jul 2024', expectedDate: '07 Jul 2024' },
+    { id: 7, code: 'SR-2024-0007', customer: 'Happy Farms', site: 'Barnala (25 kWp)', requestType: 'Monitoring Issue', priority: 'Low', status: 'Open', assignedTo: 'Rohit Sharma', requestedOn: '01 Aug 2024', expectedDate: '06 Aug 2024' },
+    { id: 8, code: 'SR-2024-0008', customer: 'Sunrise Hospital', site: 'Jalandhar (60 kWp)', requestType: 'Panel Cleaning', priority: 'Low', status: 'Completed', assignedTo: 'Amit Verma', requestedOn: '12 Aug 2024', expectedDate: '14 Aug 2024' },
+    { id: 9, code: 'SR-2024-0009', customer: 'City Mall', site: 'Amritsar (75 kWp)', requestType: 'Battery Issue', priority: 'High', status: 'In Progress', assignedTo: 'Pawan Kumar', requestedOn: '18 Sep 2024', expectedDate: '21 Sep 2024' },
+    { id: 10, code: 'SR-2024-0010', customer: 'Elite Residency', site: 'Bathinda (20 kWp)', requestType: 'Other', priority: 'Low', status: 'Completed', assignedTo: 'Rohit Sharma', requestedOn: '01 Oct 2024', expectedDate: '02 Oct 2024' },
+  ];
+
+  const recentRows = [
+    { code: 'SR-2024-0001', customer: 'Malwa Industries Pvt. Ltd.', requestType: 'Inverter Issue', status: 'Open', requestedOn: '01 Apr 2024' },
+    { code: 'SR-2024-0002', customer: 'Sharma Textiles', requestType: 'Performance Issue', status: 'In Progress', requestedOn: '15 Apr 2024' },
+    { code: 'SR-2024-0004', customer: 'Green Field School', requestType: 'Battery Issue', status: 'In Progress', requestedOn: '01 Jun 2024' },
+    { code: 'SR-2024-0007', customer: 'Happy Farms', requestType: 'Monitoring Issue', status: 'Open', requestedOn: '01 Aug 2024' },
+  ];
+
+  const statusToneMap = {
+    Open: 'green',
+    'In Progress': 'blue',
+    'On Hold': 'purple',
+    Completed: 'red',
+  };
+
+  const priorityToneMap = {
+    High: 'red',
+    Medium: 'amber',
+    Low: 'green',
+  };
+
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.code, row.customer, row.site, row.requestType, row.assignedTo].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const statusMatch = status === 'All Status' || row.status === status;
+    const priorityMatch = priority === 'All Priority' || row.priority === priority;
+    const requestTypeMatch = requestType === 'All Request Type' || row.requestType === requestType;
+    const branchMatch = branch === 'All Branch' || row.site.includes(branch);
+    const customerMatch = customer === 'All Customer' || row.customer === customer;
+    const dateMatch = isDateWithinRange(row.requestedOn, dateFrom, dateTo) || isDateWithinRange(row.expectedDate, dateFrom, dateTo);
+    return queryMatch && statusMatch && priorityMatch && requestTypeMatch && branchMatch && customerMatch && dateMatch;
+  });
+
+  const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Service Requests"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'AMC & Warranty' },
+          { label: 'Service Requests' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onNotify('Service request report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => onNotify('Service requests export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Upload className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => onNotify('New service request flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />New Service Request</button>
+          </>
+        )}
+      />
+
+      <section className="space-y-4">
+        <AmcSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <OpsStatCard label="Total Requests" value="15" caption="All Time" icon={Wrench} tone="blue" onClick={() => onNotify('Total service requests opened')} />
+            <OpsStatCard label="Open Requests" value="5" caption="33.33%" icon={CheckCircle2} tone="green" onClick={() => setStatus('Open')} />
+            <OpsStatCard label="In Progress" value="4" caption="26.67%" icon={Clock3} tone="amber" onClick={() => setStatus('In Progress')} />
+            <OpsStatCard label="On Hold" value="1" caption="6.67%" icon={PauseCircle} tone="purple" onClick={() => setStatus('On Hold')} />
+            <OpsStatCard label="Completed" value="5" caption="33.33%" icon={BadgeCheck} tone="red" onClick={() => setStatus('Completed')} />
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Requests by Status</h2>
+            <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+              <button type="button" onClick={() => onNotify('Requests by status opened')} className="mx-auto size-[128px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#16a34a 0 33.33%, #2563eb 33.33% 60%, #8b5cf6 60% 66.67%, #ef4444 66.67% 100%)' }}><span className="m-auto block size-[58px] rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]"><span className="block pt-[16px] font-display text-[16px] font-extrabold text-[#06135a]">15</span><span className="block text-[11px] font-bold text-[#7b8ba6]">Total</span></span></button>
+              <div className="space-y-3">
+                <StockLegend color="bg-[#16a34a]" label="Open" value="5 (33.33%)" />
+                <StockLegend color="bg-[#2563eb]" label="In Progress" value="4 (26.67%)" />
+                <StockLegend color="bg-[#8b5cf6]" label="On Hold" value="1 (6.67%)" />
+                <StockLegend color="bg-[#ef4444]" label="Completed" value="5 (33.33%)" />
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <article className={`${panelClass} overflow-visible p-4 sm:p-5`}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search service requests..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <ReportSelect className="min-w-[150px] flex-1 basis-[150px]" label="Status" value={status} onChange={setStatus} options={['All Status', 'Open', 'In Progress', 'On Hold', 'Completed']} hideLabel />
+            <ReportSelect className="min-w-[150px] flex-1 basis-[150px]" label="Priority" value={priority} onChange={setPriority} options={['All Priority', 'High', 'Medium', 'Low']} hideLabel />
+            <ReportSelect className="min-w-[180px] flex-1 basis-[180px]" label="Request Type" value={requestType} onChange={setRequestType} options={['All Request Type', 'Inverter Issue', 'Performance Issue', 'Panel Cleaning', 'Battery Issue', 'Wiring Issue', 'Monitoring Issue', 'Other']} hideLabel />
+            <ReportSelect className="min-w-[160px] flex-1 basis-[160px]" label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Patiala', 'Mohali', 'Barnala', 'Jalandhar', 'Amritsar', 'Bathinda']} hideLabel />
+            <ReportSelect className="min-w-[170px] flex-1 basis-[170px]" label="Customer" value={customer} onChange={setCustomer} options={['All Customer', ...rows.map((row) => row.customer)]} hideLabel />
+            <div className="min-w-[250px] flex-1 basis-[250px]">
+              <ReportDateRangePicker
+                open={dateRangeOpen}
+                onToggle={() => setDateRangeOpen((current) => !current)}
+                onClose={() => setDateRangeOpen(false)}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                setDateFrom={setDateFrom}
+                setDateTo={setDateTo}
+                formattedRange={formattedRange}
+                hideLabel
+              />
+            </div>
+            <button type="button" onClick={() => onNotify(`Service request filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
+            <button type="button" onClick={() => { setQuery(''); setStatus('All Status'); setPriority('All Priority'); setRequestType('All Request Type'); setBranch('All Branch'); setCustomer('All Customer'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('Service request filters reset'); }} className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Reset</button>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Service Requests List</h2>
+                <article className="hidden xl:block">
+                  <InventoryPagination text="" totalPage="2" onNotify={onNotify} prefix="Service Request" />
+                </article>
+              </div>
+
+              <div className="mt-4 space-y-3 xl:hidden">
+                {filteredRows.map((row) => (
+                  <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.code}</p>
+                        <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.customer}</p>
+                        <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.site}</p>
+                      </div>
+                      <button type="button" onClick={() => onNotify(`${row.code} details opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                    </div>
+                    <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                      <InfoCell label="Request Type" value={row.requestType} />
+                      <InfoCell label="Assigned To" value={row.assignedTo} />
+                      <InfoCell label="Requested On" value={row.requestedOn} />
+                      <InfoCell label="Expected Date" value={row.expectedDate} />
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <OpsPillBadge label={row.priority} tone={priorityToneMap[row.priority]} />
+                      <OpsPillBadge label={row.status} tone={statusToneMap[row.status]} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                <table className="crm-table min-w-[1220px] w-full">
+                  <thead><tr>{['#', 'Request No.', 'Customer / Company', 'Site / Project', 'Request Type', 'Priority', 'Status', 'Assigned To', 'Requested On', 'Expected Date', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {filteredRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#0b65e5]">{row.code}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.customer}</td>
+                        <td>{row.site}</td>
+                        <td>{row.requestType}</td>
+                        <td><OpsPillBadge label={row.priority} tone={priorityToneMap[row.priority]} /></td>
+                        <td><OpsPillBadge label={row.status} tone={statusToneMap[row.status]} /></td>
+                        <td>{row.assignedTo}</td>
+                        <td>{row.requestedOn}</td>
+                        <td>{row.expectedDate}</td>
+                        <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.code} details opened`)} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="xl:hidden">
+                <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 15 entries`} totalPage="2" onNotify={onNotify} prefix="Service Request" />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Requests by Priority</h2>
+                <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center">
+                  <button type="button" onClick={() => onNotify('Requests by priority opened')} className="mx-auto size-[128px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#ef4444 0 40%, #f59e0b 40% 66.67%, #16a34a 66.67% 100%)' }}><span className="m-auto block size-[58px] rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]"><span className="block pt-[16px] font-display text-[16px] font-extrabold text-[#06135a]">15</span><span className="block text-[11px] font-bold text-[#7b8ba6]">Total</span></span></button>
+                  <div className="space-y-3">
+                    <StockLegend color="bg-[#ef4444]" label="High" value="6 (40.00%)" />
+                    <StockLegend color="bg-[#f59e0b]" label="Medium" value="4 (26.67%)" />
+                    <StockLegend color="bg-[#16a34a]" label="Low" value="5 (33.33%)" />
+                  </div>
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Service Requests</h2>
+                  <button type="button" onClick={() => onNotify('All service requests opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+                </div>
+                <div className="mt-4 space-y-4">
+                  {recentRows.map((item) => (
+                    <button key={item.code} type="button" onClick={() => onNotify(`${item.code} recent service request opened`)} className="flex w-full items-start gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]">
+                      <span className={cx('grid size-10 shrink-0 place-items-center rounded-full', statusToneMap[item.status] === 'green' ? 'bg-[#e8f8eb] text-[#16a34a]' : statusToneMap[item.status] === 'blue' ? 'bg-[#e8f2ff] text-[#2563eb]' : statusToneMap[item.status] === 'purple' ? 'bg-[#f2eafe] text-[#8b5cf6]' : 'bg-[#ffe9e6] text-[#ef4444]')}>
+                        <Wrench className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{item.code}</span>
+                        <span className="mt-1 block text-[11px] font-bold text-[#53647f]">{item.customer}</span>
+                        <span className="mt-1 block text-[11px] font-bold text-[#7585a2]">{item.requestType}</span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className="block rounded-full bg-[#f4f8ff] px-2.5 py-1 text-[10px] font-extrabold text-[#0b65e5]">{item.status}</span>
+                        <span className="mt-1 block text-[10px] font-bold text-[#7b8ba6]">{item.requestedOn}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => onNotify('Full service requests report opened')} className="mt-4 text-[12px] font-extrabold text-[#0b65e5]">View All Service Requests</button>
+              </article>
+            </div>
+          </div>
+        </article>
       </section>
 
       <DashboardFooter />
@@ -9545,18 +10016,19 @@ function PaymentModeListPage({ onNotify }) {
   );
 }
 
-function OpsStatCard({ label, value, caption, icon: Icon, tone, onClick }) {
+function OpsStatCard({ label, value, caption, icon: Icon, tone, onClick, valueClassName = '' }) {
   const toneClass = {
     blue: 'bg-[#0b65e5] text-white',
     green: 'bg-[#0d9f4a] text-white',
     amber: 'bg-[#f59e0b] text-white',
     purple: 'bg-[#b56ce8] text-white',
     cyan: 'bg-[#0891b2] text-white',
+    red: 'bg-[#ef4444] text-white',
   }[tone] ?? 'bg-[#0b65e5] text-white';
   return (
     <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[120px] items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]`}>
       <span className={cx('grid size-12 shrink-0 place-items-center rounded-full', toneClass)}><Icon className="size-6" /></span>
-      <span className="min-w-0"><span className="block text-[12px] font-bold text-[#53647f]">{label}</span><span className="mt-1 block font-display text-[22px] font-extrabold text-[#111827]">{value}</span><span className="mt-2 block text-[11px] font-bold text-[#314a79]">{caption}</span></span>
+      <span className="min-w-0"><span className="block text-[12px] font-bold text-[#53647f]">{label}</span><span className={cx('mt-1 block max-w-full break-words font-display text-[22px] font-extrabold leading-tight text-[#111827]', valueClassName)}>{value}</span><span className="mt-2 block text-[11px] font-bold text-[#314a79]">{caption}</span></span>
     </button>
   );
 }
@@ -11077,10 +11549,10 @@ function InventoryStatusOverview({ onNotify }) {
 
 function StockLegend({ color, dotColor, label, value }) {
   return (
-    <p className="grid grid-cols-[10px_minmax(0,1fr)_92px] items-start gap-2 text-[11.5px] font-bold text-[#314a79]">
+    <p className="grid grid-cols-[10px_minmax(0,1fr)_minmax(86px,max-content)] items-start gap-2 text-[11.5px] font-bold text-[#314a79]">
       <span className={cx('mt-1 size-2.5 rounded-full', color)} style={dotColor ? { backgroundColor: dotColor } : undefined} />
       <span className="min-w-0 leading-5">{label}</span>
-      <span className="whitespace-nowrap text-right">{value}</span>
+      <span className="max-w-[150px] text-right leading-5">{value}</span>
     </p>
   );
 }
