@@ -6183,6 +6183,12 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
   });
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const summaryItems = [
+    { label: 'Company Type', value: form.companyType, icon: BadgeCheck, tone: 'bg-[#e8f2ff] text-[#0b65e5]' },
+    { label: 'GST Number', value: form.gstNumber, icon: ReceiptText, tone: 'bg-[#e9f8ec] text-[#0d9f4a]' },
+    { label: 'Primary City', value: `${form.city}, ${form.state}`, icon: MapPin, tone: 'bg-[#fff3df] text-[#f59e0b]' },
+    { label: 'Currency', value: form.currency, icon: IndianRupee, tone: 'bg-[#f3edff] text-[#8b5cf6]' },
+  ];
 
   return (
     <div className="space-y-4">
@@ -6206,72 +6212,97 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
         <SettingsNavigationRail activeSection="Company Profile" onOpenSection={onOpenSection} onNotify={onNotify} />
 
         <div className="space-y-4">
-          <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
-            <SettingsSectionCard title="Basic Information">
-              <div className="grid gap-4 md:grid-cols-2">
-                <SettingsInputField label="Company Name" value={form.companyName} onChange={(value) => updateField('companyName', value)} required />
-                <SettingsSelectField label="Company Type" value={form.companyType} onChange={(value) => updateField('companyType', value)} options={['Private Limited', 'Partnership', 'Proprietorship', 'LLP']} />
-
+          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+            <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.22fr)] xl:items-center">
+              <div className="flex min-w-0 items-start gap-4">
+                <div className="grid size-16 shrink-0 place-items-center rounded-[18px] bg-[#e9f8ec] text-[#0d9f4a] shadow-[inset_0_0_0_1px_rgba(13,159,74,0.08)]">
+                  <Leaf className="size-8" />
+                </div>
                 <div className="min-w-0">
-                  <SettingsFieldLabel label="Company Logo" />
-                  <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="grid size-14 place-items-center rounded-full bg-[#effbf3] text-[#0d9f4a]">
-                        <Leaf className="size-7" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[14px] font-extrabold text-[#14853a]">Malwa Solar Energy</p>
-                        <p className="mt-1 text-[12px] font-bold text-[#7585a2]">Current logo</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-display text-[20px] font-extrabold leading-tight text-[#111827]">{form.companyName}</h2>
+                    <span className="inline-flex rounded-full bg-[#e8f8eb] px-3 py-1 text-[11px] font-extrabold text-[#0d9f4a]">Verified Profile</span>
+                  </div>
+                  <p className="mt-2 text-[13px] font-bold leading-5 text-[#53647f]">Primary company identity, legal details, banking information and registered contact profile.</p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[12px] font-extrabold text-[#314a79]">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-[#f8fbff] px-3 py-1.5"><Phone className="size-3.5 text-[#0b65e5]" />{form.phone}</span>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-[#f8fbff] px-3 py-1.5"><Mail className="size-3.5 text-[#0b65e5]" />{form.email}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+                {summaryItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="rounded-[12px] border border-[#e7eef7] bg-white p-3">
+                      <div className="flex items-start gap-3">
+                        <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px]', item.tone)}>
+                          <Icon className="size-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-extrabold uppercase tracking-[0.06em] text-[#8a98af]">{item.label}</p>
+                          <p className="mt-1 text-[12px] font-extrabold leading-5 text-[#1e3261]">{item.value}</p>
+                        </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
+          </article>
+
+          <SettingsSectionCard title="Basic Information">
+            <div className="grid items-start gap-5 xl:grid-cols-[270px_minmax(0,1fr)]">
+              <div className="rounded-[14px] border border-[#e7eef7] bg-[#fbfdff] p-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid size-16 shrink-0 place-items-center rounded-full bg-[#effbf3] text-[#0d9f4a]">
+                    <Leaf className="size-8" />
                   </div>
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <div className="text-[12px] font-bold text-[#7585a2]">Upload new logo<br />JPG, PNG (Max. 2MB)</div>
-                    <button type="button" onClick={() => onNotify('Company logo upload opened')} className="inline-flex h-10 w-full items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff] sm:w-auto">Choose File</button>
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-extrabold text-[#14853a]">Malwa Solar Energy</p>
+                    <p className="mt-1 text-[12px] font-bold text-[#7585a2]">Current logo</p>
                   </div>
                 </div>
+                <div className="mt-4 rounded-[10px] bg-white p-3 text-[12px] font-bold leading-5 text-[#7585a2]">Upload new logo in JPG or PNG format. Maximum file size 2MB.</div>
+                <button type="button" onClick={() => onNotify('Company logo upload opened')} className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Upload className="size-4" />Choose File</button>
+              </div>
 
-                <div className="space-y-4">
-                  <SettingsInputField label="GST Number" value={form.gstNumber} onChange={(value) => updateField('gstNumber', value)} required />
-                  <SettingsInputField label="PAN Number" value={form.panNumber} onChange={(value) => updateField('panNumber', value)} required />
-                  <SettingsInputField label="TAN Number" value={form.tanNumber} onChange={(value) => updateField('tanNumber', value)} />
-                  <SettingsInputField label="Corporate Identification Number (CIN)" value={form.cin} onChange={(value) => updateField('cin', value)} />
-                </div>
-
+              <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                <SettingsInputField label="Company Name" value={form.companyName} onChange={(value) => updateField('companyName', value)} required />
+                <SettingsSelectField label="Company Type" value={form.companyType} onChange={(value) => updateField('companyType', value)} options={['Private Limited', 'Partnership', 'Proprietorship', 'LLP']} />
+                <SettingsInputField label="GST Number" value={form.gstNumber} onChange={(value) => updateField('gstNumber', value)} required />
+                <SettingsInputField label="PAN Number" value={form.panNumber} onChange={(value) => updateField('panNumber', value)} required />
+                <SettingsInputField label="TAN Number" value={form.tanNumber} onChange={(value) => updateField('tanNumber', value)} />
+                <SettingsInputField label="Corporate Identification Number (CIN)" value={form.cin} onChange={(value) => updateField('cin', value)} />
                 <SettingsInputField label="Phone Number" value={form.phone} onChange={(value) => updateField('phone', value)} required />
                 <SettingsInputField label="Email Address" value={form.email} onChange={(value) => updateField('email', value)} required />
                 <SettingsInputField label="Website" value={form.website} onChange={(value) => updateField('website', value)} />
               </div>
-            </SettingsSectionCard>
-
-            <div className="space-y-4">
-              <SettingsSectionCard title="Business Details">
-                <div className="space-y-4">
-                  <SettingsInputField label="Date of Incorporation" value={form.incorporationDate} onChange={(value) => updateField('incorporationDate', value)} />
-                  <SettingsInputField label="Start of Business" value={form.startDate} onChange={(value) => updateField('startDate', value)} />
-                  <SettingsSelectField label="Company Size" value={form.companySize} onChange={(value) => updateField('companySize', value)} options={['1-10 Employees', '11-50 Employees', '51-100 Employees', '100+ Employees']} />
-                  <SettingsSelectField label="Industry Type" value={form.industryType} onChange={(value) => updateField('industryType', value)} options={['Solar Energy', 'Manufacturing', 'Services', 'Infrastructure']} />
-                  <SettingsSelectField label="Default Currency" value={form.currency} onChange={(value) => updateField('currency', value)} options={['INR (Rs)', 'USD ($)', 'AED']} />
-                  <SettingsSelectField label="Time Zone" value={form.timezone} onChange={(value) => updateField('timezone', value)} options={['(GMT +05:30) Asia/Kolkata', '(GMT +04:00) Dubai', '(GMT +00:00) UTC']} />
-                </div>
-              </SettingsSectionCard>
-
-              <SettingsSectionCard title="Bank Details">
-                <div className="space-y-4">
-                  <SettingsInputField label="Default Bank Name" value={form.bankName} onChange={(value) => updateField('bankName', value)} />
-                  <SettingsInputField label="Bank Account Number" value={form.accountNumber} onChange={(value) => updateField('accountNumber', value)} />
-                  <SettingsInputField label="IFSC Code" value={form.ifsc} onChange={(value) => updateField('ifsc', value)} />
-                  <SettingsInputField label="Branch" value={form.branch} onChange={(value) => updateField('branch', value)} />
-                </div>
-              </SettingsSectionCard>
-
-              <SettingsSectionCard title="Notes">
-                <SettingsTextareaField label=" " value={form.notes} onChange={(value) => updateField('notes', value)} rows={3} />
-              </SettingsSectionCard>
             </div>
-          </section>
+          </SettingsSectionCard>
 
-          <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+          <SettingsSectionCard title="Business Details">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <SettingsInputField label="Date of Incorporation" value={form.incorporationDate} onChange={(value) => updateField('incorporationDate', value)} />
+              <SettingsInputField label="Start of Business" value={form.startDate} onChange={(value) => updateField('startDate', value)} />
+              <SettingsSelectField label="Company Size" value={form.companySize} onChange={(value) => updateField('companySize', value)} options={['1-10 Employees', '11-50 Employees', '51-100 Employees', '100+ Employees']} />
+              <SettingsSelectField label="Industry Type" value={form.industryType} onChange={(value) => updateField('industryType', value)} options={['Solar Energy', 'Manufacturing', 'Services', 'Infrastructure']} />
+              <SettingsSelectField label="Default Currency" value={form.currency} onChange={(value) => updateField('currency', value)} options={['INR (Rs)', 'USD ($)', 'AED']} />
+              <SettingsSelectField label="Time Zone" value={form.timezone} onChange={(value) => updateField('timezone', value)} options={['(GMT +05:30) Asia/Kolkata', '(GMT +04:00) Dubai', '(GMT +00:00) UTC']} />
+            </div>
+          </SettingsSectionCard>
+
+          <SettingsSectionCard title="Bank Details" className="w-full">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <SettingsInputField label="Default Bank Name" value={form.bankName} onChange={(value) => updateField('bankName', value)} />
+              <SettingsInputField label="Bank Account Number" value={form.accountNumber} onChange={(value) => updateField('accountNumber', value)} />
+              <SettingsInputField label="IFSC Code" value={form.ifsc} onChange={(value) => updateField('ifsc', value)} />
+              <SettingsInputField label="Branch" value={form.branch} onChange={(value) => updateField('branch', value)} />
+            </div>
+          </SettingsSectionCard>
+
+          <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
             <SettingsSectionCard title="Registered Address">
               <div className="grid gap-4 md:grid-cols-2">
                 <SettingsInputField label="Address Line 1" value={form.address1} onChange={(value) => updateField('address1', value)} required />
@@ -6285,14 +6316,15 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
 
             <div className="space-y-4">
               <SettingsSectionCard title="Contact Person">
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-1">
                   <SettingsInputField label="Contact Person Name" value={form.contactName} onChange={(value) => updateField('contactName', value)} />
                   <SettingsInputField label="Designation" value={form.designation} onChange={(value) => updateField('designation', value)} />
                   <SettingsInputField label="Phone Number" value={form.contactPhone} onChange={(value) => updateField('contactPhone', value)} />
-                  <div className="md:col-span-2">
-                    <SettingsInputField label="Email Address" value={form.contactEmail} onChange={(value) => updateField('contactEmail', value)} />
-                  </div>
+                  <SettingsInputField label="Email Address" value={form.contactEmail} onChange={(value) => updateField('contactEmail', value)} />
                 </div>
+              </SettingsSectionCard>
+              <SettingsSectionCard title="Notes">
+                <SettingsTextareaField label="Internal Notes" value={form.notes} onChange={(value) => updateField('notes', value)} rows={4} />
               </SettingsSectionCard>
             </div>
           </section>
