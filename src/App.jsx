@@ -184,7 +184,7 @@ const settingsDisplayNameMap = Object.fromEntries(settingsCardGroups.flatMap((gr
 const settingsRelatedPages = ['Settings', 'Master Type', ...settingsCardGroups.flatMap((group) => group.items.map((item) => item.key))];
 
 function getSettingsRouteKey(section) {
-  if (section === 'Master Type' || section === 'Payment Settings') {
+  if (section === 'Master Type') {
     return 'Payment Mode';
   }
 
@@ -3626,6 +3626,10 @@ function formatLedgerCurrency(value) {
 }
 
 function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
+  if (activeSection === 'Payment Settings') {
+    return <PaymentSettingsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
   if (activeSection === 'Payment Mode' || activeSection === 'Master Type') {
     return <PaymentModeListPage onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
@@ -4024,6 +4028,249 @@ function GeneralSettingsDetailShell({ title, onOpenSection, onNotify, actions, c
 
       <DashboardFooter />
     </div>
+  );
+}
+
+function AccountSettingsTabs({ activeSection, onOpenSection }) {
+  const accountSettingsItems = settingsCardGroups.find((group) => group.title === 'Accounts Settings')?.items ?? [];
+
+  return (
+    <section className={`${panelClass} overflow-hidden p-0`}>
+      <div className="flex overflow-x-auto">
+        {accountSettingsItems.map((item) => {
+          const active = activeSection === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onOpenSection(getSettingsRouteKey(item.key))}
+              className={cx(
+                'relative flex h-[58px] min-w-[170px] flex-1 items-center justify-center border-r border-[#e5edf6] px-5 text-[13px] font-extrabold transition last:border-r-0',
+                active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
+              )}
+            >
+              {item.label}
+              {active ? <span className="absolute inset-x-6 bottom-0 h-0.5 rounded-full bg-[#0d9f4a]" /> : null}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function PaymentSettingsPage({ activeSection, onOpenSection, onNotify }) {
+  const [lateFeeEnabled, setLateFeeEnabled] = useState(true);
+  const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [allowPartial, setAllowPartial] = useState(true);
+  const [autoPaid, setAutoPaid] = useState(true);
+  const [form, setForm] = useState({
+    defaultTerms: '30',
+    dueDateCalculation: 'From Invoice Date',
+    gracePeriod: '5',
+    lateFeeType: 'Percentage',
+    lateFeeValue: '2',
+    applyAfter: '5',
+    maxLateFeeLimit: '10',
+    firstReminder: '7',
+    secondReminder: '3',
+    finalReminder: '3',
+    reminderFrequency: 'Every 3 Days',
+    paymentText: 'Payment is due within {days} days from the invoice date.\nLate payments may incur additional charges.',
+    allocationMethod: 'Oldest Invoice First',
+    writeOffAccount: 'Bad Debts',
+  });
+  const [bankDetails, setBankDetails] = useState({
+    companyBank: true,
+    upiQr: true,
+    instructions: true,
+    accountHolder: true,
+  });
+
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const toggleBankDetail = (field) => setBankDetails((current) => ({ ...current, [field]: !current[field] }));
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Settings"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onOpenSection('Settings') },
+          { label: 'Accounts Settings', onClick: () => onNotify('Accounts settings opened') },
+          { label: 'Payment Settings' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
+            <button type="button" onClick={() => onNotify('Payment settings saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+          </>
+        )}
+      />
+
+      <AccountSettingsTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="mb-5">
+          <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Payment Settings</h2>
+          <p className="mt-1 text-[13px] font-bold text-[#53647f]">Configure default payment terms, reminders, late fees and other payment preferences.</p>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-3">
+          <PaymentSettingCard icon={ReceiptText} iconTone="green" title="Default Payment Terms" subtitle="Set default payment terms for invoices and quotations.">
+            <div className="space-y-4">
+              <PaymentSettingSelect label="Default Payment Terms (Days)" value={form.defaultTerms} onChange={(value) => updateField('defaultTerms', value)} options={['15', '30', '45', '60']} />
+              <PaymentSettingSelect label="Due Date Calculation" value={form.dueDateCalculation} onChange={(value) => updateField('dueDateCalculation', value)} options={['From Invoice Date', 'From Delivery Date', 'From Approval Date']} />
+              <PaymentSettingInput label="Grace Period (Days)" value={form.gracePeriod} onChange={(value) => updateField('gracePeriod', value)} helperText="Additional days before marking as overdue." />
+            </div>
+          </PaymentSettingCard>
+
+          <PaymentSettingCard icon={ReceiptText} iconTone="purple" title="Late Payment Settings" subtitle="Configure late fees and interest for overdue payments." action={<PaymentSwitch enabled={lateFeeEnabled} onToggle={() => setLateFeeEnabled((current) => !current)} label="Enable late fee" />}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <PaymentSettingSelect label="Late Fee Type" value={form.lateFeeType} onChange={(value) => updateField('lateFeeType', value)} options={['Percentage', 'Fixed Amount']} />
+              <PaymentSettingInput label="Late Fee Value (%)" value={form.lateFeeValue} onChange={(value) => updateField('lateFeeValue', value)} suffix="%" />
+              <PaymentSettingInput label="Apply After (Days)" value={form.applyAfter} onChange={(value) => updateField('applyAfter', value)} helperText="Days after due date" />
+              <PaymentSettingInput label="Max Late Fee Limit (%)" value={form.maxLateFeeLimit} onChange={(value) => updateField('maxLateFeeLimit', value)} suffix="%" />
+            </div>
+          </PaymentSettingCard>
+
+          <PaymentSettingCard icon={CalendarDays} iconTone="amber" title="Payment Reminders" subtitle="Configure automatic payment reminders." action={<PaymentSwitch enabled={remindersEnabled} onToggle={() => setRemindersEnabled((current) => !current)} label="Enable reminders" />}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <PaymentSettingInput label="First Reminder (Days Before Due Date)" value={form.firstReminder} onChange={(value) => updateField('firstReminder', value)} />
+              <PaymentSettingInput label="Second Reminder (Days Before Due Date)" value={form.secondReminder} onChange={(value) => updateField('secondReminder', value)} />
+              <PaymentSettingInput label="Final Reminder (Days After Due Date)" value={form.finalReminder} onChange={(value) => updateField('finalReminder', value)} />
+              <PaymentSettingSelect className="sm:col-span-2" label="Reminder Frequency" value={form.reminderFrequency} onChange={(value) => updateField('reminderFrequency', value)} options={['Every 3 Days', 'Every 5 Days', 'Weekly']} />
+            </div>
+          </PaymentSettingCard>
+
+          <PaymentSettingCard icon={FileText} iconTone="blue" title="Default Payment Terms (Text)" subtitle="This text will appear on invoices and quotations.">
+            <label className="block">
+              <textarea
+                value={form.paymentText}
+                onChange={(event) => updateField('paymentText', event.target.value)}
+                rows={6}
+                className="w-full resize-none rounded-[8px] border border-[#d4deeb] bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              />
+              <span className="mt-2 block text-[12px] font-bold text-[#53647f]">Use {'{days}'} to show the number of days dynamically.</span>
+            </label>
+          </PaymentSettingCard>
+
+          <PaymentSettingCard icon={IndianRupee} iconTone="green" title="Bank & Payment Details on Invoices" subtitle="Choose which bank/payment details to show on documents.">
+            <div className="space-y-4">
+              <PaymentCheckOption checked={bankDetails.companyBank} onToggle={() => toggleBankDetail('companyBank')} label="Company Bank Details" />
+              <PaymentCheckOption checked={bankDetails.upiQr} onToggle={() => toggleBankDetail('upiQr')} label="UPI / QR Code" />
+              <PaymentCheckOption checked={bankDetails.instructions} onToggle={() => toggleBankDetail('instructions')} label="Payment Instructions" />
+              <PaymentCheckOption checked={bankDetails.accountHolder} onToggle={() => toggleBankDetail('accountHolder')} label="Account Holder Details" />
+            </div>
+          </PaymentSettingCard>
+
+          <PaymentSettingCard icon={Settings} iconTone="purple" title="Other Settings" subtitle="Other payment related preferences.">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[12px] font-extrabold text-[#34466c]">Allow Partial Payments</span>
+                <PaymentSwitch enabled={allowPartial} onToggle={() => setAllowPartial((current) => !current)} label="Allow partial payments" />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[12px] font-extrabold text-[#34466c]">Auto Mark as Paid on Full Payment</span>
+                <PaymentSwitch enabled={autoPaid} onToggle={() => setAutoPaid((current) => !current)} label="Auto mark as paid" />
+              </div>
+              <PaymentSettingSelect label="Payment Allocation Method" value={form.allocationMethod} onChange={(value) => updateField('allocationMethod', value)} options={['Oldest Invoice First', 'Newest Invoice First', 'Manual Allocation']} />
+              <PaymentSettingSelect label="Default Write-off Account" value={form.writeOffAccount} onChange={(value) => updateField('writeOffAccount', value)} options={['Bad Debts', 'Discount Allowed', 'Write-off Expense']} />
+            </div>
+          </PaymentSettingCard>
+        </div>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function PaymentSettingCard({ icon: Icon, iconTone = 'green', title, subtitle, action, children }) {
+  const toneClass = {
+    green: 'bg-[#e9f8ec] text-[#0d9f4a]',
+    purple: 'bg-[#f3edff] text-[#9b5de5]',
+    amber: 'bg-[#fff3df] text-[#f59e0b]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+  }[iconTone] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return (
+    <article className="rounded-[14px] border border-[#dbe5f2] bg-white p-4 shadow-[0_10px_22px_rgba(24,48,87,0.04)] sm:p-5">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className={cx('grid size-10 shrink-0 place-items-center rounded-[12px]', toneClass)}>
+            <Icon className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-extrabold leading-tight text-[#111827]">{title}</h3>
+            <p className="mt-1 text-[12px] font-bold leading-5 text-[#53647f]">{subtitle}</p>
+          </div>
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      {children}
+    </article>
+  );
+}
+
+function PaymentSwitch({ enabled, onToggle, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={label}
+      aria-pressed={enabled}
+      className={cx(
+        'relative h-6 w-11 rounded-full transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8bb8ff]',
+        enabled ? 'bg-[#0d9f4a]' : 'bg-[#cbd5e1]',
+      )}
+    >
+      <span className={cx('absolute top-1 size-4 rounded-full bg-white shadow-[0_2px_6px_rgba(15,23,42,0.18)] transition', enabled ? 'left-6' : 'left-1')} />
+    </button>
+  );
+}
+
+function PaymentCheckOption({ checked, onToggle, label }) {
+  return (
+    <button type="button" onClick={onToggle} className="flex items-center gap-3 text-left text-[13px] font-bold text-[#314a79]">
+      <span className={cx('grid size-4 shrink-0 place-items-center rounded-[4px] border', checked ? 'border-[#0d9f4a] bg-[#0d9f4a] text-white' : 'border-[#cbd5e1] bg-white text-transparent')}>
+        <CheckCircle2 className="size-3" />
+      </span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function PaymentSettingInput({ label, value, onChange, helperText, suffix, className = '' }) {
+  return (
+    <label className={cx('block min-w-0', className)}>
+      <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{label}</span>
+      <span className="flex h-11 overflow-hidden rounded-[8px] border border-[#d4deeb] bg-white transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+        <input
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="min-w-0 flex-1 bg-transparent px-4 text-[13px] font-bold text-[#30466d] outline-none"
+        />
+        {suffix ? <span className="grid w-12 place-items-center border-l border-[#dbe5f2] bg-[#f2f5f9] text-[13px] font-extrabold text-[#314a79]">{suffix}</span> : null}
+      </span>
+      {helperText ? <span className="mt-2 block text-[12px] font-bold text-[#53647f]">{helperText}</span> : null}
+    </label>
+  );
+}
+
+function PaymentSettingSelect({ label, value, onChange, options, className = '' }) {
+  return (
+    <label className={cx('block min-w-0', className)}>
+      <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-[8px] border border-[#d4deeb] bg-white px-4 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+      >
+        {options.map((option) => <option key={option}>{option}</option>)}
+      </select>
+    </label>
   );
 }
 
