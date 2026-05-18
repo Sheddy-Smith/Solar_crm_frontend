@@ -1410,8 +1410,8 @@ function App() {
   }
 
   return (
-    <div className="box-border min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] p-2 text-[#20345f] sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden">
-      <div className="mx-auto flex w-full gap-3 xl:h-full xl:items-stretch xl:gap-4">
+    <div className="box-border min-h-screen max-w-full overflow-x-hidden bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] p-2 text-[#20345f] sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden">
+      <div className="mx-auto flex w-full max-w-full gap-3 xl:h-full xl:items-stretch xl:gap-4">
         <div
           className={cx(
             'fixed inset-0 z-40 bg-[#10213d]/45 transition xl:hidden',
@@ -1838,7 +1838,7 @@ function App() {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
+        <main className="min-w-0 flex-1 w-full xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
           <div className="space-y-4 xl:pb-3">
             <header className={`${panelClass} relative z-30 overflow-visible px-3 py-3 sm:px-4`}>
               <div className="grid gap-3 lg:grid-cols-[44px_minmax(0,1fr)] xl:grid-cols-[44px_326px_minmax(0,1fr)_auto] xl:items-center">
@@ -1919,12 +1919,12 @@ function App() {
                   </div>
                 </div>
 
-                <label className="flex h-11 items-center rounded-[10px] border border-black/20 bg-[#fbfcff] px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 lg:col-span-1 xl:col-span-1">
+                <label className="flex h-11 min-w-0 items-center rounded-[10px] border border-black/20 bg-[#fbfcff] px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 lg:col-span-1 xl:col-span-1">
                   <Search className="size-4 text-[#7486a3]" />
                   <input
                     type="search"
                     placeholder="Search leads, customers, projects..."
-                    className="h-full w-full bg-transparent px-3 text-[14px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba]"
+                    className="h-full min-w-0 w-full bg-transparent px-3 text-[14px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba]"
                   />
                 </label>
 
@@ -2377,10 +2377,10 @@ function SignInPage({ onLogin, onNotify }) {
   ];
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#eef3f7] px-3 py-4 text-[#172648] sm:px-5 lg:px-7">
-      <main className="mx-auto grid h-auto min-h-[90vh] w-[95vw] max-w-[1960px] overflow-hidden rounded-[22px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.18)] sm:rounded-[24px] lg:grid-cols-[55fr_45fr]">
+    <div className="flex min-h-screen flex-col bg-[#eef3f7] px-2 py-3 text-[#172648] sm:px-5 sm:py-4 lg:px-7">
+      <main className="mx-auto grid h-auto min-h-[calc(100vh-1.5rem)] w-full max-w-[1960px] overflow-hidden rounded-[18px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.18)] sm:min-h-[90vh] sm:w-[95vw] sm:rounded-[24px] lg:grid-cols-[55fr_45fr]">
         <section
-          className="relative isolate min-h-[560px] overflow-hidden bg-cover bg-no-repeat px-6 py-8 sm:min-h-[680px] sm:px-12 sm:py-12 lg:min-h-full lg:rounded-l-[24px] lg:px-[5.2vw] lg:py-[4.2vw] xl:px-[5.8vw] 2xl:px-[6.2vw]"
+          className="relative isolate min-h-[480px] overflow-hidden bg-cover bg-no-repeat px-4 py-7 sm:min-h-[680px] sm:px-12 sm:py-12 lg:min-h-full lg:rounded-l-[24px] lg:px-[5.2vw] lg:py-[4.2vw] xl:px-[5.8vw] 2xl:px-[6.2vw]"
           style={{
             backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.86) 0%, rgba(241,250,244,0.72) 46%, rgba(232,244,255,0.74) 100%), url(${signInBgImage})`,
             backgroundPosition: 'left center',
@@ -2402,12 +2402,12 @@ function SignInPage({ onLogin, onNotify }) {
             </div>
           </div>
 
-          <div className="relative z-10 mt-12 max-w-[760px] sm:mt-20 lg:mt-[7.4vh] xl:mt-[8.2vh]">
+          <div className="relative z-10 mt-9 max-w-[760px] sm:mt-20 lg:mt-[7.4vh] xl:mt-[8.2vh]">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/72 px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.12em] text-[#116fd0] shadow-[0_10px_24px_rgba(17,39,84,0.08)] backdrop-blur-sm">
               <ShieldCheck className="size-4 text-[#0d9f4a]" />
               Secure solar operations workspace
             </span>
-            <h1 className="font-display text-[clamp(2.6rem,7vw,4rem)] font-extrabold leading-[1.12] text-[#102446] lg:text-[clamp(3rem,3.35vw,4.15rem)]">
+            <h1 className="font-display text-[40px] font-extrabold leading-[1.12] text-[#102446] sm:text-[56px] lg:text-[60px] 2xl:text-[66px]">
               Run your solar pipeline
               <span className="mt-1 block text-[#087532]">Sustainable Future</span>
             </h1>
@@ -2433,7 +2433,7 @@ function SignInPage({ onLogin, onNotify }) {
           </div>
         </section>
 
-        <section className="flex items-center justify-center bg-white px-5 py-9 sm:px-10 sm:py-12 lg:px-[5vw]">
+        <section className="flex items-center justify-center bg-white px-4 py-8 sm:px-10 sm:py-12 lg:px-[5vw]">
           <div className="w-full max-w-[720px] lg:max-w-[560px] 2xl:max-w-[680px]">
             <div>
               <h2 className="font-display text-[30px] font-extrabold text-[#102446] sm:text-[36px] lg:text-[38px]">
@@ -2453,7 +2453,7 @@ function SignInPage({ onLogin, onNotify }) {
             >
               <label className="block">
                 <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Email / Mobile Number</span>
-                <span className="mt-4 flex h-[62px] items-center gap-5 rounded-[9px] border border-black/20 bg-white px-5 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <span className="mt-3 flex h-14 items-center gap-3 rounded-[9px] border border-black/20 bg-white px-4 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:mt-4 sm:h-[62px] sm:gap-5 sm:px-5">
                   <UserRound className="size-6 text-[#7a8494]" />
                   <input
                     type="text"
@@ -2467,7 +2467,7 @@ function SignInPage({ onLogin, onNotify }) {
 
               <label className="block">
                 <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Password</span>
-                <span className="mt-4 flex h-[62px] items-center gap-5 rounded-[9px] border border-black/20 bg-white px-5 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                <span className="mt-3 flex h-14 items-center gap-3 rounded-[9px] border border-black/20 bg-white px-4 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:mt-4 sm:h-[62px] sm:gap-5 sm:px-5">
                   <LockKeyhole className="size-6 text-[#7a8494]" />
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -2506,7 +2506,7 @@ function SignInPage({ onLogin, onNotify }) {
 
               <button
                 type="submit"
-                className="flex h-[64px] w-full items-center justify-center gap-3 rounded-[9px] bg-[linear-gradient(90deg,#20b947_0%,#169e9a_51%,#116fd0_100%)] text-[20px] font-extrabold text-white shadow-[0_14px_28px_rgba(21,116,171,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(21,116,171,0.28)]"
+                className="flex h-14 w-full items-center justify-center gap-3 rounded-[9px] bg-[linear-gradient(90deg,#20b947_0%,#169e9a_51%,#116fd0_100%)] text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(21,116,171,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(21,116,171,0.28)] sm:h-[64px] sm:text-[20px]"
               >
                 <LogIn className="size-5" />
                 Login
@@ -2527,7 +2527,7 @@ function SignInPage({ onLogin, onNotify }) {
               <button
                 type="button"
                 onClick={() => onNotify('Google login selected')}
-                className="flex h-[64px] w-full items-center justify-center gap-4 rounded-[9px] border border-black/20 bg-white text-[18px] font-bold text-[#111827] shadow-[0_6px_16px_rgba(20,35,60,0.04)] transition hover:border-blue-500 hover:bg-[#fbfdff] sm:text-[20px]"
+                className="flex h-14 w-full items-center justify-center gap-3 rounded-[9px] border border-black/20 bg-white text-[16px] font-bold text-[#111827] shadow-[0_6px_16px_rgba(20,35,60,0.04)] transition hover:border-blue-500 hover:bg-[#fbfdff] sm:h-[64px] sm:gap-4 sm:text-[20px]"
               >
                 <span className="font-display text-[25px] font-extrabold text-[#4285f4]">
                   G
@@ -3758,7 +3758,7 @@ function SettingsNavigationRail({ activeSection, onOpenSection, onNotify }) {
             handleOpenSection('Settings');
             handleNotify('Settings home opened');
           }}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] sm:w-auto"
         >
           <ChevronLeft className="size-4" />
           All Settings
@@ -3918,24 +3918,26 @@ function AccountSettingsTabs({ activeSection, onOpenSection }) {
 
   return (
     <section className={`${panelClass} overflow-hidden p-0`}>
-      <div className="flex overflow-x-auto pb-1">
-        {accountSettingsItems.map((item) => {
-          const active = activeSection === item.key;
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onOpenSection(getSettingsRouteKey(item.key))}
-              className={cx(
-                'relative flex h-[58px] min-w-[165px] flex-1 items-center justify-center border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold transition last:border-r-0 sm:min-w-[180px] sm:px-5 sm:text-[13px]',
-                active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
-              )}
-            >
-              {item.label}
-              {active ? <span className="absolute inset-x-6 bottom-0 h-0.5 rounded-full bg-[#0d9f4a]" /> : null}
-            </button>
-          );
-        })}
+      <div className="overflow-x-auto pb-1">
+        <div className="flex min-w-max md:min-w-0">
+          {accountSettingsItems.map((item) => {
+            const active = activeSection === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onOpenSection(getSettingsRouteKey(item.key))}
+                className={cx(
+                  'relative flex min-h-[54px] min-w-[170px] shrink-0 items-center justify-center whitespace-nowrap border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold leading-4 transition last:border-r-0 md:flex-1 md:shrink md:px-5 sm:h-[58px] sm:min-w-[190px] sm:text-[13px]',
+                  active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
+                )}
+              >
+                {item.label}
+                {active ? <span className="absolute inset-x-6 bottom-0 h-0.5 rounded-full bg-[#0d9f4a]" /> : null}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
@@ -3968,8 +3970,8 @@ function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, 
 
   return (
     <section className={`${panelClass} p-2`}>
-      <div className="-mx-1 overflow-x-auto px-1 pb-1">
-        <div className="flex min-w-max gap-2 2xl:grid 2xl:min-w-0 2xl:grid-cols-8">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1 md:mx-0 md:overflow-visible">
+        <div className="flex min-w-max gap-2 md:grid md:min-w-0 md:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
         {settingsCardGroups.map((group) => {
           const Icon = categoryIcons[group.title] ?? Settings;
           const active = activeGroup?.title === group.title;
@@ -3991,7 +3993,7 @@ function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, 
                 onOpenSection('Settings');
               }}
               className={cx(
-                'flex min-h-[70px] w-[210px] items-center gap-3 rounded-[10px] border bg-white px-4 text-left transition hover:-translate-y-0.5 hover:bg-[#f8fbff] sm:w-[230px] 2xl:w-auto',
+                'flex min-h-[70px] w-[230px] shrink-0 items-center gap-3 rounded-[10px] border bg-white px-3.5 text-left transition hover:-translate-y-0.5 hover:bg-[#f8fbff] md:w-full md:shrink sm:px-4',
                 active
                   ? 'border-[#0d9f4a] shadow-[0_10px_22px_rgba(13,159,74,0.12)]'
                   : 'border-[#e1e9f4] shadow-[0_8px_18px_rgba(24,48,87,0.04)]',
@@ -4021,24 +4023,26 @@ function SettingsSubcategoryTabs({ groupTitle, activeSection, onSelectSection })
 
   return (
     <section className={`${panelClass} overflow-hidden p-0`}>
-      <div className="flex overflow-x-auto pb-1">
-        {group.items.map((item) => {
-          const active = activeSection === item.key;
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onSelectSection(item.key)}
-              className={cx(
-                'relative flex h-[58px] min-w-[165px] flex-1 items-center justify-center border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold transition last:border-r-0 sm:min-w-[180px] sm:px-5 sm:text-[13px]',
-                active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
-              )}
-            >
-              {item.label}
-              {active ? <span className="absolute inset-x-6 bottom-0 h-0.5 rounded-full bg-[#0d9f4a]" /> : null}
-            </button>
-          );
-        })}
+      <div className="overflow-x-auto pb-1">
+        <div className="flex min-w-max md:min-w-0">
+          {group.items.map((item) => {
+            const active = activeSection === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onSelectSection(item.key)}
+                className={cx(
+                  'relative flex min-h-[54px] min-w-[170px] shrink-0 items-center justify-center whitespace-nowrap border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold leading-4 transition last:border-r-0 md:flex-1 md:shrink md:px-5 sm:h-[58px] sm:min-w-[190px] sm:text-[13px]',
+                  active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
+                )}
+              >
+                {item.label}
+                {active ? <span className="absolute inset-x-6 bottom-0 h-0.5 rounded-full bg-[#0d9f4a]" /> : null}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
@@ -4274,9 +4278,9 @@ function PaymentSettingsContent({ onOpenSection, onNotify }) {
           <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Payment Settings</h2>
           <p className="mt-1 text-[13px] font-bold text-[#53647f]">Configure default payment terms, reminders, late fees and other payment preferences.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
-          <button type="button" onClick={() => onNotify('Payment settings saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+        <div className="grid w-full grid-cols-1 gap-3 min-[460px]:w-auto min-[460px]:grid-cols-2 lg:flex lg:flex-wrap">
+          <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff] min-[460px]:w-auto"><X className="size-4" />Cancel</button>
+          <button type="button" onClick={() => onNotify('Payment settings saved')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
         </div>
       </div>
 
@@ -4399,9 +4403,9 @@ function PaymentSettingsPage({ activeSection, onOpenSection, onNotify }) {
             <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Payment Settings</h2>
             <p className="mt-1 text-[13px] font-bold text-[#53647f]">Configure default payment terms, reminders, late fees and other payment preferences.</p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
-            <button type="button" onClick={() => onNotify('Payment settings saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+          <div className="grid w-full grid-cols-1 gap-3 min-[460px]:w-auto min-[460px]:grid-cols-2 lg:flex lg:flex-wrap">
+            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff] min-[460px]:w-auto"><X className="size-4" />Cancel</button>
+            <button type="button" onClick={() => onNotify('Payment settings saved')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
           </div>
         </div>
 
@@ -4700,7 +4704,7 @@ function SettingsContentHeader({ title, note, onCancel, onSave }) {
         <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{title}</h2>
         <p className="mt-1 text-[13px] font-bold text-[#53647f]">{note}</p>
       </div>
-      <div className="flex flex-wrap gap-3">
+      <div className="grid w-full grid-cols-1 gap-3 min-[460px]:w-auto min-[460px]:grid-cols-2 lg:flex lg:flex-wrap">
         <button type="button" onClick={onCancel} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
         <button type="button" onClick={onSave} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
       </div>
@@ -4871,13 +4875,31 @@ function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, r
             <h3 className="font-display text-[18px] font-extrabold text-[#111827]">{title}</h3>
             <p className="mt-1 text-[13px] font-bold text-[#53647f]">Showing configured inventory masters and rules.</p>
           </div>
-          <button type="button" onClick={() => onNotify(`${addLabel} opened`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white"><Plus className="size-4" />{addLabel}</button>
+          <button type="button" onClick={() => onNotify(`${addLabel} opened`)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white md:w-auto"><Plus className="size-4" />{addLabel}</button>
         </div>
         <label className="mt-4 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
           <Search className="size-4 text-[#7386a3]" />
           <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder={searchPlaceholder} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
         </label>
-        <div className="mt-4 overflow-x-auto rounded-[12px] border border-[#e7eef7]">
+        <div className="mt-4 space-y-3 md:hidden">
+          {filteredRows.map((row, rowIndex) => (
+            <article key={`${title}-mobile-${rowIndex}`} className="rounded-[12px] border border-[#e7eef7] bg-[#fbfdff] p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <p className="min-w-0 flex-1 text-[14px] font-extrabold text-[#1e3261]">{row[0]}</p>
+                {row[row.length - 1]}
+              </div>
+              <div className="grid gap-2 text-[12px] font-bold text-[#53647f]">
+                {row.slice(1, -1).map((cell, cellIndex) => (
+                  <div key={`${title}-mobile-${rowIndex}-${cellIndex}`} className="grid gap-1 rounded-[8px] bg-white px-3 py-2 min-[420px]:grid-cols-[120px_minmax(0,1fr)]">
+                    <span>{columns[cellIndex + 1]}</span>
+                    <span className="min-w-0 font-extrabold text-[#1e3261]">{cell}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+        <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] md:block">
           <table className="crm-table min-w-[820px] w-full">
             <thead><tr>{columns.map((header) => <th key={header}>{header}</th>)}</tr></thead>
             <tbody>
@@ -5216,7 +5238,7 @@ function PaymentSettingCard({ icon: Icon, iconTone = 'green', title, subtitle, a
 
   return (
     <article className="rounded-[14px] border border-[#dbe5f2] bg-white p-4 shadow-[0_10px_22px_rgba(24,48,87,0.04)] sm:p-5">
-      <div className="mb-5 flex items-start justify-between gap-4">
+      <div className="mb-5 flex flex-col items-start justify-between gap-4 min-[420px]:flex-row">
         <div className="flex min-w-0 items-start gap-3">
           <span className={cx('grid size-10 shrink-0 place-items-center rounded-[12px]', toneClass)}>
             <Icon className="size-4" />
@@ -5226,7 +5248,7 @@ function PaymentSettingCard({ icon: Icon, iconTone = 'green', title, subtitle, a
             <p className="mt-1 text-[12px] font-bold leading-5 text-[#53647f]">{subtitle}</p>
           </div>
         </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
+        {action ? <div className="shrink-0 self-end min-[420px]:self-start">{action}</div> : null}
       </div>
       {children}
     </article>

@@ -39,6 +39,17 @@ canvas {
   max-width: 100%;
 }
 
+main,
+section,
+article,
+aside,
+header,
+footer,
+nav,
+div {
+  min-width: 0;
+}
+
 button,
 input,
 select,
@@ -224,6 +235,16 @@ a {
   background: #f8fbff;
 }
 
+.responsive-scroll,
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+.responsive-scroll > .crm-table,
+.overflow-x-auto > .crm-table {
+  min-width: max-content;
+}
+
 .crm-table--dense th {
   padding: 11px 10px;
   font-size: 10.5px;
@@ -258,9 +279,68 @@ a {
     width: 28px;
   }
 
+  .header-banner img {
+    height: 44px;
+  }
+
   .crm-table th,
   .crm-table td {
-    padding: 11px 12px;
-    font-size: 12px;
+    padding: 10px 11px;
+    font-size: 11.5px;
+    line-height: 1.35;
+  }
+
+  .crm-table {
+    min-width: 680px;
+  }
+
+  .crm-table--dense {
+    min-width: 560px;
+  }
+
+  .page-heading {
+    gap: 12px;
+  }
+
+  .page-heading-actions {
+    width: 100%;
+  }
+
+  .page-heading-actions > *,
+  .page-heading-actions button {
+    min-height: 42px;
+  }
+
+  .fixed.inset-0 {
+    align-items: flex-start;
+    overflow-y: auto;
+    padding: 12px;
+  }
+
+  .fixed.inset-0 > div {
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  button {
+    text-align: center;
+  }
+}
+
+@media (max-width: 459px) {
+  .crm-table {
+    min-width: 620px;
+  }
+
+  .crm-table th,
+  .crm-table td {
+    padding: 9px 10px;
   }
 }
