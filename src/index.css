@@ -206,6 +206,20 @@ a {
   display: none;
 }
 
+.settings-inline-detail .settings-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 1024px) {
+  .settings-inline-detail .settings-detail-actions {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+}
+
 .settings-category-grid {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }

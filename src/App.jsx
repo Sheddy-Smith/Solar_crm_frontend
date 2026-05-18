@@ -6211,6 +6211,17 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
       <section className="space-y-4">
         <SettingsNavigationRail activeSection="Company Profile" onOpenSection={onOpenSection} onNotify={onNotify} />
 
+        <div className={`${panelClass} settings-detail-actions hidden p-4 sm:p-5`}>
+          <div className="min-w-0">
+            <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Company Profile</h2>
+            <p className="mt-1 text-[13px] font-bold text-[#53647f]">Manage company identity, legal details, bank details and registered contact information.</p>
+          </div>
+          <div className="grid w-full grid-cols-1 gap-3 min-[460px]:w-auto min-[460px]:grid-cols-2 lg:flex lg:flex-wrap">
+            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff] min-[460px]:w-auto"><X className="size-4" />Cancel</button>
+            <button type="button" onClick={() => onNotify('Company profile saved')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
+          </div>
+        </div>
+
         <div className="space-y-4">
           <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
             <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.22fr)] xl:items-center">
