@@ -183,6 +183,19 @@ const settingsSidebarGroups = settingsCardGroups.map((group) => ({
 const settingsDisplayNameMap = Object.fromEntries(settingsCardGroups.flatMap((group) => group.items.map((item) => [item.key, item.label])));
 const settingsRelatedPages = ['Settings', 'Master Type', ...settingsCardGroups.flatMap((group) => group.items.map((item) => item.key))];
 
+function getSettingsRouteKey(section) {
+  if (section === 'Master Type' || section === 'Payment Settings') {
+    return 'Payment Mode';
+  }
+
+  return section;
+}
+
+function getSettingsGroupForSection(section) {
+  const routeKey = getSettingsRouteKey(section);
+  return settingsCardGroups.find((group) => group.items.some((item) => item.key === routeKey));
+}
+
 const leadSubRoutes = {
   'Lead List': '/lead/list',
   'Create Lead': '/lead/create',
@@ -1985,13 +1998,13 @@ function App() {
             </header>
 
             {activeSidebarItem === 'Settings Users' ? (
-              <SettingsUsersPage onNotify={notify} />
+              <SettingsUsersPage activeSection="Settings Users" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Settings Roles & Permissions' ? (
-              <SettingsRolesPermissionsPage onNotify={notify} />
+              <SettingsRolesPermissionsPage activeSection="Settings Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Settings User Activity Log' ? (
-              <SettingsUserActivityLogPage onNotify={notify} />
+              <SettingsUserActivityLogPage activeSection="Settings User Activity Log" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Settings IP Restrictions' ? (
-              <SettingsIpRestrictionsPage onNotify={notify} />
+              <SettingsIpRestrictionsPage activeSection="Settings IP Restrictions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Users' ? (
               <UserManagementPage activeSection="Users" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Roles & Permissions' ? (
@@ -3614,7 +3627,7 @@ function formatLedgerCurrency(value) {
 
 function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
   if (activeSection === 'Payment Mode' || activeSection === 'Master Type') {
-    return <PaymentModeListPage onNotify={onNotify} />;
+    return <PaymentModeListPage onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Business Information') {
@@ -3650,19 +3663,19 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
   }
 
   if (activeSection === 'Settings Users') {
-    return <SettingsUsersPage onNotify={onNotify} />;
+    return <SettingsUsersPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Settings Roles & Permissions') {
-    return <SettingsRolesPermissionsPage onNotify={onNotify} />;
+    return <SettingsRolesPermissionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Settings User Activity Log') {
-    return <SettingsUserActivityLogPage onNotify={onNotify} />;
+    return <SettingsUserActivityLogPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Settings IP Restrictions') {
-    return <SettingsIpRestrictionsPage onNotify={onNotify} />;
+    return <SettingsIpRestrictionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection !== 'Settings') {
@@ -3729,7 +3742,18 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
       <section className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 2xl:grid-cols-4">
         {settingsCardGroups.map((group) => (
           <article key={group.title} className={`${panelClass} p-4 sm:p-5`}>
-            <h2 className={cx('font-display text-[16px] font-extrabold sm:text-[18px]', group.tone)}>{group.title}</h2>
+            <button
+              type="button"
+              onClick={() => {
+                const firstItem = group.items[0];
+                if (firstItem) {
+                  onOpenSection(getSettingsRouteKey(firstItem.key));
+                }
+              }}
+              className={cx('font-display text-left text-[16px] font-extrabold transition hover:underline sm:text-[18px]', group.tone)}
+            >
+              {group.title}
+            </button>
             <div className="mt-4 space-y-2.5">
               {group.items.map((item) => {
                 const Icon = settingsOptionIcons[item.key] ?? Settings;
@@ -3740,11 +3764,7 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
                     onOpenSection(item.key);
                     return;
                   }
-                  if (item.key === 'Payment Settings' || item.key === 'Payment Mode') {
-                    onOpenSection('Payment Mode');
-                    return;
-                  }
-                  onOpenSection(item.key);
+                  onOpenSection(getSettingsRouteKey(item.key));
                 }} className="flex w-full items-start justify-between gap-3 rounded-[10px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
                   <span className="flex min-w-0 items-start gap-3">
                     <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px] sm:size-10', iconTone)}>
@@ -3831,80 +3851,62 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
 }
 
 function SettingsNavigationRail({ activeSection, onOpenSection, onNotify }) {
-  const railGroups = [
-    { title: 'Organization Settings', items: organizationSettingsPages.map((item) => ({ key: item, label: item })) },
-    ...settingsSidebarGroups.map((group) => ({
-      title: group.title,
-      items: group.items.map((item) => ({
-        key: item.key,
-        label: item.label,
-      })),
-    })),
-  ];
+  const activeGroup = getSettingsGroupForSection(activeSection);
+  const handleOpenSection = typeof onOpenSection === 'function' ? onOpenSection : () => {};
+  const handleNotify = typeof onNotify === 'function' ? onNotify : () => {};
+
+  if (!activeGroup) {
+    return null;
+  }
 
   return (
-    <div className="space-y-3">
-      <article className={`${panelClass} overflow-hidden p-3`}>
-        <div className="flex items-center justify-between gap-3 rounded-[10px] bg-[linear-gradient(135deg,#f0fbf3_0%,#f7fbff_100%)] px-3 py-3">
-          <div>
-            <p className="text-[13px] font-extrabold text-[#14853a]">Settings Navigation</p>
-            <p className="mt-1 text-[11px] font-bold text-[#6f7f98]">All configuration areas in one place</p>
-          </div>
-          <span className="grid size-9 place-items-center rounded-[10px] bg-white text-[#0d9f4a] shadow-[0_8px_18px_rgba(17,39,84,0.08)]">
-            <Settings className="size-4" />
-          </span>
+    <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-display text-[16px] font-extrabold text-[#1e3261]">{activeGroup.title}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">Sirf is category ki sub-categories yahan horizontally dikhengi.</p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            handleOpenSection('Settings');
+            handleNotify('Settings home opened');
+          }}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"
+        >
+          <ChevronLeft className="size-4" />
+          All Settings
+        </button>
+      </div>
 
-        <div className="mt-3 space-y-3">
-          {railGroups.map((group) => {
-            const hasActiveItem = group.items.some((item) => activeSection === item.key);
+      <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">
+        <div className="flex min-w-max gap-3 xl:min-w-0 xl:flex-wrap">
+          {activeGroup.items.map((item) => {
+            const routeKey = getSettingsRouteKey(item.key);
+            const isActive = activeSection === item.key || (activeSection === 'Master Type' && item.key === 'Payment Mode');
             return (
-              <div key={group.title} className="rounded-[12px] border border-[#e7eef7] bg-white px-3 py-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const firstItem = group.items[0];
-                    if (!firstItem) {
-                      return;
-                    }
-                    onOpenSection(firstItem.key);
-                    onNotify(`${group.title} opened`);
-                  }}
-                  className="flex w-full items-center justify-between gap-3 text-left"
-                >
-                  <span className={cx('text-[12px] font-extrabold', hasActiveItem ? 'text-[#14853a]' : 'text-[#314a79]')}>
-                    {group.title}
-                  </span>
-                  <ChevronRight className={cx('size-4 transition', hasActiveItem ? 'rotate-90 text-[#14853a]' : 'text-[#91a0b7]')} />
-                </button>
-
-                <div className="mt-2 space-y-1.5">
-                  {group.items.map((item) => {
-                    const isActive = activeSection === item.key;
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        onClick={() => onOpenSection(item.key)}
-                        className={cx(
-                          'flex w-full items-center gap-3 rounded-[8px] px-3 py-2.5 text-left text-[12px] font-bold transition',
-                          isActive
-                            ? 'bg-[#eefbf1] text-[#078c3e] shadow-[inset_0_0_0_1px_rgba(20,184,76,0.14)]'
-                            : 'text-[#53647f] hover:bg-[#f8fbff] hover:text-[#234069]',
-                        )}
-                      >
-                        <span className={cx('size-1.5 rounded-full', isActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
-                        <span>{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => handleOpenSection(routeKey)}
+                className={cx(
+                  'inline-flex h-[52px] min-w-[164px] items-center justify-between gap-3 rounded-[12px] border px-4 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 xl:flex-1',
+                  isActive
+                    ? 'border-[#bcefd1] bg-[#f1fff6] text-[#087a39] ring-2 ring-[#dff6e7]'
+                    : 'border-[#d9e4f2] bg-white text-[#314a79] hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
+                )}
+              >
+                <span className="inline-flex min-w-0 items-center gap-3">
+                  <span className={cx('size-2 rounded-full', isActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                  <span className="truncate text-[13px] font-extrabold">{item.label}</span>
+                </span>
+                <ChevronRight className={cx('size-4 shrink-0', isActive ? 'text-[#14b84c]' : 'text-[#9aa8bc]')} />
+              </button>
             );
           })}
         </div>
-      </article>
-    </div>
+      </div>
+    </section>
   );
 }
 
@@ -4015,7 +4017,7 @@ function GeneralSettingsDetailShell({ title, onOpenSection, onNotify, actions, c
         actions={actions ?? <button type="button" onClick={() => onNotify(`${title} changes saved`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>}
       />
 
-      <section className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+      <section className="space-y-4">
         <SettingsNavigationRail activeSection={title} onOpenSection={onOpenSection} onNotify={onNotify} />
         <div className="space-y-4">{children}</div>
       </section>
@@ -4499,7 +4501,7 @@ function OrganizationSettingsPlaceholderPage({ activeSection, onOpenSection, onN
         }
       />
 
-      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+      <section className="space-y-4">
         <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
         <SettingsSectionCard title={`${activeSection} Details`}>
           <div className="rounded-[12px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6 text-center">
@@ -4565,7 +4567,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
         }
       />
 
-      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+      <section className="space-y-4">
         <SettingsNavigationRail activeSection="Business Information" onOpenSection={onOpenSection} onNotify={onNotify} />
 
         <div className="space-y-4">
@@ -4722,7 +4724,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
         }
       />
 
-      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+      <section className="space-y-4">
         <SettingsNavigationRail activeSection="Company Profile" onOpenSection={onOpenSection} onNotify={onNotify} />
 
         <div className="space-y-4">
@@ -4854,7 +4856,7 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
         actions={<button type="button" onClick={() => onNotify('Add financial year flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add Financial Year</button>}
       />
 
-      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+      <section className="space-y-4">
         <SettingsNavigationRail activeSection="Financial Year" onOpenSection={onOpenSection} onNotify={onNotify} />
 
         <div className="space-y-4">
@@ -4987,7 +4989,7 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
         actions={<button type="button" onClick={() => onNotify('Add branch flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add Branch</button>}
       />
 
-      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+      <section className="space-y-4">
         <SettingsNavigationRail activeSection="Branches" onOpenSection={onOpenSection} onNotify={onNotify} />
 
         <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
@@ -10823,7 +10825,7 @@ function ChequesListPage({ activeSection = 'Cheques List', onOpenSection, onNoti
   );
 }
 
-function PaymentModeListPage({ onNotify }) {
+function PaymentModeListPage({ onOpenSection, onNotify }) {
   const [rows, setRows] = useState(paymentModeRows);
   const [query, setQuery] = useState('');
   const [type, setType] = useState('All Types');
@@ -10856,6 +10858,8 @@ function PaymentModeListPage({ onNotify }) {
   return (
     <div className="space-y-4">
       <PageHeading title="Payment Mode List" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') }, { label: 'Payment Mode List' }]} actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('Add Payment Mode'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />Add Payment Mode</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Payment mode exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Payment mode settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>} />
+
+      <SettingsNavigationRail activeSection="Payment Mode" onOpenSection={onOpenSection} onNotify={onNotify} />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <OpsStatCard label="Total Payment Modes" value="12" caption="All Modes" icon={ReceiptText} tone="blue" onClick={() => onNotify('All payment modes opened')} />
@@ -17512,7 +17516,7 @@ function createSettingsRolePermissions(roleName) {
   });
 }
 
-function SettingsUsersPage({ onNotify }) {
+function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, onNotify }) {
   const [users, setUsers] = useState(settingsUsersSeed);
   const [query, setQuery] = useState('');
   const [role, setRole] = useState('All Roles');
@@ -17566,7 +17570,7 @@ function SettingsUsersPage({ onNotify }) {
         actions={<button type="button" onClick={() => setAddUserOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add New User</button>}
       />
 
-      <AccountsSubnavTabs activeSection={activeSection === 'Accounts Overview' ? 'Accounts List' : activeSection} onOpenSection={onOpenSection} />
+      <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <SettingsMetricCard title="Total Users" value={String(users.length)} subtitle="All System Users" icon={Users} tone="green" />
@@ -17758,7 +17762,7 @@ function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNot
   );
 }
 
-function SettingsRolesPermissionsPage({ onNotify }) {
+function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permissions', onOpenSection, onNotify }) {
   const [roles, setRoles] = useState(settingsRolesSeed);
   const [selectedRoleName, setSelectedRoleName] = useState('Manager');
   const [activeTab, setActiveTab] = useState('Permissions');
@@ -17809,7 +17813,7 @@ function SettingsRolesPermissionsPage({ onNotify }) {
         }
       />
 
-      <AccountsSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <SettingsMetricCard title="Total Roles" value={String(roles.length)} subtitle="All System Roles" icon={UsersRound} tone="green" />
@@ -17971,7 +17975,7 @@ function ActivityIcon(props) {
   return <Heart {...props} />;
 }
 
-function SettingsUserActivityLogPage({ onNotify }) {
+function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity Log', onOpenSection, onNotify }) {
   const [query, setQuery] = useState('');
   const [user, setUser] = useState('All Users');
   const [action, setAction] = useState('All Actions');
@@ -18002,12 +18006,7 @@ function SettingsUserActivityLogPage({ onNotify }) {
         actions={<><button type="button" onClick={() => onNotify('Activity logs exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => onNotify(`Showing ${filteredLogs.length} filtered log entries`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filter</button></>}
       />
 
-      <AccountsSubnavTabs
-        activeSection={activeSection === 'Accounts Overview' ? 'Accounts List' : activeSection}
-        onOpenSection={onOpenSection}
-      />
-
-      <AccountsSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <SettingsMetricCard title="Total Activities" value="2,458" subtitle="All Time" icon={ActivityIcon} tone="green" />
@@ -18092,7 +18091,7 @@ function SettingsUserActivityLogPage({ onNotify }) {
   );
 }
 
-function SettingsIpRestrictionsPage({ onNotify }) {
+function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions', onOpenSection, onNotify }) {
   const [rules, setRules] = useState(settingsIpRulesSeed);
   const [activeTab, setActiveTab] = useState('IP Access Rules');
   const [ruleFilter, setRuleFilter] = useState('All Rules');
@@ -18141,6 +18140,8 @@ function SettingsIpRestrictionsPage({ onNotify }) {
         ]}
         actions={<><button type="button" onClick={() => setAddRuleOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><ShieldCheck className="size-4" />Add IP Rule</button><button type="button" onClick={() => setActiveTab('Audit Log')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><ClipboardPlus className="size-4 text-[#0b65e5]" />Audit Log</button></>}
       />
+
+      <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SettingsMetricCard title="IP Protection Status" value="Enabled" subtitle="System is protected" icon={ShieldCheck} tone="green" />
@@ -18351,6 +18352,8 @@ function SettingsCategoryPlaceholderPage({ activeSection, onOpenSection, onNotif
         ]}
         actions={<button type="button" onClick={() => onNotify(`${title} changes saved`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>}
       />
+
+      <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <article className={`${panelClass} p-5`}>
