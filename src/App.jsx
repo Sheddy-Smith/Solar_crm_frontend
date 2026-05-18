@@ -3733,125 +3733,7 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
     'Other Settings': 'bg-[#fff7e8] text-[#ca8a04]',
   };
 
-  return (
-    <div className="space-y-4">
-      <PageHeading title="Settings" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Settings' }]} />
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] lg:items-center">
-          <p className="text-[18px] font-extrabold leading-tight text-[#111827] sm:text-[20px] lg:text-[24px]">Manage all system settings and preferences</p>
-          <label className="flex h-11 w-full items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100"><Search className="size-4 text-[#7386a3]" /><input type="search" placeholder="Search settings..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" onChange={() => onNotify('Settings search updated')} /></label>
-        </div>
-      </section>
-
-      <section className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 2xl:grid-cols-4">
-        {settingsCardGroups.map((group) => (
-          <article key={group.title} className={`${panelClass} p-4 sm:p-5`}>
-            <button
-              type="button"
-              onClick={() => {
-                const firstItem = group.items[0];
-                if (firstItem) {
-                  onOpenSection(getSettingsRouteKey(firstItem.key));
-                }
-              }}
-              className={cx('font-display text-left text-[16px] font-extrabold transition hover:underline sm:text-[18px]', group.tone)}
-            >
-              {group.title}
-            </button>
-            <div className="mt-4 space-y-2.5">
-              {group.items.map((item) => {
-                const Icon = settingsOptionIcons[item.key] ?? Settings;
-                const iconTone = settingsGroupIconTone[group.title] ?? 'bg-[#eef2f7] text-[#53647f]';
-                return (
-                <button key={item.key} type="button" onClick={() => {
-                  if (organizationSettingsPages.includes(item.key)) {
-                    onOpenSection(item.key);
-                    return;
-                  }
-                  onOpenSection(getSettingsRouteKey(item.key));
-                }} className="flex w-full items-start justify-between gap-3 rounded-[10px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
-                  <span className="flex min-w-0 items-start gap-3">
-                    <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px] sm:size-10', iconTone)}>
-                      <Icon className="size-4" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-[13px] font-extrabold leading-[1.2] text-[#1e3261]">{item.label}</span>
-                      <span className="mt-1 block text-[12px] font-bold leading-[1.3] text-[#53647f]">{item.note}</span>
-                    </span>
-                  </span>
-                  <ChevronRight className="mt-0.5 size-4 shrink-0 text-[#7c8da8]" />
-                </button>
-                );
-              })}
-            </div>
-          </article>
-        ))}
-      </section>
-
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <h2 className="font-display text-[16px] font-extrabold text-[#06135a] sm:text-[18px]">Quick System Info</h2>
-        <div className="mt-4 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[0.8fr_0.95fr_1.2fr_0.85fr_1.55fr_0.75fr]">
-          <button type="button" onClick={() => onNotify('Version details opened')} className="flex items-center gap-3 text-left">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]"><Info className="size-4" /></span>
-            <span>
-              <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Version</span>
-              <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">v2.1.0</span>
-            </span>
-          </button>
-
-          <button type="button" onClick={() => onNotify('Admin details opened')} className="flex items-center gap-3 text-left">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e8f2ff] text-[#2563eb]"><UserRound className="size-4" /></span>
-            <span>
-              <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Admin</span>
-              <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">Super Admin</span>
-            </span>
-          </button>
-
-          <button type="button" onClick={() => onNotify('Backup details opened')} className="flex items-center gap-3 text-left">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e6f8fc] text-[#0891b2]"><Cloud className="size-4" /></span>
-            <span>
-              <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Last Backup</span>
-              <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">20 May 2024 10:30 AM</span>
-            </span>
-          </button>
-
-          <button type="button" onClick={() => onNotify('Database details opened')} className="flex items-center gap-3 text-left">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e6f8f6] text-[#0d9488]"><Database className="size-4" /></span>
-            <span>
-              <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Database</span>
-              <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">Connected</span>
-            </span>
-          </button>
-
-          <button type="button" onClick={() => onNotify('Storage details opened')} className="text-left">
-            <div className="flex items-center gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]"><HardDrive className="size-4" /></span>
-              <span>
-                <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Storage Used</span>
-                <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">2.45 GB / 10 GB</span>
-              </span>
-            </div>
-            <div className="mt-2.5 flex items-center gap-2 pl-[52px]">
-              <div className="h-2 w-full rounded-full bg-[#e7edf8]">
-                <div className="h-2 w-[24%] rounded-full bg-[#2d7ff9]" />
-              </div>
-              <span className="text-[12px] font-extrabold text-[#314a79]">24%</span>
-            </div>
-          </button>
-
-          <button type="button" onClick={() => onNotify('Active users details opened')} className="flex items-center gap-3 text-left">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e8f2ff] text-[#2563eb]"><UsersRound className="size-4" /></span>
-            <span>
-              <span className="block text-[13px] font-extrabold leading-[1.15] text-[#1e3261]">Active Users</span>
-              <span className="mt-1 block text-[13px] font-bold leading-none text-[#53647f]">12</span>
-            </span>
-          </button>
-        </div>
-      </section>
-
-      <DashboardFooter />
-    </div>
-  );
+  return <SettingsSetupPage onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
 function SettingsNavigationRail({ activeSection, onOpenSection, onNotify }) {
@@ -3864,7 +3746,7 @@ function SettingsNavigationRail({ activeSection, onOpenSection, onNotify }) {
   }
 
   return (
-    <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+    <section className={`settings-navigation-rail ${panelClass} overflow-hidden p-3 sm:p-4`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-display text-[16px] font-extrabold text-[#1e3261]">{activeGroup.title}</p>
@@ -4036,7 +3918,7 @@ function AccountSettingsTabs({ activeSection, onOpenSection }) {
 
   return (
     <section className={`${panelClass} overflow-hidden p-0`}>
-      <div className="flex overflow-x-auto">
+      <div className="flex overflow-x-auto pb-1">
         {accountSettingsItems.map((item) => {
           const active = activeSection === item.key;
           return (
@@ -4045,7 +3927,7 @@ function AccountSettingsTabs({ activeSection, onOpenSection }) {
               type="button"
               onClick={() => onOpenSection(getSettingsRouteKey(item.key))}
               className={cx(
-                'relative flex h-[58px] min-w-[170px] flex-1 items-center justify-center border-r border-[#e5edf6] px-5 text-[13px] font-extrabold transition last:border-r-0',
+                'relative flex h-[58px] min-w-[165px] flex-1 items-center justify-center border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold transition last:border-r-0 sm:min-w-[180px] sm:px-5 sm:text-[13px]',
                 active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
               )}
             >
@@ -4054,6 +3936,412 @@ function AccountSettingsTabs({ activeSection, onOpenSection }) {
             </button>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, onSelectGroup }) {
+  const activeGroup = activeGroupTitle
+    ? settingsCardGroups.find((group) => group.title === activeGroupTitle)
+    : getSettingsGroupForSection(activeSection);
+  const categoryIcons = {
+    'Organization Settings': ReceiptText,
+    'User & Access Management': Users,
+    'General Settings': Home,
+    'Accounts Settings': ReceiptText,
+    'Inventory Settings': Boxes,
+    'Project Settings': ClipboardPlus,
+    'Communication Settings': MessageSquareMore,
+    'Other Settings': Home,
+  };
+  const categoryTones = {
+    'Organization Settings': 'bg-[#e9f8ec] text-[#0d9f4a]',
+    'User & Access Management': 'bg-[#e8f2ff] text-[#0b65e5]',
+    'General Settings': 'bg-[#f3edff] text-[#8b5cf6]',
+    'Accounts Settings': 'bg-[#fff3df] text-[#f59e0b]',
+    'Inventory Settings': 'bg-[#e7faf8] text-[#0f766e]',
+    'Project Settings': 'bg-[#ffeaf4] text-[#db2777]',
+    'Communication Settings': 'bg-[#e9f8ec] text-[#16a34a]',
+    'Other Settings': 'bg-[#fff3df] text-[#f97316]',
+  };
+
+  return (
+    <section className={`${panelClass} p-2`}>
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <div className="flex min-w-max gap-2 2xl:grid 2xl:min-w-0 2xl:grid-cols-8">
+        {settingsCardGroups.map((group) => {
+          const Icon = categoryIcons[group.title] ?? Settings;
+          const active = activeGroup?.title === group.title;
+          const firstItem = group.items[0];
+
+          return (
+            <button
+              key={group.title}
+              type="button"
+              onClick={() => {
+                if (typeof onSelectGroup === 'function') {
+                  onSelectGroup(group.title);
+                  return;
+                }
+                if (firstItem) {
+                  onOpenSection(getSettingsRouteKey(firstItem.key));
+                  return;
+                }
+                onOpenSection('Settings');
+              }}
+              className={cx(
+                'flex min-h-[70px] w-[210px] items-center gap-3 rounded-[10px] border bg-white px-4 text-left transition hover:-translate-y-0.5 hover:bg-[#f8fbff] sm:w-[230px] 2xl:w-auto',
+                active
+                  ? 'border-[#0d9f4a] shadow-[0_10px_22px_rgba(13,159,74,0.12)]'
+                  : 'border-[#e1e9f4] shadow-[0_8px_18px_rgba(24,48,87,0.04)]',
+              )}
+            >
+              <span className={cx('grid size-10 shrink-0 place-items-center rounded-[12px]', categoryTones[group.title] ?? 'bg-[#eef2f7] text-[#53647f]')}>
+                <Icon className="size-4" />
+              </span>
+              <span className={cx('text-[13px] font-extrabold leading-5', active ? 'text-[#078c3e]' : 'text-[#1e3261]')}>
+                {group.title}
+              </span>
+            </button>
+          );
+        })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SettingsSubcategoryTabs({ groupTitle, activeSection, onSelectSection }) {
+  const group = settingsCardGroups.find((item) => item.title === groupTitle);
+
+  if (!group) {
+    return null;
+  }
+
+  return (
+    <section className={`${panelClass} overflow-hidden p-0`}>
+      <div className="flex overflow-x-auto pb-1">
+        {group.items.map((item) => {
+          const active = activeSection === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onSelectSection(item.key)}
+              className={cx(
+                'relative flex h-[58px] min-w-[165px] flex-1 items-center justify-center border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold transition last:border-r-0 sm:min-w-[180px] sm:px-5 sm:text-[13px]',
+                active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
+              )}
+            >
+              {item.label}
+              {active ? <span className="absolute inset-x-6 bottom-0 h-0.5 rounded-full bg-[#0d9f4a]" /> : null}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function SettingsSetupPage({ onOpenSection, onNotify }) {
+  const [selectedGroupTitle, setSelectedGroupTitle] = useState('Accounts Settings');
+  const [selectedSection, setSelectedSection] = useState('Payment Settings');
+  const selectedGroup = settingsCardGroups.find((group) => group.title === selectedGroupTitle);
+  const title = getSettingsDisplayLabel(selectedSection);
+
+  const selectGroup = (groupTitle) => {
+    const nextGroup = settingsCardGroups.find((group) => group.title === groupTitle);
+    const firstItem = nextGroup?.items.find((item) => item.key === 'Payment Settings') ?? nextGroup?.items[0];
+
+    setSelectedGroupTitle(groupTitle);
+    if (firstItem) {
+      setSelectedSection(firstItem.key);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Settings"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings' },
+          ...(selectedGroup ? [{ label: selectedGroup.title }] : []),
+          { label: title },
+        ]}
+      />
+
+      <SettingsCategoryTabs
+        activeGroupTitle={selectedGroupTitle}
+        activeSection={selectedSection}
+        onOpenSection={onOpenSection}
+        onSelectGroup={selectGroup}
+      />
+      <SettingsSubcategoryTabs
+        groupTitle={selectedGroupTitle}
+        activeSection={selectedSection}
+        onSelectSection={setSelectedSection}
+      />
+      <SettingsInlineContent
+        activeSection={selectedSection}
+        onOpenSection={onOpenSection}
+        onNotify={onNotify}
+      />
+    </div>
+  );
+}
+
+function SettingsInlineContent({ activeSection, onOpenSection, onNotify }) {
+  if (activeSection === 'Company Profile') {
+    return <SettingsInlineDetailFrame><CompanyProfileSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Business Information') {
+    return <SettingsInlineDetailFrame><BusinessInformationSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Branches') {
+    return <SettingsInlineDetailFrame><BranchManagementSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Financial Year') {
+    return <SettingsInlineDetailFrame><FinancialYearSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'System Settings') {
+    return <SettingsInlineDetailFrame><SystemSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Date & Time Format') {
+    return <SettingsInlineDetailFrame><DateTimeFormatSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Currency Settings') {
+    return <SettingsInlineDetailFrame><CurrencySettingsPage onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Language Settings') {
+    return <SettingsInlineDetailFrame><LanguageSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Settings Users') {
+    return <SettingsInlineDetailFrame><SettingsUsersPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Settings Roles & Permissions') {
+    return <SettingsInlineDetailFrame><SettingsRolesPermissionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Settings User Activity Log') {
+    return <SettingsInlineDetailFrame><SettingsUserActivityLogPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Settings IP Restrictions') {
+    return <SettingsInlineDetailFrame><SettingsIpRestrictionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  if (activeSection === 'Payment Settings') {
+    return <PaymentSettingsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Chart of Accounts') {
+    return <SettingsChartOfAccountsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Account Prefix') {
+    return <SettingsAccountPrefixContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Opening Balance') {
+    return <SettingsOpeningBalanceContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Product Categories') {
+    return <SettingsProductCategoriesContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Units of Measurement') {
+    return <SettingsUnitsMeasurementContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Tax Settings') {
+    return <SettingsTaxSettingsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Stock Settings') {
+    return <SettingsStockSettingsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Project Status') {
+    return <SettingsProjectStatusContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Project Types') {
+    return <SettingsProjectTypesContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Task Priorities') {
+    return <SettingsTaskPrioritiesContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Milestone Settings') {
+    return <SettingsMilestoneContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Email Settings') {
+    return <SettingsEmailSettingsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'SMS Settings') {
+    return <SettingsSmsSettingsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'WhatsApp Settings') {
+    return <SettingsWhatsAppSettingsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Notification Settings') {
+    return <SettingsNotificationSettingsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Document Settings') {
+    return <SettingsDocumentSettingsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Approval Settings') {
+    return <SettingsApprovalSettingsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Backup & Restore') {
+    return <SettingsBackupRestoreContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'System Maintenance') {
+    return <SettingsSystemMaintenanceContent onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Payment Mode' || activeSection === 'Master Type') {
+    return <SettingsInlineDetailFrame><PaymentModeListPage onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+  }
+
+  return <SettingsInlineDetailFrame><SettingsCategoryPlaceholderPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+}
+
+function SettingsInlineDetailFrame({ children }) {
+  return (
+    <div className="settings-inline-detail">
+      {children}
+    </div>
+  );
+}
+
+function PaymentSettingsContent({ onOpenSection, onNotify }) {
+  const [lateFeeEnabled, setLateFeeEnabled] = useState(true);
+  const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [allowPartial, setAllowPartial] = useState(true);
+  const [autoPaid, setAutoPaid] = useState(true);
+  const [form, setForm] = useState({
+    defaultTerms: '30',
+    dueDateCalculation: 'From Invoice Date',
+    gracePeriod: '5',
+    lateFeeType: 'Percentage',
+    lateFeeValue: '2',
+    applyAfter: '5',
+    maxLateFeeLimit: '10',
+    firstReminder: '7',
+    secondReminder: '3',
+    finalReminder: '3',
+    reminderFrequency: 'Every 3 Days',
+    paymentText: 'Payment is due within {days} days from the invoice date.\nLate payments may incur additional charges.',
+    allocationMethod: 'Oldest Invoice First',
+    writeOffAccount: 'Bad Debts',
+  });
+  const [bankDetails, setBankDetails] = useState({
+    companyBank: true,
+    upiQr: true,
+    instructions: true,
+    accountHolder: true,
+  });
+
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const toggleBankDetail = (field) => setBankDetails((current) => ({ ...current, [field]: !current[field] }));
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Payment Settings</h2>
+          <p className="mt-1 text-[13px] font-bold text-[#53647f]">Configure default payment terms, reminders, late fees and other payment preferences.</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
+          <button type="button" onClick={() => onNotify('Payment settings saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        <PaymentSettingCard icon={ReceiptText} iconTone="green" title="Default Payment Terms" subtitle="Set default payment terms for invoices and quotations.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <PaymentSettingSelect label="Default Payment Terms (Days)" value={form.defaultTerms} onChange={(value) => updateField('defaultTerms', value)} options={['15', '30', '45', '60']} />
+            <PaymentSettingSelect label="Due Date Calculation" value={form.dueDateCalculation} onChange={(value) => updateField('dueDateCalculation', value)} options={['From Invoice Date', 'From Delivery Date', 'From Approval Date']} />
+            <PaymentSettingInput className="sm:col-span-2" label="Grace Period (Days)" value={form.gracePeriod} onChange={(value) => updateField('gracePeriod', value)} helperText="Additional days before marking as overdue." />
+          </div>
+        </PaymentSettingCard>
+
+        <PaymentSettingCard icon={ReceiptText} iconTone="purple" title="Late Payment Settings" subtitle="Configure late fees and interest for overdue payments." action={<PaymentSwitch enabled={lateFeeEnabled} onToggle={() => setLateFeeEnabled((current) => !current)} label="Enable late fee" />}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <PaymentSettingSelect label="Late Fee Type" value={form.lateFeeType} onChange={(value) => updateField('lateFeeType', value)} options={['Percentage', 'Fixed Amount']} />
+            <PaymentSettingInput label="Late Fee Value (%)" value={form.lateFeeValue} onChange={(value) => updateField('lateFeeValue', value)} suffix="%" />
+            <PaymentSettingInput label="Apply After (Days)" value={form.applyAfter} onChange={(value) => updateField('applyAfter', value)} helperText="Days after due date" />
+            <PaymentSettingInput label="Max Late Fee Limit (%)" value={form.maxLateFeeLimit} onChange={(value) => updateField('maxLateFeeLimit', value)} suffix="%" />
+          </div>
+        </PaymentSettingCard>
+
+        <PaymentSettingCard icon={CalendarDays} iconTone="amber" title="Payment Reminders" subtitle="Configure automatic payment reminders." action={<PaymentSwitch enabled={remindersEnabled} onToggle={() => setRemindersEnabled((current) => !current)} label="Enable reminders" />}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <PaymentSettingInput label="First Reminder (Days Before Due Date)" value={form.firstReminder} onChange={(value) => updateField('firstReminder', value)} />
+            <PaymentSettingInput label="Second Reminder (Days Before Due Date)" value={form.secondReminder} onChange={(value) => updateField('secondReminder', value)} />
+            <PaymentSettingInput label="Final Reminder (Days After Due Date)" value={form.finalReminder} onChange={(value) => updateField('finalReminder', value)} />
+            <PaymentSettingSelect className="sm:col-span-2" label="Reminder Frequency" value={form.reminderFrequency} onChange={(value) => updateField('reminderFrequency', value)} options={['Every 3 Days', 'Every 5 Days', 'Weekly']} />
+          </div>
+        </PaymentSettingCard>
+
+        <PaymentSettingCard icon={FileText} iconTone="blue" title="Default Payment Terms (Text)" subtitle="This text will appear on invoices and quotations.">
+          <label className="block">
+            <textarea
+              value={form.paymentText}
+              onChange={(event) => updateField('paymentText', event.target.value)}
+              rows={6}
+              className="w-full resize-none rounded-[8px] border border-[#d4deeb] bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
+            <span className="mt-2 block text-[12px] font-bold text-[#53647f]">Use {'{days}'} to show the number of days dynamically.</span>
+          </label>
+        </PaymentSettingCard>
+
+        <PaymentSettingCard icon={IndianRupee} iconTone="green" title="Bank & Payment Details on Invoices" subtitle="Choose which bank/payment details to show on documents.">
+          <div className="space-y-4">
+            <PaymentCheckOption checked={bankDetails.companyBank} onToggle={() => toggleBankDetail('companyBank')} label="Company Bank Details" />
+            <PaymentCheckOption checked={bankDetails.upiQr} onToggle={() => toggleBankDetail('upiQr')} label="UPI / QR Code" />
+            <PaymentCheckOption checked={bankDetails.instructions} onToggle={() => toggleBankDetail('instructions')} label="Payment Instructions" />
+            <PaymentCheckOption checked={bankDetails.accountHolder} onToggle={() => toggleBankDetail('accountHolder')} label="Account Holder Details" />
+          </div>
+        </PaymentSettingCard>
+
+        <PaymentSettingCard icon={Settings} iconTone="purple" title="Other Settings" subtitle="Other payment related preferences.">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-[12px] font-extrabold text-[#34466c]">Allow Partial Payments</span>
+              <PaymentSwitch enabled={allowPartial} onToggle={() => setAllowPartial((current) => !current)} label="Allow partial payments" />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-[12px] font-extrabold text-[#34466c]">Auto Mark as Paid on Full Payment</span>
+              <PaymentSwitch enabled={autoPaid} onToggle={() => setAutoPaid((current) => !current)} label="Auto mark as paid" />
+            </div>
+            <PaymentSettingSelect label="Payment Allocation Method" value={form.allocationMethod} onChange={(value) => updateField('allocationMethod', value)} options={['Oldest Invoice First', 'Newest Invoice First', 'Manual Allocation']} />
+            <PaymentSettingSelect label="Default Write-off Account" value={form.writeOffAccount} onChange={(value) => updateField('writeOffAccount', value)} options={['Bad Debts', 'Discount Allowed', 'Write-off Expense']} />
+          </div>
+        </PaymentSettingCard>
       </div>
     </section>
   );
@@ -4100,28 +4388,29 @@ function PaymentSettingsPage({ activeSection, onOpenSection, onNotify }) {
           { label: 'Accounts Settings', onClick: () => onNotify('Accounts settings opened') },
           { label: 'Payment Settings' },
         ]}
-        actions={(
-          <>
-            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
-            <button type="button" onClick={() => onNotify('Payment settings saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
-          </>
-        )}
       />
 
+      <SettingsCategoryTabs activeSection={activeSection} onOpenSection={onOpenSection} />
       <AccountSettingsTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="mb-5">
-          <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Payment Settings</h2>
-          <p className="mt-1 text-[13px] font-bold text-[#53647f]">Configure default payment terms, reminders, late fees and other payment preferences.</p>
+        <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Payment Settings</h2>
+            <p className="mt-1 text-[13px] font-bold text-[#53647f]">Configure default payment terms, reminders, late fees and other payment preferences.</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
+            <button type="button" onClick={() => onNotify('Payment settings saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+          </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           <PaymentSettingCard icon={ReceiptText} iconTone="green" title="Default Payment Terms" subtitle="Set default payment terms for invoices and quotations.">
-            <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <PaymentSettingSelect label="Default Payment Terms (Days)" value={form.defaultTerms} onChange={(value) => updateField('defaultTerms', value)} options={['15', '30', '45', '60']} />
               <PaymentSettingSelect label="Due Date Calculation" value={form.dueDateCalculation} onChange={(value) => updateField('dueDateCalculation', value)} options={['From Invoice Date', 'From Delivery Date', 'From Approval Date']} />
-              <PaymentSettingInput label="Grace Period (Days)" value={form.gracePeriod} onChange={(value) => updateField('gracePeriod', value)} helperText="Additional days before marking as overdue." />
+              <PaymentSettingInput className="sm:col-span-2" label="Grace Period (Days)" value={form.gracePeriod} onChange={(value) => updateField('gracePeriod', value)} helperText="Additional days before marking as overdue." />
             </div>
           </PaymentSettingCard>
 
@@ -4183,6 +4472,737 @@ function PaymentSettingsPage({ activeSection, onOpenSection, onNotify }) {
 
       <DashboardFooter />
     </div>
+  );
+}
+
+function SettingsChartOfAccountsContent({ onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const [group, setGroup] = useState('All Groups');
+  const rows = [
+    { code: '1000', name: 'Assets', group: 'Assets', type: 'Group', balance: 'Rs 0.00', status: 'Active' },
+    { code: '1100', name: 'Current Assets', group: 'Assets', type: 'Group', balance: 'Rs 0.00', status: 'Active' },
+    { code: '1110', name: 'Cash in Hand', group: 'Cash & Bank', type: 'Ledger', balance: 'Rs 1,25,000.00', status: 'Active' },
+    { code: '1120', name: 'Bank Accounts', group: 'Cash & Bank', type: 'Ledger', balance: 'Rs 8,40,500.00', status: 'Active' },
+    { code: '1200', name: 'Accounts Receivable', group: 'Receivables', type: 'Ledger', balance: 'Rs 4,75,200.00', status: 'Active' },
+    { code: '2000', name: 'Liabilities', group: 'Liabilities', type: 'Group', balance: 'Rs 0.00', status: 'Active' },
+    { code: '2100', name: 'Accounts Payable', group: 'Payables', type: 'Ledger', balance: 'Rs 2,18,900.00', status: 'Active' },
+    { code: '3000', name: 'Sales Revenue', group: 'Income', type: 'Ledger', balance: 'Rs 12,80,000.00', status: 'Active' },
+    { code: '4000', name: 'Purchase Expense', group: 'Expenses', type: 'Ledger', balance: 'Rs 6,42,300.00', status: 'Active' },
+  ];
+  const filteredRows = rows.filter((row) => {
+    const queryMatch = [row.code, row.name, row.group, row.type].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const groupMatch = group === 'All Groups' || row.group === group;
+    return queryMatch && groupMatch;
+  });
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title="Chart of Accounts" note="Manage ledger groups, account codes and accounting hierarchy." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Chart of accounts saved')} />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SettingsMetricCard title="Total Accounts" value="128" subtitle="Groups and ledgers" icon={ReceiptText} tone="green" />
+        <SettingsMetricCard title="Active Ledgers" value="94" subtitle="Posting enabled" icon={CheckCircle2} tone="blue" />
+        <SettingsMetricCard title="Account Groups" value="34" subtitle="Parent accounts" icon={FolderKanban} tone="purple" />
+        <SettingsMetricCard title="Inactive Accounts" value="03" subtitle="Hidden from entries" icon={Minus} tone="amber" />
+      </section>
+
+      <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+        <article className="rounded-[14px] border border-[#dbe5f2] bg-white p-4 sm:p-5">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_210px_auto] md:items-end">
+            <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by account code or name..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <ReportSelect label="Group" value={group} onChange={setGroup} options={['All Groups', ...new Set(rows.map((row) => row.group))]} hideLabel />
+            <button type="button" onClick={() => onNotify('Add account flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Account</button>
+          </div>
+
+          <div className="mt-4 overflow-x-auto rounded-[12px] border border-[#e7eef7]">
+            <table className="crm-table min-w-[860px] w-full">
+              <thead><tr>{['Code', 'Account Name', 'Group', 'Type', 'Opening Balance', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <tbody>
+                {filteredRows.map((row) => (
+                  <tr key={row.code}>
+                    <td className="font-extrabold text-[#1e3261]">{row.code}</td>
+                    <td className="font-extrabold text-[#1e3261]">{row.name}</td>
+                    <td>{row.group}</td>
+                    <td><SettingsTokenBadge label={row.type} tone={row.type === 'Group' ? 'blue' : 'green'} /></td>
+                    <td>{row.balance}</td>
+                    <td><SettingsStatusBadge label={row.status} /></td>
+                    <td><UserActionButton label={`Open ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.name} account opened`)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <InventoryPagination text={`Showing 1 to ${filteredRows.length} of ${rows.length} entries`} totalPage="1" onNotify={onNotify} prefix="Chart of Accounts" />
+        </article>
+
+        <div className="space-y-4">
+          <SettingsSidebarInfoCard title="Account Groups" icon={FolderKanban}>
+            <div className="space-y-3">
+              {['Assets', 'Liabilities', 'Income', 'Expenses', 'Cash & Bank'].map((item) => <SettingsPreviewRow key={item} label={item} value={String(rows.filter((row) => row.group === item).length)} />)}
+            </div>
+          </SettingsSidebarInfoCard>
+          <SettingsSidebarInfoCard title="Quick Actions" icon={Zap}>
+            <div className="space-y-2">
+              <MiniActionButton label="Import Accounts" icon={Download} tone="blue" onClick={() => onNotify('Import accounts opened')} />
+              <MiniActionButton label="Export Chart" icon={Download} tone="green" onClick={() => onNotify('Chart exported')} />
+              <MiniActionButton label="Validate Codes" icon={CheckCircle2} tone="purple" onClick={() => onNotify('Account codes validated')} />
+            </div>
+          </SettingsSidebarInfoCard>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function SettingsAccountPrefixContent({ onOpenSection, onNotify }) {
+  const [rows, setRows] = useState([
+    { module: 'Customer Ledger', prefix: 'CUS', nextNo: '0001', sample: 'CUS-0001', status: 'Active' },
+    { module: 'Vendor Ledger', prefix: 'VEN', nextNo: '0001', sample: 'VEN-0001', status: 'Active' },
+    { module: 'Bank Account', prefix: 'BANK', nextNo: '001', sample: 'BANK-001', status: 'Active' },
+    { module: 'Cash Account', prefix: 'CASH', nextNo: '001', sample: 'CASH-001', status: 'Active' },
+    { module: 'Expense Ledger', prefix: 'EXP', nextNo: '0001', sample: 'EXP-0001', status: 'Active' },
+    { module: 'Income Ledger', prefix: 'INC', nextNo: '0001', sample: 'INC-0001', status: 'Active' },
+  ]);
+  const updateRow = (module, field, value) => setRows((current) => current.map((row) => {
+    if (row.module !== module) return row;
+    const next = { ...row, [field]: value };
+    return { ...next, sample: `${next.prefix}-${next.nextNo}` };
+  }));
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title="Account Prefix" note="Configure account code prefixes and next numbering series." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Account prefixes saved')} />
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+        <article className="rounded-[14px] border border-[#dbe5f2] bg-white p-4 sm:p-5">
+          <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7]">
+            <table className="crm-table min-w-[860px] w-full">
+              <thead><tr>{['Account Type', 'Prefix', 'Next Number', 'Preview', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.module}>
+                    <td className="font-extrabold text-[#1e3261]">{row.module}</td>
+                    <td><input value={row.prefix} onChange={(event) => updateRow(row.module, 'prefix', event.target.value.toUpperCase())} className="h-9 w-[110px] rounded-[8px] border border-[#d4deeb] px-3 text-[12px] font-extrabold text-[#30466d] outline-none focus:border-blue-500" /></td>
+                    <td><input value={row.nextNo} onChange={(event) => updateRow(row.module, 'nextNo', event.target.value)} className="h-9 w-[110px] rounded-[8px] border border-[#d4deeb] px-3 text-[12px] font-extrabold text-[#30466d] outline-none focus:border-blue-500" /></td>
+                    <td><span className="rounded-[8px] bg-[#eef4ff] px-3 py-1 text-[12px] font-extrabold text-[#0b65e5]">{row.sample}</span></td>
+                    <td><SettingsStatusBadge label={row.status} /></td>
+                    <td><UserActionButton label={`Reset ${row.module}`} icon={RefreshCw} tone="blue" onClick={() => onNotify(`${row.module} prefix reset`)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <div className="space-y-4">
+          <SettingsSidebarInfoCard title="Prefix Rules" icon={Info}>
+            <div className="space-y-3 text-[13px] font-bold leading-5 text-[#53647f]">
+              <p>Prefix should be short and unique for every account type.</p>
+              <p>Next number controls the next generated ledger code.</p>
+              <p>Preview updates automatically as prefix or number changes.</p>
+            </div>
+          </SettingsSidebarInfoCard>
+          <SettingsSidebarInfoCard title="Format Settings" icon={Settings}>
+            <div className="space-y-4">
+              <SettingsSelectField label="Separator" value="- Hyphen" onChange={() => {}} options={['- Hyphen', '/ Slash', 'No Separator']} />
+              <SettingsSelectField label="Number Padding" value="4 Digits" onChange={() => {}} options={['3 Digits', '4 Digits', '5 Digits']} />
+            </div>
+          </SettingsSidebarInfoCard>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function SettingsOpeningBalanceContent({ onOpenSection, onNotify }) {
+  const [query, setQuery] = useState('');
+  const rows = [
+    { account: 'Cash in Hand', group: 'Cash & Bank', debit: '1,25,000.00', credit: '0.00', date: '01 Apr 2024', status: 'Verified' },
+    { account: 'HDFC Current Account', group: 'Bank Account', debit: '8,40,500.00', credit: '0.00', date: '01 Apr 2024', status: 'Verified' },
+    { account: 'Accounts Receivable', group: 'Current Assets', debit: '4,75,200.00', credit: '0.00', date: '01 Apr 2024', status: 'Pending' },
+    { account: 'Accounts Payable', group: 'Current Liabilities', debit: '0.00', credit: '2,18,900.00', date: '01 Apr 2024', status: 'Verified' },
+    { account: 'Opening Capital', group: 'Capital Account', debit: '0.00', credit: '12,21,800.00', date: '01 Apr 2024', status: 'Verified' },
+  ];
+  const filteredRows = rows.filter((row) => [row.account, row.group, row.status].some((value) => value.toLowerCase().includes(query.toLowerCase())));
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title="Opening Balance" note="Enter and verify opening balances for the selected financial year." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Opening balances saved')} />
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SettingsMetricCard title="Total Debit" value="Rs 14,40,700" subtitle="Opening debit" icon={IndianRupee} tone="green" />
+        <SettingsMetricCard title="Total Credit" value="Rs 14,40,700" subtitle="Opening credit" icon={IndianRupee} tone="blue" />
+        <SettingsMetricCard title="Difference" value="Rs 0" subtitle="Balanced" icon={CheckCircle2} tone="purple" />
+        <SettingsMetricCard title="Pending Review" value="01" subtitle="Needs verification" icon={Hourglass} tone="amber" />
+      </section>
+
+      <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+        <article className="rounded-[14px] border border-[#dbe5f2] bg-white p-4 sm:p-5">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_auto] md:items-end">
+            <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+              <Search className="size-4 text-[#7386a3]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search opening balances..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+            </label>
+            <ReportSelect label="Financial Year" value="FY 2024-25" onChange={() => {}} options={['FY 2024-25', 'FY 2023-24']} hideLabel />
+            <button type="button" onClick={() => onNotify('Add opening balance row opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Balance</button>
+          </div>
+
+          <div className="mt-4 overflow-x-auto rounded-[12px] border border-[#e7eef7]">
+            <table className="crm-table min-w-[880px] w-full">
+              <thead><tr>{['Account', 'Group', 'Debit (Rs)', 'Credit (Rs)', 'Date', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <tbody>
+                {filteredRows.map((row) => (
+                  <tr key={row.account}>
+                    <td className="font-extrabold text-[#1e3261]">{row.account}</td>
+                    <td>{row.group}</td>
+                    <td>{row.debit}</td>
+                    <td>{row.credit}</td>
+                    <td>{row.date}</td>
+                    <td><SettingsStatusBadge label={row.status} tone={row.status === 'Pending' ? 'amber' : 'green'} /></td>
+                    <td><UserActionButton label={`Edit ${row.account}`} icon={FileText} tone="blue" onClick={() => onNotify(`${row.account} balance opened`)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <InventoryPagination text={`Showing 1 to ${filteredRows.length} of ${rows.length} entries`} totalPage="1" onNotify={onNotify} prefix="Opening Balance" />
+        </article>
+
+        <div className="space-y-4">
+          <SettingsSidebarInfoCard title="Balance Check" icon={CheckCircle2}>
+            <div className="space-y-3">
+              <SettingsPreviewRow label="Debit Total" value="Rs 14,40,700.00" />
+              <SettingsPreviewRow label="Credit Total" value="Rs 14,40,700.00" />
+              <SettingsPreviewRow label="Difference" value="Rs 0.00" valueClass="text-[#0d9f4a]" />
+              <SettingsPreviewRow label="Status" value="Balanced" valueClass="text-[#0d9f4a]" />
+            </div>
+          </SettingsSidebarInfoCard>
+          <SettingsSidebarInfoCard title="Quick Actions" icon={Zap}>
+            <div className="space-y-2">
+              <MiniActionButton label="Import Balances" icon={Download} tone="blue" onClick={() => onNotify('Opening balance import opened')} />
+              <MiniActionButton label="Verify All" icon={CheckCircle2} tone="green" onClick={() => onNotify('Opening balances verified')} />
+              <MiniActionButton label="Export Report" icon={Download} tone="purple" onClick={() => onNotify('Opening balance exported')} />
+            </div>
+          </SettingsSidebarInfoCard>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function SettingsContentHeader({ title, note, onCancel, onSave }) {
+  return (
+    <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div>
+        <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{title}</h2>
+        <p className="mt-1 text-[13px] font-bold text-[#53647f]">{note}</p>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <button type="button" onClick={onCancel} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
+        <button type="button" onClick={onSave} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+      </div>
+    </div>
+  );
+}
+
+function SettingsProductCategoriesContent({ onOpenSection, onNotify }) {
+  const rows = [
+    { name: 'Solar Panels', code: 'CAT-SP', parent: 'Main Inventory', items: '48', tax: '12%', status: 'Active' },
+    { name: 'Inverters', code: 'CAT-INV', parent: 'Main Inventory', items: '18', tax: '18%', status: 'Active' },
+    { name: 'Mounting Structure', code: 'CAT-MS', parent: 'Installation Material', items: '32', tax: '18%', status: 'Active' },
+    { name: 'DC Cables', code: 'CAT-DC', parent: 'Electrical', items: '24', tax: '18%', status: 'Active' },
+    { name: 'AC Cables', code: 'CAT-AC', parent: 'Electrical', items: '20', tax: '18%', status: 'Active' },
+    { name: 'Safety Items', code: 'CAT-SAFE', parent: 'Tools & Safety', items: '12', tax: '18%', status: 'Inactive' },
+  ];
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title="Product Categories" note="Manage inventory product categories, parent groups and default tax rules." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Product categories saved')} />
+      <SettingsInventoryStats stats={[['Total Categories', '24', Boxes, 'green'], ['Active Categories', '21', CheckCircle2, 'blue'], ['Mapped Products', '154', Database, 'purple'], ['Inactive', '03', Minus, 'amber']]} />
+      <SettingsInventoryTable
+        title="Category List"
+        searchPlaceholder="Search product categories..."
+        addLabel="Add Category"
+        onNotify={onNotify}
+        columns={['Category Name', 'Code', 'Parent Category', 'Products', 'Default Tax', 'Status', 'Action']}
+        rows={rows.map((row) => [
+          row.name,
+          row.code,
+          row.parent,
+          row.items,
+          row.tax,
+          <SettingsStatusBadge label={row.status} tone={row.status === 'Inactive' ? 'amber' : 'green'} />,
+          <UserActionButton label={`Open ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.name} category opened`)} />,
+        ])}
+        sideTitle="Category Rules"
+        sideRows={[['Default Valuation', 'FIFO'], ['Negative Stock', 'Blocked'], ['Auto SKU', 'Enabled'], ['Tax Mapping', 'Required']]}
+      />
+    </section>
+  );
+}
+
+function SettingsUnitsMeasurementContent({ onOpenSection, onNotify }) {
+  const rows = [
+    { unit: 'Nos', name: 'Numbers', type: 'Quantity', precision: '0', base: 'Yes', status: 'Active' },
+    { unit: 'kW', name: 'Kilowatt', type: 'Power', precision: '2', base: 'Yes', status: 'Active' },
+    { unit: 'kWp', name: 'Kilowatt Peak', type: 'Solar Capacity', precision: '2', base: 'Yes', status: 'Active' },
+    { unit: 'Mtr', name: 'Meter', type: 'Length', precision: '2', base: 'Yes', status: 'Active' },
+    { unit: 'Pair', name: 'Pair', type: 'Quantity', precision: '0', base: 'No', status: 'Active' },
+    { unit: 'Lot', name: 'Lot', type: 'Bundle', precision: '0', base: 'No', status: 'Active' },
+  ];
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title="Units of Measurement" note="Configure inventory units, decimal precision and conversion behavior." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Units of measurement saved')} />
+      <SettingsInventoryStats stats={[['Total Units', '18', Wrench, 'green'], ['Base Units', '09', CheckCircle2, 'blue'], ['Conversion Units', '06', RefreshCw, 'purple'], ['Inactive', '00', Minus, 'amber']]} />
+      <SettingsInventoryTable
+        title="Unit Master"
+        searchPlaceholder="Search units..."
+        addLabel="Add Unit"
+        onNotify={onNotify}
+        columns={['Unit', 'Full Name', 'Type', 'Precision', 'Base Unit', 'Status', 'Action']}
+        rows={rows.map((row) => [
+          row.unit,
+          row.name,
+          row.type,
+          row.precision,
+          row.base,
+          <SettingsStatusBadge label={row.status} />,
+          <UserActionButton label={`Open ${row.unit}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.unit} unit opened`)} />,
+        ])}
+        sideTitle="Conversion Defaults"
+        sideRows={[['Decimal Mode', 'Item wise'], ['Rounding', 'Nearest'], ['Purchase UOM', 'Enabled'], ['Sales UOM', 'Enabled']]}
+      />
+    </section>
+  );
+}
+
+function SettingsTaxSettingsContent({ onOpenSection, onNotify }) {
+  const rows = [
+    { tax: 'GST 0%', code: 'GST0', rate: '0%', type: 'GST', applies: 'Exempt Items', status: 'Active' },
+    { tax: 'GST 5%', code: 'GST5', rate: '5%', type: 'GST', applies: 'Selected Goods', status: 'Active' },
+    { tax: 'GST 12%', code: 'GST12', rate: '12%', type: 'GST', applies: 'Solar Panels', status: 'Active' },
+    { tax: 'GST 18%', code: 'GST18', rate: '18%', type: 'GST', applies: 'Inverters & Services', status: 'Active' },
+    { tax: 'IGST 18%', code: 'IGST18', rate: '18%', type: 'IGST', applies: 'Interstate Sales', status: 'Active' },
+  ];
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title="Tax Settings" note="Manage GST slabs, tax codes and item-wise tax mapping for inventory." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Tax settings saved')} />
+      <SettingsInventoryStats stats={[['Tax Slabs', '05', ReceiptText, 'green'], ['GST Enabled', 'Yes', CheckCircle2, 'blue'], ['Default Rate', '18%', IndianRupee, 'purple'], ['Pending Mapping', '02', Hourglass, 'amber']]} />
+      <SettingsInventoryTable
+        title="Tax Rate Master"
+        searchPlaceholder="Search tax slabs..."
+        addLabel="Add Tax"
+        onNotify={onNotify}
+        columns={['Tax Name', 'Code', 'Rate', 'Type', 'Applies To', 'Status', 'Action']}
+        rows={rows.map((row) => [
+          row.tax,
+          row.code,
+          row.rate,
+          row.type,
+          row.applies,
+          <SettingsStatusBadge label={row.status} />,
+          <UserActionButton label={`Open ${row.tax}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.tax} opened`)} />,
+        ])}
+        sideTitle="Tax Configuration"
+        sideRows={[['Default Sale Tax', 'GST 18%'], ['Default Purchase Tax', 'GST 18%'], ['HSN Required', 'Yes'], ['Round Off', 'Nearest Rupee']]}
+      />
+    </section>
+  );
+}
+
+function SettingsStockSettingsContent({ onOpenSection, onNotify }) {
+  const rows = [
+    { rule: 'Negative Stock', value: 'Blocked', module: 'All Warehouses', status: 'Active' },
+    { rule: 'Low Stock Alert', value: 'Enabled', module: 'Inventory', status: 'Active' },
+    { rule: 'Reorder Level', value: 'Item Wise', module: 'Products', status: 'Active' },
+    { rule: 'Stock Valuation', value: 'FIFO', module: 'Accounts', status: 'Active' },
+    { rule: 'Batch Tracking', value: 'Optional', module: 'Products', status: 'Active' },
+    { rule: 'Serial Tracking', value: 'Enabled', module: 'Solar Panels', status: 'Active' },
+  ];
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title="Stock Settings" note="Configure inventory control, alerts, valuation and stock movement rules." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Stock settings saved')} />
+      <SettingsInventoryStats stats={[['Warehouses', '08', Boxes, 'green'], ['Stock Alerts', 'Enabled', Bell, 'blue'], ['Valuation', 'FIFO', Database, 'purple'], ['Negative Stock', 'Blocked', ShieldCheck, 'amber']]} />
+      <SettingsInventoryTable
+        title="Stock Control Rules"
+        searchPlaceholder="Search stock rules..."
+        addLabel="Add Rule"
+        onNotify={onNotify}
+        columns={['Rule', 'Value', 'Module', 'Status', 'Action']}
+        rows={rows.map((row) => [
+          row.rule,
+          row.value,
+          row.module,
+          <SettingsStatusBadge label={row.status} />,
+          <UserActionButton label={`Open ${row.rule}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.rule} opened`)} />,
+        ])}
+        sideTitle="Default Stock Policy"
+        sideRows={[['Primary Warehouse', 'Indore Main'], ['Approval Required', 'Stock Outward'], ['Auto GRN', 'Enabled'], ['Stock Audit', 'Monthly']]}
+      />
+    </section>
+  );
+}
+
+function SettingsInventoryStats({ stats }) {
+  return (
+    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {stats.map(([title, value, Icon, tone]) => (
+        <SettingsMetricCard key={title} title={title} value={value} subtitle="Inventory Settings" icon={Icon} tone={tone} />
+      ))}
+    </section>
+  );
+}
+
+function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, rows, sideTitle, sideRows, onNotify }) {
+  const [query, setQuery] = useState('');
+  const filteredRows = rows.filter((row) => row.some((cell) => typeof cell === 'string' && cell.toLowerCase().includes(query.toLowerCase())));
+
+  return (
+    <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+      <article className="rounded-[14px] border border-[#dbe5f2] bg-white p-4 sm:p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h3 className="font-display text-[18px] font-extrabold text-[#111827]">{title}</h3>
+            <p className="mt-1 text-[13px] font-bold text-[#53647f]">Showing configured inventory masters and rules.</p>
+          </div>
+          <button type="button" onClick={() => onNotify(`${addLabel} opened`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white"><Plus className="size-4" />{addLabel}</button>
+        </div>
+        <label className="mt-4 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+          <Search className="size-4 text-[#7386a3]" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder={searchPlaceholder} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+        </label>
+        <div className="mt-4 overflow-x-auto rounded-[12px] border border-[#e7eef7]">
+          <table className="crm-table min-w-[820px] w-full">
+            <thead><tr>{columns.map((header) => <th key={header}>{header}</th>)}</tr></thead>
+            <tbody>
+              {filteredRows.map((row, rowIndex) => (
+                <tr key={`${title}-${rowIndex}`}>
+                  {row.map((cell, cellIndex) => <td key={`${title}-${rowIndex}-${cellIndex}`} className={cellIndex === 0 ? 'font-extrabold text-[#1e3261]' : undefined}>{cell}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <InventoryPagination text={`Showing 1 to ${filteredRows.length} of ${rows.length} entries`} totalPage="1" onNotify={onNotify} prefix={title} />
+      </article>
+
+      <div className="space-y-4">
+        <SettingsSidebarInfoCard title={sideTitle} icon={Info}>
+          <div className="space-y-3">
+            {sideRows.map(([label, value]) => <SettingsPreviewRow key={label} label={label} value={value} />)}
+          </div>
+        </SettingsSidebarInfoCard>
+        <SettingsSidebarInfoCard title="Quick Actions" icon={Zap}>
+          <div className="space-y-2">
+            <MiniActionButton label="Import" icon={Download} tone="blue" onClick={() => onNotify(`${title} import opened`)} />
+            <MiniActionButton label="Export" icon={Download} tone="green" onClick={() => onNotify(`${title} exported`)} />
+            <MiniActionButton label="Audit Log" icon={Clock3} tone="purple" onClick={() => onNotify(`${title} audit log opened`)} />
+          </div>
+        </SettingsSidebarInfoCard>
+      </div>
+    </section>
+  );
+}
+
+function SettingsProjectStatusContent({ onOpenSection, onNotify }) {
+  const rows = [
+    { name: 'Planning', color: 'Blue', order: '1', stage: 'Pre Installation', progress: '10%', status: 'Active' },
+    { name: 'Site Survey', color: 'Amber', order: '2', stage: 'Pre Installation', progress: '20%', status: 'Active' },
+    { name: 'Material Planning', color: 'Purple', order: '3', stage: 'Procurement', progress: '35%', status: 'Active' },
+    { name: 'Installation', color: 'Green', order: '4', stage: 'Execution', progress: '65%', status: 'Active' },
+    { name: 'Testing & Commissioning', color: 'Cyan', order: '5', stage: 'Closure', progress: '90%', status: 'Active' },
+    { name: 'Completed', color: 'Green', order: '6', stage: 'Closure', progress: '100%', status: 'Active' },
+    { name: 'On Hold', color: 'Slate', order: '7', stage: 'Exception', progress: '0%', status: 'Active' },
+  ];
+
+  return (
+    <SettingsProjectMasterPage
+      title="Project Status"
+      note="Manage project workflow statuses, stage order and progress mapping."
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+      stats={[['Total Statuses', '07', FolderKanban, 'green'], ['Active', '07', CheckCircle2, 'blue'], ['Workflow Stages', '05', BarChart3, 'purple'], ['Exceptions', '01', AlertTriangle, 'amber']]}
+      columns={['Status Name', 'Color', 'Order', 'Stage', 'Progress', 'State', 'Action']}
+      rows={rows.map((row) => [
+        row.name,
+        row.color,
+        row.order,
+        row.stage,
+        row.progress,
+        <SettingsStatusBadge label={row.status} />,
+        <UserActionButton label={`Open ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.name} status opened`)} />,
+      ])}
+      addLabel="Add Status"
+      sideTitle="Workflow Rules"
+      sideRows={[['Default Status', 'Planning'], ['Completion Status', 'Completed'], ['Delay Tracking', 'Enabled'], ['Progress Auto Update', 'Enabled']]}
+    />
+  );
+}
+
+function SettingsProjectTypesContent({ onOpenSection, onNotify }) {
+  const rows = [
+    { type: 'On-Grid', code: 'PRJ-ON', capacity: '1 kW - 1 MW', subsidy: 'Eligible', status: 'Active' },
+    { type: 'Off-Grid', code: 'PRJ-OFF', capacity: '1 kW - 250 kW', subsidy: 'Limited', status: 'Active' },
+    { type: 'Hybrid', code: 'PRJ-HYB', capacity: '3 kW - 500 kW', subsidy: 'Eligible', status: 'Active' },
+    { type: 'Commercial', code: 'PRJ-COM', capacity: '10 kW - 2 MW', subsidy: 'No', status: 'Active' },
+    { type: 'Industrial', code: 'PRJ-IND', capacity: '50 kW - 5 MW', subsidy: 'No', status: 'Active' },
+  ];
+
+  return (
+    <SettingsProjectMasterPage
+      title="Project Types"
+      note="Configure project types, code prefixes, capacity range and subsidy behavior."
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+      stats={[['Project Types', '05', FolderKanban, 'green'], ['Subsidy Eligible', '03', BadgeCheck, 'blue'], ['Commercial Types', '02', BuildingIconFallback, 'purple'], ['Inactive', '00', Minus, 'amber']]}
+      columns={['Project Type', 'Code Prefix', 'Capacity Range', 'Subsidy', 'Status', 'Action']}
+      rows={rows.map((row) => [
+        row.type,
+        row.code,
+        row.capacity,
+        row.subsidy,
+        <SettingsStatusBadge label={row.status} />,
+        <UserActionButton label={`Open ${row.type}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.type} project type opened`)} />,
+      ])}
+      addLabel="Add Type"
+      sideTitle="Type Defaults"
+      sideRows={[['Default Type', 'On-Grid'], ['Auto Prefix', 'Enabled'], ['Capacity Unit', 'kW'], ['Subsidy Check', 'Enabled']]}
+    />
+  );
+}
+
+function SettingsTaskPrioritiesContent({ onOpenSection, onNotify }) {
+  const rows = [
+    { priority: 'Critical', color: 'Red', sla: '4 Hours', escalation: 'Immediate', status: 'Active' },
+    { priority: 'High', color: 'Orange', sla: '1 Day', escalation: 'Manager', status: 'Active' },
+    { priority: 'Medium', color: 'Amber', sla: '3 Days', escalation: 'Team Lead', status: 'Active' },
+    { priority: 'Low', color: 'Blue', sla: '7 Days', escalation: 'None', status: 'Active' },
+    { priority: 'Backlog', color: 'Slate', sla: 'No SLA', escalation: 'None', status: 'Active' },
+  ];
+
+  return (
+    <SettingsProjectMasterPage
+      title="Task Priorities"
+      note="Set project task priority levels, SLA windows and escalation behavior."
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+      stats={[['Priority Levels', '05', Flag, 'green'], ['With SLA', '04', Clock3, 'blue'], ['Escalations', '03', AlertTriangle, 'purple'], ['Default', 'Medium', CheckCircle2, 'amber']]}
+      columns={['Priority', 'Color', 'SLA', 'Escalation', 'Status', 'Action']}
+      rows={rows.map((row) => [
+        row.priority,
+        row.color,
+        row.sla,
+        row.escalation,
+        <SettingsStatusBadge label={row.status} />,
+        <UserActionButton label={`Open ${row.priority}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.priority} priority opened`)} />,
+      ])}
+      addLabel="Add Priority"
+      sideTitle="Priority Rules"
+      sideRows={[['Default Priority', 'Medium'], ['SLA Tracking', 'Enabled'], ['Auto Escalation', 'Enabled'], ['Overdue Alerts', 'Daily']]}
+    />
+  );
+}
+
+function SettingsMilestoneContent({ onOpenSection, onNotify }) {
+  const rows = [
+    { milestone: 'Project Created', phase: 'Planning', weight: '5%', required: 'Yes', status: 'Active' },
+    { milestone: 'Site Survey Completed', phase: 'Survey', weight: '15%', required: 'Yes', status: 'Active' },
+    { milestone: 'Material Delivered', phase: 'Procurement', weight: '25%', required: 'Yes', status: 'Active' },
+    { milestone: 'Installation Completed', phase: 'Installation', weight: '35%', required: 'Yes', status: 'Active' },
+    { milestone: 'Testing Completed', phase: 'Commissioning', weight: '15%', required: 'Yes', status: 'Active' },
+    { milestone: 'Handover Done', phase: 'Closure', weight: '5%', required: 'Yes', status: 'Active' },
+  ];
+
+  return (
+    <SettingsProjectMasterPage
+      title="Milestone Settings"
+      note="Configure project milestones, progress weightage and mandatory completion rules."
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+      stats={[['Milestones', '06', Trophy, 'green'], ['Mandatory', '06', ShieldCheck, 'blue'], ['Total Weight', '100%', BarChart3, 'purple'], ['Optional', '00', Minus, 'amber']]}
+      columns={['Milestone', 'Phase', 'Weightage', 'Required', 'Status', 'Action']}
+      rows={rows.map((row) => [
+        row.milestone,
+        row.phase,
+        row.weight,
+        row.required,
+        <SettingsStatusBadge label={row.status} />,
+        <UserActionButton label={`Open ${row.milestone}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.milestone} milestone opened`)} />,
+      ])}
+      addLabel="Add Milestone"
+      sideTitle="Milestone Rules"
+      sideRows={[['Progress Source', 'Milestone Weight'], ['Completion Lock', 'Enabled'], ['Document Required', 'At Handover'], ['Auto Notify', 'Enabled']]}
+    />
+  );
+}
+
+function BuildingIconFallback(props) {
+  return <Home {...props} />;
+}
+
+function SettingsDocumentSettingsContent({ onOpenSection, onNotify }) {
+  return <SettingsOtherMasterPage title="Document Settings" note="Configure document numbering, file rules, templates and storage preferences." onOpenSection={onOpenSection} onNotify={onNotify} stats={[['Document Types', '14', FileText, 'green'], ['Templates', '32', ReceiptText, 'blue'], ['Storage Used', '2.45 GB', HardDrive, 'purple'], ['Pending Review', '03', Hourglass, 'amber']]} configTitle="Document Configuration" configFields={<><SettingsSelectField label="Default Numbering" value="Auto Prefix + Year" onChange={() => {}} options={['Auto Prefix + Year', 'Manual', 'Module Wise']} /><SettingsInputField label="Document Prefix" value="DOC" onChange={() => {}} /><SettingsSelectField label="Allowed File Types" value="PDF, JPG, PNG, DOCX" onChange={() => {}} options={['PDF Only', 'PDF, JPG, PNG', 'PDF, JPG, PNG, DOCX']} /><SettingsInputField label="Max File Size" value="10 MB" onChange={() => {}} /><SettingsToggleRow label="Require Document Approval" note="Send uploaded documents for approval before final use." enabled onToggle={() => onNotify('Document approval toggled')} /><SettingsToggleRow label="Enable Version History" note="Keep older file versions for audit." enabled onToggle={() => onNotify('Document version history toggled')} /></>} rows={[['Quotation', 'QUO-{YYYY}-{0001}', 'PDF', 'Active'], ['Invoice', 'INV-{YYYY}-{0001}', 'PDF', 'Active'], ['Project Handover', 'HND-{YYYY}-{0001}', 'PDF', 'Active'], ['AMC Contract', 'AMC-{YYYY}-{0001}', 'PDF', 'Active'], ['Warranty Card', 'WAR-{YYYY}-{0001}', 'PDF', 'Inactive']]} sideTitle="Storage Policy" sideRows={[['Storage Provider', 'Cloud'], ['Retention', '5 Years'], ['Compression', 'Enabled'], ['Watermark', 'Enabled']]} addLabel="Add Document Type" />;
+}
+
+function SettingsApprovalSettingsContent({ onOpenSection, onNotify }) {
+  return <SettingsOtherMasterPage title="Approval Settings" note="Manage approval workflows, levels, escalation rules and approval authority." onOpenSection={onOpenSection} onNotify={onNotify} stats={[['Workflows', '09', ShieldCheck, 'green'], ['Active Rules', '08', CheckCircle2, 'blue'], ['Pending', '17', Hourglass, 'purple'], ['Escalations', '04', AlertTriangle, 'amber']]} configTitle="Approval Workflow Defaults" configFields={<><SettingsSelectField label="Default Approval Mode" value="Sequential" onChange={() => {}} options={['Sequential', 'Parallel', 'Any One Approver']} /><SettingsSelectField label="Escalation Time" value="24 Hours" onChange={() => {}} options={['12 Hours', '24 Hours', '48 Hours', 'Never']} /><SettingsSelectField label="Final Approval Authority" value="Admin" onChange={() => {}} options={['Admin', 'Department Head', 'Project Manager']} /><SettingsInputField label="Approval Reminder Frequency" value="Every 6 Hours" onChange={() => {}} /><SettingsToggleRow label="Allow Approval Delegation" note="Approvers can delegate approval during absence." enabled onToggle={() => onNotify('Approval delegation toggled')} /><SettingsToggleRow label="Require Remarks on Rejection" note="Rejected requests must include clear remarks." enabled onToggle={() => onNotify('Rejection remarks toggled')} /></>} rows={[['Lead Approval', 'Sales Manager', '1 Level', 'Active'], ['Quotation Approval', 'Admin', '2 Levels', 'Active'], ['Purchase Order', 'Accounts Head', '2 Levels', 'Active'], ['Expense Approval', 'Project Manager', '1 Level', 'Active'], ['Stock Adjustment', 'Inventory Head', '2 Levels', 'Active']]} sideTitle="Approval Controls" sideRows={[['Auto Reminders', 'Enabled'], ['Escalation', 'Enabled'], ['Audit Trail', 'Required'], ['Bulk Approval', 'Disabled']]} addLabel="Add Workflow" />;
+}
+
+function SettingsBackupRestoreContent({ onOpenSection, onNotify }) {
+  return <SettingsOtherMasterPage title="Backup & Restore" note="Configure scheduled backups, restore points, encryption and retention policy." onOpenSection={onOpenSection} onNotify={onNotify} stats={[['Last Backup', 'Today', Cloud, 'green'], ['Backup Size', '2.45 GB', HardDrive, 'blue'], ['Restore Points', '18', RefreshCw, 'purple'], ['Failed Jobs', '00', AlertTriangle, 'amber']]} configTitle="Backup Policy" configFields={<><SettingsToggleRow label="Automatic Backup" note="Run backups on a fixed schedule." enabled onToggle={() => onNotify('Automatic backup toggled')} /><SettingsToggleRow label="Backup Encryption" note="Encrypt backup archives before storage." enabled onToggle={() => onNotify('Backup encryption toggled')} /><SettingsSelectField label="Backup Frequency" value="Daily" onChange={() => {}} options={['Daily', 'Weekly', 'Monthly']} /><SettingsInputField label="Backup Time" value="02:00 AM" onChange={() => {}} /><SettingsSelectField label="Retention Period" value="30 Days" onChange={() => {}} options={['7 Days', '30 Days', '90 Days', '1 Year']} /><SettingsSelectField label="Storage Location" value="Cloud + Local" onChange={() => {}} options={['Cloud', 'Local', 'Cloud + Local']} /></>} rows={[['Daily Auto Backup', '20 May 2024 02:00 AM', '2.45 GB', 'Completed'], ['Manual Backup', '19 May 2024 05:40 PM', '2.42 GB', 'Completed'], ['Weekly Backup', '18 May 2024 02:00 AM', '2.39 GB', 'Completed'], ['Pre Update Backup', '15 May 2024 11:20 AM', '2.31 GB', 'Completed'], ['Old Backup Cleanup', '14 May 2024 03:00 AM', '-', 'Completed']]} sideTitle="Restore Safety" sideRows={[['Restore Lock', 'Admin Only'], ['Pre-restore Backup', 'Required'], ['Data Validation', 'Enabled'], ['Download Latest', 'Available']]} addLabel="Run Backup" />;
+}
+
+function SettingsSystemMaintenanceContent({ onOpenSection, onNotify }) {
+  return <SettingsOtherMasterPage title="System Maintenance" note="Manage cache cleanup, database optimization, logs and maintenance mode." onOpenSection={onOpenSection} onNotify={onNotify} stats={[['System Health', 'Good', CheckCircle2, 'green'], ['Cache Size', '128 MB', Database, 'blue'], ['Log Size', '420 MB', FileText, 'purple'], ['Warnings', '02', AlertTriangle, 'amber']]} configTitle="Maintenance Controls" configFields={<><SettingsToggleRow label="Maintenance Mode" note="Temporarily restrict user access during updates." enabled={false} onToggle={() => onNotify('Maintenance mode toggled')} /><SettingsToggleRow label="Auto Cleanup" note="Automatically clear stale sessions and temporary files." enabled onToggle={() => onNotify('Auto cleanup toggled')} /><SettingsSelectField label="Cleanup Schedule" value="Weekly" onChange={() => {}} options={['Daily', 'Weekly', 'Monthly']} /><SettingsInputField label="Log Retention" value="90 Days" onChange={() => {}} /><SettingsSelectField label="Database Optimization" value="Weekly" onChange={() => {}} options={['Daily', 'Weekly', 'Monthly', 'Manual']} /><SettingsSelectField label="Health Check" value="Every 6 Hours" onChange={() => {}} options={['Hourly', 'Every 6 Hours', 'Daily']} /></>} rows={[['Clear Cache', 'Utility', 'Last run today', 'Ready'], ['Optimize Database', 'Database', 'Last run yesterday', 'Ready'], ['Clear Old Logs', 'Logs', '420 MB found', 'Ready'], ['Check Broken Links', 'Documents', '2 warnings', 'Ready'], ['Rebuild Search Index', 'Search', 'Last run 18 May', 'Ready']]} sideTitle="Maintenance Status" sideRows={[['Maintenance Mode', 'Off'], ['Background Jobs', 'Running'], ['Database', 'Healthy'], ['Search Index', 'Updated']]} addLabel="Run Task" />;
+}
+
+function SettingsOtherMasterPage({ title, note, stats, configTitle, configFields, rows, sideTitle, sideRows, addLabel, onOpenSection, onNotify }) {
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title={title} note={note} onCancel={() => onOpenSection('Settings')} onSave={() => onNotify(`${title} saved`)} />
+      <SettingsInventoryStats stats={stats} />
+      <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+        <div className="space-y-4">
+          <SettingsSectionCard title={configTitle} className="shadow-none"><div className="grid gap-4 md:grid-cols-2">{configFields}</div></SettingsSectionCard>
+          <SettingsInventoryTable title={`${title} List`} searchPlaceholder={`Search ${title.toLowerCase()}...`} addLabel={addLabel} onNotify={onNotify} columns={['Name', 'Type / Rule', 'Detail', 'Status', 'Action']} rows={rows.map(([name, type, detail, status]) => [name, type, detail, <SettingsStatusBadge label={status} tone={['Inactive', 'Ready'].includes(status) ? 'amber' : 'green'} />, <UserActionButton label={`Open ${name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${name} opened`)} />])} sideTitle="Summary" sideRows={[['Total Rows', String(rows.length)], ['Active/Ready', String(rows.filter((row) => row[3] !== 'Inactive').length)], ['Audit Trail', 'Enabled'], ['Last Update', 'Today']]} />
+        </div>
+        <div className="space-y-4">
+          <SettingsSidebarInfoCard title={sideTitle} icon={Info}><div className="space-y-3">{sideRows.map(([label, value]) => <SettingsPreviewRow key={label} label={label} value={value} />)}</div></SettingsSidebarInfoCard>
+          <SettingsSidebarInfoCard title="Quick Actions" icon={Zap}><div className="space-y-2"><MiniActionButton label="Run Check" icon={CheckCircle2} tone="green" onClick={() => onNotify(`${title} check started`)} /><MiniActionButton label="Export Logs" icon={Download} tone="blue" onClick={() => onNotify(`${title} logs exported`)} /><MiniActionButton label="Audit Trail" icon={Clock3} tone="purple" onClick={() => onNotify(`${title} audit trail opened`)} /></div></SettingsSidebarInfoCard>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function SettingsEmailSettingsContent({ onOpenSection, onNotify }) {
+  return (
+    <SettingsCommunicationPage
+      title="Email Settings"
+      note="Configure SMTP, sender identity, email templates and delivery controls."
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+      stats={[['SMTP Status', 'Active', Mail, 'green'], ['Templates', '18', FileText, 'blue'], ['Sent Today', '148', CheckCircle2, 'purple'], ['Failed', '01', AlertTriangle, 'amber']]}
+      configTitle="SMTP Configuration"
+      configFields={<><SettingsInputField label="SMTP Host" value="smtp.malwasolar.com" onChange={() => {}} /><SettingsInputField label="SMTP Port" value="587" onChange={() => {}} /><SettingsSelectField label="Encryption" value="TLS" onChange={() => {}} options={['TLS', 'SSL', 'None']} /><SettingsInputField label="SMTP Username" value="noreply@malwasolar.com" onChange={() => {}} /><SettingsInputField label="From Name" value="Malwa Solar CRM" onChange={() => {}} /><SettingsInputField label="From Email" value="noreply@malwasolar.com" onChange={() => {}} /><SettingsToggleRow label="Enable Email Queue" note="Queue and retry failed emails automatically." enabled onToggle={() => onNotify('Email queue toggled')} /><SettingsToggleRow label="Send Admin Copy" note="Send critical emails copy to admin inbox." enabled={false} onToggle={() => onNotify('Admin copy toggled')} /></>}
+      rows={[['Lead Assigned', 'New lead assignment', 'Email', 'Active'], ['Quotation Sent', 'Quotation shared', 'Email', 'Active'], ['Payment Reminder', 'Invoice due reminder', 'Email', 'Active'], ['Project Update', 'Project status changed', 'Email', 'Active'], ['AMC Renewal', 'AMC expiry upcoming', 'Email', 'Inactive']]}
+      sideTitle="Email Health"
+      sideRows={[['Queue Pending', '06'], ['Bounce Rate', '0.8%'], ['Daily Limit', '5,000'], ['Last Test', 'Success']]}
+      addLabel="Add Template"
+    />
+  );
+}
+
+function SettingsSmsSettingsContent({ onOpenSection, onNotify }) {
+  return (
+    <SettingsCommunicationPage
+      title="SMS Settings"
+      note="Configure SMS gateway, sender ID, DLT templates and delivery preferences."
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+      stats={[['Gateway', 'Active', MessageSquareMore, 'green'], ['DLT Templates', '12', FileText, 'blue'], ['SMS Today', '324', CheckCircle2, 'purple'], ['Failed', '05', AlertTriangle, 'amber']]}
+      configTitle="SMS Gateway"
+      configFields={<><SettingsSelectField label="Gateway Provider" value="TextLocal" onChange={() => {}} options={['TextLocal', 'MSG91', 'Twilio', 'Custom API']} /><SettingsInputField label="Sender ID" value="MLWSLR" onChange={() => {}} /><SettingsInputField label="API Key" value="sms_live_xxxxxxx123" onChange={() => {}} /><SettingsInputField label="DLT Entity ID" value="1201167890123456789" onChange={() => {}} /><SettingsInputField label="Route" value="Transactional" onChange={() => {}} /><SettingsSelectField label="Unicode SMS" value="Disabled" onChange={() => {}} options={['Enabled', 'Disabled']} /><SettingsToggleRow label="Low Balance Alert" note="Notify admin when SMS balance is low." enabled onToggle={() => onNotify('SMS balance alert toggled')} /><SettingsToggleRow label="Retry Failed SMS" note="Retry failed SMS for temporary gateway errors." enabled onToggle={() => onNotify('SMS retry toggled')} /></>}
+      rows={[['Lead OTP', 'Customer verification', 'SMS', 'Active'], ['Follow-up Reminder', 'Follow-up due', 'SMS', 'Active'], ['Payment Alert', 'Payment received', 'SMS', 'Active'], ['Installation Visit', 'Visit scheduled', 'SMS', 'Active'], ['Service Ticket', 'Ticket created', 'SMS', 'Inactive']]}
+      sideTitle="SMS Balance"
+      sideRows={[['Available Credits', '12,480'], ['Daily Limit', '2,000'], ['Delivery Rate', '96.4%'], ['Last Sync', 'Today 11:45 AM']]}
+      addLabel="Add SMS Template"
+    />
+  );
+}
+
+function SettingsWhatsAppSettingsContent({ onOpenSection, onNotify }) {
+  return (
+    <SettingsCommunicationPage
+      title="WhatsApp Settings"
+      note="Configure WhatsApp Business API, approved templates and automation rules."
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+      stats={[['API Status', 'Active', Phone, 'green'], ['Templates', '15', MessageSquareMore, 'blue'], ['Sent Today', '286', CheckCircle2, 'purple'], ['Pending Approval', '01', Hourglass, 'amber']]}
+      configTitle="WhatsApp Business API"
+      configFields={<><SettingsInputField label="Business Phone Number" value="+91 98765 43210" onChange={() => {}} /><SettingsInputField label="Phone Number ID" value="103948576201" onChange={() => {}} /><SettingsInputField label="Business Account ID" value="987654321001234" onChange={() => {}} /><SettingsInputField label="Access Token" value="wa_live_xxxxxxxxx123" onChange={() => {}} /><SettingsInputField label="Webhook URL" value="https://malwasolarcrm.com/webhooks/whatsapp" onChange={() => {}} /><SettingsSelectField label="Default Language" value="English" onChange={() => {}} options={['English', 'Hindi', 'Punjabi']} /><SettingsToggleRow label="Auto Reply" note="Send configured reply outside business hours." enabled onToggle={() => onNotify('WhatsApp auto reply toggled')} /><SettingsToggleRow label="Media Attachments" note="Allow PDF quotation and project images." enabled onToggle={() => onNotify('WhatsApp media toggled')} /></>}
+      rows={[['Lead Welcome', 'Lead created', 'WhatsApp', 'Active'], ['Quotation Link', 'Quotation approved', 'WhatsApp', 'Active'], ['Payment Reminder', 'Payment due', 'WhatsApp', 'Active'], ['Project Photos', 'Installation update', 'WhatsApp', 'Active'], ['AMC Renewal', 'AMC renewal due', 'WhatsApp', 'Pending']]}
+      sideTitle="WhatsApp Health"
+      sideRows={[['Webhook', 'Verified'], ['Quality Rating', 'High'], ['Daily Limit', '1,000'], ['Last Message', '2 min ago']]}
+      addLabel="Add WA Template"
+    />
+  );
+}
+
+function SettingsNotificationSettingsContent({ onOpenSection, onNotify }) {
+  return (
+    <SettingsCommunicationPage
+      title="Notification Settings"
+      note="Manage notification events, delivery channels, digest rules and escalation behavior."
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+      stats={[['Events', '22', Bell, 'green'], ['Active Rules', '19', CheckCircle2, 'blue'], ['Channels', '04', MessageSquareMore, 'purple'], ['Escalations', '06', AlertTriangle, 'amber']]}
+      configTitle="Notification Rules"
+      configFields={<><SettingsSelectField label="Default Delivery" value="In-app + Email" onChange={() => {}} options={['In-app', 'In-app + Email', 'Email + SMS', 'All Channels']} /><SettingsSelectField label="Digest Frequency" value="Daily Summary" onChange={() => {}} options={['Instant', 'Hourly Summary', 'Daily Summary']} /><SettingsInputField label="Quiet Hours Start" value="09:00 PM" onChange={() => {}} /><SettingsInputField label="Quiet Hours End" value="08:00 AM" onChange={() => {}} /><SettingsToggleRow label="Browser Notifications" note="Show alerts inside browser workspace." enabled onToggle={() => onNotify('Browser notifications toggled')} /><SettingsToggleRow label="Mobile Push" note="Send push notifications to mobile users." enabled onToggle={() => onNotify('Mobile push toggled')} /><SettingsToggleRow label="Escalation Alerts" note="Notify managers for overdue critical actions." enabled onToggle={() => onNotify('Escalation alerts toggled')} /><SettingsToggleRow label="Daily Digest" note="Send daily summary to selected users." enabled onToggle={() => onNotify('Daily digest toggled')} /></>}
+      rows={[['New Lead Assigned', 'Lead assignment', 'In-app + Email', 'Active'], ['Follow-up Due', 'Due today', 'In-app + SMS', 'Active'], ['Project Delayed', 'Target date crossed', 'In-app + Email', 'Active'], ['Low Stock Alert', 'Below reorder level', 'In-app', 'Active'], ['Payment Overdue', 'Invoice overdue', 'Email + WhatsApp', 'Active']]}
+      sideTitle="Channel Status"
+      sideRows={[['In-app', 'Active'], ['Email', 'Active'], ['SMS', 'Active'], ['WhatsApp', 'Active']]}
+      addLabel="Add Rule"
+    />
+  );
+}
+
+function SettingsCommunicationPage({ title, note, stats, configTitle, configFields, rows, sideTitle, sideRows, addLabel, onOpenSection, onNotify }) {
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title={title} note={note} onCancel={() => onOpenSection('Settings')} onSave={() => onNotify(`${title} saved`)} />
+      <SettingsInventoryStats stats={stats} />
+      <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+        <div className="space-y-4">
+          <SettingsSectionCard title={configTitle} className="shadow-none"><div className="grid gap-4 md:grid-cols-2">{configFields}</div></SettingsSectionCard>
+          <SettingsInventoryTable
+            title={`${title} Templates`}
+            searchPlaceholder={`Search ${title.toLowerCase()}...`}
+            addLabel={addLabel}
+            onNotify={onNotify}
+            columns={['Template / Rule', 'Trigger', 'Channel', 'Status', 'Action']}
+            rows={rows.map(([template, trigger, channel, status]) => [
+              template,
+              trigger,
+              channel,
+              <SettingsStatusBadge label={status} tone={status === 'Inactive' ? 'amber' : status === 'Pending' ? 'blue' : 'green'} />,
+              <UserActionButton label={`Open ${template}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${template} opened`)} />,
+            ])}
+            sideTitle="Template Summary"
+            sideRows={[['Active Templates', String(rows.filter((row) => row[3] === 'Active').length)], ['Inactive/Pending', String(rows.filter((row) => row[3] !== 'Active').length)], ['Variables', 'Supported'], ['Preview', 'Enabled']]}
+          />
+        </div>
+        <div className="space-y-4">
+          <SettingsSidebarInfoCard title={sideTitle} icon={Info}><div className="space-y-3">{sideRows.map(([label, value]) => <SettingsPreviewRow key={label} label={label} value={value} />)}</div></SettingsSidebarInfoCard>
+          <SettingsSidebarInfoCard title="Quick Actions" icon={Zap}><div className="space-y-2"><MiniActionButton label="Test Connection" icon={CheckCircle2} tone="green" onClick={() => onNotify(`${title} connection tested`)} /><MiniActionButton label="Import Templates" icon={Download} tone="blue" onClick={() => onNotify(`${title} templates import opened`)} /><MiniActionButton label="View Logs" icon={Clock3} tone="purple" onClick={() => onNotify(`${title} logs opened`)} /></div></SettingsSidebarInfoCard>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function SettingsProjectMasterPage({ title, note, stats, columns, rows, addLabel, sideTitle, sideRows, onOpenSection, onNotify }) {
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title={title} note={note} onCancel={() => onOpenSection('Settings')} onSave={() => onNotify(`${title} saved`)} />
+      <SettingsInventoryStats stats={stats} />
+      <SettingsInventoryTable
+        title={`${title} Master`}
+        searchPlaceholder={`Search ${title.toLowerCase()}...`}
+        addLabel={addLabel}
+        onNotify={onNotify}
+        columns={columns}
+        rows={rows}
+        sideTitle={sideTitle}
+        sideRows={sideRows}
+      />
+    </section>
   );
 }
 
@@ -4450,7 +5470,7 @@ function SystemSettingsPage({ onOpenSection, onNotify }) {
           </div>
         </div>
 
-        <div className="grid gap-4 p-4 sm:p-5 2xl:grid-cols-[minmax(0,1.3fr)_330px]">
+        <div className={cx('grid gap-4 p-4 sm:p-5 2xl:grid-cols-[minmax(0,1.3fr)_330px]', activeTab !== 'General' && 'hidden')}>
           <SettingsSectionCard title="General Information" className="shadow-none">
             <div className="grid gap-4 md:grid-cols-2">
               <SettingsInputField label="System Name" value={form.systemName} onChange={(value) => updateField('systemName', value)} required />
@@ -4519,8 +5539,197 @@ function SystemSettingsPage({ onOpenSection, onNotify }) {
             </SettingsSectionCard>
           </div>
         </div>
+        {activeTab !== 'General' ? <SystemSettingsExtraTab activeTab={activeTab} onNotify={onNotify} /> : null}
       </section>
     </GeneralSettingsDetailShell>
+  );
+}
+
+function SystemSettingsExtraTab({ activeTab, onNotify }) {
+  const [toggles, setToggles] = useState({
+    twoFactor: true,
+    forcePasswordChange: false,
+    loginAlerts: true,
+    smtpEnabled: true,
+    emailQueue: true,
+    notifyEmail: true,
+    notifySms: false,
+    notifyWhatsapp: true,
+    autoBackup: true,
+    backupEncryption: true,
+    apiEnabled: true,
+    webhookEnabled: false,
+    maintenanceMode: false,
+    debugLogs: false,
+  });
+  const toggle = (key) => setToggles((current) => ({ ...current, [key]: !current[key] }));
+
+  const content = {
+    Security: {
+      title: 'Security Policy',
+      sideTitle: 'Security Status',
+      rows: [['2FA Status', <SettingsStatusBadge label="Enabled" />], ['Blocked Attempts', '18'], ['Active Sessions', '12'], ['Last Scan', '20 May 2024']],
+      actions: ['View Login History', 'Revoke All Sessions', 'Export Security Logs'],
+      fields: (
+        <>
+          <SettingsSelectField label="Password Minimum Length" value="8 Characters" onChange={() => {}} options={['8 Characters', '10 Characters', '12 Characters']} />
+          <SettingsSelectField label="Password Expiry" value="90 Days" onChange={() => {}} options={['30 Days', '60 Days', '90 Days', 'Never']} />
+          <SettingsSelectField label="Session Timeout" value="30 Minutes" onChange={() => {}} options={['15 Minutes', '30 Minutes', '60 Minutes', 'Never']} />
+          <SettingsInputField label="Max Login Attempts" value="5" onChange={() => {}} />
+          <SettingsToggleRow label="Two Factor Authentication" note="Require OTP verification for admin users." enabled={toggles.twoFactor} onToggle={() => toggle('twoFactor')} />
+          <SettingsToggleRow label="Force Password Change" note="Ask users to reset password on next login." enabled={toggles.forcePasswordChange} onToggle={() => toggle('forcePasswordChange')} />
+          <SettingsToggleRow label="Login Alerts" note="Notify admin for suspicious login attempts." enabled={toggles.loginAlerts} onToggle={() => toggle('loginAlerts')} />
+          <SettingsInputField label="Allowed Admin IP Range" value="192.168.1.0/24" onChange={() => {}} />
+        </>
+      ),
+    },
+    Email: {
+      title: 'SMTP Configuration',
+      sideTitle: 'Email Health',
+      rows: [['SMTP Status', <SettingsStatusBadge label="Connected" />], ['Queue Pending', '6'], ['Failed Today', '1'], ['Sent Today', '148']],
+      actions: ['Send Test Email', 'View Email Queue', 'Email Templates'],
+      fields: (
+        <>
+          <SettingsToggleRow label="Enable SMTP" note="Send emails from configured mail server." enabled={toggles.smtpEnabled} onToggle={() => toggle('smtpEnabled')} />
+          <SettingsToggleRow label="Email Queue" note="Queue emails and retry failed messages." enabled={toggles.emailQueue} onToggle={() => toggle('emailQueue')} />
+          <SettingsInputField label="SMTP Host" value="smtp.malwasolar.com" onChange={() => {}} />
+          <SettingsInputField label="SMTP Port" value="587" onChange={() => {}} />
+          <SettingsSelectField label="Encryption" value="TLS" onChange={() => {}} options={['TLS', 'SSL', 'None']} />
+          <SettingsInputField label="SMTP Username" value="noreply@malwasolar.com" onChange={() => {}} />
+          <SettingsInputField label="From Name" value="Malwa Solar CRM" onChange={() => {}} />
+          <SettingsInputField label="From Email" value="noreply@malwasolar.com" onChange={() => {}} />
+          <div className="md:col-span-2"><SettingsTextareaField label="Email Footer" value="This is an automated message from Malwa Solar CRM." onChange={() => {}} rows={3} /></div>
+        </>
+      ),
+    },
+    Notifications: {
+      title: 'Notification Channels',
+      sideTitle: 'Delivery Summary',
+      rows: [['Email', <SettingsStatusBadge label="Active" />], ['SMS', <SettingsStatusBadge label="Inactive" tone="amber" />], ['WhatsApp', <SettingsStatusBadge label="Active" />], ['Last Dispatch', 'Today 12:05 PM']],
+      actions: ['Preview Notification', 'Send Test Alert', 'Open Templates'],
+      fields: (
+        <>
+          <SettingsToggleRow label="Email Notifications" note="Send important alerts by email." enabled={toggles.notifyEmail} onToggle={() => toggle('notifyEmail')} />
+          <SettingsToggleRow label="SMS Notifications" note="Send urgent alerts by SMS." enabled={toggles.notifySms} onToggle={() => toggle('notifySms')} />
+          <SettingsToggleRow label="WhatsApp Notifications" note="Send customer and team updates on WhatsApp." enabled={toggles.notifyWhatsapp} onToggle={() => toggle('notifyWhatsapp')} />
+          <SettingsSelectField label="Notification Digest" value="Daily Summary" onChange={() => {}} options={['Instant', 'Hourly Summary', 'Daily Summary']} />
+          {['New Lead Assigned', 'Follow-up Due', 'Payment Received', 'Project Delayed', 'Low Stock Alert', 'Approval Pending'].map((label) => (
+            <SettingsToggleRow key={label} label={label} note="Enable or disable this event notification." enabled onToggle={() => onNotify(`${label} notification toggled`)} />
+          ))}
+        </>
+      ),
+    },
+    Backup: {
+      title: 'Backup Settings',
+      sideTitle: 'Last Backup',
+      rows: [['Status', <SettingsStatusBadge label="Completed" />], ['Date', '20 May 2024'], ['Size', '2.45 GB'], ['Next Run', 'Tomorrow 02:00 AM']],
+      actions: ['Run Backup Now', 'Restore Backup', 'Download Latest Backup'],
+      fields: (
+        <>
+          <SettingsToggleRow label="Automatic Backup" note="Create scheduled backups without manual action." enabled={toggles.autoBackup} onToggle={() => toggle('autoBackup')} />
+          <SettingsToggleRow label="Encrypt Backup Files" note="Protect backup files before upload." enabled={toggles.backupEncryption} onToggle={() => toggle('backupEncryption')} />
+          <SettingsSelectField label="Backup Frequency" value="Daily" onChange={() => {}} options={['Daily', 'Weekly', 'Monthly']} />
+          <SettingsInputField label="Backup Time" value="02:00 AM" onChange={() => {}} />
+          <SettingsSelectField label="Retention Period" value="30 Days" onChange={() => {}} options={['7 Days', '30 Days', '90 Days', '1 Year']} />
+          <SettingsSelectField label="Storage Location" value="Cloud Storage" onChange={() => {}} options={['Cloud Storage', 'Local Server', 'Both']} />
+          <div className="md:col-span-2"><SettingsTextareaField label="Backup Notes" value="Daily database and uploaded document backup will run automatically." onChange={() => {}} rows={3} /></div>
+        </>
+      ),
+    },
+    'API Settings': {
+      title: 'API Configuration',
+      sideTitle: 'API Usage',
+      rows: [['API Status', <SettingsStatusBadge label="Active" />], ['Requests Today', '428'], ['Errors Today', '3'], ['Last Key Rotation', '10 May 2024']],
+      actions: ['Generate New Key', 'Test Webhook', 'View API Logs'],
+      fields: (
+        <>
+          <SettingsToggleRow label="Enable API Access" note="Allow external systems to access CRM API." enabled={toggles.apiEnabled} onToggle={() => toggle('apiEnabled')} />
+          <SettingsToggleRow label="Enable Webhooks" note="Send event updates to configured webhook URLs." enabled={toggles.webhookEnabled} onToggle={() => toggle('webhookEnabled')} />
+          <SettingsInputField label="API Base URL" value="https://api.malwasolarcrm.com/v1" onChange={() => {}} />
+          <SettingsInputField label="Webhook URL" value="https://hooks.malwasolarcrm.com/crm" onChange={() => {}} />
+          <SettingsSelectField label="Rate Limit" value="1000 Requests / Hour" onChange={() => {}} options={['500 Requests / Hour', '1000 Requests / Hour', '5000 Requests / Hour']} />
+          <SettingsSelectField label="API Key Expiry" value="90 Days" onChange={() => {}} options={['30 Days', '90 Days', '180 Days', 'Never']} />
+          <div className="md:col-span-2"><SettingsInputField label="Current API Key" value="mscrm_live_xxxxxxxxxx1234" onChange={() => {}} /></div>
+        </>
+      ),
+    },
+    Other: {
+      title: 'Other System Preferences',
+      sideTitle: 'System Tools',
+      rows: [['Cache', <SettingsStatusBadge label="Healthy" />], ['Logs', <SettingsStatusBadge label="Normal" />], ['Disk Cleanup', 'Last run 19 May 2024'], ['Maintenance', <SettingsStatusBadge label="Off" tone="slate" />]],
+      actions: ['Clear Cache', 'Run Cleanup', 'Download Logs'],
+      fields: (
+        <>
+          <SettingsToggleRow label="Maintenance Mode" note="Temporarily restrict user access during maintenance." enabled={toggles.maintenanceMode} onToggle={() => toggle('maintenanceMode')} />
+          <SettingsToggleRow label="Debug Logs" note="Store additional logs for troubleshooting." enabled={toggles.debugLogs} onToggle={() => toggle('debugLogs')} />
+          <SettingsSelectField label="Cache Duration" value="30 Minutes" onChange={() => {}} options={['5 Minutes', '30 Minutes', '1 Hour', '1 Day']} />
+          <SettingsInputField label="Max Upload Size" value="10 MB" onChange={() => {}} />
+          <SettingsSelectField label="Recycle Bin Retention" value="30 Days" onChange={() => {}} options={['7 Days', '30 Days', '90 Days']} />
+          <SettingsSelectField label="Audit Log Retention" value="1 Year" onChange={() => {}} options={['90 Days', '1 Year', '3 Years']} />
+          <div className="md:col-span-2"><SettingsTextareaField label="Admin Notice" value="Scheduled maintenance notices can be shown to all users from here." onChange={() => {}} rows={3} /></div>
+        </>
+      ),
+    },
+  }[activeTab];
+
+  if (!content) {
+    return null;
+  }
+
+  return (
+    <div className="grid gap-4 p-4 sm:p-5 2xl:grid-cols-[minmax(0,1.25fr)_340px]">
+      <SettingsSectionCard title={content.title} className="shadow-none">
+        <div className="grid gap-4 md:grid-cols-2">{content.fields}</div>
+      </SettingsSectionCard>
+      <div className="space-y-4">
+        <SystemSettingsSidePanel title={content.sideTitle} rows={content.rows} />
+        <SystemSettingsActions actions={content.actions} onNotify={onNotify} />
+      </div>
+      <div className="2xl:col-span-2"><SettingsInfoNote text={`${activeTab} settings will apply after saving changes.`} /></div>
+    </div>
+  );
+}
+
+function SettingsToggleRow({ label, note, enabled, onToggle }) {
+  return (
+    <button type="button" onClick={onToggle} className="rounded-[12px] border border-[#e7eef7] bg-white p-4 text-left transition hover:bg-[#f8fbff]">
+      <span className="flex items-start justify-between gap-3">
+        <span><span className="block text-[13px] font-extrabold text-[#1e3261]">{label}</span><span className="mt-1 block text-[12px] font-bold leading-5 text-[#53647f]">{note}</span></span>
+        <span className={cx('inline-flex h-6 w-11 shrink-0 items-center rounded-full p-1 transition', enabled ? 'bg-[#0d9f4a]' : 'bg-[#dbe4f1]')}>
+          <span className={cx('size-4 rounded-full bg-white transition', enabled ? 'translate-x-5' : 'translate-x-0')} />
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function SystemSettingsSidePanel({ title, rows }) {
+  return (
+    <SettingsSectionCard title={title}>
+      <div className="space-y-1">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-[#edf2f8] py-3 last:border-b-0">
+            <span className="text-[12px] font-bold text-[#7585a2]">{label}</span>
+            <span className="text-right text-[12px] font-extrabold text-[#1e3261]">{value}</span>
+          </div>
+        ))}
+      </div>
+    </SettingsSectionCard>
+  );
+}
+
+function SystemSettingsActions({ actions, onNotify }) {
+  return (
+    <SettingsSectionCard title="Quick Actions">
+      <div className="space-y-2.5">
+        {actions.map((item) => (
+          <button key={item} type="button" onClick={() => onNotify(`${item} opened`)} className="flex w-full items-center gap-3 rounded-[10px] border border-[#e7eef7] bg-white px-3 py-3 text-left transition hover:bg-[#f8fbff]">
+            <span className="grid size-8 place-items-center rounded-full bg-[#eefbf1] text-[#0d9f4a]"><CheckCircle2 className="size-4" /></span>
+            <span className="text-[13px] font-extrabold text-[#1e3261]">{item}</span>
+          </button>
+        ))}
+      </div>
+    </SettingsSectionCard>
   );
 }
 
@@ -13703,13 +14912,13 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
         {heroStats.map((stat) => <ProjectMetricCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.45fr_0.95fr_0.9fr]">
-        <ProjectLineChartCard title="Projects Trend (Monthly)" series={trendSeries} height={256} onNotify={onNotify} />
+      <section className="grid items-start gap-4 xl:grid-cols-[1.45fr_0.95fr_0.9fr]">
+        <ProjectLineChartCard title="Projects Trend (Monthly)" series={trendSeries} height={232} onNotify={onNotify} />
         <ProjectDonutCard title="Projects by Status" totalLabel="Total" totalValue="128" data={statusData} onNotify={onNotify} />
         <ProjectCompletionGauge value={72.45} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[0.95fr_0.95fr_1.25fr]">
+      <section className="grid items-start gap-4 xl:grid-cols-[0.95fr_0.95fr_1.25fr]">
         <ProjectDonutCard title="Projects by Site" totalLabel="Total" totalValue="128" data={siteData} onNotify={onNotify} />
         <ProjectDonutCard title="Projects by Type" totalLabel="Total" totalValue="128" data={typeData} onNotify={onNotify} />
         <ProjectFinancialOverview rows={financialRows} />
@@ -13866,13 +15075,25 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
   );
 }
 
-function ProjectProgressBar({ value }) {
-  const toneClass = value >= 90 ? 'bg-[#14b84c]' : value >= 45 ? 'bg-[#2f80ff]' : value > 0 ? 'bg-[#f59e0b]' : 'bg-[#d9e4f2]';
+function ProjectProgressBar({ value, color, compact = false }) {
+  const toneClass = color === 'green'
+    ? 'bg-[#14b84c]'
+    : color === 'blue'
+      ? 'bg-[#2f80ff]'
+      : color === 'amber'
+        ? 'bg-[#f59e0b]'
+        : value >= 90
+          ? 'bg-[#14b84c]'
+          : value >= 45
+            ? 'bg-[#2f80ff]'
+            : value > 0
+              ? 'bg-[#f59e0b]'
+              : 'bg-[#d9e4f2]';
 
   return (
-    <div className="min-w-[110px]">
-      <p className="text-[12px] font-extrabold text-[#314a79]">{value}%</p>
-      <span className="mt-2 block h-[7px] overflow-hidden rounded-full bg-[#e7eef7]">
+    <div className={cx('min-w-0', compact ? 'max-w-[320px]' : 'min-w-[110px]')}>
+      {!compact ? <p className="text-[12px] font-extrabold text-[#314a79]">{value}%</p> : null}
+      <span className={cx('mt-2 block overflow-hidden rounded-full bg-[#e7eef7]', compact ? 'h-[6px]' : 'h-[7px]')}>
         <span className={cx('block h-full rounded-full', toneClass)} style={{ width: `${Math.max(0, Math.min(value, 100))}%` }} />
       </span>
     </div>
@@ -14078,7 +15299,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
           <section className="grid gap-4 xl:grid-cols-[1.1fr_1.1fr_0.95fr]">
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Project Overview</h2>
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-3">
                 {overviewRows.map((row) => (
                   <div key={row.label} className="grid gap-2 text-[13px] sm:grid-cols-[170px_1fr]">
                     <span className="font-bold text-[#53647f]">{row.label}</span>
@@ -14354,7 +15575,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
 
       <section className={`${panelClass} p-4 sm:p-5`}>
         <div className="grid gap-4 xl:grid-cols-[2fr_repeat(5,minmax(0,1fr))] xl:items-center">
-          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
+          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)]">
             <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
@@ -15031,7 +16252,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[0.95fr_1.45fr_0.95fr]">
+          <section className="grid items-start gap-4 xl:grid-cols-[0.95fr_1.45fr_0.95fr]">
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Details</h2>
               <div className="mt-5 space-y-4">
@@ -15046,7 +16267,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
 
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Progress</h2>
-              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
                 <div className="grid grid-cols-[1.45fr_0.8fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
                   <span>Task / Milestone</span>
                   <span>Status</span>
@@ -15074,7 +16295,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
 
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site & Weather Details</h2>
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-3">
                 {siteWeatherRows.map(([label, value]) => (
                   <div key={label} className="grid gap-2 text-[13px] sm:grid-cols-[130px_1fr]">
                     <span className="font-bold text-[#53647f]">{label}</span>
@@ -15087,16 +16308,16 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             </article>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[1.45fr_0.75fr_0.8fr]">
+          <section className="grid items-start gap-4 xl:grid-cols-[1.45fr_0.75fr_0.8fr]">
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Photos</h2>
                 <button type="button" onClick={() => onNotify('All installation photos opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Photos</button>
               </div>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {photos.map((photo) => (
                   <button key={photo.title} type="button" onClick={() => onNotify(`${photo.title} opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-left transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
-                    <img src={navBarImage} alt={photo.title} className="h-[120px] w-full rounded-[10px] object-cover" />
+                    <img src={navBarImage} alt={photo.title} className="h-[88px] w-full rounded-[10px] object-cover sm:h-[96px]" />
                     <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{photo.title}</p>
                     <p className="mt-2 text-[12px] font-bold text-[#53647f]">{photo.date}</p>
                   </button>
@@ -15109,7 +16330,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Team on Site</h2>
                 <button type="button" onClick={() => onOpenSection('Project Team Assignment')} className="text-[12px] font-extrabold text-[#0b65e5]">View Team</button>
               </div>
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-3">
                 {teamMembers.map((member) => (
                   <div key={member.name} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
                     <div className={cx('grid size-11 place-items-center rounded-full text-[13px] font-extrabold text-white', member.tone === 'green' ? 'bg-[#16a34a]' : member.tone === 'cyan' ? 'bg-[#14b8a6]' : member.tone === 'purple' ? 'bg-[#8b5cf6]' : 'bg-[#d946ef]')}>
@@ -15127,7 +16348,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
 
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Upcoming Activity</h2>
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-3">
                 {upcomingActivities.map((activity) => (
                   <div key={activity.title} className="flex items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3">
                     <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', activity.tone === 'blue' ? 'bg-[#2f80ff]' : activity.tone === 'purple' ? 'bg-[#8b5cf6]' : 'bg-[#f59e0b]')}>
@@ -15258,7 +16479,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
+        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-start">
           <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
             <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
             <div className="min-w-0">
@@ -15290,7 +16511,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <p className="text-[12px] font-extrabold text-[#5b6d8a]">Progress</p>
             <p className="text-[22px] font-extrabold text-[#1e3261]">{project.progress}%</p>
-            <ProjectProgressBar value={project.progress} color="blue" />
+            <ProjectProgressBar value={project.progress} color="blue" compact />
           </div>
         </div>
       </section>
@@ -15545,7 +16766,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
+        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-start">
           <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
             <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
             <div className="min-w-0">
@@ -15577,7 +16798,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <p className="text-[12px] font-extrabold text-[#5b6d8a]">Progress</p>
             <p className="text-[22px] font-extrabold text-[#1e3261]">{project.progress}%</p>
-            <ProjectProgressBar value={project.progress} color="blue" />
+            <ProjectProgressBar value={project.progress} color="blue" compact />
           </div>
         </div>
       </section>
@@ -15611,11 +16832,11 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
             {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[1.8fr_0.9fr]">
+          <section className="grid items-start gap-4 xl:grid-cols-[1.8fr_0.9fr]">
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Plan Summary</h2>
-              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-                <div className="grid grid-cols-[0.45fr_1.45fr_0.6fr_0.5fr_0.75fr_0.8fr_0.8fr_0.8fr_0.85fr_0.95fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+                <div className="grid min-w-[1060px] grid-cols-[0.35fr_1.3fr_0.5fr_0.5fr_0.7fr_0.75fr_0.75fr_0.75fr_0.75fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
                   <span>#</span>
                   <span>Material Category</span>
                   <span>Items</span>
@@ -15629,7 +16850,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
                   <span>Status</span>
                 </div>
                 {materialPlanRows.map((row) => (
-                  <div key={row.id} className="grid grid-cols-[0.45fr_1.45fr_0.6fr_0.5fr_0.75fr_0.8fr_0.8fr_0.8fr_0.85fr_0.95fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <div key={row.id} className="grid min-w-[1060px] grid-cols-[0.35fr_1.3fr_0.5fr_0.5fr_0.7fr_0.75fr_0.75fr_0.75fr_0.75fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
                     <span className="font-extrabold text-[#1e3261]">{row.id}</span>
                     <span className="font-extrabold text-[#1e3261]">{row.category}</span>
                     <span>{row.items}</span>
@@ -15644,7 +16865,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
                   </div>
                 ))}
               </div>
-              <div className="mt-4 flex items-center justify-between text-[13px] font-bold text-[#53647f]">
+              <div className="mt-4 flex flex-col gap-3 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
                 <span>Showing 1 to 10 of 10 entries</span>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => onNotify('Previous materials clicked')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[#284276]">Previous</button>
@@ -15659,7 +16880,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
 
               <article className={`${panelClass} p-4 sm:p-5`}>
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Category-wise Planned Value</h2>
-                <div className="mt-5 space-y-4">
+                <div className="mt-4 space-y-3">
                   {categoryValueRows.map(([label, percent, value]) => (
                     <div key={label} className="grid gap-2 sm:grid-cols-[100px_minmax(0,1fr)_120px] sm:items-center">
                       <span className="text-[13px] font-extrabold text-[#1e3261]">{label}</span>
@@ -15674,12 +16895,12 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
 
               <article className={`${panelClass} p-4 sm:p-5`}>
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Quick Actions</h2>
-                <div className="mt-5 grid grid-cols-2 gap-4">
+                <div className="mt-4 grid grid-cols-2 gap-3">
                   {quickActions.map((action) => {
                     const Icon = action.icon;
                     return (
-                      <button key={action.label} type="button" onClick={() => onNotify(`${action.label} opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-4 text-center transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
-                        <span className={cx('mx-auto grid size-12 place-items-center rounded-[12px]', action.tone === 'green' ? 'bg-[#eefbf1] text-[#16a34a]' : action.tone === 'blue' ? 'bg-[#eef4ff] text-[#2563eb]' : action.tone === 'purple' ? 'bg-[#f4ecff] text-[#8b5cf6]' : 'bg-[#fff4df] text-[#f59e0b]')}>
+                      <button key={action.label} type="button" onClick={() => onNotify(`${action.label} opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-center transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
+                        <span className={cx('mx-auto grid size-10 place-items-center rounded-[12px]', action.tone === 'green' ? 'bg-[#eefbf1] text-[#16a34a]' : action.tone === 'blue' ? 'bg-[#eef4ff] text-[#2563eb]' : action.tone === 'purple' ? 'bg-[#f4ecff] text-[#8b5cf6]' : 'bg-[#fff4df] text-[#f59e0b]')}>
                           <Icon className="size-5" />
                         </span>
                         <span className="mt-3 block text-[13px] font-extrabold text-[#1e3261]">{action.label}</span>
@@ -15691,14 +16912,14 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
             </div>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <section className="grid items-start gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Upcoming Requirements</h2>
                 <button type="button" onClick={() => onNotify('All requirements opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Requirements</button>
               </div>
-              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-                <div className="grid grid-cols-[1.4fr_1fr_0.75fr_0.6fr_0.8fr_1fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+                <div className="grid min-w-[720px] grid-cols-[1.4fr_1fr_0.75fr_0.6fr_0.8fr_1fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
                   <span>Material</span>
                   <span>Required By</span>
                   <span>Required Qty</span>
@@ -15707,7 +16928,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
                   <span>Status</span>
                 </div>
                 {upcomingRequirements.map((row) => (
-                  <div key={row.material} className="grid grid-cols-[1.4fr_1fr_0.75fr_0.6fr_0.8fr_1fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <div key={row.material} className="grid min-w-[720px] grid-cols-[1.4fr_1fr_0.75fr_0.6fr_0.8fr_1fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
                     <span className="font-extrabold text-[#1e3261]">{row.material}</span>
                     <span>{row.requiredBy}</span>
                     <span>{row.qty}</span>
@@ -15724,15 +16945,15 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Top Vendors</h2>
                 <button type="button" onClick={() => onNotify('All vendors opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Vendors</button>
               </div>
-              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-                <div className="grid grid-cols-[1.5fr_0.8fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+                <div className="grid min-w-[560px] grid-cols-[1.5fr_0.8fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
                   <span>Vendor</span>
                   <span>Supplied Items</span>
                   <span>On-Time Delivery</span>
                   <span>Rating</span>
                 </div>
                 {vendors.map((vendor) => (
-                  <div key={vendor.vendor} className="grid grid-cols-[1.5fr_0.8fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <div key={vendor.vendor} className="grid min-w-[560px] grid-cols-[1.5fr_0.8fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
                     <span className="font-extrabold text-[#1e3261]">{vendor.vendor}</span>
                     <span>{vendor.supplied}</span>
                     <span>{vendor.delivery}</span>
@@ -17260,14 +18481,14 @@ function ProjectDonutCard({ title, data, totalLabel, totalValue, onNotify }) {
         <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{title}</h2>
         <button type="button" onClick={() => onNotify(`${title} opened`)} className="text-[12px] font-extrabold text-[#0b65e5]">View</button>
       </div>
-      <div className="mt-5 grid gap-5 md:grid-cols-[170px_minmax(0,1fr)] md:items-center">
-        <div className="mx-auto flex size-[170px] items-center justify-center rounded-full border border-[#edf2f8]" style={{ background: `conic-gradient(${gradient})` }}>
+      <div className="mt-4 grid gap-4 md:grid-cols-[150px_minmax(0,1fr)] md:items-center">
+        <div className="mx-auto flex size-[150px] items-center justify-center rounded-full border border-[#edf2f8]" style={{ background: `conic-gradient(${gradient})` }}>
           <div className="grid size-[86px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(237,242,248,0.9)]">
             <span className="text-[30px] font-extrabold text-[#1f3360]">{totalValue}</span>
             <span className="text-[12px] font-bold text-[#6f7f98]">{totalLabel}</span>
           </div>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {data.map((item) => (
             <div key={item.label} className="flex items-center justify-between gap-3 text-[12px] font-bold text-[#314a79]">
               <span className="inline-flex min-w-0 items-center gap-3">
@@ -17307,8 +18528,8 @@ function ProjectLineChartCard({ title, series, height = 240, onNotify }) {
           <ReportSelect label="Chart View" value="Monthly" onChange={() => onNotify(`${title} view changed`)} options={['Monthly']} hideLabel className="w-[116px]" />
         </div>
       </div>
-      <div className="mt-4">
-        <svg viewBox={`0 0 620 ${height}`} className="h-[260px] w-full">
+      <div className="mt-3 overflow-x-auto">
+        <svg viewBox={`0 0 620 ${height}`} className="h-[232px] min-w-[560px] w-full">
           {[0, 1, 2, 3, 4].map((step) => {
             const value = max - (max / 4) * step;
             const y = 22 + ((height - 56) / 4) * step;
@@ -17359,13 +18580,13 @@ function ProjectCompletionGauge({ value }) {
         <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Completion Rate (%)</h2>
         <span className="text-[11px] font-extrabold text-[#6f7f98]">Overall</span>
       </div>
-      <div className="mt-6">
-        <div className="relative mx-auto h-[160px] w-full max-w-[310px] overflow-hidden">
-          <div className="absolute inset-x-0 bottom-0 mx-auto h-[156px] w-[312px] rounded-t-[312px] border-[22px] border-b-0 border-[#e7edf7]" />
-          <div className="absolute inset-x-0 bottom-0 mx-auto h-[156px] w-[312px] rounded-t-[312px] border-[22px] border-b-0 border-[#1bb14c]" style={{ clipPath: `inset(0 ${100 - value}% 0 0)` }} />
+      <div className="mt-4">
+        <div className="relative mx-auto h-[138px] w-full max-w-[280px] overflow-hidden">
+          <div className="absolute inset-x-0 bottom-0 mx-auto h-[136px] w-[272px] rounded-t-[272px] border-[20px] border-b-0 border-[#e7edf7]" />
+          <div className="absolute inset-x-0 bottom-0 mx-auto h-[136px] w-[272px] rounded-t-[272px] border-[20px] border-b-0 border-[#1bb14c]" style={{ clipPath: `inset(0 ${100 - value}% 0 0)` }} />
           <div className="absolute inset-x-0 bottom-2 text-center">
-            <p className="font-display text-[54px] font-extrabold text-[#111827]">{value.toFixed(2)}%</p>
-            <p className="mt-1 text-[14px] font-bold text-[#53647f]">Overall Completion Rate</p>
+            <p className="font-display text-[46px] font-extrabold text-[#111827]">{value.toFixed(2)}%</p>
+            <p className="mt-1 text-[13px] font-bold text-[#53647f]">Overall Completion Rate</p>
           </div>
         </div>
         <div className="mt-2 flex items-center justify-between text-[13px] font-extrabold text-[#314a79]">
@@ -17381,11 +18602,11 @@ function ProjectFinancialOverview({ rows }) {
   return (
     <article className={`${panelClass} p-4 sm:p-5`}>
       <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Financial Overview</h2>
-      <div className="mt-5 space-y-4">
+      <div className="mt-4 space-y-3">
         {rows.map((row) => {
           const points = buildProjectPolyline(row.points, 190, 62, 10, 10, 12);
           return (
-            <div key={row.label} className="grid gap-4 rounded-[14px] border border-[#edf2f8] p-4 lg:grid-cols-[minmax(0,1fr)_190px] lg:items-center">
+            <div key={row.label} className="grid gap-4 rounded-[14px] border border-[#edf2f8] p-4 lg:grid-cols-[minmax(0,1fr)_170px] lg:items-center">
               <div className="min-w-0">
                 <div className="inline-flex size-10 items-center justify-center rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(236,242,248,0.9)]" style={{ color: row.color }}>
                   <IndianRupee className="size-5" />
@@ -17394,7 +18615,7 @@ function ProjectFinancialOverview({ rows }) {
                 <p className="mt-2 font-display text-[22px] font-extrabold text-[#111827]">{row.value}</p>
                 <p className="mt-2 text-[12px] font-extrabold text-[#14b84c]">↗ {row.change}</p>
               </div>
-              <svg viewBox="0 0 190 62" className="h-[62px] w-full">
+              <svg viewBox="0 0 190 62" className="h-[56px] w-full">
                 <polyline fill="none" stroke={row.color} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" points={points} />
                 {row.points.map((_, index) => {
                   const [cx, cy] = points.split(' ')[index].split(',').map(Number);
@@ -20273,7 +21494,7 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
 
       <form
         id="create-lead-form"
-        className="grid gap-4 xl:grid-cols-2"
+        className="grid items-start gap-4 xl:grid-cols-2"
         onSubmit={(event) => {
           event.preventDefault();
           setDuplicateModalOpen(true);
@@ -20283,7 +21504,6 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
           title="1. Basic Information"
           icon={ReceiptText}
           tone="success"
-          className="xl:min-h-[286px]"
         >
           <div className="grid gap-4 lg:grid-cols-3">
             <LeadInput label="Customer Name" required icon={UserRound} placeholder="Enter customer name" />
@@ -20296,7 +21516,7 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
           </div>
         </LeadFormSection>
 
-        <LeadFormSection title="2. Project Information" icon={ClipboardPlus} tone="primary" className="xl:min-h-[286px]">
+        <LeadFormSection title="2. Project Information" icon={ClipboardPlus} tone="primary">
           <div className="grid gap-4 lg:grid-cols-2">
             <LeadInput label="Project Name" icon={CalendarDays} placeholder="Enter project name" />
             <LeadSelect label="Project Type" placeholder="Select project type" options={['On-Grid', 'Off-Grid', 'Hybrid']} />
@@ -20308,7 +21528,7 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
           </div>
         </LeadFormSection>
 
-        <LeadFormSection title="3. Assignment & Follow-up" icon={UserRound} tone="purple" className="xl:min-h-[256px]">
+        <LeadFormSection title="3. Assignment & Follow-up" icon={UserRound} tone="purple">
           <div className="grid gap-4 lg:grid-cols-3">
             <LeadSelect label="Assigned Employee" required placeholder="Select employee" options={['Rohit Singh', 'Neha Kumari', 'Vikram Patel']} />
             <LeadDateInput label="Follow-up Date" required />
@@ -20320,7 +21540,7 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
           </div>
         </LeadFormSection>
 
-        <LeadFormSection title="4. Location Information" titleSuffix="(Optional)" icon={MapPin} tone="warning" className="xl:min-h-[256px]">
+        <LeadFormSection title="4. Location Information" titleSuffix="(Optional)" icon={MapPin} tone="warning">
           <LeadTextarea label="Address" icon={MapPin} placeholder="Enter full address" />
           <div className="grid gap-4 lg:grid-cols-2">
             <LeadInput label="Latitude" optional icon={MapPin} placeholder="Enter latitude" />
@@ -20357,8 +21577,8 @@ function LeadFormSection({ title, titleSuffix, icon: Icon, tone = 'primary', cla
     }[tone] ?? 'text-[#0b65e5] bg-[#edf5ff]';
 
   return (
-    <section className={cx(`${panelClass} p-5`, className)}>
-      <div className="mb-5 flex items-center gap-3">
+    <section className={cx(`${panelClass} p-4 sm:p-5`, className)}>
+      <div className="mb-4 flex items-center gap-3">
         <span className={cx('grid size-8 place-items-center rounded-[9px]', toneClass)}>
           <Icon className="size-[17px]" />
         </span>
@@ -20367,7 +21587,7 @@ function LeadFormSection({ title, titleSuffix, icon: Icon, tone = 'primary', cla
           {titleSuffix ? <span className="ml-1 font-bold text-[#53647f]">{titleSuffix}</span> : null}
         </h2>
       </div>
-      <div className="space-y-5">{children}</div>
+      <div className="space-y-4">{children}</div>
     </section>
   );
 }
@@ -20854,9 +22074,19 @@ function AddFollowUpModal({ onClose, onSave }) {
 
 function PageHeading({ title, crumbs, actions }) {
   return (
-    <div className="flex flex-col gap-4 rounded-[14px] bg-white/60 p-2 sm:flex-row sm:items-end sm:justify-between">
-      <div><h1 className="font-display text-[24px] font-extrabold text-[#111827] sm:text-[28px]">{title}</h1><div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] font-bold">{crumbs.map((crumb, index) => <span key={`${crumb.label}-${index}`} className="inline-flex items-center gap-2">{crumb.onClick ? <button type="button" onClick={crumb.onClick} className="text-[#0b65e5]">{crumb.label}</button> : <span className="text-[#53647f]">{crumb.label}</span>}{index < crumbs.length - 1 ? <ChevronRight className="size-3.5 text-[#9aa8bc]" /> : null}</span>)}</div></div>
-      {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
+    <div className="page-heading flex min-w-0 flex-col gap-4 rounded-[14px] bg-white/60 p-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="font-display text-[22px] font-extrabold leading-tight text-[#111827] sm:text-[28px]">{title}</h1>
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-[12px] font-bold sm:text-[13px]">
+          {crumbs.map((crumb, index) => (
+            <span key={`${crumb.label}-${index}`} className="inline-flex min-w-0 items-center gap-2">
+              {crumb.onClick ? <button type="button" onClick={crumb.onClick} className="min-w-0 truncate text-[#0b65e5]">{crumb.label}</button> : <span className="min-w-0 truncate text-[#53647f]">{crumb.label}</span>}
+              {index < crumbs.length - 1 ? <ChevronRight className="size-3.5 shrink-0 text-[#9aa8bc]" /> : null}
+            </span>
+          ))}
+        </div>
+      </div>
+      {actions ? <div className="page-heading-actions flex w-full flex-col gap-3 min-[460px]:w-auto min-[460px]:flex-row min-[460px]:flex-wrap sm:justify-end">{actions}</div> : null}
     </div>
   );
 }
