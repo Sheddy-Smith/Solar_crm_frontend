@@ -1928,12 +1928,12 @@ function App() {
                   />
                 </label>
 
-                <div className="header-banner relative min-w-0 overflow-hidden rounded-[10px] border border-[#e5edf6] bg-white p-1 lg:col-span-2 xl:col-span-1">
+                <div className="header-banner relative min-w-0 w-full overflow-hidden rounded-[10px] border border-[#dce8f5] bg-[#eef8fb] lg:col-span-2 xl:col-span-1">
                   <img
                     src={navBarImage}
                     alt="Solar header"
                     decoding="async"
-                    className="h-[52px] w-full rounded-[8px] object-cover object-center sm:h-[58px]"
+                    className="nav-banner-image h-[58px] w-full object-cover sm:h-[64px]"
                   />
                 </div>
 
@@ -3853,7 +3853,7 @@ function SettingsTextareaField({ label, value, onChange, required = false, rows 
 
 function SettingsSectionCard({ title, children, className = '' }) {
   return (
-    <article className={cx(`${panelClass} p-4 sm:p-5`, className)}>
+    <article className={cx(`${panelClass} self-start p-4 sm:p-5`, className)}>
       <h2 className="font-display text-[15px] font-extrabold text-[#111827]">{title}</h2>
       <div className="mt-4">{children}</div>
     </article>
@@ -3928,7 +3928,7 @@ function AccountSettingsTabs({ activeSection, onOpenSection }) {
                 type="button"
                 onClick={() => onOpenSection(getSettingsRouteKey(item.key))}
                 className={cx(
-                  'relative flex min-h-[54px] min-w-[170px] shrink-0 items-center justify-center whitespace-nowrap border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold leading-4 transition last:border-r-0 md:flex-1 md:shrink md:px-5 sm:h-[58px] sm:min-w-[190px] sm:text-[13px]',
+                  'relative flex min-h-[54px] min-w-[170px] shrink-0 items-center justify-center whitespace-nowrap border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold leading-4 transition last:border-r-0 md:min-w-0 md:flex-1 md:shrink md:px-5 sm:h-[58px] sm:min-w-[190px] sm:text-[13px]',
                   active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
                 )}
               >
@@ -3971,7 +3971,7 @@ function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, 
   return (
     <section className={`${panelClass} p-2`}>
       <div className="-mx-1 overflow-x-auto px-1 pb-1 md:mx-0 md:overflow-visible">
-        <div className="flex min-w-max gap-2 md:grid md:min-w-0 md:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+        <div className="settings-category-grid flex min-w-max gap-2 md:grid md:min-w-0">
         {settingsCardGroups.map((group) => {
           const Icon = categoryIcons[group.title] ?? Settings;
           const active = activeGroup?.title === group.title;
@@ -4002,7 +4002,7 @@ function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, 
               <span className={cx('grid size-10 shrink-0 place-items-center rounded-[12px]', categoryTones[group.title] ?? 'bg-[#eef2f7] text-[#53647f]')}>
                 <Icon className="size-4" />
               </span>
-              <span className={cx('text-[13px] font-extrabold leading-5', active ? 'text-[#078c3e]' : 'text-[#1e3261]')}>
+              <span className={cx('min-w-0 max-w-full whitespace-normal break-words text-[13px] font-extrabold leading-5', active ? 'text-[#078c3e]' : 'text-[#1e3261]')}>
                 {group.title}
               </span>
             </button>
@@ -4033,7 +4033,7 @@ function SettingsSubcategoryTabs({ groupTitle, activeSection, onSelectSection })
                 type="button"
                 onClick={() => onSelectSection(item.key)}
                 className={cx(
-                  'relative flex min-h-[54px] min-w-[170px] shrink-0 items-center justify-center whitespace-nowrap border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold leading-4 transition last:border-r-0 md:flex-1 md:shrink md:px-5 sm:h-[58px] sm:min-w-[190px] sm:text-[13px]',
+                  'relative flex min-h-[54px] min-w-[170px] shrink-0 items-center justify-center whitespace-nowrap border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold leading-4 transition last:border-r-0 md:min-w-0 md:flex-1 md:shrink md:px-5 sm:h-[58px] sm:min-w-[190px] sm:text-[13px]',
                   active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
                 )}
               >
@@ -4705,8 +4705,8 @@ function SettingsContentHeader({ title, note, onCancel, onSave }) {
         <p className="mt-1 text-[13px] font-bold text-[#53647f]">{note}</p>
       </div>
       <div className="grid w-full grid-cols-1 gap-3 min-[460px]:w-auto min-[460px]:grid-cols-2 lg:flex lg:flex-wrap">
-        <button type="button" onClick={onCancel} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
-        <button type="button" onClick={onSave} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+        <button type="button" onClick={onCancel} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff] min-[460px]:w-auto"><X className="size-4" />Cancel</button>
+        <button type="button" onClick={onSave} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
       </div>
     </div>
   );
@@ -4868,7 +4868,7 @@ function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, r
   const filteredRows = rows.filter((row) => row.some((cell) => typeof cell === 'string' && cell.toLowerCase().includes(query.toLowerCase())));
 
   return (
-    <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+    <section className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
       <article className="rounded-[14px] border border-[#dbe5f2] bg-white p-4 sm:p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
@@ -5237,7 +5237,7 @@ function PaymentSettingCard({ icon: Icon, iconTone = 'green', title, subtitle, a
   }[iconTone] ?? 'bg-[#eef2f7] text-[#53647f]';
 
   return (
-    <article className="rounded-[14px] border border-[#dbe5f2] bg-white p-4 shadow-[0_10px_22px_rgba(24,48,87,0.04)] sm:p-5">
+    <article className="self-start rounded-[14px] border border-[#dbe5f2] bg-white p-4 shadow-[0_10px_22px_rgba(24,48,87,0.04)] sm:p-5">
       <div className="mb-5 flex flex-col items-start justify-between gap-4 min-[420px]:flex-row">
         <div className="flex min-w-0 items-start gap-3">
           <span className={cx('grid size-10 shrink-0 place-items-center rounded-[12px]', toneClass)}>
@@ -6049,7 +6049,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
         <SettingsNavigationRail activeSection="Business Information" onOpenSection={onOpenSection} onNotify={onNotify} />
 
         <div className="space-y-4">
-          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+          <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
             <SettingsSectionCard title="Business Details">
               <div className="grid gap-4 md:grid-cols-2">
                 <SettingsInputField label="Business Name" value={form.businessName} onChange={(value) => updateField('businessName', value)} required />
@@ -6077,7 +6077,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
             </SettingsSectionCard>
           </section>
 
-          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+          <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
             <SettingsSectionCard title="Business Address">
               <div className="grid gap-4 md:grid-cols-2">
                 <SettingsInputField label="Address Line 1" value={form.address1} onChange={(value) => updateField('address1', value)} required />
@@ -6099,7 +6099,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
             </SettingsSectionCard>
           </section>
 
-          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+          <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
             <SettingsSectionCard title="Business Operations">
               <div className="grid gap-4 md:grid-cols-3">
                 <SettingsInputField label="Working Hours" value={form.workingHours} onChange={(value) => updateField('workingHours', value)} />
@@ -6196,8 +6196,8 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
         ]}
         actions={
           <>
-            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><X className="size-4" />Cancel</button>
-            <button type="button" onClick={() => onNotify('Company profile saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+            <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff] min-[460px]:w-auto"><X className="size-4" />Cancel</button>
+            <button type="button" onClick={() => onNotify('Company profile saved')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
           </>
         }
       />
@@ -6206,20 +6206,20 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
         <SettingsNavigationRail activeSection="Company Profile" onOpenSection={onOpenSection} onNotify={onNotify} />
 
         <div className="space-y-4">
-          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+          <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
             <SettingsSectionCard title="Basic Information">
               <div className="grid gap-4 md:grid-cols-2">
                 <SettingsInputField label="Company Name" value={form.companyName} onChange={(value) => updateField('companyName', value)} required />
                 <SettingsSelectField label="Company Type" value={form.companyType} onChange={(value) => updateField('companyType', value)} options={['Private Limited', 'Partnership', 'Proprietorship', 'LLP']} />
 
-                <div>
+                <div className="min-w-0">
                   <SettingsFieldLabel label="Company Logo" />
                   <div className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <div className="grid size-14 place-items-center rounded-full bg-[#effbf3] text-[#0d9f4a]">
                         <Leaf className="size-7" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-[14px] font-extrabold text-[#14853a]">Malwa Solar Energy</p>
                         <p className="mt-1 text-[12px] font-bold text-[#7585a2]">Current logo</p>
                       </div>
@@ -6227,7 +6227,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
                   </div>
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
                     <div className="text-[12px] font-bold text-[#7585a2]">Upload new logo<br />JPG, PNG (Max. 2MB)</div>
-                    <button type="button" onClick={() => onNotify('Company logo upload opened')} className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">Choose File</button>
+                    <button type="button" onClick={() => onNotify('Company logo upload opened')} className="inline-flex h-10 w-full items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff] sm:w-auto">Choose File</button>
                   </div>
                 </div>
 
@@ -6271,7 +6271,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
             </div>
           </section>
 
-          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+          <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
             <SettingsSectionCard title="Registered Address">
               <div className="grid gap-4 md:grid-cols-2">
                 <SettingsInputField label="Address Line 1" value={form.address1} onChange={(value) => updateField('address1', value)} required />
@@ -12339,7 +12339,7 @@ function PaymentModeListPage({ onOpenSection, onNotify }) {
 
       <SettingsNavigationRail activeSection="Payment Mode" onOpenSection={onOpenSection} onNotify={onNotify} />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         <OpsStatCard label="Total Payment Modes" value="12" caption="All Modes" icon={ReceiptText} tone="blue" onClick={() => onNotify('All payment modes opened')} />
         <OpsStatCard label="Active Modes" value="11" caption="91.67% of total" icon={CheckCircle2} tone="green" onClick={() => setStatus('Active')} />
         <OpsStatCard label="Inactive Modes" value="1" caption="8.33% of total" icon={Minus} tone="amber" onClick={() => setStatus('Inactive')} />
@@ -18914,7 +18914,7 @@ function SettingsActionBadge({ action }) {
 
 function SettingsSidebarInfoCard({ title, icon: Icon, children }) {
   return (
-    <article className={`${panelClass} p-5`}>
+    <article className={`${panelClass} self-start p-5`}>
       <h3 className="flex items-center gap-2 text-[15px] font-extrabold text-[#06135a]">
         <Icon className="size-4 text-[#0b65e5]" />
         {title}
@@ -19071,7 +19071,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       </section>
 
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.45fr_0.8fr_0.8fr_0.95fr_auto_auto] xl:items-end">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(260px,1.45fr)_minmax(150px,0.8fr)_minmax(150px,0.8fr)_minmax(170px,0.95fr)_auto_auto] 2xl:items-end">
           <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <Search className="size-4 text-[#7386a3]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search users by name, email, phone..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
@@ -19079,8 +19079,8 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
           <ReportSelect label="Role" value={role} onChange={setRole} options={['All Roles', ...new Set(users.map((user) => user.role))]} hideLabel />
           <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Inactive']} hideLabel />
           <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branches', ...new Set(users.map((user) => user.branch))]} hideLabel />
-          <button type="button" onClick={() => onNotify(`Users exported: ${filteredUsers.length} rows`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
-          <button type="button" onClick={() => onNotify(`Filters applied: ${filteredUsers.length} users`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filter</button>
+          <button type="button" onClick={() => onNotify(`Users exported: ${filteredUsers.length} rows`)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+          <button type="button" onClick={() => onNotify(`Filters applied: ${filteredUsers.length} users`)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filter</button>
         </div>
       </section>
 
@@ -19105,7 +19105,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
                 <InfoCell label="Branch" value={user.branch} />
                 <InfoCell label="Last Login" value={user.lastLogin} />
               </div>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 grid gap-2 min-[420px]:grid-cols-3">
                 <button type="button" onClick={() => setSelectedUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
                 <button type="button" onClick={() => setEditingUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />Edit</button>
                 <button type="button" onClick={() => toggleUserStatus(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#284276]"><RefreshCw className="size-4" />Status</button>

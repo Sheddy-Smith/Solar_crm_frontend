@@ -162,6 +162,12 @@ a {
   background: linear-gradient(270deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0));
 }
 
+.nav-banner-image {
+  display: block;
+  object-position: center 64%;
+  filter: saturate(1.08) contrast(1.03);
+}
+
 .crm-table {
   border-collapse: collapse;
   width: 100%;
@@ -198,6 +204,14 @@ a {
 .settings-inline-detail .settings-navigation-rail,
 .settings-inline-detail footer {
   display: none;
+}
+
+.settings-category-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.settings-category-grid > button {
+  align-self: stretch;
 }
 
 @media (max-width: 459px) {
@@ -331,6 +345,10 @@ a {
 
   button {
     text-align: center;
+  }
+
+  .settings-category-grid > button {
+    width: 224px;
   }
 }
 
