@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -40,6 +40,7 @@ import {
   MoreVertical,
   PauseCircle,
   Phone,
+  Pin,
   Plus,
   Save,
   ReceiptText,
@@ -47,6 +48,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Star,
   Trophy,
   LogOut,
   Upload,
@@ -15005,6 +15007,7 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
   const [dateFrom, setDateFrom] = useState('2024-04-01');
   const [dateTo, setDateTo] = useState('2025-03-31');
   const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query);
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
   const projectRows = [
@@ -15020,10 +15023,18 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
     { id: 10, projectName: '40kW Hybrid System', customer: 'Mera Electricals', site: 'Ujjain, MP', type: 'Hybrid', capacity: '40.00', status: 'Planning', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-25', targetDate: '2024-06-30', progress: 15 },
   ];
 
-  const filteredRows = projectRows.filter((row) => {
-    const haystack = [row.projectName, row.customer, row.site, row.manager.name].join(' ').toLowerCase();
-    return haystack.includes(query.toLowerCase());
-  });
+  const filteredRows = useMemo(() => {
+    const normalizedQuery = deferredQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return projectRows;
+    }
+
+    return projectRows.filter((row) => {
+      const haystack = [row.projectName, row.customer, row.site, row.manager.name].join(' ').toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [deferredQuery]);
 
   return (
     <div className="space-y-4">
@@ -15171,7 +15182,7 @@ function ProjectProgressBar({ value, color, compact = false }) {
 }
 
 function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
-  const [activeDetailTab, setActiveDetailTab] = useState('Documents');
+  const [activeDetailTab, setActiveDetailTab] = useState('Activities');
 
   const detailTabs = [
     { label: 'Overview', icon: Home },
@@ -15421,6 +15432,81 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
     { name: 'Payment Schedule.pdf', category: 'Financial Documents', uploadedBy: 'Priya Sharma', uploadedOn: '16 May 2024, 11:00 AM', status: 'Pending Review', size: '0.98 MB' },
   ];
 
+  const noteCategories = [
+    { label: 'All Notes', count: 22, tone: 'green', active: true },
+    { label: 'Meeting', count: 4, tone: 'purple' },
+    { label: 'Site Survey', count: 3, tone: 'blue' },
+    { label: 'Planning', count: 2, tone: 'green' },
+    { label: 'Design', count: 2, tone: 'cyan' },
+    { label: 'Procurement', count: 2, tone: 'red' },
+    { label: 'Installation', count: 2, tone: 'blue' },
+    { label: 'Equipment', count: 2, tone: 'amber' },
+    { label: 'Safety', count: 1, tone: 'slate' },
+    { label: 'Feedback', count: 1, tone: 'purple' },
+    { label: 'General', count: 1, tone: 'slate' },
+  ];
+
+  const noteRows = [
+    { title: 'Client meeting notes', category: 'Meeting', createdBy: 'Rohit Singh', createdOn: '10 May 2024, 11:30 AM', updatedOn: '10 May 2024, 11:30 AM', priority: 'High', pinned: true },
+    { title: 'Site survey observations', category: 'Site Survey', createdBy: 'Amit Sharma', createdOn: '09 May 2024, 04:15 PM', updatedOn: '09 May 2024, 04:15 PM', priority: 'Medium' },
+    { title: 'Load analysis summary', category: 'Planning', createdBy: 'Neha Patel', createdOn: '09 May 2024, 12:20 PM', updatedOn: '09 May 2024, 12:20 PM', priority: 'High' },
+    { title: 'Inverter selection notes', category: 'Equipment', createdBy: 'Vikas Kumar', createdOn: '11 May 2024, 10:05 AM', updatedOn: '11 May 2024, 10:05 AM', priority: 'Medium' },
+    { title: 'Structure design remarks', category: 'Design', createdBy: 'Amit Sharma', createdOn: '12 May 2024, 02:40 PM', updatedOn: '12 May 2024, 02:40 PM', priority: 'Medium', pinned: true },
+    { title: 'Material procurement plan', category: 'Procurement', createdBy: 'Mohit Jain', createdOn: '13 May 2024, 09:30 AM', updatedOn: '13 May 2024, 09:30 AM', priority: 'High' },
+    { title: 'Electrical wiring notes', category: 'Installation', createdBy: 'Sunil Kumar', createdOn: '14 May 2024, 03:25 PM', updatedOn: '14 May 2024, 03:25 PM', priority: 'Low' },
+    { title: 'Safety guidelines', category: 'Safety', createdBy: 'Rohit Singh', createdOn: '15 May 2024, 11:10 AM', updatedOn: '15 May 2024, 11:10 AM', priority: 'Medium' },
+    { title: 'Client feedback', category: 'Feedback', createdBy: 'Priya Sharma', createdOn: '16 May 2024, 05:45 PM', updatedOn: '16 May 2024, 05:45 PM', priority: 'High' },
+    { title: 'Next steps & action items', category: 'General', createdBy: 'Rohit Singh', createdOn: '17 May 2024, 10:00 AM', updatedOn: '17 May 2024, 10:00 AM', priority: 'Medium', pinned: true },
+  ];
+
+  const pinnedNotes = [
+    { title: 'Client meeting notes', date: '10 May 2024', category: 'Meeting' },
+    { title: 'Structure design remarks', date: '12 May 2024', category: 'Design' },
+    { title: 'Next steps & action items', date: '17 May 2024', category: 'General' },
+  ];
+
+  const activityStats = [
+    { label: 'Total Activities', value: '28', note: 'All activities', icon: CalendarDays, tone: 'green' },
+    { label: 'Completed', value: '16', note: '57.14%', icon: CheckCircle2, tone: 'blue' },
+    { label: 'In Progress', value: '8', note: '28.57%', icon: Clock3, tone: 'amber' },
+    { label: 'Pending', value: '4', note: '14.29%', icon: PauseCircle, tone: 'purple' },
+    { label: 'Overdue', value: '2', note: '7.14%', icon: XCircle, tone: 'red' },
+  ];
+
+  const activityRows = [
+    { name: 'Site Survey', category: 'Site Survey', assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'purple' }, start: '08 May 2024', due: '10 May 2024', status: 'Completed', priority: 'High', progress: 100 },
+    { name: 'Load Analysis', category: 'Planning', assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, start: '09 May 2024', due: '11 May 2024', status: 'Completed', priority: 'High', progress: 100 },
+    { name: 'System Design', category: 'Design', assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'blue' }, start: '10 May 2024', due: '13 May 2024', status: 'Completed', priority: 'High', progress: 100 },
+    { name: 'Client Approval', category: 'Approvals', assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'green' }, start: '13 May 2024', due: '15 May 2024', status: 'Completed', priority: 'Medium', progress: 100 },
+    { name: 'Material Procurement', category: 'Procurement', assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, start: '14 May 2024', due: '20 May 2024', status: 'In Progress', priority: 'High', progress: 60 },
+    { name: 'Structure Installation', category: 'Installation', assignee: { name: 'Mohit Jain', initials: 'MJ', tone: 'orange' }, start: '18 May 2024', due: '22 May 2024', status: 'In Progress', priority: 'High', progress: 40 },
+    { name: 'Module Installation', category: 'Installation', assignee: { name: 'Sunil Kumar', initials: 'SK', tone: 'red' }, start: '21 May 2024', due: '25 May 2024', status: 'In Progress', priority: 'High', progress: 30 },
+    { name: 'Inverter Installation', category: 'Installation', assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, start: '24 May 2024', due: '27 May 2024', status: 'Pending', priority: 'Medium', progress: 0 },
+    { name: 'Electrical Wiring', category: 'Installation', assignee: { name: 'Sunil Kumar', initials: 'SK', tone: 'red' }, start: '26 May 2024', due: '29 May 2024', status: 'Pending', priority: 'Medium', progress: 0 },
+    { name: 'System Testing', category: 'Commissioning', assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, start: '30 May 2024', due: '31 May 2024', status: 'Pending', priority: 'High', progress: 0 },
+  ];
+
+  const activitySummary = [
+    { label: 'Completed', value: '16 (57.14%)', color: '#16a34a' },
+    { label: 'In Progress', value: '8 (28.57%)', color: '#2563eb' },
+    { label: 'Pending', value: '4 (14.29%)', color: '#f5b500' },
+    { label: 'Overdue', value: '2 (7.14%)', color: '#ef4444' },
+  ];
+
+  const upcomingActivities = [
+    { title: 'Material Procurement', due: 'Due on 20 May 2024', status: 'In Progress' },
+    { title: 'Structure Installation', due: 'Due on 22 May 2024', status: 'In Progress' },
+    { title: 'Module Installation', due: 'Due on 25 May 2024', status: 'In Progress' },
+  ];
+
+  const calendarDays = [
+    { label: '28', muted: true }, { label: '29', muted: true }, { label: '30', muted: true }, { label: '1' }, { label: '2' }, { label: '3' }, { label: '4' },
+    { label: '5' }, { label: '6' }, { label: '7' }, { label: '8' }, { label: '9' }, { label: '10' }, { label: '11' },
+    { label: '12' }, { label: '13' }, { label: '14' }, { label: '15' }, { label: '16' }, { label: '17' }, { label: '18' },
+    { label: '19' }, { label: '20', active: true }, { label: '21' }, { label: '22' }, { label: '23' }, { label: '24' }, { label: '25' },
+    { label: '26' }, { label: '27' }, { label: '28' }, { label: '29' }, { label: '30' }, { label: '31' }, { label: '1', muted: true },
+  ];
+
   const progressBreakdown = [
     { label: 'Completed', value: 13, percent: 65, color: '#16a34a' },
     { label: 'In Progress', value: 5, percent: 25, color: '#2563eb' },
@@ -15495,6 +15581,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
     Progress: 'Track stage-wise progress, task status, ownership and completion percentage for this project.',
     Team: 'Manage project team members, roles, access levels and invitations.',
     Documents: 'Manage project documents, approvals, categories, upload status and secure file access.',
+    Activities: 'Track project activities, due dates, ownership, progress, calendar and upcoming work.',
+    Notes: 'Create, filter and review project notes, pinned updates, categories and follow-up remarks.',
   }[activeDetailTab] ?? `View and manage ${activeDetailTab.toLowerCase()} details associated with this project.`;
 
   return (
@@ -15514,10 +15602,12 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
         {activeDetailDescription}
       </p>
 
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
       <section className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,1.65fr)] 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,2fr)] 2xl:items-center">
           <div className="grid gap-4 sm:grid-cols-[minmax(136px,170px)_minmax(0,1fr)]">
-            <img src={navBarImage} alt={project.name} className="h-[132px] w-full rounded-[8px] object-cover sm:h-[112px]" />
+            <img src={navBarImage} alt={project.name} loading="lazy" decoding="async" className="h-[132px] w-full rounded-[8px] object-cover sm:h-[112px]" />
             <div className="min-w-0">
               <h2 className="font-display text-[22px] font-extrabold leading-tight text-[#06135a] sm:text-[26px]">{project.name}</h2>
               <p className="mt-2 text-[13px] font-bold leading-6 text-[#1f3360]">{project.address}<br />{project.city}</p>
@@ -15562,7 +15652,275 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
         </div>
       </section>
 
-      {activeDetailTab === 'Team' ? (
+      {activeDetailTab === 'Activities' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {activityStats.map((stat) => (
+              <ProjectDocumentStat key={stat.label} stat={stat} />
+            ))}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.86fr)_minmax(300px,0.62fr)]">
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex flex-col gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
+                  <button type="button" onClick={() => onNotify('Activity category filter opened')} className="inline-flex h-10 items-center justify-between gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
+                    All Categories
+                    <ChevronDown className="size-4 text-[#0b65e5]" />
+                  </button>
+                  <button type="button" onClick={() => onNotify('Activity status filter opened')} className="inline-flex h-10 items-center justify-between gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
+                    All Status
+                    <ChevronDown className="size-4 text-[#0b65e5]" />
+                  </button>
+                  <button type="button" onClick={() => onNotify('Activity filters opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
+                    <Filter className="size-4 text-[#0b65e5]" />
+                    Filter
+                  </button>
+                </div>
+                <button type="button" onClick={() => onNotify('Add activity opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+                  <Plus className="size-4" />
+                  Add Activity
+                </button>
+              </div>
+
+              <div className="responsive-scroll overflow-x-auto">
+                <table className="crm-table min-w-[1120px] w-full">
+                  <thead>
+                    <tr>
+                      {['#', 'Activity Name', 'Category', 'Assigned To', 'Start Date', 'Due Date', 'Status', 'Priority', 'Progress', 'Action'].map((header) => (
+                        <th key={header}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activityRows.map((row, index) => (
+                      <tr key={row.name}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.name}</td>
+                        <td><ProjectActivityCategoryBadge category={row.category} /></td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <ProjectTeamAvatar initials={row.assignee.initials} tone={row.assignee.tone} />
+                            <span className="font-bold text-[#1e3261]">{row.assignee.name}</span>
+                          </div>
+                        </td>
+                        <td>{row.start}</td>
+                        <td>{row.due}</td>
+                        <td><ProjectActivityStatusBadge status={row.status} /></td>
+                        <td><ProjectNotePriorityBadge priority={row.priority} /></td>
+                        <td><ProjectProgressInline value={row.progress} status={row.status} tone="blue" /></td>
+                        <td>
+                          <button type="button" onClick={() => onNotify(`${row.name} actions opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}>
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <span>Showing 1 to 10 of 28 entries</span>
+                <div className="inline-flex items-center gap-2">
+                  <PaginationButton onClick={() => onNotify('Activities previous page')}><ChevronLeft className="size-4" /></PaginationButton>
+                  {[1, 2, 3].map((page) => (
+                    <PaginationButton key={page} active={page === 1} onClick={() => onNotify(`Activities page ${page}`)}>{page}</PaginationButton>
+                  ))}
+                  <PaginationButton onClick={() => onNotify('Activities next page')}><ChevronRight className="size-4" /></PaginationButton>
+                </div>
+              </div>
+            </article>
+
+            <aside className="space-y-4">
+              <ProjectActivityCalendar days={calendarDays} onNotify={onNotify} />
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Activity Summary</h2>
+                <div className="mt-5 grid gap-5 sm:grid-cols-[150px_minmax(0,1fr)] xl:grid-cols-1 2xl:grid-cols-[150px_minmax(0,1fr)]">
+                  <ProjectActivitySummaryDonut />
+                  <div className="space-y-3">
+                    {activitySummary.map((item) => (
+                      <div key={item.label} className="flex items-center justify-between gap-3 text-[12px] font-bold text-[#1e3261]">
+                        <span className="inline-flex min-w-0 items-center gap-2">
+                          <span className="size-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: item.color }} />
+                          <span className="truncate">{item.label}</span>
+                        </span>
+                        <span className="shrink-0 font-extrabold">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Upcoming Activities</h2>
+                <div className="mt-5 space-y-4">
+                  {upcomingActivities.map((item) => (
+                    <div key={item.title} className="flex items-start gap-3">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-[9px] bg-[#e8f2ff] text-[#0b65e5]">
+                        <CalendarDays className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{item.title}</span>
+                        <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{item.due}</span>
+                      </span>
+                      <ProjectActivityStatusBadge status={item.status} />
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={() => onNotify('All activities opened')} className="mt-6 inline-flex w-full items-center justify-center gap-2 text-[13px] font-extrabold text-[#0b65e5]">
+                  View All Activities
+                  <ArrowRight className="size-4" />
+                </button>
+              </article>
+            </aside>
+          </section>
+        </>
+      ) : activeDetailTab === 'Notes' ? (
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(300px,0.64fr)]">
+          <div className="space-y-4">
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex flex-col gap-4 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Notes</h2>
+                <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_minmax(150px,0.45fr)_minmax(150px,0.45fr)_auto_auto]">
+                  <label className="relative block">
+                    <Search className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-[#0b65e5]" />
+                    <input type="search" placeholder="Search notes..." className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 pr-11 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </label>
+                  <button type="button" onClick={() => onNotify('Note category filter opened')} className="inline-flex h-11 items-center justify-between gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
+                    All Categories
+                    <ChevronDown className="size-4 text-[#0b65e5]" />
+                  </button>
+                  <button type="button" onClick={() => onNotify('Note creator filter opened')} className="inline-flex h-11 items-center justify-between gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
+                    All Created By
+                    <ChevronDown className="size-4 text-[#0b65e5]" />
+                  </button>
+                  <button type="button" onClick={() => onNotify('Note filters opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
+                    <Filter className="size-4 text-[#0b65e5]" />
+                    Filter
+                  </button>
+                  <button type="button" onClick={() => onNotify('Add note opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+                    <Plus className="size-4" />
+                    Add Note
+                  </button>
+                </div>
+              </div>
+
+              <div className="responsive-scroll overflow-x-auto">
+                <table className="crm-table min-w-[1060px] w-full">
+                  <thead>
+                    <tr>
+                      {['#', 'Note Title', 'Category', 'Created By', 'Created On', 'Updated On', 'Priority', 'Pinned', 'Action'].map((header) => (
+                        <th key={header}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {noteRows.map((row, index) => (
+                      <tr key={row.title}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.title}</td>
+                        <td><ProjectNoteCategoryBadge category={row.category} /></td>
+                        <td>{row.createdBy}</td>
+                        <td>{row.createdOn}</td>
+                        <td>{row.updatedOn}</td>
+                        <td><ProjectNotePriorityBadge priority={row.priority} /></td>
+                        <td>
+                          <Star className={cx('size-4', row.pinned ? 'fill-[#f5b500] text-[#f5b500]' : 'text-[#7b8ca8]')} />
+                        </td>
+                        <td>
+                          <button type="button" onClick={() => onNotify(`${row.title} actions opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.title} actions`}>
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <span>Showing 1 to 10 of 22 entries</span>
+                <div className="inline-flex items-center gap-2">
+                  <PaginationButton onClick={() => onNotify('Notes previous page')}><ChevronLeft className="size-4" /></PaginationButton>
+                  {[1, 2, 3].map((page) => (
+                    <PaginationButton key={page} active={page === 1} onClick={() => onNotify(`Notes page ${page}`)}>{page}</PaginationButton>
+                  ))}
+                  <PaginationButton onClick={() => onNotify('Notes next page')}><ChevronRight className="size-4" /></PaginationButton>
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Add a New Note</h2>
+              <textarea placeholder="Write your note here..." className="mt-4 min-h-[84px] w-full resize-y rounded-[8px] border border-[#d9e4f2] bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+              <div className="mt-4 grid gap-3 md:grid-cols-[minmax(180px,0.35fr)_minmax(180px,0.28fr)_minmax(160px,1fr)_auto] md:items-center">
+                <button type="button" onClick={() => onNotify('New note category opened')} className="inline-flex h-11 items-center justify-between rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#53647f]">
+                  Select Category
+                  <ChevronDown className="size-4 text-[#0b65e5]" />
+                </button>
+                <button type="button" onClick={() => onNotify('New note priority opened')} className="inline-flex h-11 items-center justify-between rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#53647f]">
+                  Select Priority
+                  <ChevronDown className="size-4 text-[#0b65e5]" />
+                </button>
+                <label className="inline-flex h-11 items-center gap-2 text-[13px] font-bold text-[#284276]">
+                  <input type="checkbox" className="size-4 rounded border-[#d9e4f2]" />
+                  <Pin className="size-4 text-[#284276]" />
+                  Pin this note
+                </label>
+                <button type="button" onClick={() => onNotify('Note saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.18)]">
+                  <Save className="size-4" />
+                  Save Note
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <aside className="space-y-4">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Note Categories</h2>
+              <div className="mt-5 space-y-1.5">
+                {noteCategories.map((category) => (
+                  <ProjectNoteCategoryRow key={category.label} category={category} onNotify={onNotify} />
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Pinned Notes</h2>
+              <div className="mt-5 space-y-4">
+                {pinnedNotes.map((note) => (
+                  <div key={note.title} className="flex items-start gap-3">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#f3edff] text-[#4f46e5]">
+                      <Pin className="size-4 fill-current" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{note.title}</span>
+                      <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{note.date}</span>
+                    </span>
+                    <ProjectNoteCategoryBadge category={note.category} />
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Recent Note</h2>
+              <div className="mt-5 flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#e8f2ff] text-[#0b65e5]">
+                  <ClipboardPlus className="size-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-extrabold text-[#1e3261]">Electrical wiring notes</p>
+                  <p className="mt-2 text-[12px] font-bold leading-5 text-[#53647f]">Discussed electrical layout, cable routing and safety measures to be followed during installation.</p>
+                  <p className="mt-2 text-[12px] font-bold text-[#284276]">14 May 2024, 03:25 PM<br />by Sunil Kumar</p>
+                </div>
+              </div>
+            </article>
+          </aside>
+        </section>
+      ) : activeDetailTab === 'Team' ? (
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(180px,0.72fr)]">
             {teamStats.map((stat) => (
@@ -16327,6 +16685,152 @@ function ProjectPermissionRow({ item }) {
   );
 }
 
+function getProjectNoteTone(category) {
+  return {
+    Meeting: 'purple',
+    'Site Survey': 'blue',
+    Planning: 'green',
+    Design: 'cyan',
+    Procurement: 'red',
+    Installation: 'blue',
+    Equipment: 'amber',
+    Safety: 'slate',
+    Feedback: 'purple',
+    General: 'slate',
+    'All Notes': 'green',
+  }[category] ?? 'slate';
+}
+
+function getProjectNoteToneClasses(tone) {
+  return {
+    amber: 'bg-[#fff0dc] text-[#d98200]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+    cyan: 'bg-[#dffafa] text-[#0f9f9f]',
+    green: 'bg-[#dff7e8] text-[#0d9f4a]',
+    purple: 'bg-[#f3edff] text-[#7c3aed]',
+    red: 'bg-[#ffecef] text-[#ef4444]',
+    slate: 'bg-[#eef2f7] text-[#53647f]',
+  }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
+}
+
+function ProjectNoteCategoryBadge({ category }) {
+  const tone = getProjectNoteTone(category);
+  return <span className={cx('inline-flex w-fit whitespace-nowrap rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', getProjectNoteToneClasses(tone))}>{category}</span>;
+}
+
+function ProjectNotePriorityBadge({ priority }) {
+  const classes = {
+    High: 'bg-[#ffecef] text-[#ef4444]',
+    Medium: 'bg-[#fff0dc] text-[#d98200]',
+    Low: 'bg-[#dff7e8] text-[#0d9f4a]',
+  }[priority] ?? 'bg-[#eef2f7] text-[#53647f]';
+  return <span className={cx('inline-flex w-fit rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{priority}</span>;
+}
+
+function ProjectNoteCategoryRow({ category, onNotify }) {
+  const tone = category.tone ?? getProjectNoteTone(category.label);
+  const dotClass = {
+    amber: 'bg-[#f5b500]',
+    blue: 'bg-[#2563eb]',
+    cyan: 'bg-[#12b8ba]',
+    green: 'bg-[#14b84c]',
+    purple: 'bg-[#8b5cf6]',
+    red: 'bg-[#ef2d5a]',
+    slate: 'bg-[#9aa8bc]',
+  }[tone] ?? 'bg-[#9aa8bc]';
+
+  return (
+    <button
+      type="button"
+      onClick={() => onNotify(`${category.label} notes opened`)}
+      className={cx(
+        'flex min-h-9 w-full items-center gap-3 rounded-[8px] px-3 text-left text-[13px] font-bold transition',
+        category.active ? 'bg-[#e8f8eb] text-[#0d9f4a]' : 'text-[#314a79] hover:bg-[#f8fbff]',
+      )}
+    >
+      {category.active ? <FolderKanban className="size-4 shrink-0 text-[#0d9f4a]" /> : <span className={cx('size-2 shrink-0 rounded-full', dotClass)} />}
+      <span className="min-w-0 flex-1 truncate">{category.label}</span>
+      <span className={cx('rounded-[7px] px-2 py-0.5 text-[11px] font-extrabold', category.active ? 'bg-[#dff7e8] text-[#0d9f4a]' : 'bg-[#f5f8fc] text-[#284276]')}>{category.count}</span>
+    </button>
+  );
+}
+
+function getProjectActivityTone(category) {
+  return {
+    'Site Survey': 'blue',
+    Planning: 'green',
+    Design: 'purple',
+    Approvals: 'amber',
+    Procurement: 'cyan',
+    Installation: 'blue',
+    Commissioning: 'purple',
+  }[category] ?? 'slate';
+}
+
+function ProjectActivityCategoryBadge({ category }) {
+  const tone = getProjectActivityTone(category);
+  return <span className={cx('inline-flex w-fit whitespace-nowrap rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', getProjectNoteToneClasses(tone))}>{category}</span>;
+}
+
+function ProjectActivityStatusBadge({ status }) {
+  const classes = {
+    Completed: 'bg-[#dff7e8] text-[#0d9f4a]',
+    'In Progress': 'bg-[#dcecff] text-[#0b65e5]',
+    Pending: 'bg-[#fff0dc] text-[#d98200]',
+    Overdue: 'bg-[#ffecef] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+  return <span className={cx('inline-flex w-fit whitespace-nowrap rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function ProjectActivitySummaryDonut() {
+  return (
+    <div className="mx-auto grid size-[132px] place-items-center rounded-full" style={{ background: 'conic-gradient(#16a34a 0 57%, #2563eb 57% 86%, #f5b500 86% 95%, #ef4444 95% 100%)' }}>
+      <div className="grid size-[86px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_#edf2f8]">
+        <span>
+          <span className="block font-display text-[24px] font-extrabold leading-none text-[#06135a]">28</span>
+          <span className="mt-1 block text-[11px] font-bold text-[#314a79]">Total</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ProjectActivityCalendar({ days, onNotify }) {
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return (
+    <article className={`${panelClass} p-4 sm:p-5`}>
+      <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Calendar</h2>
+      <div className="mt-4 flex items-center justify-between">
+        <button type="button" onClick={() => onNotify('Previous activity month')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#edf2f8] bg-white text-[#0b65e5]" aria-label="Previous activity month">
+          <ChevronLeft className="size-4" />
+        </button>
+        <p className="text-[14px] font-extrabold text-[#06135a]">May 2024</p>
+        <button type="button" onClick={() => onNotify('Next activity month')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#edf2f8] bg-white text-[#0b65e5]" aria-label="Next activity month">
+          <ChevronRight className="size-4" />
+        </button>
+      </div>
+      <div className="mt-4 grid grid-cols-7 gap-1 text-center">
+        {weekdays.map((day) => (
+          <span key={day} className="py-1 text-[11px] font-extrabold text-[#53647f]">{day}</span>
+        ))}
+        {days.map((day, index) => (
+          <button
+            key={`${day.label}-${index}`}
+            type="button"
+            onClick={() => onNotify(`Calendar day ${day.label} opened`)}
+            className={cx(
+              'grid aspect-square min-h-8 place-items-center rounded-full text-[12px] font-bold transition',
+              day.active ? 'bg-[#14b84c] text-white shadow-[0_8px_14px_rgba(20,184,76,0.24)]' : day.muted ? 'text-[#b9c4d6]' : 'text-[#1e3261] hover:bg-[#f5f9ff]',
+            )}
+          >
+            {day.label}
+          </button>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 function ProjectDocumentStat({ stat }) {
   const Icon = stat.icon;
   const toneClass = {
@@ -16506,8 +17010,8 @@ function ProjectProgressStat({ stat, onNotify }) {
   );
 }
 
-function ProjectProgressInline({ value, status }) {
-  const barClass = status === 'Completed' ? 'bg-[#14b84c]' : status === 'In Progress' ? 'bg-[#f59e0b]' : 'bg-[#d0d7e2]';
+function ProjectProgressInline({ value, status, tone }) {
+  const barClass = status === 'Completed' ? 'bg-[#14b84c]' : tone === 'blue' ? 'bg-[#0b65e5]' : status === 'In Progress' ? 'bg-[#f59e0b]' : 'bg-[#d0d7e2]';
 
   return (
     <span className="flex min-w-[150px] items-center gap-3">
@@ -16529,7 +17033,7 @@ function ProjectProgressLegend({ color, label }) {
 }
 
 function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
-  const [viewMode, setViewMode] = useState('Gantt View');
+  const [viewMode, setViewMode] = useState('List View');
 
   const project = {
     name: '20kW On-Grid System',
@@ -16614,6 +17118,18 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
   const viewTabs = ['Gantt View', 'Milestone View', 'List View'];
   const ganttDays = ['6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '1', '2', '3'];
   const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M'];
+  const timelineListRows = [
+    { task: 'Project Planning', category: 'Planning', start: '10 May 2024', end: '15 May 2024', duration: '6 days', status: 'Completed', progress: 100, assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'purple' }, priority: 'High' },
+    { task: 'Requirement Analysis', category: 'Planning', start: '10 May 2024', end: '11 May 2024', duration: '2 days', status: 'Completed', progress: 100, assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, priority: 'Medium' },
+    { task: 'Site Feasibility Study', category: 'Planning', start: '12 May 2024', end: '13 May 2024', duration: '2 days', status: 'Completed', progress: 100, assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'purple' }, priority: 'Medium' },
+    { task: 'System Design', category: 'Planning', start: '14 May 2024', end: '15 May 2024', duration: '2 days', status: 'Completed', progress: 100, assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'purple' }, priority: 'High' },
+    { task: 'Approvals & Documentation', category: 'Approvals', start: '16 May 2024', end: '20 May 2024', duration: '5 days', status: 'In Progress', progress: 60, assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'green' }, priority: 'High' },
+    { task: 'Document Preparation', category: 'Approvals', start: '16 May 2024', end: '17 May 2024', duration: '2 days', status: 'Completed', progress: 100, assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'green' }, priority: 'Medium' },
+    { task: 'Submission & Follow-up', category: 'Approvals', start: '18 May 2024', end: '19 May 2024', duration: '2 days', status: 'In Progress', progress: 50, assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, priority: 'Medium' },
+    { task: 'Approval Received', category: 'Approvals', start: '20 May 2024', end: '20 May 2024', duration: '1 day', status: 'Pending', progress: 0, assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'green' }, priority: 'High' },
+    { task: 'Procurement', category: 'Procurement', start: '21 May 2024', end: '25 May 2024', duration: '5 days', status: 'In Progress', progress: 40, assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, priority: 'High' },
+    { task: 'Material Ordering', category: 'Procurement', start: '21 May 2024', end: '22 May 2024', duration: '2 days', status: 'Completed', progress: 100, assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, priority: 'Medium' },
+  ];
 
   const flattenedRows = timelineGroups.flatMap((group) => [
     { key: group.title, isGroup: true, title: group.title, start: group.start, end: group.end, duration: group.duration, color: group.color, bar: group.bar },
@@ -16640,12 +17156,10 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
         )}
       />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
       <section className={`${panelClass} p-4 sm:p-5`}>
         <div className="grid gap-4 xl:grid-cols-[2fr_repeat(5,minmax(0,1fr))] xl:items-center">
           <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)]">
-            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <img src={navBarImage} alt={project.name} loading="lazy" decoding="async" className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
@@ -16696,16 +17210,81 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
               </button>
             ))}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => onNotify('Timeline moved to today')} className="inline-flex h-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">Today</button>
-            <button type="button" onClick={() => onNotify('Zoom in')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><Search className="size-4" /></button>
-            <button type="button" onClick={() => onNotify('Zoom out')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><Minus className="size-4" /></button>
-            <ReportSelect label="Timeline View" value="Days" onChange={() => onNotify('Timeline view changed')} options={['Days']} hideLabel className="w-[90px]" />
-            <button type="button" onClick={() => onNotify('Timeline fullscreen opened')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><ArrowUpRight className="size-4" /></button>
-          </div>
+          {viewMode === 'List View' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => onNotify('Timeline filters opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+                <Filter className="size-4 text-[#0b65e5]" />
+                Filter
+              </button>
+              <button type="button" onClick={() => onNotify('Timeline status filter opened')} className="inline-flex h-10 items-center justify-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+                All Status
+                <ChevronDown className="size-4 text-[#0b65e5]" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => onNotify('Timeline moved to today')} className="inline-flex h-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">Today</button>
+              <button type="button" onClick={() => onNotify('Zoom in')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><Search className="size-4" /></button>
+              <button type="button" onClick={() => onNotify('Zoom out')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><Minus className="size-4" /></button>
+              <ReportSelect label="Timeline View" value="Days" onChange={() => onNotify('Timeline view changed')} options={['Days']} hideLabel className="w-[90px]" />
+              <button type="button" onClick={() => onNotify('Timeline fullscreen opened')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><ArrowUpRight className="size-4" /></button>
+            </div>
+          )}
         </div>
       </section>
 
+      {viewMode === 'List View' ? (
+        <section className={`${panelClass} overflow-hidden`}>
+          <div className="responsive-scroll overflow-x-auto">
+            <table className="crm-table min-w-[1320px] w-full">
+              <thead>
+                <tr>
+                  {['#', 'Task / Milestone', 'Category', 'Start Date', 'End Date', 'Duration', 'Status', 'Progress', 'Assigned To', 'Priority', 'Actions'].map((header) => (
+                    <th key={header}>{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {timelineListRows.map((row, index) => (
+                  <tr key={row.task}>
+                    <td>{index + 1}</td>
+                    <td className="font-extrabold text-[#1e3261]">{row.task}</td>
+                    <td><ProjectActivityCategoryBadge category={row.category} /></td>
+                    <td>{row.start}</td>
+                    <td>{row.end}</td>
+                    <td>{row.duration}</td>
+                    <td><ProjectActivityStatusBadge status={row.status} /></td>
+                    <td><ProjectProgressInline value={row.progress} status={row.status} tone="blue" /></td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <ProjectTeamAvatar initials={row.assignee.initials} tone={row.assignee.tone} />
+                        <span className="font-bold text-[#1e3261]">{row.assignee.name}</span>
+                      </div>
+                    </td>
+                    <td><ProjectNotePriorityBadge priority={row.priority} /></td>
+                    <td>
+                      <button type="button" onClick={() => onNotify(`${row.task} actions opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.task} actions`}>
+                        <MoreVertical className="size-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <span>Showing 1 to 10 of 16 entries</span>
+            <div className="inline-flex items-center gap-2">
+              <PaginationButton onClick={() => onNotify('Timeline previous page')}><ChevronLeft className="size-4" /></PaginationButton>
+              {[1, 2].map((page) => (
+                <PaginationButton key={page} active={page === 1} onClick={() => onNotify(`Timeline page ${page}`)}>{page}</PaginationButton>
+              ))}
+              <PaginationButton onClick={() => onNotify('Timeline next page')}><ChevronRight className="size-4" /></PaginationButton>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <>
       <section className={`${panelClass} overflow-hidden`}>
         <div className="grid xl:grid-cols-[480px_minmax(0,1fr)]">
           <div className="overflow-x-auto border-b border-[#e7eef7] xl:border-b-0 xl:border-r">
@@ -16841,6 +17420,8 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
           </div>
         </article>
       </section>
+        </>
+      )}
 
       <DashboardFooter />
     </div>

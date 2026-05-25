@@ -290,6 +290,8 @@ a {
 .responsive-scroll,
 .overflow-x-auto {
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable both-edges;
 }
 
 .responsive-scroll > .crm-table,
@@ -333,6 +335,15 @@ a {
 
   .header-banner img {
     height: 44px;
+  }
+
+  .module-tab-scroll {
+    scroll-padding-inline: 12px;
+    scroll-snap-type: x proximity;
+  }
+
+  .module-tab-scroll > * {
+    scroll-snap-align: start;
   }
 
   .crm-table th,
