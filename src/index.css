@@ -168,6 +168,30 @@ a {
   filter: saturate(1.08) contrast(1.03);
 }
 
+.module-tab-scroll {
+  scrollbar-color: #9bb6df #eef4ff;
+  scrollbar-width: thin;
+}
+
+.module-tab-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.module-tab-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid #eef4ff;
+  border-radius: 999px;
+  background: #9bb6df;
+}
+
+.module-tab-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #eef4ff;
+}
+
+.module-tab-button {
+  max-width: none;
+}
+
 .crm-table {
   border-collapse: collapse;
   width: 100%;

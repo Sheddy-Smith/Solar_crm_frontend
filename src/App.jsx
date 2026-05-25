@@ -1268,6 +1268,7 @@ const availableSections = new Set([
   ...sidebarItems.map((item) => item.label),
   ...leadRelatedPages,
   ...employeeRelatedPages,
+  ...projectRelatedPages,
   ...accountsRelatedPages,
   ...inventoryRelatedPages,
   ...liaisonRelatedPages,
@@ -6673,7 +6674,7 @@ function getModuleSubnavLabel(item) {
   return item;
 }
 
-function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false }) {
+function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false, fullLabels = false }) {
   return (
     <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -6683,25 +6684,28 @@ function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenS
         </div>
       </div>
 
-      <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">
-        <div className={cx('flex min-w-max gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
+      <div className="module-tab-scroll -mx-1 mt-4 overflow-x-auto px-1 pb-2">
+        <div className={cx('flex w-max min-w-full gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
           {items.map((item) => {
             const isActive = activeSection === item;
+            const label = fullLabels ? item : getModuleSubnavLabel(item);
             return (
               <button
                 key={item}
                 type="button"
                 onClick={() => onOpenSection(item)}
                 className={cx(
-                  'inline-flex h-[54px] items-center justify-between gap-3 rounded-[12px] border px-4 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
+                  'module-tab-button inline-flex h-[54px] shrink-0 items-center justify-between gap-3 whitespace-nowrap rounded-[12px] border px-4 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
                   compact ? 'min-w-[152px]' : 'min-w-[170px]',
+                  fullLabels && 'min-w-max',
                   wrapOnDesktop && 'xl:min-w-[148px] xl:flex-1',
                   isActive ? activeClasses : 'border-[#d9e4f2] bg-white text-[#314a79] hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
                 )}
+                title={label}
               >
                 <span className="inline-flex min-w-0 items-center gap-3">
                   <span className={cx('size-2 rounded-full', isActive ? activeDotClass : 'bg-[#b9c4d6]')} />
-                  <span className="truncate text-[13px] font-extrabold">{getModuleSubnavLabel(item)}</span>
+                  <span className="text-[13px] font-extrabold">{label}</span>
                 </span>
                 <ChevronRight className={cx('size-4 shrink-0', isActive ? activeIconClass : 'text-[#9aa8bc]')} />
               </button>
@@ -6784,6 +6788,7 @@ function ProjectSubnavTabs({ activeSection, onOpenSection }) {
       activeClasses="border-[#cfe8d6] bg-[#f1fff5] text-[#0b8f43] ring-2 ring-[#e3f8eb]"
       activeDotClass="bg-[#14b84c]"
       activeIconClass="text-[#14b84c]"
+      fullLabels
     />
   );
 }
@@ -15166,7 +15171,7 @@ function ProjectProgressBar({ value, color, compact = false }) {
 }
 
 function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
-  const [activeDetailTab, setActiveDetailTab] = useState('Overview');
+  const [activeDetailTab, setActiveDetailTab] = useState('Documents');
 
   const detailTabs = [
     { label: 'Overview', icon: Home },
@@ -15201,6 +15206,220 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
     systemType: 'Rooftop Solar',
     workDaysLeft: '10 Days',
   };
+
+  const customerRows = [
+    { label: 'Customer Name', value: 'Amit Sharma' },
+    { label: 'Contact Person', value: 'Amit Sharma' },
+    { label: 'Mobile Number', value: '+91 98765 43210', action: 'phone' },
+    { label: 'Email Address', value: 'amit.sharma@email.com', action: 'mail' },
+    { label: 'Address', value: '123, Scheme No. 54, Vijay Nagar\nIndore, Madhya Pradesh - 452010' },
+    { label: 'GST Number', value: '23ABCDE1234F1Z5' },
+    { label: 'PAN Number', value: 'ABCDE1234F' },
+    { label: 'Customer Type', valueNode: <ProjectInfoPill tone="green">Individual</ProjectInfoPill> },
+    { label: 'Registration Date', value: '05 May 2024' },
+  ];
+
+  const siteRows = [
+    { label: 'Site Address', value: '123, Scheme No. 54, Vijay Nagar\nIndore, Madhya Pradesh - 452010' },
+    { label: 'Site Contact Person', value: 'Amit Sharma' },
+    { label: 'Site Contact Number', value: '+91 98765 43210', action: 'phone' },
+    { label: 'Landmark', value: 'Near Vijay Nagar Square' },
+    { label: 'Latitude', value: '22.7196' },
+    { label: 'Longitude', value: '75.8577' },
+    { label: 'Roof Type', value: 'RCC' },
+    { label: 'Installation Type', valueNode: <ProjectInfoPill tone="green">Rooftop</ProjectInfoPill> },
+    { label: 'Site Accessibility', valueNode: <ProjectInfoPill tone="green">Good</ProjectInfoPill> },
+  ];
+
+  const additionalInfo = [
+    [
+      { label: 'Electricity Provider', value: 'MPPKVVCL' },
+      { label: 'Nearest Substation', value: 'Vijay Nagar Substation' },
+    ],
+    [
+      { label: 'Meter Type', value: 'Net Metering' },
+      { label: 'Discom Approval', valueNode: <ProjectInfoPill tone="green">Approved</ProjectInfoPill> },
+    ],
+    [
+      { label: 'Site Survey Date', value: '02 May 2024' },
+      { label: 'Remarks', value: 'Site is suitable for installation.' },
+    ],
+  ];
+
+  const systemOverviewRows = [
+    { label: 'System Type', value: 'On-Grid' },
+    { label: 'System Configuration', value: 'Single Phase' },
+    { label: 'Total Capacity (kWp)', value: '20.00' },
+    { label: 'DC Capacity (kWp)', value: '22.00' },
+    { label: 'AC Capacity (kW)', value: '20.00' },
+    { label: 'Grid Voltage', value: '230V, 50Hz' },
+    { label: 'Commissioning Date', value: '-' },
+    { label: 'Warranty Status', valueNode: <ProjectInfoPill tone="green">Active</ProjectInfoPill> },
+  ];
+
+  const inverterRows = [
+    { label: 'Inverter Brand', value: 'Growatt' },
+    { label: 'Inverter Model', value: 'MIN 20KTL-X' },
+    { label: 'Inverter Capacity', value: '20 kW' },
+    { label: 'Inverter Quantity', value: '1' },
+    { label: 'Inverter Serial No.', value: 'GRW20KTLX123456' },
+    { label: 'Max. Efficiency', value: '98.6%' },
+    { label: 'MPPT Range', value: '200V - 1000V' },
+    { label: 'Warranty', value: '5 Years' },
+  ];
+
+  const panelRows = [
+    { label: 'Panel Brand', value: 'Waaree' },
+    { label: 'Panel Model', value: 'WSMD-550' },
+    { label: 'Panel Capacity', value: '550 Wp' },
+    { label: 'No. of Panels', value: '40' },
+    { label: 'Total DC Capacity', value: '22.00 kWp' },
+    { label: 'Panel Type', value: 'Monocrystalline' },
+    { label: 'Panel Efficiency', value: '21.3%' },
+    { label: 'Warranty', value: '25 Years' },
+  ];
+
+  const protectionRows = [
+    { component: 'ACDB', brand: 'Havells', specification: 'ACDB 2P 63A', quantity: '1', remarks: 'With SPD & MCB' },
+    { component: 'DCDB', brand: 'Havells', specification: 'DCDB 1000V 32A', quantity: '1', remarks: 'With SPD & DC MCB' },
+    { component: 'AC Cable', brand: 'Polycab', specification: '4 Sq.mm', quantity: '50 m', remarks: 'FRLS Copper' },
+    { component: 'DC Cable', brand: 'Polycab', specification: '6 Sq.mm', quantity: '100 m', remarks: 'Solar DC Cable' },
+    { component: 'Earthing', brand: 'UTL', specification: 'GI Earthing Kit', quantity: '1', remarks: 'Complete Set' },
+    { component: 'Net Meter', brand: 'Secure', specification: '3 Phase, 10-60A', quantity: '1', remarks: 'Net Metering Approved' },
+  ];
+
+  const systemDocuments = [
+    { name: 'Single Line Diagram (SLD)', meta: 'PDF - 245 KB' },
+    { name: 'Inverter Datasheet', meta: 'PDF - 512 KB' },
+    { name: 'Panel Datasheet', meta: 'PDF - 620 KB' },
+    { name: 'Layout Drawing', meta: 'PDF - 1.2 MB' },
+    { name: 'Net Meter Approval', meta: 'PDF - 325 KB' },
+  ];
+
+  const progressStages = [
+    { title: 'Lead & Proposal', status: 'Completed', date: '10 May 2024', icon: CheckCircle2, tone: 'green' },
+    { title: 'Site Survey', status: 'Completed', date: '12 May 2024', icon: CheckCircle2, tone: 'green' },
+    { title: 'Design & Approval', status: 'Completed', date: '15 May 2024', icon: CheckCircle2, tone: 'green' },
+    { title: 'Procurement', status: 'In Progress', date: '18 May 2024', icon: Boxes, tone: 'green' },
+    { title: 'Installation', status: 'Pending', date: '', icon: Wrench, tone: 'slate' },
+    { title: 'Testing & Commissioning', status: 'Pending', date: '', icon: Settings, tone: 'slate' },
+    { title: 'Handover', status: 'Pending', date: '', icon: UsersRound, tone: 'slate' },
+  ];
+
+  const progressStats = [
+    { label: 'Overall Progress', value: '58%', note: 'Project is 58% complete', action: 'View Progress Report', icon: BarChart3, tone: 'green', radial: true },
+    { label: 'Completed Tasks', value: '7', detail: 'of 12', note: 'Tasks completed', icon: CheckCircle2, tone: 'green' },
+    { label: 'In Progress Tasks', value: '3', note: 'Tasks in progress', icon: Boxes, tone: 'amber' },
+    { label: 'Pending Tasks', value: '2', note: 'Tasks pending', icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Delayed Tasks', value: '0', note: 'No delayed tasks', icon: FileText, tone: 'red' },
+  ];
+
+  const progressRows = [
+    { stage: 'Lead & Proposal', description: 'Lead received and proposal submitted', start: '10 May 2024', end: '10 May 2024', status: 'Completed', progress: 100, owner: 'Amit Sharma', remarks: '-' },
+    { stage: 'Site Survey', description: 'Site survey and feasibility check', start: '11 May 2024', end: '12 May 2024', status: 'Completed', progress: 100, owner: 'Suresh Patel', remarks: '-' },
+    { stage: 'Design & Approval', description: 'System designing and approval', start: '13 May 2024', end: '15 May 2024', status: 'Completed', progress: 100, owner: 'Neha Verma', remarks: '-' },
+    { stage: 'Procurement', description: 'Material procurement and delivery', start: '16 May 2024', end: '22 May 2024', status: 'In Progress', progress: 60, owner: 'Rohit Singh', remarks: 'Partial material received' },
+    { stage: 'Installation', description: 'System installation at site', start: '23 May 2024', end: '27 May 2024', status: 'Pending', progress: 0, owner: 'Installation Team', remarks: '-' },
+    { stage: 'Testing & Commissioning', description: 'System testing and commissioning', start: '28 May 2024', end: '29 May 2024', status: 'Pending', progress: 0, owner: 'Technical Team', remarks: '-' },
+    { stage: 'Handover', description: 'Project handover to customer', start: '30 May 2024', end: '30 May 2024', status: 'Pending', progress: 0, owner: 'Rohit Singh', remarks: '-' },
+  ];
+
+  const financialStats = [
+    { label: 'Total Project Value', value: 'Rs 8,50,000.00', note: 'Incl. of all taxes', icon: IndianRupee, tone: 'green' },
+    { label: 'Total Received', value: 'Rs 3,40,000.00', note: '40.00% of total', icon: ReceiptText, tone: 'blue' },
+    { label: 'Total Due', value: 'Rs 5,10,000.00', note: '60.00% of total', icon: Hourglass, tone: 'amber' },
+    { label: 'Overdue Amount', value: 'Rs 1,20,000.00', note: 'As on 25 May 2026', icon: CalendarDays, tone: 'purple', alert: true },
+  ];
+
+  const paymentRows = [
+    { milestone: 'Booking Advance', invoice: 'INV-2024-0001', invoiceDate: '10 May 2024', dueDate: '10 May 2024', amount: '85,000.00', received: '85,000.00', status: 'Paid' },
+    { milestone: 'Material Procurement', invoice: 'INV-2024-0002', invoiceDate: '25 May 2024', dueDate: '25 May 2024', amount: '2,12,500.00', received: '2,12,500.00', status: 'Paid' },
+    { milestone: 'Installation & Commissioning', invoice: 'INV-2024-0003', invoiceDate: '20 Jun 2024', dueDate: '20 Jun 2024', amount: '2,12,500.00', received: '1,42,500.00', status: 'Partially Paid' },
+    { milestone: 'Net Metering & Handover', invoice: 'INV-2024-0004', invoiceDate: '10 Jul 2024', dueDate: '10 Jul 2024', amount: '1,70,000.00', received: '0.00', status: 'Pending' },
+    { milestone: 'Final Payment', invoice: 'INV-2024-0005', invoiceDate: '10 Jul 2024', dueDate: '10 Jul 2024', amount: '70,000.00', received: '0.00', status: 'Pending' },
+  ];
+
+  const invoiceRows = paymentRows.map(({ invoice, invoiceDate, amount, status }) => ({
+    invoice,
+    invoiceDate,
+    amount,
+    status,
+  }));
+
+  const paymentSummaryRows = [
+    { label: 'Total Project Value', value: 'Rs 8,50,000.00', color: 'bg-[#dce4ef]' },
+    { label: 'Total Received', value: 'Rs 3,40,000.00', color: 'bg-[#14b84c]' },
+    { label: 'Total Due', value: 'Rs 5,10,000.00', color: 'bg-[#f5b500]' },
+    { label: 'Overdue Amount', value: 'Rs 1,20,000.00', color: 'bg-[#ff6464]', danger: true },
+  ];
+
+  const bankRows = [
+    ['Account Name', 'Malwa Solar Energy Pvt. Ltd.'],
+    ['Bank Name', 'HDFC Bank'],
+    ['Account Number', '50200012345678'],
+    ['IFSC Code', 'HDFC0001234'],
+    ['Account Type', 'Current Account'],
+  ];
+
+  const financialNotes = [
+    'Payment terms: 40% advance, 40% on installation, 20% on handover.',
+    'All payments should be made via NEFT/RTGS to the above bank account.',
+    'Please share payment screenshot for faster reconciliation.',
+    'For any queries, contact your assigned project manager.',
+  ];
+
+  const teamStats = [
+    { label: 'Total Team Members', value: '7', note: 'Active members', icon: UsersRound, tone: 'green' },
+    { label: 'Project Managers', value: '1', note: 'Managing the project', icon: UserPlus, tone: 'blue' },
+    { label: 'Technicians', value: '3', note: 'On-site execution', icon: Wrench, tone: 'amber' },
+    { label: 'Viewers / Others', value: '3', note: 'View only access', icon: Eye, tone: 'purple' },
+  ];
+
+  const teamRows = [
+    { initials: 'RS', name: 'Rohit Singh', self: true, role: 'Project Manager', roleTone: 'green', department: 'Operations', email: 'rohit.singh@malwasolar.com', phone: '+91 98765 43210', access: 'Full Access', accessTone: 'green', status: 'Active', avatarTone: 'green' },
+    { initials: 'AK', name: 'Amit Sharma', role: 'Site Engineer', roleTone: 'blue', department: 'Engineering', email: 'amit.sharma@malwasolar.com', phone: '+91 98260 11223', access: 'Edit Access', accessTone: 'blue', status: 'Active', avatarTone: 'blue' },
+    { initials: 'NP', name: 'Neha Patel', role: 'Design Engineer', roleTone: 'blue', department: 'Engineering', email: 'neha.patel@malwasolar.com', phone: '+91 90987 65432', access: 'Edit Access', accessTone: 'blue', status: 'Active', avatarTone: 'slate' },
+    { initials: 'VK', name: 'Vikas Kumar', role: 'Technician', roleTone: 'amber', department: 'Execution', email: 'vikas.kumar@malwasolar.com', phone: '+91 89654 77890', access: 'Limited Access', accessTone: 'amber', status: 'Active', avatarTone: 'amber' },
+    { initials: 'MJ', name: 'Mohit Jain', role: 'Technician', roleTone: 'amber', department: 'Execution', email: 'mohit.jain@malwasolar.com', phone: '+91 75098 44321', access: 'Limited Access', accessTone: 'amber', status: 'Active', avatarTone: 'orange' },
+    { initials: 'SK', name: 'Sunil Kumar', role: 'Technician', roleTone: 'amber', department: 'Execution', email: 'sunil.kumar@malwasolar.com', phone: '+91 93456 22110', access: 'Limited Access', accessTone: 'amber', status: 'Active', avatarTone: 'red' },
+    { initials: 'PS', name: 'Priya Sharma', role: 'Accountant', roleTone: 'purple', department: 'Finance', email: 'priya.sharma@malwasolar.com', phone: '+91 88199 22334', access: 'View Only', accessTone: 'purple', status: 'Active', avatarTone: 'purple' },
+  ];
+
+  const permissionRows = [
+    { title: 'Full Access', text: 'Can view, edit, approve and manage all project data.', icon: ShieldCheck, tone: 'green' },
+    { title: 'Edit Access', text: 'Can view and edit assigned project data.', icon: FileText, tone: 'blue' },
+    { title: 'Limited Access', text: 'Can view and update limited project data.', icon: LockKeyhole, tone: 'amber' },
+    { title: 'View Only', text: 'Can view project data only.', icon: Eye, tone: 'purple' },
+  ];
+
+  const documentStats = [
+    { label: 'Total Documents', value: '24', note: 'All documents', icon: FolderKanban, tone: 'blue' },
+    { label: 'Approved', value: '14', note: 'Documents', icon: CheckCircle2, tone: 'green' },
+    { label: 'Pending Review', value: '6', note: 'Documents', icon: Clock3, tone: 'amber' },
+    { label: 'Rejected', value: '2', note: 'Documents', icon: XCircle, tone: 'red' },
+    { label: 'Confidential', value: '5', note: 'Documents', icon: LockKeyhole, tone: 'purple' },
+  ];
+
+  const documentCategories = [
+    { label: 'Project Documents', count: 8, active: true, children: [{ label: 'Project Proposals', count: 3 }, { label: 'Agreements & Contracts', count: 2 }, { label: 'Approvals & Permits', count: 3 }] },
+    { label: 'Technical Documents', count: 7 },
+    { label: 'Design & Drawings', count: 4 },
+    { label: 'Installation Documents', count: 3 },
+    { label: 'Financial Documents', count: 2 },
+  ];
+
+  const documentRows = [
+    { name: 'Project Proposal.pdf', category: 'Project Proposals', uploadedBy: 'Rohit Singh', uploadedOn: '10 May 2024, 11:25 AM', status: 'Approved', size: '1.24 MB' },
+    { name: 'Customer Agreement.pdf', category: 'Agreements & Contracts', uploadedBy: 'Rohit Singh', uploadedOn: '10 May 2024, 11:40 AM', status: 'Approved', size: '2.18 MB' },
+    { name: 'Site Ownership Proof.pdf', category: 'Approvals & Permits', uploadedBy: 'Amit Sharma', uploadedOn: '12 May 2024, 09:15 AM', status: 'Pending Review', size: '1.05 MB' },
+    { name: 'Electricity Connection Approval.pdf', category: 'Approvals & Permits', uploadedBy: 'Neha Patel', uploadedOn: '12 May 2024, 09:45 AM', status: 'Approved', size: '1.78 MB' },
+    { name: 'Technical Specification.pdf', category: 'Technical Documents', uploadedBy: 'Amit Sharma', uploadedOn: '13 May 2024, 02:30 PM', status: 'Approved', size: '3.32 MB' },
+    { name: 'Single Line Diagram.pdf', category: 'Design & Drawings', uploadedBy: 'Vikas Kumar', uploadedOn: '14 May 2024, 10:20 AM', status: 'Pending Review', size: '1.66 MB' },
+    { name: 'Foundation Drawings.pdf', category: 'Design & Drawings', uploadedBy: 'Vikas Kumar', uploadedOn: '14 May 2024, 10:35 AM', status: 'Approved', size: '2.54 MB' },
+    { name: 'Installation Plan.pdf', category: 'Installation Documents', uploadedBy: 'Mohit Jain', uploadedOn: '15 May 2024, 03:10 PM', status: 'Rejected', size: '1.12 MB' },
+    { name: 'Material List.pdf', category: 'Installation Documents', uploadedBy: 'Sunil Kumar', uploadedOn: '15 May 2024, 04:00 PM', status: 'Approved', size: '2.01 MB' },
+    { name: 'Payment Schedule.pdf', category: 'Financial Documents', uploadedBy: 'Priya Sharma', uploadedOn: '16 May 2024, 11:00 AM', status: 'Pending Review', size: '0.98 MB' },
+  ];
 
   const progressBreakdown = [
     { label: 'Completed', value: 13, percent: 65, color: '#16a34a' },
@@ -15269,75 +15488,59 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
     }).join(', ');
   })();
 
+  const activeDetailDescription = {
+    'Customer & Site Info': 'View and manage customer details and site information associated with this project.',
+    'System Details': 'View and manage system configuration, inverter, solar panel, electrical protection and technical documents.',
+    Financials: 'Track payment schedule, invoices, received amount, dues, bank details and reconciliation notes.',
+    Progress: 'Track stage-wise progress, task status, ownership and completion percentage for this project.',
+    Team: 'Manage project team members, roles, access levels and invitations.',
+    Documents: 'Manage project documents, approvals, categories, upload status and secure file access.',
+  }[activeDetailTab] ?? `View and manage ${activeDetailTab.toLowerCase()} details associated with this project.`;
+
   return (
     <div className="space-y-4">
       <PageHeading
-        title="Project Details"
+        title={activeDetailTab}
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
-          { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details' },
+          { label: activeDetailTab },
         ]}
         actions={(
-          <>
-            <span className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[#eef5ff] px-4 text-[13px] font-extrabold text-[#2563eb]"><span className="mr-2 size-2 rounded-full bg-[#2563eb]" />In Progress</span>
-            <button type="button" onClick={() => onNotify('Project report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onNotify('Edit project opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Project</button>
-            <button type="button" onClick={() => onNotify('More project actions opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><MoreVertical className="size-4 text-[#0b65e5]" />More</button>
-          </>
+          <button type="button" onClick={() => onNotify(`${activeDetailTab} update opened`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Update Details</button>
         )}
       />
+      <p className="-mt-3 px-2 text-[13px] font-bold text-[#20345f] sm:text-[14px]">
+        {activeDetailDescription}
+      </p>
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 xl:grid-cols-[2.3fr_repeat(6,minmax(0,1fr))] xl:items-start">
-          <div className="grid gap-4 sm:grid-cols-[140px_minmax(0,1fr)] xl:col-span-2">
-            <img src={navBarImage} alt={project.name} className="h-[110px] w-full rounded-[14px] object-cover sm:w-[140px]" />
+      <section className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,1.65fr)] 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,2fr)] 2xl:items-center">
+          <div className="grid gap-4 sm:grid-cols-[minmax(136px,170px)_minmax(0,1fr)]">
+            <img src={navBarImage} alt={project.name} className="h-[132px] w-full rounded-[8px] object-cover sm:h-[112px]" />
             <div className="min-w-0">
-              <h2 className="font-display text-[28px] font-extrabold text-[#111827]">{project.name}</h2>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
-              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <h2 className="font-display text-[22px] font-extrabold leading-tight text-[#06135a] sm:text-[26px]">{project.name}</h2>
+              <p className="mt-2 text-[13px] font-bold leading-6 text-[#1f3360]">{project.address}<br />{project.city}</p>
               <button type="button" onClick={() => onNotify('Project map opened')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View on Map</button>
             </div>
           </div>
 
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Type</p>
-            <ProjectTypeBadge type={project.type} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <ProjectHeroFact label="Project ID" value={project.projectId} />
+            <ProjectHeroFact label="Project Type" valueNode={<ProjectTypeBadge type={project.type} />} />
+            <ProjectHeroFact label="Capacity (kWp)" value={project.capacity} featured />
+            <ProjectHeroFact label="Project Manager" valueNode={<><AssigneeCell assignee={project.manager} compact /><span className="mt-2 block text-[13px] font-bold text-[#1e3261]">+91 98765 43210</span></>} />
+            <ProjectHeroFact label="Start Date" valueNode={<span className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#0b65e5]" />{formatProjectDisplayDate(project.startDate)}</span>} />
           </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Capacity (KWp)</p>
-            <p className="font-display text-[30px] font-extrabold text-[#111827]">{project.capacity}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Customer / Site</p>
-            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.customer}</p>
-            <p className="text-[13px] font-bold text-[#53647f]">{project.site}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
-            <AssigneeCell assignee={project.manager} compact />
-            <p className="text-[13px] font-bold text-[#53647f]">+91 98765 43210</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project ID</p>
-            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.projectId}</p>
-          </div>
+        </div>
+        <div className="mt-5 grid gap-4 border-t border-[#edf2f8] pt-5 sm:grid-cols-2 xl:max-w-[380px]">
+          <ProjectHeroFact label="Target Date" valueNode={<span className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#0b65e5]" />{formatProjectDisplayDate(project.targetDate)}</span>} compact />
+          <ProjectHeroFact label="Status" valueNode={<ProjectInfoPill tone="green">In Progress</ProjectInfoPill>} compact />
         </div>
       </section>
 
-      <section className={`${panelClass} p-3 sm:p-4`}>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+      <section className={`${panelClass} overflow-hidden px-3 pt-3`}>
+        <div className="module-tab-scroll flex gap-2 overflow-x-auto pb-0">
           {detailTabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeDetailTab === tab.label;
@@ -15347,8 +15550,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                 type="button"
                 onClick={() => setActiveDetailTab(tab.label)}
                 className={cx(
-                  'inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
-                  active ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
+                  'relative inline-flex h-12 shrink-0 items-center gap-2 border-b-2 px-3 text-[13px] font-extrabold transition sm:px-4',
+                  active ? 'border-[#14b84c] text-[#0d9f4a]' : 'border-transparent text-[#314a79] hover:border-[#dce6f3] hover:text-[#0b65e5]',
                 )}
               >
                 <Icon className="size-4" />
@@ -15359,7 +15562,505 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
         </div>
       </section>
 
-      {activeDetailTab === 'Overview' ? (
+      {activeDetailTab === 'Team' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(180px,0.72fr)]">
+            {teamStats.map((stat) => (
+              <ProjectDocumentStat key={stat.label} stat={stat} />
+            ))}
+            <div className="flex items-stretch xl:items-center xl:justify-end">
+              <button type="button" onClick={() => onNotify('Add team member opened')} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] xl:w-auto">
+                <Plus className="size-4" />
+                Add Team Member
+              </button>
+            </div>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.9fr)_minmax(310px,0.64fr)]">
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Team Members</h2>
+              </div>
+              <div className="responsive-scroll overflow-x-auto">
+                <table className="crm-table min-w-[1080px] w-full">
+                  <thead>
+                    <tr>
+                      {['#', 'Full Name', 'Role', 'Department', 'Email', 'Phone', 'Access Level', 'Status', 'Action'].map((header) => (
+                        <th key={header}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamRows.map((row, index) => (
+                      <tr key={row.email}>
+                        <td>{index + 1}</td>
+                        <td>
+                          <div className="flex items-center gap-3">
+                            <ProjectTeamAvatar initials={row.initials} tone={row.avatarTone} />
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="truncate font-extrabold text-[#1e3261]">{row.name}</span>
+                              {row.self ? <span className="rounded-[7px] bg-[#dff7e8] px-2 py-0.5 text-[10px] font-extrabold text-[#0d9f4a]">You</span> : null}
+                            </div>
+                          </div>
+                        </td>
+                        <td><ProjectInfoPill label={row.role} tone={row.roleTone} /></td>
+                        <td>{row.department}</td>
+                        <td>{row.email}</td>
+                        <td>{row.phone}</td>
+                        <td><ProjectInfoPill label={row.access} tone={row.accessTone} /></td>
+                        <td><ProjectInfoPill label={row.status} tone="green" /></td>
+                        <td>
+                          <button type="button" onClick={() => onNotify(`${row.name} actions opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}>
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <div className="flex items-center gap-2">
+                  <span>Show</span>
+                  <button type="button" onClick={() => onNotify('Team page size opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
+                    10 <ChevronDown className="size-4 text-[#0b65e5]" />
+                  </button>
+                  <span>entries</span>
+                </div>
+                <span>Showing 1 to 7 of 7 entries</span>
+                <div className="inline-flex items-center gap-2">
+                  <PaginationButton onClick={() => onNotify('Team previous page')}><ChevronLeft className="size-4" /></PaginationButton>
+                  <PaginationButton active onClick={() => onNotify('Team page 1')}>1</PaginationButton>
+                  <PaginationButton onClick={() => onNotify('Team next page')}><ChevronRight className="size-4" /></PaginationButton>
+                </div>
+              </div>
+            </article>
+
+            <aside className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Role & Permissions</h2>
+                <div className="mt-5 space-y-5">
+                  {permissionRows.map((item) => (
+                    <ProjectPermissionRow key={item.title} item={item} />
+                  ))}
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Invite Team Member</h2>
+                <p className="mt-2 text-[12px] font-bold text-[#314a79]">Send invitation to add new team member to this project.</p>
+                <div className="mt-5 space-y-3">
+                  <input type="email" placeholder="Enter email address" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  <button type="button" onClick={() => onNotify('Invite role opened')} className="inline-flex h-11 w-full items-center justify-between rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#53647f]">
+                    Select Role
+                    <ChevronDown className="size-4 text-[#0b65e5]" />
+                  </button>
+                  <button type="button" onClick={() => onNotify('Team invitation sent')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.2)]">
+                    <Mail className="size-4" />
+                    Send Invitation
+                  </button>
+                </div>
+              </article>
+            </aside>
+          </section>
+        </>
+      ) : activeDetailTab === 'Documents' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {documentStats.map((stat) => (
+              <ProjectDocumentStat key={stat.label} stat={stat} />
+            ))}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(260px,0.48fr)_minmax(0,1.52fr)]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Document Categories</h2>
+                <button type="button" onClick={() => onNotify('New document category opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#e8f8eb] px-3 text-[12px] font-extrabold text-[#0d9f4a]">
+                  <Plus className="size-4" />
+                  New Category
+                </button>
+              </div>
+
+              <div className="mt-5 space-y-2">
+                {documentCategories.map((category) => (
+                  <ProjectDocumentCategory key={category.label} category={category} onNotify={onNotify} />
+                ))}
+              </div>
+
+              <div className="mt-8 rounded-[8px] border border-[#dce6f3] bg-white p-4">
+                <div className="flex items-center justify-between gap-3 text-[12px] font-extrabold text-[#1e3261]">
+                  <span>Storage Used</span>
+                  <span className="text-[#0f766e]">24.8%</span>
+                </div>
+                <p className="mt-3 text-[12px] font-bold text-[#1e3261]"><span className="font-extrabold">1.24 GB</span> of 5 GB used</p>
+                <span className="mt-4 block h-3 overflow-hidden rounded-full bg-[#e5ebf4]">
+                  <span className="block h-full w-[24.8%] rounded-full bg-[#14b84c]" />
+                </span>
+              </div>
+            </article>
+
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex flex-col gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">All Documents</h2>
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                  <button type="button" onClick={() => onNotify('Document category filter opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+                    All Categories
+                    <ChevronDown className="size-4 text-[#0b65e5]" />
+                  </button>
+                  <button type="button" onClick={() => onNotify('Document filters opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+                    <Filter className="size-4 text-[#0b65e5]" />
+                    Filters
+                    <ChevronDown className="size-4 text-[#0b65e5]" />
+                  </button>
+                  <button type="button" onClick={() => onNotify('Upload document opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+                    <Upload className="size-4" />
+                    Upload Document
+                  </button>
+                </div>
+              </div>
+
+              <div className="responsive-scroll overflow-x-auto">
+                <table className="crm-table min-w-[1040px] w-full">
+                  <thead>
+                    <tr>
+                      {['#', 'Document Name', 'Category', 'Uploaded By', 'Uploaded On', 'Status', 'Size', 'Action'].map((header) => (
+                        <th key={header}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {documentRows.map((row, index) => (
+                      <tr key={row.name}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.name}</td>
+                        <td>{row.category}</td>
+                        <td>{row.uploadedBy}</td>
+                        <td>{row.uploadedOn}</td>
+                        <td><ProjectDocumentStatusBadge status={row.status} /></td>
+                        <td>{row.size}</td>
+                        <td>
+                          <div className="inline-flex items-center gap-2">
+                            <button type="button" onClick={() => onNotify(`${row.name} viewed`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.name}`}><Eye className="size-4" /></button>
+                            <button type="button" onClick={() => onNotify(`${row.name} downloaded`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${row.name}`}><Download className="size-4" /></button>
+                            <button type="button" onClick={() => onNotify(`${row.name} actions opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}><MoreVertical className="size-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <span>Showing 1 to 10 of 24 entries</span>
+                <div className="inline-flex items-center gap-2">
+                  <PaginationButton onClick={() => onNotify('Documents previous page')}><ChevronLeft className="size-4" /></PaginationButton>
+                  {[1, 2, 3].map((page) => (
+                    <PaginationButton key={page} active={page === 1} onClick={() => onNotify(`Documents page ${page}`)}>{page}</PaginationButton>
+                  ))}
+                  <PaginationButton onClick={() => onNotify('Documents next page')}><ChevronRight className="size-4" /></PaginationButton>
+                </div>
+              </div>
+            </article>
+          </section>
+        </>
+      ) : activeDetailTab === 'Financials' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {financialStats.map((stat) => (
+              <ProjectFinancialStat key={stat.label} stat={stat} />
+            ))}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.95fr)_minmax(330px,1fr)]">
+            <div className="space-y-4">
+              <article className={`${panelClass} overflow-hidden`}>
+                <div className="flex items-center gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                  <span className="grid size-8 place-items-center rounded-[8px] bg-[#dff7e8] text-[#0d9f4a]"><CalendarDays className="size-4" /></span>
+                  <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Payment Schedule</h2>
+                </div>
+                <div className="responsive-scroll overflow-x-auto">
+                  <table className="crm-table min-w-[980px] w-full">
+                    <thead>
+                      <tr>
+                        {['#', 'Milestone / Stage', 'Invoice No.', 'Invoice Date', 'Due Date', 'Amount (Rs)', 'Received (Rs)', 'Status', 'Action'].map((header) => (
+                          <th key={header}>{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paymentRows.map((row, index) => (
+                        <tr key={row.invoice}>
+                          <td>{index + 1}</td>
+                          <td className="font-extrabold text-[#1e3261]">{row.milestone}</td>
+                          <td>{row.invoice}</td>
+                          <td>{row.invoiceDate}</td>
+                          <td>{row.dueDate}</td>
+                          <td>{row.amount}</td>
+                          <td>{row.received}</td>
+                          <td><ProjectPaymentStatusBadge status={row.status} /></td>
+                          <td>
+                            <button type="button" onClick={() => onNotify(`${row.invoice} viewed`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.invoice}`}>
+                              <Eye className="size-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                  <label className="inline-flex items-center gap-2">Show <select className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#1e3261]"><option>10</option></select> entries</label>
+                  <span>Showing 1 to 5 of 5 entries</span>
+                  <div className="inline-flex items-center gap-2">
+                    {[ChevronLeft, ChevronRight].map((Icon, index) => (
+                      <button key={index === 0 ? 'prev' : 'next'} type="button" onClick={() => onNotify('Payment page changed')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]">
+                        <Icon className="size-4" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </article>
+
+              <article className={`${panelClass} overflow-hidden`}>
+                <div className="flex items-center gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                  <span className="grid size-8 place-items-center rounded-[8px] bg-[#dff7e8] text-[#0d9f4a]"><FileText className="size-4" /></span>
+                  <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Invoice History</h2>
+                </div>
+                <div className="responsive-scroll overflow-x-auto">
+                  <table className="crm-table min-w-[720px] w-full">
+                    <thead>
+                      <tr>
+                        {['Invoice No.', 'Invoice Date', 'Amount (Rs)', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoiceRows.map((row) => (
+                        <tr key={row.invoice}>
+                          <td className="font-extrabold text-[#1e3261]">{row.invoice}</td>
+                          <td>{row.invoiceDate}</td>
+                          <td>{row.amount}</td>
+                          <td><ProjectPaymentStatusBadge status={row.status} /></td>
+                          <td>
+                            <div className="inline-flex items-center gap-2">
+                              <button type="button" onClick={() => onNotify(`${row.invoice} viewed`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.invoice}`}><Eye className="size-4" /></button>
+                              <button type="button" onClick={() => onNotify(`${row.invoice} downloaded`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${row.invoice}`}><Download className="size-4" /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+
+            <aside className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Payment Summary</h2>
+                <div className="mt-5 grid gap-5 md:grid-cols-[170px_minmax(0,1fr)] xl:grid-cols-1 2xl:grid-cols-[170px_minmax(0,1fr)]">
+                  <ProjectPaymentDonut />
+                  <div className="space-y-4">
+                    {paymentSummaryRows.map((row) => (
+                      <div key={row.label} className="flex items-center justify-between gap-3 text-[13px] font-bold text-[#1e3261]">
+                        <span className="inline-flex min-w-0 items-center gap-3">
+                          <span className={cx('size-3 rounded-[3px]', row.color)} />
+                          <span>{row.label}</span>
+                        </span>
+                        <span className={cx('shrink-0 font-extrabold', row.danger && 'text-[#ef4444]')}>{row.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </article>
+
+              <ProjectInfoCard title="Bank Details" icon={ReceiptText} tone="green">
+                {bankRows.map(([label, value]) => (
+                  <ProjectInfoRow key={label} row={{ label, value }} compact onNotify={onNotify} />
+                ))}
+              </ProjectInfoCard>
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex items-center gap-3">
+                  <span className="grid size-8 place-items-center rounded-[8px] bg-[#dff7e8] text-[#0d9f4a]"><FileText className="size-4" /></span>
+                  <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Notes</h2>
+                </div>
+                <ul className="mt-4 list-disc space-y-2 pl-5 text-[12px] font-bold leading-6 text-[#1e3261]">
+                  {financialNotes.map((note) => <li key={note}>{note}</li>)}
+                </ul>
+              </article>
+            </aside>
+          </section>
+        </>
+      ) : activeDetailTab === 'Progress' ? (
+        <>
+          <section className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Project Progress Overview</h2>
+              <button type="button" onClick={() => onNotify('Progress view changed')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                View by: Stage
+                <ChevronDown className="size-4 text-[#0b65e5]" />
+              </button>
+            </div>
+
+            <div className="mt-6 overflow-x-auto pb-3">
+              <div className="grid min-w-[960px] grid-cols-7 items-start gap-0">
+                {progressStages.map((stage, index) => (
+                  <ProjectProgressStage key={stage.title} stage={stage} isLast={index === progressStages.length - 1} />
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {progressStats.map((stat) => (
+              <ProjectProgressStat key={stat.label} stat={stat} onNotify={onNotify} />
+            ))}
+          </section>
+
+          <section className={`${panelClass} overflow-hidden`}>
+            <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Task / Stage Details</h2>
+            </div>
+            <div className="responsive-scroll overflow-x-auto">
+              <table className="crm-table min-w-[1120px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Task / Stage', 'Description', 'Planned Start', 'Planned End', 'Status', 'Progress', 'Owner', 'Remarks'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {progressRows.map((row, index) => (
+                    <tr key={row.stage}>
+                      <td>{index + 1}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.stage}</td>
+                      <td>{row.description}</td>
+                      <td>{row.start}</td>
+                      <td>{row.end}</td>
+                      <td><ProjectPhaseBadge label={row.status} /></td>
+                      <td><ProjectProgressInline value={row.progress} status={row.status} /></td>
+                      <td>{row.owner}</td>
+                      <td>{row.remarks}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[12px] font-bold text-[#314a79] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <p>Showing 1 to 7 of 7 entries</p>
+              <div className="flex flex-wrap items-center gap-4">
+                <ProjectProgressLegend color="bg-[#14b84c]" label="Completed" />
+                <ProjectProgressLegend color="bg-[#f59e0b]" label="In Progress" />
+                <ProjectProgressLegend color="bg-[#a8b0bd]" label="Pending" />
+                <ProjectProgressLegend color="bg-[#ef4444]" label="Delayed" />
+              </div>
+            </div>
+          </section>
+        </>
+      ) : activeDetailTab === 'System Details' ? (
+        <>
+          <section className="grid gap-4 xl:grid-cols-3">
+            <ProjectInfoCard title="System Overview" icon={BadgeCheck} tone="green">
+              {systemOverviewRows.map((row) => (
+                <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
+              ))}
+            </ProjectInfoCard>
+
+            <ProjectInfoCard title="Inverter Details" icon={ClipboardPlus} tone="blue">
+              {inverterRows.map((row) => (
+                <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
+              ))}
+            </ProjectInfoCard>
+
+            <ProjectInfoCard title="Solar Panel Details" icon={Zap} tone="amber">
+              {panelRows.map((row) => (
+                <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
+              ))}
+            </ProjectInfoCard>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.9fr)_minmax(320px,0.95fr)]">
+            <ProjectInfoCard title="Electrical & Protection Details" icon={ShieldCheck} tone="purple">
+              <div className="responsive-scroll -mx-4 overflow-x-auto sm:-mx-5">
+                <table className="crm-table min-w-[760px] w-full">
+                  <thead>
+                    <tr>
+                      {['Component', 'Brand / Model', 'Specification', 'Quantity', 'Remarks'].map((header) => (
+                        <th key={header}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {protectionRows.map((row) => (
+                      <tr key={row.component}>
+                        <td>{row.component}</td>
+                        <td>{row.brand}</td>
+                        <td>{row.specification}</td>
+                        <td>{row.quantity}</td>
+                        <td>{row.remarks}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </ProjectInfoCard>
+
+            <ProjectInfoCard title="System Documents" icon={FileText} tone="red">
+              <div className="space-y-3">
+                {systemDocuments.map((doc) => (
+                  <div key={doc.name} className="flex items-center gap-3 rounded-[8px] border border-transparent p-2 transition hover:border-[#edf2f8] hover:bg-[#f8fbff]">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[8px] bg-[#ffecef] text-[#ef4444]">
+                      <FileText className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{doc.name}</span>
+                      <span className="mt-0.5 block text-[11px] font-bold text-[#53647f]">{doc.meta}</span>
+                    </span>
+                    <button type="button" onClick={() => onNotify(`${doc.name} downloaded`)} className="inline-flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5] transition hover:bg-[#f8fbff]" aria-label={`Download ${doc.name}`}>
+                      <Download className="size-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={() => setActiveDetailTab('Documents')} className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#86dba3] bg-white text-[13px] font-extrabold text-[#0d9f4a] transition hover:bg-[#f1fff6]">
+                <FileText className="size-4" />
+                View All Documents
+              </button>
+            </ProjectInfoCard>
+          </section>
+        </>
+      ) : activeDetailTab === 'Customer & Site Info' ? (
+        <>
+          <section className="grid gap-4 xl:grid-cols-2">
+            <ProjectInfoCard title="Customer Information" icon={UserRound} tone="green">
+              {customerRows.map((row) => (
+                <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
+              ))}
+            </ProjectInfoCard>
+
+            <ProjectInfoCard title="Site Information" icon={MapPin} tone="green">
+              {siteRows.map((row) => (
+                <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
+              ))}
+            </ProjectInfoCard>
+          </section>
+
+          <ProjectInfoCard title="Additional Information" icon={Database} tone="blue">
+            <div className="grid gap-4 xl:grid-cols-3">
+              {additionalInfo.map((group, index) => (
+                <div key={group.map((item) => item.label).join('-')} className={cx('space-y-0 xl:px-4', index > 0 && 'xl:border-l xl:border-[#dce6f3]')}>
+                  {group.map((row) => (
+                    <ProjectInfoRow key={row.label} row={row} compact onNotify={onNotify} />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </ProjectInfoCard>
+        </>
+      ) : activeDetailTab === 'Overview' ? (
         <>
           <section className="grid gap-4 xl:grid-cols-[1.1fr_1.1fr_0.95fr]">
             <article className={`${panelClass} p-4 sm:p-5`}>
@@ -15515,12 +16216,315 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
           <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
             Is tab ka dedicated detail panel next pass me aur deep build kiya ja sakta hai. Abhi tab switch working hai aur aap overview par wapas aake complete project snapshot dekh sakte ho.
           </p>
-          <button type="button" onClick={() => setActiveDetailTab('Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Overview</button>
+          <button type="button" onClick={() => setActiveDetailTab('System Details')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to System Details</button>
         </article>
       )}
 
       <DashboardFooter />
     </div>
+  );
+}
+
+function ProjectHeroFact({ label, value, valueNode, featured = false, compact = false }) {
+  return (
+    <div className={cx('min-w-0 space-y-2', compact ? '' : 'lg:border-l lg:border-[#eef3f8] lg:pl-4')}>
+      <p className="text-[12px] font-extrabold text-[#1e3261]">{label}</p>
+      {valueNode ? (
+        <div className="min-w-0">{valueNode}</div>
+      ) : (
+        <p className={cx('font-extrabold text-[#06135a]', featured ? 'font-display text-[26px] leading-tight sm:text-[30px]' : 'text-[14px]')}>{value}</p>
+      )}
+    </div>
+  );
+}
+
+function ProjectInfoCard({ title, icon: Icon, tone = 'green', children }) {
+  const iconClass = {
+    amber: 'bg-[#fff0dc] text-[#f59e0b]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+    green: 'bg-[#dff7e8] text-[#0d9f4a]',
+    purple: 'bg-[#f3edff] text-[#7c3aed]',
+    red: 'bg-[#ffecef] text-[#ef4444]',
+  }[tone] ?? 'bg-[#dff7e8] text-[#0d9f4a]';
+
+  return (
+    <article className={`${panelClass} p-4 sm:p-5`}>
+      <div className="flex items-center gap-3">
+        <span className={cx('grid size-9 place-items-center rounded-full', iconClass)}>
+          <Icon className="size-4" />
+        </span>
+        <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">{title}</h2>
+      </div>
+      <div className="mt-4">{children}</div>
+    </article>
+  );
+}
+
+function ProjectInfoRow({ row, compact = false, onNotify }) {
+  const actionIcon = row.action === 'phone' ? Phone : row.action === 'mail' ? Mail : null;
+  const actionLabel = row.action === 'phone' ? `Call ${row.value}` : `Email ${row.value}`;
+  const ActionIcon = actionIcon;
+
+  return (
+    <div className={cx('grid gap-2 border-b border-[#edf2f8] py-3 text-[13px] last:border-b-0 sm:grid-cols-[minmax(150px,0.7fr)_minmax(0,1fr)]', compact && 'sm:grid-cols-[minmax(145px,0.65fr)_minmax(0,1fr)]')}>
+      <span className="font-bold text-[#1e3261]">{row.label}</span>
+      <span className="flex min-w-0 items-start justify-between gap-3 font-extrabold text-[#1e3261]">
+        <span className="min-w-0 whitespace-pre-line leading-6">{row.valueNode ?? row.value}</span>
+        {ActionIcon ? (
+          <button type="button" onClick={() => onNotify(actionLabel)} className="inline-flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5] transition hover:bg-[#f8fbff]" aria-label={actionLabel}>
+            <ActionIcon className="size-4" />
+          </button>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+function ProjectInfoPill({ tone = 'green', label, children }) {
+  const classes = {
+    amber: 'bg-[#fff0dc] text-[#d98200]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+    green: 'bg-[#dff7e8] text-[#0d9f4a]',
+    purple: 'bg-[#f3edff] text-[#7c3aed]',
+    red: 'bg-[#ffecef] text-[#ef4444]',
+    slate: 'bg-[#eef2f7] text-[#53647f]',
+  }[tone] ?? 'bg-[#dff7e8] text-[#0d9f4a]';
+  return <span className={cx('inline-flex w-fit whitespace-nowrap rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{label ?? children}</span>;
+}
+
+function ProjectTeamAvatar({ initials, tone = 'green' }) {
+  const classes = {
+    amber: 'bg-[#fff0dc] text-[#d98200]',
+    blue: 'bg-[#dcecff] text-[#0b65e5]',
+    green: 'bg-[#dff7e8] text-[#0d9f4a]',
+    orange: 'bg-[#ffedd5] text-[#ea580c]',
+    purple: 'bg-[#f3edff] text-[#7c3aed]',
+    red: 'bg-[#ffecef] text-[#ef4444]',
+    slate: 'bg-[#eef2ff] text-[#475569]',
+  }[tone] ?? 'bg-[#dff7e8] text-[#0d9f4a]';
+  return <span className={cx('grid size-9 shrink-0 place-items-center rounded-full text-[12px] font-extrabold', classes)}>{initials}</span>;
+}
+
+function ProjectPermissionRow({ item }) {
+  const Icon = item.icon;
+  const classes = {
+    amber: 'bg-[#fff0dc] text-[#f59e0b]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+    green: 'bg-[#dff7e8] text-[#0d9f4a]',
+    purple: 'bg-[#f3edff] text-[#7c3aed]',
+  }[item.tone] ?? 'bg-[#e8f2ff] text-[#0b65e5]';
+
+  return (
+    <div className="flex items-start gap-3">
+      <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px]', classes)}>
+        <Icon className="size-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[13px] font-extrabold text-[#1e3261]">{item.title}</span>
+        <span className="mt-1 block text-[12px] font-bold leading-5 text-[#53647f]">{item.text}</span>
+      </span>
+    </div>
+  );
+}
+
+function ProjectDocumentStat({ stat }) {
+  const Icon = stat.icon;
+  const toneClass = {
+    amber: 'border-[#f7e5bd] bg-[#fffaf0] text-[#f59e0b]',
+    blue: 'border-[#dcecff] bg-[#f5f9ff] text-[#0b65e5]',
+    green: 'border-[#d7f0df] bg-[#f4fff7] text-[#0d9f4a]',
+    purple: 'border-[#eadcff] bg-[#fbf7ff] text-[#8b35f6]',
+    red: 'border-[#ffd9df] bg-[#fff5f7] text-[#ef4444]',
+  }[stat.tone] ?? 'border-[#dcecff] bg-[#f5f9ff] text-[#0b65e5]';
+
+  return (
+    <article className={cx(`${panelClass} min-h-[126px] p-4 sm:p-5`, toneClass)}>
+      <div className="flex items-start gap-4">
+        <span className="grid size-12 shrink-0 place-items-center rounded-[14px] bg-current/10">
+          <Icon className="size-5" />
+        </span>
+        <div>
+          <h3 className="font-display text-[14px] font-extrabold text-[#06135a]">{stat.label}</h3>
+          <p className="mt-3 font-display text-[26px] font-extrabold leading-none text-[#06135a]">{stat.value}</p>
+          <p className="mt-3 text-[12px] font-bold text-[#284276]">{stat.note}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ProjectDocumentCategory({ category, onNotify }) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => onNotify(`${category.label} opened`)}
+        className={cx(
+          'flex min-h-11 w-full items-center gap-3 rounded-[8px] px-3 text-left text-[13px] font-extrabold transition',
+          category.active ? 'bg-[#e8f8eb] text-[#06135a]' : 'text-[#1e3261] hover:bg-[#f8fbff]',
+        )}
+      >
+        <ChevronRight className={cx('size-4 shrink-0 text-[#90a1bb]', category.active && 'rotate-90 text-[#0d9f4a]')} />
+        <FolderKanban className="size-4 shrink-0 text-[#1e3261]" />
+        <span className="min-w-0 flex-1 truncate">{category.label}</span>
+        <span className="rounded-[7px] border border-[#dce6f3] bg-white px-2 py-0.5 text-[11px] text-[#0d9f4a]">{category.count}</span>
+      </button>
+      {category.children?.length ? (
+        <div className="mt-1 space-y-1 pl-10">
+          {category.children.map((child) => (
+            <button key={child.label} type="button" onClick={() => onNotify(`${child.label} opened`)} className="flex min-h-9 w-full items-center gap-3 rounded-[8px] px-2 text-left text-[12px] font-bold text-[#284276] hover:bg-[#f8fbff]">
+              <FolderKanban className="size-4 shrink-0 text-[#7b8ca8]" />
+              <span className="min-w-0 flex-1 truncate">{child.label}</span>
+              <span className="rounded-[7px] border border-[#dce6f3] bg-white px-2 py-0.5 text-[11px] text-[#0b65e5]">{child.count}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ProjectDocumentStatusBadge({ status }) {
+  const classes = {
+    Approved: 'bg-[#dff7e8] text-[#0d9f4a]',
+    'Pending Review': 'bg-[#fff0dc] text-[#d98200]',
+    Rejected: 'bg-[#ffecef] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function ProjectFinancialStat({ stat }) {
+  const Icon = stat.icon;
+  const tone = {
+    amber: 'border-[#f7e5bd] bg-[#fffaf0] text-[#f59e0b]',
+    blue: 'border-[#dcecff] bg-[#f5f9ff] text-[#0b65e5]',
+    green: 'border-[#d7f0df] bg-[#f4fff7] text-[#0d9f4a]',
+    purple: 'border-[#eadcff] bg-[#fbf7ff] text-[#9b35f0]',
+  }[stat.tone] ?? 'border-[#dcecff] bg-[#f5f9ff] text-[#0b65e5]';
+
+  return (
+    <article className={cx(`${panelClass} min-h-[132px] p-4 sm:p-5`, tone)}>
+      <div className="flex items-start gap-4">
+        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-current/10">
+          <Icon className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="font-display text-[14px] font-extrabold text-[#06135a]">{stat.label}</h3>
+          <p className="mt-4 font-display text-[24px] font-extrabold leading-tight text-[#06135a]">{stat.value}</p>
+          <p className={cx('mt-3 text-[12px] font-bold', stat.alert ? 'text-[#ef4444]' : 'text-[#284276]')}>{stat.note}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ProjectPaymentStatusBadge({ status }) {
+  const classes = {
+    Paid: 'bg-[#dff7e8] text-[#0d9f4a]',
+    'Partially Paid': 'bg-[#fff0dc] text-[#f59e0b]',
+    Pending: 'bg-[#ffecef] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+
+  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
+}
+
+function ProjectPaymentDonut() {
+  return (
+    <div className="mx-auto grid size-[170px] place-items-center rounded-full" style={{ background: 'conic-gradient(#14b84c 0 40%, #f5b500 40% 78%, #ff6464 78% 86%, #dce4ef 86% 100%)' }}>
+      <div className="grid size-[106px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(237,242,248,0.92)]">
+        <span className="font-display text-[26px] font-extrabold text-[#06135a]">40%</span>
+        <span className="-mt-4 text-[12px] font-extrabold text-[#06135a]">Received</span>
+      </div>
+    </div>
+  );
+}
+
+function ProjectProgressStage({ stage, isLast }) {
+  const Icon = stage.icon;
+  const completed = stage.tone === 'green';
+  const iconClass = completed
+    ? 'border-[#bcefd1] bg-[#0d9f4a] text-white shadow-[0_0_0_8px_rgba(20,184,76,0.13)]'
+    : 'border-[#d8e2ef] bg-[#f8fafc] text-[#1e3261] shadow-[0_0_0_8px_rgba(148,163,184,0.12)]';
+
+  return (
+    <div className="relative flex flex-col items-center px-2 text-center">
+      {!isLast ? (
+        <span className={cx('absolute left-1/2 top-[22px] h-px w-full', completed ? 'bg-[#14b84c]' : 'bg-[#c8d5e6]')} />
+      ) : null}
+      <span className={cx('relative z-10 grid size-12 place-items-center rounded-full border-2', iconClass)}>
+        <Icon className="size-5" />
+      </span>
+      <p className="mt-5 text-[12px] font-extrabold text-[#06135a]">{stage.title}</p>
+      <p className="mt-2 text-[11px] font-bold text-[#53647f]">{stage.status}</p>
+      {stage.date ? <p className="mt-2 text-[11px] font-bold text-[#2d67e1]">{stage.date}</p> : null}
+    </div>
+  );
+}
+
+function ProjectProgressStat({ stat, onNotify }) {
+  const Icon = stat.icon;
+  const toneClass = {
+    amber: 'bg-[#fff0dc] text-[#f59e0b]',
+    blue: 'bg-[#eef5ff] text-[#2563eb]',
+    green: 'bg-[#e8f8eb] text-[#0d9f4a]',
+    red: 'bg-[#ffecef] text-[#ef4444]',
+  }[stat.tone] ?? 'bg-[#eef5ff] text-[#2563eb]';
+
+  if (stat.radial) {
+    return (
+      <article className={`${panelClass} flex min-h-[128px] items-center gap-4 p-4 sm:p-5`}>
+        <div className="grid size-[88px] shrink-0 place-items-center rounded-full" style={{ background: 'conic-gradient(#0d9f4a 0 58%, #edf2f8 58% 100%)' }}>
+          <div className="grid size-[64px] place-items-center rounded-full bg-white text-[18px] font-extrabold text-[#06135a]">{stat.value}</div>
+        </div>
+        <div className="min-w-0">
+          <h3 className="font-display text-[14px] font-extrabold text-[#06135a]">{stat.label}</h3>
+          <p className="mt-3 text-[12px] font-bold text-[#53647f]">{stat.note}</p>
+          <button type="button" onClick={() => onNotify(`${stat.action} opened`)} className="mt-4 inline-flex items-center gap-2 text-[12px] font-extrabold text-[#0b65e5]">
+            {stat.action}
+            <ArrowRight className="size-3.5" />
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <article className={`${panelClass} flex min-h-[128px] items-start gap-4 p-4 sm:p-5`}>
+      <span className={cx('grid size-11 shrink-0 place-items-center rounded-[12px]', toneClass)}>
+        <Icon className="size-5" />
+      </span>
+      <div className="min-w-0">
+        <h3 className="font-display text-[14px] font-extrabold text-[#06135a]">{stat.label}</h3>
+        <p className="mt-5 font-display text-[28px] font-extrabold leading-none text-[#06135a]">
+          {stat.value}
+          {stat.detail ? <span className="ml-2 align-middle text-[12px] font-bold text-[#53647f]">{stat.detail}</span> : null}
+        </p>
+        <p className="mt-3 text-[12px] font-bold text-[#53647f]">{stat.note}</p>
+      </div>
+    </article>
+  );
+}
+
+function ProjectProgressInline({ value, status }) {
+  const barClass = status === 'Completed' ? 'bg-[#14b84c]' : status === 'In Progress' ? 'bg-[#f59e0b]' : 'bg-[#d0d7e2]';
+
+  return (
+    <span className="flex min-w-[150px] items-center gap-3">
+      <span className="w-11 text-[12px] font-extrabold text-[#1e3261]">{value}%</span>
+      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#edf2f8]">
+        <span className={cx('block h-full rounded-full', barClass)} style={{ width: `${Math.max(0, Math.min(value, 100))}%` }} />
+      </span>
+    </span>
+  );
+}
+
+function ProjectProgressLegend({ color, label }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className={cx('size-2.5 rounded-full', color)} />
+      <span>{label}</span>
+    </span>
   );
 }
 
