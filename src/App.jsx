@@ -18570,6 +18570,117 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
     { title: 'Handover to Customer', date: '30 May 2024', status: 'Planned', tone: 'amber' },
   ];
 
+  const systemConfigStats = [
+    { label: 'System Type', value: 'On-Grid', caption: 'Rooftop', icon: FolderKanban, tone: 'blue' },
+    { label: 'DC Capacity', value: '22.00 kWp', caption: '40 panels', icon: Boxes, tone: 'green' },
+    { label: 'AC Capacity', value: '20.00 kW', caption: '1 inverter', icon: Zap, tone: 'amber' },
+    { label: 'String Count', value: '4', caption: '10 panels each', icon: Database, tone: 'purple' },
+  ];
+
+  const systemConfigRows = [
+    ['System Configuration', 'Three Phase On-Grid'],
+    ['Module Brand / Model', 'Waaree WSMD-550'],
+    ['Module Rating', '550 Wp'],
+    ['No. of Modules', '40'],
+    ['Inverter Brand / Model', 'Growatt MIN 20KTL-X'],
+    ['Inverter Capacity', '20 kW'],
+    ['Structure Type', 'GI elevated tilt structure'],
+    ['Monitoring', 'Wi-Fi data logger'],
+  ];
+
+  const stringRows = [
+    { string: 'String 1', panels: 10, capacity: '5.50 kWp', direction: 'South', status: 'Completed' },
+    { string: 'String 2', panels: 10, capacity: '5.50 kWp', direction: 'South', status: 'Completed' },
+    { string: 'String 3', panels: 10, capacity: '5.50 kWp', direction: 'South-West', status: 'In Progress' },
+    { string: 'String 4', panels: 10, capacity: '5.50 kWp', direction: 'South-West', status: 'Pending' },
+  ];
+
+  const materialStats = [
+    { label: 'Total Items', value: '42', caption: 'Installation BOM', icon: Boxes, tone: 'blue' },
+    { label: 'Issued', value: '38', caption: '90.48%', icon: CheckCircle2, tone: 'green' },
+    { label: 'Pending', value: '4', caption: 'To be issued', icon: Hourglass, tone: 'amber' },
+    { label: 'Consumed', value: '31', caption: 'Site usage', icon: ClipboardPlus, tone: 'purple' },
+  ];
+
+  const materialRows = [
+    { item: 'Solar Module 550Wp', category: 'Panel', required: '40 Nos', issued: '40 Nos', consumed: '32 Nos', status: 'In Progress' },
+    { item: '20kW On-Grid Inverter', category: 'Inverter', required: '1 Nos', issued: '1 Nos', consumed: '1 Nos', status: 'Completed' },
+    { item: 'GI Mounting Structure', category: 'Structure', required: '1 Set', issued: '1 Set', consumed: '1 Set', status: 'Completed' },
+    { item: 'DC Cable 6 sq.mm', category: 'Cable', required: '100 m', issued: '100 m', consumed: '70 m', status: 'In Progress' },
+    { item: 'AC Cable 4 sq.mm', category: 'Cable', required: '50 m', issued: '30 m', consumed: '0 m', status: 'Pending' },
+    { item: 'MC4 Connector', category: 'Accessory', required: '24 Pair', issued: '24 Pair', consumed: '18 Pair', status: 'In Progress' },
+  ];
+
+  const equipmentRows = [
+    ['Drilling Machine', '2 Nos', 'Available'],
+    ['Torque Wrench', '2 Nos', 'Available'],
+    ['Safety Harness', '8 Nos', 'Available'],
+    ['Crimping Tool', '1 Nos', 'Available'],
+    ['Insulation Tester', '1 Nos', 'Pending'],
+  ];
+
+  const workProgressStats = [
+    { label: 'Overall Progress', value: '65%', caption: '13 of 20 tasks', icon: BarChart3, tone: 'green' },
+    { label: 'Completed Tasks', value: '5', caption: 'Milestones done', icon: CheckCircle2, tone: 'blue' },
+    { label: 'In Progress', value: '2', caption: 'Active work', icon: Clock3, tone: 'amber' },
+    { label: 'Pending', value: '2', caption: 'Upcoming work', icon: Hourglass, tone: 'purple' },
+  ];
+
+  const dailyProgressRows = [
+    { date: '18 May 2024', activity: 'Material delivery and site setup', team: 'Logistics', progress: 100, remarks: 'Completed' },
+    { date: '19 May 2024', activity: 'Structure marking and drilling', team: 'Installation', progress: 100, remarks: 'Completed' },
+    { date: '22 May 2024', activity: 'Module mounting started', team: 'Installation', progress: 70, remarks: '32 panels installed' },
+    { date: '23 May 2024', activity: 'DC wiring and string routing', team: 'Electrical', progress: 60, remarks: '2 strings pending' },
+    { date: '25 May 2024', activity: 'Inverter placement and mounting', team: 'Electrical', progress: 100, remarks: 'Completed' },
+  ];
+
+  const qualityStats = [
+    { label: 'QA Progress', value: '78%', caption: '14 of 18 checks', icon: CheckCircle2, tone: 'green' },
+    { label: 'Passed', value: '14', caption: 'Quality checks', icon: BadgeCheck, tone: 'blue' },
+    { label: 'Pending', value: '4', caption: 'Before handover', icon: Hourglass, tone: 'amber' },
+    { label: 'Issues', value: '0', caption: 'No rejection', icon: XCircle, tone: 'green' },
+  ];
+
+  const qualitySections = [
+    { title: 'Structure QA', items: [['Anchor bolts tightened', true], ['Tilt alignment checked', true], ['Rust protection verified', true], ['Walkway clearance maintained', true]] },
+    { title: 'Module QA', items: [['Panel clamps tightened', true], ['Module serials captured', true], ['Glass condition checked', true], ['String polarity checked', false]] },
+    { title: 'Electrical QA', items: [['DC cable ferruling done', true], ['AC termination checked', false], ['Earthing continuity checked', false], ['Inverter startup test', false]] },
+  ];
+
+  const safetyStats = [
+    { label: 'Safety Score', value: '100%', caption: 'No incident', icon: ShieldCheck, tone: 'green' },
+    { label: 'PPE Compliance', value: '8 / 8', caption: 'All workers', icon: Users, tone: 'blue' },
+    { label: 'Toolbox Talks', value: '4', caption: 'Completed', icon: ClipboardPlus, tone: 'purple' },
+    { label: 'Incidents', value: '0', caption: 'Safe site', icon: CheckCircle2, tone: 'green' },
+  ];
+
+  const safetyRows = [
+    { item: 'Helmet and safety shoes', owner: 'All team', status: 'Completed', priority: 'High' },
+    { item: 'Lifeline and harness at height', owner: 'Safety Officer', status: 'Completed', priority: 'High' },
+    { item: 'Electrical isolation before work', owner: 'Electrician', status: 'Completed', priority: 'High' },
+    { item: 'Material lifting barricade', owner: 'Supervisor', status: 'Completed', priority: 'Medium' },
+    { item: 'Fire extinguisher near inverter', owner: 'Site Engineer', status: 'In Progress', priority: 'Medium' },
+  ];
+
+  const installationDocumentRows = [
+    { name: 'Installation Checklist.pdf', category: 'Quality', uploadedBy: 'Vikram Singh', date: '25 May 2024', size: '1.1 MB', status: 'Approved' },
+    { name: 'Panel Serial Register.xlsx', category: 'Material', uploadedBy: 'Ramesh Yadav', date: '24 May 2024', size: '860 KB', status: 'Approved' },
+    { name: 'Safety Compliance Photos.zip', category: 'Safety', uploadedBy: 'Sunil Patidar', date: '23 May 2024', size: '4.2 MB', status: 'Approved' },
+    { name: 'Inverter Installation Report.pdf', category: 'Electrical', uploadedBy: 'Amit Joshi', date: '25 May 2024', size: '1.6 MB', status: 'Pending Review' },
+    { name: 'Commissioning Precheck.pdf', category: 'Testing', uploadedBy: 'Neha Jain', date: '28 May 2024', size: '1.3 MB', status: 'Pending Review' },
+  ];
+
+  const installationSummaryRows = [
+    ['Installation Status', 'In Progress'],
+    ['Overall Progress', '65%'],
+    ['Installed Modules', '32 of 40'],
+    ['Structure Status', 'Completed'],
+    ['Inverter Status', 'Installed'],
+    ['Pending Work', 'AC wiring, testing and commissioning'],
+    ['Target Completion', '28 May 2024'],
+    ['Handover Plan', '30 May 2024'],
+  ];
+
   return (
     <div className="space-y-4">
       <PageHeading
