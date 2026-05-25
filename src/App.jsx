@@ -17115,6 +17115,100 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
     { label: 'Not Started', value: '0', icon: XCircle, tone: 'slate' },
   ];
 
+  const milestoneStats = [
+    { label: 'Total Milestones', value: '6', note: 'All stages', icon: Flag, tone: 'blue' },
+    { label: 'Completed', value: '3', note: '50.00%', icon: CheckCircle2, tone: 'green' },
+    { label: 'In Progress', value: '2', note: '33.33%', icon: Clock3, tone: 'amber' },
+    { label: 'Pending', value: '1', note: '16.67%', icon: PauseCircle, tone: 'purple' },
+  ];
+
+  const milestoneRows = [
+    {
+      title: 'Project Planning',
+      category: 'Planning',
+      start: '10 May 24',
+      end: '15 May 24',
+      duration: '6 days',
+      owner: 'Amit Sharma',
+      status: 'Completed',
+      progress: 100,
+      color: '#16a34a',
+      deliverables: ['Requirement Analysis', 'Site Feasibility', 'System Design'],
+      dependency: 'Lead conversion',
+      risk: 'Low',
+    },
+    {
+      title: 'Approvals & Documentation',
+      category: 'Approvals',
+      start: '16 May 24',
+      end: '20 May 24',
+      duration: '5 days',
+      owner: 'Rohit Singh',
+      status: 'Completed',
+      progress: 100,
+      color: '#2563eb',
+      deliverables: ['Document Preparation', 'Submission', 'Approval Received'],
+      dependency: 'Planning sign-off',
+      risk: 'Medium',
+    },
+    {
+      title: 'Procurement',
+      category: 'Procurement',
+      start: '21 May 24',
+      end: '25 May 24',
+      duration: '5 days',
+      owner: 'Vikas Kumar',
+      status: 'In Progress',
+      progress: 60,
+      color: '#8b5cf6',
+      deliverables: ['Material Ordering', 'Material Delivery'],
+      dependency: 'Approved BOM',
+      risk: 'Medium',
+    },
+    {
+      title: 'Installation',
+      category: 'Installation',
+      start: '26 May 24',
+      end: '30 May 24',
+      duration: '5 days',
+      owner: 'Installation Team',
+      status: 'In Progress',
+      progress: 35,
+      color: '#f59e0b',
+      deliverables: ['Site Preparation', 'System Installation'],
+      dependency: 'Material delivery',
+      risk: 'High',
+    },
+    {
+      title: 'Testing & Commissioning',
+      category: 'Commissioning',
+      start: '31 May 24',
+      end: '03 Jun 24',
+      duration: '4 days',
+      owner: 'Technical Team',
+      status: 'Pending',
+      progress: 0,
+      color: '#14b8a6',
+      deliverables: ['System Testing', 'Discom Sync', 'Commissioning Report'],
+      dependency: 'Installation completion',
+      risk: 'Medium',
+    },
+    {
+      title: 'Project Handover',
+      category: 'Handover',
+      start: '03 Jun 24',
+      end: '03 Jun 24',
+      duration: '1 day',
+      owner: 'Rohit Singh',
+      status: 'Pending',
+      progress: 0,
+      color: '#ec4899',
+      deliverables: ['Customer Training', 'Warranty Docs', 'Final Sign-off'],
+      dependency: 'Commissioning approval',
+      risk: 'Low',
+    },
+  ];
+
   const viewTabs = ['Gantt View', 'Milestone View', 'List View'];
   const ganttDays = ['6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '1', '2', '3'];
   const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M'];
@@ -17221,6 +17315,17 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
                 <ChevronDown className="size-4 text-[#0b65e5]" />
               </button>
             </div>
+          ) : viewMode === 'Milestone View' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => onNotify('Critical milestones filtered')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+                <Flag className="size-4 text-[#0b65e5]" />
+                Critical Path
+              </button>
+              <button type="button" onClick={() => onNotify('Milestone owner filter opened')} className="inline-flex h-10 items-center justify-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+                All Owners
+                <ChevronDown className="size-4 text-[#0b65e5]" />
+              </button>
+            </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => onNotify('Timeline moved to today')} className="inline-flex h-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">Today</button>
@@ -17283,6 +17388,132 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
             </div>
           </div>
         </section>
+      ) : viewMode === 'Milestone View' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {milestoneStats.map((stat) => (
+              <ProjectDocumentStat key={stat.label} stat={stat} />
+            ))}
+          </section>
+
+          <section className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-col gap-3 border-b border-[#edf2f8] pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Milestone Roadmap</h2>
+                <p className="mt-1 text-[13px] font-bold text-[#53647f]">Stage-wise project checkpoints with ownership, dependencies and delivery status.</p>
+              </div>
+              <span className="inline-flex w-fit items-center gap-2 rounded-[10px] bg-[#effbf3] px-3 py-2 text-[12px] font-extrabold text-[#0d9f4a]">
+                <CheckCircle2 className="size-4" />
+                3 of 6 stages completed
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              {milestoneRows.map((milestone, index) => (
+                <article key={milestone.title} className="relative overflow-hidden rounded-[14px] border border-[#e4edf7] bg-white p-4 shadow-[0_10px_22px_rgba(24,48,87,0.05)]">
+                  <div className="absolute left-0 top-0 h-full w-1.5" style={{ backgroundColor: milestone.color }} />
+                  <div className="flex items-start justify-between gap-4 pl-2">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-[13px] text-white shadow-[0_10px_18px_rgba(24,48,87,0.12)]" style={{ backgroundColor: milestone.color }}>
+                        {milestone.status === 'Completed' ? <CheckCircle2 className="size-5" /> : milestone.status === 'In Progress' ? <Clock3 className="size-5" /> : <Flag className="size-5" />}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#7b8ca8]">Stage {String(index + 1).padStart(2, '0')}</p>
+                        <h3 className="mt-1 font-display text-[16px] font-extrabold leading-tight text-[#06135a]">{milestone.title}</h3>
+                        <p className="mt-1 text-[12px] font-bold text-[#53647f]">{milestone.start} - {milestone.end}</p>
+                      </div>
+                    </div>
+                    <ProjectActivityStatusBadge status={milestone.status} />
+                  </div>
+
+                  <div className="mt-5 grid gap-3 pl-2 sm:grid-cols-2">
+                    <InfoCell label="Owner" value={milestone.owner} />
+                    <InfoCell label="Duration" value={milestone.duration} />
+                  </div>
+
+                  <div className="mt-4 pl-2">
+                    <div className="mb-2 flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
+                      <span>Progress</span>
+                      <span>{milestone.progress}%</span>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-[#e8eef6]">
+                      <div className="h-full rounded-full" style={{ width: `${milestone.progress}%`, backgroundColor: milestone.color }} />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2 pl-2">
+                    {milestone.deliverables.map((deliverable) => (
+                      <span key={deliverable} className="rounded-[8px] bg-[#f5f8fc] px-2.5 py-1 text-[11px] font-extrabold text-[#314a79]">{deliverable}</span>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.7fr)]">
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Milestone Details</h2>
+              </div>
+              <div className="responsive-scroll overflow-x-auto">
+                <table className="crm-table min-w-[1080px] w-full">
+                  <thead>
+                    <tr>
+                      {['#', 'Milestone', 'Category', 'Dependency', 'Owner', 'Risk', 'Status', 'Progress'].map((header) => (
+                        <th key={header}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {milestoneRows.map((milestone, index) => (
+                      <tr key={`milestone-row-${milestone.title}`}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#1e3261]">{milestone.title}</td>
+                        <td><ProjectActivityCategoryBadge category={milestone.category} /></td>
+                        <td>{milestone.dependency}</td>
+                        <td>{milestone.owner}</td>
+                        <td><ProjectNotePriorityBadge priority={milestone.risk} /></td>
+                        <td><ProjectActivityStatusBadge status={milestone.status} /></td>
+                        <td><ProjectProgressInline value={milestone.progress} status={milestone.status} tone="blue" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <aside className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Next Milestones</h2>
+                <div className="mt-5 space-y-4">
+                  {milestoneRows.filter((milestone) => milestone.status !== 'Completed').slice(0, 3).map((milestone) => (
+                    <div key={`next-${milestone.title}`} className="flex items-start gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3">
+                      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-[10px] text-white" style={{ backgroundColor: milestone.color }}>
+                        <Flag className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-extrabold text-[#1e3261]">{milestone.title}</span>
+                        <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{milestone.start} - {milestone.end}</span>
+                      </span>
+                      <ProjectActivityStatusBadge status={milestone.status} />
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Milestone Health</h2>
+                <div className="mt-5 space-y-4">
+                  <InfoCell label="Critical Stage" value="Installation" valueClass="text-[#f59e0b]" />
+                  <InfoCell label="Blocked Items" value="0" valueClass="text-[#16a34a]" />
+                  <InfoCell label="Highest Risk" value="Installation" valueClass="text-[#ef4444]" />
+                  <InfoCell label="Next Review" value="26 May 2024" />
+                </div>
+              </article>
+            </aside>
+          </section>
+        </>
       ) : (
         <>
       <section className={`${panelClass} overflow-hidden`}>
@@ -17429,7 +17660,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
 }
 
 function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
-  const [activeSurveyTab, setActiveSurveyTab] = useState('Site Details');
+  const [activeSurveyTab, setActiveSurveyTab] = useState('Overview');
 
   const project = {
     name: '20kW On-Grid System',
@@ -17506,6 +17737,103 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
     { name: 'Load Calculation Sheet.xlsx', note: 'Uploaded on 12 May 2024', size: '980 KB', tone: 'green' },
   ];
 
+  const roofStats = [
+    { label: 'Total Roof Area', value: '1920 sq ft', caption: '48 x 40 ft', icon: Boxes, tone: 'blue' },
+    { label: 'Usable Area', value: '1560 sq ft', caption: '81.25% usable', icon: CheckCircle2, tone: 'green' },
+    { label: 'Roof Type', value: 'RCC Flat', caption: 'Good condition', icon: HardDrive, tone: 'purple' },
+    { label: 'Shading Loss', value: '2.8%', caption: 'Low impact', icon: AlertTriangle, tone: 'amber' },
+  ];
+
+  const roofDetailRows = [
+    ['Roof Material', 'Reinforced cement concrete'],
+    ['Roof Age', '8 Years'],
+    ['Parapet Height', '3.5 ft'],
+    ['Water Tank Clearance', '12 ft'],
+    ['Existing Load', 'Low'],
+    ['Structural Condition', 'Good'],
+    ['Recommended Tilt', '15 deg mounting structure'],
+    ['Maintenance Path', '3 ft clear walkway available'],
+  ];
+
+  const roofObstructions = [
+    { item: 'Water Tank', location: 'North-East corner', impact: 'Low', clearance: '12 ft' },
+    { item: 'Staircase Room', location: 'South-West corner', impact: 'Medium', clearance: '8 ft' },
+    { item: 'Dish Antenna', location: 'West edge', impact: 'Low', clearance: 'Relocate recommended' },
+    { item: 'Parapet Shadow', location: 'East edge', impact: 'Low', clearance: 'Avoid first 3 ft' },
+  ];
+
+  const electricalStats = [
+    { label: 'Sanction Load', value: '25 kW', caption: 'Residential LT', icon: Zap, tone: 'blue' },
+    { label: 'Meter Type', value: 'Net Meter', caption: 'Compatible', icon: ReceiptText, tone: 'green' },
+    { label: 'Phase', value: '3 Phase', caption: '230/415V', icon: Database, tone: 'purple' },
+    { label: 'Earthing', value: 'Available', caption: 'Needs testing', icon: ShieldCheck, tone: 'amber' },
+  ];
+
+  const electricalRows = [
+    ['Connection Type', 'LT Residential'],
+    ['Sanctioned Load', '25 kW'],
+    ['Existing Meter', '3 Phase Smart Meter'],
+    ['Main Panel Location', 'Ground Floor - South Side'],
+    ['Cable Route Length', '38 m approx.'],
+    ['ACDB Location', 'Near main distribution panel'],
+    ['Earthing Pits', '2 Existing + 1 New Required'],
+    ['Discom', 'MPPKVVCL'],
+  ];
+
+  const electricalChecklist = [
+    { item: 'Main panel accessible', status: 'Completed', remark: 'Clear access available' },
+    { item: 'Meter room ventilation', status: 'Completed', remark: 'Suitable' },
+    { item: 'Cable tray route identified', status: 'In Progress', remark: 'Final route marking required' },
+    { item: 'Earthing resistance test', status: 'Pending', remark: 'To be tested during installation' },
+  ];
+
+  const photoGallery = [
+    { title: 'Front Elevation', category: 'Site', date: '12 May 2024, 10:30 AM', status: 'Approved' },
+    { title: 'Roof North Side', category: 'Roof', date: '12 May 2024, 10:32 AM', status: 'Approved' },
+    { title: 'Roof South Side', category: 'Roof', date: '12 May 2024, 10:33 AM', status: 'Approved' },
+    { title: 'Main Panel', category: 'Electrical', date: '12 May 2024, 10:35 AM', status: 'Pending Review' },
+    { title: 'Meter Room', category: 'Electrical', date: '12 May 2024, 10:38 AM', status: 'Approved' },
+    { title: 'Access Staircase', category: 'Safety', date: '12 May 2024, 10:42 AM', status: 'Approved' },
+  ];
+
+  const surveyDocumentRows = [
+    { name: 'Site Survey Report.pdf', type: 'PDF', category: 'Survey', uploadedBy: 'Vikram Singh', date: '12 May 2024', size: '2.4 MB', status: 'Approved' },
+    { name: 'Electrical SLD.pdf', type: 'PDF', category: 'Electrical', uploadedBy: 'Vikram Singh', date: '12 May 2024', size: '1.2 MB', status: 'Approved' },
+    { name: 'Roof Layout Plan.dwg', type: 'DWG', category: 'Roof', uploadedBy: 'Vikram Singh', date: '12 May 2024', size: '1.8 MB', status: 'Pending Review' },
+    { name: 'Load Calculation.xlsx', type: 'XLSX', category: 'Electrical', uploadedBy: 'Vikram Singh', date: '12 May 2024', size: '980 KB', status: 'Approved' },
+  ];
+
+  const observationStats = [
+    { label: 'Total Observations', value: '12', caption: 'Survey notes', icon: Info, tone: 'blue' },
+    { label: 'Critical', value: '0', caption: 'No blockers', icon: XCircle, tone: 'green' },
+    { label: 'Action Needed', value: '3', caption: 'Before install', icon: AlertTriangle, tone: 'amber' },
+    { label: 'Resolved', value: '9', caption: 'Completed', icon: CheckCircle2, tone: 'green' },
+  ];
+
+  const observationRows = [
+    { area: 'Roof', note: 'Usable roof area is sufficient for 20kW layout.', priority: 'Low', owner: 'Site Engineer', status: 'Completed' },
+    { area: 'Roof', note: 'Dish antenna should be relocated before mounting.', priority: 'Medium', owner: 'Customer', status: 'In Progress' },
+    { area: 'Electrical', note: 'AC cable route requires final marking.', priority: 'Medium', owner: 'Technical Team', status: 'In Progress' },
+    { area: 'Safety', note: 'Staircase access is suitable for material movement.', priority: 'Low', owner: 'Installation Team', status: 'Completed' },
+    { area: 'Documentation', note: 'Electricity bill copy received and verified.', priority: 'Low', owner: 'Back Office', status: 'Completed' },
+  ];
+
+  const checklistSections = [
+    { title: 'Site Readiness', items: [['Customer availability confirmed', true], ['Roof access checked', true], ['Material lifting path identified', true], ['Water leakage points checked', true]] },
+    { title: 'Roof & Structure', items: [['Roof condition verified', true], ['Usable area measured', true], ['Obstructions mapped', true], ['Mounting structure feasible', true]] },
+    { title: 'Electrical', items: [['Meter details captured', true], ['Main panel inspected', true], ['Cable route identified', true], ['Earthing test completed', false]] },
+  ];
+
+  const summaryRows = [
+    ['Survey Result', 'Feasible'],
+    ['Recommended System', '20kW On-Grid Rooftop'],
+    ['Estimated Generation', '80 Units/Day'],
+    ['Expected Monthly Units', '2400 Units'],
+    ['Major Risk', 'No major blocker'],
+    ['Pending Action', 'Relocate dish antenna, earthing test'],
+    ['Next Step', 'Proceed to design and approval'],
+  ];
+
   return (
     <div className="space-y-4">
       <PageHeading
@@ -17531,7 +17859,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
       <section className={`${panelClass} p-4 sm:p-5`}>
         <div className="grid gap-4 xl:grid-cols-[2.2fr_repeat(5,minmax(0,1fr))] xl:items-center">
           <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
-            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
+            <img src={navBarImage} alt={project.name} loading="lazy" decoding="async" className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
@@ -17590,7 +17918,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
         </div>
       </section>
 
-      {activeSurveyTab === 'Site Details' ? (
+      {activeSurveyTab === 'Overview' ? (
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
             {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
@@ -17676,7 +18004,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
               <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {photos.map((photo) => (
                   <button key={photo.title} type="button" onClick={() => onNotify(`${photo.title} opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-left transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
-                    <img src={navBarImage} alt={photo.title} className="h-[120px] w-full rounded-[10px] object-cover" />
+                    <img src={navBarImage} alt={photo.title} loading="lazy" decoding="async" className="h-[120px] w-full rounded-[10px] object-cover" />
                     <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{photo.title}</p>
                     <p className="mt-2 text-[12px] font-bold text-[#53647f]">{photo.date}</p>
                   </button>
@@ -17706,6 +18034,434 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
             </article>
           </section>
         </>
+      ) : activeSurveyTab === 'Site Details' ? (
+        <section className="grid gap-4 xl:grid-cols-2">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Address & Coordinates</h2>
+            <div className="mt-5 rounded-[14px] border border-[#edf2f8] bg-[#fbfdff] p-4">
+              <p className="text-[15px] font-extrabold text-[#1e3261]">{project.address}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
+              <button type="button" onClick={() => onNotify('Survey map opened')} className="mt-4 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]">
+                <MapPin className="size-4" />
+                View on Map
+              </button>
+            </div>
+            <div className="mt-5 space-y-4">
+              {locationRows.map(([label, value]) => (
+                <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[150px_1fr]">
+                  <span className="font-bold text-[#53647f]">{label}</span>
+                  <span className="font-extrabold text-[#1e3261]">{value}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Condition Details</h2>
+            <div className="mt-5 space-y-4">
+              {siteSurveyRows.map(([label, value]) => (
+                <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[180px_1fr]">
+                  <span className="font-bold text-[#53647f]">{label}</span>
+                  <span className="font-extrabold text-[#1e3261]">{value}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className={`${panelClass} p-4 sm:p-5 xl:col-span-2`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Readiness</h2>
+                <p className="mt-1 text-[13px] font-bold text-[#53647f]">Site accessibility, utility availability and installation readiness summary.</p>
+              </div>
+              <ProjectInfoPill tone="green">Ready for Planning</ProjectInfoPill>
+            </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ['Access', 'Good', MapPin, 'green'],
+                ['Grid', 'Available', Zap, 'blue'],
+                ['Internet', 'Available', Cloud, 'cyan'],
+                ['Safety', 'Good', ShieldCheck, 'green'],
+              ].map(([label, value, Icon, tone]) => (
+                <div key={label} className="rounded-[14px] border border-[#edf2f8] bg-white p-4">
+                  <span className={cx('grid size-10 place-items-center rounded-[12px]', tone === 'green' ? 'bg-[#effbf3] text-[#16a34a]' : tone === 'cyan' ? 'bg-[#eefafb] text-[#0891b2]' : 'bg-[#eef5ff] text-[#2563eb]')}>
+                    <Icon className="size-4" />
+                  </span>
+                  <p className="mt-3 text-[12px] font-extrabold text-[#53647f]">{label}</p>
+                  <p className="mt-1 font-display text-[20px] font-extrabold text-[#06135a]">{value}</p>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+      ) : activeSurveyTab === 'Roof Details' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {roofStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof Layout Plan</h2>
+                  <p className="mt-1 text-[13px] font-bold text-[#53647f]">Measured usable area, obstructions and maintenance path for panel placement.</p>
+                </div>
+                <ProjectInfoPill tone="green">Layout Feasible</ProjectInfoPill>
+              </div>
+              <div className="mt-5 overflow-hidden rounded-[16px] border border-[#dbe7f4] bg-[linear-gradient(135deg,#f8fbff,#eef5ff)] p-4">
+                <div className="relative mx-auto h-[360px] max-w-[620px] rounded-[14px] border-2 border-[#b8cbe6] bg-white">
+                  <div className="absolute inset-0 [background-image:linear-gradient(to_right,rgba(37,99,235,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(37,99,235,0.12)_1px,transparent_1px)] [background-size:28px_28px]" />
+                  <div className="absolute left-[8%] top-[10%] h-[66%] w-[68%] rounded-[6px] border-2 border-[#0b65e5] bg-[rgba(37,99,235,0.12)]" />
+                  <div className="absolute left-[13%] top-[15%] grid h-[52%] w-[54%] grid-cols-4 gap-2 p-2">
+                    {Array.from({ length: 16 }).map((_, index) => (
+                      <span key={`panel-${index}`} className="rounded-[4px] border border-[#0b65e5] bg-[#dcecff]" />
+                    ))}
+                  </div>
+                  <div className="absolute right-[10%] top-[10%] h-[30%] w-[12%] rounded-[6px] border-2 border-[#94a3b8] bg-white/90" />
+                  <div className="absolute bottom-[10%] right-[9%] h-[17%] w-[28%] rounded-[6px] border-2 border-[#94a3b8] bg-white/90" />
+                  <div className="absolute bottom-[11%] left-[9%] h-[8%] w-[50%] rounded-full bg-[#dff7e8] text-center text-[11px] font-extrabold leading-7 text-[#0d9f4a]">Maintenance Path</div>
+                  <span className="absolute left-[10%] top-[3%] text-[12px] font-extrabold text-[#314a79]">48 ft</span>
+                  <span className="absolute right-[3%] top-[45%] rotate-90 text-[12px] font-extrabold text-[#314a79]">40 ft</span>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-4 text-[12px] font-extrabold text-[#314a79]">
+                  <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] border border-[#0b65e5] bg-[#dcecff]" />Panel Zone</span>
+                  <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] border border-[#94a3b8] bg-white" />Obstruction</span>
+                  <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] bg-[#dff7e8]" />Walkway</span>
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof Measurements</h2>
+              <div className="mt-5 space-y-4">
+                {[...roofRows, ...roofDetailRows].map(([label, value]) => (
+                  <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[150px_1fr]">
+                    <span className="font-bold text-[#53647f]">{label}</span>
+                    <span className="font-extrabold text-[#1e3261]">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Obstructions & Shading</h2>
+              </div>
+              <div className="responsive-scroll overflow-x-auto">
+                <table className="crm-table min-w-[820px] w-full">
+                  <thead><tr>{['#', 'Item', 'Location', 'Impact', 'Clearance / Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {roofObstructions.map((row, index) => (
+                      <tr key={row.item}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.item}</td>
+                        <td>{row.location}</td>
+                        <td><ProjectNotePriorityBadge priority={row.impact} /></td>
+                        <td>{row.clearance}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Mounting Recommendation</h2>
+              <div className="mt-5 space-y-4">
+                <InfoCell label="Structure Type" value="RCC ballast mounting" />
+                <InfoCell label="Recommended Tilt" value="15 deg" />
+                <InfoCell label="Panel Rows" value="4 Rows" />
+                <InfoCell label="Wind Safety" value="Suitable" valueClass="text-[#16a34a]" />
+              </div>
+            </article>
+          </section>
+        </>
+      ) : activeSurveyTab === 'Electrical Details' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {electricalStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Electrical Connection Details</h2>
+              <div className="mt-5 space-y-4">
+                {electricalRows.map(([label, value]) => (
+                  <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[170px_1fr]">
+                    <span className="font-bold text-[#53647f]">{label}</span>
+                    <span className="font-extrabold text-[#1e3261]">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Single Line Diagram</h2>
+                  <p className="mt-1 text-[13px] font-bold text-[#53647f]">Proposed energy flow from solar array to grid meter.</p>
+                </div>
+                <ProjectInfoPill tone="green">Compatible</ProjectInfoPill>
+              </div>
+              <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center">
+                {[
+                  ['Solar Array', Boxes, '20kW DC'],
+                  ['Inverter', Zap, '20kW AC'],
+                  ['Net Meter', ReceiptText, '3 Phase'],
+                ].map(([label, Icon, note], index) => (
+                  <div key={label} className="contents">
+                    <div className="rounded-[14px] border border-[#dce6f3] bg-white p-4 text-center">
+                      <span className="mx-auto grid size-12 place-items-center rounded-[14px] bg-[#eef5ff] text-[#0b65e5]"><Icon className="size-5" /></span>
+                      <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{label}</p>
+                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">{note}</p>
+                    </div>
+                    {index < 2 ? <ArrowRight className="mx-auto hidden size-5 text-[#9aa8bc] sm:block" /> : null}
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Electrical Verification</h2>
+              </div>
+              <div className="responsive-scroll overflow-x-auto">
+                <table className="crm-table min-w-[760px] w-full">
+                  <thead><tr>{['#', 'Check', 'Status', 'Remarks'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {electricalChecklist.map((row, index) => (
+                      <tr key={row.item}>
+                        <td>{index + 1}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.item}</td>
+                        <td><ProjectActivityStatusBadge status={row.status} /></td>
+                        <td>{row.remark}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Required Additions</h2>
+              <div className="mt-5 space-y-3">
+                {['1 new earthing pit', 'AC cable tray marking', 'SPD and MCB protection', 'Net meter application'].map((item) => (
+                  <div key={item} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">
+                    <CheckCircle2 className="size-4 shrink-0 text-[#0d9f4a]" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+        </>
+      ) : activeSurveyTab === 'Photos & Documents' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Total Photos', value: '18', caption: '6 visible here', icon: Eye, tone: 'blue' },
+              { label: 'Documents', value: '4', caption: 'All uploaded', icon: FileText, tone: 'green' },
+              { label: 'Pending Review', value: '1', caption: 'Roof drawing', icon: Hourglass, tone: 'amber' },
+              { label: 'Storage Used', value: '6.38 MB', caption: 'Survey files', icon: HardDrive, tone: 'purple' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </section>
+
+          <section className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Photo Gallery</h2>
+              <button type="button" onClick={() => onNotify('Upload survey photo opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white"><Upload className="size-4" />Upload Photo</button>
+            </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {photoGallery.map((photo) => (
+                <article key={photo.title} className="overflow-hidden rounded-[14px] border border-[#edf2f8] bg-white">
+                  <img src={navBarImage} alt={photo.title} loading="lazy" decoding="async" className="h-[150px] w-full object-cover" />
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-[14px] font-extrabold text-[#1e3261]">{photo.title}</h3>
+                        <p className="mt-1 text-[12px] font-bold text-[#53647f]">{photo.date}</p>
+                      </div>
+                      <ProjectDocumentStatusBadge status={photo.status} />
+                    </div>
+                    <p className="mt-3 text-[12px] font-extrabold text-[#0b65e5]">{photo.category}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <article className={`${panelClass} overflow-hidden`}>
+            <div className="flex flex-col gap-3 border-b border-[#edf2f8] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Documents</h2>
+              <button type="button" onClick={() => onNotify('Upload survey document opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Upload className="size-4 text-[#0b65e5]" />Upload Document</button>
+            </div>
+            <div className="responsive-scroll overflow-x-auto">
+              <table className="crm-table min-w-[980px] w-full">
+                <thead><tr>{['#', 'Document Name', 'Type', 'Category', 'Uploaded By', 'Date', 'Size', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <tbody>
+                  {surveyDocumentRows.map((doc, index) => (
+                    <tr key={doc.name}>
+                      <td>{index + 1}</td>
+                      <td className="font-extrabold text-[#1e3261]">{doc.name}</td>
+                      <td>{doc.type}</td>
+                      <td>{doc.category}</td>
+                      <td>{doc.uploadedBy}</td>
+                      <td>{doc.date}</td>
+                      <td>{doc.size}</td>
+                      <td><ProjectDocumentStatusBadge status={doc.status} /></td>
+                      <td><UserActionButton label={`Download ${doc.name}`} icon={Download} tone="blue" onClick={() => onNotify(`${doc.name} downloaded`)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </>
+      ) : activeSurveyTab === 'Observations' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {observationStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.55fr)]">
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Observations</h2>
+              </div>
+              <div className="responsive-scroll overflow-x-auto">
+                <table className="crm-table min-w-[980px] w-full">
+                  <thead><tr>{['#', 'Area', 'Observation', 'Priority', 'Owner', 'Status'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <tbody>
+                    {observationRows.map((row, index) => (
+                      <tr key={row.note}>
+                        <td>{index + 1}</td>
+                        <td><ProjectActivityCategoryBadge category={row.area} /></td>
+                        <td className="font-extrabold text-[#1e3261]">{row.note}</td>
+                        <td><ProjectNotePriorityBadge priority={row.priority} /></td>
+                        <td>{row.owner}</td>
+                        <td><ProjectActivityStatusBadge status={row.status} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <aside className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Key Notes</h2>
+                <div className="mt-5 space-y-3">
+                  {['No major shadow issue found.', 'Roof is structurally suitable.', 'Dish antenna relocation needed.', 'Earthing resistance test pending.'].map((note) => (
+                    <div key={note} className="rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-bold text-[#314a79]">{note}</div>
+                  ))}
+                </div>
+              </article>
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Action Owner</h2>
+                <div className="mt-5 space-y-4">
+                  <InfoCell label="Customer" value="Relocate dish antenna" />
+                  <InfoCell label="Technical Team" value="Finalize cable route" />
+                  <InfoCell label="Installation Team" value="Earthing test" />
+                </div>
+              </article>
+            </aside>
+          </section>
+        </>
+      ) : activeSurveyTab === 'Checklist' ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Checklist Progress', value: '92%', caption: '11 of 12 done', icon: CheckCircle2, tone: 'green' },
+              { label: 'Completed', value: '11', caption: 'Verified points', icon: BadgeCheck, tone: 'blue' },
+              { label: 'Pending', value: '1', caption: 'Earthing test', icon: Hourglass, tone: 'amber' },
+              { label: 'Ready Status', value: 'Good', caption: 'Proceed with caution', icon: ShieldCheck, tone: 'green' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-3">
+            {checklistSections.map((section) => (
+              <article key={section.title} className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{section.title}</h2>
+                <div className="mt-5 space-y-3">
+                  {section.items.map(([item, done]) => (
+                    <label key={item} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">
+                      <input type="checkbox" checked={done} readOnly className="size-4 accent-[#0d9f4a]" />
+                      <span className="min-w-0 flex-1">{item}</span>
+                      {done ? <ProjectInfoPill tone="green">Done</ProjectInfoPill> : <ProjectInfoPill tone="amber">Pending</ProjectInfoPill>}
+                    </label>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </section>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Final Checklist Remark</h2>
+                <p className="mt-2 text-[13px] font-bold text-[#53647f]">Survey checklist is nearly complete. Earthing resistance test remains pending and should be completed before installation handover.</p>
+              </div>
+              <button type="button" onClick={() => onNotify('Checklist submitted for approval')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white"><CheckCircle2 className="size-4" />Submit Checklist</button>
+            </div>
+          </article>
+        </>
+      ) : activeSurveyTab === 'Summary' ? (
+        <>
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="font-display text-[24px] font-extrabold text-[#06135a]">Survey Summary</h2>
+                  <p className="mt-2 max-w-[720px] text-[13px] font-bold leading-6 text-[#53647f]">Site survey indicates the rooftop is technically feasible for a 20kW on-grid solar system with minor pre-installation actions.</p>
+                </div>
+                <ProjectInfoPill tone="green">Feasible</ProjectInfoPill>
+              </div>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                {summaryRows.map(([label, value]) => (
+                  <InfoCell key={label} label={label} value={value} valueClass={label === 'Survey Result' ? 'text-[#16a34a]' : undefined} />
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Feasibility Score</h2>
+              <div className="mt-6 grid place-items-center">
+                <div className="grid size-[180px] place-items-center rounded-full" style={{ background: 'conic-gradient(#14b84c 0 88%, #edf2f8 88% 100%)' }}>
+                  <div className="grid size-[118px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_#edf2f8]">
+                    <span className="font-display text-[34px] font-extrabold text-[#06135a]">88%</span>
+                    <span className="-mt-5 text-[12px] font-extrabold text-[#53647f]">Score</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 space-y-3">
+                <InfoCell label="Roof Score" value="90%" valueClass="text-[#16a34a]" />
+                <InfoCell label="Electrical Score" value="84%" valueClass="text-[#0b65e5]" />
+                <InfoCell label="Safety Score" value="92%" valueClass="text-[#16a34a]" />
+              </div>
+            </article>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-3">
+            {[
+              ['Proceed to Design', 'System design and panel layout can start.', CheckCircle2, 'green'],
+              ['Customer Action', 'Relocate dish antenna before material dispatch.', AlertTriangle, 'amber'],
+              ['Technical Action', 'Complete earthing resistance test.', Zap, 'blue'],
+            ].map(([title, note, Icon, tone]) => (
+              <article key={title} className={`${panelClass} p-4 sm:p-5`}>
+                <span className={cx('grid size-12 place-items-center rounded-[14px]', tone === 'green' ? 'bg-[#effbf3] text-[#16a34a]' : tone === 'amber' ? 'bg-[#fff5e8] text-[#f59e0b]' : 'bg-[#eef5ff] text-[#0b65e5]')}>
+                  <Icon className="size-5" />
+                </span>
+                <h3 className="mt-4 font-display text-[16px] font-extrabold text-[#06135a]">{title}</h3>
+                <p className="mt-2 text-[13px] font-bold leading-6 text-[#53647f]">{note}</p>
+              </article>
+            ))}
+          </section>
+        </>
       ) : (
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
@@ -17713,9 +18469,9 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
           </span>
           <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeSurveyTab}</h2>
           <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
-            Is survey tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi main screen aur tab navigation fully working hai, aur aap Site Details par wapas ja sakte ho.
+            Is survey tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi overview, site details aur tab navigation fully working hai.
           </p>
-          <button type="button" onClick={() => setActiveSurveyTab('Site Details')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Site Details</button>
+          <button type="button" onClick={() => setActiveSurveyTab('Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Overview</button>
         </article>
       )}
 
