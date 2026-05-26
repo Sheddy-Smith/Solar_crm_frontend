@@ -79,7 +79,7 @@ const sidebarItems = [
 ];
 
 const leadSubItems = ['Lead List', 'Create Lead'];
-const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Follow-up History', 'Admin Approval'];
+const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Lead Quotation', 'Follow-up History', 'Admin Approval'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const employeeRelatedPages = [...employeeSubItems];
 const projectSubItems = ['Project Overview', 'Project KPI Analytics', 'Project List', 'Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation', 'Project Team Assignment', 'Project Material Planning', 'Project Work Orders', 'Project Expenses', 'Project Documents', 'Project Approvals', 'Project Reports'];
@@ -201,6 +201,7 @@ function getSettingsGroupForSection(section) {
 const leadSubRoutes = {
   'Lead List': '/lead/list',
   'Create Lead': '/lead/create',
+  'Lead Quotation': '/lead/quotation',
 };
 
 const employeeSubRoutes = {
@@ -2235,6 +2236,18 @@ function App() {
                 }}
                 onNotify={notify}
               />
+            ) : activeSidebarItem === 'Lead Quotation' ? (
+              <LeadQuotationPage
+                onBackToDetails={() => {
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
             ) : activeSidebarItem === 'Follow-up History' ? (
               <FollowUpHistoryPage
                 onOpenSection={(section) => {
@@ -2786,8 +2799,13 @@ function LoginFeature({ feature }) {
 }
 
 function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead, onOpenLead, onNotify }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [projectTypeFilter, setProjectTypeFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [assignedToFilter, setAssignedToFilter] = useState('All');
   const [followUpDate, setFollowUpDate] = useState('');
   const [activeLeadCategory, setActiveLeadCategory] = useState(null);
+  const [activePage, setActivePage] = useState(1);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
   const headers = [
@@ -2818,7 +2836,20 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
     input.click();
   };
 
-  const visibleLeadRows = getLeadRowsForCategory(activeLeadCategory);
+  const selectPage = (page) => {
+    setActivePage(page);
+    leadTableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const visibleLeadRows = getLeadRowsForCategory(activeLeadCategory).filter((lead) => {
+    const query = searchQuery.trim().toLowerCase();
+    const queryMatch = !query || [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name].some((value) => String(value).toLowerCase().includes(query));
+    const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
+    const statusMatch = statusFilter === 'All' || lead.status === statusFilter;
+    const assignedMatch = assignedToFilter === 'All' || lead.assignedTo.name === assignedToFilter;
+    const followUpMatch = !followUpDate || lead.nextFollowUp === formatReportDate(followUpDate);
+    return queryMatch && projectTypeMatch && statusMatch && assignedMatch && followUpMatch;
+  });
 
   useEffect(() => {
     if (!activeLeadCategory) {
@@ -2849,7 +2880,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={() => onNotify('Lead export started')}
+            onClick={() => onOpenSection('Reports')}
             data-action="lead-export"
             className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
           >
@@ -2901,6 +2932,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                   type="button"
                   onClick={() => {
                     setActiveLeadCategory(category);
+                    setActivePage(1);
                     onNotify(`${category.label} list opened`);
                   }}
                   data-action={`open-${category.shortLabel.toLowerCase()}-leads`}
@@ -2933,6 +2965,8 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1.4fr_1fr_1fr_1fr_1.1fr_auto] 2xl:items-end">
           <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
               type="search"
               placeholder="Search by name, mobile, IVRS..."
               className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
@@ -2940,9 +2974,9 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             <Search className="size-4 text-[#7386a3]" />
           </label>
 
-          <FilterSelect label="Project Type" options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']} />
-          <FilterSelect label="Status" options={['All', 'New', 'Follow-up', 'Quotation', 'Lost']} />
-          <FilterSelect label="Assigned To" options={['All', 'Rohit Singh', 'Neha Kumari', 'Vikram Patel']} />
+          <FilterSelect label="Project Type" value={projectTypeFilter} onChange={setProjectTypeFilter} options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']} />
+          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={['All', 'New', 'Follow-up', 'Quotation', 'Lost']} />
+          <FilterSelect label="Assigned To" value={assignedToFilter} onChange={setAssignedToFilter} options={['All', 'Rohit Singh', 'Neha Kumari', 'Vikram Patel']} />
 
           <label className="block">
             <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Follow-up Date</span>
@@ -2970,8 +3004,13 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
           <button
             type="button"
             onClick={() => {
+              setSearchQuery('');
+              setProjectTypeFilter('All');
+              setStatusFilter('All');
+              setAssignedToFilter('All');
               setFollowUpDate('');
               setActiveLeadCategory(null);
+              setActivePage(1);
               onNotify('Lead filters reset');
             }}
             data-action="lead-reset-filters"
@@ -3078,7 +3117,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                         </button>
                         <button
                           type="button"
-                          onClick={() => onNotify(`${lead.customer} more actions opened`)}
+                          onClick={onOpenLead}
                           data-action="lead-more-actions"
                           className="inline-flex size-8 items-center justify-center rounded-[8px] text-[#53647f] transition hover:bg-[#f5f9ff]"
                           aria-label={`More actions for ${lead.customer}`}
@@ -3099,15 +3138,15 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             Showing 1 to {visibleLeadRows.length} of {activeLeadCategory ? visibleLeadRows.length : 125} entries
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <PaginationButton onClick={() => onNotify('Previous page selected')}>
+            <PaginationButton onClick={() => selectPage(Math.max(1, activePage - 1))}>
               <ChevronLeft className="size-4" />
             </PaginationButton>
-            <PaginationButton active onClick={() => onNotify('Page 1 selected')}>1</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Page 2 selected')}>2</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Page 3 selected')}>3</PaginationButton>
+            <PaginationButton active={activePage === 1} onClick={() => selectPage(1)}>1</PaginationButton>
+            <PaginationButton active={activePage === 2} onClick={() => selectPage(2)}>2</PaginationButton>
+            <PaginationButton active={activePage === 3} onClick={() => selectPage(3)}>3</PaginationButton>
             <span className="px-2 text-[#53647f]">...</span>
-            <PaginationButton onClick={() => onNotify('Page 13 selected')}>13</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Next page selected')}>
+            <PaginationButton active={activePage === 13} onClick={() => selectPage(13)}>13</PaginationButton>
+            <PaginationButton onClick={() => selectPage(Math.min(13, activePage + 1))}>
               <ChevronRight className="size-4" />
             </PaginationButton>
           </div>
@@ -25883,7 +25922,7 @@ function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUp
 
   const quickDetailActions = [
     { label: 'Add Follow-up', icon: ShieldCheck, tone: 'green', onClick: () => setFollowUpModalOpen(true) },
-    { label: 'Create Quotation (UI)', icon: CalendarDays, tone: 'blue', onClick: () => onOpenSection('Lead List') },
+    { label: 'Create Quotation (UI)', icon: CalendarDays, tone: 'blue', onClick: () => onOpenSection('Lead Quotation') },
     { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => onOpenSection('Users') },
     { label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => onOpenSection('Lead List') },
     { label: 'Add Note', icon: Flag, tone: 'slate', onClick: onFollowUpHistory },
@@ -25908,7 +25947,7 @@ function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUp
               <Plus className="size-4" />
               Add Follow-up
             </button>
-            <button type="button" onClick={() => onNotify('Lead options opened')} className="inline-flex size-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]" aria-label="More lead actions">
+            <button type="button" onClick={() => onOpenSection('Lead List')} className="inline-flex size-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]" aria-label="More lead actions">
               <MoreVertical className="size-4" />
             </button>
           </>
@@ -25988,6 +26027,70 @@ function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUp
 
       <DashboardFooter />
       {followUpModalOpen ? <AddFollowUpModal onClose={() => setFollowUpModalOpen(false)} onSave={() => { setFollowUpModalOpen(false); onNotify('Follow-up saved'); }} /> : null}
+    </div>
+  );
+}
+
+function LeadQuotationPage({ onBackToDetails, onOpenSection, onNotify }) {
+  const quoteRows = [
+    ['Solar Panels 540Wp', '10 Nos', 'Rs 16,200', 'Rs 1,62,000'],
+    ['5kW Inverter', '1 No', 'Rs 48,500', 'Rs 48,500'],
+    ['Mounting Structure', '1 Set', 'Rs 28,000', 'Rs 28,000'],
+    ['DC/AC Cables & Protection', '1 Set', 'Rs 21,500', 'Rs 21,500'],
+    ['Installation & Commissioning', '1 Job', 'Rs 32,000', 'Rs 32,000'],
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Create Quotation"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Lead', onClick: () => onOpenSection('Lead List') },
+          { label: 'Lead Details', onClick: onBackToDetails },
+          { label: 'Create Quotation' },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={onBackToDetails} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />Back</button>
+            <button type="button" onClick={() => onOpenSection('Project Documents')} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]"><FileText className="size-4" />View Documents</button>
+            <button type="button" onClick={() => onNotify('Quotation saved')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"><Save className="size-4" />Save Quotation</button>
+          </>
+        )}
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="grid gap-4 md:grid-cols-3">
+            <ReadonlyField label="Customer" value="Amit Sharma" />
+            <ReadonlyField label="Lead / IVRS" value="IVRS123456" />
+            <ReadonlyField label="Project" value="5kW On-Grid" />
+          </div>
+          <div className="mt-5 overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white">
+            <table className="crm-table min-w-[720px] w-full">
+              <thead><tr>{['Item', 'Qty', 'Rate', 'Amount'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <tbody>{quoteRows.map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={`${row[0]}-${cell}`} className={index === 0 ? 'font-extrabold text-[#1e3261]' : undefined}>{cell}</td>)}</tr>)}</tbody>
+            </table>
+          </div>
+        </article>
+        <aside className="space-y-4">
+          <InfoPanel title="Quotation Summary" icon={ReceiptText} tone="success">
+            <DetailRow label="Subtotal" value="Rs 2,92,000" />
+            <DetailRow label="GST" value="Rs 35,040" />
+            <DetailRow label="Discount" value="Rs 7,040" />
+            <DetailRow label="Grand Total" value="Rs 3,20,000" />
+          </InfoPanel>
+          <InfoPanel title="Next Actions" icon={Zap} tone="primary">
+            <div className="grid gap-3">
+              <MiniActionButton label="Share on WhatsApp" icon={MessageSquareMore} tone="green" onClick={() => onNotify('Quotation WhatsApp share opened')} />
+              <MiniActionButton label="Request Approval" icon={ShieldCheck} tone="blue" onClick={() => onOpenSection('Admin Approval')} />
+              <MiniActionButton label="Back to Lead Details" icon={ArrowRight} tone="purple" onClick={onBackToDetails} />
+            </div>
+          </InfoPanel>
+        </aside>
+      </section>
+
+      <DashboardFooter />
     </div>
   );
 }
@@ -26260,11 +26363,11 @@ function ReadonlyField({ label, value }) {
   return <label className="block"><span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{label}</span><span className="flex h-11 items-center rounded-[8px] border border-black/20 bg-[#f8fafc] px-4 text-[13px] font-extrabold text-[#1e3261]">{value}</span></label>;
 }
 
-function FilterSelect({ label, options }) {
+function FilterSelect({ label, value, onChange, options }) {
   return (
     <label>
       <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{label}</span>
-      <select className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
         {options.map((option) => (
           <option key={option}>{option}</option>
         ))}
