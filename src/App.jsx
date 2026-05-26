@@ -79,17 +79,19 @@ const sidebarItems = [
 ];
 
 const leadSubItems = ['Lead List', 'Create Lead'];
-const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Lead Quotation', 'Follow-up History', 'Admin Approval'];
+const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Lead Edit', 'Lead Quotation', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Follow-up History', 'Admin Approval'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const employeeRelatedPages = [...employeeSubItems];
 const projectSubItems = ['Project Overview', 'Project KPI Analytics', 'Project List', 'Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation', 'Project Team Assignment', 'Project Material Planning', 'Project Work Orders', 'Project Expenses', 'Project Documents', 'Project Approvals', 'Project Reports'];
-const projectRelatedPages = ['Project Management', ...projectSubItems];
+const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
+const projectRelatedPages = ['Project Management', ...projectActionPages, ...projectSubItems];
 const accountsSubItems = ['Accounts List', 'Transactions List', 'Chart of Accounts', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List'];
 const accountsRelatedPages = ['Accounts Overview', ...accountsSubItems];
 const inventorySubItems = ['Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
 const inventoryRelatedPages = [...inventorySubItems];
 const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents'];
-const liaisonRelatedPages = [...liaisonSubItems];
+const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
+const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems];
 const omSubItems = ['O&M Overview', 'Maintenance Tasks', 'Breakdown Tickets', 'Site Visits', 'Asset Management', 'Spare Parts', 'Energy Performance', 'O&M Reports'];
 const omRelatedPages = ['O&M', ...omSubItems];
 const amcSubItems = ['AMC Contracts', 'Warranties', 'Service Requests', 'Visits / Maintenance', 'Renewals', 'Claims', 'AMC Documents'];
@@ -201,7 +203,13 @@ function getSettingsGroupForSection(section) {
 const leadSubRoutes = {
   'Lead List': '/lead/list',
   'Create Lead': '/lead/create',
-  'Lead Quotation': '/lead/quotation',
+  'Lead Edit': '/lead/edit/:leadId',
+  'Lead Quotation': '/lead/quotation/create/:leadId',
+  'Lead Follow-up Create': '/lead/follow-up/create/:leadId',
+  'Lead Site Visit Schedule': '/lead/site-visit/schedule/:leadId',
+  'Lead Note Create': '/lead/notes/create/:leadId',
+  'Lead Status Update': '/lead/status/update/:leadId',
+  'Lead Assign': '/lead/assign/:leadId',
 };
 
 const employeeSubRoutes = {
@@ -212,19 +220,54 @@ const employeeSubRoutes = {
 
 const projectSubRoutes = {
   'Project Overview': '/projects/overview',
+  'Project Create': '/projects/create',
   'Project KPI Analytics': '/projects/kpi-analytics',
   'Project List': '/projects/list',
-  'Project Details': '/projects/details',
-  'Project Timeline': '/projects/timeline',
-  'Project Site Survey': '/projects/site-survey',
-  'Project Installation': '/projects/installation',
-  'Project Team Assignment': '/projects/team-assignment',
-  'Project Material Planning': '/projects/material-planning',
-  'Project Work Orders': '/projects/work-orders',
-  'Project Expenses': '/projects/expenses',
-  'Project Documents': '/projects/documents',
-  'Project Approvals': '/projects/approvals',
-  'Project Reports': '/projects/reports',
+  'Project Details': '/projects/details/:projectId',
+  'Project Activity Create': '/projects/activities/create/:projectId',
+  'Project Note Create': '/projects/notes/create/:projectId',
+  'Project Team Add': '/projects/team/add/:projectId',
+  'Project Progress Update': '/projects/progress/update/:projectId',
+  'Project Timeline': '/projects/timeline/:projectId',
+  'Project Site Survey': '/projects/site-survey/:projectId',
+  'Project Installation': '/projects/installation/:projectId',
+  'Project Team Assignment': '/projects/team-assignment/:projectId',
+  'Project Material Planning': '/projects/material-planning/:projectId',
+  'Project Work Orders': '/projects/work-orders/:projectId',
+  'Project Work Order Create': '/projects/work-orders/create/:projectId',
+  'Project Expenses': '/projects/expenses/:projectId',
+  'Project Expense Create': '/projects/expenses/create/:projectId',
+  'Project Expense Details': '/projects/expenses/details/:expenseId',
+  'Project Documents': '/projects/documents/:projectId',
+  'Project Document Upload': '/projects/documents/upload/:projectId',
+  'Project Document Preview': '/projects/documents/preview/:documentId',
+  'Project Folder Create': '/projects/documents/folder/create/:projectId',
+  'Project Approvals': '/projects/approvals/:projectId',
+  'Project Approval Create': '/projects/approvals/create/:projectId',
+  'Project Approval Details': '/projects/approvals/details/:approvalId',
+  'Project Reports': '/projects/reports/:projectId',
+  'Project Custom Report Create': '/projects/reports/custom/create/:projectId',
+  'Project Report Details': '/projects/reports/details/:reportId',
+  'Project Report Schedule': '/projects/reports/schedule/:projectId',
+};
+
+const projectActionPageTypes = {
+  'Project Create': 'create',
+  'Project Activity Create': 'activity',
+  'Project Note Create': 'note',
+  'Project Team Add': 'team-add',
+  'Project Progress Update': 'progress-update',
+  'Project Work Order Create': 'work-order',
+  'Project Expense Create': 'expense-create',
+  'Project Expense Details': 'expense-detail',
+  'Project Document Upload': 'document-upload',
+  'Project Document Preview': 'document-preview',
+  'Project Folder Create': 'folder-create',
+  'Project Approval Create': 'approval-create',
+  'Project Approval Details': 'approval-detail',
+  'Project Custom Report Create': 'custom-report',
+  'Project Report Details': 'report-detail',
+  'Project Report Schedule': 'report-schedule',
 };
 
 const accountsSubRoutes = {
@@ -250,11 +293,38 @@ const inventorySubRoutes = {
 
 const liaisonSubRoutes = {
   Applications: '/liaisoning/applications',
+  'Liaison Application Create': '/liaisoning/applications/create',
+  'Liaison Application Details': '/liaisoning/applications/details/:applicationId',
   Approvals: '/liaisoning/approvals',
+  'Liaison Approval Details': '/liaisoning/approvals/details/:approvalId',
   Inspections: '/liaisoning/inspections',
+  'Liaison Inspection Create': '/liaisoning/inspections/create',
+  'Liaison Inspection Details': '/liaisoning/inspections/details/:inspectionId',
   Commissioning: '/liaisoning/commissioning',
+  'Liaison Commissioning Create': '/liaisoning/commissioning/create',
+  'Liaison Commissioning Details': '/liaisoning/commissioning/details/:commissioningId',
   Compliance: '/liaisoning/compliance',
+  'Liaison Compliance Create': '/liaisoning/compliance/create',
+  'Liaison Compliance Details': '/liaisoning/compliance/details/:complianceId',
   Documents: '/liaisoning/documents',
+  'Liaison Document Upload': '/liaisoning/documents/upload',
+  'Liaison Document Preview': '/liaisoning/documents/preview/:documentId',
+  'Liaison Reports': '/liaisoning/reports',
+};
+
+const liaisonActionPageTypes = {
+  'Liaison Application Create': 'application-create',
+  'Liaison Application Details': 'application-detail',
+  'Liaison Approval Details': 'approval-detail',
+  'Liaison Inspection Create': 'inspection-create',
+  'Liaison Inspection Details': 'inspection-detail',
+  'Liaison Commissioning Create': 'commissioning-create',
+  'Liaison Commissioning Details': 'commissioning-detail',
+  'Liaison Compliance Create': 'compliance-create',
+  'Liaison Compliance Details': 'compliance-detail',
+  'Liaison Document Upload': 'document-upload',
+  'Liaison Document Preview': 'document-preview',
+  'Liaison Reports': 'reports',
 };
 
 const omSubRoutes = {
@@ -1251,13 +1321,13 @@ const quickActions = [
     label: 'Add Follow-up',
     icon: ClipboardPlus,
     bg: 'from-[#1578ff] to-[#0a9ff5]',
-    target: 'Follow-up History',
+    target: 'Lead Follow-up Create',
   },
   {
     label: 'Create Quotation (UI)',
     icon: FilePlus2,
     bg: 'from-[#5242ef] to-[#6046eb]',
-    target: 'Lead Details',
+    target: 'Lead Quotation',
   },
 ];
 
@@ -1269,7 +1339,7 @@ const actionIcons = [
 const recentNotifications = [
   { title: 'New lead assigned', note: 'Amit Sharma - 5kW On-Grid', time: '2 min ago', target: 'Lead Details', tone: 'green' },
   { title: 'Follow-up due today', note: 'Sunil Verma call pending', time: '18 min ago', target: 'Follow-up History', tone: 'blue' },
-  { title: 'Quotation pending', note: '64 quotations need review', time: '45 min ago', target: 'Lead List', tone: 'amber' },
+  { title: 'Quotation pending', note: '64 quotations need review', time: '45 min ago', target: 'Lead Quotation', tone: 'amber' },
   { title: 'Project milestone updated', note: '20kW installation moved to Work Progress', time: '1 hr ago', target: 'Project Installation', tone: 'purple' },
   { title: 'Payment reminder', note: 'Sungrow invoice payment pending', time: '2 hr ago', target: 'Payment Made', tone: 'red' },
 ];
@@ -2227,7 +2297,7 @@ function App() {
                   notify('Lead List opened');
                 }}
                 onCreateLead={() => {
-                  setActiveSidebarItem('Create Lead');
+                  setActiveSidebarItem('Lead Edit');
                   notify('Edit Lead opened');
                 }}
                 onFollowUpHistory={() => {
@@ -2236,8 +2306,86 @@ function App() {
                 }}
                 onNotify={notify}
               />
+            ) : activeSidebarItem === 'Lead Edit' ? (
+              <LeadActionFormPage
+                type="edit"
+                onBackToDetails={() => {
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
             ) : activeSidebarItem === 'Lead Quotation' ? (
               <LeadQuotationPage
+                onBackToDetails={() => {
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : activeSidebarItem === 'Lead Follow-up Create' ? (
+              <LeadActionFormPage
+                type="follow-up"
+                onBackToDetails={() => {
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : activeSidebarItem === 'Lead Site Visit Schedule' ? (
+              <LeadActionFormPage
+                type="site-visit"
+                onBackToDetails={() => {
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : activeSidebarItem === 'Lead Note Create' ? (
+              <LeadActionFormPage
+                type="note"
+                onBackToDetails={() => {
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : activeSidebarItem === 'Lead Status Update' ? (
+              <LeadActionFormPage
+                type="status"
+                onBackToDetails={() => {
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : activeSidebarItem === 'Lead Assign' ? (
+              <LeadActionFormPage
+                type="assign"
                 onBackToDetails={() => {
                   setActiveSidebarItem('Lead Details');
                   notify('Lead Details opened');
@@ -2262,6 +2410,10 @@ function App() {
               />
             ) : activeSidebarItem === 'Admin Approval' ? (
               <AdminApprovalPage
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
                 onLeadDetails={() => {
                   setActiveSidebarItem('Lead Details');
                   notify('Lead Details opened');
@@ -7189,6 +7341,12 @@ function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSe
 }
 
 function LiaisoningCommissioningPage({ activeSection, onOpenSection, onNotify }) {
+  const actionType = liaisonActionPageTypes[activeSection];
+
+  if (actionType) {
+    return <LiaisonActionPage type={actionType} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
   if (activeSection === 'Applications') {
     return <LiaisonApplicationsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
@@ -7214,6 +7372,291 @@ function LiaisoningCommissioningPage({ activeSection, onOpenSection, onNotify })
   }
 
   return <OperationsPlaceholderPage moduleTitle="Liaisoning & Commissioning" activeSection={activeSection} items={liaisonSubItems} onOpenSection={onOpenSection} onNotify={onNotify} accent="green" />;
+}
+
+function LiaisonActionPage({ type, onOpenSection, onNotify }) {
+  const config = {
+    'application-create': {
+      title: 'Create LC Application',
+      route: liaisonSubRoutes['Liaison Application Create'],
+      icon: FilePlus2,
+      saveLabel: 'Save Application',
+      note: 'New LC application create karo aur application type, capacity, location aur owner details set karo.',
+      fields: [
+        ['Application No.', 'LC-2024-0009'],
+        ['Applicant / Company', 'Ravi Industries Pvt. Ltd.'],
+        ['Application Type', 'Net Metering'],
+        ['Capacity', '100.00 kWp'],
+        ['Location', 'Ludhiana, Punjab'],
+        ['Current Stage', 'Documentation'],
+      ],
+      textLabel: 'Application Notes',
+      textValue: 'Initial documents received. Pending statutory approval and inspection scheduling.',
+    },
+    'application-detail': {
+      title: 'LC Application Details',
+      route: liaisonSubRoutes['Liaison Application Details'],
+      icon: FileText,
+      saveLabel: 'Update Application',
+      note: 'Application status, stage aur submitted documents review karo.',
+      fields: [
+        ['Application No.', 'LC-2024-0001'],
+        ['Company', 'Malwa Industrial Pvt. Ltd.'],
+        ['Application Type', 'Net Metering'],
+        ['Capacity', '100.00 kWp'],
+        ['Status', 'Pending'],
+        ['Submitted On', '20 Apr 2024'],
+      ],
+      textLabel: 'Review Notes',
+      textValue: 'Approval file is pending with DISCOM. Follow up before next inspection slot.',
+    },
+    'approval-detail': {
+      title: 'LC Approval Details',
+      route: liaisonSubRoutes['Liaison Approval Details'],
+      icon: ShieldCheck,
+      saveLabel: 'Update Approval',
+      note: 'Approval request, reviewer, due date aur decision trail manage karo.',
+      fields: [
+        ['Approval ID', 'LC-APP-2024-048'],
+        ['Type', 'LC Application'],
+        ['Customer', 'Ravi Industries Pvt. Ltd.'],
+        ['Project', '2 MW Rooftop Project'],
+        ['Status', 'Pending'],
+        ['Due Date', '27 May 2024'],
+      ],
+      textLabel: 'Approval Remarks',
+      textValue: 'Technical documents verified. Awaiting final regulatory approval.',
+    },
+    'inspection-create': {
+      title: 'Schedule LC Inspection',
+      route: liaisonSubRoutes['Liaison Inspection Create'],
+      icon: CalendarDays,
+      saveLabel: 'Schedule Inspection',
+      note: 'Inspection schedule karo, inspector assign karo aur site checklist prepare karo.',
+      fields: [
+        ['Inspection No.', 'LC-INS-2024-0097'],
+        ['Application No.', 'LC-2024-0006'],
+        ['Company', 'Future Electronics'],
+        ['Inspector', 'Ravi Kumar'],
+        ['Scheduled Date', '26 May 2026'],
+        ['Status', 'Scheduled'],
+      ],
+      textLabel: 'Inspection Checklist',
+      textValue: 'Verify meter room, AC/DC safety labels, earthing, net meter readiness and site photos.',
+    },
+    'inspection-detail': {
+      title: 'LC Inspection Details',
+      route: liaisonSubRoutes['Liaison Inspection Details'],
+      icon: Search,
+      saveLabel: 'Update Inspection',
+      note: 'Inspection result, issues aur corrective actions track karo.',
+      fields: [
+        ['Inspection No.', 'LC-INS-2024-0096'],
+        ['Application No.', 'LC-2024-0006'],
+        ['Company', 'Future Electronics'],
+        ['Inspector', 'Ravi Kumar'],
+        ['Status', 'Scheduled'],
+        ['Issues Found', '0'],
+      ],
+      textLabel: 'Inspection Notes',
+      textValue: 'Site is ready for inspection. Keep signed checklist and photos attached.',
+    },
+    'commissioning-create': {
+      title: 'Create Commissioning Activity',
+      route: liaisonSubRoutes['Liaison Commissioning Create'],
+      icon: Zap,
+      saveLabel: 'Save Commissioning',
+      note: 'Commissioning activity create karo aur engineer, schedule, testing status set karo.',
+      fields: [
+        ['Commissioning No.', 'LC-COM-2024-0087'],
+        ['Application No.', 'LC-APP-2024-0048'],
+        ['Company', 'Ravi Industries Pvt. Ltd.'],
+        ['Engineer', 'Ravi Kumar'],
+        ['Scheduled Date', '27 May 2026'],
+        ['Status', 'Scheduled'],
+      ],
+      textLabel: 'Commissioning Scope',
+      textValue: 'Complete system checks, inverter sync, load test and commissioning certificate.',
+    },
+    'commissioning-detail': {
+      title: 'Commissioning Details',
+      route: liaisonSubRoutes['Liaison Commissioning Details'],
+      icon: Settings,
+      saveLabel: 'Update Commissioning',
+      note: 'Commissioning status, testing result aur certificate details review karo.',
+      fields: [
+        ['Commissioning No.', 'LC-COM-2024-0086'],
+        ['Application No.', 'LC-APP-2024-0048'],
+        ['Company', 'Ravi Industries Pvt. Ltd.'],
+        ['Engineer', 'Ravi Kumar'],
+        ['Status', 'Scheduled'],
+        ['Commissioned On', '-'],
+      ],
+      textLabel: 'Testing Notes',
+      textValue: 'Commissioning planned after approval closure. Keep test report ready for upload.',
+    },
+    'compliance-create': {
+      title: 'Create Compliance Item',
+      route: liaisonSubRoutes['Liaison Compliance Create'],
+      icon: ShieldCheck,
+      saveLabel: 'Save Compliance',
+      note: 'Compliance requirement create karo aur due date, department, document status assign karo.',
+      fields: [
+        ['Compliance ID', 'LC-CMP-2024-0103'],
+        ['Application No.', 'LC-APP-2024-0048'],
+        ['Requirement', 'Electrical Safety Certificate'],
+        ['Department', 'Electrical'],
+        ['Due Date', '30 May 2026'],
+        ['Status', 'Pending'],
+      ],
+      textLabel: 'Compliance Notes',
+      textValue: 'Certificate submission required before commissioning closure.',
+    },
+    'compliance-detail': {
+      title: 'Compliance Details',
+      route: liaisonSubRoutes['Liaison Compliance Details'],
+      icon: BadgeCheck,
+      saveLabel: 'Update Compliance',
+      note: 'Compliance evidence, status aur remarks review karo.',
+      fields: [
+        ['Compliance ID', 'LC-CMP-2024-0102'],
+        ['Company', 'Ravi Industries Pvt. Ltd.'],
+        ['Requirement', 'Pollution NOC'],
+        ['Department', 'Regulatory'],
+        ['Status', 'Compliant'],
+        ['Submitted On', '12 May 2024'],
+      ],
+      textLabel: 'Compliance Remarks',
+      textValue: 'All required evidence is uploaded and approved by the regulatory team.',
+    },
+    'document-upload': {
+      title: 'Upload LC Document',
+      route: liaisonSubRoutes['Liaison Document Upload'],
+      icon: Upload,
+      saveLabel: 'Upload Document',
+      note: 'LC document upload karo aur category, relation, access aur review status set karo.',
+      fields: [
+        ['Document Type', 'Statutory Clearance'],
+        ['Related To', 'LC Application'],
+        ['Application No.', 'LC-APP-2024-0048'],
+        ['Uploaded By', 'Ravi Kumar'],
+        ['Access', 'Project Team'],
+        ['Status', 'Under Review'],
+      ],
+      textLabel: 'Document Notes',
+      textValue: 'Attach latest NOC, approval letter, safety certificate or inspection report.',
+    },
+    'document-preview': {
+      title: 'LC Document Preview',
+      route: liaisonSubRoutes['Liaison Document Preview'],
+      icon: FileText,
+      saveLabel: 'Update Document',
+      note: 'Document preview, review status aur related LC record check karo.',
+      fields: [
+        ['Document', 'Pollution NOC.pdf'],
+        ['Document Type', 'Statutory Clearance'],
+        ['Related To', 'LC Application'],
+        ['Application No.', 'LC-APP-2024-0048'],
+        ['File Type', 'PDF'],
+        ['Status', 'Approved'],
+      ],
+      textLabel: 'Review Notes',
+      textValue: 'Document is approved and ready for compliance reference.',
+    },
+    reports: {
+      title: 'Liaison Reports',
+      route: liaisonSubRoutes['Liaison Reports'],
+      icon: BarChart3,
+      saveLabel: 'Generate Report',
+      note: 'Applications, approvals, inspections, commissioning aur compliance reports generate karo.',
+      fields: [
+        ['Report Type', 'Liaison Summary'],
+        ['Date Range', 'May 2026'],
+        ['Branch', 'All Branches'],
+        ['Format', 'PDF'],
+        ['Owner', 'Compliance Team'],
+        ['Status', 'Ready'],
+      ],
+      textLabel: 'Report Scope',
+      textValue: 'Include pending approvals, due compliance items, inspection status and commissioning summary.',
+    },
+  }[type];
+
+  const Icon = config.icon;
+  const activeSubcategory = {
+    'application-create': 'Applications',
+    'application-detail': 'Applications',
+    'approval-detail': 'Approvals',
+    'inspection-create': 'Inspections',
+    'inspection-detail': 'Inspections',
+    'commissioning-create': 'Commissioning',
+    'commissioning-detail': 'Commissioning',
+    'compliance-create': 'Compliance',
+    'compliance-detail': 'Compliance',
+    'document-upload': 'Documents',
+    'document-preview': 'Documents',
+    reports: 'Applications',
+  }[type] ?? 'Applications';
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={config.title}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
+          { label: config.title },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onOpenSection(activeSubcategory)} data-route={liaisonSubRoutes[activeSubcategory]} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />{activeSubcategory}</button>
+            <button type="button" onClick={() => onNotify(`${config.title} saved`)} data-route={config.route} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"><Save className="size-4" />{config.saveLabel}</button>
+          </>
+        )}
+      />
+
+      <LiaisonSubnavTabs activeSection={activeSubcategory} onOpenSection={onOpenSection} />
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex items-start gap-4 rounded-[12px] border border-[#edf2f8] bg-[#fbfdff] p-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#effbf3] text-[#0d9f4a]"><Icon className="size-5" /></span>
+            <div>
+              <p className="font-display text-[18px] font-extrabold text-[#06135a]">{config.title}</p>
+              <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">{config.note}</p>
+              <p className="mt-2 text-[11px] font-extrabold text-[#0b65e5]">{config.route}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {config.fields.map(([label, value]) => <ReadonlyField key={label} label={label} value={value} />)}
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{config.textLabel}</span>
+              <textarea defaultValue={config.textValue} rows={5} className="w-full rounded-[8px] border border-black/20 bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+            </label>
+          </div>
+        </article>
+
+        <aside className="space-y-4">
+          <InfoPanel title="LC Summary" icon={ShieldCheck} tone="success">
+            <DetailRow label="Application" value="LC-2024-0001" />
+            <DetailRow label="Customer" value="Ravi Industries Pvt. Ltd." />
+            <DetailRow label="Capacity" value="100.00 kWp" />
+            <DetailRow label="Status" valueNode={<LiaisonApprovalStatusBadge status="Pending" />} />
+          </InfoPanel>
+          <InfoPanel title="Quick Navigation" icon={Zap} tone="primary">
+            <div className="grid gap-3">
+              <MiniActionButton label="Applications" icon={FileText} tone="blue" onClick={() => onOpenSection('Applications')} />
+              <MiniActionButton label="Approvals" icon={ShieldCheck} tone="green" onClick={() => onOpenSection('Approvals')} />
+              <MiniActionButton label="Documents" icon={FolderKanban} tone="purple" onClick={() => onOpenSection('Documents')} />
+            </div>
+          </InfoPanel>
+        </aside>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
 }
 
 function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
@@ -7246,21 +7689,21 @@ function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Liaisoning & Commissioning"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Liaisoning & Commissioning' },
         ]}
-        actions={<button type="button" onClick={() => onNotify('New application flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />New Application</button>}
+        actions={<button type="button" onClick={() => onOpenSection('Liaison Application Create')} data-route={liaisonSubRoutes['Liaison Application Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />New Application</button>}
       />
 
       <section className="space-y-4">
         <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
         <div className="space-y-4">
           <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <OpsStatCard label="Total Applications" value="128" caption="This Financial Year" icon={FileText} tone="green" onClick={() => onNotify('Total applications opened')} />
+            <OpsStatCard label="Total Applications" value="128" caption="This Financial Year" icon={FileText} tone="green" onClick={() => setStatus('All Status')} />
             <OpsStatCard label="Pending Approval" value="24" caption="Awaiting action" icon={Clock3} tone="blue" onClick={() => setStatus('Pending')} />
             <OpsStatCard label="Under Inspection" value="18" caption="In progress" icon={Search} tone="amber" onClick={() => setStatus('In Progress')} />
             <OpsStatCard label="Commissioned" value="86" caption="Completed" icon={Settings} tone="purple" onClick={() => setStatus('Completed')} />
-            <OpsStatCard label="Compliance Due" value="12" caption="Upcoming" icon={CalendarDays} tone="cyan" onClick={() => onNotify('Compliance due opened')} />
+            <OpsStatCard label="Compliance Due" value="12" caption="Upcoming" icon={CalendarDays} tone="cyan" onClick={() => onOpenSection('Compliance')} />
           </section>
 
           <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
@@ -7290,7 +7733,7 @@ function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
                       <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.code}</p>
                       <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.company}</p>
                     </div>
-                    <button type="button" onClick={() => onNotify(`${row.code} details opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
+                    <button type="button" onClick={() => onOpenSection('Liaison Application Details')} data-route={liaisonSubRoutes['Liaison Application Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
                   </div>
                   <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
                     <InfoCell label="Application Type" value={row.type} />
@@ -7321,7 +7764,7 @@ function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
                       <td><OpsPillBadge label={row.stage} tone={row.stageTone} /></td>
                       <td><OpsPillBadge label={row.status} tone={row.statusTone} /></td>
                       <td>{row.submittedOn}</td>
-                      <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.code} details opened`)} /></td>
+                      <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onOpenSection('Liaison Application Details')} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -7340,7 +7783,7 @@ function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
               { label: 'Compliance', note: 'Compliance and documents', icon: ShieldCheck, tone: 'amber' },
               { label: 'Reports', note: 'View reports and analytics', icon: BarChart3, tone: 'purple' },
             ].map((item) => (
-              <button key={item.label} type="button" onClick={() => item.label === 'Reports' ? onNotify('Liaison reports opened') : onOpenSection(item.label)} className={`${panelClass} flex items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]`}>
+              <button key={item.label} type="button" onClick={() => item.label === 'Reports' ? onOpenSection('Liaison Reports') : onOpenSection(item.label)} data-route={item.label === 'Reports' ? liaisonSubRoutes['Liaison Reports'] : liaisonSubRoutes[item.label]} className={`${panelClass} flex items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]`}>
                 <span className={cx('grid size-11 shrink-0 place-items-center rounded-[12px]', item.tone === 'green' ? 'bg-[#e8f8eb] text-[#16a34a]' : item.tone === 'amber' ? 'bg-[#fff0dc] text-[#f59e0b]' : item.tone === 'purple' ? 'bg-[#f2eafe] text-[#8b5cf6]' : 'bg-[#e8f2ff] text-[#0b65e5]')}>
                   <item.icon className="size-5" />
                 </span>
@@ -7390,7 +7833,7 @@ function LiaisonApprovalsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Liaisoning & Commissioning Approvals"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
           { label: 'Approvals' },
         ]}
@@ -7405,10 +7848,10 @@ function LiaisonApprovalsPage({ activeSection, onOpenSection, onNotify }) {
 
           <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
             <LiaisonApprovalStatCard label="Total Applications" value="48" caption="All Time" icon={FileText} tone="green" onClick={() => setActiveTab('All Approvals')} />
-            <LiaisonApprovalStatCard label="Pending Approvals" value="14" caption="Requires Action" icon={Clock3} tone="blue" onClick={() => onNotify('Pending approvals opened')} />
-            <LiaisonApprovalStatCard label="Approved" value="28" caption="This Year" icon={CheckCircle2} tone="amber" onClick={() => onNotify('Approved approvals opened')} />
-            <LiaisonApprovalStatCard label="Rejected" value="6" caption="This Year" icon={XCircle} tone="purple" onClick={() => onNotify('Rejected approvals opened')} />
-            <LiaisonApprovalStatCard label="Due This Week" value="5" caption="Action Needed" icon={CalendarDays} tone="cyan" onClick={() => onNotify('Due this week opened')} />
+            <LiaisonApprovalStatCard label="Pending Approvals" value="14" caption="Requires Action" icon={Clock3} tone="blue" onClick={() => onOpenSection('Liaison Approval Details')} />
+            <LiaisonApprovalStatCard label="Approved" value="28" caption="This Year" icon={CheckCircle2} tone="amber" onClick={() => onOpenSection('Liaison Approval Details')} />
+            <LiaisonApprovalStatCard label="Rejected" value="6" caption="This Year" icon={XCircle} tone="purple" onClick={() => onOpenSection('Liaison Approval Details')} />
+            <LiaisonApprovalStatCard label="Due This Week" value="5" caption="Action Needed" icon={CalendarDays} tone="cyan" onClick={() => onOpenSection('Liaison Approval Details')} />
           </section>
 
           <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
@@ -7457,7 +7900,7 @@ function LiaisonApprovalsPage({ activeSection, onOpenSection, onNotify }) {
 
             <div className="mt-5 space-y-3 xl:hidden">
               {filteredRows.map((row, index) => (
-                <LiaisonApprovalMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+                <LiaisonApprovalMobileCard key={row.id} row={row} index={index + 1} onOpenSection={onOpenSection} />
               ))}
             </div>
 
@@ -7488,10 +7931,10 @@ function LiaisonApprovalsPage({ activeSection, onOpenSection, onNotify }) {
                       <td><LiaisonApprovalDueDate dueDate={row.dueDate} dueNote={row.dueNote} dueTone={row.dueTone} /></td>
                       <td>
                         <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => onNotify(`${row.appId} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                          <button type="button" onClick={() => onOpenSection('Liaison Approval Details')} data-route={liaisonSubRoutes['Liaison Approval Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
                             <Eye className="size-4" />
                           </button>
-                          <button type="button" onClick={() => onNotify(`${row.appId} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                          <button type="button" onClick={() => onOpenSection('Liaison Approval Details')} data-route={liaisonSubRoutes['Liaison Approval Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
                             <ChevronDown className="size-4" />
                           </button>
                         </div>
@@ -7615,7 +8058,7 @@ function LiaisonApprovalDueDate({ dueDate, dueNote, dueTone }) {
   );
 }
 
-function LiaisonApprovalMobileCard({ row, index, onNotify }) {
+function LiaisonApprovalMobileCard({ row, index, onOpenSection }) {
   return (
     <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
       <div className="flex items-start justify-between gap-3">
@@ -7639,11 +8082,11 @@ function LiaisonApprovalMobileCard({ row, index, onNotify }) {
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button type="button" onClick={() => onNotify(`${row.appId} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+        <button type="button" onClick={() => onOpenSection('Liaison Approval Details')} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
           <Eye className="size-4" />
           View
         </button>
-        <button type="button" onClick={() => onNotify(`${row.appId} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+        <button type="button" onClick={() => onOpenSection('Liaison Approval Details')} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
           <ChevronDown className="size-4" />
         </button>
       </div>
@@ -7686,12 +8129,12 @@ function LiaisonInspectionsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Liaisoning & Commissioning - Inspections"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
           { label: 'Inspections' },
         ]}
         actions={(
-          <button type="button" onClick={() => onNotify('New inspection opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+          <button type="button" onClick={() => onOpenSection('Liaison Inspection Create')} data-route={liaisonSubRoutes['Liaison Inspection Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
             <Plus className="size-4" />
             New Inspection
           </button>
@@ -7706,10 +8149,10 @@ function LiaisonInspectionsPage({ activeSection, onOpenSection, onNotify }) {
           </p>
 
           <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <LiaisonApprovalStatCard label="Total Inspections" value="96" caption="This Financial Year" icon={ClipboardPlus} tone="green" onClick={() => onNotify('Total inspections opened')} />
+            <LiaisonApprovalStatCard label="Total Inspections" value="96" caption="This Financial Year" icon={ClipboardPlus} tone="green" onClick={() => setStatus('All Status')} />
             <LiaisonApprovalStatCard label="Pending Inspections" value="18" caption="Awaiting Schedule" icon={Search} tone="blue" onClick={() => setStatus('Pending')} />
             <LiaisonApprovalStatCard label="Completed Inspections" value="62" caption="This Financial Year" icon={Eye} tone="amber" onClick={() => setStatus('Completed')} />
-            <LiaisonApprovalStatCard label="Issues Found" value="14" caption="Requires Action" icon={Flag} tone="purple" onClick={() => onNotify('Issues found opened')} />
+            <LiaisonApprovalStatCard label="Issues Found" value="14" caption="Requires Action" icon={Flag} tone="purple" onClick={() => onOpenSection('Liaison Inspection Details')} />
             <LiaisonApprovalStatCard label="Scheduled Today" value="06" caption="Today" icon={CalendarDays} tone="cyan" onClick={() => setStatus('Scheduled')} />
           </section>
 
@@ -7741,7 +8184,7 @@ function LiaisonInspectionsPage({ activeSection, onOpenSection, onNotify }) {
 
             <div className="mt-4 space-y-3 xl:hidden">
               {filteredRows.map((row, index) => (
-                <LiaisonInspectionMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+                <LiaisonInspectionMobileCard key={row.id} row={row} index={index + 1} onOpenSection={onOpenSection} />
               ))}
             </div>
 
@@ -7769,10 +8212,10 @@ function LiaisonInspectionsPage({ activeSection, onOpenSection, onNotify }) {
                       <td className={cx('font-extrabold', row.issues > 0 ? 'text-[#ef4444]' : 'text-[#1e3261]')}>{row.issues}</td>
                       <td>
                         <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => onNotify(`${row.inspectionNo} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                          <button type="button" onClick={() => onOpenSection('Liaison Inspection Details')} data-route={liaisonSubRoutes['Liaison Inspection Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
                             <Eye className="size-4" />
                           </button>
-                          <button type="button" onClick={() => onNotify(`${row.inspectionNo} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                          <button type="button" onClick={() => onOpenSection('Liaison Inspection Details')} data-route={liaisonSubRoutes['Liaison Inspection Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
                             <MoreVertical className="size-4" />
                           </button>
                         </div>
@@ -7816,7 +8259,7 @@ function LiaisonInspectionStatusBadge({ status }) {
   return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
 }
 
-function LiaisonInspectionMobileCard({ row, index, onNotify }) {
+function LiaisonInspectionMobileCard({ row, index, onOpenSection }) {
   return (
     <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
       <div className="flex items-start justify-between gap-3">
@@ -7837,11 +8280,11 @@ function LiaisonInspectionMobileCard({ row, index, onNotify }) {
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button type="button" onClick={() => onNotify(`${row.inspectionNo} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+        <button type="button" onClick={() => onOpenSection('Liaison Inspection Details')} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
           <Eye className="size-4" />
           View
         </button>
-        <button type="button" onClick={() => onNotify(`${row.inspectionNo} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+        <button type="button" onClick={() => onOpenSection('Liaison Inspection Details')} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
           <MoreVertical className="size-4" />
         </button>
       </div>
@@ -7884,12 +8327,12 @@ function LiaisonCommissioningPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Liaisoning & Commissioning - Commissioning"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
           { label: 'Commissioning' },
         ]}
         actions={(
-          <button type="button" onClick={() => onNotify('New commissioning opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+          <button type="button" onClick={() => onOpenSection('Liaison Commissioning Create')} data-route={liaisonSubRoutes['Liaison Commissioning Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
             <Plus className="size-4" />
             New Commissioning
           </button>
@@ -7904,7 +8347,7 @@ function LiaisonCommissioningPage({ activeSection, onOpenSection, onNotify }) {
           </p>
 
           <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <LiaisonApprovalStatCard label="Total Commissioning" value="86" caption="This Financial Year" icon={ClipboardPlus} tone="green" onClick={() => onNotify('Total commissioning opened')} />
+            <LiaisonApprovalStatCard label="Total Commissioning" value="86" caption="This Financial Year" icon={ClipboardPlus} tone="green" onClick={() => setStatus('All Status')} />
             <LiaisonApprovalStatCard label="Pending Commissioning" value="22" caption="Awaiting Execution" icon={Clock3} tone="blue" onClick={() => setStatus('Pending')} />
             <LiaisonApprovalStatCard label="Completed Commissioning" value="54" caption="This Financial Year" icon={Settings} tone="amber" onClick={() => setStatus('Completed')} />
             <LiaisonApprovalStatCard label="Delayed" value="08" caption="Requires Attention" icon={Flag} tone="purple" onClick={() => setStatus('Delayed')} />
@@ -7939,7 +8382,7 @@ function LiaisonCommissioningPage({ activeSection, onOpenSection, onNotify }) {
 
             <div className="mt-4 space-y-3 xl:hidden">
               {filteredRows.map((row, index) => (
-                <LiaisonCommissioningMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+                <LiaisonCommissioningMobileCard key={row.id} row={row} index={index + 1} onOpenSection={onOpenSection} />
               ))}
             </div>
 
@@ -7967,10 +8410,10 @@ function LiaisonCommissioningPage({ activeSection, onOpenSection, onNotify }) {
                       <td className="font-extrabold text-[#223768]">{row.commissionedOn}</td>
                       <td>
                         <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => onNotify(`${row.commissioningNo} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                          <button type="button" onClick={() => onOpenSection('Liaison Commissioning Details')} data-route={liaisonSubRoutes['Liaison Commissioning Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
                             <Eye className="size-4" />
                           </button>
-                          <button type="button" onClick={() => onNotify(`${row.commissioningNo} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                          <button type="button" onClick={() => onOpenSection('Liaison Commissioning Details')} data-route={liaisonSubRoutes['Liaison Commissioning Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
                             <MoreVertical className="size-4" />
                           </button>
                         </div>
@@ -8014,7 +8457,7 @@ function LiaisonCommissioningStatusBadge({ status }) {
   return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
 }
 
-function LiaisonCommissioningMobileCard({ row, index, onNotify }) {
+function LiaisonCommissioningMobileCard({ row, index, onOpenSection }) {
   return (
     <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
       <div className="flex items-start justify-between gap-3">
@@ -8035,11 +8478,11 @@ function LiaisonCommissioningMobileCard({ row, index, onNotify }) {
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button type="button" onClick={() => onNotify(`${row.commissioningNo} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+        <button type="button" onClick={() => onOpenSection('Liaison Commissioning Details')} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
           <Eye className="size-4" />
           View
         </button>
-        <button type="button" onClick={() => onNotify(`${row.commissioningNo} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+        <button type="button" onClick={() => onOpenSection('Liaison Commissioning Details')} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
           <MoreVertical className="size-4" />
         </button>
       </div>
@@ -8082,12 +8525,12 @@ function LiaisonCompliancePage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Liaisoning & Commissioning - Compliance"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
           { label: 'Compliance' },
         ]}
         actions={(
-          <button type="button" onClick={() => onNotify('New compliance item opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+          <button type="button" onClick={() => onOpenSection('Liaison Compliance Create')} data-route={liaisonSubRoutes['Liaison Compliance Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
             <Plus className="size-4" />
             New Compliance Item
           </button>
@@ -8102,11 +8545,11 @@ function LiaisonCompliancePage({ activeSection, onOpenSection, onNotify }) {
           </p>
 
           <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <LiaisonApprovalStatCard label="Total Compliance Items" value="102" caption="This Financial Year" icon={ShieldCheck} tone="green" onClick={() => onNotify('Total compliance items opened')} />
+            <LiaisonApprovalStatCard label="Total Compliance Items" value="102" caption="This Financial Year" icon={ShieldCheck} tone="green" onClick={() => setStatus('All Status')} />
             <LiaisonApprovalStatCard label="Pending Items" value="23" caption="Action Required" icon={FileText} tone="blue" onClick={() => setStatus('Pending')} />
             <LiaisonApprovalStatCard label="Compliant" value="65" caption="Completed" icon={CheckCircle2} tone="amber" onClick={() => setStatus('Compliant')} />
             <LiaisonApprovalStatCard label="Non-Compliant" value="07" caption="Requires Attention" icon={AlertTriangle} tone="purple" onClick={() => setStatus('Non-Compliant')} />
-            <LiaisonApprovalStatCard label="Due This Month" value="07" caption="Upcoming Deadlines" icon={CalendarDays} tone="cyan" onClick={() => onNotify('Due this month opened')} />
+            <LiaisonApprovalStatCard label="Due This Month" value="07" caption="Upcoming Deadlines" icon={CalendarDays} tone="cyan" onClick={() => setStatus('Pending')} />
           </section>
 
           <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
@@ -8137,7 +8580,7 @@ function LiaisonCompliancePage({ activeSection, onOpenSection, onNotify }) {
 
             <div className="mt-4 space-y-3 xl:hidden">
               {filteredRows.map((row, index) => (
-                <LiaisonComplianceMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+                <LiaisonComplianceMobileCard key={row.id} row={row} index={index + 1} onOpenSection={onOpenSection} />
               ))}
             </div>
 
@@ -8165,10 +8608,10 @@ function LiaisonCompliancePage({ activeSection, onOpenSection, onNotify }) {
                       <td>{row.remarks}</td>
                       <td>
                         <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => onNotify(`${row.complianceId} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                          <button type="button" onClick={() => onOpenSection('Liaison Compliance Details')} data-route={liaisonSubRoutes['Liaison Compliance Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
                             <Eye className="size-4" />
                           </button>
-                          <button type="button" onClick={() => onNotify(`${row.complianceId} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                          <button type="button" onClick={() => onOpenSection('Liaison Compliance Details')} data-route={liaisonSubRoutes['Liaison Compliance Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
                             <MoreVertical className="size-4" />
                           </button>
                         </div>
@@ -8210,7 +8653,7 @@ function LiaisonComplianceStatusBadge({ status }) {
   return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
 }
 
-function LiaisonComplianceMobileCard({ row, index, onNotify }) {
+function LiaisonComplianceMobileCard({ row, index, onOpenSection }) {
   return (
     <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
       <div className="flex items-start justify-between gap-3">
@@ -8231,11 +8674,11 @@ function LiaisonComplianceMobileCard({ row, index, onNotify }) {
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button type="button" onClick={() => onNotify(`${row.complianceId} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+        <button type="button" onClick={() => onOpenSection('Liaison Compliance Details')} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
           <Eye className="size-4" />
           View
         </button>
-        <button type="button" onClick={() => onNotify(`${row.complianceId} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+        <button type="button" onClick={() => onOpenSection('Liaison Compliance Details')} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
           <MoreVertical className="size-4" />
         </button>
       </div>
@@ -8278,12 +8721,12 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Liaisoning & Commissioning - Documents"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
           { label: 'Documents' },
         ]}
         actions={(
-          <button type="button" onClick={() => onNotify('Upload document opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
+          <button type="button" onClick={() => onOpenSection('Liaison Document Upload')} data-route={liaisonSubRoutes['Liaison Document Upload']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
             <Plus className="size-4" />
             Upload Document
           </button>
@@ -8298,11 +8741,11 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
           </p>
 
           <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <LiaisonApprovalStatCard label="Total Documents" value="256" caption="All Documents" icon={FolderKanban} tone="green" onClick={() => onNotify('Total documents opened')} />
+            <LiaisonApprovalStatCard label="Total Documents" value="256" caption="All Documents" icon={FolderKanban} tone="green" onClick={() => setStatus('All Status')} />
             <LiaisonApprovalStatCard label="Pending Review" value="34" caption="Requires Action" icon={FileText} tone="blue" onClick={() => setStatus('Under Review')} />
             <LiaisonApprovalStatCard label="Approved" value="162" caption="Approved Documents" icon={CheckCircle2} tone="amber" onClick={() => setStatus('Approved')} />
             <LiaisonApprovalStatCard label="Rejected" value="18" caption="Rejected Documents" icon={XCircle} tone="purple" onClick={() => setStatus('Rejected')} />
-            <LiaisonApprovalStatCard label="Archived" value="42" caption="Archived Documents" icon={HardDrive} tone="cyan" onClick={() => onNotify('Archived documents opened')} />
+            <LiaisonApprovalStatCard label="Archived" value="42" caption="Archived Documents" icon={HardDrive} tone="cyan" onClick={() => onOpenSection('Liaison Document Preview')} />
           </section>
 
           <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
@@ -8333,7 +8776,7 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
 
             <div className="mt-4 space-y-3 xl:hidden">
               {filteredRows.map((row, index) => (
-                <LiaisonDocumentMobileCard key={row.id} row={row} index={index + 1} onNotify={onNotify} />
+                <LiaisonDocumentMobileCard key={row.id} row={row} index={index + 1} onOpenSection={onOpenSection} />
               ))}
             </div>
 
@@ -8360,10 +8803,10 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
                       <td><LiaisonDocumentStatusBadge status={row.status} /></td>
                       <td>
                         <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => onNotify(`${row.name} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
+                          <button type="button" onClick={() => onOpenSection('Liaison Document Preview')} data-route={liaisonSubRoutes['Liaison Document Preview']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
                             <Eye className="size-4" />
                           </button>
-                          <button type="button" onClick={() => onNotify(`${row.name} actions opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
+                          <button type="button" onClick={() => onOpenSection('Liaison Document Preview')} data-route={liaisonSubRoutes['Liaison Document Preview']} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
                             <MoreVertical className="size-4" />
                           </button>
                         </div>
@@ -8423,7 +8866,7 @@ function LiaisonDocumentStatusBadge({ status }) {
   return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
 }
 
-function LiaisonDocumentMobileCard({ row, index, onNotify }) {
+function LiaisonDocumentMobileCard({ row, index, onOpenSection }) {
   return (
     <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
       <div className="flex items-start justify-between gap-3">
@@ -8445,11 +8888,11 @@ function LiaisonDocumentMobileCard({ row, index, onNotify }) {
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button type="button" onClick={() => onNotify(`${row.name} opened`)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
+        <button type="button" onClick={() => onOpenSection('Liaison Document Preview')} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
           <Eye className="size-4" />
           View
         </button>
-        <button type="button" onClick={() => onNotify(`${row.name} actions opened`)} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
+        <button type="button" onClick={() => onOpenSection('Liaison Document Preview')} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
           <MoreVertical className="size-4" />
         </button>
       </div>
@@ -15131,6 +15574,11 @@ function buildProjectPolyline(values, width = 620, height = 220, paddingX = 26, 
 }
 
 function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSection, onNotify }) {
+  const actionType = projectActionPageTypes[activeSection];
+  if (actionType) {
+    return <ProjectActionPage type={actionType} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
   if (activeSection === 'Project Overview') {
     return <ProjectOverviewPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
@@ -15246,13 +15694,28 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
     { title: 'Installation Start - 15kW Project', site: 'Ujjain, MP', due: '18 May 2024', note: '4 Days Left' },
     { title: 'Material Delivery - 10kW Project', site: 'Indore, MP', due: '20 May 2024', note: '6 Days Left' },
   ];
+  const openProjectMetric = (label) => {
+    const targets = {
+      'Total Projects': 'Project List',
+      'Active Projects': 'Project List',
+      Planning: 'Project List',
+      'In Progress': 'Project Timeline',
+      Completed: 'Project Reports',
+      'Delayed Projects': 'Project Timeline',
+      'Total Capacity (KWp)': 'Project KPI Analytics',
+      'Total Project Value (â‚¹)': 'Project Expenses',
+      'Avg. Project Value (â‚¹)': 'Project KPI Analytics',
+      'Projects Completed': 'Project Reports',
+    };
+    onOpenSection(targets[label] ?? 'Project List');
+  };
 
   return (
     <div className="space-y-4">
       <PageHeading
         title="Project Management"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Overview' },
         ]}
@@ -15270,11 +15733,11 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
       <p className="text-[14px] font-bold text-[#324871]">Track end-to-end execution, project value, installation progress and upcoming milestones across all active solar projects.</p>
 
       <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-6">
-        {heroStats.map((stat) => <ProjectMetricCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+        {heroStats.map((stat) => <ProjectMetricCard key={stat.label} stat={stat} onClick={() => openProjectMetric(stat.label)} />)}
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {summaryStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+        {summaryStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openProjectMetric(stat.label)} />)}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.25fr_0.95fr]">
@@ -15331,7 +15794,7 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
           </div>
           <div className="mt-5 space-y-5">
             {milestones.map((item) => (
-              <button key={item.title} type="button" onClick={() => onNotify(`${item.title} opened`)} className="flex w-full items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
+              <button key={item.title} type="button" onClick={() => onOpenSection('Project Timeline')} className="flex w-full items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
                 <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#eef4ff] text-[#5e83ff]"><UserRound className="size-4" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-extrabold text-[#1e3261]">{item.title}</span>
@@ -15405,13 +15868,24 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
     { label: 'Installation Efficiency', value: '71.34%', note: '8.14% vs Last Year', icon: Settings, tone: 'cyan' },
     { label: 'Client Satisfaction', value: '4.62 / 5', note: '0.45 vs Last Year', icon: Trophy, tone: 'amber' },
   ];
+  const openKpiMetric = (label) => {
+    const targets = {
+      'Total Projects': 'Project List',
+      'Active Projects': 'Project List',
+      Planning: 'Project List',
+      'In Progress': 'Project Timeline',
+      Completed: 'Project Reports',
+      'Delayed Projects': 'Project Timeline',
+    };
+    onOpenSection(targets[label] ?? 'Project KPI Analytics');
+  };
 
   return (
     <div className="space-y-4">
       <PageHeading
         title="Project Management - KPI Analytics"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'KPI Analytics' },
         ]}
@@ -15429,7 +15903,7 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-6">
-        {heroStats.map((stat) => <ProjectMetricCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+        {heroStats.map((stat) => <ProjectMetricCard key={stat.label} stat={stat} onClick={() => openKpiMetric(stat.label)} />)}
       </section>
 
       <section className="grid items-start gap-4 xl:grid-cols-[1.45fr_0.95fr_0.9fr]">
@@ -15489,7 +15963,7 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Project Management"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project List' },
         ]}
@@ -15512,7 +15986,7 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search projects by name, customer, site, project manager..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
           </label>
           <button type="button" onClick={() => onNotify(`Project filters opened for ${filteredRows.length} rows`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
-          <button type="button" onClick={() => onNotify('Add project form opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Project</button>
+          <button type="button" onClick={() => onOpenSection('Project Create')} data-route={projectSubRoutes['Project Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Project</button>
         </div>
       </section>
 
@@ -15545,7 +16019,7 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
                   <td>
                     <div className="flex items-center gap-2">
                       <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => onOpenSection('Project Details')} />
-                      <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`More actions opened for ${row.projectName}`)} />
+                      <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={() => onOpenSection('Project Details')} />
                     </div>
                   </td>
                 </tr>
@@ -15577,7 +16051,7 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
               </div>
               <div className="mt-4 flex gap-2">
                 <button type="button" onClick={() => onOpenSection('Project Details')} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
-                <button type="button" onClick={() => onNotify(`More actions opened for ${row.projectName}`)} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
+                <button type="button" onClick={() => onOpenSection('Project Details')} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
               </div>
             </article>
           ))}
@@ -15625,6 +16099,363 @@ function ProjectProgressBar({ value, color, compact = false }) {
       <span className={cx('mt-2 block overflow-hidden rounded-full bg-[#e7eef7]', compact ? 'h-[6px]' : 'h-[7px]')}>
         <span className={cx('block h-full rounded-full', toneClass)} style={{ width: `${Math.max(0, Math.min(value, 100))}%` }} />
       </span>
+    </div>
+  );
+}
+
+function ProjectActionPage({ type, onOpenSection, onNotify }) {
+  const config = {
+    create: {
+      title: 'Create Project',
+      route: projectSubRoutes['Project Create'],
+      icon: FolderKanban,
+      saveLabel: 'Save Project',
+      note: 'New solar project create karo aur customer, site, capacity aur manager details set karo.',
+      fields: [
+        ['Project Name', '20kW On-Grid System'],
+        ['Customer', 'Amit Sharma'],
+        ['Site Location', 'Indore, MP'],
+        ['Project Type', 'On-Grid'],
+        ['Capacity', '20.00 KWp'],
+        ['Project Manager', 'Rohit Singh'],
+      ],
+      textLabel: 'Project Scope',
+      textValue: 'Rooftop on-grid installation with material planning, team assignment and commissioning milestones.',
+    },
+    activity: {
+      title: 'Add Project Activity',
+      route: projectSubRoutes['Project Activity Create'],
+      icon: ClipboardPlus,
+      saveLabel: 'Save Activity',
+      note: 'Project activity, owner aur due date add karo.',
+      fields: [
+        ['Activity Type', 'Site Update'],
+        ['Category', 'Execution'],
+        ['Owner', 'Rohit Singh'],
+        ['Status', 'In Progress'],
+        ['Due Date', '26 May 2024'],
+        ['Priority', 'Medium'],
+      ],
+      textLabel: 'Activity Notes',
+      textValue: 'Add activity update with next action and owner responsibility.',
+    },
+    note: {
+      title: 'Add Project Note',
+      route: projectSubRoutes['Project Note Create'],
+      icon: MessageSquareMore,
+      saveLabel: 'Save Note',
+      note: 'Internal note add karo jo project team ke liye visible ho.',
+      fields: [
+        ['Note Type', 'Internal'],
+        ['Category', 'Execution'],
+        ['Created By', 'Rohit Singh'],
+        ['Priority', 'High'],
+        ['Pinned', 'No'],
+        ['Visibility', 'Project Team'],
+      ],
+      textLabel: 'Note',
+      textValue: 'Customer asked for installation photos and progress update by evening.',
+    },
+    'team-add': {
+      title: 'Add Team Member',
+      route: projectSubRoutes['Project Team Add'],
+      icon: UsersRound,
+      saveLabel: 'Add Member',
+      note: 'Project team member assign karo aur access level set karo.',
+      fields: [
+        ['Employee', 'Amit Sharma'],
+        ['Role', 'Site Engineer'],
+        ['Department', 'Engineering'],
+        ['Access Level', 'Edit Access'],
+        ['Start Date', '26 May 2024'],
+        ['Notify Member', 'Yes'],
+      ],
+      textLabel: 'Assignment Note',
+      textValue: 'Please handle site survey closure and installation readiness checklist.',
+    },
+    'progress-update': {
+      title: 'Update Project Progress',
+      route: projectSubRoutes['Project Progress Update'],
+      icon: CheckCircle2,
+      saveLabel: 'Update Progress',
+      note: 'Milestone progress update karo aur status history maintain karo.',
+      fields: [
+        ['Current Progress', '58%'],
+        ['New Progress', '65%'],
+        ['Milestone', 'Procurement'],
+        ['Owner', 'Rohit Singh'],
+        ['Updated On', '26 May 2024'],
+        ['Notify Customer', 'No'],
+      ],
+      textLabel: 'Progress Remarks',
+      textValue: 'Partial material received. Installation can start after structure dispatch.',
+    },
+    'work-order': {
+      title: 'Create Work Order',
+      route: projectSubRoutes['Project Work Order Create'],
+      icon: ClipboardPlus,
+      saveLabel: 'Save Work Order',
+      note: 'Installation ya electrical task ke liye work order create karo.',
+      fields: [
+        ['Work Order ID', 'WO-2024-0006'],
+        ['Task', 'Panel Installation'],
+        ['Category', 'Installation'],
+        ['Assignee', 'Ramesh Yadav'],
+        ['Priority', 'High'],
+        ['Due Date', '26 May 2024'],
+      ],
+      textLabel: 'Work Instructions',
+      textValue: 'Complete panel mounting, torque check and site photo upload before marking completed.',
+    },
+    'expense-create': {
+      title: 'Add Project Expense',
+      route: projectSubRoutes['Project Expense Create'],
+      icon: IndianRupee,
+      saveLabel: 'Save Expense',
+      note: 'Project expense add karo aur vendor/payment details capture karo.',
+      fields: [
+        ['Expense Category', 'Installation'],
+        ['Vendor', 'EnerTech Solutions'],
+        ['Invoice No.', 'INV-1002'],
+        ['Amount', 'Rs 28,500'],
+        ['Payment Status', 'Pending'],
+        ['Payment Mode', 'Bank Transfer'],
+      ],
+      textLabel: 'Expense Description',
+      textValue: 'Mounting structure and installation consumables for 20kW project.',
+    },
+    'expense-detail': {
+      title: 'Project Expense Details',
+      route: projectSubRoutes['Project Expense Details'],
+      icon: ReceiptText,
+      saveLabel: 'Update Expense',
+      note: 'Invoice, payment status aur approval detail review karo.',
+      fields: [
+        ['Expense ID', 'EXP-2024-0002'],
+        ['Invoice', 'INV-1002.pdf'],
+        ['Vendor', 'EnerTech Solutions'],
+        ['Amount', 'Rs 28,500'],
+        ['Status', 'Paid'],
+        ['Approved By', 'Rohit Singh'],
+      ],
+      textLabel: 'Expense Notes',
+      textValue: 'Invoice verified against work order and material receipt.',
+    },
+    'document-upload': {
+      title: 'Upload Project Document',
+      route: projectSubRoutes['Project Document Upload'],
+      icon: ArrowUpRight,
+      saveLabel: 'Upload Document',
+      note: 'Project document upload karo aur category/access set karo.',
+      fields: [
+        ['Document Type', 'Technical Document'],
+        ['Category', 'Site Survey'],
+        ['Access', 'Project Team'],
+        ['Uploaded By', 'Rohit Singh'],
+        ['Version', 'v1.0'],
+        ['Status', 'Pending Review'],
+      ],
+      textLabel: 'Document Notes',
+      textValue: 'Attach latest signed site survey report and supporting photos.',
+    },
+    'document-preview': {
+      title: 'Project Document Preview',
+      route: projectSubRoutes['Project Document Preview'],
+      icon: FileText,
+      saveLabel: 'Update Document',
+      note: 'Document preview, status aur access details review karo.',
+      fields: [
+        ['Document', 'Site Survey Report.pdf'],
+        ['Category', 'Project Documents'],
+        ['File Type', 'PDF'],
+        ['Size', '2.45 MB'],
+        ['Access', 'Public'],
+        ['Status', 'Approved'],
+      ],
+      textLabel: 'Document Review Note',
+      textValue: 'Document is ready for project team reference.',
+    },
+    'folder-create': {
+      title: 'Create Project Folder',
+      route: projectSubRoutes['Project Folder Create'],
+      icon: FolderKanban,
+      saveLabel: 'Create Folder',
+      note: 'Project documents ke liye new folder/category create karo.',
+      fields: [
+        ['Folder Name', 'Installation Photos'],
+        ['Parent Folder', 'Project Documents'],
+        ['Access', 'Project Team'],
+        ['Owner', 'Rohit Singh'],
+        ['Default Status', 'Active'],
+        ['Retention', 'Project Lifetime'],
+      ],
+      textLabel: 'Folder Notes',
+      textValue: 'Use this folder for day-wise installation photo uploads.',
+    },
+    'approval-create': {
+      title: 'New Project Approval',
+      route: projectSubRoutes['Project Approval Create'],
+      icon: ShieldCheck,
+      saveLabel: 'Submit Approval',
+      note: 'Approval request create karo aur approver assign karo.',
+      fields: [
+        ['Approval Type', 'Technical'],
+        ['Title', 'Installation Plan'],
+        ['Requester', 'Rohit Singh'],
+        ['Approver', 'Amit Joshi'],
+        ['Priority', 'High'],
+        ['Due Date', '27 May 2024'],
+      ],
+      textLabel: 'Approval Reason',
+      textValue: 'Installation plan approval required before site execution starts.',
+    },
+    'approval-detail': {
+      title: 'Project Approval Details',
+      route: projectSubRoutes['Project Approval Details'],
+      icon: ShieldCheck,
+      saveLabel: 'Update Approval',
+      note: 'Approval status, approver aur decision trail review karo.',
+      fields: [
+        ['Approval ID', 'APR-2024-0027'],
+        ['Title', 'Site Survey Report'],
+        ['Category', 'Technical'],
+        ['Status', 'Approved'],
+        ['Requested By', 'Vikram Singh'],
+        ['Approver', 'Amit Joshi'],
+      ],
+      textLabel: 'Approval Notes',
+      textValue: 'Approval completed. Document can be used for next execution step.',
+    },
+    'custom-report': {
+      title: 'Create Custom Report',
+      route: projectSubRoutes['Project Custom Report Create'],
+      icon: BarChart3,
+      saveLabel: 'Create Report',
+      note: 'Custom project report builder open karo.',
+      fields: [
+        ['Report Name', 'Custom Site Margin Report'],
+        ['Report Category', 'Custom Reports'],
+        ['Format', 'XLSX'],
+        ['Date Range', 'May 2024'],
+        ['Owner', 'Neha Jain'],
+        ['Schedule', 'No'],
+      ],
+      textLabel: 'Report Description',
+      textValue: 'Combine project cost, vendor, milestone and margin data.',
+    },
+    'report-detail': {
+      title: 'Project Report Details',
+      route: projectSubRoutes['Project Report Details'],
+      icon: FileText,
+      saveLabel: 'Regenerate Report',
+      note: 'Generated report detail, download status aur ownership review karo.',
+      fields: [
+        ['Report', 'Project Progress Report - May 2024'],
+        ['Category', 'Project Reports'],
+        ['Format', 'PDF'],
+        ['Generated By', 'Rohit Singh'],
+        ['Status', 'Completed'],
+        ['Downloads', '28'],
+      ],
+      textLabel: 'Report Notes',
+      textValue: 'Report includes progress, timeline, material and approval summaries.',
+    },
+    'report-schedule': {
+      title: 'Schedule Project Report',
+      route: projectSubRoutes['Project Report Schedule'],
+      icon: CalendarDays,
+      saveLabel: 'Schedule Report',
+      note: 'Project, financial ya operational report schedule set karo.',
+      fields: [
+        ['Report Type', 'Project Progress Report'],
+        ['Frequency', 'Weekly'],
+        ['Format', 'PDF'],
+        ['Recipients', 'Operations Team'],
+        ['Start Date', '26 May 2024'],
+        ['Status', 'Active'],
+      ],
+      textLabel: 'Report Notes',
+      textValue: 'Send weekly progress report with milestone, expense and material status.',
+    },
+  }[type];
+
+  const Icon = config.icon;
+  const activeSubcategory = {
+    create: 'Project List',
+    activity: 'Project Details',
+    note: 'Project Details',
+    'team-add': 'Project Team Assignment',
+    'progress-update': 'Project Timeline',
+    'work-order': 'Project Work Orders',
+    'expense-create': 'Project Expenses',
+    'expense-detail': 'Project Expenses',
+    'document-upload': 'Project Documents',
+    'document-preview': 'Project Documents',
+    'folder-create': 'Project Documents',
+    'approval-create': 'Project Approvals',
+    'approval-detail': 'Project Approvals',
+    'custom-report': 'Project Reports',
+    'report-detail': 'Project Reports',
+    'report-schedule': 'Project Reports',
+  }[type] ?? 'Project Overview';
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={config.title}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: config.title },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={() => onOpenSection('Project List')} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />Project List</button>
+            <button type="button" onClick={() => onNotify(`${config.title} saved`)} data-route={config.route} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"><Save className="size-4" />{config.saveLabel}</button>
+          </>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSubcategory} onOpenSection={onOpenSection} />
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex items-start gap-4 rounded-[12px] border border-[#edf2f8] bg-[#fbfdff] p-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#effbf3] text-[#0d9f4a]"><Icon className="size-5" /></span>
+            <div>
+              <p className="font-display text-[18px] font-extrabold text-[#06135a]">{config.title}</p>
+              <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">{config.note}</p>
+              <p className="mt-2 text-[11px] font-extrabold text-[#0b65e5]">{config.route}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {config.fields.map(([label, value]) => <ReadonlyField key={label} label={label} value={value} />)}
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{config.textLabel}</span>
+              <textarea defaultValue={config.textValue} rows={5} className="w-full rounded-[8px] border border-black/20 bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+            </label>
+          </div>
+        </article>
+
+        <aside className="space-y-4">
+          <InfoPanel title="Project Summary" icon={FolderKanban} tone="success">
+            <DetailRow label="Project ID" value="PRJ-2024-0001" />
+            <DetailRow label="Customer" value="Amit Sharma" />
+            <DetailRow label="Capacity" value="20.00 KWp" />
+            <DetailRow label="Status" valueNode={<ProjectPhaseBadge label="In Progress" />} />
+          </InfoPanel>
+          <InfoPanel title="Quick Navigation" icon={Zap} tone="primary">
+            <div className="grid gap-3">
+              <MiniActionButton label="Project Details" icon={Eye} tone="blue" onClick={() => onOpenSection('Project Details')} />
+              <MiniActionButton label="Work Orders" icon={ClipboardPlus} tone="green" onClick={() => onOpenSection('Project Work Orders')} />
+              <MiniActionButton label="Reports" icon={BarChart3} tone="purple" onClick={() => onOpenSection('Project Reports')} />
+            </div>
+          </InfoPanel>
+        </aside>
+      </section>
+
+      <DashboardFooter />
     </div>
   );
 }
@@ -16032,18 +16863,33 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
     Activities: 'Track project activities, due dates, ownership, progress, calendar and upcoming work.',
     Notes: 'Create, filter and review project notes, pinned updates, categories and follow-up remarks.',
   }[activeDetailTab] ?? `View and manage ${activeDetailTab.toLowerCase()} details associated with this project.`;
+  const openDetailUpdate = () => {
+    const targets = {
+      Overview: 'Project Details',
+      'Customer & Site Info': 'Project Site Survey',
+      'System Details': 'Project Installation',
+      Financials: 'Project Expenses',
+      Progress: 'Project Progress Update',
+      Team: 'Project Team Add',
+      Documents: 'Project Document Upload',
+      Activities: 'Project Activity Create',
+      Notes: 'Project Note Create',
+    };
+    onOpenSection(targets[activeDetailTab] ?? 'Project Details');
+  };
 
   return (
     <div className="space-y-4">
       <PageHeading
         title={activeDetailTab}
         crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project Details' },
           { label: activeDetailTab },
         ]}
         actions={(
-          <button type="button" onClick={() => onNotify(`${activeDetailTab} update opened`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Update Details</button>
+          <button type="button" onClick={openDetailUpdate} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Update Details</button>
         )}
       />
       <p className="-mt-3 px-2 text-[13px] font-bold text-[#20345f] sm:text-[14px]">
@@ -16059,7 +16905,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
             <div className="min-w-0">
               <h2 className="font-display text-[22px] font-extrabold leading-tight text-[#06135a] sm:text-[26px]">{project.name}</h2>
               <p className="mt-2 text-[13px] font-bold leading-6 text-[#1f3360]">{project.address}<br />{project.city}</p>
-              <button type="button" onClick={() => onNotify('Project map opened')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View on Map</button>
+              <button type="button" onClick={() => onOpenSection('Project Site Survey')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View on Map</button>
             </div>
           </div>
 
@@ -16125,7 +16971,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                     Filter
                   </button>
                 </div>
-                <button type="button" onClick={() => onNotify('Add activity opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+                <button type="button" onClick={() => onOpenSection('Project Activity Create')} data-route={projectSubRoutes['Project Activity Create']} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
                   <Plus className="size-4" />
                   Add Activity
                 </button>
@@ -16158,7 +17004,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                         <td><ProjectNotePriorityBadge priority={row.priority} /></td>
                         <td><ProjectProgressInline value={row.progress} status={row.status} tone="blue" /></td>
                         <td>
-                          <button type="button" onClick={() => onNotify(`${row.name} actions opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}>
+                          <button type="button" onClick={() => onOpenSection('Project Activity Create')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}>
                             <MoreVertical className="size-4" />
                           </button>
                         </td>
@@ -16217,7 +17063,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                     </div>
                   ))}
                 </div>
-                <button type="button" onClick={() => onNotify('All activities opened')} className="mt-6 inline-flex w-full items-center justify-center gap-2 text-[13px] font-extrabold text-[#0b65e5]">
+                <button type="button" onClick={() => onOpenSection('Project Timeline')} className="mt-6 inline-flex w-full items-center justify-center gap-2 text-[13px] font-extrabold text-[#0b65e5]">
                   View All Activities
                   <ArrowRight className="size-4" />
                 </button>
@@ -16248,7 +17094,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                     <Filter className="size-4 text-[#0b65e5]" />
                     Filter
                   </button>
-                  <button type="button" onClick={() => onNotify('Add note opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+                  <button type="button" onClick={() => onOpenSection('Project Note Create')} data-route={projectSubRoutes['Project Note Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
                     <Plus className="size-4" />
                     Add Note
                   </button>
@@ -16278,7 +17124,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                           <Star className={cx('size-4', row.pinned ? 'fill-[#f5b500] text-[#f5b500]' : 'text-[#7b8ca8]')} />
                         </td>
                         <td>
-                          <button type="button" onClick={() => onNotify(`${row.title} actions opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.title} actions`}>
+                          <button type="button" onClick={() => onOpenSection('Project Note Create')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.title} actions`}>
                             <MoreVertical className="size-4" />
                           </button>
                         </td>
@@ -16317,7 +17163,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                   <Pin className="size-4 text-[#284276]" />
                   Pin this note
                 </label>
-                <button type="button" onClick={() => onNotify('Note saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.18)]">
+                <button type="button" onClick={() => onOpenSection('Project Note Create')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.18)]">
                   <Save className="size-4" />
                   Save Note
                 </button>
@@ -16375,7 +17221,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
               <ProjectDocumentStat key={stat.label} stat={stat} />
             ))}
             <div className="flex items-stretch xl:items-center xl:justify-end">
-              <button type="button" onClick={() => onNotify('Add team member opened')} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] xl:w-auto">
+              <button type="button" onClick={() => onOpenSection('Project Team Add')} data-route={projectSubRoutes['Project Team Add']} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] xl:w-auto">
                 <Plus className="size-4" />
                 Add Team Member
               </button>
@@ -16416,7 +17262,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                         <td><ProjectInfoPill label={row.access} tone={row.accessTone} /></td>
                         <td><ProjectInfoPill label={row.status} tone="green" /></td>
                         <td>
-                          <button type="button" onClick={() => onNotify(`${row.name} actions opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}>
+                          <button type="button" onClick={() => onOpenSection('Project Team Add')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}>
                             <MoreVertical className="size-4" />
                           </button>
                         </td>
@@ -16482,7 +17328,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Document Categories</h2>
-                <button type="button" onClick={() => onNotify('New document category opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#e8f8eb] px-3 text-[12px] font-extrabold text-[#0d9f4a]">
+                <button type="button" onClick={() => onOpenSection('Project Folder Create')} data-route={projectSubRoutes['Project Folder Create']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#e8f8eb] px-3 text-[12px] font-extrabold text-[#0d9f4a]">
                   <Plus className="size-4" />
                   New Category
                 </button>
@@ -16519,7 +17365,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                     Filters
                     <ChevronDown className="size-4 text-[#0b65e5]" />
                   </button>
-                  <button type="button" onClick={() => onNotify('Upload document opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+                  <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
                     <Upload className="size-4" />
                     Upload Document
                   </button>
@@ -16547,9 +17393,9 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                         <td>{row.size}</td>
                         <td>
                           <div className="inline-flex items-center gap-2">
-                            <button type="button" onClick={() => onNotify(`${row.name} viewed`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.name}`}><Eye className="size-4" /></button>
+                            <button type="button" onClick={() => onOpenSection('Project Document Preview')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.name}`}><Eye className="size-4" /></button>
                             <button type="button" onClick={() => onNotify(`${row.name} downloaded`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${row.name}`}><Download className="size-4" /></button>
-                            <button type="button" onClick={() => onNotify(`${row.name} actions opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}><MoreVertical className="size-4" /></button>
+                            <button type="button" onClick={() => onOpenSection('Project Document Preview')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}><MoreVertical className="size-4" /></button>
                           </div>
                         </td>
                       </tr>
@@ -16607,7 +17453,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                           <td>{row.received}</td>
                           <td><ProjectPaymentStatusBadge status={row.status} /></td>
                           <td>
-                            <button type="button" onClick={() => onNotify(`${row.invoice} viewed`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.invoice}`}>
+                            <button type="button" onClick={() => onOpenSection('Project Expense Details')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.invoice}`}>
                               <Eye className="size-4" />
                             </button>
                           </td>
@@ -16650,7 +17496,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                           <td><ProjectPaymentStatusBadge status={row.status} /></td>
                           <td>
                             <div className="inline-flex items-center gap-2">
-                              <button type="button" onClick={() => onNotify(`${row.invoice} viewed`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.invoice}`}><Eye className="size-4" /></button>
+                              <button type="button" onClick={() => onOpenSection('Project Expense Details')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.invoice}`}><Eye className="size-4" /></button>
                               <button type="button" onClick={() => onNotify(`${row.invoice} downloaded`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${row.invoice}`}><Download className="size-4" /></button>
                             </div>
                           </td>
@@ -17683,7 +18529,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Timeline"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
@@ -17693,7 +18539,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
           <>
             <button type="button" onClick={() => onNotify('Timeline baseline opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><CalendarDays className="size-4 text-[#0b65e5]" />Baseline</button>
             <button type="button" onClick={() => onNotify('Timeline exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => onNotify('Update progress opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><CheckCircle2 className="size-4" />Update Progress</button>
+            <button type="button" onClick={() => onOpenSection('Project Progress Update')} data-route={projectSubRoutes['Project Progress Update']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><CheckCircle2 className="size-4" />Update Progress</button>
           </>
         )}
       />
@@ -17816,7 +18662,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
                     </td>
                     <td><ProjectNotePriorityBadge priority={row.priority} /></td>
                     <td>
-                      <button type="button" onClick={() => onNotify(`${row.task} actions opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.task} actions`}>
+                      <button type="button" onClick={() => onOpenSection('Project Progress Update')} data-route={projectSubRoutes['Project Progress Update']} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.task} actions`}>
                         <MoreVertical className="size-4" />
                       </button>
                     </td>
@@ -18287,7 +19133,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Site Survey"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
@@ -18296,8 +19142,8 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
         actions={(
           <>
             <button type="button" onClick={() => onNotify('Survey report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onNotify('Edit survey opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Survey</button>
-            <button type="button" onClick={() => onNotify('New survey opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Survey</button>
+            <button type="button" onClick={() => setActiveSurveyTab('Site Details')} data-route={projectSubRoutes['Project Site Survey']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Survey</button>
+            <button type="button" onClick={() => setActiveSurveyTab('Overview')} data-route={projectSubRoutes['Project Site Survey']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Survey</button>
           </>
         )}
       />
@@ -18386,7 +19232,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
                     <p className="text-[15px] font-extrabold text-[#1e3261]">123, Scheme No. 54, Vijay Nagar</p>
                     <p className="mt-1 text-[13px] font-bold text-[#53647f]">Indore, Madhya Pradesh - 452010</p>
                   </div>
-                  <button type="button" onClick={() => onNotify('Open in maps clicked')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />Open in Maps</button>
+                  <button type="button" onClick={() => setActiveSurveyTab('Site Details')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />Open in Maps</button>
                 </div>
                 <div className="mt-5 space-y-3">
                   {locationRows.map(([label, value]) => (
@@ -18489,7 +19335,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
             <div className="mt-5 rounded-[14px] border border-[#edf2f8] bg-[#fbfdff] p-4">
               <p className="text-[15px] font-extrabold text-[#1e3261]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onNotify('Survey map opened')} className="mt-4 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]">
+              <button type="button" onClick={() => setActiveSurveyTab('Overview')} className="mt-4 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]">
                 <MapPin className="size-4" />
                 View on Map
               </button>
@@ -18746,7 +19592,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
           <article className={`${panelClass} overflow-hidden`}>
             <div className="flex flex-col gap-3 border-b border-[#edf2f8] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Documents</h2>
-              <button type="button" onClick={() => onNotify('Upload survey document opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Upload className="size-4 text-[#0b65e5]" />Upload Document</button>
+              <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Upload className="size-4 text-[#0b65e5]" />Upload Document</button>
             </div>
             <div className="responsive-scroll overflow-x-auto">
               <table className="crm-table min-w-[980px] w-full">
@@ -19134,7 +19980,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Installation"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
@@ -19143,8 +19989,8 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
         actions={(
           <>
             <button type="button" onClick={() => onNotify('Installation report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onNotify('Edit installation opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Installation</button>
-            <button type="button" onClick={() => onNotify('New installation opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Installation</button>
+            <button type="button" onClick={() => onOpenSection('Project Progress Update')} data-route={projectSubRoutes['Project Progress Update']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Installation</button>
+            <button type="button" onClick={() => onOpenSection('Project Work Order Create')} data-route={projectSubRoutes['Project Work Order Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Installation</button>
           </>
         )}
       />
@@ -19277,7 +20123,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Photos</h2>
-                <button type="button" onClick={() => onNotify('All installation photos opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Photos</button>
+                <button type="button" onClick={() => setActiveInstallationTab('Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Photos</button>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {photos.map((photo) => (
@@ -19330,7 +20176,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                 ))}
               </div>
               <div className="mt-5 text-center">
-                <button type="button" onClick={() => onNotify('All installation activities opened')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><ArrowRight className="size-4" />View All Activities</button>
+                <button type="button" onClick={() => onOpenSection('Project Timeline')} data-route={projectSubRoutes['Project Timeline']} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><ArrowRight className="size-4" />View All Activities</button>
               </div>
             </article>
           </section>
@@ -19659,7 +20505,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Documents</h2>
-                <button type="button" onClick={() => onNotify('Upload installation document opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
+                <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
               </div>
               <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
                 <div className="min-w-[850px]">
@@ -19881,7 +20727,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Team Assignment"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
@@ -19890,8 +20736,8 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         actions={(
           <>
             <button type="button" onClick={() => onNotify('Team report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onNotify('Edit assignment opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Assignment</button>
-            <button type="button" onClick={() => onNotify('Assign team opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Assign Team</button>
+            <button type="button" onClick={() => onOpenSection('Project Team Add')} data-route={projectSubRoutes['Project Team Add']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Assignment</button>
+            <button type="button" onClick={() => onOpenSection('Project Team Add')} data-route={projectSubRoutes['Project Team Add']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Assign Team</button>
           </>
         )}
       />
@@ -20007,7 +20853,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
               <article className={`${panelClass} p-4 sm:p-5`}>
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Upcoming Assignments</h2>
-                  <button type="button" onClick={() => onNotify('All assignments opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+                  <button type="button" onClick={() => setActiveTeamTab('Work Allocation')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
                 </div>
                 <div className="mt-5 space-y-4">
                   {upcomingAssignments.map((assignment) => (
@@ -20115,7 +20961,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Work Allocation Board</h2>
-              <button type="button" onClick={() => onNotify('New work allocation opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Allocate Work</button>
+              <button type="button" onClick={() => onOpenSection('Project Team Add')} data-route={projectSubRoutes['Project Team Add']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Allocate Work</button>
             </div>
             <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
               <div className="min-w-[920px]">
@@ -20144,7 +20990,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Team Schedule</h2>
-              <button type="button" onClick={() => onNotify('Schedule entry opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><CalendarDays className="size-4" />Add Schedule</button>
+              <button type="button" onClick={() => onOpenSection('Project Timeline')} data-route={projectSubRoutes['Project Timeline']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><CalendarDays className="size-4" />Add Schedule</button>
             </div>
             <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
               <div className="min-w-[840px]">
@@ -20256,7 +21102,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Team Documents</h2>
-              <button type="button" onClick={() => onNotify('Upload team document opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
+              <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
             </div>
             <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
               <div className="min-w-[860px]">
@@ -20416,12 +21262,22 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
     { name: 'Inventory Shortage Report', category: 'Inventory', generatedOn: '24 May 2024', generatedBy: 'Vikram Singh', format: 'PDF', status: 'Pending Review' },
   ];
 
+  const openMaterialAction = (label) => {
+    const targets = {
+      'Create Purchase Order': 'Procurement Plan',
+      'Material Request': 'Material Requests',
+      'GRN Entry': 'Delivery & GRN',
+      'Inventory Check': 'Inventory Check',
+    };
+    setActiveMaterialTab(targets[label] ?? 'Material Overview');
+  };
+
   return (
     <div className="space-y-4">
       <PageHeading
         title="Material Planning"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
@@ -20431,7 +21287,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
           <>
             <button type="button" onClick={() => onNotify('Material report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
             <button type="button" onClick={() => onNotify('Material plan exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => onNotify('Create material plan opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Create Material Plan</button>
+            <button type="button" onClick={() => setActiveMaterialTab('Procurement Plan')} data-route={projectSubRoutes['Project Material Planning']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Create Material Plan</button>
           </>
         )}
       />
@@ -20572,7 +21428,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
                   {quickActions.map((action) => {
                     const Icon = action.icon;
                     return (
-                      <button key={action.label} type="button" onClick={() => onNotify(`${action.label} opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-center transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
+                      <button key={action.label} type="button" onClick={() => openMaterialAction(action.label)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-center transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
                         <span className={cx('mx-auto grid size-10 place-items-center rounded-[12px]', action.tone === 'green' ? 'bg-[#eefbf1] text-[#16a34a]' : action.tone === 'blue' ? 'bg-[#eef4ff] text-[#2563eb]' : action.tone === 'purple' ? 'bg-[#f4ecff] text-[#8b5cf6]' : 'bg-[#fff4df] text-[#f59e0b]')}>
                           <Icon className="size-5" />
                         </span>
@@ -20589,7 +21445,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Upcoming Requirements</h2>
-                <button type="button" onClick={() => onNotify('All requirements opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Requirements</button>
+                <button type="button" onClick={() => setActiveMaterialTab('Material Requests')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Requirements</button>
               </div>
               <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
                 <div className="grid min-w-[720px] grid-cols-[1.4fr_1fr_0.75fr_0.6fr_0.8fr_1fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
@@ -20616,7 +21472,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Top Vendors</h2>
-                <button type="button" onClick={() => onNotify('All vendors opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Vendors</button>
+                <button type="button" onClick={() => setActiveMaterialTab('Vendor Management')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Vendors</button>
               </div>
               <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
                 <div className="grid min-w-[560px] grid-cols-[1.5fr_0.8fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
@@ -20670,7 +21526,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Procurement Plan</h2>
-              <button type="button" onClick={() => onNotify('Purchase order opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Create PO</button>
+              <button type="button" onClick={() => setActiveMaterialTab('Procurement Plan')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Create PO</button>
             </div>
             <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
               <div className="min-w-[860px]">
@@ -20739,7 +21595,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Requests</h2>
-              <button type="button" onClick={() => onNotify('New material request opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />New Request</button>
+              <button type="button" onClick={() => setActiveMaterialTab('Material Requests')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />New Request</button>
             </div>
             <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
               <div className="min-w-[840px]">
@@ -20760,7 +21616,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Delivery & GRN</h2>
-              <button type="button" onClick={() => onNotify('GRN entry opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Create GRN</button>
+              <button type="button" onClick={() => setActiveMaterialTab('Delivery & GRN')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Create GRN</button>
             </div>
             <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
               <div className="min-w-[860px]">
@@ -20820,7 +21676,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Reports</h2>
-              <button type="button" onClick={() => onNotify('Generate material report opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Generate Report</button>
+              <button type="button" onClick={() => onOpenSection('Project Report Details')} data-route={projectSubRoutes['Project Report Details']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Generate Report</button>
             </div>
             <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
               <div className="min-w-[820px]">
@@ -20931,12 +21787,23 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
     { title: 'Work Order WO-2024-0001 marked as Completed', actor: 'Deepak Sharma', time: '19 May 2024, 05:45 PM', tone: 'green' },
   ];
 
+  const openOrderStat = (label) => {
+    const targets = {
+      'Total Work Orders': 'All Work Orders',
+      Completed: 'All Work Orders',
+      'In Progress': 'All Work Orders',
+      Pending: 'Pending Approval',
+      Overdue: 'Overdue',
+    };
+    setActiveOrderTab(targets[label] ?? 'All Work Orders');
+  };
+
   return (
     <div className="space-y-4">
       <PageHeading
         title="Work Orders"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
@@ -20946,7 +21813,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
           <>
             <button type="button" onClick={() => onNotify('Work order report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
             <button type="button" onClick={() => onNotify('Work order export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => onNotify('Create work order opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Create Work Order</button>
+            <button type="button" onClick={() => onOpenSection('Project Work Order Create')} data-route={projectSubRoutes['Project Work Order Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Create Work Order</button>
           </>
         )}
       />
@@ -20992,7 +21859,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openOrderStat(stat.label)} />)}
       </section>
 
       <article className={`${panelClass} p-4 sm:p-5`}>
@@ -21096,7 +21963,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
         <article className={`${panelClass} p-4 sm:p-5`}>
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Activity</h2>
-            <button type="button" onClick={() => onNotify('All work order activity opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+            <button type="button" onClick={() => onOpenSection('Project Timeline')} data-route={projectSubRoutes['Project Timeline']} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
           </div>
           <div className="mt-5 space-y-4">
             {recentActivity.map((item) => (
@@ -21232,12 +22099,23 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
     { report: 'Pending Payment Ageing', type: 'XLSX', range: 'As of 31 May 2024', owner: 'Neha Jain', status: 'Ready' },
   ];
 
+  const openExpenseStat = (label) => {
+    const targets = {
+      'Total Expenses': 'Expense Overview',
+      'Total Budget': 'Category Breakdown',
+      'Paid Expenses': 'Payment Status',
+      'Pending Payments': 'Payment Status',
+      'Remaining Budget': 'Category Breakdown',
+    };
+    setActiveExpenseTab(targets[label] ?? 'Expense Overview');
+  };
+
   return (
     <div className="space-y-4">
       <PageHeading
         title="Expenses"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
@@ -21247,7 +22125,7 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
           <>
             <button type="button" onClick={() => onNotify('Expense report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
             <button type="button" onClick={() => onNotify('Expense export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => onNotify('Add expense opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Expense</button>
+            <button type="button" onClick={() => onOpenSection('Project Expense Create')} data-route={projectSubRoutes['Project Expense Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Expense</button>
           </>
         )}
       />
@@ -21292,7 +22170,7 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openExpenseStat(stat.label)} />)}
       </section>
 
       <section className={`${panelClass} p-4 sm:p-5`}>
@@ -21357,9 +22235,9 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
                       <span>{item.amount}</span>
                       <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.paymentStatus === 'Paid' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.paymentStatus}</span>
                       <span>{item.paymentMode}</span>
-                      <button type="button" onClick={() => onNotify(`${item.invoice} opened`)} className="text-left font-extrabold text-[#2563eb]">{item.invoice}</button>
+                      <button type="button" onClick={() => onOpenSection('Project Expense Details')} data-route={projectSubRoutes['Project Expense Details']} className="text-left font-extrabold text-[#2563eb]">{item.invoice}</button>
                       <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => onNotify(`View ${item.id}`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Eye className="size-4" /></button>
+                        <button type="button" onClick={() => onOpenSection('Project Expense Details')} data-route={projectSubRoutes['Project Expense Details']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`View ${item.id}`}><Eye className="size-4" /></button>
                         <button type="button" onClick={() => onNotify(`Download ${item.invoice}`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Download className="size-4" /></button>
                       </div>
                     </div>
@@ -21388,13 +22266,13 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
                       </div>
                     ))}
                   </div>
-                  <button type="button" onClick={() => onNotify('All vendors by expense opened')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Vendors</button>
+                  <button type="button" onClick={() => setActiveExpenseTab('Vendor Wise')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Vendors</button>
                 </article>
 
                 <article className={`${panelClass} p-4 sm:p-5`}>
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Expenses</h2>
-                    <button type="button" onClick={() => onNotify('All recent expenses opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+                    <button type="button" onClick={() => setActiveExpenseTab('Expense Overview')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
                   </div>
                   <div className="mt-5 space-y-4">
                     {recentExpenses.map((item) => (
@@ -21453,7 +22331,7 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
                   <div key={item.id} className="grid grid-cols-[0.85fr_1.25fr_1fr_0.95fr_0.9fr_0.75fr_0.95fr_0.95fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
                     <span className="font-extrabold text-[#1e3261]">{item.id}</span>
                     <span>{item.vendor}</span>
-                    <button type="button" onClick={() => onNotify(`${item.invoice} opened`)} className="text-left font-extrabold text-[#2563eb]">{item.invoice}</button>
+                    <button type="button" onClick={() => onOpenSection('Project Expense Details')} data-route={projectSubRoutes['Project Expense Details']} className="text-left font-extrabold text-[#2563eb]">{item.invoice}</button>
                     <span>{item.dueDate}</span>
                     <span className="font-extrabold text-[#1e3261]">{item.amount}</span>
                     <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.status === 'Paid' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.status}</span>
@@ -21491,7 +22369,7 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Vendor Actions</h2>
                 <div className="mt-4 grid gap-2">
                   {['Send Payment Reminder', 'Download Vendor Ledger', 'Compare Vendor Quotes'].map((action) => (
-                    <button key={action} type="button" onClick={() => onNotify(`${action} opened`)} className="inline-flex h-10 items-center justify-between rounded-[8px] border border-[#dce6f3] px-3 text-left text-[12px] font-extrabold text-[#284276]">
+                    <button key={action} type="button" onClick={() => action === 'Download Vendor Ledger' ? onOpenSection('Project Expense Details') : onNotify(`${action} opened`)} data-route={action === 'Download Vendor Ledger' ? projectSubRoutes['Project Expense Details'] : undefined} className="inline-flex h-10 items-center justify-between rounded-[8px] border border-[#dce6f3] px-3 text-left text-[12px] font-extrabold text-[#284276]">
                       {action}<ArrowUpRight className="size-4 text-[#0b65e5]" />
                     </button>
                   ))}
@@ -21504,7 +22382,7 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Expense Reports</h2>
-                <button type="button" onClick={() => onNotify('New expense report opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-4 text-[12px] font-extrabold text-white"><Plus className="size-4" />New Report</button>
+                <button type="button" onClick={() => onOpenSection('Project Custom Report Create')} data-route={projectSubRoutes['Project Custom Report Create']} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-4 text-[12px] font-extrabold text-white"><Plus className="size-4" />New Report</button>
               </div>
               <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
                 <div className="grid grid-cols-[1.4fr_0.65fr_1fr_0.8fr_0.65fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
@@ -21614,12 +22492,23 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
     return `${item.color} ${(start / totalStorage) * 100}% ${(end / totalStorage) * 100}%`;
   }).join(', ')})`;
 
+  const openDocumentStat = (label) => {
+    const targets = {
+      'Total Documents': 'All Documents',
+      Folders: 'All Documents',
+      Files: 'All Documents',
+      'Total Size': 'All Documents',
+      'Restricted Documents': 'Contracts & Approvals',
+    };
+    setActiveDocumentTab(targets[label] ?? 'All Documents');
+  };
+
   return (
     <div className="space-y-4">
       <PageHeading
         title="Documents"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
@@ -21628,8 +22517,8 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
         actions={(
           <>
             <button type="button" onClick={() => onNotify('Project document report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onNotify('Upload document opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Upload Document</button>
-            <button type="button" onClick={() => onNotify('New folder modal opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Folder</button>
+            <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Upload Document</button>
+            <button type="button" onClick={() => onOpenSection('Project Folder Create')} data-route={projectSubRoutes['Project Folder Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Folder</button>
           </>
         )}
       />
@@ -21674,7 +22563,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openDocumentStat(stat.label)} />)}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.72fr_0.68fr]">
@@ -21741,9 +22630,9 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
                   <span>{item.size}</span>
                   <span className={cx('inline-flex w-fit rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', item.access === 'Public' ? 'bg-[#ecf9ef] text-[#16a34a]' : item.access === 'Restricted' ? 'bg-[#fff1df] text-[#d97706]' : 'bg-[#eef5ff] text-[#2563eb]')}>{item.access}</span>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => onNotify(`${item.name} preview opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Eye className="size-4" /></button>
+                    <button type="button" onClick={() => onOpenSection('Project Document Preview')} data-route={projectSubRoutes['Project Document Preview']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`Preview ${item.name}`}><Eye className="size-4" /></button>
                     <button type="button" onClick={() => onNotify(`${item.name} downloaded`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Download className="size-4" /></button>
-                    <button type="button" onClick={() => onNotify(`${item.name} actions opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><MoreVertical className="size-4" /></button>
+                    <button type="button" onClick={() => onOpenSection('Project Document Preview')} data-route={projectSubRoutes['Project Document Preview']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`${item.name} actions`}><MoreVertical className="size-4" /></button>
                   </div>
                 </div>
               ))}
@@ -21792,7 +22681,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
               </div>
               <div className="mt-3 flex items-center justify-between gap-3 text-[12px] font-bold text-[#53647f]">
                 <span>1.48 GB of 5 GB Used</span>
-                <button type="button" onClick={() => onNotify('Storage details opened')} className="font-extrabold text-[#0b65e5]">View Storage Details</button>
+                <button type="button" onClick={() => setActiveDocumentTab('All Documents')} className="font-extrabold text-[#0b65e5]">View Storage Details</button>
               </div>
             </div>
           </article>
@@ -21800,7 +22689,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Documents</h2>
-              <button type="button" onClick={() => onNotify('All recent documents opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+              <button type="button" onClick={() => setActiveDocumentTab('All Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
             </div>
             <div className="mt-5 space-y-4">
               {recentDocuments.map((item) => (
@@ -21816,7 +22705,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
                 </div>
               ))}
             </div>
-            <button type="button" onClick={() => onNotify('All project documents opened')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Documents</button>
+            <button type="button" onClick={() => setActiveDocumentTab('All Documents')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Documents</button>
           </article>
         </div>
       </section>
@@ -21847,7 +22736,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
     { label: 'Cancelled', value: '2', caption: '7.14%', icon: ShieldCheck, tone: 'cyan' },
   ];
 
-  const approvalTabs = ['All Approvals', 'Pending', 'Approved', 'Rejected', 'My Approvals'];
+  const approvalTabs = ['All Approvals', 'Pending', 'Approved', 'Rejected', 'Cancelled', 'My Approvals'];
 
   const approvalRows = [
     { id: 'APR-2024-0028', title: 'Material Purchase - Inverter', category: 'Procurement', requestedBy: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, requestedOn: '24 May 2024, 10:30 AM', amount: '36,250', status: 'Pending', approver: { name: 'Ramesh Yadav', initials: 'RY', tone: 'green' } },
@@ -21905,12 +22794,23 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
     { title: 'Approval APR-2024-0024 has been approved', actor: 'Deepak Sharma', time: '22 May 2024, 03:55 PM', tone: 'green' },
   ];
 
+  const openApprovalStat = (label) => {
+    const targets = {
+      'Total Approvals': 'All Approvals',
+      Approved: 'Approved',
+      Pending: 'Pending',
+      Rejected: 'Rejected',
+      Cancelled: 'Cancelled',
+    };
+    setActiveApprovalTab(targets[label] ?? 'All Approvals');
+  };
+
   return (
     <div className="space-y-4">
       <PageHeading
         title="Approvals"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
@@ -21920,7 +22820,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
           <>
             <button type="button" onClick={() => onNotify('Approvals report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
             <button type="button" onClick={() => onNotify('Approvals exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => onNotify('New approval flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Approval</button>
+            <button type="button" onClick={() => onOpenSection('Project Approval Create')} data-route={projectSubRoutes['Project Approval Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Approval</button>
           </>
         )}
       />
@@ -21961,7 +22861,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openApprovalStat(stat.label)} />)}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.7fr_0.68fr]">
@@ -22016,8 +22916,8 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
                 <ProjectPhaseBadge label={row.status} />
                 <AssigneeCell assignee={row.approver} compact />
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => onNotify(`${row.id} opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Eye className="size-4" /></button>
-                  <button type="button" onClick={() => onNotify(`${row.id} actions opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><MoreVertical className="size-4" /></button>
+                  <button type="button" onClick={() => onOpenSection('Project Approval Details')} data-route={projectSubRoutes['Project Approval Details']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`Open ${row.id}`}><Eye className="size-4" /></button>
+                  <button type="button" onClick={() => onOpenSection('Project Approval Details')} data-route={projectSubRoutes['Project Approval Details']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`${row.id} actions`}><MoreVertical className="size-4" /></button>
                 </div>
               </div>
             ))}
@@ -22105,7 +23005,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
         <article className={`${panelClass} p-4 sm:p-5`}>
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Activity</h2>
-            <button type="button" onClick={() => onNotify('All approval activity opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+            <button type="button" onClick={() => onOpenSection('Project Approval Details')} data-route={projectSubRoutes['Project Approval Details']} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
           </div>
           <div className="mt-5 space-y-4">
             {recentActivity.map((item) => (
@@ -22291,20 +23191,32 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
   const filteredReports = activeReportTab === 'All Reports' ? reports : reports.filter((item) => item.category === activeReportTab);
   const activeReportDetail = reportTabDetails[activeReportTab];
 
+  const openReportStat = (label) => {
+    if (label === 'Scheduled Reports') {
+      onOpenSection('Project Report Schedule');
+      return;
+    }
+    if (label === 'Custom Reports') {
+      setActiveReportTab('Custom Reports');
+      return;
+    }
+    setActiveReportTab('All Reports');
+  };
+
   return (
     <div className="space-y-4">
       <PageHeading
         title="Reports"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: 'Reports' },
         ]}
         actions={(
           <>
-            <button type="button" onClick={() => onNotify('Schedule report opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><CalendarDays className="size-4 text-[#0b65e5]" />Schedule Report</button>
+            <button type="button" onClick={() => onOpenSection('Project Report Schedule')} data-route={projectSubRoutes['Project Report Schedule']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><CalendarDays className="size-4 text-[#0b65e5]" />Schedule Report</button>
             <button type="button" onClick={() => onNotify('Project reports exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => onNotify('Custom report builder opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Custom Report</button>
+            <button type="button" onClick={() => onOpenSection('Project Custom Report Create')} data-route={projectSubRoutes['Project Custom Report Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Custom Report</button>
           </>
         )}
       />
@@ -22312,7 +23224,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openReportStat(stat.label)} />)}
       </section>
 
       <section className={`${panelClass} p-4 sm:p-5`}>
@@ -22359,13 +23271,13 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {activeReportDetail.metrics.map(([label, value]) => (
-                <button key={label} type="button" onClick={() => onNotify(`${activeReportTab} ${label} opened`)} className="rounded-[12px] border border-[#edf2f8] bg-[#fbfdff] p-4 text-left transition hover:bg-white">
+                <button key={label} type="button" onClick={() => onOpenSection(label === 'Scheduled' ? 'Project Report Schedule' : 'Project Report Details')} data-route={label === 'Scheduled' ? projectSubRoutes['Project Report Schedule'] : projectSubRoutes['Project Report Details']} className="rounded-[12px] border border-[#edf2f8] bg-[#fbfdff] p-4 text-left transition hover:bg-white">
                   <span className="block text-[12px] font-extrabold text-[#53647f]">{label}</span>
                   <span className="mt-2 block font-display text-[24px] font-extrabold text-[#111827]">{value}</span>
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => onNotify(`${activeReportTab} generated`)} className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0e9748]"><Plus className="size-4" />Generate {activeReportTab}</button>
+            <button type="button" onClick={() => onOpenSection('Project Report Details')} data-route={projectSubRoutes['Project Report Details']} className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0e9748]"><Plus className="size-4" />Generate {activeReportTab}</button>
           </article>
 
           <article className={`${panelClass} p-4 sm:p-5`}>
@@ -22387,7 +23299,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
                   <span>{frequency}</span>
                   <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', status === 'Active' ? 'bg-[#eefbf1] text-[#15803d]' : status === 'Ready' ? 'bg-[#eef4ff] text-[#0b65e5]' : 'bg-[#fff4df] text-[#b45309]')}>{status}</span>
                   <span>{owner}</span>
-                  <button type="button" onClick={() => onNotify(`${template} opened`)} className="inline-flex w-fit items-center gap-2 font-extrabold text-[#2563eb]">Open<ArrowUpRight className="size-4" /></button>
+                  <button type="button" onClick={() => onOpenSection('Project Report Details')} data-route={projectSubRoutes['Project Report Details']} className="inline-flex w-fit items-center gap-2 font-extrabold text-[#2563eb]">Open<ArrowUpRight className="size-4" /></button>
                 </div>
               ))}
             </div>
@@ -22452,7 +23364,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
               </div>
             ))}
           </div>
-          <button type="button" onClick={() => onNotify('All report downloads opened')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Downloads</button>
+          <button type="button" onClick={() => setActiveReportTab('All Reports')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Downloads</button>
         </article>
       </section>
 
@@ -22480,9 +23392,9 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
                 <span className={cx('inline-flex w-fit rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', item.format === 'PDF' ? 'bg-[#ffefef] text-[#e44d4d]' : 'bg-[#ecf9ef] text-[#16a34a]')}>{item.format}</span>
                 <ProjectPhaseBadge label={item.status} />
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => onNotify(`${item.name} opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Eye className="size-4" /></button>
+                  <button type="button" onClick={() => onOpenSection('Project Report Details')} data-route={projectSubRoutes['Project Report Details']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`Open ${item.name}`}><Eye className="size-4" /></button>
                   <button type="button" onClick={() => onNotify(`${item.name} downloaded`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Download className="size-4" /></button>
-                  <button type="button" onClick={() => onNotify(`${item.name} actions opened`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><MoreVertical className="size-4" /></button>
+                  <button type="button" onClick={() => onOpenSection('Project Report Details')} data-route={projectSubRoutes['Project Report Details']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`${item.name} actions`}><MoreVertical className="size-4" /></button>
                 </div>
               </div>
             ))}
@@ -22506,11 +23418,11 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Scheduled Reports</h2>
-              <button type="button" onClick={() => onNotify('All scheduled reports opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+              <button type="button" onClick={() => onOpenSection('Project Report Schedule')} data-route={projectSubRoutes['Project Report Schedule']} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
             </div>
             <div className="mt-5 space-y-4">
               {scheduledReports.map((item) => (
-                <div key={item.title} className="flex items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                <button key={item.title} type="button" onClick={() => onOpenSection('Project Report Schedule')} data-route={projectSubRoutes['Project Report Schedule']} className="flex w-full items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
                   <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#eef5ff] text-[#2f80ff]">
                     <CalendarDays className="size-4" />
                   </span>
@@ -22519,7 +23431,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
                     <p className="mt-1 text-[12px] font-bold text-[#53647f]">{item.note}</p>
                   </div>
                   <span className="inline-flex rounded-[7px] bg-[#ecf9ef] px-2.5 py-1 text-[11px] font-extrabold text-[#16a34a]">{item.status}</span>
-                </div>
+                </button>
               ))}
             </div>
           </article>
@@ -22528,7 +23440,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
             <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Report Insights</h2>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {insightCards.map((item) => (
-                <button key={item.title} type="button" onClick={() => onNotify(`${item.title} opened`)} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
+                <button key={item.title} type="button" onClick={() => onOpenSection('Project Report Details')} data-route={projectSubRoutes['Project Report Details']} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
                   <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', item.tone === 'blue' ? 'bg-[#2f80ff]' : item.tone === 'green' ? 'bg-[#16a34a]' : item.tone === 'amber' ? 'bg-[#f59e0b]' : 'bg-[#ef4444]')}>
                     <item.icon className="size-4" />
                   </span>
@@ -22554,7 +23466,7 @@ function ProjectModulePlaceholderPage({ activeSection, onOpenSection, onNotify }
       <PageHeading
         title="Project Management"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard opened') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
           { label: getModuleSubnavLabel(activeSection) },
         ]}
@@ -22633,7 +23545,7 @@ function ProjectSummaryCard({ stat, onClick }) {
   );
 }
 
-function ProjectDonutCard({ title, data, totalLabel, totalValue, onNotify }) {
+function ProjectDonutCard({ title, data, totalLabel, totalValue, onNotify = () => {}, onView }) {
   const total = data.reduce((sum, item) => sum + item.value, 0);
   const gradient = (() => {
     let current = 0;
@@ -22649,7 +23561,7 @@ function ProjectDonutCard({ title, data, totalLabel, totalValue, onNotify }) {
     <article className={`${panelClass} p-4 sm:p-5`}>
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{title}</h2>
-        <button type="button" onClick={() => onNotify(`${title} opened`)} className="text-[12px] font-extrabold text-[#0b65e5]">View</button>
+        <button type="button" onClick={onView ?? (() => onNotify(`${title} opened`))} className="text-[12px] font-extrabold text-[#0b65e5]">View</button>
       </div>
       <div className="mt-4 grid gap-4 md:grid-cols-[150px_minmax(0,1fr)] md:items-center">
         <div className="mx-auto flex size-[150px] items-center justify-center rounded-full border border-[#edf2f8]" style={{ background: `conic-gradient(${gradient})` }}>
@@ -25919,13 +26831,15 @@ function CreateLeadNotice() {
 
 function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUpHistory, onNotify }) {
   const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
 
   const quickDetailActions = [
-    { label: 'Add Follow-up', icon: ShieldCheck, tone: 'green', onClick: () => setFollowUpModalOpen(true) },
+    { label: 'Add Follow-up', icon: ShieldCheck, tone: 'green', onClick: () => onOpenSection('Lead Follow-up Create') },
+    { label: 'Schedule Site Visit', icon: CalendarDays, tone: 'blue', onClick: () => onOpenSection('Lead Site Visit Schedule') },
     { label: 'Create Quotation (UI)', icon: CalendarDays, tone: 'blue', onClick: () => onOpenSection('Lead Quotation') },
-    { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => onOpenSection('Users') },
-    { label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => onOpenSection('Lead List') },
-    { label: 'Add Note', icon: Flag, tone: 'slate', onClick: onFollowUpHistory },
+    { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => onOpenSection('Lead Assign') },
+    { label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => onOpenSection('Lead Status Update') },
+    { label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => onOpenSection('Lead Note Create') },
   ];
 
   return (
@@ -25933,7 +26847,7 @@ function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUp
       <PageHeading
         title="Lead Details"
         crumbs={[
-          { label: 'Dashboard', onClick: onBackToList },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Lead', onClick: onBackToList },
           { label: 'Lead Details' },
         ]}
@@ -25943,13 +26857,28 @@ function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUp
               <FileText className="size-4" />
               Edit Lead
             </button>
-            <button type="button" onClick={() => setFollowUpModalOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
+            <button type="button" onClick={() => onOpenSection('Lead Follow-up Create')} data-route={leadSubRoutes['Lead Follow-up Create']} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
               <Plus className="size-4" />
               Add Follow-up
             </button>
-            <button type="button" onClick={() => onOpenSection('Lead List')} className="inline-flex size-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]" aria-label="More lead actions">
-              <MoreVertical className="size-4" />
-            </button>
+            <div className="relative">
+              <button type="button" onClick={() => setQuickActionsOpen((current) => !current)} className="inline-flex size-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]" aria-label="More lead actions" aria-expanded={quickActionsOpen}>
+                <MoreVertical className="size-4" />
+              </button>
+              {quickActionsOpen ? (
+                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[240px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white p-2 shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                  {quickDetailActions.map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <button key={action.label} type="button" onClick={() => { setQuickActionsOpen(false); action.onClick(); }} className="flex w-full items-center gap-3 rounded-[9px] px-3 py-2.5 text-left text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                        <Icon className="size-4 text-[#0b65e5]" />
+                        {action.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           </>
         )}
       />
@@ -26109,10 +27038,10 @@ function FollowUpHistoryPage({ onOpenSection, onBackToDetails, onNotify }) {
     <div className="space-y-4">
       <PageHeading
         title="Follow-up History"
-        crumbs={[{ label: 'Dashboard', onClick: onBackToDetails }, { label: 'Lead', onClick: onBackToDetails }, { label: 'Lead Details', onClick: onBackToDetails }, { label: 'Follow-up History' }]}
+        crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Lead', onClick: () => onOpenSection('Lead List') }, { label: 'Lead Details', onClick: onBackToDetails }, { label: 'Follow-up History' }]}
         actions={(
           <>
-            <button type="button" onClick={() => setFollowUpModalOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)]">
+            <button type="button" onClick={() => onOpenSection('Lead Follow-up Create')} data-route={leadSubRoutes['Lead Follow-up Create']} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)]">
               <Plus className="size-4" />
               Add Follow-up
             </button>
@@ -26161,14 +27090,14 @@ function FollowUpHistoryPage({ onOpenSection, onBackToDetails, onNotify }) {
             <DetailRow label="Type" value="Site Visit" />
             <DetailRow label="Assigned To" valueNode={<AssigneeCell assignee={{ name: 'Rohit Singh', initials: 'RS', tone: 'amber' }} compact />} />
             <DetailRow label="Reminder" value="1 Day Before" />
-            <button type="button" onClick={() => setFollowUpModalOpen(true)} className="mt-3 w-full rounded-[8px] bg-[#0d9f4a] px-4 py-2.5 text-[13px] font-extrabold text-white">Edit Next Follow-up</button>
+            <button type="button" onClick={() => onOpenSection('Lead Follow-up Create')} className="mt-3 w-full rounded-[8px] bg-[#0d9f4a] px-4 py-2.5 text-[13px] font-extrabold text-white">Edit Next Follow-up</button>
           </InfoPanel>
           <InfoPanel title="Quick Actions" icon={Zap} tone="success">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              <MiniActionButton label="Add Follow-up" icon={ShieldCheck} tone="green" onClick={() => setFollowUpModalOpen(true)} />
-              <MiniActionButton label="Schedule Site Visit" icon={CalendarDays} tone="blue" onClick={() => onOpenSection('Project Site Survey')} />
-              <MiniActionButton label="Add Note" icon={Users} tone="purple" onClick={onBackToDetails} />
-              <MiniActionButton label="Change Lead Status" icon={Clock3} tone="amber" onClick={() => onOpenSection('Lead List')} />
+              <MiniActionButton label="Add Follow-up" icon={ShieldCheck} tone="green" onClick={() => onOpenSection('Lead Follow-up Create')} />
+              <MiniActionButton label="Schedule Site Visit" icon={CalendarDays} tone="blue" onClick={() => onOpenSection('Lead Site Visit Schedule')} />
+              <MiniActionButton label="Add Note" icon={Users} tone="purple" onClick={() => onOpenSection('Lead Note Create')} />
+              <MiniActionButton label="Change Lead Status" icon={Clock3} tone="amber" onClick={() => onOpenSection('Lead Status Update')} />
             </div>
           </InfoPanel>
         </div>
@@ -26180,12 +27109,176 @@ function FollowUpHistoryPage({ onOpenSection, onBackToDetails, onNotify }) {
   );
 }
 
-function AdminApprovalPage({ onLeadDetails, onNotify }) {
+function LeadActionFormPage({ type, onBackToDetails, onOpenSection, onNotify }) {
+  const config = {
+    edit: {
+      title: 'Edit Lead',
+      route: leadSubRoutes['Lead Edit'],
+      icon: FileText,
+      saveLabel: 'Save Lead',
+      note: 'Lead ki basic, project aur assignment details update karo.',
+      fields: [
+        ['Customer Name', 'Amit Sharma'],
+        ['Mobile Number', '9876543210'],
+        ['IVRS Number', 'IVRS123456'],
+        ['Project Name', '5kW On-Grid'],
+        ['Project Type', 'On-Grid'],
+        ['Assigned To', 'Rohit Singh'],
+      ],
+      textLabel: 'Lead Remarks',
+      textValue: 'Customer is interested and asked for final quotation after site visit.',
+    },
+    'follow-up': {
+      title: 'Add Follow-up',
+      route: leadSubRoutes['Lead Follow-up Create'],
+      icon: ShieldCheck,
+      saveLabel: 'Save Follow-up',
+      note: 'New customer follow-up add karo aur reminder schedule set karo.',
+      fields: [
+        ['Follow-up Type', 'Call'],
+        ['Follow-up Date', '25 May 2024'],
+        ['Follow-up Time', '11:00 AM'],
+        ['Assigned To', 'Rohit Singh'],
+        ['Reminder', '1 Day Before'],
+      ],
+      textLabel: 'Follow-up Remarks',
+      textValue: 'Customer asked for site visit and final quotation discussion.',
+    },
+    'site-visit': {
+      title: 'Schedule Site Visit',
+      route: leadSubRoutes['Lead Site Visit Schedule'],
+      icon: CalendarDays,
+      saveLabel: 'Schedule Visit',
+      note: 'Site visit planning, engineer assignment aur visit slot confirm karo.',
+      fields: [
+        ['Visit Date', '26 May 2024'],
+        ['Visit Time', '10:30 AM'],
+        ['Site Engineer', 'Vikram Patel'],
+        ['Visit Type', 'Residential Survey'],
+        ['Reminder', 'Same Day Morning'],
+      ],
+      textLabel: 'Visit Instructions',
+      textValue: 'Check shadow area, roof access, meter room and earthing point.',
+    },
+    note: {
+      title: 'Add Note',
+      route: leadSubRoutes['Lead Note Create'],
+      icon: Flag,
+      saveLabel: 'Save Note',
+      note: 'Internal discussion note add karo jo team ko lead context de.',
+      fields: [
+        ['Note Type', 'Internal'],
+        ['Visibility', 'Team Only'],
+        ['Priority', 'Medium'],
+        ['Tagged User', 'Rohit Singh'],
+        ['Reminder', 'No Reminder'],
+      ],
+      textLabel: 'Note',
+      textValue: 'Customer is comparing subsidy and panel brand options.',
+    },
+    status: {
+      title: 'Change Lead Status',
+      route: leadSubRoutes['Lead Status Update'],
+      icon: Clock3,
+      saveLabel: 'Update Status',
+      note: 'Lead stage update karo aur reason/history maintain karo.',
+      fields: [
+        ['Current Status', 'Follow-up'],
+        ['New Status', 'Quotation'],
+        ['Reason', 'Quotation Ready'],
+        ['Updated By', 'Rohit Singh'],
+        ['Notify Customer', 'No'],
+      ],
+      textLabel: 'Status Note',
+      textValue: 'Lead moved to quotation after customer confirmed requirement.',
+    },
+    assign: {
+      title: 'Assign Lead',
+      route: leadSubRoutes['Lead Assign'],
+      icon: Users,
+      saveLabel: 'Assign Lead',
+      note: 'Lead ko sahi sales/project team member ko assign karo.',
+      fields: [
+        ['Current Assignee', 'Rohit Singh'],
+        ['New Assignee', 'Neha Kumari'],
+        ['Department', 'Sales'],
+        ['Priority', 'Medium'],
+        ['Notify Assignee', 'Yes'],
+      ],
+      textLabel: 'Assignment Note',
+      textValue: 'Please follow up for quotation approval and schedule next customer call.',
+    },
+  }[type];
+
+  const Icon = config.icon;
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={config.title}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Lead', onClick: () => onOpenSection('Lead List') },
+          { label: 'Lead Details', onClick: onBackToDetails },
+          { label: config.title },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={onBackToDetails} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />Back</button>
+            <button type="button" onClick={() => onNotify(`${config.title} saved`)} data-route={config.route} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"><Save className="size-4" />{config.saveLabel}</button>
+          </>
+        )}
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex items-start gap-4 rounded-[12px] border border-[#edf2f8] bg-[#fbfdff] p-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#effbf3] text-[#0d9f4a]"><Icon className="size-5" /></span>
+            <div>
+              <p className="font-display text-[18px] font-extrabold text-[#06135a]">{config.title}</p>
+              <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">{config.note}</p>
+              <p className="mt-2 text-[11px] font-extrabold text-[#0b65e5]">{config.route}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {config.fields.map(([label, value]) => <ReadonlyField key={label} label={label} value={value} />)}
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{config.textLabel}</span>
+              <textarea defaultValue={config.textValue} rows={5} className="w-full rounded-[8px] border border-black/20 bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+            </label>
+          </div>
+        </article>
+
+        <aside className="space-y-4">
+          <InfoPanel title="Lead Summary" icon={Users} tone="success">
+            <DetailRow label="Customer" value="Amit Sharma" />
+            <DetailRow label="Mobile" value="9876543210" />
+            <DetailRow label="IVRS" value="IVRS123456" />
+            <DetailRow label="Project" value="5kW On-Grid" />
+            <DetailRow label="Current Stage" value="Follow-up" />
+          </InfoPanel>
+          <InfoPanel title="Quick Navigation" icon={Zap} tone="primary">
+            <div className="grid gap-3">
+              <MiniActionButton label="Lead Details" icon={Eye} tone="blue" onClick={onBackToDetails} />
+              <MiniActionButton label="Follow-up History" icon={Phone} tone="green" onClick={() => onOpenSection('Follow-up History')} />
+              <MiniActionButton label="Lead List" icon={Users} tone="purple" onClick={() => onOpenSection('Lead List')} />
+            </div>
+          </InfoPanel>
+        </aside>
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function AdminApprovalPage({ onOpenSection, onLeadDetails, onNotify }) {
   const rows = ['IVRS123456', 'IVRS789012', 'IVRS345678', 'IVRS901234', 'IVRS112233', 'IVRS445566', 'IVRS778899', 'IVRS667788'];
 
   return (
     <div className="space-y-4">
-      <PageHeading title="Admin Approval - IVRS Request" crumbs={[{ label: 'Dashboard', onClick: onLeadDetails }, { label: 'Admin' }, { label: 'IVRS Approval' }]} />
+      <PageHeading title="Admin Approval - IVRS Request" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Lead', onClick: () => onOpenSection('Lead List') }, { label: 'IVRS Approval' }]} />
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ['Pending Approvals', '8', 'warning', ReceiptText],
