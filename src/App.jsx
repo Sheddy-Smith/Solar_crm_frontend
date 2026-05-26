@@ -376,6 +376,7 @@ const stats = [
     deltaTone: 'positive',
     icon: Users,
     iconBg: 'from-[#14c63b] to-[#27d56f]',
+    target: 'Lead List',
   },
   {
     title: 'Today Follow-ups',
@@ -384,6 +385,7 @@ const stats = [
     deltaTone: 'positive',
     icon: CalendarDays,
     iconBg: 'from-[#1277ff] to-[#2aa7ff]',
+    target: 'Follow-up History',
   },
   {
     title: 'Pending Quotations',
@@ -392,6 +394,7 @@ const stats = [
     deltaTone: 'neutral',
     icon: FileText,
     iconBg: 'from-[#4b49ef] to-[#7058ff]',
+    target: 'Lead List',
   },
   {
     title: 'Won Projects',
@@ -400,6 +403,7 @@ const stats = [
     deltaTone: 'positive',
     icon: Trophy,
     iconBg: 'from-[#16c93f] to-[#39e264]',
+    target: 'Project List',
   },
   {
     title: 'Revenue Overview',
@@ -408,6 +412,7 @@ const stats = [
     deltaTone: 'positive',
     icon: IndianRupee,
     iconBg: 'from-[#1578ff] to-[#0ea5ff]',
+    target: 'Accounts Overview',
   },
 ];
 
@@ -1239,22 +1244,39 @@ const quickActions = [
     label: 'Add Lead',
     icon: UserPlus,
     bg: 'from-[#17c53f] to-[#22d84d]',
+    target: 'Create Lead',
   },
   {
     label: 'Add Follow-up',
     icon: ClipboardPlus,
     bg: 'from-[#1578ff] to-[#0a9ff5]',
+    target: 'Follow-up History',
   },
   {
     label: 'Create Quotation (UI)',
     icon: FilePlus2,
     bg: 'from-[#5242ef] to-[#6046eb]',
+    target: 'Lead Details',
   },
 ];
 
 const actionIcons = [
   { icon: Bell, badge: '5', label: 'Notifications' },
   { icon: MessageSquareMore, badge: '3', label: 'Messages' },
+];
+
+const recentNotifications = [
+  { title: 'New lead assigned', note: 'Amit Sharma - 5kW On-Grid', time: '2 min ago', target: 'Lead Details', tone: 'green' },
+  { title: 'Follow-up due today', note: 'Sunil Verma call pending', time: '18 min ago', target: 'Follow-up History', tone: 'blue' },
+  { title: 'Quotation pending', note: '64 quotations need review', time: '45 min ago', target: 'Lead List', tone: 'amber' },
+  { title: 'Project milestone updated', note: '20kW installation moved to Work Progress', time: '1 hr ago', target: 'Project Installation', tone: 'purple' },
+  { title: 'Payment reminder', note: 'Sungrow invoice payment pending', time: '2 hr ago', target: 'Payment Made', tone: 'red' },
+];
+
+const unreadWhatsAppMessages = [
+  { name: 'Amit Sharma', phone: '+91 98765 43210', message: 'Quotation ka latest price share kar dijiye.', time: '4 min ago' },
+  { name: 'Sunil Verma', phone: '+91 91234 56780', message: 'Site visit kal morning possible hai kya?', time: '22 min ago' },
+  { name: 'Pooja Mehta', phone: '+91 99887 76655', message: 'Payment receipt confirm ho gaya?', time: '48 min ago' },
 ];
 
 const panelClass =
@@ -1264,7 +1286,7 @@ const dataPanelClass =
   'overflow-hidden rounded-[14px] border border-[#dbe5f2] bg-white/75 shadow-[0_14px_32px_rgba(24,48,87,0.08)] backdrop-blur-md';
 
 const tableHeaders = ['Customer Name', 'Mobile Number', 'IVRS Number', 'Project Name', 'Assigned To', 'Follow-up Date', 'Action'];
-const recentHeaders = ['Customer Name', 'Mobile Number', 'Project Name', 'Status', 'Assigned To', 'Created On'];
+const recentHeaders = ['Customer Name', 'Mobile Number', 'Project Name', 'Status', 'Assigned To', 'Created On', 'Action'];
 const APP_PREFERENCES_KEY = 'malwa-solar-crm:ui-preferences';
 const availableSections = new Set([
   ...sidebarItems.map((item) => item.label),
@@ -1313,6 +1335,8 @@ function App() {
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
   const [activeSidebarItem, setActiveSidebarItem] = useState(isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
+  const [messageMenuOpen, setMessageMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   const notify = (message) => {
@@ -1334,6 +1358,54 @@ function App() {
     }
 
     notify(`${action} selected`);
+  };
+
+  const openDashboardSection = (section, message) => {
+    if (!isKnownSection(section)) {
+      notify(message ?? `${section} opened`);
+      return;
+    }
+
+    setActiveSidebarItem(section);
+    setMobileSidebarOpen(false);
+    setNotificationMenuOpen(false);
+    setMessageMenuOpen(false);
+    notify(message ?? `${section} opened`);
+  };
+
+  const handleHeaderAction = (label) => {
+    if (label === 'Notifications') {
+      setProfileMenuOpen(false);
+      setMessageMenuOpen(false);
+      setNotificationMenuOpen((current) => !current);
+      return;
+    }
+
+    if (label === 'Messages') {
+      setProfileMenuOpen(false);
+      setNotificationMenuOpen(false);
+      setMessageMenuOpen((current) => !current);
+      return;
+    }
+
+    notify(`${label} opened`);
+  };
+
+  const openWhatsApp = (messageItem = null) => {
+    setMessageMenuOpen(false);
+
+    const phone = messageItem?.phone ? messageItem.phone.replace(/\D/g, '') : '';
+    const text = messageItem?.message ? encodeURIComponent(messageItem.message) : '';
+    const appUrl = phone ? `whatsapp://send?phone=${phone}${text ? `&text=${text}` : ''}` : 'whatsapp://';
+    const webUrl = phone ? `https://web.whatsapp.com/send?phone=${phone}${text ? `&text=${text}` : ''}` : 'https://web.whatsapp.com/';
+
+    if (typeof window !== 'undefined') {
+      window.location.href = appUrl;
+      window.setTimeout(() => {
+        window.open(webUrl, '_blank', 'noopener,noreferrer');
+      }, 850);
+    }
+    notify(messageItem?.name ? `${messageItem.name} WhatsApp opened` : 'WhatsApp opened');
   };
 
   useEffect(() => {
@@ -1371,21 +1443,31 @@ function App() {
 
   useEffect(() => {
     const handlePointerDown = (event) => {
-      if (!profileMenuOpen) {
-        return;
+      if (profileMenuOpen) {
+        if (!(event.target instanceof Element && event.target.closest('[data-profile-menu="true"]'))) {
+          setProfileMenuOpen(false);
+        }
       }
 
-      if (event.target instanceof Element && event.target.closest('[data-profile-menu="true"]')) {
-        return;
+      if (notificationMenuOpen) {
+        if (!(event.target instanceof Element && event.target.closest('[data-header-actions="true"]'))) {
+          setNotificationMenuOpen(false);
+        }
       }
 
-      setProfileMenuOpen(false);
+      if (messageMenuOpen) {
+        if (!(event.target instanceof Element && event.target.closest('[data-header-actions="true"]'))) {
+          setMessageMenuOpen(false);
+        }
+      }
     };
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         setProfileMenuOpen(false);
         setMobileSidebarOpen(false);
+        setNotificationMenuOpen(false);
+        setMessageMenuOpen(false);
       }
     };
 
@@ -1395,7 +1477,7 @@ function App() {
       document.removeEventListener('mousedown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [profileMenuOpen]);
+  }, [messageMenuOpen, notificationMenuOpen, profileMenuOpen]);
 
   if (currentPage === 'signin') {
     return (
@@ -1878,18 +1960,26 @@ function App() {
                       const Icon = action.icon;
 
                     return (
-                      <button
-                        key={`mobile-${action.label}`}
-                        type="button"
-                        onClick={() => notify(`${action.label} opened`)}
-                        className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
-                        aria-label={action.label}
-                      >
+                      <div key={`mobile-${action.label}`} className="relative" data-header-actions="true">
+                        <button
+                          type="button"
+                          onClick={() => handleHeaderAction(action.label)}
+                          className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
+                          aria-label={action.label}
+                          aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
+                        >
                           <Icon className="size-[18px]" />
                           <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
                             {action.badge}
                           </span>
                         </button>
+                        {action.label === 'Notifications' && notificationMenuOpen ? (
+                          <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
+                        ) : null}
+                        {action.label === 'Messages' && messageMenuOpen ? (
+                          <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
+                        ) : null}
+                      </div>
                       );
                     })}
 
@@ -1945,18 +2035,26 @@ function App() {
                     const Icon = action.icon;
 
                     return (
-                      <button
-                        key={action.label}
-                        type="button"
-                        onClick={() => notify(`${action.label} opened`)}
-                        className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
-                        aria-label={action.label}
-                      >
+                      <div key={action.label} className="relative" data-header-actions="true">
+                        <button
+                          type="button"
+                          onClick={() => handleHeaderAction(action.label)}
+                          className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
+                          aria-label={action.label}
+                          aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
+                        >
                         <Icon className="size-[18px]" />
                         <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
                           {action.badge}
                         </span>
                       </button>
+                        {action.label === 'Notifications' && notificationMenuOpen ? (
+                          <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
+                        ) : null}
+                        {action.label === 'Messages' && messageMenuOpen ? (
+                          <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
+                        ) : null}
+                      </div>
                     );
                   })}
 
@@ -2119,6 +2217,10 @@ function App() {
               />
             ) : activeSidebarItem === 'Lead Details' ? (
               <LeadDetailsPage
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
                 onBackToList={() => {
                   setActiveSidebarItem('Lead List');
                   notify('Lead List opened');
@@ -2135,6 +2237,10 @@ function App() {
               />
             ) : activeSidebarItem === 'Follow-up History' ? (
               <FollowUpHistoryPage
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
                 onBackToDetails={() => {
                   setActiveSidebarItem('Lead Details');
                   notify('Lead Details opened');
@@ -2153,7 +2259,7 @@ function App() {
               <>
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {stats.map((stat) => (
-                <StatCard key={stat.title} stat={stat} />
+                <StatCard key={stat.title} stat={stat} onClick={() => openDashboardSection(stat.target, `${stat.title} opened`)} />
               ))}
             </section>
 
@@ -2166,7 +2272,7 @@ function App() {
                     <FollowUpCard
                       key={`${followUp.customer}-${followUp.ivrs}`}
                       followUp={followUp}
-                      onView={() => notify(`${followUp.customer} follow-up opened`)}
+                      onView={() => openDashboardSection('Follow-up History', `${followUp.customer} follow-up opened`)}
                     />
                   ))}
                 </div>
@@ -2195,7 +2301,7 @@ function App() {
                             <td className="text-right">
                               <button
                                 type="button"
-                                onClick={() => notify(`${followUp.customer} follow-up opened`)}
+                                onClick={() => openDashboardSection('Follow-up History', `${followUp.customer} follow-up opened`)}
                                 className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
                                 aria-label={`View ${followUp.customer}`}
                               >
@@ -2212,7 +2318,7 @@ function App() {
                 <div className="flex justify-center px-4 py-4">
                   <button
                     type="button"
-                    onClick={() => notify('All follow-ups opened')}
+                    onClick={() => openDashboardSection('Follow-up History', 'All follow-ups opened')}
                     className="inline-flex items-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-5 py-2.5 text-[13px] font-extrabold text-[#2a64dd] shadow-[0_8px_18px_rgba(17,39,84,0.06)] transition hover:bg-[#f8fbff]"
                   >
                     View All Follow-ups
@@ -2232,7 +2338,7 @@ function App() {
                       <button
                         key={action.label}
                         type="button"
-                        onClick={() => notify(`${action.label} action started`)}
+                        onClick={() => openDashboardSection(action.target, `${action.label} opened`)}
                         className={cx(
                           'flex w-full items-center justify-between rounded-[10px] bg-gradient-to-r px-4 py-4 text-left text-white shadow-[0_12px_24px_rgba(22,65,145,0.16)] transition hover:-translate-y-0.5 hover:brightness-[1.03] sm:min-h-[92px] xl:min-h-0',
                           action.bg,
@@ -2254,11 +2360,11 @@ function App() {
 
             <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
               <article className={dataPanelClass}>
-                <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" onAction={() => notify('All recent leads opened')} />
+                <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" onAction={() => openDashboardSection('Lead List', 'All recent leads opened')} />
 
                 <div className="space-y-3 p-4 lg:hidden">
                   {recentLeads.map((lead) => (
-                    <RecentLeadCard key={`${lead.customer}-${lead.mobile}`} lead={lead} onView={() => notify(`${lead.customer} lead opened`)} />
+                    <RecentLeadCard key={`${lead.customer}-${lead.mobile}`} lead={lead} onView={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`)} />
                   ))}
                 </div>
 
@@ -2285,6 +2391,16 @@ function App() {
                               <AssigneeCell assignee={lead.assignedTo} />
                             </td>
                             <td>{lead.createdOn}</td>
+                            <td className="text-right">
+                              <button
+                                type="button"
+                                onClick={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`)}
+                                className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
+                                aria-label={`View ${lead.customer}`}
+                              >
+                                <Eye className="size-4" />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -2299,7 +2415,7 @@ function App() {
                   title="Overdue Follow-ups"
                   actionLabel="View All"
                   iconTone="danger"
-                  onAction={() => notify('All overdue follow-ups opened')}
+                  onAction={() => openDashboardSection('Follow-up History', 'All overdue follow-ups opened')}
                 />
 
                 <div className="m-4 divide-y divide-[#edf2f8] overflow-hidden rounded-[12px] border border-[#e5edf6] bg-[#fbfdff] px-4">
@@ -2350,6 +2466,93 @@ function Toast({ toast }) {
       aria-live="polite"
     >
       {toast.message}
+    </div>
+  );
+}
+
+function NotificationMenu({ onOpenNotification }) {
+  const toneClass = {
+    green: 'bg-[#e8f8eb] text-[#0d9f4a]',
+    blue: 'bg-[#eef5ff] text-[#0b65e5]',
+    amber: 'bg-[#fff4df] text-[#b45309]',
+    purple: 'bg-[#f6f0ff] text-[#8b5cf6]',
+    red: 'bg-[#ffefef] text-[#e44d4d]',
+  };
+
+  return (
+    <div className="absolute right-0 top-[calc(100%+10px)] z-[80] w-[320px] overflow-hidden rounded-[14px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.18)] sm:w-[360px]">
+      <div className="flex items-center justify-between border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3">
+        <div>
+          <p className="text-[14px] font-extrabold text-[#1e3261]">Recent Notifications</p>
+          <p className="mt-0.5 text-[11px] font-bold text-[#7b8ca8]">{recentNotifications.length} unread updates</p>
+        </div>
+        <span className="rounded-full bg-[#ffefef] px-2.5 py-1 text-[11px] font-extrabold text-[#e44d4d]">New</span>
+      </div>
+      <div className="max-h-[360px] overflow-y-auto p-2">
+        {recentNotifications.map((item) => (
+          <button
+            key={`${item.title}-${item.time}`}
+            type="button"
+            onClick={() => onOpenNotification(item)}
+            className="flex w-full items-start gap-3 rounded-[10px] p-3 text-left transition hover:bg-[#f8fbff]"
+          >
+            <span className={cx('mt-0.5 grid size-9 shrink-0 place-items-center rounded-[10px]', toneClass[item.tone] ?? toneClass.blue)}>
+              <Bell className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{item.title}</span>
+              <span className="mt-1 block text-[12px] font-bold leading-5 text-[#53647f]">{item.note}</span>
+              <span className="mt-1 block text-[11px] font-extrabold text-[#8a98af]">{item.time}</span>
+            </span>
+            <ChevronRight className="mt-2 size-4 shrink-0 text-[#91a3bd]" />
+          </button>
+        ))}
+      </div>
+      <button type="button" onClick={() => onOpenNotification({ title: 'All notifications opened', target: 'Settings User Activity Log' })} className="flex h-11 w-full items-center justify-center gap-2 border-t border-[#edf2f8] text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
+        View All Notifications
+        <ArrowRight className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+function WhatsAppMessageMenu({ onOpenMessage, onOpenWhatsApp }) {
+  return (
+    <div className="absolute right-0 top-[calc(100%+10px)] z-[80] w-[320px] overflow-hidden rounded-[14px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.18)] sm:w-[370px]">
+      <div className="flex items-center justify-between border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3">
+        <div>
+          <p className="text-[14px] font-extrabold text-[#1e3261]">Unread WhatsApp Messages</p>
+          <p className="mt-0.5 text-[11px] font-bold text-[#7b8ca8]">{unreadWhatsAppMessages.length} unread chats</p>
+        </div>
+        <span className="rounded-full bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#0d9f4a]">WhatsApp</span>
+      </div>
+      <div className="max-h-[360px] overflow-y-auto p-2">
+        {unreadWhatsAppMessages.map((item) => (
+          <button
+            key={`${item.phone}-${item.time}`}
+            type="button"
+            onClick={() => onOpenMessage(item)}
+            className="flex w-full items-start gap-3 rounded-[10px] p-3 text-left transition hover:bg-[#f8fbff]"
+          >
+            <span className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-full bg-[#e8f8eb] text-[#0d9f4a]">
+              <MessageSquareMore className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center justify-between gap-3">
+                <span className="truncate text-[13px] font-extrabold text-[#1e3261]">{item.name}</span>
+                <span className="shrink-0 text-[10px] font-extrabold text-[#8a98af]">{item.time}</span>
+              </span>
+              <span className="mt-1 block text-[11px] font-bold text-[#7b8ca8]">{item.phone}</span>
+              <span className="mt-1 block text-[12px] font-bold leading-5 text-[#53647f]">{item.message}</span>
+            </span>
+            <ChevronRight className="mt-3 size-4 shrink-0 text-[#91a3bd]" />
+          </button>
+        ))}
+      </div>
+      <button type="button" onClick={onOpenWhatsApp} className="flex h-11 w-full items-center justify-center gap-2 border-t border-[#edf2f8] bg-[#0d9f4a] text-[12px] font-extrabold text-white transition hover:bg-[#078c3e]">
+        Open WhatsApp
+        <ArrowUpRight className="size-4" />
+      </button>
     </div>
   );
 }
@@ -2633,7 +2836,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             Lead List
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] font-bold">
-            <button type="button" onClick={() => onNotify('Dashboard breadcrumb selected')} className="text-[#0b65e5]">
+            <button type="button" onClick={() => onOpenSection('Dashboard')} className="text-[#0b65e5]">
               Dashboard
             </button>
             <ChevronRight className="size-3.5 text-[#9aa8bc]" />
@@ -3028,9 +3231,9 @@ function AccountsManagementPage({ activeSection, onOpenSection, onNotify }) {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <AccountsStatCard label="Total Accounts" value="236" caption="All Accounts" growth="12.5%" icon={ReceiptText} tone="blue" onClick={() => onOpenSection('Accounts List')} />
         <AccountsStatCard label="Active Customers" value="189" caption="Active Accounts" growth="15.3%" icon={UserPlus} tone="green" onClick={() => { setStatus('Active'); onNotify('Active accounts filter applied'); }} />
-        <AccountsStatCard label="Total Receivables" value="Rs 18,75,320" caption="Outstanding Amount" growth="8.4%" negative icon={ReceiptText} tone="amber" onClick={() => onNotify('Receivables opened')} />
-        <AccountsStatCard label="Total Payables" value="Rs 6,45,780" caption="Pending Payments" growth="5.7%" negative icon={FileText} tone="purple" onClick={() => onNotify('Payables opened')} />
-        <AccountsStatCard label="Total Revenue (YTD)" value="Rs 2,48,96,300" caption="This Financial Year" growth="20.6%" icon={BarChart3} tone="cyan" onClick={() => onNotify('Revenue report opened')} />
+        <AccountsStatCard label="Total Receivables" value="Rs 18,75,320" caption="Outstanding Amount" growth="8.4%" negative icon={ReceiptText} tone="amber" onClick={() => onOpenSection('Payment Received')} />
+        <AccountsStatCard label="Total Payables" value="Rs 6,45,780" caption="Pending Payments" growth="5.7%" negative icon={FileText} tone="purple" onClick={() => onOpenSection('Payment Made')} />
+        <AccountsStatCard label="Total Revenue (YTD)" value="Rs 2,48,96,300" caption="This Financial Year" growth="20.6%" icon={BarChart3} tone="cyan" onClick={() => onOpenSection('Reports')} />
       </section>
 
       <section className={`${panelClass} p-4 sm:p-5`}>
@@ -3522,7 +3725,7 @@ function TransactionVolumeCard({ onNotify }) {
   ];
   return (
     <article className={`${panelClass} p-5`}>
-      <div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Top Accounts by Volume</h2><button type="button" onClick={() => onNotify('Top accounts by volume opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div>
+      <div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Top Accounts by Volume</h2><button type="button" onClick={() => onOpenSection('Accounts List')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div>
       <div className="mt-4 space-y-3">
         {rows.map(([label, value]) => (
           <button key={label} type="button" onClick={() => onNotify(`${label} ledger opened`)} className="flex w-full items-center gap-3 rounded-[8px] p-1 text-left transition hover:bg-[#f8fbff]">
@@ -3539,7 +3742,7 @@ function TransactionVolumeCard({ onNotify }) {
 function RecentTransactionsCard({ transactions, onNotify }) {
   return (
     <article className={`${panelClass} p-5`}>
-      <div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Transactions</h2><button type="button" onClick={() => onNotify('Recent transactions opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div>
+      <div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Transactions</h2><button type="button" onClick={() => onOpenSection('Transactions List')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div>
       <div className="mt-4 space-y-4">
         {transactions.map((transaction) => (
           <button key={transaction.id} type="button" onClick={() => onNotify(`${transaction.transactionNo} opened`)} className="flex w-full items-center gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]">
@@ -3685,6 +3888,10 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
     return <SettingsIpRestrictionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
+  if (settingsCardGroups.some((group) => group.items.some((item) => item.key === activeSection))) {
+    return <SettingsStandaloneInlinePage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
   if (activeSection !== 'Settings') {
     return <SettingsCategoryPlaceholderPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
@@ -3737,6 +3944,41 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
   };
 
   return <SettingsSetupPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function SettingsStandaloneInlinePage({ activeSection, onOpenSection, onNotify }) {
+  const activeGroup = getSettingsGroupForSection(activeSection);
+  const title = getSettingsDisplayLabel(activeSection);
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={title}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Settings', onClick: () => onOpenSection('Settings') },
+          ...(activeGroup ? [{ label: activeGroup.title }] : []),
+          { label: title },
+        ]}
+      />
+
+      <SettingsCategoryTabs
+        activeGroupTitle={activeGroup?.title}
+        activeSection={activeSection}
+        onOpenSection={onOpenSection}
+      />
+      {activeGroup ? (
+        <SettingsSubcategoryTabs
+          groupTitle={activeGroup.title}
+          activeSection={activeSection}
+          onSelectSection={(section) => onOpenSection(getSettingsRouteKey(section))}
+        />
+      ) : null}
+      <SettingsInlineContent activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+
+      <DashboardFooter />
+    </div>
+  );
 }
 
 function SettingsNavigationRail({ activeSection, onOpenSection, onNotify }) {
@@ -11948,6 +12190,7 @@ function AmcDocumentsPage({ activeSection, onOpenSection, onNotify }) {
 }
 
 function ChartOfAccountsPage({ activeSection = 'Chart of Accounts', onOpenSection, onNotify }) {
+  const [activeChartTab, setActiveChartTab] = useState('Chart of Accounts');
   const [rows, setRows] = useState(chartOfAccountsRows);
   const [query, setQuery] = useState('');
   const [type, setType] = useState('All Types');
@@ -11981,6 +12224,46 @@ function ChartOfAccountsPage({ activeSection = 'Chart of Accounts', onOpenSectio
     onNotify(`${next.name} saved`);
   };
 
+  const chartTabs = [
+    { label: 'Chart of Accounts', icon: ReceiptText },
+    { label: 'Account Prefix', icon: FileText },
+    { label: 'Opening Balance', icon: IndianRupee },
+    { label: 'Payment Settings', icon: ReceiptText },
+    { label: 'Payment Mode', icon: ReceiptText },
+  ];
+
+  const accountPrefixRows = [
+    { type: 'Asset', prefix: 'AST', nextNo: 'AST-0043', format: 'AST-0000', status: 'Active' },
+    { type: 'Liability', prefix: 'LIA', nextNo: 'LIA-0029', format: 'LIA-0000', status: 'Active' },
+    { type: 'Income', prefix: 'INC', nextNo: 'INC-0032', format: 'INC-0000', status: 'Active' },
+    { type: 'Expense', prefix: 'EXP', nextNo: 'EXP-0056', format: 'EXP-0000', status: 'Active' },
+    { type: 'Bank', prefix: 'BNK', nextNo: 'BNK-0012', format: 'BNK-0000', status: 'Active' },
+  ];
+
+  const openingBalanceRows = [
+    { account: 'Cash in Hand', type: 'Asset', debit: 'Rs 1,25,000', credit: '-', verified: 'Verified' },
+    { account: 'HDFC Bank Current Account', type: 'Asset', debit: 'Rs 8,40,000', credit: '-', verified: 'Verified' },
+    { account: 'Sundry Creditors', type: 'Liability', debit: '-', credit: 'Rs 3,20,000', verified: 'Pending' },
+    { account: 'Capital Account', type: 'Liability', debit: '-', credit: 'Rs 10,50,000', verified: 'Verified' },
+    { account: 'Opening Stock', type: 'Asset', debit: 'Rs 4,75,000', credit: '-', verified: 'Pending' },
+  ];
+
+  const paymentSettingRows = [
+    { setting: 'Default Credit Period', value: '30 Days', appliesTo: 'Customers', status: 'Active' },
+    { setting: 'Vendor Payment Term', value: '15 Days', appliesTo: 'Vendors', status: 'Active' },
+    { setting: 'Late Payment Reminder', value: 'After 7 Days', appliesTo: 'Receivables', status: 'Active' },
+    { setting: 'Approval Required Above', value: 'Rs 50,000', appliesTo: 'Payments', status: 'Active' },
+    { setting: 'Auto Receipt Numbering', value: 'Enabled', appliesTo: 'Receipts', status: 'Active' },
+  ];
+
+  const paymentModeRows = [
+    { code: 'PM-001', mode: 'Cash', type: 'Cash', settlement: 'Same Day', status: 'Active' },
+    { code: 'PM-002', mode: 'Cheque', type: 'Cheque', settlement: '2-3 Days', status: 'Active' },
+    { code: 'PM-003', mode: 'NEFT', type: 'Bank Transfer', settlement: 'Same Day', status: 'Active' },
+    { code: 'PM-004', mode: 'RTGS', type: 'Bank Transfer', settlement: 'Same Day', status: 'Active' },
+    { code: 'PM-005', mode: 'UPI', type: 'Digital', settlement: 'Instant', status: 'Active' },
+  ];
+
   return (
     <div className="space-y-4">
       <PageHeading
@@ -11995,6 +12278,33 @@ function ChartOfAccountsPage({ activeSection = 'Chart of Accounts', onOpenSectio
 
       <AccountsSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {chartTabs.map((tab) => {
+            const active = activeChartTab === tab.label;
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={() => setActiveChartTab(tab.label)}
+                className={cx(
+                  'flex h-[58px] items-center justify-between rounded-[12px] border px-5 text-left text-[13px] font-extrabold transition',
+                  active ? 'border-[#b9efca] bg-[#effbf3] text-[#087a37] shadow-[0_10px_20px_rgba(13,159,74,0.08)]' : 'border-[#d9e4f2] bg-white text-[#284276] hover:border-[#b9d0ee] hover:bg-[#f8fbff]',
+                )}
+              >
+                <span className="inline-flex min-w-0 items-center gap-3">
+                  <span className={cx('size-2.5 shrink-0 rounded-full', active ? 'bg-[#16a34a]' : 'bg-[#b8c7dc]')} />
+                  <span className="truncate">{tab.label}</span>
+                </span>
+                <ChevronRight className={cx('size-4 shrink-0', active ? 'text-[#16a34a]' : 'text-[#91a3bd]')} />
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeChartTab === 'Chart of Accounts' ? (
+        <>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <OpsStatCard label="Total Accounts" value="156" caption="All Accounts" icon={ReceiptText} tone="blue" onClick={() => onNotify('Total accounts opened')} />
         <OpsStatCard label="Asset Accounts" value="42" caption="26.92% of total" icon={CheckCircle2} tone="green" onClick={() => setType('Asset')} />
@@ -12035,6 +12345,105 @@ function ChartOfAccountsPage({ activeSection = 'Chart of Accounts', onOpenSectio
           <article className={`${panelClass} p-5`}><div className="flex items-center justify-between gap-3"><h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Recent Accounts Added</h2><button type="button" onClick={() => onNotify('Recent chart accounts opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button></div><div className="mt-4 space-y-4">{[['1230', 'Vehicles', '19 May 2024'], ['4110', 'Other Income', '18 May 2024'], ['5120', 'Office Expenses', '17 May 2024']].map(([code, name, date]) => <button key={code} type="button" onClick={() => onNotify(`${code} opened`)} className="flex w-full items-center gap-3 rounded-[10px] p-2 text-left transition hover:bg-[#f8fbff]"><span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#e8f8eb] text-[#0d9f4a]"><FileText className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{code}</span><span className="mt-1 block truncate text-[11px] font-bold text-[#53647f]">{name}</span></span><span className="shrink-0 text-[11px] font-bold text-[#314a79]">{date}</span></button>)}</div></article>
         </aside>
       </section>
+        </>
+      ) : activeChartTab === 'Account Prefix' ? (
+        <section className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Account Prefix</h2>
+              <button type="button" onClick={() => onNotify('Account prefix saved')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[12px] font-extrabold text-white"><Save className="size-4" />Save Prefix</button>
+            </div>
+            <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+              <div className="grid grid-cols-[1fr_0.75fr_0.95fr_0.95fr_0.75fr_0.6fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                <span>Account Type</span><span>Prefix</span><span>Next Number</span><span>Format</span><span>Status</span><span>Action</span>
+              </div>
+              {accountPrefixRows.map((item) => (
+                <div key={item.type} className="grid grid-cols-[1fr_0.75fr_0.95fr_0.95fr_0.75fr_0.6fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <span className="font-extrabold text-[#1e3261]">{item.type}</span><span>{item.prefix}</span><span>{item.nextNo}</span><span>{item.format}</span><AccountStatusBadge status={item.status} /><button type="button" onClick={() => onNotify(`${item.type} prefix edited`)} className="font-extrabold text-[#2563eb]">Edit</button>
+                </div>
+              ))}
+            </div>
+          </article>
+          <article className={`${panelClass} p-5`}>
+            <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Prefix Rules</h2>
+            <div className="mt-4 space-y-3 text-[13px] font-bold text-[#53647f]">
+              {['Auto generate account codes', 'Financial year wise reset optional', 'Duplicate prefix validation enabled', 'Manual override allowed for admins'].map((item) => <div key={item} className="flex items-center gap-3 rounded-[10px] border border-[#edf2f8] p-3"><CheckCircle2 className="size-4 text-[#16a34a]" />{item}</div>)}
+            </div>
+          </article>
+        </section>
+      ) : activeChartTab === 'Opening Balance' ? (
+        <section className="grid gap-4 xl:grid-cols-[1.45fr_0.75fr]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Opening Balance</h2>
+              <button type="button" onClick={() => onNotify('Opening balance imported')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[12px] font-extrabold text-[#284276]"><Download className="size-4" />Import</button>
+            </div>
+            <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+              <div className="grid grid-cols-[1.35fr_0.85fr_0.95fr_0.95fr_0.75fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                <span>Account</span><span>Type</span><span>Debit</span><span>Credit</span><span>Verified</span>
+              </div>
+              {openingBalanceRows.map((item) => (
+                <div key={item.account} className="grid grid-cols-[1.35fr_0.85fr_0.95fr_0.95fr_0.75fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <span className="font-extrabold text-[#1e3261]">{item.account}</span><span>{item.type}</span><span className="text-[#15803d]">{item.debit}</span><span className="text-[#b45309]">{item.credit}</span><span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.verified === 'Verified' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.verified}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+          <aside className="grid gap-4">
+            <OpsStatCard label="Total Debit" value="Rs 14,40,000" caption="Opening ledger" icon={IndianRupee} tone="green" onClick={() => onNotify('Total debit opened')} />
+            <OpsStatCard label="Total Credit" value="Rs 13,70,000" caption="Opening ledger" icon={ReceiptText} tone="amber" onClick={() => onNotify('Total credit opened')} />
+            <OpsStatCard label="Difference" value="Rs 70,000" caption="Needs review" icon={AlertTriangle} tone="purple" onClick={() => onNotify('Opening difference opened')} />
+          </aside>
+        </section>
+      ) : activeChartTab === 'Payment Settings' ? (
+        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.85fr]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Payment Settings</h2>
+            <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+              <div className="grid grid-cols-[1.25fr_0.9fr_1fr_0.75fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                <span>Setting</span><span>Value</span><span>Applies To</span><span>Status</span><span>Action</span>
+              </div>
+              {paymentSettingRows.map((item) => (
+                <div key={item.setting} className="grid grid-cols-[1.25fr_0.9fr_1fr_0.75fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <span className="font-extrabold text-[#1e3261]">{item.setting}</span><span>{item.value}</span><span>{item.appliesTo}</span><AccountStatusBadge status={item.status} /><button type="button" onClick={() => onNotify(`${item.setting} edited`)} className="font-extrabold text-[#2563eb]">Edit</button>
+                </div>
+              ))}
+            </div>
+          </article>
+          <article className={`${panelClass} p-5`}>
+            <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Automation</h2>
+            <div className="mt-4 grid gap-3">
+              {['Auto allocate receipts', 'Send overdue reminders', 'Require approval for large payments', 'Lock backdated entries'].map((item) => <button key={item} type="button" onClick={() => onNotify(`${item} toggled`)} className="flex h-11 items-center justify-between rounded-[10px] border border-[#edf2f8] px-3 text-left text-[12px] font-extrabold text-[#284276]"><span>{item}</span><span className="h-5 w-9 rounded-full bg-[#dff8e8] p-0.5"><span className="block size-4 translate-x-4 rounded-full bg-[#16a34a]" /></span></button>)}
+            </div>
+          </article>
+        </section>
+      ) : (
+        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.85fr]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Payment Mode</h2>
+              <button type="button" onClick={() => onNotify('Add payment mode opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[12px] font-extrabold text-white"><Plus className="size-4" />Add Mode</button>
+            </div>
+            <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+              <div className="grid grid-cols-[0.75fr_1fr_1fr_0.95fr_0.75fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                <span>Code</span><span>Payment Mode</span><span>Type</span><span>Settlement</span><span>Status</span><span>Action</span>
+              </div>
+              {paymentModeRows.map((item) => (
+                <div key={item.code} className="grid grid-cols-[0.75fr_1fr_1fr_0.95fr_0.75fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <span className="font-extrabold text-[#1e3261]">{item.code}</span><span>{item.mode}</span><span>{item.type}</span><span>{item.settlement}</span><AccountStatusBadge status={item.status} /><button type="button" onClick={() => onNotify(`${item.mode} edited`)} className="font-extrabold text-[#2563eb]">Edit</button>
+                </div>
+              ))}
+            </div>
+          </article>
+          <article className={`${panelClass} p-5`}>
+            <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Mode Type Overview</h2>
+            <div className="mt-5 grid gap-5 sm:grid-cols-[118px_minmax(0,1fr)] sm:items-center xl:grid-cols-1 min-[1720px]:grid-cols-[118px_minmax(0,1fr)]">
+              <button type="button" onClick={() => onNotify('Payment mode chart opened')} className="mx-auto size-[112px] rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#20a864 0 40%, #2d7ff9 40% 80%, #f7b731 80% 100%)' }} aria-label="Open payment mode overview"><span className="m-auto block size-[50px] rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]" /></button>
+              <div className="space-y-3"><StockLegend color="bg-[#20a864]" label="Bank Transfer" value="2 (40%)" /><StockLegend color="bg-[#2d7ff9]" label="Cash / Cheque" value="2 (40%)" /><StockLegend color="bg-[#f7b731]" label="Digital" value="1 (20%)" /></div>
+            </div>
+          </article>
+        </section>
+      )}
 
       <DashboardFooter />
 
@@ -18887,15 +19296,428 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             </article>
           </section>
         </>
+      ) : activeInstallationTab === 'System Configuration' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {systemConfigStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} configuration opened`)} />)}
+          </div>
+
+          <div className="grid items-start gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">System Configuration Details</h2>
+                <ProjectPhaseBadge status="Approved" />
+              </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {systemConfigRows.map(([label, value]) => (
+                  <InfoCell key={label} label={label} value={value} />
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">System Layout</h2>
+                <button type="button" onClick={() => onNotify('System layout opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View Drawing</button>
+              </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-4">
+                {[
+                  ['40 Panels', '22.00 kWp DC', Boxes, 'bg-[#eef5ff] text-[#0b65e5]'],
+                  ['4 Strings', '10 panels per string', Database, 'bg-[#effbf3] text-[#14b84c]'],
+                  ['20kW Inverter', 'Growatt MIN 20KTL-X', Zap, 'bg-[#fff5e8] text-[#f59e0b]'],
+                  ['Net Meter', 'Three phase output', ReceiptText, 'bg-[#f6f0ff] text-[#8b5cf6]'],
+                ].map(([title, note, Icon, tone], index) => (
+                  <div key={title} className="relative rounded-[14px] border border-[#edf2f8] bg-[#fbfdff] p-4 text-center">
+                    <span className={cx('mx-auto grid size-12 place-items-center rounded-full', tone)}><Icon className="size-5" /></span>
+                    <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{title}</p>
+                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">{note}</p>
+                    {index < 3 ? <span className="pointer-events-none absolute right-[-18px] top-1/2 hidden h-px w-8 bg-[#d9e4f2] md:block" /> : null}
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 rounded-[12px] bg-[#f8fbff] p-3 text-[13px] font-bold leading-6 text-[#53647f]">
+                Array layout south-facing hai, inverter utility room ke paas mounted hai, aur monitoring Wi-Fi data logger se enabled hai.
+              </p>
+            </article>
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">String Configuration</h2>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[680px]">
+                <div className="grid grid-cols-[1.1fr_0.8fr_1fr_1fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>String</span>
+                  <span>Panels</span>
+                  <span>Capacity</span>
+                  <span>Direction</span>
+                  <span>Status</span>
+                </div>
+                {stringRows.map((row) => (
+                  <div key={row.string} className="grid grid-cols-[1.1fr_0.8fr_1fr_1fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.string}</span>
+                    <span>{row.panels}</span>
+                    <span>{row.capacity}</span>
+                    <span>{row.direction}</span>
+                    <span><ProjectPhaseBadge status={row.status} /></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        </section>
+      ) : activeInstallationTab === 'Material & Equipment' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {materialStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} material status opened`)} />)}
+          </div>
+
+          <div className="grid items-start gap-4 xl:grid-cols-[1.45fr_0.75fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material & Equipment List</h2>
+                <button type="button" onClick={() => onNotify('Material issue slip downloaded')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5]"><Download className="size-4" />Issue Slip</button>
+              </div>
+              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+                <div className="min-w-[850px]">
+                  <div className="grid grid-cols-[1.4fr_0.85fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                    <span>Item</span>
+                    <span>Category</span>
+                    <span>Required</span>
+                    <span>Issued</span>
+                    <span>Consumed</span>
+                    <span>Status</span>
+                  </div>
+                  {materialRows.map((row) => (
+                    <div key={row.item} className="grid grid-cols-[1.4fr_0.85fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                      <span className="font-extrabold text-[#1e3261]">{row.item}</span>
+                      <span><ProjectActivityCategoryBadge category={row.category} /></span>
+                      <span>{row.required}</span>
+                      <span>{row.issued}</span>
+                      <span>{row.consumed}</span>
+                      <span><ProjectActivityStatusBadge status={row.status} /></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+
+            <aside className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Tools & Equipment</h2>
+                <div className="mt-4 space-y-3">
+                  {equipmentRows.map(([tool, qty, status]) => (
+                    <div key={tool} className="flex items-center justify-between gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{tool}</span>
+                        <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{qty}</span>
+                      </span>
+                      <ProjectPhaseBadge status={status === 'Available' ? 'Completed' : 'Pending'} label={status} />
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Status</h2>
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
+                      <span>Issued vs Required</span>
+                      <span>90%</span>
+                    </div>
+                    <ProjectProgressBar value={90} color="green" compact />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
+                      <span>Consumed on Site</span>
+                      <span>74%</span>
+                    </div>
+                    <ProjectProgressBar value={74} color="blue" compact />
+                  </div>
+                  <p className="rounded-[12px] bg-[#fffaf0] p-3 text-[12px] font-bold leading-6 text-[#8a5a00]">
+                    AC Cable aur insulation tester pending hain. Procurement team ko follow-up assign kiya gaya hai.
+                  </p>
+                </div>
+              </article>
+            </aside>
+          </div>
+        </section>
+      ) : activeInstallationTab === 'Work Progress' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {workProgressStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} progress opened`)} />)}
+          </div>
+
+          <div className="grid items-start gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Work Progress Overview</h2>
+              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+                <div className="min-w-[760px]">
+                  <div className="grid grid-cols-[1.45fr_0.8fr_1fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                    <span>Milestone</span>
+                    <span>Status</span>
+                    <span>Progress</span>
+                    <span>Start</span>
+                    <span>End</span>
+                  </div>
+                  {progressRows.map((row) => (
+                    <div key={row.task} className="grid grid-cols-[1.45fr_0.8fr_1fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                      <span className="font-extrabold text-[#1e3261]">{row.task}</span>
+                      <span><ProjectActivityStatusBadge status={row.status} /></span>
+                      <ProjectProgressInline value={row.progress} status={row.status} tone="blue" />
+                      <span>{row.start}</span>
+                      <span>{row.end}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Milestone Progress</h2>
+              <div className="mt-5 space-y-4">
+                {progressRows.slice(0, 5).map((row, index) => (
+                  <div key={row.task} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3">
+                    <span className={cx('grid size-9 place-items-center rounded-full text-[12px] font-extrabold text-white', row.status === 'Completed' ? 'bg-[#14b84c]' : row.status === 'In Progress' ? 'bg-[#2f80ff]' : 'bg-[#9aa8bc]')}>{index + 1}</span>
+                    <div className="min-w-0 rounded-[12px] border border-[#edf2f8] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-extrabold text-[#1e3261]">{row.task.replace(/^\d+\.\s*/, '')}</p>
+                        <ProjectPhaseBadge status={row.status} />
+                      </div>
+                      <div className="mt-3">
+                        <ProjectProgressBar value={row.progress} color={row.status === 'Completed' ? 'green' : row.status === 'In Progress' ? 'blue' : 'amber'} compact />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Daily Progress Updates</h2>
+            <div className="mt-4 grid gap-3 lg:grid-cols-5">
+              {dailyProgressRows.map((row) => (
+                <div key={`${row.date}-${row.activity}`} className="rounded-[14px] border border-[#edf2f8] bg-white p-4">
+                  <p className="text-[12px] font-extrabold text-[#0b65e5]">{row.date}</p>
+                  <h3 className="mt-2 min-h-[44px] text-[14px] font-extrabold leading-5 text-[#1e3261]">{row.activity}</h3>
+                  <p className="mt-2 text-[12px] font-bold text-[#53647f]">{row.team}</p>
+                  <div className="mt-3">
+                    <ProjectProgressBar value={row.progress} color={row.progress === 100 ? 'green' : 'blue'} compact />
+                  </div>
+                  <p className="mt-3 text-[12px] font-bold text-[#53647f]">{row.remarks}</p>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+      ) : activeInstallationTab === 'Quality Checklist' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {qualityStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} quality opened`)} />)}
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-3">
+            {qualitySections.map((section) => {
+              const completed = section.items.filter(([, done]) => done).length;
+              return (
+                <article key={section.title} className={`${panelClass} p-4 sm:p-5`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{section.title}</h2>
+                    <span className="rounded-[999px] bg-[#eef5ff] px-3 py-1 text-[12px] font-extrabold text-[#0b65e5]">{completed}/{section.items.length}</span>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {section.items.map(([item, done]) => (
+                      <button key={item} type="button" onClick={() => onNotify(`${item} checklist opened`)} className="flex w-full items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#fbfdff]">
+                        <span className={cx('grid size-8 shrink-0 place-items-center rounded-full', done ? 'bg-[#effbf3] text-[#14b84c]' : 'bg-[#fff5e8] text-[#f59e0b]')}>
+                          {done ? <CheckCircle2 className="size-4" /> : <Hourglass className="size-4" />}
+                        </span>
+                        <span className="min-w-0 flex-1 text-[13px] font-extrabold text-[#1e3261]">{item}</span>
+                        <ProjectPhaseBadge status={done ? 'Completed' : 'Pending'} />
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr]">
+              <InfoCell label="Final QA Remark" value="Structure quality is good. Electrical termination and inverter startup verification pending before commissioning." />
+              <InfoCell label="QA Engineer" value="Neha Jain" />
+              <InfoCell label="Next Inspection" value="28 May 2024" />
+            </div>
+          </article>
+        </section>
+      ) : activeInstallationTab === 'Safety' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {safetyStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} safety opened`)} />)}
+          </div>
+
+          <div className="grid items-start gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Safety Checklist</h2>
+                <ProjectPhaseBadge status="Completed" label="No Incident" />
+              </div>
+              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+                <div className="min-w-[720px]">
+                  <div className="grid grid-cols-[1.6fr_1fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                    <span>Safety Item</span>
+                    <span>Owner</span>
+                    <span>Status</span>
+                    <span>Priority</span>
+                  </div>
+                  {safetyRows.map((row) => (
+                    <div key={row.item} className="grid grid-cols-[1.6fr_1fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                      <span className="font-extrabold text-[#1e3261]">{row.item}</span>
+                      <span>{row.owner}</span>
+                      <span><ProjectActivityStatusBadge status={row.status} /></span>
+                      <span><ProjectNotePriorityBadge priority={row.priority} /></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+
+            <aside className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">PPE & Toolbox</h2>
+                <div className="mt-4 space-y-3">
+                  {[
+                    ['Toolbox Talk', '4 sessions completed', ClipboardPlus],
+                    ['PPE Audit', '8 workers verified', ShieldCheck],
+                    ['Height Work Permit', 'Valid till 28 May', BadgeCheck],
+                    ['First Aid Kit', 'Available on site', Heart],
+                  ].map(([title, note, Icon]) => (
+                    <div key={title} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#effbf3] text-[#14b84c]"><Icon className="size-4" /></span>
+                      <span>
+                        <span className="block text-[13px] font-extrabold text-[#1e3261]">{title}</span>
+                        <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{note}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </aside>
+          </div>
+        </section>
+      ) : activeInstallationTab === 'Documents' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Total Documents', value: '12', caption: 'Installation files', icon: FileText, tone: 'blue' },
+              { label: 'Approved', value: '8', caption: 'Ready for handover', icon: BadgeCheck, tone: 'green' },
+              { label: 'Pending Review', value: '4', caption: 'Needs approval', icon: Hourglass, tone: 'amber' },
+              { label: 'Photos', value: '28', caption: 'Site evidence', icon: Eye, tone: 'purple' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} documents opened`)} />)}
+          </div>
+
+          <div className="grid items-start gap-4 xl:grid-cols-[1.35fr_0.85fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Documents</h2>
+                <button type="button" onClick={() => onNotify('Upload installation document opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
+              </div>
+              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+                <div className="min-w-[850px]">
+                  <div className="grid grid-cols-[1.35fr_0.9fr_1fr_0.95fr_0.7fr_0.9fr_0.45fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                    <span>Document Name</span>
+                    <span>Category</span>
+                    <span>Uploaded By</span>
+                    <span>Uploaded On</span>
+                    <span>Size</span>
+                    <span>Status</span>
+                    <span>Action</span>
+                  </div>
+                  {installationDocumentRows.map((doc) => (
+                    <div key={doc.name} className="grid grid-cols-[1.35fr_0.9fr_1fr_0.95fr_0.7fr_0.9fr_0.45fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                      <span className="font-extrabold text-[#1e3261]">{doc.name}</span>
+                      <span>{doc.category}</span>
+                      <span>{doc.uploadedBy}</span>
+                      <span>{doc.date}</span>
+                      <span>{doc.size}</span>
+                      <span><ProjectDocumentStatusBadge status={doc.status} /></span>
+                      <span>
+                        <button type="button" onClick={() => onNotify(`${doc.name} downloaded`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#0b65e5]"><Download className="size-4" /></button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Photos</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                {photos.map((photo) => (
+                  <button key={photo.title} type="button" onClick={() => onNotify(`${photo.title} photo opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-left transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
+                    <img src={navBarImage} alt={photo.title} loading="lazy" decoding="async" className="h-[96px] w-full rounded-[10px] object-cover" />
+                    <p className="mt-3 text-[13px] font-extrabold text-[#1e3261]">{photo.title}</p>
+                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">{photo.date}</p>
+                  </button>
+                ))}
+              </div>
+            </article>
+          </div>
+        </section>
+      ) : activeInstallationTab === 'Summary' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr_0.8fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Completion Score</h2>
+              <div className="mt-5 flex flex-col items-center text-center">
+                <div className="grid size-[150px] place-items-center rounded-full" style={{ background: 'conic-gradient(#14b84c 0 65%, #e7eef7 65% 100%)' }}>
+                  <div className="grid size-[102px] place-items-center rounded-full bg-white shadow-[inset_0_0_0_1px_#edf2f8]">
+                    <span>
+                      <span className="block font-display text-[34px] font-extrabold leading-none text-[#06135a]">65%</span>
+                      <span className="mt-1 block text-[11px] font-bold text-[#53647f]">Complete</span>
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-4 text-[13px] font-bold leading-6 text-[#53647f]">Installation target ke hisaab se track par hai. Testing aur commissioning final pending items hain.</p>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Summary</h2>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {installationSummaryRows.map(([label, value]) => (
+                  <InfoCell key={label} label={label} value={value} />
+                ))}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Next Actions</h2>
+              <div className="mt-4 space-y-3">
+                {[
+                  ['AC Wiring', '26 May 2024', 'Pending'],
+                  ['Testing & Commissioning', '28 May 2024', 'Pending'],
+                  ['Customer Handover', '30 May 2024', 'Planned'],
+                ].map(([title, date, status]) => (
+                  <div key={title} className="rounded-[12px] border border-[#edf2f8] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[13px] font-extrabold text-[#1e3261]">{title}</p>
+                      <ProjectPhaseBadge status={status === 'Planned' ? 'In Progress' : status} label={status} />
+                    </div>
+                    <p className="mt-2 text-[12px] font-bold text-[#53647f]">{date}</p>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={() => onNotify('Installation summary exported')} className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-4 text-[13px] font-extrabold text-white"><Download className="size-4" />Export Summary</button>
+            </article>
+          </div>
+        </section>
       ) : (
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
             <FolderKanban className="size-8" />
           </span>
           <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeInstallationTab}</h2>
-          <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
-            Is installation tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi main screen aur tab navigation fully working hai, aur aap Overview par wapas ja sakte ho.
-          </p>
           <button type="button" onClick={() => setActiveInstallationTab('Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Overview</button>
         </article>
       )}
@@ -18971,6 +19793,48 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
     { id: 4, task: 'DC Wiring', assignee: 'Amit Joshi', role: 'Electrician', startDate: '23 May 2024', endDate: '25 May 2024', priority: 'High', status: 'In Progress', progress: 60 },
     { id: 5, task: 'Inverter Installation', assignee: 'Vikram Singh', role: 'Site Engineer', startDate: '25 May 2024', endDate: '26 May 2024', priority: 'Medium', status: 'Pending', progress: 0 },
     { id: 6, task: 'Testing & Commissioning', assignee: 'Neha Jain', role: 'QA Engineer', startDate: '27 May 2024', endDate: '28 May 2024', priority: 'High', status: 'Pending', progress: 0 },
+  ];
+
+  const responsibilityRows = [
+    { role: 'Project Manager', member: 'Rohit Singh', responsibility: 'Overall project coordination, customer updates and escalation handling.', authority: 'Approval', status: 'Active' },
+    { role: 'Site Engineer', member: 'Vikram Singh', responsibility: 'Site execution, daily progress reporting and technical validation.', authority: 'Execution Lead', status: 'Active' },
+    { role: 'Technician', member: 'Ramesh Yadav', responsibility: 'Mounting structure, panel fixing and field installation tasks.', authority: 'Work Owner', status: 'Active' },
+    { role: 'Electrician', member: 'Amit Joshi', responsibility: 'DC wiring, AC wiring, earthing and inverter termination.', authority: 'Electrical Owner', status: 'Active' },
+    { role: 'Safety Officer', member: 'Sunil Patidar', responsibility: 'PPE checks, permit validation and incident prevention.', authority: 'Stop Work', status: 'Active' },
+    { role: 'QA Engineer', member: 'Neha Jain', responsibility: 'Quality checklist, testing readiness and final inspection.', authority: 'QA Hold', status: 'Off Site' },
+  ];
+
+  const scheduleRows = [
+    { date: '18 May 2024', shift: 'Day', activity: 'Material delivery and site setup', team: 'Logistics', lead: 'Deepak Sharma', status: 'Completed' },
+    { date: '19 May 2024', shift: 'Day', activity: 'Structure marking and drilling', team: 'Installation', lead: 'Vikram Singh', status: 'Completed' },
+    { date: '22 May 2024', shift: 'Day', activity: 'Panel installation', team: 'Installation', lead: 'Ramesh Yadav', status: 'In Progress' },
+    { date: '23 May 2024', shift: 'Day', activity: 'DC wiring and string routing', team: 'Electrical', lead: 'Amit Joshi', status: 'In Progress' },
+    { date: '26 May 2024', shift: 'Day', activity: 'AC wiring and ACDB connection', team: 'Electrical', lead: 'Amit Joshi', status: 'Pending' },
+    { date: '28 May 2024', shift: 'Day', activity: 'Testing and commissioning precheck', team: 'Quality', lead: 'Neha Jain', status: 'Pending' },
+  ];
+
+  const attendanceRows = [
+    { member: 'Vikram Singh', role: 'Site Engineer', date: '25 May 2024', checkIn: '09:05 AM', checkOut: '06:20 PM', hours: '9h 15m', status: 'Present' },
+    { member: 'Ramesh Yadav', role: 'Technician', date: '25 May 2024', checkIn: '09:10 AM', checkOut: '06:05 PM', hours: '8h 55m', status: 'Present' },
+    { member: 'Amit Joshi', role: 'Electrician', date: '25 May 2024', checkIn: '09:20 AM', checkOut: '06:30 PM', hours: '9h 10m', status: 'Present' },
+    { member: 'Pooja Mehta', role: 'Helper', date: '25 May 2024', checkIn: '09:15 AM', checkOut: '05:50 PM', hours: '8h 35m', status: 'Present' },
+    { member: 'Sunil Patidar', role: 'Safety Officer', date: '25 May 2024', checkIn: '09:00 AM', checkOut: '06:00 PM', hours: '9h', status: 'Present' },
+    { member: 'Manish Gupta', role: 'Supervisor', date: '25 May 2024', checkIn: '-', checkOut: '-', hours: '-', status: 'On Leave' },
+  ];
+
+  const communicationRows = [
+    { channel: 'WhatsApp Group', subject: 'Daily site progress photos shared', owner: 'Vikram Singh', time: '25 May 2024, 06:35 PM', status: 'Shared' },
+    { channel: 'Call', subject: 'AC wiring plan confirmed with electrician', owner: 'Amit Joshi', time: '25 May 2024, 04:10 PM', status: 'Completed' },
+    { channel: 'Email', subject: 'QA precheck schedule sent to customer', owner: 'Neha Jain', time: '25 May 2024, 02:45 PM', status: 'Sent' },
+    { channel: 'Internal Note', subject: 'Pending insulation tester follow-up', owner: 'Deepak Sharma', time: '25 May 2024, 12:25 PM', status: 'Open' },
+  ];
+
+  const documentRows = [
+    { name: 'Team Assignment Sheet.pdf', type: 'Assignment', owner: 'Rohit Singh', date: '18 May 2024', size: '620 KB', status: 'Approved' },
+    { name: 'Safety Induction Register.pdf', type: 'Safety', owner: 'Sunil Patidar', date: '18 May 2024', size: '1.1 MB', status: 'Approved' },
+    { name: 'Attendance Register.xlsx', type: 'Attendance', owner: 'Vikram Singh', date: '25 May 2024', size: '420 KB', status: 'Pending Review' },
+    { name: 'Work Allocation Plan.pdf', type: 'Planning', owner: 'Rohit Singh', date: '20 May 2024', size: '880 KB', status: 'Approved' },
+    { name: 'Toolbox Talk Photos.zip', type: 'Communication', owner: 'Sunil Patidar', date: '24 May 2024', size: '3.4 MB', status: 'Approved' },
   ];
 
   return (
@@ -19160,6 +20024,216 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
             </div>
           </article>
         </>
+      ) : activeTeamTab === 'Roles & Responsibilities' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Defined Roles', value: '8', caption: 'All assigned', icon: ShieldCheck, tone: 'blue' },
+              { label: 'Execution Owners', value: '4', caption: 'Site work leads', icon: Users, tone: 'green' },
+              { label: 'Approval Owners', value: '2', caption: 'PM and QA', icon: BadgeCheck, tone: 'purple' },
+              { label: 'Escalations', value: '0', caption: 'No open gaps', icon: CheckCircle2, tone: 'green' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roles & Responsibilities Matrix</h2>
+              <button type="button" onClick={() => onNotify('Responsibility matrix exported')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5]"><Download className="size-4" />Export Matrix</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[860px]">
+                <div className="grid grid-cols-[1fr_1fr_2fr_1fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Role</span>
+                  <span>Member</span>
+                  <span>Responsibility</span>
+                  <span>Authority</span>
+                  <span>Status</span>
+                </div>
+                {responsibilityRows.map((row) => (
+                  <div key={row.role} className="grid grid-cols-[1fr_1fr_2fr_1fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.role}</span>
+                    <span>{row.member}</span>
+                    <span>{row.responsibility}</span>
+                    <span>{row.authority}</span>
+                    <span><ProjectPhaseBadge status={row.status === 'Off Site' ? 'In Progress' : row.status} label={row.status} /></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        </section>
+      ) : activeTeamTab === 'Work Allocation' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Allocated Tasks', value: '6', caption: 'Current plan', icon: ClipboardPlus, tone: 'blue' },
+              { label: 'Completed', value: '2', caption: '33.33%', icon: CheckCircle2, tone: 'green' },
+              { label: 'In Progress', value: '2', caption: 'Active today', icon: Clock3, tone: 'amber' },
+              { label: 'Pending', value: '2', caption: 'Next schedule', icon: Hourglass, tone: 'purple' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} allocation opened`)} />)}
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Work Allocation Board</h2>
+              <button type="button" onClick={() => onNotify('New work allocation opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Allocate Work</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[920px]">
+                <div className="grid grid-cols-[0.45fr_1.5fr_1fr_1fr_0.9fr_0.9fr_0.8fr_0.9fr_1fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>#</span><span>Task</span><span>Assigned To</span><span>Role</span><span>Start</span><span>End</span><span>Priority</span><span>Status</span><span>Progress</span>
+                </div>
+                {taskAllocation.map((row) => (
+                  <div key={row.id} className="grid grid-cols-[0.45fr_1.5fr_1fr_1fr_0.9fr_0.9fr_0.8fr_0.9fr_1fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.id}</span>
+                    <span className="font-extrabold text-[#1e3261]">{row.task}</span>
+                    <span>{row.assignee}</span>
+                    <span>{row.role}</span>
+                    <span>{row.startDate}</span>
+                    <span>{row.endDate}</span>
+                    <span><ProjectNotePriorityBadge priority={row.priority} /></span>
+                    <span><ProjectActivityStatusBadge status={row.status} /></span>
+                    <ProjectProgressInline value={row.progress} status={row.status} tone="blue" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        </section>
+      ) : activeTeamTab === 'Schedule' ? (
+        <section className="grid items-start gap-4 xl:grid-cols-[1.35fr_0.75fr]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Team Schedule</h2>
+              <button type="button" onClick={() => onNotify('Schedule entry opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><CalendarDays className="size-4" />Add Schedule</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[840px]">
+                <div className="grid grid-cols-[0.85fr_0.6fr_1.65fr_0.9fr_1fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Date</span><span>Shift</span><span>Activity</span><span>Team</span><span>Lead</span><span>Status</span>
+                </div>
+                {scheduleRows.map((row) => (
+                  <div key={`${row.date}-${row.activity}`} className="grid grid-cols-[0.85fr_0.6fr_1.65fr_0.9fr_1fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.date}</span><span>{row.shift}</span><span>{row.activity}</span><span>{row.team}</span><span>{row.lead}</span><span><ProjectPhaseBadge status={row.status} /></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+
+          <aside className="space-y-4">
+            <ProjectDonutCard title="Schedule Status" totalLabel="Activities" totalValue="6" data={[{ label: 'Completed', value: 2, color: '#16a34a' }, { label: 'In Progress', value: 2, color: '#2f80ff' }, { label: 'Pending', value: 2, color: '#f59e0b' }]} />
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Next Shift</h2>
+              <div className="mt-4 space-y-3">
+                <InfoCell label="Date" value="26 May 2024" />
+                <InfoCell label="Activity" value="AC wiring and ACDB connection" />
+                <InfoCell label="Lead" value="Amit Joshi" />
+              </div>
+            </article>
+          </aside>
+        </section>
+      ) : activeTeamTab === 'Attendance' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Present Today', value: '5', caption: 'On site', icon: CheckCircle2, tone: 'green' },
+              { label: 'On Leave', value: '1', caption: 'Supervisor', icon: PauseCircle, tone: 'amber' },
+              { label: 'Total Hours', value: '44h 55m', caption: 'Today', icon: Clock3, tone: 'blue' },
+              { label: 'Attendance Rate', value: '83%', caption: 'Current day', icon: BarChart3, tone: 'purple' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} attendance opened`)} />)}
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Attendance Register</h2>
+              <button type="button" onClick={() => onNotify('Attendance marked')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><CheckCircle2 className="size-4" />Mark Attendance</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[860px]">
+                <div className="grid grid-cols-[1fr_1fr_0.85fr_0.8fr_0.8fr_0.75fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Member</span><span>Role</span><span>Date</span><span>Check In</span><span>Check Out</span><span>Hours</span><span>Status</span>
+                </div>
+                {attendanceRows.map((row) => (
+                  <div key={`${row.member}-${row.date}`} className="grid grid-cols-[1fr_1fr_0.85fr_0.8fr_0.8fr_0.75fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.member}</span><span>{row.role}</span><span>{row.date}</span><span>{row.checkIn}</span><span>{row.checkOut}</span><span>{row.hours}</span><span><ProjectPhaseBadge status={row.status === 'Present' ? 'Completed' : 'Pending'} label={row.status} /></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        </section>
+      ) : activeTeamTab === 'Communication' ? (
+        <section className="grid items-start gap-4 xl:grid-cols-[1.25fr_0.8fr]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Communication Log</h2>
+              <button type="button" onClick={() => onNotify('New team message opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><MessageSquareMore className="size-4" />New Message</button>
+            </div>
+            <div className="mt-4 space-y-3">
+              {communicationRows.map((row) => (
+                <div key={`${row.channel}-${row.time}`} className="rounded-[14px] border border-[#edf2f8] bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.channel}</p>
+                      <h3 className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.subject}</h3>
+                      <p className="mt-2 text-[12px] font-bold text-[#53647f]">{row.owner} - {row.time}</p>
+                    </div>
+                    <ProjectPhaseBadge status={row.status === 'Open' ? 'Pending' : 'Completed'} label={row.status} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <aside className="space-y-4">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Quick Contacts</h2>
+              <div className="mt-4 space-y-3">
+                {teamMembers.slice(0, 5).map((member) => (
+                  <div key={member.id} className="flex items-center justify-between gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                    <span className="min-w-0">
+                      <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{member.name}</span>
+                      <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{member.role}</span>
+                    </span>
+                    <button type="button" onClick={() => onNotify(`Calling ${member.name}`)} className="grid size-9 place-items-center rounded-[8px] border border-[#dce6f3] text-[#0b65e5]"><Phone className="size-4" /></button>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </aside>
+        </section>
+      ) : activeTeamTab === 'Team Documents' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Total Documents', value: '18', caption: 'Team files', icon: FileText, tone: 'blue' },
+              { label: 'Approved', value: '14', caption: 'Verified', icon: BadgeCheck, tone: 'green' },
+              { label: 'Pending Review', value: '4', caption: 'Needs action', icon: Hourglass, tone: 'amber' },
+              { label: 'Document Size', value: '9.2 MB', caption: 'Storage used', icon: HardDrive, tone: 'purple' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} team documents opened`)} />)}
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Team Documents</h2>
+              <button type="button" onClick={() => onNotify('Upload team document opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[860px]">
+                <div className="grid grid-cols-[1.45fr_0.9fr_1fr_0.85fr_0.65fr_0.9fr_0.45fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Document</span><span>Type</span><span>Owner</span><span>Date</span><span>Size</span><span>Status</span><span>Action</span>
+                </div>
+                {documentRows.map((doc) => (
+                  <div key={doc.name} className="grid grid-cols-[1.45fr_0.9fr_1fr_0.85fr_0.65fr_0.9fr_0.45fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{doc.name}</span><span>{doc.type}</span><span>{doc.owner}</span><span>{doc.date}</span><span>{doc.size}</span><span><ProjectDocumentStatusBadge status={doc.status} /></span>
+                    <span><button type="button" onClick={() => onNotify(`${doc.name} downloaded`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#0b65e5]"><Download className="size-4" /></button></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        </section>
       ) : (
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
@@ -19258,6 +20332,49 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
     { label: 'Material Request', icon: ClipboardPlus, tone: 'blue' },
     { label: 'GRN Entry', icon: FolderKanban, tone: 'purple' },
     { label: 'Inventory Check', icon: Database, tone: 'amber' },
+  ];
+
+  const procurementRows = [
+    { po: 'PO-2024-0018', vendor: 'SunPower Systems', material: 'Solar Panels', qty: '40 Nos', amount: '1,20,000', expected: '18 May 2024', status: 'Completed' },
+    { po: 'PO-2024-0019', vendor: 'EnerTech Solutions', material: 'Mounting Structure', qty: '1 Set', amount: '28,000', expected: '19 May 2024', status: 'Completed' },
+    { po: 'PO-2024-0020', vendor: 'WireTech Industries', material: 'DC / AC Cables', qty: '300 Mtr', amount: '18,000', expected: '23 May 2024', status: 'In Progress' },
+    { po: 'PO-2024-0021', vendor: 'Electric House', material: 'ACDB / DCDB', qty: '2 Nos', amount: '6,500', expected: '26 May 2024', status: 'Pending' },
+  ];
+
+  const inventoryRows = [
+    { item: 'Solar Panels 550Wp', warehouse: 'Indore Warehouse', required: '40 Nos', available: '52 Nos', reserved: '40 Nos', shortage: '0', status: 'Available' },
+    { item: '20kW Inverter', warehouse: 'Indore Warehouse', required: '1 Nos', available: '2 Nos', reserved: '1 Nos', shortage: '0', status: 'Available' },
+    { item: 'DC Cable 6 sq.mm', warehouse: 'Indore Warehouse', required: '200 Mtr', available: '180 Mtr', reserved: '150 Mtr', shortage: '20 Mtr', status: 'Partial' },
+    { item: 'AC Cable 4 sq.mm', warehouse: 'Bhopal Warehouse', required: '120 Mtr', available: '80 Mtr', reserved: '80 Mtr', shortage: '40 Mtr', status: 'Shortage' },
+    { item: 'Earthing Kit', warehouse: 'Indore Warehouse', required: '1 Set', available: '0', reserved: '0', shortage: '1 Set', status: 'Shortage' },
+  ];
+
+  const requestRows = [
+    { id: 'MR-2024-0031', material: 'ACDB / DCDB', requestedBy: 'Vikram Singh', qty: '2 Nos', requiredBy: '26 May 2024', priority: 'High', status: 'Pending' },
+    { id: 'MR-2024-0032', material: 'Earthing Kit', requestedBy: 'Amit Joshi', qty: '1 Set', requiredBy: '26 May 2024', priority: 'High', status: 'Pending' },
+    { id: 'MR-2024-0033', material: 'Cable Ties & Lugs', requestedBy: 'Ramesh Yadav', qty: '1 Lot', requiredBy: '25 May 2024', priority: 'Medium', status: 'Approved' },
+    { id: 'MR-2024-0034', material: 'Safety Consumables', requestedBy: 'Sunil Patidar', qty: '1 Lot', requiredBy: '24 May 2024', priority: 'Medium', status: 'Completed' },
+  ];
+
+  const grnRows = [
+    { grn: 'GRN-2024-0024', po: 'PO-2024-0018', vendor: 'SunPower Systems', material: 'Solar Panels', received: '40 Nos', date: '18 May 2024', status: 'Accepted' },
+    { grn: 'GRN-2024-0025', po: 'PO-2024-0019', vendor: 'EnerTech Solutions', material: 'Mounting Structure', received: '1 Set', date: '19 May 2024', status: 'Accepted' },
+    { grn: 'GRN-2024-0026', po: 'PO-2024-0020', vendor: 'WireTech Industries', material: 'DC Cable', received: '150 Mtr', date: '23 May 2024', status: 'Partial' },
+    { grn: 'GRN-2024-0027', po: 'PO-2024-0021', vendor: 'Electric House', material: 'ACDB / DCDB', received: '-', date: '26 May 2024', status: 'Pending' },
+  ];
+
+  const vendorRows = [
+    { vendor: 'SunPower Systems', category: 'Solar Panels', orders: 12, delivery: '95%', rating: '4.5', payable: '0', status: 'Active' },
+    { vendor: 'EnerTech Solutions', category: 'Mounting Structure', orders: 9, delivery: '90%', rating: '4.3', payable: '28,500', status: 'Active' },
+    { vendor: 'WireTech Industries', category: 'Cables', orders: 7, delivery: '86%', rating: '4.1', payable: '12,650', status: 'Active' },
+    { vendor: 'Electric House', category: 'Electrical Accessories', orders: 5, delivery: '82%', rating: '4.0', payable: '6,500', status: 'Pending' },
+  ];
+
+  const reportRows = [
+    { name: 'Material Planning Summary', category: 'Planning', generatedOn: '25 May 2024', generatedBy: 'Rohit Singh', format: 'PDF', status: 'Completed' },
+    { name: 'BOM vs Issued Report', category: 'BOM', generatedOn: '25 May 2024', generatedBy: 'Deepak Sharma', format: 'XLSX', status: 'Completed' },
+    { name: 'Vendor Delivery Report', category: 'Vendor', generatedOn: '24 May 2024', generatedBy: 'Neha Jain', format: 'PDF', status: 'Completed' },
+    { name: 'Inventory Shortage Report', category: 'Inventory', generatedOn: '24 May 2024', generatedBy: 'Vikram Singh', format: 'PDF', status: 'Pending Review' },
   ];
 
   return (
@@ -19481,6 +20598,217 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
             </article>
           </section>
         </>
+      ) : activeMaterialTab === 'Bill of Materials' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'BOM Items', value: '48', caption: '10 categories', icon: FileText, tone: 'blue' },
+              { label: 'BOM Value', value: 'Rs 2,48,560', caption: 'Approved estimate', icon: IndianRupee, tone: 'green' },
+              { label: 'Issued Qty', value: '72%', caption: 'Against required', icon: CheckCircle2, tone: 'purple' },
+              { label: 'Pending Qty', value: '28%', caption: 'To be issued', icon: Hourglass, tone: 'amber' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Bill of Materials</h2>
+              <button type="button" onClick={() => onNotify('BOM exported')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5]"><Download className="size-4" />Export BOM</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="grid min-w-[1060px] grid-cols-[0.35fr_1.3fr_0.5fr_0.5fr_0.7fr_0.75fr_0.75fr_0.75fr_0.75fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                <span>#</span><span>Material Category</span><span>Items</span><span>UOM</span><span>Planned Qty</span><span>Procured Qty</span><span>Delivered Qty</span><span>Installed Qty</span><span>Pending Qty</span><span>Value (Rs)</span><span>Status</span>
+              </div>
+              {materialPlanRows.map((row) => (
+                <div key={row.id} className="grid min-w-[1060px] grid-cols-[0.35fr_1.3fr_0.5fr_0.5fr_0.7fr_0.75fr_0.75fr_0.75fr_0.75fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <span className="font-extrabold text-[#1e3261]">{row.id}</span><span className="font-extrabold text-[#1e3261]">{row.category}</span><span>{row.items}</span><span>{row.uom}</span><span>{row.plannedQty}</span><span>{row.procuredQty}</span><span>{row.deliveredQty}</span><span>{row.installedQty}</span><span>{row.pendingQty}</span><span>{row.plannedValue}</span><span><ProjectPhaseBadge status={row.status} /></span>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+      ) : activeMaterialTab === 'Procurement Plan' ? (
+        <section className="grid items-start gap-4 xl:grid-cols-[1.35fr_0.75fr]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Procurement Plan</h2>
+              <button type="button" onClick={() => onNotify('Purchase order opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Create PO</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[860px]">
+                <div className="grid grid-cols-[1fr_1.2fr_1.2fr_0.8fr_0.8fr_0.9fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>PO No.</span><span>Vendor</span><span>Material</span><span>Qty</span><span>Amount</span><span>Expected</span><span>Status</span>
+                </div>
+                {procurementRows.map((row) => (
+                  <div key={row.po} className="grid grid-cols-[1fr_1.2fr_1.2fr_0.8fr_0.8fr_0.9fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.po}</span><span>{row.vendor}</span><span>{row.material}</span><span>{row.qty}</span><span>{row.amount}</span><span>{row.expected}</span><span><ProjectPhaseBadge status={row.status} /></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+
+          <aside className="space-y-4">
+            <ProjectDonutCard title="Procurement Status" data={[{ label: 'Completed', value: 2, color: '#16a34a' }, { label: 'In Progress', value: 1, color: '#2f80ff' }, { label: 'Pending', value: 1, color: '#f59e0b' }]} totalLabel="POs" totalValue="4" />
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Pending Follow-up</h2>
+              <div className="mt-4 space-y-3">
+                <InfoCell label="Vendor" value="Electric House" />
+                <InfoCell label="Material" value="ACDB / DCDB" />
+                <InfoCell label="Expected" value="26 May 2024" />
+              </div>
+            </article>
+          </aside>
+        </section>
+      ) : activeMaterialTab === 'Inventory Check' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Available', value: '2', caption: 'Fully stocked', icon: CheckCircle2, tone: 'green' },
+              { label: 'Partial', value: '1', caption: 'Needs balance', icon: Hourglass, tone: 'amber' },
+              { label: 'Shortage', value: '2', caption: 'Procurement needed', icon: AlertTriangle, tone: 'red' },
+              { label: 'Reserved', value: '272', caption: 'Total quantity', icon: Database, tone: 'blue' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} inventory opened`)} />)}
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Inventory Availability Check</h2>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[900px]">
+                <div className="grid grid-cols-[1.3fr_1.1fr_0.8fr_0.8fr_0.8fr_0.8fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Item</span><span>Warehouse</span><span>Required</span><span>Available</span><span>Reserved</span><span>Shortage</span><span>Status</span>
+                </div>
+                {inventoryRows.map((row) => (
+                  <div key={row.item} className="grid grid-cols-[1.3fr_1.1fr_0.8fr_0.8fr_0.8fr_0.8fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.item}</span><span>{row.warehouse}</span><span>{row.required}</span><span>{row.available}</span><span>{row.reserved}</span><span>{row.shortage}</span><span><ProjectPhaseBadge status={row.status === 'Available' ? 'Completed' : row.status === 'Partial' ? 'In Progress' : 'Pending'} label={row.status} /></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        </section>
+      ) : activeMaterialTab === 'Material Requests' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Requests', value: '4', caption: 'This project', icon: ReceiptText, tone: 'blue' },
+              { label: 'Approved', value: '1', caption: 'Ready to issue', icon: BadgeCheck, tone: 'green' },
+              { label: 'Pending', value: '2', caption: 'Needs action', icon: Hourglass, tone: 'amber' },
+              { label: 'Completed', value: '1', caption: 'Issued', icon: CheckCircle2, tone: 'purple' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} material requests opened`)} />)}
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Requests</h2>
+              <button type="button" onClick={() => onNotify('New material request opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />New Request</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[840px]">
+                <div className="grid grid-cols-[1fr_1.25fr_1fr_0.7fr_0.9fr_0.8fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Request ID</span><span>Material</span><span>Requested By</span><span>Qty</span><span>Required By</span><span>Priority</span><span>Status</span>
+                </div>
+                {requestRows.map((row) => (
+                  <div key={row.id} className="grid grid-cols-[1fr_1.25fr_1fr_0.7fr_0.9fr_0.8fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.id}</span><span>{row.material}</span><span>{row.requestedBy}</span><span>{row.qty}</span><span>{row.requiredBy}</span><span><ProjectNotePriorityBadge priority={row.priority} /></span><span><ProjectPhaseBadge status={row.status} /></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        </section>
+      ) : activeMaterialTab === 'Delivery & GRN' ? (
+        <section className="grid items-start gap-4 xl:grid-cols-[1.35fr_0.75fr]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Delivery & GRN</h2>
+              <button type="button" onClick={() => onNotify('GRN entry opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Create GRN</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[860px]">
+                <div className="grid grid-cols-[1fr_1fr_1.15fr_1.15fr_0.8fr_0.85fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>GRN No.</span><span>PO No.</span><span>Vendor</span><span>Material</span><span>Received</span><span>Date</span><span>Status</span>
+                </div>
+                {grnRows.map((row) => (
+                  <div key={row.grn} className="grid grid-cols-[1fr_1fr_1.15fr_1.15fr_0.8fr_0.85fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.grn}</span><span>{row.po}</span><span>{row.vendor}</span><span>{row.material}</span><span>{row.received}</span><span>{row.date}</span><span><ProjectPhaseBadge status={row.status === 'Accepted' ? 'Completed' : row.status === 'Partial' ? 'In Progress' : 'Pending'} label={row.status} /></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+
+          <aside className="space-y-4">
+            <ProjectDonutCard title="GRN Status" data={[{ label: 'Accepted', value: 2, color: '#16a34a' }, { label: 'Partial', value: 1, color: '#2f80ff' }, { label: 'Pending', value: 1, color: '#f59e0b' }]} totalLabel="GRNs" totalValue="4" />
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Next Delivery</h2>
+              <div className="mt-4 space-y-3">
+                <InfoCell label="Material" value="ACDB / DCDB" />
+                <InfoCell label="Vendor" value="Electric House" />
+                <InfoCell label="ETA" value="26 May 2024" />
+              </div>
+            </article>
+          </aside>
+        </section>
+      ) : activeMaterialTab === 'Vendor Management' ? (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Active Vendors', value: '3', caption: 'Supplying now', icon: UsersRound, tone: 'green' },
+              { label: 'Pending Vendor', value: '1', caption: 'Needs follow-up', icon: Hourglass, tone: 'amber' },
+              { label: 'Avg Rating', value: '4.2', caption: 'Vendor score', icon: Star, tone: 'purple' },
+              { label: 'Payables', value: 'Rs 47,650', caption: 'Open amount', icon: IndianRupee, tone: 'blue' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} vendor opened`)} />)}
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Vendor Management</h2>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[820px]">
+                <div className="grid grid-cols-[1.35fr_1.2fr_0.65fr_0.8fr_0.6fr_0.8fr_0.75fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Vendor</span><span>Category</span><span>Orders</span><span>Delivery</span><span>Rating</span><span>Payable</span><span>Status</span>
+                </div>
+                {vendorRows.map((row) => (
+                  <div key={row.vendor} className="grid grid-cols-[1.35fr_1.2fr_0.65fr_0.8fr_0.6fr_0.8fr_0.75fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.vendor}</span><span>{row.category}</span><span>{row.orders}</span><span>{row.delivery}</span><span className="text-[#f59e0b]">{row.rating}</span><span>{row.payable}</span><span><ProjectPhaseBadge status={row.status} /></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        </section>
+      ) : activeMaterialTab === 'Reports' ? (
+        <section className="grid items-start gap-4 xl:grid-cols-[1.35fr_0.75fr]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Reports</h2>
+              <button type="button" onClick={() => onNotify('Generate material report opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Generate Report</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[820px]">
+                <div className="grid grid-cols-[1.45fr_0.8fr_0.9fr_1fr_0.6fr_0.9fr_0.45fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Report Name</span><span>Category</span><span>Generated On</span><span>Generated By</span><span>Format</span><span>Status</span><span>Action</span>
+                </div>
+                {reportRows.map((row) => (
+                  <div key={row.name} className="grid grid-cols-[1.45fr_0.8fr_0.9fr_1fr_0.6fr_0.9fr_0.45fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{row.name}</span><span>{row.category}</span><span>{row.generatedOn}</span><span>{row.generatedBy}</span><span>{row.format}</span><span><ProjectDocumentStatusBadge status={row.status} /></span><span><button type="button" onClick={() => onNotify(`${row.name} downloaded`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#0b65e5]"><Download className="size-4" /></button></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+
+          <aside className="space-y-4">
+            <ProjectDonutCard title="Report Mix" data={[{ label: 'Planning', value: 1, color: '#2f80ff' }, { label: 'BOM', value: 1, color: '#16a34a' }, { label: 'Vendor', value: 1, color: '#8b5cf6' }, { label: 'Inventory', value: 1, color: '#f59e0b' }]} totalLabel="Reports" totalValue="4" />
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Quick Exports</h2>
+              <div className="mt-4 grid gap-3">
+                {['BOM Export', 'Inventory Shortage', 'Vendor Performance'].map((label) => (
+                  <button key={label} type="button" onClick={() => onNotify(`${label} exported`)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5]"><Download className="size-4" />{label}</button>
+                ))}
+              </div>
+            </article>
+          </aside>
+        </section>
       ) : (
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
@@ -19832,6 +21160,39 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
     { id: 'EXP-2024-0006', title: 'Material Transportation', amount: 'Rs 6,800', status: 'Paid', date: '23 May 2024' },
   ];
 
+  const categoryBreakdownRows = [
+    { category: 'Equipment', budget: 'Rs 1,10,000', actual: 'Rs 1,01,050', variance: 'Rs 8,950 under', share: '62.3%', status: 'On Track' },
+    { category: 'Installation', budget: 'Rs 45,000', actual: 'Rs 28,500', variance: 'Rs 16,500 under', share: '17.6%', status: 'On Track' },
+    { category: 'Electrical', budget: 'Rs 32,000', actual: 'Rs 22,150', variance: 'Rs 9,850 under', share: '13.6%', status: 'Review' },
+    { category: 'Civil Work', budget: 'Rs 24,000', actual: 'Rs 12,300', variance: 'Rs 11,700 under', share: '7.6%', status: 'On Track' },
+    { category: 'Transportation', budget: 'Rs 12,500', actual: 'Rs 6,800', variance: 'Rs 5,700 under', share: '4.2%', status: 'On Track' },
+    { category: 'Others', budget: 'Rs 25,060', actual: 'Rs 8,300', variance: 'Rs 16,760 under', share: '5.1%', status: 'Review' },
+  ];
+
+  const paymentRows = [
+    { id: 'PAY-001', vendor: 'SunPower Systems', invoice: 'INV-1001.pdf', dueDate: '18 May 2024', amount: 'Rs 64,800', status: 'Paid', mode: 'Bank Transfer', approvedBy: 'Rohit Singh' },
+    { id: 'PAY-002', vendor: 'EnerTech Solutions', invoice: 'INV-1002.pdf', dueDate: '19 May 2024', amount: 'Rs 28,500', status: 'Paid', mode: 'Bank Transfer', approvedBy: 'Rohit Singh' },
+    { id: 'PAY-003', vendor: 'Sungrow India Pvt. Ltd.', invoice: 'INV-1004.pdf', dueDate: '27 May 2024', amount: 'Rs 36,250', status: 'Pending', mode: '-', approvedBy: 'Neha Jain' },
+    { id: 'PAY-004', vendor: 'BuildWell Contractors', invoice: 'INV-1005.pdf', dueDate: '28 May 2024', amount: 'Rs 12,300', status: 'Pending', mode: '-', approvedBy: 'Amit Joshi' },
+    { id: 'PAY-005', vendor: 'Electric House', invoice: 'INV-1007.pdf', dueDate: '29 May 2024', amount: 'Rs 9,500', status: 'Pending', mode: '-', approvedBy: 'Rohit Singh' },
+  ];
+
+  const vendorExpenseRows = [
+    { vendor: 'SunPower Systems', category: 'Equipment', invoices: 1, paid: 'Rs 64,800', pending: 'Rs 0', total: 'Rs 64,800', rating: 'A' },
+    { vendor: 'Sungrow India Pvt. Ltd.', category: 'Equipment', invoices: 1, paid: 'Rs 0', pending: 'Rs 36,250', total: 'Rs 36,250', rating: 'A' },
+    { vendor: 'EnerTech Solutions', category: 'Installation', invoices: 1, paid: 'Rs 28,500', pending: 'Rs 0', total: 'Rs 28,500', rating: 'B+' },
+    { vendor: 'WireTech Industries', category: 'Electrical', invoices: 1, paid: 'Rs 12,650', pending: 'Rs 0', total: 'Rs 12,650', rating: 'A' },
+    { vendor: 'BuildWell Contractors', category: 'Civil Work', invoices: 1, paid: 'Rs 0', pending: 'Rs 12,300', total: 'Rs 12,300', rating: 'B' },
+    { vendor: 'Electric House', category: 'Electrical', invoices: 1, paid: 'Rs 0', pending: 'Rs 9,500', total: 'Rs 9,500', rating: 'B+' },
+  ];
+
+  const expenseReportRows = [
+    { report: 'Monthly Expense Summary', type: 'PDF', range: '01 May - 31 May 2024', owner: 'Neha Jain', status: 'Ready' },
+    { report: 'Vendor Payment Report', type: 'XLSX', range: '01 May - 31 May 2024', owner: 'Rohit Singh', status: 'Ready' },
+    { report: 'Category Variance Report', type: 'PDF', range: 'Project to Date', owner: 'Amit Joshi', status: 'Draft' },
+    { report: 'Pending Payment Ageing', type: 'XLSX', range: 'As of 31 May 2024', owner: 'Neha Jain', status: 'Ready' },
+  ];
+
   return (
     <div className="space-y-4">
       <PageHeading
@@ -20015,6 +21376,118 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
               </div>
             </section>
           </>
+        ) : activeExpenseTab === 'Category Breakdown' ? (
+          <section className="mt-5 grid gap-4 xl:grid-cols-[0.8fr_1.4fr]">
+            <ProjectDonutCard title="Expense by Category" data={expenseCategoryData} totalLabel="Total" totalValue="Rs 1,62,300" onNotify={onNotify} />
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Category Breakdown</h2>
+                <button type="button" onClick={() => onNotify('Category breakdown exported')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[12px] font-extrabold text-[#284276]"><Download className="size-4" />Export</button>
+              </div>
+              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+                <div className="grid grid-cols-[1.15fr_1fr_1fr_1fr_0.75fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Category</span><span>Budget</span><span>Actual</span><span>Variance</span><span>Share</span><span>Status</span>
+                </div>
+                {categoryBreakdownRows.map((item) => (
+                  <div key={item.category} className="grid grid-cols-[1.15fr_1fr_1fr_1fr_0.75fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{item.category}</span>
+                    <span>{item.budget}</span>
+                    <span>{item.actual}</span>
+                    <span className="text-[#15803d]">{item.variance}</span>
+                    <span>{item.share}</span>
+                    <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.status === 'On Track' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.status}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+        ) : activeExpenseTab === 'Payment Status' ? (
+          <section className="mt-5 grid gap-4 xl:grid-cols-[0.75fr_1.45fr]">
+            <ProjectDonutCard title="Payment Status" data={paymentStatusData} totalLabel="Total" totalValue="Rs 1,62,300" onNotify={onNotify} />
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Payment Status</h2>
+              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+                <div className="grid grid-cols-[0.85fr_1.25fr_1fr_0.95fr_0.9fr_0.75fr_0.95fr_0.95fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Payment ID</span><span>Vendor</span><span>Invoice</span><span>Due Date</span><span>Amount</span><span>Status</span><span>Mode</span><span>Approved By</span>
+                </div>
+                {paymentRows.map((item) => (
+                  <div key={item.id} className="grid grid-cols-[0.85fr_1.25fr_1fr_0.95fr_0.9fr_0.75fr_0.95fr_0.95fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{item.id}</span>
+                    <span>{item.vendor}</span>
+                    <button type="button" onClick={() => onNotify(`${item.invoice} opened`)} className="text-left font-extrabold text-[#2563eb]">{item.invoice}</button>
+                    <span>{item.dueDate}</span>
+                    <span className="font-extrabold text-[#1e3261]">{item.amount}</span>
+                    <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.status === 'Paid' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.status}</span>
+                    <span>{item.mode}</span>
+                    <span>{item.approvedBy}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+        ) : activeExpenseTab === 'Vendor Wise' ? (
+          <section className="mt-5 grid gap-4 xl:grid-cols-[1.35fr_0.75fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Vendor Wise Expense</h2>
+              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+                <div className="grid grid-cols-[1.25fr_0.95fr_0.7fr_0.95fr_0.95fr_0.95fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Vendor</span><span>Category</span><span>Invoices</span><span>Paid</span><span>Pending</span><span>Total</span><span>Rating</span>
+                </div>
+                {vendorExpenseRows.map((item) => (
+                  <div key={item.vendor} className="grid grid-cols-[1.25fr_0.95fr_0.7fr_0.95fr_0.95fr_0.95fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{item.vendor}</span>
+                    <span>{item.category}</span>
+                    <span>{item.invoices}</span>
+                    <span className="text-[#15803d]">{item.paid}</span>
+                    <span className="text-[#b45309]">{item.pending}</span>
+                    <span className="font-extrabold text-[#1e3261]">{item.total}</span>
+                    <span className="inline-flex w-fit rounded-[8px] bg-[#eef4ff] px-2.5 py-1 text-[11px] font-extrabold text-[#0b65e5]">{item.rating}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+            <div className="space-y-4">
+              <ProjectDonutCard title="Vendor Share" data={[{ label: 'SunPower', value: 64800, color: '#2f80ff' }, { label: 'Sungrow', value: 36250, color: '#16a34a' }, { label: 'EnerTech', value: 28500, color: '#f59e0b' }, { label: 'Others', value: 32750, color: '#8b5cf6' }]} totalLabel="Vendors" totalValue="8" onNotify={onNotify} />
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Vendor Actions</h2>
+                <div className="mt-4 grid gap-2">
+                  {['Send Payment Reminder', 'Download Vendor Ledger', 'Compare Vendor Quotes'].map((action) => (
+                    <button key={action} type="button" onClick={() => onNotify(`${action} opened`)} className="inline-flex h-10 items-center justify-between rounded-[8px] border border-[#dce6f3] px-3 text-left text-[12px] font-extrabold text-[#284276]">
+                      {action}<ArrowUpRight className="size-4 text-[#0b65e5]" />
+                    </button>
+                  ))}
+                </div>
+              </article>
+            </div>
+          </section>
+        ) : activeExpenseTab === 'Expense Reports' ? (
+          <section className="mt-5 grid gap-4 xl:grid-cols-[1.35fr_0.75fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Expense Reports</h2>
+                <button type="button" onClick={() => onNotify('New expense report opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-4 text-[12px] font-extrabold text-white"><Plus className="size-4" />New Report</button>
+              </div>
+              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+                <div className="grid grid-cols-[1.4fr_0.65fr_1fr_0.8fr_0.65fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Report</span><span>Type</span><span>Range</span><span>Owner</span><span>Status</span><span>Action</span>
+                </div>
+                {expenseReportRows.map((item) => (
+                  <div key={item.report} className="grid grid-cols-[1.4fr_0.65fr_1fr_0.8fr_0.65fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{item.report}</span>
+                    <span>{item.type}</span>
+                    <span>{item.range}</span>
+                    <span>{item.owner}</span>
+                    <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.status === 'Ready' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#eef4ff] text-[#0b65e5]')}>{item.status}</span>
+                    <button type="button" onClick={() => onNotify(`${item.report} downloaded`)} className="inline-flex w-fit items-center gap-2 font-extrabold text-[#2563eb]"><Download className="size-4" />Download</button>
+                  </div>
+                ))}
+              </div>
+            </article>
+            <div className="space-y-4">
+              <ProjectLineChartCard title="Monthly Expense Trend" series={expenseTrendSeries} height={220} onNotify={onNotify} />
+              <ProjectDonutCard title="Report Mix" data={[{ label: 'Summary', value: 1, color: '#2f80ff' }, { label: 'Vendor', value: 1, color: '#16a34a' }, { label: 'Variance', value: 1, color: '#f59e0b' }, { label: 'Ageing', value: 1, color: '#8b5cf6' }]} totalLabel="Reports" totalValue="4" onNotify={onNotify} />
+            </div>
+          </section>
         ) : (
           <article className="mt-5 rounded-[18px] border border-[#dce6f3] bg-white p-8 text-center shadow-[0_18px_40px_rgba(18,48,87,0.06)]">
             <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
@@ -20670,6 +22143,8 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
     { name: 'Expense Report - May 2024', category: 'Financial Reports', generatedOn: '29 May 2024, 11:05 AM', generatedBy: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, format: 'XLSX', status: 'Completed' },
     { name: 'Vendor Performance Report', category: 'Operational Reports', generatedOn: '28 May 2024, 05:30 PM', generatedBy: { name: 'Sunil Patidar', initials: 'SP', tone: 'cyan' }, format: 'PDF', status: 'Completed' },
     { name: 'Compliance Report', category: 'Compliance Reports', generatedOn: '28 May 2024, 02:45 PM', generatedBy: { name: 'Manish Gupta', initials: 'MG', tone: 'green' }, format: 'PDF', status: 'Completed' },
+    { name: 'Custom Site Margin Report', category: 'Custom Reports', generatedOn: '27 May 2024, 12:15 PM', generatedBy: { name: 'Neha Jain', initials: 'NJ', tone: 'purple' }, format: 'XLSX', status: 'Completed' },
+    { name: 'Custom Vendor Ageing Report', category: 'Custom Reports', generatedOn: '27 May 2024, 10:10 AM', generatedBy: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, format: 'PDF', status: 'Completed' },
   ];
 
   const scheduledReports = [
@@ -20686,7 +22161,96 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
     { title: 'Most Popular Format', value: 'PDF (62%)', icon: FileText, tone: 'red' },
   ];
 
+  const reportTabDetails = {
+    'Project Reports': {
+      icon: FolderKanban,
+      title: 'Project Reports',
+      note: 'Progress, installation, timeline aur project execution reports ka complete view.',
+      metrics: [
+        ['Generated', '42'],
+        ['Scheduled', '5'],
+        ['Downloads', '28'],
+        ['PDF Share', '71%'],
+      ],
+      rows: [
+        ['Progress Summary', 'Daily', 'Active', 'Project Manager'],
+        ['Installation Milestone', 'Weekly', 'Active', 'Operations'],
+        ['Timeline Variance', 'Monthly', 'Draft', 'PMO'],
+        ['Site Survey Closure', 'On Demand', 'Ready', 'Survey Team'],
+      ],
+    },
+    'Financial Reports': {
+      icon: IndianRupee,
+      title: 'Financial Reports',
+      note: 'Budget, expense, margin, payment aur project finance tracking reports.',
+      metrics: [
+        ['Generated', '36'],
+        ['Scheduled', '3'],
+        ['Downloads', '22'],
+        ['XLSX Share', '58%'],
+      ],
+      rows: [
+        ['Budget vs Actual', 'Weekly', 'Active', 'Finance'],
+        ['Expense Summary', 'Monthly', 'Active', 'Accounts'],
+        ['Payment Collection', 'Weekly', 'Ready', 'Accounts'],
+        ['Project Margin', 'On Demand', 'Draft', 'Finance'],
+      ],
+    },
+    'Operational Reports': {
+      icon: Wrench,
+      title: 'Operational Reports',
+      note: 'Work orders, material usage, vendor performance aur daily operations reports.',
+      metrics: [
+        ['Generated', '24'],
+        ['Scheduled', '2'],
+        ['Downloads', '18'],
+        ['Open Drafts', '4'],
+      ],
+      rows: [
+        ['Work Order Status', 'Daily', 'Active', 'Operations'],
+        ['Material Consumption', 'Weekly', 'Active', 'Store Team'],
+        ['Vendor Performance', 'Monthly', 'Ready', 'Procurement'],
+        ['Team Productivity', 'Weekly', 'Draft', 'HR Ops'],
+      ],
+    },
+    'Compliance Reports': {
+      icon: ShieldCheck,
+      title: 'Compliance Reports',
+      note: 'Safety, approval, documentation aur statutory compliance reports.',
+      metrics: [
+        ['Generated', '16'],
+        ['Scheduled', '2'],
+        ['Downloads', '10'],
+        ['Due Soon', '3'],
+      ],
+      rows: [
+        ['Safety Checklist', 'Weekly', 'Active', 'Safety Officer'],
+        ['Approval Status', 'Monthly', 'Active', 'Liaison'],
+        ['Document Compliance', 'Monthly', 'Ready', 'Admin'],
+        ['Commissioning Compliance', 'On Demand', 'Draft', 'QA Team'],
+      ],
+    },
+    'Custom Reports': {
+      icon: UsersRound,
+      title: 'Custom Reports',
+      note: 'User-defined report builder, saved templates aur custom export formats.',
+      metrics: [
+        ['Created', '14'],
+        ['Shared', '8'],
+        ['Downloads', '12'],
+        ['Templates', '6'],
+      ],
+      rows: [
+        ['Site Margin Builder', 'Custom', 'Active', 'Neha Jain'],
+        ['Vendor Ageing Template', 'Custom', 'Ready', 'Rohit Singh'],
+        ['Project Risk Snapshot', 'Custom', 'Draft', 'Amit Joshi'],
+        ['Lead to Project Funnel', 'Custom', 'Active', 'Pooja Mehta'],
+      ],
+    },
+  };
+
   const filteredReports = activeReportTab === 'All Reports' ? reports : reports.filter((item) => item.category === activeReportTab);
+  const activeReportDetail = reportTabDetails[activeReportTab];
 
   return (
     <div className="space-y-4">
@@ -20741,6 +22305,56 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
           </div>
         </div>
       </section>
+
+      {activeReportDetail ? (
+        <section className="grid gap-4 xl:grid-cols-[0.86fr_1.34fr]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex items-start gap-4">
+              <span className="grid size-12 shrink-0 place-items-center rounded-[14px] bg-[#effbf3] text-[#0d9f4a]">
+                <activeReportDetail.icon className="size-6" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="font-display text-[22px] font-extrabold text-[#06135a]">{activeReportDetail.title}</h2>
+                <p className="mt-2 text-[13px] font-bold leading-6 text-[#53647f]">{activeReportDetail.note}</p>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {activeReportDetail.metrics.map(([label, value]) => (
+                <button key={label} type="button" onClick={() => onNotify(`${activeReportTab} ${label} opened`)} className="rounded-[12px] border border-[#edf2f8] bg-[#fbfdff] p-4 text-left transition hover:bg-white">
+                  <span className="block text-[12px] font-extrabold text-[#53647f]">{label}</span>
+                  <span className="mt-2 block font-display text-[24px] font-extrabold text-[#111827]">{value}</span>
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => onNotify(`${activeReportTab} generated`)} className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0e9748]"><Plus className="size-4" />Generate {activeReportTab}</button>
+          </article>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{activeReportDetail.title} Templates</h2>
+              <button type="button" onClick={() => onNotify(`${activeReportTab} templates exported`)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[12px] font-extrabold text-[#284276]"><Download className="size-4" />Export</button>
+            </div>
+            <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+              <div className="grid grid-cols-[1.25fr_0.8fr_0.75fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                <span>Report Template</span>
+                <span>Frequency</span>
+                <span>Status</span>
+                <span>Owner</span>
+                <span>Action</span>
+              </div>
+              {activeReportDetail.rows.map(([template, frequency, status, owner]) => (
+                <div key={template} className="grid grid-cols-[1.25fr_0.8fr_0.75fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
+                  <span className="font-extrabold text-[#1e3261]">{template}</span>
+                  <span>{frequency}</span>
+                  <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', status === 'Active' ? 'bg-[#eefbf1] text-[#15803d]' : status === 'Ready' ? 'bg-[#eef4ff] text-[#0b65e5]' : 'bg-[#fff4df] text-[#b45309]')}>{status}</span>
+                  <span>{owner}</span>
+                  <button type="button" onClick={() => onNotify(`${template} opened`)} className="inline-flex w-fit items-center gap-2 font-extrabold text-[#2563eb]">Open<ArrowUpRight className="size-4" /></button>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr_0.96fr]">
         <ProjectDonutCard title="Reports by Category" data={categoryData} totalLabel="Total" totalValue="128" onNotify={onNotify} />
@@ -24264,15 +25878,15 @@ function CreateLeadNotice() {
   );
 }
 
-function LeadDetailsPage({ onBackToList, onCreateLead, onFollowUpHistory, onNotify }) {
+function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUpHistory, onNotify }) {
   const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
 
   const quickDetailActions = [
     { label: 'Add Follow-up', icon: ShieldCheck, tone: 'green', onClick: () => setFollowUpModalOpen(true) },
-    { label: 'Create Quotation (UI)', icon: CalendarDays, tone: 'blue', onClick: () => onNotify('Quotation page will open here') },
-    { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => onNotify('Assign Lead action selected') },
-    { label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => onNotify('Change Status action selected') },
-    { label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => onNotify('Add Note action selected') },
+    { label: 'Create Quotation (UI)', icon: CalendarDays, tone: 'blue', onClick: () => onOpenSection('Lead List') },
+    { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => onOpenSection('Users') },
+    { label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => onOpenSection('Lead List') },
+    { label: 'Add Note', icon: Flag, tone: 'slate', onClick: onFollowUpHistory },
   ];
 
   return (
@@ -24353,7 +25967,7 @@ function LeadDetailsPage({ onBackToList, onCreateLead, onFollowUpHistory, onNoti
               <p className="mt-2 text-[12px] font-bold text-[#087a39]">This IVRS Number is unique. No duplicate found.</p>
             </div>
           </InfoPanel>
-          <InfoPanel title="Linked Leads (Same Mobile Number)" icon={Phone} tone="danger" actionLabel="View All Linked Leads" onAction={() => onNotify('Linked leads opened')}>
+          <InfoPanel title="Linked Leads (Same Mobile Number)" icon={Phone} tone="danger" actionLabel="View All Linked Leads" onAction={onBackToList}>
             <p className="mb-3 font-extrabold text-[#1e3261]">Mobile: 9876543210 <span className="ml-2 rounded-[8px] bg-[#dff6e7] px-2 py-1 text-[11px] text-[#087a39]">3 Leads</span></p>
             {['5kW On-Grid', '10kW On-Grid', '3kW On-Grid'].map((item, index) => (
               <div key={item} className="mb-2 flex items-center justify-between rounded-[8px] border border-[#edf2f8] bg-white px-3 py-2 text-[12px] font-bold text-[#263d72]">
@@ -24378,7 +25992,7 @@ function LeadDetailsPage({ onBackToList, onCreateLead, onFollowUpHistory, onNoti
   );
 }
 
-function FollowUpHistoryPage({ onBackToDetails, onNotify }) {
+function FollowUpHistoryPage({ onOpenSection, onBackToDetails, onNotify }) {
   const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
   const timeline = [
     { title: 'Follow-up Completed', tag: 'Completed', text: 'Customer is interested in 5kW On-Grid system. Discussed product quality, subsidy and installation timeline.', date: '18 May 2024\n04:30 PM', tone: 'success', icon: Phone },
@@ -24399,7 +26013,7 @@ function FollowUpHistoryPage({ onBackToDetails, onNotify }) {
               <Plus className="size-4" />
               Add Follow-up
             </button>
-            <button type="button" onClick={() => onNotify('Follow-up options opened')} className="inline-flex size-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b]"><MoreVertical className="size-4" /></button>
+            <button type="button" onClick={() => onOpenSection('Lead List')} className="inline-flex size-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b]"><MoreVertical className="size-4" /></button>
           </>
         )}
       />
@@ -24449,9 +26063,9 @@ function FollowUpHistoryPage({ onBackToDetails, onNotify }) {
           <InfoPanel title="Quick Actions" icon={Zap} tone="success">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <MiniActionButton label="Add Follow-up" icon={ShieldCheck} tone="green" onClick={() => setFollowUpModalOpen(true)} />
-              <MiniActionButton label="Schedule Site Visit" icon={CalendarDays} tone="blue" onClick={() => onNotify('Site visit scheduled')} />
-              <MiniActionButton label="Add Note" icon={Users} tone="purple" onClick={() => onNotify('Note added')} />
-              <MiniActionButton label="Change Lead Status" icon={Clock3} tone="amber" onClick={() => onNotify('Lead status change selected')} />
+              <MiniActionButton label="Schedule Site Visit" icon={CalendarDays} tone="blue" onClick={() => onOpenSection('Project Site Survey')} />
+              <MiniActionButton label="Add Note" icon={Users} tone="purple" onClick={onBackToDetails} />
+              <MiniActionButton label="Change Lead Status" icon={Clock3} tone="amber" onClick={() => onOpenSection('Lead List')} />
             </div>
           </InfoPanel>
         </div>
@@ -24721,11 +26335,11 @@ function DashboardFooter() {
   );
 }
 
-function StatCard({ stat }) {
+function StatCard({ stat, onClick }) {
   const Icon = stat.icon;
 
   return (
-    <article className={`${panelClass} flex min-h-[106px] items-center gap-3 px-3 py-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)] sm:gap-4 sm:px-4`}>
+    <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[106px] w-full items-center gap-3 px-3 py-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)] sm:gap-4 sm:px-4`}>
       <div
         className={cx(
           'flex size-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-white shadow-[0_12px_24px_rgba(24,86,190,0.18)] sm:size-[52px]',
@@ -24754,7 +26368,7 @@ function StatCard({ stat }) {
           <span>{stat.delta}</span>
         </div>
       </div>
-    </article>
+    </button>
   );
 }
 
