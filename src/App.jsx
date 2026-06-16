@@ -674,6 +674,146 @@ const leadListRows = [
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
     nextFollowUp: '25 May 2024',
   },
+  {
+    customer: 'Ramesh Patidar',
+    mobile: '9301234567',
+    ivrs: 'IVRS123466',
+    project: '10kW Hybrid',
+    type: 'Hybrid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
+    nextFollowUp: '26 May 2024',
+  },
+  {
+    customer: 'Sunita Bhatt',
+    mobile: '8109876543',
+    ivrs: 'IVRS123467',
+    project: '3kW Off-Grid',
+    type: 'Off-Grid',
+    status: 'New',
+    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    nextFollowUp: '26 May 2024',
+  },
+  {
+    customer: 'Lokesh Sharma',
+    mobile: '9754321098',
+    ivrs: 'IVRS123468',
+    project: '7.5kW On-Grid',
+    type: 'On-Grid',
+    status: 'Quotation',
+    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
+    nextFollowUp: '27 May 2024',
+  },
+  {
+    customer: 'Geeta Verma',
+    mobile: '7654321890',
+    ivrs: 'IVRS123469',
+    project: '5kW On-Grid',
+    type: 'On-Grid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    nextFollowUp: '27 May 2024',
+  },
+  {
+    customer: 'Anil Dubey',
+    mobile: '8765432109',
+    ivrs: 'IVRS123470',
+    project: '15kW On-Grid',
+    type: 'On-Grid',
+    status: 'New',
+    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
+    nextFollowUp: '28 May 2024',
+  },
+  {
+    customer: 'Priya Jain',
+    mobile: '9812345670',
+    ivrs: 'IVRS123471',
+    project: '3kW Hybrid',
+    type: 'Hybrid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
+    nextFollowUp: '28 May 2024',
+  },
+  {
+    customer: 'Vivek Chouhan',
+    mobile: '7345678901',
+    ivrs: 'IVRS123472',
+    project: '20kW On-Grid',
+    type: 'On-Grid',
+    status: 'Quotation',
+    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    nextFollowUp: '29 May 2024',
+  },
+  {
+    customer: 'Neelam Singh',
+    mobile: '8234567012',
+    ivrs: 'IVRS123473',
+    project: '5kW Off-Grid',
+    type: 'Off-Grid',
+    status: 'New',
+    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
+    nextFollowUp: '29 May 2024',
+  },
+  {
+    customer: 'Dinesh Rawat',
+    mobile: '9678901234',
+    ivrs: 'IVRS123474',
+    project: '10kW On-Grid',
+    type: 'On-Grid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
+    nextFollowUp: '30 May 2024',
+  },
+  {
+    customer: 'Meena Tiwari',
+    mobile: '8901234567',
+    ivrs: 'IVRS123475',
+    project: '7.5kW Hybrid',
+    type: 'Hybrid',
+    status: 'Lost',
+    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    nextFollowUp: '30 May 2024',
+  },
+  {
+    customer: 'Harish Yadav',
+    mobile: '7123456789',
+    ivrs: 'IVRS123476',
+    project: '5kW On-Grid',
+    type: 'On-Grid',
+    status: 'New',
+    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
+    nextFollowUp: '01 Jun 2024',
+  },
+  {
+    customer: 'Sarita Pandey',
+    mobile: '9456789012',
+    ivrs: 'IVRS123477',
+    project: '3kW On-Grid',
+    type: 'On-Grid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
+    nextFollowUp: '01 Jun 2024',
+  },
+  {
+    customer: 'Manoj Mishra',
+    mobile: '8567890123',
+    ivrs: 'IVRS123478',
+    project: '10kW On-Grid',
+    type: 'On-Grid',
+    status: 'Quotation',
+    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    nextFollowUp: '02 Jun 2024',
+  },
+  {
+    customer: 'Asha Kulkarni',
+    mobile: '7890123456',
+    ivrs: 'IVRS123479',
+    project: '5kW Hybrid',
+    type: 'Hybrid',
+    status: 'New',
+    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
+    nextFollowUp: '02 Jun 2024',
+  },
 ];
 
 function getLeadRowsForCategory(category) {
@@ -798,6 +938,11 @@ const userManagementRows = [
   { id: 8, name: 'Kavita Joshi', email: 'kavita.joshi@malwasolar.com', mobile: '9870098765', role: 'Sales Executive', branch: 'Dewas Branch', status: 'Active', createdOn: '14 May 2024', assignee: { name: 'Kavita Joshi', initials: 'KJ', tone: 'sky' } },
   { id: 9, name: 'Jatin Agrawal', email: 'jatin.agrawal@malwasolar.com', mobile: '9340011223', role: 'Team Leader', branch: 'Dewas Branch', status: 'Inactive', createdOn: '16 May 2024', assignee: { name: 'Jatin Agrawal', initials: 'JA', tone: 'amber' } },
   { id: 10, name: 'Admin User', email: 'admin@malwasolar.com', mobile: '9999999991', role: 'Super Admin', branch: 'Head Office', status: 'Active', createdOn: '01 May 2024', assignee: { name: 'Admin User', initials: 'AU', tone: 'emerald' } },
+  { id: 11, name: 'Priya Sharma', email: 'priya.sharma@malwasolar.com', mobile: '9812345671', role: 'Sales Executive', branch: 'Bhopal Branch', status: 'Active', createdOn: '17 May 2024', assignee: { name: 'Priya Sharma', initials: 'PS', tone: 'sky' } },
+  { id: 12, name: 'Rahul Dubey', email: 'rahul.dubey@malwasolar.com', mobile: '9023456782', role: 'Sales Executive', branch: 'Indore Branch', status: 'Active', createdOn: '18 May 2024', assignee: { name: 'Rahul Dubey', initials: 'RD', tone: 'emerald' } },
+  { id: 13, name: 'Anjali Mishra', email: 'anjali.mishra@malwasolar.com', mobile: '8765432190', role: 'Team Leader', branch: 'Bhopal Branch', status: 'Active', createdOn: '03 May 2024', assignee: { name: 'Anjali Mishra', initials: 'AM', tone: 'amber' } },
+  { id: 14, name: 'Dinesh Rawat', email: 'dinesh.rawat@malwasolar.com', mobile: '9678012345', role: 'Sales Executive', branch: 'Gwalior Branch', status: 'Active', createdOn: '19 May 2024', assignee: { name: 'Dinesh Rawat', initials: 'DR', tone: 'sky' } },
+  { id: 15, name: 'Sunita Pal', email: 'sunita.pal@malwasolar.com', mobile: '8890123456', role: 'Sales Executive', branch: 'Jabalpur Branch', status: 'Inactive', createdOn: '20 May 2024', assignee: { name: 'Sunita Pal', initials: 'SP', tone: 'emerald' } },
 ];
 
 const userManagementStats = [
@@ -842,6 +987,11 @@ const activityLogRows = [
   { id: 8, time: '18 May 2024, 05:40 PM', user: userManagementRows[1], module: 'Follow-ups', action: 'Deleted', details: 'Deleted follow-up (Follow-up ID: FU5678) for lead "Kavita Joshi"', ip: '192.168.1.102' },
   { id: 9, time: '18 May 2024, 02:30 PM', user: userManagementRows[5], module: 'Project Management', action: 'Created', details: 'Created new project "5kW On-Grid - Patidar" (Project ID: PRJ1234)', ip: '192.168.1.105' },
   { id: 10, time: '18 May 2024, 10:20 AM', user: userManagementRows[9], module: 'Settings', action: 'Updated', details: 'Updated system settings - Follow-up reminder days set to 3', ip: '192.168.1.101' },
+  { id: 11, time: '17 May 2024, 03:15 PM', user: userManagementRows[2], module: 'Leads', action: 'Assigned', details: 'Lead "Geeta Verma" assigned to Rohit Singh (Lead ID: LEAD22345)', ip: '192.168.1.103' },
+  { id: 12, time: '17 May 2024, 01:30 PM', user: userManagementRows[7], module: 'Project Management', action: 'Updated', details: 'Updated project status to "Installation" for "15kW Hybrid - Manish Gupta"', ip: '192.168.1.108' },
+  { id: 13, time: '16 May 2024, 11:45 AM', user: userManagementRows[1], module: 'Follow-ups', action: 'Created', details: 'Created follow-up for lead "Vivek Chouhan" scheduled for 22 May 2024', ip: '192.168.1.102' },
+  { id: 14, time: '16 May 2024, 09:00 AM', user: userManagementRows[9], module: 'Users', action: 'Deactivated', details: 'Deactivated user "Pooja Verma" (User ID: USR0005)', ip: '192.168.1.101' },
+  { id: 15, time: '15 May 2024, 05:20 PM', user: userManagementRows[6], module: 'Accounts', action: 'Created', details: 'Created payment receipt RCPT-2024-0210 for Rs 5,800', ip: '192.168.1.106' },
 ];
 
 const userDetailPermissions = [
@@ -891,6 +1041,11 @@ const settingsUsersSeed = [
   { id: 6, name: 'Manoj Kumar', email: 'manoj.kumar@malwasolar.com', phone: '+91 98765 43215', role: 'Technician', branch: 'Indore Branch', status: 'Active', lastLogin: '20 May 2024 08:50 AM', joinedOn: '11 Feb 2024', assignee: { name: 'Manoj Kumar', initials: 'MK', tone: 'emerald' } },
   { id: 7, name: 'Sunil Kumar', email: 'sunil.kumar@malwasolar.com', phone: '+91 98765 43216', role: 'Site Incharge', branch: 'Patiala Branch', status: 'Active', lastLogin: '19 May 2024 06:30 PM', joinedOn: '20 Feb 2024', assignee: { name: 'Sunil Kumar', initials: 'SK', tone: 'amber' } },
   { id: 8, name: 'Vikram Patel', email: 'vikram.patel@malwasolar.com', phone: '+91 98765 43217', role: 'Viewer', branch: 'Bangalore Branch', status: 'Inactive', lastLogin: '10 May 2024 02:10 PM', joinedOn: '28 Feb 2024', assignee: { name: 'Vikram Patel', initials: 'VP', tone: 'sky' } },
+  { id: 9, name: 'Priya Mehra', email: 'priya.mehra@malwasolar.com', phone: '+91 98765 43218', role: 'Engineer', branch: 'Indore Branch', status: 'Active', lastLogin: '20 May 2024 07:45 AM', joinedOn: '05 Mar 2024', assignee: { name: 'Priya Mehra', initials: 'PM', tone: 'emerald' } },
+  { id: 10, name: 'Rahul Tiwari', email: 'rahul.tiwari@malwasolar.com', phone: '+91 98765 43219', role: 'Technician', branch: 'Bhopal Branch', status: 'Active', lastLogin: '19 May 2024 05:30 PM', joinedOn: '12 Mar 2024', assignee: { name: 'Rahul Tiwari', initials: 'RT', tone: 'amber' } },
+  { id: 11, name: 'Deepa Rao', email: 'deepa.rao@malwasolar.com', phone: '+91 98765 43220', role: 'Accountant', branch: 'Gwalior Branch', status: 'Active', lastLogin: '20 May 2024 09:00 AM', joinedOn: '19 Mar 2024', assignee: { name: 'Deepa Rao', initials: 'DR', tone: 'sky' } },
+  { id: 12, name: 'Karan Patel', email: 'karan.patel@malwasolar.com', phone: '+91 98765 43221', role: 'Site Incharge', branch: 'Ujjain Branch', status: 'Active', lastLogin: '18 May 2024 03:15 PM', joinedOn: '01 Apr 2024', assignee: { name: 'Karan Patel', initials: 'KP', tone: 'emerald' } },
+  { id: 13, name: 'Swati Singh', email: 'swati.singh@malwasolar.com', phone: '+91 98765 43222', role: 'Manager', branch: 'Jabalpur Branch', status: 'Inactive', lastLogin: '05 May 2024 11:00 AM', joinedOn: '10 Apr 2024', assignee: { name: 'Swati Singh', initials: 'SS', tone: 'amber' } },
 ];
 
 const settingsRolesSeed = [
@@ -915,6 +1070,11 @@ const settingsActivitySeed = [
   { id: 8, time: '20 May 2024 08:45 AM', user: settingsUsersSeed[7], action: 'Download', module: 'Reports', description: 'Downloaded report "Sales Summary - Apr 2024"', ip: '103.152.45.25', status: 'Success' },
   { id: 9, time: '20 May 2024 08:30 AM', user: settingsUsersSeed[0], action: 'Update', module: 'Users', description: 'User role updated for "Pooja Gupta"', ip: '103.152.45.12', status: 'Success' },
   { id: 10, time: '20 May 2024 08:15 AM', user: settingsUsersSeed[1], action: 'Create', module: 'Service Request', description: 'Service Request "SR-2024-015" created', ip: '103.152.45.12', status: 'Success' },
+  { id: 11, time: '19 May 2024 06:50 PM', user: settingsUsersSeed[2], action: 'Export', module: 'Reports', description: 'Exported "Lead Status Report - May 2024"', ip: '103.152.45.18', status: 'Success' },
+  { id: 12, time: '19 May 2024 04:30 PM', user: settingsUsersSeed[3], action: 'Update', module: 'Inventory', description: 'Stock inward PO-2024-062 updated to Completed', ip: '103.152.45.21', status: 'Success' },
+  { id: 13, time: '19 May 2024 02:10 PM', user: settingsUsersSeed[0], action: 'Create', module: 'Users', description: 'New user "Karan Patel" created with role Site Incharge', ip: '103.152.45.12', status: 'Success' },
+  { id: 14, time: '19 May 2024 11:45 AM', user: settingsUsersSeed[5], action: 'Login', module: 'Authentication', description: 'User logged in successfully from Android App', ip: '103.152.45.22', status: 'Success' },
+  { id: 15, time: '18 May 2024 05:00 PM', user: settingsUsersSeed[4], action: 'View', module: 'Accounts', description: 'Viewed payment received report for April 2024', ip: '103.152.45.30', status: 'Success' },
 ];
 
 const settingsIpRulesSeed = [
@@ -1023,6 +1183,13 @@ const projectManagementRows = [
     assignedTo: { name: 'Neha Jain', initials: 'NJ', tone: 'sky' },
     targetDate: '15 Jun 2024',
   },
+  { id: 9, projectName: '25kW On-Grid System', customer: 'Ramesh Patidar', site: 'Bhopal, MP', type: 'On-Grid', status: 'Installation', assignedTo: { name: 'Vikram Singh', initials: 'VS', tone: 'emerald' }, targetDate: '18 Jun 2024' },
+  { id: 10, projectName: '12kW Hybrid System', customer: 'Lokesh Sharma', site: 'Gwalior, MP', type: 'Hybrid', status: 'Design', assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, targetDate: '20 Jun 2024' },
+  { id: 11, projectName: '8kW Off-Grid System', customer: 'Sunita Bhatt', site: 'Ratlam, MP', type: 'Off-Grid', status: 'Site Survey', assignedTo: { name: 'Neha Jain', initials: 'NJ', tone: 'sky' }, targetDate: '22 Jun 2024' },
+  { id: 12, projectName: '30kW On-Grid System', customer: 'Anil Dubey', site: 'Indore, MP', type: 'On-Grid', status: 'Procurement', assignedTo: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, targetDate: '25 Jun 2024' },
+  { id: 13, projectName: '5kW Hybrid System', customer: 'Priya Jain', site: 'Ujjain, MP', type: 'Hybrid', status: 'Completed', assignedTo: { name: 'Vikram Singh', initials: 'VS', tone: 'emerald' }, targetDate: '10 Jun 2024' },
+  { id: 14, projectName: '15kW Off-Grid System', customer: 'Vivek Chouhan', site: 'Jabalpur, MP', type: 'Off-Grid', status: 'Quality Check', assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, targetDate: '28 Jun 2024' },
+  { id: 15, projectName: '20kW Hybrid System', customer: 'Asha Kulkarni', site: 'Dewas, MP', type: 'Hybrid', status: 'Planning', assignedTo: { name: 'Neha Jain', initials: 'NJ', tone: 'sky' }, targetDate: '30 Jun 2024' },
 ];
 
 const projectManagementFeatures = [
@@ -1043,6 +1210,15 @@ const inventoryRows = [
   { id: 6, productName: 'MC4 Connector', sku: 'MC4-CON', category: 'Accessories', warehouse: 'Indore Warehouse', stock: 500, reserved: 200, available: 300, status: 'Low Stock' },
   { id: 7, productName: 'ACDB Box', sku: 'ACDB-01', category: 'Accessories', warehouse: 'Bhopal Warehouse', stock: 15, reserved: 5, available: 10, status: 'Low Stock' },
   { id: 8, productName: 'Solar Panel 440W', sku: 'SP-440W', category: 'Solar Panel', warehouse: 'Ujjain Warehouse', stock: 0, reserved: 0, available: 0, status: 'Out of Stock' },
+  { id: 9, productName: 'Solar Inverter 10kW', sku: 'INV-10KW', category: 'Inverter', warehouse: 'Bhopal Warehouse', stock: 42, reserved: 8, available: 34, status: 'In Stock' },
+  { id: 10, productName: 'Solar Battery 200Ah', sku: 'BAT-200AH', category: 'Battery', warehouse: 'Indore Warehouse', stock: 28, reserved: 4, available: 24, status: 'In Stock' },
+  { id: 11, productName: 'AC Cable 4 sqmm', sku: 'AC-4SQ', category: 'Cable', warehouse: 'Bhopal Warehouse', stock: 850, reserved: 120, available: 730, status: 'In Stock' },
+  { id: 12, productName: 'Solar Charge Controller 60A', sku: 'SCC-60A', category: 'Accessories', warehouse: 'Ujjain Warehouse', stock: 22, reserved: 6, available: 16, status: 'Low Stock' },
+  { id: 13, productName: 'Earthing Kit', sku: 'EK-001', category: 'Accessories', warehouse: 'Indore Warehouse', stock: 180, reserved: 30, available: 150, status: 'In Stock' },
+  { id: 14, productName: 'Lightning Arrestor', sku: 'LA-001', category: 'Accessories', warehouse: 'Gwalior Warehouse', stock: 6, reserved: 2, available: 4, status: 'Low Stock' },
+  { id: 15, productName: 'Solar Panel 330W', sku: 'SP-330W', category: 'Solar Panel', warehouse: 'Bhopal Warehouse', stock: 0, reserved: 0, available: 0, status: 'Out of Stock' },
+  { id: 16, productName: 'DCDB Box', sku: 'DCDB-01', category: 'Accessories', warehouse: 'Indore Warehouse', stock: 35, reserved: 5, available: 30, status: 'In Stock' },
+  { id: 17, productName: 'Aluminium Wire 25 sqmm', sku: 'AW-25SQ', category: 'Cable', warehouse: 'Ujjain Warehouse', stock: 600, reserved: 80, available: 520, status: 'In Stock' },
 ];
 
 const recentStockInwardRows = [
@@ -1096,6 +1272,11 @@ const stockInwardRows = [
   { id: 6, orderNo: 'PO-2024-057', invoiceNo: 'INV-2024-057', party: 'Staubli Electrical', warehouse: 'Indore Warehouse', date: '15 May 2024', items: 7, quantity: 500, value: 27500, status: 'Partially Received' },
   { id: 7, orderNo: 'PO-2024-056', invoiceNo: 'INV-2024-056', party: 'Havells India Ltd.', warehouse: 'Bhopal Warehouse', date: '14 May 2024', items: 4, quantity: 15, value: 1250, status: 'Completed' },
   { id: 8, orderNo: 'PO-2024-055', invoiceNo: 'INV-2024-055', party: 'Canadian Solar Inc.', warehouse: 'Indore Warehouse', date: '13 May 2024', items: 6, quantity: 0, value: 0, status: 'Pending' },
+  { id: 9, orderNo: 'PO-2024-054', invoiceNo: 'INV-2024-054', party: 'Growatt New Energy', warehouse: 'Bhopal Warehouse', date: '12 May 2024', items: 3, quantity: 42, value: 210000, status: 'Completed' },
+  { id: 10, orderNo: 'PO-2024-053', invoiceNo: 'INV-2024-053', party: 'Luminous Power', warehouse: 'Ujjain Warehouse', date: '11 May 2024', items: 4, quantity: 28, value: 350000, status: 'Completed' },
+  { id: 11, orderNo: 'PO-2024-052', invoiceNo: 'INV-2024-052', party: 'Polycab India Ltd.', warehouse: 'Gwalior Warehouse', date: '10 May 2024', items: 5, quantity: 850, value: 80750, status: 'Partially Received' },
+  { id: 12, orderNo: 'PO-2024-051', invoiceNo: 'INV-2024-051', party: 'Waaree Energies Ltd.', warehouse: 'Indore Warehouse', date: '09 May 2024', items: 7, quantity: 200, value: 1580000, status: 'Completed' },
+  { id: 13, orderNo: 'PO-2024-050', invoiceNo: 'INV-2024-050', party: 'UTL Solar', warehouse: 'Bhopal Warehouse', date: '08 May 2024', items: 6, quantity: 180, value: 504000, status: 'Pending' },
 ];
 
 const stockOutwardRows = [
@@ -1107,6 +1288,11 @@ const stockOutwardRows = [
   { id: 6, orderNo: 'SO-2024-053', invoiceNo: 'INV-2024-053', party: 'Kiran Solar System', warehouse: 'Bhopal Warehouse', date: '15 May 2024', items: 3, quantity: 60, value: 275000, status: 'In Transit' },
   { id: 7, orderNo: 'SO-2024-052', invoiceNo: 'INV-2024-052', party: 'Shree Ram Traders', warehouse: 'Indore Warehouse', date: '14 May 2024', items: 5, quantity: 200, value: 860000, status: 'Pending' },
   { id: 8, orderNo: 'SO-2024-051', invoiceNo: 'INV-2024-051', party: 'Nirman Projects', warehouse: 'Ujjain Warehouse', date: '13 May 2024', items: 2, quantity: 25, value: 115540, status: 'Pending' },
+  { id: 9, orderNo: 'SO-2024-050', invoiceNo: 'INV-2024-050', party: 'Kiran Solar System', warehouse: 'Indore Warehouse', date: '12 May 2024', items: 4, quantity: 75, value: 425000, status: 'Delivered' },
+  { id: 10, orderNo: 'SO-2024-049', invoiceNo: 'INV-2024-049', party: 'Green Energy Hub', warehouse: 'Bhopal Warehouse', date: '11 May 2024', items: 3, quantity: 42, value: 210000, status: 'Delivered' },
+  { id: 11, orderNo: 'SO-2024-048', invoiceNo: 'INV-2024-048', party: 'Technovolt Energy', warehouse: 'Ujjain Warehouse', date: '10 May 2024', items: 6, quantity: 180, value: 985000, status: 'In Transit' },
+  { id: 12, orderNo: 'SO-2024-047', invoiceNo: 'INV-2024-047', party: 'Malwa Projects Pvt. Ltd.', warehouse: 'Indore Warehouse', date: '09 May 2024', items: 5, quantity: 120, value: 760000, status: 'Delivered' },
+  { id: 13, orderNo: 'SO-2024-046', invoiceNo: 'INV-2024-046', party: 'VoltEdge Solutions', warehouse: 'Gwalior Warehouse', date: '08 May 2024', items: 2, quantity: 30, value: 155000, status: 'Pending' },
 ];
 
 const stockInwardTopParties = [
@@ -1134,6 +1320,11 @@ const stockTransferRows = [
   { id: 6, transferNo: 'ST-2024-042', transferDate: '15 May 2024', fromWarehouse: 'Jabalpur Warehouse', toWarehouse: 'Bhopal Warehouse', items: 3, quantity: 60, value: 275000, status: 'Pending' },
   { id: 7, transferNo: 'ST-2024-041', transferDate: '14 May 2024', fromWarehouse: 'Indore Warehouse', toWarehouse: 'Jabalpur Warehouse', items: 7, quantity: 200, value: 860000, status: 'Pending' },
   { id: 8, transferNo: 'ST-2024-040', transferDate: '13 May 2024', fromWarehouse: 'Ujjain Warehouse', toWarehouse: 'Gwalior Warehouse', items: 2, quantity: 25, value: 115540, status: 'Cancelled' },
+  { id: 9, transferNo: 'ST-2024-039', transferDate: '12 May 2024', fromWarehouse: 'Bhopal Warehouse', toWarehouse: 'Jabalpur Warehouse', items: 5, quantity: 140, value: 672000, status: 'Completed' },
+  { id: 10, transferNo: 'ST-2024-038', transferDate: '11 May 2024', fromWarehouse: 'Indore Warehouse', toWarehouse: 'Ratlam Warehouse', items: 4, quantity: 85, value: 385000, status: 'Completed' },
+  { id: 11, transferNo: 'ST-2024-037', transferDate: '10 May 2024', fromWarehouse: 'Gwalior Warehouse', toWarehouse: 'Bhopal Warehouse', items: 3, quantity: 60, value: 280000, status: 'In Transit' },
+  { id: 12, transferNo: 'ST-2024-036', transferDate: '09 May 2024', fromWarehouse: 'Ujjain Warehouse', toWarehouse: 'Indore Warehouse', items: 6, quantity: 200, value: 945000, status: 'Completed' },
+  { id: 13, transferNo: 'ST-2024-035', transferDate: '08 May 2024', fromWarehouse: 'Jabalpur Warehouse', toWarehouse: 'Sagar Warehouse', items: 2, quantity: 30, value: 124500, status: 'Pending' },
 ];
 
 const stockTransferTopWarehouses = [
@@ -1153,6 +1344,11 @@ const inventoryAdjustmentRows = [
   { id: 6, adjustmentNo: 'ADJ-2024-033', date: '15 May 2024', type: 'Stock Decrease', reason: 'Wrong Item', warehouse: 'Jabalpur Warehouse', items: 2, quantity: -60, value: 275000, status: 'Pending' },
   { id: 7, adjustmentNo: 'ADJ-2024-032', date: '14 May 2024', type: 'Stock Increase', reason: 'Manufacturer Bonus', warehouse: 'Indore Warehouse', items: 6, quantity: 300, value: 1245000, status: 'Completed' },
   { id: 8, adjustmentNo: 'ADJ-2024-031', date: '13 May 2024', type: 'Stock Decrease', reason: 'Theft / Loss', warehouse: 'Bhopal Warehouse', items: 2, quantity: -25, value: 115540, status: 'Cancelled' },
+  { id: 9, adjustmentNo: 'ADJ-2024-030', date: '12 May 2024', type: 'Stock Increase', reason: 'Stock Found', warehouse: 'Ujjain Warehouse', items: 3, quantity: 60, value: 285000, status: 'Completed' },
+  { id: 10, adjustmentNo: 'ADJ-2024-029', date: '11 May 2024', type: 'Stock Decrease', reason: 'Damaged Goods', warehouse: 'Gwalior Warehouse', items: 2, quantity: -15, value: 75000, status: 'Completed' },
+  { id: 11, adjustmentNo: 'ADJ-2024-028', date: '10 May 2024', type: 'Stock Increase', reason: 'Counting Difference', warehouse: 'Indore Warehouse', items: 4, quantity: 120, value: 540000, status: 'Completed' },
+  { id: 12, adjustmentNo: 'ADJ-2024-027', date: '09 May 2024', type: 'Stock Decrease', reason: 'Expired Items', warehouse: 'Bhopal Warehouse', items: 1, quantity: -8, value: 36000, status: 'In Review' },
+  { id: 13, adjustmentNo: 'ADJ-2024-026', date: '08 May 2024', type: 'Stock Increase', reason: 'Return Accepted', warehouse: 'Jabalpur Warehouse', items: 5, quantity: 200, value: 875000, status: 'Pending' },
 ];
 
 const inventoryTopReasons = [
@@ -1172,6 +1368,10 @@ const warehouseRows = [
   { id: 6, code: 'WH-RTL-001', name: 'Ratlam Warehouse', type: 'Storage Point', location: 'Ratlam, MP', manager: 'Pooja Mehta', capacity: 1800, utilization: 48.61, status: 'Active' },
   { id: 7, code: 'WH-KTP-001', name: 'Katni Warehouse', type: 'Storage Point', location: 'Katni, MP', manager: 'Rajesh Gupta', capacity: 800, utilization: 38.75, status: 'Active' },
   { id: 8, code: 'WH-SGR-001', name: 'Sagar Warehouse', type: 'Storage Point', location: 'Sagar, MP', manager: 'Manish Tiwari', capacity: 2000, utilization: 0, status: 'Inactive' },
+  { id: 9, code: 'WH-DEW-001', name: 'Dewas Warehouse', type: 'Branch Warehouse', location: 'Dewas, MP', manager: 'Priya Sharma', capacity: 2200, utilization: 58.18, status: 'Active' },
+  { id: 10, code: 'WH-RTL-002', name: 'Ratlam Annex', type: 'Storage Point', location: 'Ratlam, MP', manager: 'Rahul Dubey', capacity: 1200, utilization: 42.50, status: 'Active' },
+  { id: 11, code: 'WH-MDS-001', name: 'Mandsor Warehouse', type: 'Storage Point', location: 'Mandsor, MP', manager: 'Anjali Mishra', capacity: 1500, utilization: 33.33, status: 'Active' },
+  { id: 12, code: 'WH-CND-001', name: 'Chhindwara Storage', type: 'Storage Point', location: 'Chhindwara, MP', manager: 'Dinesh Rawat', capacity: 1000, utilization: 0, status: 'Inactive' },
 ];
 
 const accountsListRows = [
@@ -1183,6 +1383,13 @@ const accountsListRows = [
   { id: 6, code: 'ACC-006', name: 'Electro Components Ltd.', type: 'Supplier', group: 'Vendor', phone: '+91 94567 89012', email: 'sales@electro.com', status: 'Active', amount: 540000 },
   { id: 7, code: 'ACC-007', name: 'Ultra Power Projects', type: 'Customer', group: 'Corporate', phone: '+91 78945 61230', email: 'info@ultrapower.com', status: 'Active', amount: 520000 },
   { id: 8, code: 'ACC-008', name: 'Shree Ram Traders', type: 'Supplier', group: 'Vendor', phone: '+91 96325 48741', email: 'shreeramtraders@gmail.com', status: 'Active', amount: 410000 },
+  { id: 9, code: 'ACC-009', name: 'Krishna Electricals', type: 'Supplier', group: 'Vendor', phone: '+91 78012 34567', email: 'krishna.elec@gmail.com', status: 'Active', amount: 380000 },
+  { id: 10, code: 'ACC-010', name: 'Malwa Projects Pvt. Ltd.', type: 'Customer', group: 'Corporate', phone: '+91 98234 56789', email: 'info@malwaprojects.com', status: 'Active', amount: 1540000 },
+  { id: 11, code: 'ACC-011', name: 'VoltEdge Solutions', type: 'Customer', group: 'Corporate', phone: '+91 87654 32100', email: 'contact@voltedge.com', status: 'Active', amount: 720000 },
+  { id: 12, code: 'ACC-012', name: 'Kiran Solar System', type: 'Partner', group: 'Partner', phone: '+91 90123 45678', email: 'kiran.solar@gmail.com', status: 'Inactive', amount: 295000 },
+  { id: 13, code: 'ACC-013', name: 'Green Energy Hub', type: 'Customer', group: 'Retail', phone: '+91 96789 01234', email: 'hub@greenenergy.in', status: 'Active', amount: 450000 },
+  { id: 14, code: 'ACC-014', name: 'Technovolt Energy', type: 'Customer', group: 'Corporate', phone: '+91 91234 09876', email: 'sales@technovolt.com', status: 'Active', amount: 985000 },
+  { id: 15, code: 'ACC-015', name: 'ABC Transport', type: 'Supplier', group: 'Vendor', phone: '+91 77654 32198', email: 'abc.transport@gmail.com', status: 'Active', amount: 125000 },
 ];
 
 const accountRows = [
@@ -1193,6 +1400,11 @@ const accountRows = [
   { id: 5, name: 'SolarTown Projects', type: 'Customer', contact: 'Pooja Verma', phone: '9898765432', status: 'Pending', receivables: 245600, location: 'Dewas', assignedTo: 'Pooja Verma' },
   { id: 6, name: 'Future Energy India', type: 'Partner', contact: 'Anjali Mehta', phone: '9811122233', status: 'Inactive', receivables: 0, location: 'Ujjain', assignedTo: 'Sunil Patidar' },
   { id: 7, name: 'VoltEdge Components', type: 'Vendor', contact: 'Karan Malhotra', phone: '9776655443', status: 'Active', receivables: -125000, location: 'Bhopal', assignedTo: 'Rohit Singh' },
+  { id: 8, name: 'Malwa Infra Projects', type: 'Customer', contact: 'Suresh Kumar', phone: '9418529630', status: 'Active', receivables: 178500, location: 'Indore', assignedTo: 'Vikram Singh' },
+  { id: 9, name: 'Nirman Projects LLP', type: 'Partner', contact: 'Ramesh Patidar', phone: '9301234567', status: 'Active', receivables: 0, location: 'Dewas', assignedTo: 'Amit Sharma' },
+  { id: 10, name: 'Sun Infra Pvt. Ltd.', type: 'Customer', contact: 'Lokesh Sharma', phone: '9754321098', status: 'Pending', receivables: 325000, location: 'Ujjain', assignedTo: 'Neha Jain' },
+  { id: 11, name: 'Kiran Solar System', type: 'Partner', contact: 'Geeta Verma', phone: '7654321890', status: 'Inactive', receivables: 0, location: 'Jabalpur', assignedTo: 'Rohit Singh' },
+  { id: 12, name: 'Polycab Distributors', type: 'Vendor', contact: 'Anil Dubey', phone: '8765432109', status: 'Active', receivables: -87500, location: 'Indore', assignedTo: 'Vikram Singh' },
 ];
 
 const accountTransactionRows = [
@@ -1213,6 +1425,11 @@ const transactionListRows = [
   { id: 8, transactionNo: 'TRX-2024-0535', date: '02 May 2024', accountName: 'Cash Account', type: 'Payment', referenceNo: 'PMT-0651', description: 'Site expenses cash payment', debit: 5800, credit: 0, balance: 5577940, status: 'Completed' },
   { id: 9, transactionNo: 'TRX-2024-0534', date: '01 May 2024', accountName: 'Green Power Solutions', type: 'Receipt', referenceNo: 'RCPT-0888', description: 'Advance received', debit: 0, credit: 100000, balance: 5583740, status: 'Completed' },
   { id: 10, transactionNo: 'TRX-2024-0533', date: '30 Apr 2024', accountName: 'HDFC Bank (9876)', type: 'Transfer', referenceNo: 'TRF-0210', description: 'Funds transferred from Bank of India', debit: 0, credit: 300000, balance: 5483740, status: 'Completed' },
+  { id: 11, transactionNo: 'TRX-2024-0532', date: '29 Apr 2024', accountName: 'Malwa Projects Pvt. Ltd.', type: 'Receipt', referenceNo: 'RCPT-0887', description: 'Payment received for INV-2024-0887', debit: 0, credit: 178500, balance: 5183740, status: 'Completed' },
+  { id: 12, transactionNo: 'TRX-2024-0531', date: '28 Apr 2024', accountName: 'Polycab Distributors', type: 'Payment', referenceNo: 'PMT-0650', description: 'Payment for cables - Polycab India', debit: 87500, credit: 0, balance: 5005240, status: 'Completed' },
+  { id: 13, transactionNo: 'TRX-2024-0530', date: '27 Apr 2024', accountName: 'Sun Infra Pvt. Ltd.', type: 'Receipt', referenceNo: 'ADV-0033', description: 'Advance received for 25kW project', debit: 0, credit: 325000, balance: 5092740, status: 'Completed' },
+  { id: 14, transactionNo: 'TRX-2024-0529', date: '26 Apr 2024', accountName: 'Cash Account', type: 'Payment', referenceNo: 'EXP-0677', description: 'Vehicle maintenance expenses', debit: 4200, credit: 0, balance: 4767740, status: 'Completed' },
+  { id: 15, transactionNo: 'TRX-2024-0528', date: '25 Apr 2024', accountName: 'Kiran Solar System', type: 'Payment', referenceNo: 'PMT-0649', description: 'Commission payment to partner', debit: 22500, credit: 0, balance: 4771940, status: 'Completed' },
 ];
 
 const chartOfAccountsRows = [
@@ -1226,6 +1443,16 @@ const chartOfAccountsRows = [
   { id: 8, code: '1220', name: 'Furniture & Fixtures', accountType: 'Asset', group: 'Fixed Assets', parentAccount: '1200 - Fixed Assets', normalBalance: 'Debit', status: 'Active' },
   { id: 9, code: '2000', name: 'Liabilities', accountType: 'Liability', group: 'Liabilities', parentAccount: '-', normalBalance: 'Credit', status: 'Active' },
   { id: 10, code: '2100', name: 'Current Liabilities', accountType: 'Liability', group: 'Liabilities', parentAccount: '2000 - Liabilities', normalBalance: 'Credit', status: 'Active' },
+  { id: 11, code: '2110', name: 'Accounts Payable', accountType: 'Liability', group: 'Current Liabilities', parentAccount: '2100 - Current Liabilities', normalBalance: 'Credit', status: 'Active' },
+  { id: 12, code: '2120', name: 'Short-Term Loans', accountType: 'Liability', group: 'Current Liabilities', parentAccount: '2100 - Current Liabilities', normalBalance: 'Credit', status: 'Active' },
+  { id: 13, code: '3000', name: 'Equity', accountType: 'Equity', group: 'Equity', parentAccount: '-', normalBalance: 'Credit', status: 'Active' },
+  { id: 14, code: '3100', name: 'Share Capital', accountType: 'Equity', group: 'Equity', parentAccount: '3000 - Equity', normalBalance: 'Credit', status: 'Active' },
+  { id: 15, code: '4000', name: 'Revenue', accountType: 'Revenue', group: 'Revenue', parentAccount: '-', normalBalance: 'Credit', status: 'Active' },
+  { id: 16, code: '4100', name: 'Solar Project Revenue', accountType: 'Revenue', group: 'Revenue', parentAccount: '4000 - Revenue', normalBalance: 'Credit', status: 'Active' },
+  { id: 17, code: '4200', name: 'AMC / Service Revenue', accountType: 'Revenue', group: 'Revenue', parentAccount: '4000 - Revenue', normalBalance: 'Credit', status: 'Active' },
+  { id: 18, code: '5000', name: 'Expenses', accountType: 'Expense', group: 'Expenses', parentAccount: '-', normalBalance: 'Debit', status: 'Active' },
+  { id: 19, code: '5100', name: 'Cost of Goods Sold', accountType: 'Expense', group: 'Expenses', parentAccount: '5000 - Expenses', normalBalance: 'Debit', status: 'Active' },
+  { id: 20, code: '5200', name: 'Salary & Wages', accountType: 'Expense', group: 'Expenses', parentAccount: '5000 - Expenses', normalBalance: 'Debit', status: 'Active' },
 ];
 
 const paymentReceivedRows = [
@@ -1239,6 +1466,11 @@ const paymentReceivedRows = [
   { id: 8, receiptNo: 'RCPT-2024-0210', date: '02 May 2024', customerName: 'Ultra Power Projects', projectRef: 'ADV-2024-0033', paymentMode: 'Cash', account: 'Cash Account', amount: 5800, status: 'Completed' },
   { id: 9, receiptNo: 'RCPT-2024-0209', date: '01 May 2024', customerName: 'Green Power Solutions', projectRef: 'INV-2024-0886', paymentMode: 'NEFT', account: 'HDFC Bank (9976)', amount: 100000, status: 'Completed' },
   { id: 10, receiptNo: 'RCPT-2024-0208', date: '30 Apr 2024', customerName: 'Shree Ram Traders', projectRef: 'INV-2024-0885', paymentMode: 'Cheque', account: 'ICICI Bank (4321)', amount: 300000, status: 'Completed' },
+  { id: 11, receiptNo: 'RCPT-2024-0207', date: '29 Apr 2024', customerName: 'Malwa Projects Pvt. Ltd.', projectRef: 'ADV-2024-0032', paymentMode: 'RTGS', account: 'HDFC Bank (9876)', amount: 178500, status: 'Completed' },
+  { id: 12, receiptNo: 'RCPT-2024-0206', date: '28 Apr 2024', customerName: 'Sun Infra Pvt. Ltd.', projectRef: 'INV-2024-0884', paymentMode: 'NEFT', account: 'SBI Bank (1234)', amount: 325000, status: 'Completed' },
+  { id: 13, receiptNo: 'RCPT-2024-0205', date: '27 Apr 2024', customerName: 'VoltEdge Solutions', projectRef: 'INV-2024-0883', paymentMode: 'UPI', account: 'Axis Bank (6789)', amount: 62500, status: 'Completed' },
+  { id: 14, receiptNo: 'RCPT-2024-0204', date: '26 Apr 2024', customerName: 'Technovolt Energy', projectRef: 'ADV-2024-0031', paymentMode: 'NEFT', account: 'HDFC Bank (9876)', amount: 250000, status: 'Pending' },
+  { id: 15, receiptNo: 'RCPT-2024-0203', date: '25 Apr 2024', customerName: 'Bright Solar Pvt. Ltd.', projectRef: 'INV-2024-0882', paymentMode: 'Cheque', account: 'ICICI Bank (4321)', amount: 88000, status: 'Completed' },
 ];
 
 const paymentMadeRows = [
@@ -1252,6 +1484,11 @@ const paymentMadeRows = [
   { id: 8, paymentNo: 'PMT-2024-0228', date: '02 May 2024', payeeName: 'Shree Ram Traders', referenceNo: 'INV-2024-0885', account: 'HDFC Bank (9876)', paymentMode: 'RTGS', amount: 90000, status: 'Completed' },
   { id: 9, paymentNo: 'PMT-2024-0227', date: '01 May 2024', payeeName: 'Office Rent', referenceNo: 'APR-2024', account: 'Cash Account', paymentMode: 'Cash', amount: 18000, status: 'Completed' },
   { id: 10, paymentNo: 'PMT-2024-0226', date: '30 Apr 2024', payeeName: 'ABC Transport', referenceNo: 'BILL-2024-054', account: 'HDFC Bank (9876)', paymentMode: 'UPI', amount: 12000, status: 'Completed' },
+  { id: 11, paymentNo: 'PMT-2024-0225', date: '29 Apr 2024', payeeName: 'Polycab Distributors', referenceNo: 'INV-2024-0884', account: 'ICICI Bank (4321)', paymentMode: 'NEFT', amount: 87500, status: 'Completed' },
+  { id: 12, paymentNo: 'PMT-2024-0224', date: '28 Apr 2024', payeeName: 'Waaree Energies Ltd.', referenceNo: 'INV-2024-0883', account: 'HDFC Bank (9876)', paymentMode: 'RTGS', amount: 250000, status: 'Completed' },
+  { id: 13, paymentNo: 'PMT-2024-0223', date: '27 Apr 2024', payeeName: 'Kiran Solar System', referenceNo: 'COMM-2024-012', account: 'Axis Bank (6789)', paymentMode: 'NEFT', amount: 22500, status: 'Completed' },
+  { id: 14, paymentNo: 'PMT-2024-0222', date: '26 Apr 2024', payeeName: 'Electricity Bill', referenceNo: 'EB-APR-2024', account: 'Cash Account', paymentMode: 'Cash', amount: 8400, status: 'Completed' },
+  { id: 15, paymentNo: 'PMT-2024-0221', date: '25 Apr 2024', payeeName: 'Havells India Ltd.', referenceNo: 'INV-2024-0882', account: 'SBI Bank (1234)', paymentMode: 'NEFT', amount: 45000, status: 'Pending' },
 ];
 
 const paymentModeRows = [
@@ -1293,6 +1530,11 @@ const chequeRows = [
   { id: 8, chequeNo: '000116', date: '30 Apr 2024', bankAccount: 'SBI Bank - 1234', payeeName: 'ABC Transport', amount: 18000, chequeType: 'Issued', status: 'Cancelled', clearedDate: '-' },
   { id: 9, chequeNo: '000115', date: '29 Apr 2024', bankAccount: 'HDFC Bank - 9876', payeeName: 'Office Rent', amount: 15000, chequeType: 'Issued', status: 'Cleared', clearedDate: '02 May 2024' },
   { id: 10, chequeNo: '000114', date: '28 Apr 2024', bankAccount: 'ICICI Bank - 4321', payeeName: 'Shree Ram Traders', amount: 90000, chequeType: 'Issued', status: 'Pending', clearedDate: '-' },
+  { id: 11, chequeNo: '000113', date: '27 Apr 2024', bankAccount: 'HDFC Bank - 9876', payeeName: 'Polycab Distributors', amount: 87500, chequeType: 'Issued', status: 'Cleared', clearedDate: '30 Apr 2024' },
+  { id: 12, chequeNo: '000112', date: '26 Apr 2024', bankAccount: 'Axis Bank - 6789', payeeName: 'Waaree Energies Ltd.', amount: 250000, chequeType: 'Issued', status: 'Cleared', clearedDate: '29 Apr 2024' },
+  { id: 13, chequeNo: '000111', date: '25 Apr 2024', bankAccount: 'SBI Bank - 1234', payeeName: 'Kiran Solar System', amount: 22500, chequeType: 'Received', status: 'Deposited', clearedDate: '27 Apr 2024' },
+  { id: 14, chequeNo: '000110', date: '24 Apr 2024', bankAccount: 'ICICI Bank - 4321', payeeName: 'Havells India Ltd.', amount: 45000, chequeType: 'Issued', status: 'Cancelled', clearedDate: '-' },
+  { id: 15, chequeNo: '000109', date: '23 Apr 2024', bankAccount: 'HDFC Bank - 9876', payeeName: 'Green Energy Hub', amount: 68000, chequeType: 'Received', status: 'Cleared', clearedDate: '26 Apr 2024' },
 ];
 
 const accountSummaryRows = [
@@ -1471,12 +1713,39 @@ function App() {
     const webUrl = phone ? `https://web.whatsapp.com/send?phone=${phone}${text ? `&text=${text}` : ''}` : 'https://web.whatsapp.com/';
 
     if (typeof window !== 'undefined') {
-      window.location.href = appUrl;
+      try {
+        window.location.href = appUrl;
+      } catch {}
       window.setTimeout(() => {
         window.open(webUrl, '_blank', 'noopener,noreferrer');
-      }, 850);
+      }, 1200);
     }
     notify(messageItem?.name ? `${messageItem.name} WhatsApp opened` : 'WhatsApp opened');
+  };
+
+  const exportCurrentPageAsDoc = (pageLabel) => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const exportContainer = document.querySelector('main');
+    if (!exportContainer) {
+      notify('Export failed: page content not found');
+      return;
+    }
+
+    const title = pageLabel || activeSidebarItem || document.title.replace(' | Malwa Solar CRM', '') || 'export';
+    const rawHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;color:#111;margin:24px;}table{border-collapse:collapse;width:100%;margin-top:16px;}th,td{border:1px solid #ccc;padding:8px;text-align:left;}h1,h2,h3,h4,h5,h6{color:#111;}p{margin:0 0 12px;}ul,ol{margin:0 0 16px;padding-left:18px;}</style></head><body>${exportContainer.innerHTML}</body></html>`;
+    const blob = new Blob([rawHtml], { type: 'application/msword' });
+    const fileName = `${title.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'export'}.doc`;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    notify(`${title} exported`);
   };
 
   useEffect(() => {
@@ -1510,6 +1779,34 @@ function App() {
 
     const pageLabel = currentPage === 'signin' ? 'Sign In' : activeSidebarItem;
     document.title = `${pageLabel} | Malwa Solar CRM`;
+  }, [activeSidebarItem, currentPage]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const handleExportButtonClick = (event) => {
+      const button = event.target.closest('button');
+      if (!button) {
+        return;
+      }
+
+      const buttonText = button.innerText || '';
+      if (!buttonText.toLowerCase().includes('export')) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      const pageLabel = currentPage === 'signin' ? 'Sign In' : activeSidebarItem;
+      exportCurrentPageAsDoc(pageLabel);
+    };
+
+    document.addEventListener('click', handleExportButtonClick, true);
+    return () => {
+      document.removeEventListener('click', handleExportButtonClick, true);
+    };
   }, [activeSidebarItem, currentPage]);
 
   useEffect(() => {
@@ -1627,7 +1924,7 @@ function App() {
                   const isOmOpen = isOmSection && omRelatedPages.includes(activeSidebarItem);
                   const isAmcOpen = isAmcSection && (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem));
                   const isSettingsActive = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
-                  const isSettingsOpen = false;
+                  const isSettingsOpen = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
                   const isActive = item.label === activeSidebarItem || isLeadOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsActive;
 
                   return (
@@ -2993,15 +3290,21 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
     leadTableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const visibleLeadRows = getLeadRowsForCategory(activeLeadCategory).filter((lead) => {
-    const query = searchQuery.trim().toLowerCase();
-    const queryMatch = !query || [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name].some((value) => String(value).toLowerCase().includes(query));
-    const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
-    const statusMatch = statusFilter === 'All' || lead.status === statusFilter;
-    const assignedMatch = assignedToFilter === 'All' || lead.assignedTo.name === assignedToFilter;
-    const followUpMatch = !followUpDate || lead.nextFollowUp === formatReportDate(followUpDate);
-    return queryMatch && projectTypeMatch && statusMatch && assignedMatch && followUpMatch;
-  });
+  const visibleLeadRows = useMemo(() => {
+    return getLeadRowsForCategory(activeLeadCategory).filter((lead) => {
+      const query = searchQuery.trim().toLowerCase();
+      const queryMatch = !query || [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name].some((value) => String(value).toLowerCase().includes(query));
+      const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
+      const statusMatch = statusFilter === 'All' || lead.status === statusFilter;
+      const assignedMatch = assignedToFilter === 'All' || lead.assignedTo.name === assignedToFilter;
+      const followUpMatch = !followUpDate || lead.nextFollowUp === formatReportDate(followUpDate);
+      return queryMatch && projectTypeMatch && statusMatch && assignedMatch && followUpMatch;
+    });
+  }, [activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, followUpDate]);
+
+  const LEAD_PAGE_SIZE = 10;
+  const totalLeadPages = Math.max(1, Math.ceil(visibleLeadRows.length / LEAD_PAGE_SIZE));
+  const pagedLeadRows = visibleLeadRows.slice((activePage - 1) * LEAD_PAGE_SIZE, activePage * LEAD_PAGE_SIZE);
 
   useEffect(() => {
     if (!activeLeadCategory) {
@@ -3118,7 +3421,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
           <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <input
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={(event) => { setSearchQuery(event.target.value); setActivePage(1); }}
               type="search"
               placeholder="Search by name, mobile, IVRS..."
               className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
@@ -3126,9 +3429,9 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             <Search className="size-4 text-[#7386a3]" />
           </label>
 
-          <FilterSelect label="Project Type" value={projectTypeFilter} onChange={setProjectTypeFilter} options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']} />
-          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={['All', 'New', 'Follow-up', 'Quotation', 'Lost']} />
-          <FilterSelect label="Assigned To" value={assignedToFilter} onChange={setAssignedToFilter} options={['All', 'Rohit Singh', 'Neha Kumari', 'Vikram Patel']} />
+          <FilterSelect label="Project Type" value={projectTypeFilter} onChange={(v) => { setProjectTypeFilter(v); setActivePage(1); }} options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']} />
+          <FilterSelect label="Status" value={statusFilter} onChange={(v) => { setStatusFilter(v); setActivePage(1); }} options={['All', 'New', 'Follow-up', 'Quotation', 'Lost']} />
+          <FilterSelect label="Assigned To" value={assignedToFilter} onChange={(v) => { setAssignedToFilter(v); setActivePage(1); }} options={['All', 'Rohit Singh', 'Neha Kumari', 'Vikram Patel']} />
 
           <label className="block">
             <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Follow-up Date</span>
@@ -3145,7 +3448,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                 ref={followUpDateInputRef}
                 type="date"
                 value={followUpDate}
-                onChange={(event) => setFollowUpDate(event.target.value)}
+                onChange={(event) => { setFollowUpDate(event.target.value); setActivePage(1); }}
                 className="pointer-events-none absolute bottom-0 left-4 h-px w-px opacity-0"
                 tabIndex={-1}
                 aria-label="Select follow-up date"
@@ -3217,10 +3520,10 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         ) : null}
 
         <div className="space-y-3 lg:hidden">
-          {visibleLeadRows.map((lead, index) => (
+          {pagedLeadRows.map((lead, index) => (
             <LeadListMobileCard
               key={`${lead.ivrs}-${lead.mobile}`}
-              index={index + 1}
+              index={(activePage - 1) * LEAD_PAGE_SIZE + index + 1}
               lead={lead}
               onOpenLead={onOpenLead}
               onNotify={onNotify}
@@ -3239,9 +3542,9 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                 </tr>
               </thead>
               <tbody>
-                {visibleLeadRows.map((lead, index) => (
+                {pagedLeadRows.map((lead, index) => (
                   <tr key={`${lead.ivrs}-${lead.mobile}`}>
-                    <td className="font-extrabold text-[#233a6b]">{index + 1}</td>
+                    <td className="font-extrabold text-[#233a6b]">{(activePage - 1) * LEAD_PAGE_SIZE + index + 1}</td>
                     <td className="font-bold text-[#233a6b]">{lead.customer}</td>
                     <td>{lead.mobile}</td>
                     <td>{lead.ivrs}</td>
@@ -3287,21 +3590,38 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
 
         <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
           <p>
-            Showing 1 to {visibleLeadRows.length} of {activeLeadCategory ? visibleLeadRows.length : 125} entries
+            {visibleLeadRows.length === 0
+              ? 'No entries found'
+              : `Showing ${(activePage - 1) * LEAD_PAGE_SIZE + 1} to ${Math.min(activePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`}
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <PaginationButton onClick={() => selectPage(Math.max(1, activePage - 1))}>
-              <ChevronLeft className="size-4" />
-            </PaginationButton>
-            <PaginationButton active={activePage === 1} onClick={() => selectPage(1)}>1</PaginationButton>
-            <PaginationButton active={activePage === 2} onClick={() => selectPage(2)}>2</PaginationButton>
-            <PaginationButton active={activePage === 3} onClick={() => selectPage(3)}>3</PaginationButton>
-            <span className="px-2 text-[#53647f]">...</span>
-            <PaginationButton active={activePage === 13} onClick={() => selectPage(13)}>13</PaginationButton>
-            <PaginationButton onClick={() => selectPage(Math.min(13, activePage + 1))}>
-              <ChevronRight className="size-4" />
-            </PaginationButton>
-          </div>
+          {totalLeadPages > 1 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <PaginationButton onClick={() => selectPage(Math.max(1, activePage - 1))}>
+                <ChevronLeft className="size-4" />
+              </PaginationButton>
+              {(() => {
+                const pages = [];
+                if (totalLeadPages <= 5) {
+                  for (let i = 1; i <= totalLeadPages; i++) pages.push(i);
+                } else {
+                  pages.push(1);
+                  if (activePage > 3) pages.push('ellipsis-start');
+                  const start = Math.max(2, activePage - 1);
+                  const end = Math.min(totalLeadPages - 1, activePage + 1);
+                  for (let i = start; i <= end; i++) pages.push(i);
+                  if (activePage < totalLeadPages - 2) pages.push('ellipsis-end');
+                  pages.push(totalLeadPages);
+                }
+                return pages.map((page) => (page === 'ellipsis-start' || page === 'ellipsis-end')
+                  ? <span key={page} className="px-2 text-[#53647f]">...</span>
+                  : <PaginationButton key={page} active={activePage === page} onClick={() => selectPage(page)}>{page}</PaginationButton>
+                );
+              })()}
+              <PaginationButton onClick={() => selectPage(Math.min(totalLeadPages, activePage + 1))}>
+                <ChevronRight className="size-4" />
+              </PaginationButton>
+            </div>
+          )}
         </div>
       </section>
 
@@ -9080,8 +9400,8 @@ function OmPage({ activeSection, onOpenSection, onNotify }) {
                   {[['Oct 2024', 80], ['Nov 2024', 156], ['Dec 2024', 232], ['Jan 2025', 308], ['Feb 2025', 384], ['Mar 2025', 438]].map(([label, x]) => (
                     <text key={label} x={x} y="162" textAnchor="middle" fontSize="11" fontWeight="800" fill="#53647f">{label}</text>
                   ))}
-                  {[ [42,96],[66,88],[90,64],[114,65],[138,70],[162,76],[186,72],[210,63],[234,64],[258,60],[282,52],[306,74],[330,76],[354,75],[378,76],[402,70],[426,66],[448,66] ].map(([x, y], index) => (
-                    <circle key={index} cx={x} cy={y} r="3.5" fill="#fff" stroke="#16a34a" strokeWidth="2" />
+                  {[ [42,96],[66,88],[90,64],[114,65],[138,70],[162,76],[186,72],[210,63],[234,64],[258,60],[282,52],[306,74],[330,76],[354,75],[378,76],[402,70],[426,66],[448,66] ].map(([x, y]) => (
+                    <circle key={`${x}-${y}`} cx={x} cy={y} r="3.5" fill="#fff" stroke="#16a34a" strokeWidth="2" />
                   ))}
                 </svg>
               </div>
@@ -10671,8 +10991,8 @@ function OmEnergyPerformancePage({ activeSection, onOpenSection, onNotify }) {
                     );
                   })}
                   <polyline fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points="52,169 86,165 120,138 154,138 188,134 222,173 256,147 290,143 324,134 358,151 392,147 426,143" />
-                  {[[52,169],[86,165],[120,138],[154,138],[188,134],[222,173],[256,147],[290,143],[324,134],[358,151],[392,147],[426,143]].map(([x, y], index) => (
-                    <circle key={index} cx={x} cy={y} r="4" fill="#fff" stroke="#16a34a" strokeWidth="2" />
+                  {[[52,169],[86,165],[120,138],[154,138],[188,134],[222,173],[256,147],[290,143],[324,134],[358,151],[392,147],[426,143]].map(([x, y]) => (
+                    <circle key={`${x}-${y}`} cx={x} cy={y} r="4" fill="#fff" stroke="#16a34a" strokeWidth="2" />
                   ))}
                   {ratioXAxisLabels.map((label, index) => (
                     <text key={label} x={52 + index * 34} y="238" textAnchor="middle" fontSize="10" fontWeight="800" fill="#53647f">
@@ -15924,6 +16244,29 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
   );
 }
 
+const projectListRows = [
+  { id: 1, projectName: '20kW On-Grid System', customer: 'Amit Sharma', site: 'Indore, MP', type: 'On-Grid', capacity: '20.00', status: 'In Progress', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-05-10', targetDate: '2024-05-30', progress: 65 },
+  { id: 2, projectName: '15kW Hybrid System', customer: 'Sunil Patidar', site: 'Ujjain, MP', type: 'Hybrid', capacity: '15.00', status: 'Installation', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-12', targetDate: '2024-06-02', progress: 40 },
+  { id: 3, projectName: '10kW On-Grid System', customer: 'Kavita Joshi', site: 'Indore, MP', type: 'On-Grid', capacity: '10.00', status: 'Planning', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2024-05-15', targetDate: '2024-06-05', progress: 25 },
+  { id: 4, projectName: '5kW Off-Grid System', customer: 'Manish Gupta', site: 'Dewas, MP', type: 'Off-Grid', capacity: '5.00', status: 'On Hold', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-05-18', targetDate: '', progress: 0 },
+  { id: 5, projectName: '25kW On-Grid System', customer: 'Pooja Verma', site: 'Bhopal, MP', type: 'On-Grid', capacity: '25.00', status: 'Completed', manager: { name: 'Pooja Verma', initials: 'PV', tone: 'green' }, startDate: '2024-04-01', targetDate: '2024-04-20', progress: 100 },
+  { id: 6, projectName: '30kW Hybrid System', customer: 'Ramesh Yadav', site: 'Jabalpur, MP', type: 'Hybrid', capacity: '30.00', status: 'In Progress', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-05-20', targetDate: '2024-06-10', progress: 60 },
+  { id: 7, projectName: '12kW On-Grid System', customer: 'Anjali Mehta', site: 'Gwalior, MP', type: 'On-Grid', capacity: '12.00', status: 'Installation', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-21', targetDate: '2024-06-08', progress: 50 },
+  { id: 8, projectName: '8kW Off-Grid System', customer: 'Vijay Singh', site: 'Ratlam, MP', type: 'Off-Grid', capacity: '8.00', status: 'Planning', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2024-05-22', targetDate: '2024-06-12', progress: 20 },
+  { id: 9, projectName: '50kW On-Grid System', customer: 'Shivam Enterprises', site: 'Indore, MP', type: 'On-Grid', capacity: '50.00', status: 'In Progress', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-05-23', targetDate: '2024-06-25', progress: 55 },
+  { id: 10, projectName: '40kW Hybrid System', customer: 'Mera Electricals', site: 'Ujjain, MP', type: 'Hybrid', capacity: '40.00', status: 'Planning', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-25', targetDate: '2024-06-30', progress: 15 },
+  { id: 11, projectName: '8kW Off-Grid System', customer: 'Sunita Bhatt', site: 'Ratlam, MP', type: 'Off-Grid', capacity: '8.00', status: 'Site Survey', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-05-26', targetDate: '2024-07-05', progress: 10 },
+  { id: 12, projectName: '25kW On-Grid System', customer: 'Ramesh Patidar', site: 'Bhopal, MP', type: 'On-Grid', capacity: '25.00', status: 'Installation', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-05-27', targetDate: '2024-06-20', progress: 45 },
+  { id: 13, projectName: '12kW Hybrid System', customer: 'Lokesh Sharma', site: 'Gwalior, MP', type: 'Hybrid', capacity: '12.00', status: 'Design', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-28', targetDate: '2024-07-10', progress: 20 },
+  { id: 14, projectName: '30kW On-Grid System', customer: 'Anil Dubey', site: 'Indore, MP', type: 'On-Grid', capacity: '30.00', status: 'Procurement', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2024-05-29', targetDate: '2024-07-15', progress: 30 },
+  { id: 15, projectName: '5kW Hybrid System', customer: 'Priya Jain', site: 'Ujjain, MP', type: 'Hybrid', capacity: '5.00', status: 'Completed', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-04-10', targetDate: '2024-05-05', progress: 100 },
+  { id: 16, projectName: '15kW Off-Grid System', customer: 'Vivek Chouhan', site: 'Jabalpur, MP', type: 'Off-Grid', capacity: '15.00', status: 'Quality Check', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-06-01', targetDate: '2024-07-20', progress: 70 },
+  { id: 17, projectName: '20kW Hybrid System', customer: 'Asha Kulkarni', site: 'Dewas, MP', type: 'Hybrid', capacity: '20.00', status: 'Planning', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-06-03', targetDate: '2024-07-25', progress: 5 },
+  { id: 18, projectName: '35kW On-Grid System', customer: 'Meena Tiwari', site: 'Sagar, MP', type: 'On-Grid', capacity: '35.00', status: 'On Hold', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2024-05-30', targetDate: '', progress: 0 },
+  { id: 19, projectName: '6kW Off-Grid System', customer: 'Harish Yadav', site: 'Mandsor, MP', type: 'Off-Grid', capacity: '6.00', status: 'In Progress', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-06-05', targetDate: '2024-07-30', progress: 35 },
+  { id: 20, projectName: '18kW On-Grid System', customer: 'Sarita Pandey', site: 'Indore, MP', type: 'On-Grid', capacity: '18.00', status: 'Site Survey', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-06-06', targetDate: '2024-08-01', progress: 8 },
+];
+
 function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('2024-04-01');
@@ -15932,18 +16275,7 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
   const deferredQuery = useDeferredValue(query);
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
-  const projectRows = [
-    { id: 1, projectName: '20kW On-Grid System', customer: 'Amit Sharma', site: 'Indore, MP', type: 'On-Grid', capacity: '20.00', status: 'In Progress', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-05-10', targetDate: '2024-05-30', progress: 65 },
-    { id: 2, projectName: '15kW Hybrid System', customer: 'Sunil Patidar', site: 'Ujjain, MP', type: 'Hybrid', capacity: '15.00', status: 'Installation', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-12', targetDate: '2024-06-02', progress: 40 },
-    { id: 3, projectName: '10kW On-Grid System', customer: 'Kavita Joshi', site: 'Indore, MP', type: 'On-Grid', capacity: '10.00', status: 'Planning', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2024-05-15', targetDate: '2024-06-05', progress: 25 },
-    { id: 4, projectName: '5kW Off-Grid System', customer: 'Manish Gupta', site: 'Dewas, MP', type: 'Off-Grid', capacity: '5.00', status: 'On Hold', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-05-18', targetDate: '', progress: 0 },
-    { id: 5, projectName: '25kW On-Grid System', customer: 'Pooja Verma', site: 'Bhopal, MP', type: 'On-Grid', capacity: '25.00', status: 'Completed', manager: { name: 'Pooja Verma', initials: 'PV', tone: 'green' }, startDate: '2024-04-01', targetDate: '2024-04-20', progress: 100 },
-    { id: 6, projectName: '30kW Hybrid System', customer: 'Ramesh Yadav', site: 'Jabalpur, MP', type: 'Hybrid', capacity: '30.00', status: 'In Progress', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-05-20', targetDate: '2024-06-10', progress: 60 },
-    { id: 7, projectName: '12kW On-Grid System', customer: 'Anjali Mehta', site: 'Gwalior, MP', type: 'On-Grid', capacity: '12.00', status: 'Installation', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-21', targetDate: '2024-06-08', progress: 50 },
-    { id: 8, projectName: '8kW Off-Grid System', customer: 'Vijay Singh', site: 'Ratlam, MP', type: 'Off-Grid', capacity: '8.00', status: 'Planning', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2024-05-22', targetDate: '2024-06-12', progress: 20 },
-    { id: 9, projectName: '50kW On-Grid System', customer: 'Shivam Enterprises', site: 'Indore, MP', type: 'On-Grid', capacity: '50.00', status: 'In Progress', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-05-23', targetDate: '2024-06-25', progress: 55 },
-    { id: 10, projectName: '40kW Hybrid System', customer: 'Mera Electricals', site: 'Ujjain, MP', type: 'Hybrid', capacity: '40.00', status: 'Planning', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-25', targetDate: '2024-06-30', progress: 15 },
-  ];
+  const projectRows = projectListRows;
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
@@ -15956,7 +16288,7 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
       const haystack = [row.projectName, row.customer, row.site, row.manager.name].join(' ').toLowerCase();
       return haystack.includes(normalizedQuery);
     });
-  }, [deferredQuery]);
+  }, [deferredQuery, projectRows]);
 
   return (
     <div className="space-y-4">
@@ -23701,7 +24033,7 @@ function ProjectFinancialOverview({ rows }) {
                 <polyline fill="none" stroke={row.color} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" points={points} />
                 {row.points.map((_, index) => {
                   const [cx, cy] = points.split(' ')[index].split(',').map(Number);
-                  return <circle key={index} cx={cx} cy={cy} r="2.8" fill={row.color} />;
+                  return <circle key={`pt-${cx}-${cy}`} cx={cx} cy={cy} r="2.8" fill={row.color} />;
                 })}
               </svg>
             </div>
