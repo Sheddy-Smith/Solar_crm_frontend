@@ -1,4 +1,6 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { authApi, leadApi, analyticsApi, inventoryApi, accountsModuleApi } from './api.js';
+import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -73,7 +75,6 @@ const sidebarItems = [
   { label: 'Accounts', icon: ReceiptText, showChevron: true },
   { label: 'Inventory', icon: Boxes, showChevron: true },
   { label: 'Reports', icon: BarChart3 },
-  { label: 'Employee Management', icon: UsersRound, showChevron: true },
   { label: 'AMC & Warranty', icon: ShieldCheck, showChevron: true },
   { label: 'Settings', icon: Settings, showChevron: false },
 ];
@@ -132,7 +133,6 @@ const settingsCardGroups = [
     title: 'Accounts Settings',
     tone: 'text-[#ea580c]',
     items: [
-      { key: 'Chart of Accounts', label: 'Chart of Accounts', note: 'Manage accounts and ledger groups' },
       { key: 'Account Prefix', label: 'Account Prefix', note: 'Configure account code prefix' },
       { key: 'Opening Balance', label: 'Opening Balance', note: 'Manage opening balances' },
       { key: 'Payment Settings', label: 'Payment Settings', note: 'Payment terms and due days' },
@@ -352,7 +352,7 @@ const leadCategoryTabs = [
   {
     label: 'New leads',
     shortLabel: 'New',
-    count: 34,
+    count: 48,
     icon: UserPlus,
     tone: 'green',
     priority: 'Fresh enquiries',
@@ -363,7 +363,7 @@ const leadCategoryTabs = [
   {
     label: 'Hot leads',
     shortLabel: 'Hot',
-    count: 18,
+    count: 32,
     icon: Zap,
     tone: 'red',
     priority: 'High intent',
@@ -374,7 +374,7 @@ const leadCategoryTabs = [
   {
     label: 'Warm leads',
     shortLabel: 'Warm',
-    count: 42,
+    count: 85,
     icon: Clock3,
     tone: 'amber',
     priority: 'Active nurturing',
@@ -385,24 +385,24 @@ const leadCategoryTabs = [
   {
     label: 'Cool leads',
     shortLabel: 'Cool',
-    count: 21,
+    count: 64,
     icon: Leaf,
     tone: 'blue',
     priority: 'Low urgency',
     description: 'Leads that are interested but not ready to decide immediately.',
     nextAction: 'Keep them in long-term nurturing with helpful updates.',
-    leads: ['Suresh Kumar', 'Vikas Yadav', 'Pooja Mehta'],
+    leads: ['Geeta Verma', 'Ramesh Patidar', 'Sarita Pandey'],
   },
   {
     label: 'Lost leads',
     shortLabel: 'Lost',
-    count: 10,
+    count: 18,
     icon: XCircle,
     tone: 'slate',
     priority: 'Closed lost',
     description: 'Customers who declined, postponed indefinitely, or selected another provider.',
     nextAction: 'Capture reason, keep record clean, and re-open only if customer responds.',
-    leads: ['Suresh Kumar', 'Deepak Joshi', 'Rajesh Gupta'],
+    leads: ['Suresh Kumar', 'Meena Tiwari', 'Harish Yadav'],
   },
 ];
 
@@ -442,7 +442,7 @@ const leadCategoryToneClasses = {
 const stats = [
   {
     title: 'Total Leads',
-    value: '1,256',
+    value: '247',
     delta: '12% from last month',
     deltaTone: 'positive',
     icon: Users,
@@ -451,8 +451,8 @@ const stats = [
   },
   {
     title: 'Today Follow-ups',
-    value: '28',
-    delta: '8% from yesterday',
+    value: '7',
+    delta: '3 more than yesterday',
     deltaTone: 'positive',
     icon: CalendarDays,
     iconBg: 'from-[#1277ff] to-[#2aa7ff]',
@@ -460,17 +460,17 @@ const stats = [
   },
   {
     title: 'Pending Quotations',
-    value: '64',
-    delta: 'No change',
+    value: '18',
+    delta: '2 new today',
     deltaTone: 'neutral',
     icon: FileText,
     iconBg: 'from-[#4b49ef] to-[#7058ff]',
-    target: 'Lead List',
+    target: 'Lead Quotation',
   },
   {
     title: 'Won Projects',
-    value: '42',
-    delta: '18% from last month',
+    value: '34',
+    delta: '5 this month',
     deltaTone: 'positive',
     icon: Trophy,
     iconBg: 'from-[#16c93f] to-[#39e264]',
@@ -478,7 +478,7 @@ const stats = [
   },
   {
     title: 'Revenue Overview',
-    value: 'Rs 25.40L',
+    value: 'Rs 38.75L',
     delta: '15% from last month',
     deltaTone: 'positive',
     icon: IndianRupee,
@@ -494,7 +494,7 @@ const todayFollowUps = [
     ivrs: 'IVRS123456',
     project: '5kW On-Grid',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    date: '20 May 2024',
+    date: '16 Jun 2026',
   },
   {
     customer: 'Sunil Verma',
@@ -502,7 +502,7 @@ const todayFollowUps = [
     ivrs: 'IVRS123457',
     project: '10kW On-Grid',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    date: '20 May 2024',
+    date: '16 Jun 2026',
   },
   {
     customer: 'Pooja Mehta',
@@ -510,7 +510,7 @@ const todayFollowUps = [
     ivrs: 'IVRS123458',
     project: '3kW On-Grid',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    date: '21 May 2024',
+    date: '16 Jun 2026',
   },
   {
     customer: 'Rajesh Gupta',
@@ -518,7 +518,7 @@ const todayFollowUps = [
     ivrs: 'IVRS123459',
     project: '7.5kW On-Grid',
     assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    date: '21 May 2024',
+    date: '16 Jun 2026',
   },
   {
     customer: 'Manish Tiwari',
@@ -526,7 +526,23 @@ const todayFollowUps = [
     ivrs: 'IVRS123460',
     project: '10kW On-Grid',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    date: '22 May 2024',
+    date: '16 Jun 2026',
+  },
+  {
+    customer: 'Ramesh Patidar',
+    mobile: '9301234567',
+    ivrs: 'IVRS123466',
+    project: '10kW Hybrid',
+    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
+    date: '16 Jun 2026',
+  },
+  {
+    customer: 'Geeta Verma',
+    mobile: '7654321890',
+    ivrs: 'IVRS123469',
+    project: '5kW On-Grid',
+    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
+    date: '16 Jun 2026',
   },
 ];
 
@@ -537,15 +553,15 @@ const recentLeads = [
     project: '5kW On-Grid',
     status: 'New',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    createdOn: '19 May 2024',
+    createdOn: '16 Jun 2026',
   },
   {
-    customer: 'Anja Patel',
+    customer: 'Anjali Patel',
     mobile: '9696969696',
     project: '3kW On-Grid',
     status: 'Follow-up',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    createdOn: '19 May 2024',
+    createdOn: '15 Jun 2026',
   },
   {
     customer: 'Deepak Joshi',
@@ -553,7 +569,7 @@ const recentLeads = [
     project: '10kW On-Grid',
     status: 'Quotation',
     assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    createdOn: '18 May 2024',
+    createdOn: '14 Jun 2026',
   },
   {
     customer: 'Kavita Rana',
@@ -561,7 +577,7 @@ const recentLeads = [
     project: '7.5kW On-Grid',
     status: 'New',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    createdOn: '18 May 2024',
+    createdOn: '13 Jun 2026',
   },
   {
     customer: 'Suresh Kumar',
@@ -569,7 +585,23 @@ const recentLeads = [
     project: '5kW On-Grid',
     status: 'Lost',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    createdOn: '17 May 2024',
+    createdOn: '12 Jun 2026',
+  },
+  {
+    customer: 'Anil Dubey',
+    mobile: '8765432109',
+    project: '15kW On-Grid',
+    status: 'New',
+    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
+    createdOn: '12 Jun 2026',
+  },
+  {
+    customer: 'Priya Jain',
+    mobile: '9812345670',
+    project: '3kW Hybrid',
+    status: 'Follow-up',
+    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
+    createdOn: '11 Jun 2026',
   },
 ];
 
@@ -582,7 +614,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Follow-up',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '20 May 2024',
+    nextFollowUp: '10 Jun 2026',
   },
   {
     customer: 'Sunil Verma',
@@ -592,7 +624,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Follow-up',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '20 May 2024',
+    nextFollowUp: '12 Jun 2026',
   },
   {
     customer: 'Pooja Mehta',
@@ -602,7 +634,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'New',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '21 May 2024',
+    nextFollowUp: '18 Jun 2026',
   },
   {
     customer: 'Rajesh Gupta',
@@ -612,7 +644,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Follow-up',
     assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '21 May 2024',
+    nextFollowUp: '20 Jun 2026',
   },
   {
     customer: 'Manish Tiwari',
@@ -622,7 +654,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'New',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '22 May 2024',
+    nextFollowUp: '14 Jun 2026',
   },
   {
     customer: 'Deepak Joshi',
@@ -632,7 +664,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Quotation',
     assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '23 May 2024',
+    nextFollowUp: '22 Jun 2026',
   },
   {
     customer: 'Anjali Patel',
@@ -642,7 +674,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Follow-up',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '23 May 2024',
+    nextFollowUp: '25 Jun 2026',
   },
   {
     customer: 'Vikas Yadav',
@@ -652,7 +684,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'New',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '24 May 2024',
+    nextFollowUp: '13 Jun 2026',
   },
   {
     customer: 'Kavita Rana',
@@ -662,7 +694,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Follow-up',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '24 May 2024',
+    nextFollowUp: '19 Jun 2026',
   },
   {
     customer: 'Suresh Kumar',
@@ -672,7 +704,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Lost',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '25 May 2024',
+    nextFollowUp: '28 Jun 2026',
   },
   {
     customer: 'Ramesh Patidar',
@@ -682,7 +714,7 @@ const leadListRows = [
     type: 'Hybrid',
     status: 'Follow-up',
     assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '26 May 2024',
+    nextFollowUp: '11 Jun 2026',
   },
   {
     customer: 'Sunita Bhatt',
@@ -692,7 +724,7 @@ const leadListRows = [
     type: 'Off-Grid',
     status: 'New',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '26 May 2024',
+    nextFollowUp: '17 Jun 2026',
   },
   {
     customer: 'Lokesh Sharma',
@@ -702,7 +734,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Quotation',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '27 May 2024',
+    nextFollowUp: '24 Jun 2026',
   },
   {
     customer: 'Geeta Verma',
@@ -712,7 +744,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Follow-up',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '27 May 2024',
+    nextFollowUp: '09 Jun 2026',
   },
   {
     customer: 'Anil Dubey',
@@ -722,7 +754,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'New',
     assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '28 May 2024',
+    nextFollowUp: '23 Jun 2026',
   },
   {
     customer: 'Priya Jain',
@@ -732,7 +764,7 @@ const leadListRows = [
     type: 'Hybrid',
     status: 'Follow-up',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '28 May 2024',
+    nextFollowUp: '15 Jun 2026',
   },
   {
     customer: 'Vivek Chouhan',
@@ -742,7 +774,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Quotation',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '29 May 2024',
+    nextFollowUp: '29 Jun 2026',
   },
   {
     customer: 'Neelam Singh',
@@ -752,7 +784,7 @@ const leadListRows = [
     type: 'Off-Grid',
     status: 'New',
     assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '29 May 2024',
+    nextFollowUp: '08 Jun 2026',
   },
   {
     customer: 'Dinesh Rawat',
@@ -762,7 +794,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Follow-up',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '30 May 2024',
+    nextFollowUp: '21 Jun 2026',
   },
   {
     customer: 'Meena Tiwari',
@@ -772,7 +804,7 @@ const leadListRows = [
     type: 'Hybrid',
     status: 'Lost',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '30 May 2024',
+    nextFollowUp: '07 Jun 2026',
   },
   {
     customer: 'Harish Yadav',
@@ -782,7 +814,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'New',
     assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '01 Jun 2024',
+    nextFollowUp: '26 Jun 2026',
   },
   {
     customer: 'Sarita Pandey',
@@ -792,7 +824,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Follow-up',
     assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '01 Jun 2024',
+    nextFollowUp: '06 Jun 2026',
   },
   {
     customer: 'Manoj Mishra',
@@ -802,7 +834,7 @@ const leadListRows = [
     type: 'On-Grid',
     status: 'Quotation',
     assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '02 Jun 2024',
+    nextFollowUp: '27 Jun 2026',
   },
   {
     customer: 'Asha Kulkarni',
@@ -812,7 +844,7 @@ const leadListRows = [
     type: 'Hybrid',
     status: 'New',
     assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '02 Jun 2024',
+    nextFollowUp: '30 Jun 2026',
   },
 ];
 
@@ -1566,7 +1598,7 @@ const quickActions = [
     target: 'Lead Follow-up Create',
   },
   {
-    label: 'Create Quotation (UI)',
+    label: 'Create Quotation',
     icon: FilePlus2,
     bg: 'from-[#5242ef] to-[#6046eb]',
     target: 'Lead Quotation',
@@ -1642,15 +1674,34 @@ function isKnownSection(section) {
 
 function App() {
   const initialPreferencesRef = useRef(readStoredPreferences());
+  const isPopStateRef = useRef(false);
+  const prevNavStateRef = useRef(null);
   const initialPreferences = initialPreferencesRef.current;
   const [currentPage, setCurrentPage] = useState(initialPreferences.currentPage === 'dashboard' ? 'dashboard' : 'signin');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
   const [activeSidebarItem, setActiveSidebarItem] = useState(isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard');
+  const [expandedSection, setExpandedSection] = useState(() => {
+    const item = isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard';
+    if (item === 'Lead' || leadRelatedPages.includes(item)) return 'Lead';
+    if (item === 'Project Management' || projectRelatedPages.includes(item)) return 'Project Management';
+    if (item === 'Employee Management' || employeeRelatedPages.includes(item)) return 'Employee Management';
+    if (item === 'Accounts' || accountsRelatedPages.includes(item)) return 'Accounts';
+    if (item === 'Inventory' || inventoryRelatedPages.includes(item)) return 'Inventory';
+    if (item === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(item)) return 'Liaisoning & Commissioning';
+    if (omRelatedPages.includes(item)) return 'O&M';
+    if (item === 'AMC & Warranty' || amcRelatedPages.includes(item)) return 'AMC & Warranty';
+    if (settingsRelatedPages.includes(item)) return 'Settings';
+    return null;
+  });
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [messageMenuOpen, setMessageMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState(stats);
+  const [dashboardFollowUps, setDashboardFollowUps] = useState(todayFollowUps);
+  const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
+  const [dashboardOverdue, setDashboardOverdue] = useState(null);
 
   const notify = (message) => {
     setToast({ id: Date.now(), message });
@@ -1665,6 +1716,7 @@ function App() {
     }
 
     if (action === 'Logout') {
+      authApi.logout();
       setCurrentPage('signin');
       notify('Logged out');
       return;
@@ -1672,6 +1724,80 @@ function App() {
 
     notify(`${action} selected`);
   };
+
+  // Auto-logout on 401
+  useEffect(() => {
+    const handler = () => {
+      setCurrentPage('signin');
+      notify('Session expired — please login again');
+    };
+    window.addEventListener('auth:logout', handler);
+    return () => window.removeEventListener('auth:logout', handler);
+  }, []);
+
+  // Fetch dashboard stats from API
+  useEffect(() => {
+    if (currentPage !== 'dashboard') return;
+    leadApi.stats().then((data) => {
+      if (!data) return;
+      setDashboardStats((prev) =>
+        prev.map((s) => {
+          if (s.title === 'Total Leads') return { ...s, value: String(data.total ?? s.value) };
+          if (s.title === 'Today Follow-ups') return { ...s, value: String(data.today_followups ?? s.value) };
+          if (s.title === 'Pending Quotations') return { ...s, value: String(data.quotation ?? s.value) };
+          if (s.title === 'Won Projects') return { ...s, value: String(data.won ?? s.value) };
+          return s;
+        }),
+      );
+    }).catch(() => {});
+
+    leadApi.todayFollowUps().then((data) => {
+      if (!data?.results?.length && !Array.isArray(data)) return;
+      const rows = Array.isArray(data) ? data : data.results;
+      if (!rows.length) return;
+      setDashboardFollowUps(
+        rows.map((lead) => ({
+          customer: lead.customer_name,
+          mobile: lead.mobile_number,
+          ivrs: lead.ivrs_number,
+          project: lead.project_name || '—',
+          type: lead.project_type || 'On-Grid',
+          assignedTo: { name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
+          date: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN') : '—',
+        })),
+      );
+    }).catch(() => {});
+
+    leadApi.recent().then((data) => {
+      if (!data) return;
+      const rows = Array.isArray(data) ? data : (data.results ?? []);
+      if (!rows.length) return;
+      setDashboardRecentLeads(rows.map((lead) => ({
+        id: lead.id,
+        customer: lead.customer_name,
+        mobile: lead.mobile_number,
+        project: lead.project_name ? `${lead.estimated_capacity ? lead.estimated_capacity + 'kW ' : ''}${lead.project_type || 'On-Grid'}` : '—',
+        status: lead.status,
+        assignedTo: { name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
+        createdOn: lead.created_at_display || '—',
+      })));
+    }).catch(() => {});
+
+    leadApi.overdue().then((data) => {
+      if (!data) return;
+      const rows = Array.isArray(data) ? data : (data.results ?? []);
+      if (!rows.length) return;
+      setDashboardOverdue(rows.map((lead) => {
+        const dueDate = lead.next_follow_up ? new Date(lead.next_follow_up) : null;
+        const diffDays = dueDate ? Math.ceil((Date.now() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+        return {
+          customer: lead.customer_name,
+          project: lead.project_name || '—',
+          delay: diffDays <= 0 ? 'Today Overdue' : diffDays === 1 ? '1 Day Overdue' : `${diffDays} Days Overdue`,
+        };
+      }));
+    }).catch(() => {});
+  }, [currentPage]);
 
   const openDashboardSection = (section, message) => {
     if (!isKnownSection(section)) {
@@ -1758,6 +1884,18 @@ function App() {
   }, [toast]);
 
   useEffect(() => {
+    if (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Lead'); return; }
+    if (activeSidebarItem === 'Project Management' || projectRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Project Management'); return; }
+    if (activeSidebarItem === 'Employee Management' || employeeRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Employee Management'); return; }
+    if (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Accounts'); return; }
+    if (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Inventory'); return; }
+    if (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Liaisoning & Commissioning'); return; }
+    if (omRelatedPages.includes(activeSidebarItem)) { setExpandedSection('O&M'); return; }
+    if (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem)) { setExpandedSection('AMC & Warranty'); return; }
+    if (settingsRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Settings'); return; }
+  }, [activeSidebarItem]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
@@ -1780,6 +1918,55 @@ function App() {
     const pageLabel = currentPage === 'signin' ? 'Sign In' : activeSidebarItem;
     document.title = `${pageLabel} | Malwa Solar CRM`;
   }, [activeSidebarItem, currentPage]);
+
+  // Sync navigation to browser history (back/forward support)
+  // Uses prevNavStateRef to deduplicate — prevents StrictMode double-push on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const navKey = `${currentPage}::${activeSidebarItem}`;
+
+    if (isPopStateRef.current) {
+      // Change came from popstate — just track the new position, don't push
+      isPopStateRef.current = false;
+      prevNavStateRef.current = navKey;
+      return;
+    }
+
+    if (prevNavStateRef.current === null) {
+      // Very first run — use replaceState so we don't add a spurious entry
+      prevNavStateRef.current = navKey;
+      window.history.replaceState({ activeSidebarItem, currentPage }, '');
+      return;
+    }
+
+    if (prevNavStateRef.current === navKey) {
+      // Same page re-render (StrictMode second pass) — replace in place, don't push
+      window.history.replaceState({ activeSidebarItem, currentPage }, '');
+      return;
+    }
+
+    // Genuine navigation — push new history entry
+    prevNavStateRef.current = navKey;
+    window.history.pushState({ activeSidebarItem, currentPage }, '');
+  }, [activeSidebarItem, currentPage]);
+
+  // Handle browser back / forward buttons
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = (event) => {
+      const state = event.state;
+      if (!state) return;
+      isPopStateRef.current = true;
+      if (state.currentPage === 'signin') {
+        setCurrentPage('signin');
+      } else if (state.activeSidebarItem && isKnownSection(state.activeSidebarItem)) {
+        setCurrentPage('dashboard');
+        setActiveSidebarItem(state.activeSidebarItem);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -1915,27 +2102,46 @@ function App() {
                   const isOmSection = item.label === 'O&M';
                   const isAmcSection = item.label === 'AMC & Warranty';
                   const isSettingsSection = item.label === 'Settings';
-                  const isLeadOpen = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
-                  const isProjectOpen = isProjectSection && (activeSidebarItem === 'Project Management' || projectRelatedPages.includes(activeSidebarItem));
-                  const isEmployeeOpen = isEmployeeSection && (activeSidebarItem === 'Employee Management' || employeeRelatedPages.includes(activeSidebarItem));
-                  const isAccountsOpen = isAccountsSection && (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem));
-                  const isInventoryOpen = isInventorySection && (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem));
-                  const isLiaisonOpen = isLiaisonSection && (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem));
-                  const isOmOpen = isOmSection && omRelatedPages.includes(activeSidebarItem);
-                  const isAmcOpen = isAmcSection && (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem));
+                  const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
+                  const isProjectHighlighted = isProjectSection && (activeSidebarItem === 'Project Management' || projectRelatedPages.includes(activeSidebarItem));
+                  const isEmployeeHighlighted = isEmployeeSection && (activeSidebarItem === 'Employee Management' || employeeRelatedPages.includes(activeSidebarItem));
+                  const isAccountsHighlighted = isAccountsSection && (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem));
+                  const isInventoryHighlighted = isInventorySection && (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem));
+                  const isLiaisonHighlighted = isLiaisonSection && (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem));
+                  const isOmHighlighted = isOmSection && omRelatedPages.includes(activeSidebarItem);
+                  const isAmcHighlighted = isAmcSection && (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem));
+                  const isLeadOpen = isLeadSection && expandedSection === 'Lead';
+                  const isProjectOpen = isProjectSection && expandedSection === 'Project Management';
+                  const isEmployeeOpen = isEmployeeSection && expandedSection === 'Employee Management';
+                  const isAccountsOpen = isAccountsSection && expandedSection === 'Accounts';
+                  const isInventoryOpen = isInventorySection && expandedSection === 'Inventory';
+                  const isLiaisonOpen = isLiaisonSection && expandedSection === 'Liaisoning & Commissioning';
+                  const isOmOpen = isOmSection && expandedSection === 'O&M';
+                  const isAmcOpen = isAmcSection && expandedSection === 'AMC & Warranty';
                   const isSettingsActive = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
-                  const isSettingsOpen = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
-                  const isActive = item.label === activeSidebarItem || isLeadOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsActive;
+                  const isSettingsOpen = isSettingsSection && expandedSection === 'Settings';
+                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isAmcHighlighted || isSettingsActive;
 
                   return (
                     <div key={item.label}>
                       <button
                         type="button"
                         onClick={() => {
-                          const nextItem = isLeadSection ? 'Lead List' : isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'O&M Overview' : isAmcSection ? 'AMC Contracts' : isSettingsSection ? 'Settings' : item.label;
-                          setActiveSidebarItem(nextItem);
+                          const sectionKey = isLeadSection ? 'Lead' : isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee Management' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : isSettingsSection ? 'Settings' : null;
+                          if (sectionKey) {
+                            if (expandedSection === sectionKey) {
+                              setExpandedSection(null);
+                            } else {
+                              setExpandedSection(sectionKey);
+                              const nextItem = isLeadSection ? 'Lead List' : isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'O&M Overview' : isAmcSection ? 'AMC Contracts' : 'Settings';
+                              setActiveSidebarItem(nextItem);
+                              notify(`${nextItem} section selected`);
+                            }
+                          } else {
+                            setActiveSidebarItem(item.label);
+                            notify(`${item.label} section selected`);
+                          }
                           setMobileSidebarOpen(false);
-                          notify(`${nextItem} section selected`);
                         }}
                         title={desktopSidebarCollapsed ? item.label : undefined}
                         aria-label={item.label}
@@ -2720,7 +2926,7 @@ function App() {
             ) : (
               <>
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              {stats.map((stat) => (
+              {dashboardStats.map((stat) => (
                 <StatCard key={stat.title} stat={stat} onClick={() => openDashboardSection(stat.target, `${stat.title} opened`)} />
               ))}
             </section>
@@ -2730,7 +2936,7 @@ function App() {
                 <SectionHeader icon={CalendarDays} title="Today Follow-ups" />
 
                 <div className="space-y-3 p-4 lg:hidden">
-                  {todayFollowUps.map((followUp) => (
+                  {dashboardFollowUps.map((followUp) => (
                     <FollowUpCard
                       key={`${followUp.customer}-${followUp.ivrs}`}
                       followUp={followUp}
@@ -2750,7 +2956,7 @@ function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {todayFollowUps.map((followUp) => (
+                        {dashboardFollowUps.map((followUp) => (
                           <tr key={`${followUp.customer}-${followUp.ivrs}`}>
                             <td className="font-bold text-[#274072]">{followUp.customer}</td>
                             <td>{followUp.mobile}</td>
@@ -2825,7 +3031,7 @@ function App() {
                 <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" onAction={() => openDashboardSection('Lead List', 'All recent leads opened')} />
 
                 <div className="space-y-3 p-4 lg:hidden">
-                  {recentLeads.map((lead) => (
+                  {(dashboardRecentLeads ?? recentLeads).map((lead) => (
                     <RecentLeadCard key={`${lead.customer}-${lead.mobile}`} lead={lead} onView={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`)} />
                   ))}
                 </div>
@@ -2841,7 +3047,7 @@ function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {recentLeads.map((lead) => (
+                        {(dashboardRecentLeads ?? recentLeads).map((lead) => (
                           <tr key={`${lead.customer}-${lead.mobile}`}>
                             <td className="font-bold text-[#3258aa]">{lead.customer}</td>
                             <td>{lead.mobile}</td>
@@ -2881,7 +3087,7 @@ function App() {
                 />
 
                 <div className="m-4 divide-y divide-[#edf2f8] overflow-hidden rounded-[12px] border border-[#e5edf6] bg-[#fbfdff] px-4">
-                  {overdueFollowUps.map((item) => (
+                  {(dashboardOverdue ?? overdueFollowUps).map((item) => (
                     <div
                       key={`${item.customer}-${item.project}`}
                       className="grid grid-cols-1 gap-1 py-4 text-[13px] sm:grid-cols-[1.2fr_1fr_auto] sm:items-center sm:gap-3"
@@ -2896,7 +3102,7 @@ function App() {
             </section>
 
             <footer className="flex flex-col gap-2 border-t border-[#e4ebf4] px-1 pb-1 pt-3 text-center text-[12px] font-semibold text-[#7b88a2] sm:text-left lg:flex-row lg:items-center lg:justify-between">
-              <p>Copyright 2024 Malwa Solar CRM. All rights reserved.</p>
+              <p>Copyright {new Date().getFullYear()} Malwa Solar CRM. All rights reserved.</p>
               <p className="inline-flex items-center justify-center gap-1.5 lg:justify-end">
                 Made with
                 <Heart className="size-3.5 fill-current text-[#ff4b4f]" />
@@ -3021,6 +3227,32 @@ function WhatsAppMessageMenu({ onOpenMessage, onOpenWhatsApp }) {
 
 function SignInPage({ onLogin, onNotify }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    if (!email.trim() || !password.trim()) {
+      setLoginError('Email aur password dono bharo.');
+      return;
+    }
+    setLoading(true);
+    setLoginError('');
+    try {
+      const data = await authApi.login(email.trim(), password);
+      if (data?.access) {
+        onLogin();
+      } else {
+        setLoginError('Login failed. Please try again.');
+      }
+    } catch (err) {
+      setLoginError(err.message || 'Invalid email or password.');
+    } finally {
+      setLoading(false);
+    }
+  };
   const features = [
     {
       title: 'Lead Management',
@@ -3114,10 +3346,7 @@ function SignInPage({ onLogin, onNotify }) {
 
             <form
               className="mt-9 space-y-6 sm:mt-11 sm:space-y-7"
-              onSubmit={(event) => {
-                event.preventDefault();
-                onLogin();
-              }}
+              onSubmit={handleLogin}
             >
               <label className="block">
                 <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Email / Mobile Number</span>
@@ -3125,6 +3354,8 @@ function SignInPage({ onLogin, onNotify }) {
                   <UserRound className="size-6 text-[#7a8494]" />
                   <input
                     type="text"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter email or mobile number"
                     autoComplete="username"
                     spellCheck={false}
@@ -3139,6 +3370,8 @@ function SignInPage({ onLogin, onNotify }) {
                   <LockKeyhole className="size-6 text-[#7a8494]" />
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     autoComplete="current-password"
                     className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796] sm:text-[18px]"
@@ -3153,6 +3386,12 @@ function SignInPage({ onLogin, onNotify }) {
                   </button>
                 </span>
               </label>
+
+              {loginError && (
+                <p className="rounded-[8px] bg-red-50 px-4 py-3 text-[13px] font-bold text-red-600">
+                  {loginError}
+                </p>
+              )}
 
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <label className="inline-flex items-center gap-3 text-[15px] font-bold text-[#5a6574] sm:text-[16px]">
@@ -3174,44 +3413,19 @@ function SignInPage({ onLogin, onNotify }) {
 
               <button
                 type="submit"
-                className="flex h-14 w-full items-center justify-center gap-3 rounded-[9px] bg-[linear-gradient(90deg,#20b947_0%,#169e9a_51%,#116fd0_100%)] text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(21,116,171,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(21,116,171,0.28)] sm:h-[64px] sm:text-[20px]"
+                disabled={loading}
+                className="flex h-14 w-full items-center justify-center gap-3 rounded-[9px] bg-[linear-gradient(90deg,#20b947_0%,#169e9a_51%,#116fd0_100%)] text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(21,116,171,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(21,116,171,0.28)] disabled:opacity-60 sm:h-[64px] sm:text-[20px]"
               >
                 <LogIn className="size-5" />
-                Login
+                {loading ? 'Logging in...' : 'Login'}
               </button>
 
               <p className="text-center text-[13px] font-bold text-[#6a7586]">
                 Protected access for sales, project, liaisoning aur service teams.
               </p>
 
-              <div className="flex items-center gap-4">
-                <span className="h-px flex-1 bg-[#e0e5ee]" />
-                <span className="grid size-12 place-items-center rounded-full border border-[#e5eaf2] bg-white text-[14px] font-bold text-[#6a7586]">
-                  OR
-                </span>
-                <span className="h-px flex-1 bg-[#e0e5ee]" />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => onNotify('Google login selected')}
-                className="flex h-14 w-full items-center justify-center gap-3 rounded-[9px] border border-black/20 bg-white text-[16px] font-bold text-[#111827] shadow-[0_6px_16px_rgba(20,35,60,0.04)] transition hover:border-blue-500 hover:bg-[#fbfdff] sm:h-[64px] sm:gap-4 sm:text-[20px]"
-              >
-                <span className="font-display text-[25px] font-extrabold text-[#4285f4]">
-                  G
-                </span>
-                Login with Google
-              </button>
-
-              <p className="pt-3 text-center text-[15px] font-semibold text-[#5a6574] sm:text-[16px]">
-                Don't have an account?
-                <button
-                  type="button"
-                  onClick={() => onNotify('Contact administrator selected')}
-                  className="ml-2 font-bold text-[#055ee4] transition hover:text-[#034bb6]"
-                >
-                  Contact Administrator
-                </button>
+              <p className="pt-2 text-center text-[13px] font-semibold text-[#8a98af]">
+                Account access is granted by your Super Admin only.
               </p>
             </form>
           </div>
@@ -3255,6 +3469,32 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   const [followUpDate, setFollowUpDate] = useState('');
   const [activeLeadCategory, setActiveLeadCategory] = useState(null);
   const [activePage, setActivePage] = useState(1);
+  const [apiLeads, setApiLeads] = useState(null);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+
+  useEffect(() => {
+    setLeadsLoading(true);
+    const params = { page_size: 200 };
+    if (statusFilter !== 'All') params.status = statusFilter;
+    if (searchQuery.trim()) params.search = searchQuery.trim();
+    leadApi.list(params).then((data) => {
+      if (!data) return;
+      const rows = Array.isArray(data) ? data : (data.results ?? []);
+      setApiLeads(rows.map((lead, i) => ({
+        id: lead.id ?? i,
+        customer: lead.customer_name,
+        mobile: lead.mobile_number,
+        ivrs: lead.ivrs_number,
+        project: lead.project_name || '—',
+        type: lead.project_type || 'On-Grid',
+        status: lead.status,
+        priority: lead.priority || '',
+        source: lead.source || '',
+        assignedTo: { name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
+        nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+      })));
+    }).catch(() => {}).finally(() => setLeadsLoading(false));
+  }, [statusFilter, searchQuery]);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
   const headers = [
@@ -3290,8 +3530,34 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
     leadTableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const categoryLeadCount = useMemo(() => {
+    if (!apiLeads) return {};
+    return {
+      'New leads': apiLeads.filter(l => l.status === 'New').length,
+      'Hot leads': apiLeads.filter(l => l.priority === 'High' && l.status !== 'Won' && l.status !== 'Lost').length,
+      'Warm leads': apiLeads.filter(l => l.status === 'Follow-up' && l.priority !== 'High').length,
+      'Cool leads': apiLeads.filter(l => l.priority === 'Low' && l.status !== 'Won' && l.status !== 'Lost').length,
+      'Lost leads': apiLeads.filter(l => l.status === 'Lost' || l.status === 'Won').length,
+    };
+  }, [apiLeads]);
+
   const visibleLeadRows = useMemo(() => {
-    return getLeadRowsForCategory(activeLeadCategory).filter((lead) => {
+    let source = apiLeads ?? getLeadRowsForCategory(activeLeadCategory);
+
+    if (apiLeads && activeLeadCategory) {
+      const cat = activeLeadCategory.label;
+      source = source.filter((lead) => {
+        const isActive = lead.status !== 'Won' && lead.status !== 'Lost';
+        if (cat === 'New leads') return lead.status === 'New';
+        if (cat === 'Hot leads') return lead.priority === 'High' && isActive;
+        if (cat === 'Warm leads') return lead.status === 'Follow-up' && lead.priority !== 'High';
+        if (cat === 'Cool leads') return lead.priority === 'Low' && isActive;
+        if (cat === 'Lost leads') return lead.status === 'Lost' || lead.status === 'Won';
+        return true;
+      });
+    }
+
+    return source.filter((lead) => {
       const query = searchQuery.trim().toLowerCase();
       const queryMatch = !query || [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name].some((value) => String(value).toLowerCase().includes(query));
       const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
@@ -3300,7 +3566,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
       const followUpMatch = !followUpDate || lead.nextFollowUp === formatReportDate(followUpDate);
       return queryMatch && projectTypeMatch && statusMatch && assignedMatch && followUpMatch;
     });
-  }, [activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, followUpDate]);
+  }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, followUpDate]);
 
   const LEAD_PAGE_SIZE = 10;
   const totalLeadPages = Math.max(1, Math.ceil(visibleLeadRows.length / LEAD_PAGE_SIZE));
@@ -3386,7 +3652,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                   key={category.label}
                   type="button"
                   onClick={() => {
-                    setActiveLeadCategory(category);
+                    setActiveLeadCategory(prev => prev?.label === category.label ? null : category);
                     setActivePage(1);
                     onNotify(`${category.label} list opened`);
                   }}
@@ -3407,7 +3673,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                     </span>
                   </span>
                   <span className={cx('rounded-full px-2.5 py-1 text-[11px] font-extrabold', tone.count)}>
-                    {category.count}
+                    {categoryLeadCount[category.label] ?? category.count}
                   </span>
                 </button>
               );
@@ -3507,7 +3773,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
 
             <div className="mt-4 flex flex-wrap items-center gap-3 text-[12px] font-bold text-[#53647f]">
               <span className="rounded-full bg-white px-3 py-1.5 text-[#1e3261] shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
-                Showing {visibleLeadRows.length} demo leads
+                Showing {visibleLeadRows.length} leads
               </span>
               <span className="rounded-full bg-white px-3 py-1.5 text-[#1e3261] shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
                 Priority: {activeLeadCategory.priority}
@@ -3556,7 +3822,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                     <td>
                       <AssigneeCell assignee={lead.assignedTo} compact />
                     </td>
-                    <td className={cx('font-extrabold', index < 2 ? 'text-[#f04438]' : 'text-[#233a6b]')}>
+                    <td className={cx('font-extrabold', isFollowUpOverdue(lead.nextFollowUp) ? 'text-[#f04438]' : 'text-[#233a6b]')}>
                       {lead.nextFollowUp}
                     </td>
                     <td>
@@ -3718,7 +3984,7 @@ function AccountsManagementPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Accounts Management"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Accounts Management', onClick: () => onOpenSection('Accounts Overview') },
           { label: activeSection === 'Accounts Overview' ? 'Overview' : activeSection },
         ]}
@@ -3892,7 +4158,7 @@ function AccountsListPage({ activeSection = 'Accounts List', onOpenSection, onNo
       <PageHeading
         title="Accounts List"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') },
           { label: 'Accounts List' },
         ]}
@@ -4049,7 +4315,7 @@ function TransactionsListPage({ activeSection = 'Transactions List', onOpenSecti
       <PageHeading
         title="Transactions List"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') },
           { label: 'Transactions List' },
         ]}
@@ -4466,7 +4732,7 @@ function SettingsStandaloneInlinePage({ activeSection, onOpenSection, onNotify }
       <PageHeading
         title={title}
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
           ...(activeGroup ? [{ label: activeGroup.title }] : []),
           { label: title },
@@ -4651,7 +4917,7 @@ function GeneralSettingsDetailShell({ title, onOpenSection, onNotify, actions, c
       <PageHeading
         title={title}
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
           { label: 'General Settings', onClick: () => onNotify('General settings opened') },
           { label: title },
@@ -4825,7 +5091,7 @@ function SettingsSetupPage({ onOpenSection, onNotify }) {
       <PageHeading
         title="Settings"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings' },
           ...(selectedGroup ? [{ label: selectedGroup.title }] : []),
           { label: title },
@@ -5143,7 +5409,7 @@ function PaymentSettingsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Settings"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
           { label: 'Accounts Settings', onClick: () => onNotify('Accounts settings opened') },
           { label: 'Payment Settings' },
@@ -6722,7 +6988,7 @@ function OrganizationSettingsPlaceholderPage({ activeSection, onOpenSection, onN
       <PageHeading
         title={activeSection}
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
           { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
           { label: activeSection },
@@ -6788,7 +7054,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
       <PageHeading
         title="Business Information"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
           { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
           { label: 'Business Information' },
@@ -6951,7 +7217,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
       <PageHeading
         title="Company Profile"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
           { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
           { label: 'Company Profile' },
@@ -7125,7 +7391,7 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
       <PageHeading
         title="Financial Year Settings"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
           { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
           { label: 'Financial Year Settings' },
@@ -7258,7 +7524,7 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
       <PageHeading
         title="Branch Management"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
           { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
           { label: 'Branch Management' },
@@ -7617,7 +7883,7 @@ function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSe
       <PageHeading
         title={moduleTitle}
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: moduleTitle },
           { label: activeLabel },
         ]}
@@ -7742,7 +8008,7 @@ function LiaisonActionPage({ type, onOpenSection, onNotify }) {
         ['Customer', 'Ravi Industries Pvt. Ltd.'],
         ['Project', '2 MW Rooftop Project'],
         ['Status', 'Pending'],
-        ['Due Date', '27 May 2024'],
+        ['Due Date', '22 Jun 2026'],
       ],
       textLabel: 'Approval Remarks',
       textValue: 'Technical documents verified. Awaiting final regulatory approval.',
@@ -9302,7 +9568,7 @@ function OmPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="O&M Overview"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'O&M', onClick: () => onNotify('O&M breadcrumb selected') },
           { label: 'Overview' },
         ]}
@@ -9576,7 +9842,7 @@ function OmMaintenanceTasksPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Maintenance Tasks"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
           { label: 'Maintenance Tasks' },
         ]}
@@ -9814,7 +10080,7 @@ function OmBreakdownTicketsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Breakdown Tickets"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
           { label: 'Breakdown Tickets' },
         ]}
@@ -10044,7 +10310,7 @@ function OmSiteVisitsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Site Visits"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
           { label: 'Site Visits' },
         ]}
@@ -10276,7 +10542,7 @@ function OmAssetManagementPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Asset Management"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
           { label: 'Asset Management' },
         ]}
@@ -10586,7 +10852,7 @@ function OmSparePartsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Spare Parts"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
           { label: 'Spare Parts' },
         ]}
@@ -10893,7 +11159,7 @@ function OmEnergyPerformancePage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Energy Performance"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
           { label: 'Energy Performance' },
         ]}
@@ -11164,7 +11430,7 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="O&M Reports"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'O&M', onClick: () => onOpenSection('O&M Overview') },
           { label: 'O&M Reports' },
         ]}
@@ -11512,7 +11778,7 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="AMC & Warranty"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'AMC & Warranty' },
           { label: 'AMC Contracts' },
         ]}
@@ -11713,7 +11979,7 @@ function AmcWarrantiesPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Warranties"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'AMC & Warranty' },
           { label: 'Warranties' },
         ]}
@@ -11948,7 +12214,7 @@ function AmcServiceRequestsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Service Requests"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'AMC & Warranty' },
           { label: 'Service Requests' },
         ]}
@@ -12254,7 +12520,7 @@ function AmcVisitsMaintenancePage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Visits / Maintenance"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'AMC & Warranty' },
           { label: 'Visits / Maintenance' },
         ]}
@@ -12461,7 +12727,7 @@ function AmcRenewalsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Renewals"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'AMC & Warranty' },
           { label: 'Renewals' },
         ]}
@@ -12646,7 +12912,7 @@ function AmcClaimsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Claims"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'AMC & Warranty' },
           { label: 'Claims' },
         ]}
@@ -12846,7 +13112,7 @@ function AmcDocumentsPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Documents"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'AMC & Warranty' },
           { label: 'Documents' },
         ]}
@@ -13071,7 +13337,7 @@ function ChartOfAccountsPage({ activeSection = 'Chart of Accounts', onOpenSectio
       <PageHeading
         title="Charts of Accounts"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') },
           { label: 'Charts of Accounts' },
         ]}
@@ -13332,7 +13598,7 @@ function PaymentsLedgerPage({ mode, activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title={isReceived ? 'Payment Received List' : 'Payment Made List'}
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') },
           { label: isReceived ? 'Payment Received List' : 'Payment Made List' },
         ]}
@@ -13430,7 +13696,7 @@ function BankAccountsListPage({ activeSection = 'Bank Accounts', onOpenSection, 
 
   return (
     <div className="space-y-4">
-      <PageHeading title="Bank Accounts List" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') }, { label: 'Bank Accounts List' }]} actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('Add Bank Account'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />Add Bank Account</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Bank accounts exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Bank account settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>} />
+      <PageHeading title="Bank Accounts List" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') }, { label: 'Bank Accounts List' }]} actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('Add Bank Account'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />Add Bank Account</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Bank accounts exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Bank account settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>} />
 
       <AccountsSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
@@ -13514,7 +13780,7 @@ function ChequesListPage({ activeSection = 'Cheques List', onOpenSection, onNoti
 
   return (
     <div className="space-y-4">
-      <PageHeading title="Bank Cheques List" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') }, { label: 'Cheques List' }]} actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('New Cheque'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />New Cheque</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Cheques exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Cheque settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>} />
+      <PageHeading title="Bank Cheques List" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Accounts', onClick: () => onNotify('Accounts breadcrumb selected') }, { label: 'Cheques List' }]} actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('New Cheque'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />New Cheque</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Cheques exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Cheque settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>} />
 
       <AccountsSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
@@ -13596,7 +13862,7 @@ function PaymentModeListPage({ onOpenSection, onNotify }) {
 
   return (
     <div className="space-y-4">
-      <PageHeading title="Payment Mode List" crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') }, { label: 'Payment Mode List' }]} actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('Add Payment Mode'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />Add Payment Mode</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Payment mode exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Payment mode settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>} />
+      <PageHeading title="Payment Mode List" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') }, { label: 'Payment Mode List' }]} actions={<><button type="button" onClick={() => { setSelectedRow(null); setModalType('Add Payment Mode'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />Add Payment Mode</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Payment mode exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Settings')} aria-label="Payment mode settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>} />
 
       <SettingsNavigationRail activeSection="Payment Mode" onOpenSection={onOpenSection} onNotify={onNotify} />
 
@@ -14292,7 +14558,7 @@ function InventoryManagementPage({ activeSection, onOpenSection, onNotify }) {
       <PageHeading
         title="Inventory Management"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Inventory Management', onClick: () => onOpenSection('Overview') },
           { label: activeSection },
         ]}
@@ -14495,7 +14761,7 @@ function InventoryProductsPage({ activeSection = 'Products', items, setItems, on
       <PageHeading
         title="Products"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Inventory', onClick: () => onOpenSection('Overview') },
           { label: 'Products' },
         ]}
@@ -14656,7 +14922,7 @@ function InventoryStockMovementPage({ direction, activeSection, onOpenSection, i
       <PageHeading
         title={title}
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Inventory', onClick: () => onNotify('Inventory breadcrumb selected') },
           { label: title },
         ]}
@@ -14805,7 +15071,7 @@ function InventoryStockTransferPage({ activeSection = 'Stock Transfer', onOpenSe
       <PageHeading
         title="Stock Transfer"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Inventory', onClick: () => onNotify('Inventory breadcrumb selected') },
           { label: 'Stock Transfer' },
         ]}
@@ -14951,7 +15217,7 @@ function InventoryAdjustmentsPage({ activeSection = 'Adjustments', onOpenSection
       <PageHeading
         title="Adjustments"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Inventory', onClick: () => onNotify('Inventory breadcrumb selected') },
           { label: 'Adjustments' },
         ]}
@@ -15055,7 +15321,7 @@ function InventoryWarehousesPage({ activeSection = 'Warehouses', onOpenSection, 
     <div className="space-y-4">
       <PageHeading
         title="Warehouses"
-        crumbs={[{ label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') }, { label: 'Inventory', onClick: () => onNotify('Inventory breadcrumb selected') }, { label: 'Warehouses' }]}
+        crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory', onClick: () => onNotify('Inventory breadcrumb selected') }, { label: 'Warehouses' }]}
         actions={<><button type="button" onClick={() => { setSelectedWarehouse(null); setModalType('Add Warehouse'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"><Plus className="size-4" />Add Warehouse</button><button type="button" onClick={() => setModalType('Import')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Import</button><button type="button" onClick={() => onNotify('Warehouses exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button><button type="button" onClick={() => setModalType('Inventory Settings')} aria-label="Warehouse settings" className="inline-flex size-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]"><Settings className="size-4" /></button></>}
       />
 
@@ -15960,8 +16226,8 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
 
 function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState('2024-04-01');
-  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateFrom, setDateFrom] = useState('2026-01-01');
+  const [dateTo, setDateTo] = useState('2026-12-31');
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
   const heroStats = [
@@ -16002,17 +16268,17 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const recentProjects = [
-    { id: 1, name: '20KW On-Grid System', customer: 'Amit Sharma, Indore', capacity: '20.00', status: 'In Progress', manager: 'Rohit Singh', startDate: '10 May 2024', targetDate: '30 May 2024' },
-    { id: 2, name: '15kW Hybrid System', customer: 'Sunil Patidar, Ujjain', capacity: '15.00', status: 'Installation', manager: 'Neha Jain', startDate: '12 May 2024', targetDate: '02 Jun 2024' },
-    { id: 3, name: '10kW On-Grid System', customer: 'Kavita Joshi, Indore', capacity: '10.00', status: 'Planning', manager: 'Amit Sharma', startDate: '15 May 2024', targetDate: '05 Jun 2024' },
-    { id: 4, name: '5kW Off-Grid System', customer: 'Manish Gupta, Dewas', capacity: '5.00', status: 'On Hold', manager: 'Vikram Singh', startDate: '18 May 2024', targetDate: '-' },
-    { id: 5, name: '25kW On-Grid System', customer: 'Pooja Verma, Bhopal', capacity: '25.00', status: 'Completed', manager: 'Pooja Verma', startDate: '01 Apr 2024', targetDate: '20 Apr 2024' },
+    { id: 1, name: '20KW On-Grid System', customer: 'Amit Sharma, Indore', capacity: '20.00', status: 'In Progress', manager: 'Rohit Singh', startDate: '10 Mar 2026', targetDate: '30 Jun 2026' },
+    { id: 2, name: '15kW Hybrid System', customer: 'Sunil Patidar, Ujjain', capacity: '15.00', status: 'Installation', manager: 'Neha Jain', startDate: '12 Apr 2026', targetDate: '02 Jul 2026' },
+    { id: 3, name: '10kW On-Grid System', customer: 'Kavita Joshi, Indore', capacity: '10.00', status: 'Planning', manager: 'Amit Sharma', startDate: '15 May 2026', targetDate: '05 Aug 2026' },
+    { id: 4, name: '5kW Off-Grid System', customer: 'Manish Gupta, Dewas', capacity: '5.00', status: 'On Hold', manager: 'Vikram Singh', startDate: '18 May 2026', targetDate: '-' },
+    { id: 5, name: '25kW On-Grid System', customer: 'Pooja Verma, Bhopal', capacity: '25.00', status: 'Completed', manager: 'Vikram Patel', startDate: '15 Jan 2026', targetDate: '15 Feb 2026' },
   ];
 
   const milestones = [
-    { title: 'Site Survey - 20kW Project', site: 'Indore, MP', due: '16 May 2024', note: '2 Days Left' },
-    { title: 'Installation Start - 15kW Project', site: 'Ujjain, MP', due: '18 May 2024', note: '4 Days Left' },
-    { title: 'Material Delivery - 10kW Project', site: 'Indore, MP', due: '20 May 2024', note: '6 Days Left' },
+    { title: 'Site Survey - 20kW Project', site: 'Indore, MP', due: '20 Jun 2026', note: '4 Days Left' },
+    { title: 'Installation Start - 15kW Project', site: 'Ujjain, MP', due: '23 Jun 2026', note: '7 Days Left' },
+    { title: 'Material Delivery - 10kW Project', site: 'Indore, MP', due: '25 Jun 2026', note: '9 Days Left' },
   ];
   const openProjectMetric = (label) => {
     const targets = {
@@ -16023,8 +16289,8 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
       Completed: 'Project Reports',
       'Delayed Projects': 'Project Timeline',
       'Total Capacity (KWp)': 'Project KPI Analytics',
-      'Total Project Value (â‚¹)': 'Project Expenses',
-      'Avg. Project Value (â‚¹)': 'Project KPI Analytics',
+      'Total Project Value (₹)': 'Project Expenses',
+      'Avg. Project Value (₹)': 'Project KPI Analytics',
       'Projects Completed': 'Project Reports',
     };
     onOpenSection(targets[label] ?? 'Project List');
@@ -16137,8 +16403,8 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
 
 function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState('2024-04-01');
-  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateFrom, setDateFrom] = useState('2026-01-01');
+  const [dateTo, setDateTo] = useState('2026-12-31');
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
   const heroStats = [
@@ -16156,11 +16422,11 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
     { label: 'Delayed Projects', color: '#ef4444', values: [3, 3, 2, 4, 3, 5, 4, 6, 7, 5, 4, 5] },
   ];
   const statusData = [
-    { label: 'Planning', value: 24, color: '#2f80ff' },
+    { label: 'Planning', value: 24, color: '#f59e0b' },
     { label: 'In Progress', value: 32, color: '#8b5cf6' },
     { label: 'Completed', value: 8, color: '#14b84c' },
-    { label: 'On Hold', value: 12, color: '#f59e0b' },
-    { label: 'Active', value: 64, color: '#ef4444' },
+    { label: 'On Hold', value: 12, color: '#ef4444' },
+    { label: 'Active', value: 64, color: '#2f80ff' },
   ];
   const siteData = [
     { label: 'Indore, MP', value: 42, color: '#2f80ff' },
@@ -16245,50 +16511,57 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
 }
 
 const projectListRows = [
-  { id: 1, projectName: '20kW On-Grid System', customer: 'Amit Sharma', site: 'Indore, MP', type: 'On-Grid', capacity: '20.00', status: 'In Progress', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-05-10', targetDate: '2024-05-30', progress: 65 },
-  { id: 2, projectName: '15kW Hybrid System', customer: 'Sunil Patidar', site: 'Ujjain, MP', type: 'Hybrid', capacity: '15.00', status: 'Installation', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-12', targetDate: '2024-06-02', progress: 40 },
-  { id: 3, projectName: '10kW On-Grid System', customer: 'Kavita Joshi', site: 'Indore, MP', type: 'On-Grid', capacity: '10.00', status: 'Planning', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2024-05-15', targetDate: '2024-06-05', progress: 25 },
-  { id: 4, projectName: '5kW Off-Grid System', customer: 'Manish Gupta', site: 'Dewas, MP', type: 'Off-Grid', capacity: '5.00', status: 'On Hold', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-05-18', targetDate: '', progress: 0 },
-  { id: 5, projectName: '25kW On-Grid System', customer: 'Pooja Verma', site: 'Bhopal, MP', type: 'On-Grid', capacity: '25.00', status: 'Completed', manager: { name: 'Pooja Verma', initials: 'PV', tone: 'green' }, startDate: '2024-04-01', targetDate: '2024-04-20', progress: 100 },
-  { id: 6, projectName: '30kW Hybrid System', customer: 'Ramesh Yadav', site: 'Jabalpur, MP', type: 'Hybrid', capacity: '30.00', status: 'In Progress', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-05-20', targetDate: '2024-06-10', progress: 60 },
-  { id: 7, projectName: '12kW On-Grid System', customer: 'Anjali Mehta', site: 'Gwalior, MP', type: 'On-Grid', capacity: '12.00', status: 'Installation', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-21', targetDate: '2024-06-08', progress: 50 },
-  { id: 8, projectName: '8kW Off-Grid System', customer: 'Vijay Singh', site: 'Ratlam, MP', type: 'Off-Grid', capacity: '8.00', status: 'Planning', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2024-05-22', targetDate: '2024-06-12', progress: 20 },
-  { id: 9, projectName: '50kW On-Grid System', customer: 'Shivam Enterprises', site: 'Indore, MP', type: 'On-Grid', capacity: '50.00', status: 'In Progress', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-05-23', targetDate: '2024-06-25', progress: 55 },
-  { id: 10, projectName: '40kW Hybrid System', customer: 'Mera Electricals', site: 'Ujjain, MP', type: 'Hybrid', capacity: '40.00', status: 'Planning', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-25', targetDate: '2024-06-30', progress: 15 },
-  { id: 11, projectName: '8kW Off-Grid System', customer: 'Sunita Bhatt', site: 'Ratlam, MP', type: 'Off-Grid', capacity: '8.00', status: 'Site Survey', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-05-26', targetDate: '2024-07-05', progress: 10 },
-  { id: 12, projectName: '25kW On-Grid System', customer: 'Ramesh Patidar', site: 'Bhopal, MP', type: 'On-Grid', capacity: '25.00', status: 'Installation', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-05-27', targetDate: '2024-06-20', progress: 45 },
-  { id: 13, projectName: '12kW Hybrid System', customer: 'Lokesh Sharma', site: 'Gwalior, MP', type: 'Hybrid', capacity: '12.00', status: 'Design', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-05-28', targetDate: '2024-07-10', progress: 20 },
-  { id: 14, projectName: '30kW On-Grid System', customer: 'Anil Dubey', site: 'Indore, MP', type: 'On-Grid', capacity: '30.00', status: 'Procurement', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2024-05-29', targetDate: '2024-07-15', progress: 30 },
-  { id: 15, projectName: '5kW Hybrid System', customer: 'Priya Jain', site: 'Ujjain, MP', type: 'Hybrid', capacity: '5.00', status: 'Completed', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-04-10', targetDate: '2024-05-05', progress: 100 },
-  { id: 16, projectName: '15kW Off-Grid System', customer: 'Vivek Chouhan', site: 'Jabalpur, MP', type: 'Off-Grid', capacity: '15.00', status: 'Quality Check', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-06-01', targetDate: '2024-07-20', progress: 70 },
-  { id: 17, projectName: '20kW Hybrid System', customer: 'Asha Kulkarni', site: 'Dewas, MP', type: 'Hybrid', capacity: '20.00', status: 'Planning', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2024-06-03', targetDate: '2024-07-25', progress: 5 },
-  { id: 18, projectName: '35kW On-Grid System', customer: 'Meena Tiwari', site: 'Sagar, MP', type: 'On-Grid', capacity: '35.00', status: 'On Hold', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2024-05-30', targetDate: '', progress: 0 },
-  { id: 19, projectName: '6kW Off-Grid System', customer: 'Harish Yadav', site: 'Mandsor, MP', type: 'Off-Grid', capacity: '6.00', status: 'In Progress', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2024-06-05', targetDate: '2024-07-30', progress: 35 },
-  { id: 20, projectName: '18kW On-Grid System', customer: 'Sarita Pandey', site: 'Indore, MP', type: 'On-Grid', capacity: '18.00', status: 'Site Survey', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2024-06-06', targetDate: '2024-08-01', progress: 8 },
+  { id: 1, projectName: '20kW On-Grid System', customer: 'Amit Sharma', site: 'Indore, MP', type: 'On-Grid', capacity: '20.00', status: 'In Progress', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2026-03-10', targetDate: '2026-06-30', progress: 65 },
+  { id: 2, projectName: '15kW Hybrid System', customer: 'Sunil Patidar', site: 'Ujjain, MP', type: 'Hybrid', capacity: '15.00', status: 'Installation', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2026-04-12', targetDate: '2026-07-02', progress: 40 },
+  { id: 3, projectName: '10kW On-Grid System', customer: 'Kavita Joshi', site: 'Indore, MP', type: 'On-Grid', capacity: '10.00', status: 'Planning', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2026-05-15', targetDate: '2026-08-05', progress: 25 },
+  { id: 4, projectName: '5kW Off-Grid System', customer: 'Manish Gupta', site: 'Dewas, MP', type: 'Off-Grid', capacity: '5.00', status: 'On Hold', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2026-05-18', targetDate: '', progress: 0 },
+  { id: 5, projectName: '25kW On-Grid System', customer: 'Pooja Verma', site: 'Bhopal, MP', type: 'On-Grid', capacity: '25.00', status: 'Completed', manager: { name: 'Vikram Patel', initials: 'VP', tone: 'green' }, startDate: '2026-01-15', targetDate: '2026-02-15', progress: 100 },
+  { id: 6, projectName: '30kW Hybrid System', customer: 'Ramesh Yadav', site: 'Jabalpur, MP', type: 'Hybrid', capacity: '30.00', status: 'In Progress', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2026-04-20', targetDate: '2026-07-10', progress: 60 },
+  { id: 7, projectName: '12kW On-Grid System', customer: 'Anjali Mehta', site: 'Gwalior, MP', type: 'On-Grid', capacity: '12.00', status: 'Installation', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2026-05-01', targetDate: '2026-07-08', progress: 50 },
+  { id: 8, projectName: '8kW Off-Grid System', customer: 'Vijay Singh', site: 'Ratlam, MP', type: 'Off-Grid', capacity: '8.00', status: 'Planning', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2026-05-05', targetDate: '2026-08-12', progress: 20 },
+  { id: 9, projectName: '50kW On-Grid System', customer: 'Shivam Enterprises', site: 'Indore, MP', type: 'On-Grid', capacity: '50.00', status: 'In Progress', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2026-04-10', targetDate: '2026-07-25', progress: 55 },
+  { id: 10, projectName: '40kW Hybrid System', customer: 'Mera Electricals', site: 'Ujjain, MP', type: 'Hybrid', capacity: '40.00', status: 'Planning', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2026-05-20', targetDate: '2026-08-30', progress: 15 },
+  { id: 11, projectName: '8kW Off-Grid System', customer: 'Sunita Bhatt', site: 'Ratlam, MP', type: 'Off-Grid', capacity: '8.00', status: 'Site Survey', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2026-05-26', targetDate: '2026-09-05', progress: 10 },
+  { id: 12, projectName: '25kW On-Grid System', customer: 'Ramesh Patidar', site: 'Bhopal, MP', type: 'On-Grid', capacity: '25.00', status: 'Installation', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2026-04-27', targetDate: '2026-07-20', progress: 45 },
+  { id: 13, projectName: '12kW Hybrid System', customer: 'Lokesh Sharma', site: 'Gwalior, MP', type: 'Hybrid', capacity: '12.00', status: 'Design', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2026-05-28', targetDate: '2026-09-10', progress: 20 },
+  { id: 14, projectName: '30kW On-Grid System', customer: 'Anil Dubey', site: 'Indore, MP', type: 'On-Grid', capacity: '30.00', status: 'Procurement', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2026-04-29', targetDate: '2026-08-15', progress: 30 },
+  { id: 15, projectName: '5kW Hybrid System', customer: 'Priya Jain', site: 'Ujjain, MP', type: 'Hybrid', capacity: '5.00', status: 'Completed', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2026-01-20', targetDate: '2026-02-28', progress: 100 },
+  { id: 16, projectName: '15kW Off-Grid System', customer: 'Vivek Chouhan', site: 'Jabalpur, MP', type: 'Off-Grid', capacity: '15.00', status: 'Quality Check', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2026-05-01', targetDate: '2026-07-20', progress: 70 },
+  { id: 17, projectName: '20kW Hybrid System', customer: 'Asha Kulkarni', site: 'Dewas, MP', type: 'Hybrid', capacity: '20.00', status: 'Planning', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2026-06-03', targetDate: '2026-08-25', progress: 5 },
+  { id: 18, projectName: '35kW On-Grid System', customer: 'Meena Tiwari', site: 'Sagar, MP', type: 'On-Grid', capacity: '35.00', status: 'On Hold', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2026-05-30', targetDate: '', progress: 0 },
+  { id: 19, projectName: '6kW Off-Grid System', customer: 'Harish Yadav', site: 'Mandsor, MP', type: 'Off-Grid', capacity: '6.00', status: 'In Progress', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2026-06-05', targetDate: '2026-07-30', progress: 35 },
+  { id: 20, projectName: '18kW On-Grid System', customer: 'Sarita Pandey', site: 'Indore, MP', type: 'On-Grid', capacity: '18.00', status: 'Site Survey', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2026-06-06', targetDate: '2026-08-01', progress: 8 },
 ];
 
 function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState('2024-04-01');
-  const [dateTo, setDateTo] = useState('2025-03-31');
+  const [dateFrom, setDateFrom] = useState('2026-01-01');
+  const [dateTo, setDateTo] = useState('2026-12-31');
   const [query, setQuery] = useState('');
+  const [activePage, setActivePage] = useState(1);
   const deferredQuery = useDeferredValue(query);
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
   const projectRows = projectListRows;
+  const PROJECT_PAGE_SIZE = 10;
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
-
-    if (!normalizedQuery) {
-      return projectRows;
-    }
-
     return projectRows.filter((row) => {
-      const haystack = [row.projectName, row.customer, row.site, row.manager.name].join(' ').toLowerCase();
-      return haystack.includes(normalizedQuery);
+      if (normalizedQuery) {
+        const haystack = [row.projectName, row.customer, row.site, row.manager.name].join(' ').toLowerCase();
+        if (!haystack.includes(normalizedQuery)) return false;
+      }
+      if (dateFrom && row.startDate && row.startDate < dateFrom) return false;
+      if (dateTo && row.startDate && row.startDate > dateTo) return false;
+      return true;
     });
-  }, [deferredQuery, projectRows]);
+  }, [deferredQuery, projectRows, dateFrom, dateTo]);
+
+  const totalProjectPages = Math.max(1, Math.ceil(filteredRows.length / PROJECT_PAGE_SIZE));
+  const pagedProjectRows = filteredRows.slice((activePage - 1) * PROJECT_PAGE_SIZE, activePage * PROJECT_PAGE_SIZE);
+
+  useEffect(() => { setActivePage(1); }, [deferredQuery, dateFrom, dateTo]);
 
   return (
     <div className="space-y-4">
@@ -16331,9 +16604,9 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row, index) => (
+              {pagedProjectRows.map((row, index) => (
                 <tr key={row.id}>
-                  <td>{index + 1}</td>
+                  <td>{(activePage - 1) * PROJECT_PAGE_SIZE + index + 1}</td>
                   <td className="font-extrabold text-[#1e3261]">{row.projectName}</td>
                   <td>
                     <div className="space-y-1">
@@ -16361,11 +16634,11 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
         </div>
 
         <div className="space-y-3 lg:hidden">
-          {filteredRows.map((row, index) => (
+          {pagedProjectRows.map((row, index) => (
             <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[12px] font-extrabold text-[#8a98af]">#{index + 1}</p>
+                  <p className="text-[12px] font-extrabold text-[#8a98af]">#{(activePage - 1) * PROJECT_PAGE_SIZE + index + 1}</p>
                   <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.projectName}</p>
                   <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.customer} - {row.site}</p>
                 </div>
@@ -16390,17 +16663,15 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
         </div>
 
         <div className="mt-4 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[13px] font-bold text-[#53647f]">Showing 1 to {filteredRows.length} of 128 entries</p>
+          <p className="text-[13px] font-bold text-[#53647f]">Showing {filteredRows.length === 0 ? 0 : (activePage - 1) * PROJECT_PAGE_SIZE + 1} to {Math.min(activePage * PROJECT_PAGE_SIZE, filteredRows.length)} of {filteredRows.length} entries</p>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <PaginationButton onClick={() => onNotify('Project list first page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-            <PaginationButton onClick={() => onNotify('Project list previous page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-            <PaginationButton active onClick={() => onNotify('Project list page 1 selected')}>1</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Project list page 2 selected')}>2</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Project list page 3 selected')}>3</PaginationButton>
-            <span className="px-1 text-[13px] font-extrabold text-[#7a8ba7]">...</span>
-            <PaginationButton onClick={() => onNotify('Project list page 13 selected')}>13</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Project list next page selected')}><ChevronRight className="size-4" /></PaginationButton>
-            <PaginationButton onClick={() => onNotify('Project list last page selected')}><ChevronRight className="size-4" /></PaginationButton>
+            <PaginationButton onClick={() => setActivePage(1)}><ChevronLeft className="size-4" /></PaginationButton>
+            <PaginationButton onClick={() => setActivePage((p) => Math.max(1, p - 1))}><ChevronLeft className="size-4" /></PaginationButton>
+            {Array.from({ length: totalProjectPages }, (_, i) => i + 1).map((page) => (
+              <PaginationButton key={page} active={page === activePage} onClick={() => setActivePage(page)}>{page}</PaginationButton>
+            ))}
+            <PaginationButton onClick={() => setActivePage((p) => Math.min(totalProjectPages, p + 1))}><ChevronRight className="size-4" /></PaginationButton>
+            <PaginationButton onClick={() => setActivePage(totalProjectPages)}><ChevronRight className="size-4" /></PaginationButton>
           </div>
         </div>
       </article>
@@ -16465,7 +16736,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
         ['Category', 'Execution'],
         ['Owner', 'Rohit Singh'],
         ['Status', 'In Progress'],
-        ['Due Date', '26 May 2024'],
+        ['Due Date', '20 Jun 2026'],
         ['Priority', 'Medium'],
       ],
       textLabel: 'Activity Notes',
@@ -16499,7 +16770,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
         ['Role', 'Site Engineer'],
         ['Department', 'Engineering'],
         ['Access Level', 'Edit Access'],
-        ['Start Date', '26 May 2024'],
+        ['Start Date', '20 Jun 2026'],
         ['Notify Member', 'Yes'],
       ],
       textLabel: 'Assignment Note',
@@ -16516,7 +16787,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
         ['New Progress', '65%'],
         ['Milestone', 'Procurement'],
         ['Owner', 'Rohit Singh'],
-        ['Updated On', '26 May 2024'],
+        ['Updated On', '16 Jun 2026'],
         ['Notify Customer', 'No'],
       ],
       textLabel: 'Progress Remarks',
@@ -16534,7 +16805,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
         ['Category', 'Installation'],
         ['Assignee', 'Ramesh Yadav'],
         ['Priority', 'High'],
-        ['Due Date', '26 May 2024'],
+        ['Due Date', '20 Jun 2026'],
       ],
       textLabel: 'Work Instructions',
       textValue: 'Complete panel mounting, torque check and site photo upload before marking completed.',
@@ -16636,7 +16907,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
         ['Requester', 'Rohit Singh'],
         ['Approver', 'Amit Joshi'],
         ['Priority', 'High'],
-        ['Due Date', '27 May 2024'],
+        ['Due Date', '22 Jun 2026'],
       ],
       textLabel: 'Approval Reason',
       textValue: 'Installation plan approval required before site execution starts.',
@@ -16668,7 +16939,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
         ['Report Name', 'Custom Site Margin Report'],
         ['Report Category', 'Custom Reports'],
         ['Format', 'XLSX'],
-        ['Date Range', 'May 2024'],
+        ['Date Range', 'Jun 2026'],
         ['Owner', 'Neha Jain'],
         ['Schedule', 'No'],
       ],
@@ -16682,7 +16953,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       saveLabel: 'Regenerate Report',
       note: 'Generated report detail, download status aur ownership review karo.',
       fields: [
-        ['Report', 'Project Progress Report - May 2024'],
+        ['Report', 'Project Progress Report - Jun 2026'],
         ['Category', 'Project Reports'],
         ['Format', 'PDF'],
         ['Generated By', 'Rohit Singh'],
@@ -16703,7 +16974,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
         ['Frequency', 'Weekly'],
         ['Format', 'PDF'],
         ['Recipients', 'Operations Team'],
-        ['Start Date', '26 May 2024'],
+        ['Start Date', '20 Jun 2026'],
         ['Status', 'Active'],
       ],
       textLabel: 'Report Notes',
@@ -16816,17 +17087,17 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
     customer: 'Amit Sharma',
     site: 'Indore, MP',
     manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    startDate: '2024-05-10',
-    targetDate: '2024-05-30',
-    projectId: 'PRJ-2024-0001',
+    startDate: '2026-03-10',
+    targetDate: '2026-07-30',
+    projectId: 'PRJ-2026-0001',
     siteEngineer: 'Vikram Singh',
-    contractDate: '2024-05-05',
-    poNumber: 'PO-2024-115',
+    contractDate: '2026-03-05',
+    poNumber: 'PO-2026-115',
     expectedGeneration: '80 Units/Day',
-    estimatedCompletion: '2024-05-30',
+    estimatedCompletion: '2026-07-30',
     priority: 'Medium',
     systemType: 'Rooftop Solar',
-    workDaysLeft: '10 Days',
+    workDaysLeft: '44 Days',
   };
 
   const customerRows = [
@@ -16838,7 +17109,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
     { label: 'GST Number', value: '23ABCDE1234F1Z5' },
     { label: 'PAN Number', value: 'ABCDE1234F' },
     { label: 'Customer Type', valueNode: <ProjectInfoPill tone="green">Individual</ProjectInfoPill> },
-    { label: 'Registration Date', value: '05 May 2024' },
+    { label: 'Registration Date', value: '05 Mar 2026' },
   ];
 
   const siteRows = [
@@ -16863,7 +17134,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
       { label: 'Discom Approval', valueNode: <ProjectInfoPill tone="green">Approved</ProjectInfoPill> },
     ],
     [
-      { label: 'Site Survey Date', value: '02 May 2024' },
+      { label: 'Site Survey Date', value: '02 Mar 2026' },
       { label: 'Remarks', value: 'Site is suitable for installation.' },
     ],
   ];
@@ -16919,10 +17190,10 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const progressStages = [
-    { title: 'Lead & Proposal', status: 'Completed', date: '10 May 2024', icon: CheckCircle2, tone: 'green' },
-    { title: 'Site Survey', status: 'Completed', date: '12 May 2024', icon: CheckCircle2, tone: 'green' },
-    { title: 'Design & Approval', status: 'Completed', date: '15 May 2024', icon: CheckCircle2, tone: 'green' },
-    { title: 'Procurement', status: 'In Progress', date: '18 May 2024', icon: Boxes, tone: 'green' },
+    { title: 'Lead & Proposal', status: 'Completed', date: '10 Mar 2026', icon: CheckCircle2, tone: 'green' },
+    { title: 'Site Survey', status: 'Completed', date: '12 Mar 2026', icon: CheckCircle2, tone: 'green' },
+    { title: 'Design & Approval', status: 'Completed', date: '15 Mar 2026', icon: CheckCircle2, tone: 'green' },
+    { title: 'Procurement', status: 'In Progress', date: '18 Mar 2026', icon: Boxes, tone: 'green' },
     { title: 'Installation', status: 'Pending', date: '', icon: Wrench, tone: 'slate' },
     { title: 'Testing & Commissioning', status: 'Pending', date: '', icon: Settings, tone: 'slate' },
     { title: 'Handover', status: 'Pending', date: '', icon: UsersRound, tone: 'slate' },
@@ -16937,28 +17208,28 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const progressRows = [
-    { stage: 'Lead & Proposal', description: 'Lead received and proposal submitted', start: '10 May 2024', end: '10 May 2024', status: 'Completed', progress: 100, owner: 'Amit Sharma', remarks: '-' },
-    { stage: 'Site Survey', description: 'Site survey and feasibility check', start: '11 May 2024', end: '12 May 2024', status: 'Completed', progress: 100, owner: 'Suresh Patel', remarks: '-' },
-    { stage: 'Design & Approval', description: 'System designing and approval', start: '13 May 2024', end: '15 May 2024', status: 'Completed', progress: 100, owner: 'Neha Verma', remarks: '-' },
-    { stage: 'Procurement', description: 'Material procurement and delivery', start: '16 May 2024', end: '22 May 2024', status: 'In Progress', progress: 60, owner: 'Rohit Singh', remarks: 'Partial material received' },
-    { stage: 'Installation', description: 'System installation at site', start: '23 May 2024', end: '27 May 2024', status: 'Pending', progress: 0, owner: 'Installation Team', remarks: '-' },
-    { stage: 'Testing & Commissioning', description: 'System testing and commissioning', start: '28 May 2024', end: '29 May 2024', status: 'Pending', progress: 0, owner: 'Technical Team', remarks: '-' },
-    { stage: 'Handover', description: 'Project handover to customer', start: '30 May 2024', end: '30 May 2024', status: 'Pending', progress: 0, owner: 'Rohit Singh', remarks: '-' },
+    { stage: 'Lead & Proposal', description: 'Lead received and proposal submitted', start: '10 Mar 2026', end: '10 Mar 2026', status: 'Completed', progress: 100, owner: 'Amit Sharma', remarks: '-' },
+    { stage: 'Site Survey', description: 'Site survey and feasibility check', start: '11 Mar 2026', end: '12 Mar 2026', status: 'Completed', progress: 100, owner: 'Suresh Patel', remarks: '-' },
+    { stage: 'Design & Approval', description: 'System designing and approval', start: '13 Mar 2026', end: '15 Mar 2026', status: 'Completed', progress: 100, owner: 'Neha Verma', remarks: '-' },
+    { stage: 'Procurement', description: 'Material procurement and delivery', start: '16 Mar 2026', end: '30 Apr 2026', status: 'In Progress', progress: 60, owner: 'Rohit Singh', remarks: 'Partial material received' },
+    { stage: 'Installation', description: 'System installation at site', start: '01 May 2026', end: '15 Jun 2026', status: 'Pending', progress: 0, owner: 'Installation Team', remarks: '-' },
+    { stage: 'Testing & Commissioning', description: 'System testing and commissioning', start: '16 Jun 2026', end: '30 Jun 2026', status: 'Pending', progress: 0, owner: 'Technical Team', remarks: '-' },
+    { stage: 'Handover', description: 'Project handover to customer', start: '30 Jul 2026', end: '30 Jul 2026', status: 'Pending', progress: 0, owner: 'Rohit Singh', remarks: '-' },
   ];
 
   const financialStats = [
     { label: 'Total Project Value', value: 'Rs 8,50,000.00', note: 'Incl. of all taxes', icon: IndianRupee, tone: 'green' },
     { label: 'Total Received', value: 'Rs 3,40,000.00', note: '40.00% of total', icon: ReceiptText, tone: 'blue' },
     { label: 'Total Due', value: 'Rs 5,10,000.00', note: '60.00% of total', icon: Hourglass, tone: 'amber' },
-    { label: 'Overdue Amount', value: 'Rs 1,20,000.00', note: 'As on 25 May 2026', icon: CalendarDays, tone: 'purple', alert: true },
+    { label: 'Overdue Amount', value: 'Rs 1,20,000.00', note: 'As on 16 Jun 2026', icon: CalendarDays, tone: 'purple', alert: true },
   ];
 
   const paymentRows = [
-    { milestone: 'Booking Advance', invoice: 'INV-2024-0001', invoiceDate: '10 May 2024', dueDate: '10 May 2024', amount: '85,000.00', received: '85,000.00', status: 'Paid' },
-    { milestone: 'Material Procurement', invoice: 'INV-2024-0002', invoiceDate: '25 May 2024', dueDate: '25 May 2024', amount: '2,12,500.00', received: '2,12,500.00', status: 'Paid' },
-    { milestone: 'Installation & Commissioning', invoice: 'INV-2024-0003', invoiceDate: '20 Jun 2024', dueDate: '20 Jun 2024', amount: '2,12,500.00', received: '1,42,500.00', status: 'Partially Paid' },
-    { milestone: 'Net Metering & Handover', invoice: 'INV-2024-0004', invoiceDate: '10 Jul 2024', dueDate: '10 Jul 2024', amount: '1,70,000.00', received: '0.00', status: 'Pending' },
-    { milestone: 'Final Payment', invoice: 'INV-2024-0005', invoiceDate: '10 Jul 2024', dueDate: '10 Jul 2024', amount: '70,000.00', received: '0.00', status: 'Pending' },
+    { milestone: 'Booking Advance', invoice: 'INV-2026-0001', invoiceDate: '10 Mar 2026', dueDate: '10 Mar 2026', amount: '85,000.00', received: '85,000.00', status: 'Paid' },
+    { milestone: 'Material Procurement', invoice: 'INV-2026-0002', invoiceDate: '25 Apr 2026', dueDate: '25 Apr 2026', amount: '2,12,500.00', received: '2,12,500.00', status: 'Paid' },
+    { milestone: 'Installation & Commissioning', invoice: 'INV-2026-0003', invoiceDate: '20 May 2026', dueDate: '20 May 2026', amount: '2,12,500.00', received: '1,42,500.00', status: 'Partially Paid' },
+    { milestone: 'Net Metering & Handover', invoice: 'INV-2026-0004', invoiceDate: '10 Jul 2026', dueDate: '10 Jul 2026', amount: '1,70,000.00', received: '0.00', status: 'Pending' },
+    { milestone: 'Final Payment', invoice: 'INV-2026-0005', invoiceDate: '30 Jul 2026', dueDate: '30 Jul 2026', amount: '70,000.00', received: '0.00', status: 'Pending' },
   ];
 
   const invoiceRows = paymentRows.map(({ invoice, invoiceDate, amount, status }) => ({
@@ -17031,16 +17302,16 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const documentRows = [
-    { name: 'Project Proposal.pdf', category: 'Project Proposals', uploadedBy: 'Rohit Singh', uploadedOn: '10 May 2024, 11:25 AM', status: 'Approved', size: '1.24 MB' },
-    { name: 'Customer Agreement.pdf', category: 'Agreements & Contracts', uploadedBy: 'Rohit Singh', uploadedOn: '10 May 2024, 11:40 AM', status: 'Approved', size: '2.18 MB' },
-    { name: 'Site Ownership Proof.pdf', category: 'Approvals & Permits', uploadedBy: 'Amit Sharma', uploadedOn: '12 May 2024, 09:15 AM', status: 'Pending Review', size: '1.05 MB' },
-    { name: 'Electricity Connection Approval.pdf', category: 'Approvals & Permits', uploadedBy: 'Neha Patel', uploadedOn: '12 May 2024, 09:45 AM', status: 'Approved', size: '1.78 MB' },
-    { name: 'Technical Specification.pdf', category: 'Technical Documents', uploadedBy: 'Amit Sharma', uploadedOn: '13 May 2024, 02:30 PM', status: 'Approved', size: '3.32 MB' },
-    { name: 'Single Line Diagram.pdf', category: 'Design & Drawings', uploadedBy: 'Vikas Kumar', uploadedOn: '14 May 2024, 10:20 AM', status: 'Pending Review', size: '1.66 MB' },
-    { name: 'Foundation Drawings.pdf', category: 'Design & Drawings', uploadedBy: 'Vikas Kumar', uploadedOn: '14 May 2024, 10:35 AM', status: 'Approved', size: '2.54 MB' },
-    { name: 'Installation Plan.pdf', category: 'Installation Documents', uploadedBy: 'Mohit Jain', uploadedOn: '15 May 2024, 03:10 PM', status: 'Rejected', size: '1.12 MB' },
-    { name: 'Material List.pdf', category: 'Installation Documents', uploadedBy: 'Sunil Kumar', uploadedOn: '15 May 2024, 04:00 PM', status: 'Approved', size: '2.01 MB' },
-    { name: 'Payment Schedule.pdf', category: 'Financial Documents', uploadedBy: 'Priya Sharma', uploadedOn: '16 May 2024, 11:00 AM', status: 'Pending Review', size: '0.98 MB' },
+    { name: 'Project Proposal.pdf', category: 'Project Proposals', uploadedBy: 'Rohit Singh', uploadedOn: '10 Mar 2026, 11:25 AM', status: 'Approved', size: '1.24 MB' },
+    { name: 'Customer Agreement.pdf', category: 'Agreements & Contracts', uploadedBy: 'Rohit Singh', uploadedOn: '10 Mar 2026, 11:40 AM', status: 'Approved', size: '2.18 MB' },
+    { name: 'Site Ownership Proof.pdf', category: 'Approvals & Permits', uploadedBy: 'Amit Sharma', uploadedOn: '12 Mar 2026, 09:15 AM', status: 'Pending Review', size: '1.05 MB' },
+    { name: 'Electricity Connection Approval.pdf', category: 'Approvals & Permits', uploadedBy: 'Neha Patel', uploadedOn: '12 Mar 2026, 09:45 AM', status: 'Approved', size: '1.78 MB' },
+    { name: 'Technical Specification.pdf', category: 'Technical Documents', uploadedBy: 'Amit Sharma', uploadedOn: '13 Mar 2026, 02:30 PM', status: 'Approved', size: '3.32 MB' },
+    { name: 'Single Line Diagram.pdf', category: 'Design & Drawings', uploadedBy: 'Vikas Kumar', uploadedOn: '20 Mar 2026, 10:20 AM', status: 'Pending Review', size: '1.66 MB' },
+    { name: 'Foundation Drawings.pdf', category: 'Design & Drawings', uploadedBy: 'Vikas Kumar', uploadedOn: '20 Mar 2026, 10:35 AM', status: 'Approved', size: '2.54 MB' },
+    { name: 'Installation Plan.pdf', category: 'Installation Documents', uploadedBy: 'Mohit Jain', uploadedOn: '25 Mar 2026, 03:10 PM', status: 'Rejected', size: '1.12 MB' },
+    { name: 'Material List.pdf', category: 'Installation Documents', uploadedBy: 'Sunil Kumar', uploadedOn: '25 Mar 2026, 04:00 PM', status: 'Approved', size: '2.01 MB' },
+    { name: 'Payment Schedule.pdf', category: 'Financial Documents', uploadedBy: 'Priya Sharma', uploadedOn: '01 Apr 2026, 11:00 AM', status: 'Pending Review', size: '0.98 MB' },
   ];
 
   const noteCategories = [
@@ -17058,22 +17329,22 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const noteRows = [
-    { title: 'Client meeting notes', category: 'Meeting', createdBy: 'Rohit Singh', createdOn: '10 May 2024, 11:30 AM', updatedOn: '10 May 2024, 11:30 AM', priority: 'High', pinned: true },
-    { title: 'Site survey observations', category: 'Site Survey', createdBy: 'Amit Sharma', createdOn: '09 May 2024, 04:15 PM', updatedOn: '09 May 2024, 04:15 PM', priority: 'Medium' },
-    { title: 'Load analysis summary', category: 'Planning', createdBy: 'Neha Patel', createdOn: '09 May 2024, 12:20 PM', updatedOn: '09 May 2024, 12:20 PM', priority: 'High' },
-    { title: 'Inverter selection notes', category: 'Equipment', createdBy: 'Vikas Kumar', createdOn: '11 May 2024, 10:05 AM', updatedOn: '11 May 2024, 10:05 AM', priority: 'Medium' },
-    { title: 'Structure design remarks', category: 'Design', createdBy: 'Amit Sharma', createdOn: '12 May 2024, 02:40 PM', updatedOn: '12 May 2024, 02:40 PM', priority: 'Medium', pinned: true },
-    { title: 'Material procurement plan', category: 'Procurement', createdBy: 'Mohit Jain', createdOn: '13 May 2024, 09:30 AM', updatedOn: '13 May 2024, 09:30 AM', priority: 'High' },
-    { title: 'Electrical wiring notes', category: 'Installation', createdBy: 'Sunil Kumar', createdOn: '14 May 2024, 03:25 PM', updatedOn: '14 May 2024, 03:25 PM', priority: 'Low' },
-    { title: 'Safety guidelines', category: 'Safety', createdBy: 'Rohit Singh', createdOn: '15 May 2024, 11:10 AM', updatedOn: '15 May 2024, 11:10 AM', priority: 'Medium' },
-    { title: 'Client feedback', category: 'Feedback', createdBy: 'Priya Sharma', createdOn: '16 May 2024, 05:45 PM', updatedOn: '16 May 2024, 05:45 PM', priority: 'High' },
-    { title: 'Next steps & action items', category: 'General', createdBy: 'Rohit Singh', createdOn: '17 May 2024, 10:00 AM', updatedOn: '17 May 2024, 10:00 AM', priority: 'Medium', pinned: true },
+    { title: 'Client meeting notes', category: 'Meeting', createdBy: 'Rohit Singh', createdOn: '10 Mar 2026, 11:30 AM', updatedOn: '10 Mar 2026, 11:30 AM', priority: 'High', pinned: true },
+    { title: 'Site survey observations', category: 'Site Survey', createdBy: 'Amit Sharma', createdOn: '12 Mar 2026, 04:15 PM', updatedOn: '12 Mar 2026, 04:15 PM', priority: 'Medium' },
+    { title: 'Load analysis summary', category: 'Planning', createdBy: 'Neha Patel', createdOn: '12 Mar 2026, 12:20 PM', updatedOn: '12 Mar 2026, 12:20 PM', priority: 'High' },
+    { title: 'Inverter selection notes', category: 'Equipment', createdBy: 'Vikas Kumar', createdOn: '15 Mar 2026, 10:05 AM', updatedOn: '15 Mar 2026, 10:05 AM', priority: 'Medium' },
+    { title: 'Structure design remarks', category: 'Design', createdBy: 'Amit Sharma', createdOn: '18 Mar 2026, 02:40 PM', updatedOn: '18 Mar 2026, 02:40 PM', priority: 'Medium', pinned: true },
+    { title: 'Material procurement plan', category: 'Procurement', createdBy: 'Mohit Jain', createdOn: '20 Mar 2026, 09:30 AM', updatedOn: '20 Mar 2026, 09:30 AM', priority: 'High' },
+    { title: 'Electrical wiring notes', category: 'Installation', createdBy: 'Sunil Kumar', createdOn: '01 Apr 2026, 03:25 PM', updatedOn: '01 Apr 2026, 03:25 PM', priority: 'Low' },
+    { title: 'Safety guidelines', category: 'Safety', createdBy: 'Rohit Singh', createdOn: '05 Apr 2026, 11:10 AM', updatedOn: '05 Apr 2026, 11:10 AM', priority: 'Medium' },
+    { title: 'Client feedback', category: 'Feedback', createdBy: 'Priya Sharma', createdOn: '10 Apr 2026, 05:45 PM', updatedOn: '10 Apr 2026, 05:45 PM', priority: 'High' },
+    { title: 'Next steps & action items', category: 'General', createdBy: 'Rohit Singh', createdOn: '15 Apr 2026, 10:00 AM', updatedOn: '15 Apr 2026, 10:00 AM', priority: 'Medium', pinned: true },
   ];
 
   const pinnedNotes = [
-    { title: 'Client meeting notes', date: '10 May 2024', category: 'Meeting' },
-    { title: 'Structure design remarks', date: '12 May 2024', category: 'Design' },
-    { title: 'Next steps & action items', date: '17 May 2024', category: 'General' },
+    { title: 'Client meeting notes', date: '10 Mar 2026', category: 'Meeting' },
+    { title: 'Structure design remarks', date: '18 Mar 2026', category: 'Design' },
+    { title: 'Next steps & action items', date: '15 Apr 2026', category: 'General' },
   ];
 
   const activityStats = [
@@ -17085,16 +17356,16 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const activityRows = [
-    { name: 'Site Survey', category: 'Site Survey', assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'purple' }, start: '08 May 2024', due: '10 May 2024', status: 'Completed', priority: 'High', progress: 100 },
-    { name: 'Load Analysis', category: 'Planning', assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, start: '09 May 2024', due: '11 May 2024', status: 'Completed', priority: 'High', progress: 100 },
-    { name: 'System Design', category: 'Design', assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'blue' }, start: '10 May 2024', due: '13 May 2024', status: 'Completed', priority: 'High', progress: 100 },
-    { name: 'Client Approval', category: 'Approvals', assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'green' }, start: '13 May 2024', due: '15 May 2024', status: 'Completed', priority: 'Medium', progress: 100 },
-    { name: 'Material Procurement', category: 'Procurement', assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, start: '14 May 2024', due: '20 May 2024', status: 'In Progress', priority: 'High', progress: 60 },
-    { name: 'Structure Installation', category: 'Installation', assignee: { name: 'Mohit Jain', initials: 'MJ', tone: 'orange' }, start: '18 May 2024', due: '22 May 2024', status: 'In Progress', priority: 'High', progress: 40 },
-    { name: 'Module Installation', category: 'Installation', assignee: { name: 'Sunil Kumar', initials: 'SK', tone: 'red' }, start: '21 May 2024', due: '25 May 2024', status: 'In Progress', priority: 'High', progress: 30 },
-    { name: 'Inverter Installation', category: 'Installation', assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, start: '24 May 2024', due: '27 May 2024', status: 'Pending', priority: 'Medium', progress: 0 },
-    { name: 'Electrical Wiring', category: 'Installation', assignee: { name: 'Sunil Kumar', initials: 'SK', tone: 'red' }, start: '26 May 2024', due: '29 May 2024', status: 'Pending', priority: 'Medium', progress: 0 },
-    { name: 'System Testing', category: 'Commissioning', assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, start: '30 May 2024', due: '31 May 2024', status: 'Pending', priority: 'High', progress: 0 },
+    { name: 'Site Survey', category: 'Site Survey', assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'purple' }, start: '08 Mar 2026', due: '10 Mar 2026', status: 'Completed', priority: 'High', progress: 100 },
+    { name: 'Load Analysis', category: 'Planning', assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, start: '09 Mar 2026', due: '11 Mar 2026', status: 'Completed', priority: 'High', progress: 100 },
+    { name: 'System Design', category: 'Design', assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'blue' }, start: '10 Mar 2026', due: '13 Mar 2026', status: 'Completed', priority: 'High', progress: 100 },
+    { name: 'Client Approval', category: 'Approvals', assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'green' }, start: '13 Mar 2026', due: '15 Mar 2026', status: 'Completed', priority: 'Medium', progress: 100 },
+    { name: 'Material Procurement', category: 'Procurement', assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, start: '16 Mar 2026', due: '30 Apr 2026', status: 'In Progress', priority: 'High', progress: 60 },
+    { name: 'Structure Installation', category: 'Installation', assignee: { name: 'Mohit Jain', initials: 'MJ', tone: 'orange' }, start: '01 May 2026', due: '20 May 2026', status: 'In Progress', priority: 'High', progress: 40 },
+    { name: 'Module Installation', category: 'Installation', assignee: { name: 'Sunil Kumar', initials: 'SK', tone: 'red' }, start: '15 May 2026', due: '10 Jun 2026', status: 'In Progress', priority: 'High', progress: 30 },
+    { name: 'Inverter Installation', category: 'Installation', assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, start: '20 Jun 2026', due: '30 Jun 2026', status: 'Pending', priority: 'Medium', progress: 0 },
+    { name: 'Electrical Wiring', category: 'Installation', assignee: { name: 'Sunil Kumar', initials: 'SK', tone: 'red' }, start: '01 Jul 2026', due: '15 Jul 2026', status: 'Pending', priority: 'Medium', progress: 0 },
+    { name: 'System Testing', category: 'Commissioning', assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, start: '16 Jul 2026', due: '25 Jul 2026', status: 'Pending', priority: 'High', progress: 0 },
   ];
 
   const activitySummary = [
@@ -17105,9 +17376,9 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const upcomingActivities = [
-    { title: 'Material Procurement', due: 'Due on 20 May 2024', status: 'In Progress' },
-    { title: 'Structure Installation', due: 'Due on 22 May 2024', status: 'In Progress' },
-    { title: 'Module Installation', due: 'Due on 25 May 2024', status: 'In Progress' },
+    { title: 'Material Procurement', due: 'Due on 30 Apr 2026', status: 'In Progress' },
+    { title: 'Structure Installation', due: 'Due on 20 May 2026', status: 'In Progress' },
+    { title: 'Module Installation', due: 'Due on 10 Jun 2026', status: 'In Progress' },
   ];
 
   const calendarDays = [
@@ -17157,15 +17428,15 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const activities = [
-    { title: 'Site survey completed', user: 'Vikram Singh', date: '12 May 2024 10:30 AM', icon: CheckCircle2, tone: 'green' },
-    { title: 'System design approved', user: 'Rohit Singh', date: '11 May 2024 04:15 PM', icon: FileText, tone: 'blue' },
-    { title: 'Materials ordered', user: 'Pooja Verma', date: '10 May 2024 02:20 PM', icon: Boxes, tone: 'amber' },
+    { title: 'Site survey completed', user: 'Vikram Singh', date: '12 Mar 2026 10:30 AM', icon: CheckCircle2, tone: 'green' },
+    { title: 'System design approved', user: 'Rohit Singh', date: '15 Mar 2026 04:15 PM', icon: FileText, tone: 'blue' },
+    { title: 'Materials ordered', user: 'Pooja Verma', date: '16 Mar 2026 02:20 PM', icon: Boxes, tone: 'amber' },
   ];
 
   const documents = [
-    { name: 'Project Proposal.pdf', note: 'Added by Rohit Singh on 05 May 2024', size: '2.4 MB', tone: 'red' },
-    { name: 'Technical Design.pdf', note: 'Added by Neha Jain on 07 May 2024', size: '3.1 MB', tone: 'red' },
-    { name: 'Cost Estimate.xlsx', note: 'Added by Pooja Verma on 08 May 2024', size: '1.8 MB', tone: 'green' },
+    { name: 'Project Proposal.pdf', note: 'Added by Rohit Singh on 10 Mar 2026', size: '2.4 MB', tone: 'red' },
+    { name: 'Technical Design.pdf', note: 'Added by Neha Jain on 13 Mar 2026', size: '3.1 MB', tone: 'red' },
+    { name: 'Cost Estimate.xlsx', note: 'Added by Pooja Verma on 15 Mar 2026', size: '1.8 MB', tone: 'green' },
   ];
 
   const teamMembers = [
@@ -22078,28 +22349,26 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const orders = [
-    { id: 'WO-2024-0001', task: 'Material Delivery', category: 'Procurement', assignee: { name: 'Deepak Sharma', initials: 'DS', tone: 'slate' }, priority: 'Medium', status: 'Completed', startDate: '18 May 2024', dueDate: '18 May 2024', progress: 100 },
-    { id: 'WO-2024-0002', task: 'Mounting Structure Installation', category: 'Installation', assignee: { name: 'Ramesh Yadav', initials: 'RY', tone: 'cyan' }, priority: 'High', status: 'Completed', startDate: '19 May 2024', dueDate: '21 May 2024', progress: 100 },
-    { id: 'WO-2024-0003', task: 'Panel Installation', category: 'Installation', assignee: { name: 'Ramesh Yadav', initials: 'RY', tone: 'cyan' }, priority: 'High', status: 'In Progress', startDate: '22 May 2024', dueDate: '24 May 2024', progress: 70 },
-    { id: 'WO-2024-0004', task: 'DC Wiring', category: 'Electrical', assignee: { name: 'Amit Joshi', initials: 'AJ', tone: 'blue' }, priority: 'High', status: 'In Progress', startDate: '23 May 2024', dueDate: '25 May 2024', progress: 60 },
-    { id: 'WO-2024-0005', task: 'Inverter Installation', category: 'Electrical', assignee: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, priority: 'Medium', status: 'Completed', startDate: '25 May 2024', dueDate: '25 May 2024', progress: 100 },
-    { id: 'WO-2024-0006', task: 'ACDB & AC Wiring', category: 'Electrical', assignee: { name: 'Amit Joshi', initials: 'AJ', tone: 'blue' }, priority: 'Medium', status: 'Pending', startDate: '26 May 2024', dueDate: '27 May 2024', progress: 0 },
-    { id: 'WO-2024-0007', task: 'Earthing & Bonding', category: 'Electrical', assignee: { name: 'Sunil Patidar', initials: 'SP', tone: 'amber' }, priority: 'Medium', status: 'Pending', startDate: '26 May 2024', dueDate: '27 May 2024', progress: 0 },
-    { id: 'WO-2024-0008', task: 'System Testing', category: 'QA & Testing', assignee: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, priority: 'High', status: 'Pending', startDate: '27 May 2024', dueDate: '28 May 2024', progress: 0 },
-    { id: 'WO-2024-0009', task: 'Cleaning & Site Handover', category: 'Handover', assignee: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, priority: 'Low', status: 'Pending', startDate: '28 May 2024', dueDate: '28 May 2024', progress: 0 },
-    { id: 'WO-2024-0010', task: 'Documentation & Handover', category: 'Handover', assignee: { name: 'Manish Gupta', initials: 'MG', tone: 'violet' }, priority: 'Low', status: 'Overdue', startDate: '24 May 2024', dueDate: '24 May 2024', progress: 0 },
+    { id: 'WO-2026-0001', task: 'Material Delivery', category: 'Procurement', assignee: { name: 'Deepak Sharma', initials: 'DS', tone: 'slate' }, priority: 'Medium', status: 'Completed', startDate: '16 Mar 2026', dueDate: '18 Mar 2026', progress: 100 },
+    { id: 'WO-2026-0002', task: 'Mounting Structure Installation', category: 'Installation', assignee: { name: 'Ramesh Yadav', initials: 'RY', tone: 'cyan' }, priority: 'High', status: 'Completed', startDate: '01 May 2026', dueDate: '10 May 2026', progress: 100 },
+    { id: 'WO-2026-0003', task: 'Panel Installation', category: 'Installation', assignee: { name: 'Ramesh Yadav', initials: 'RY', tone: 'cyan' }, priority: 'High', status: 'In Progress', startDate: '15 May 2026', dueDate: '05 Jun 2026', progress: 70 },
+    { id: 'WO-2026-0004', task: 'DC Wiring', category: 'Electrical', assignee: { name: 'Amit Joshi', initials: 'AJ', tone: 'blue' }, priority: 'High', status: 'In Progress', startDate: '20 May 2026', dueDate: '10 Jun 2026', progress: 60 },
+    { id: 'WO-2026-0005', task: 'Inverter Installation', category: 'Electrical', assignee: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, priority: 'Medium', status: 'Completed', startDate: '01 Apr 2026', dueDate: '05 Apr 2026', progress: 100 },
+    { id: 'WO-2026-0006', task: 'ACDB & AC Wiring', category: 'Electrical', assignee: { name: 'Amit Joshi', initials: 'AJ', tone: 'blue' }, priority: 'Medium', status: 'Pending', startDate: '20 Jun 2026', dueDate: '30 Jun 2026', progress: 0 },
+    { id: 'WO-2026-0007', task: 'Earthing & Bonding', category: 'Electrical', assignee: { name: 'Sunil Patidar', initials: 'SP', tone: 'amber' }, priority: 'Medium', status: 'Pending', startDate: '20 Jun 2026', dueDate: '30 Jun 2026', progress: 0 },
+    { id: 'WO-2026-0008', task: 'System Testing', category: 'QA & Testing', assignee: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, priority: 'High', status: 'Pending', startDate: '01 Jul 2026', dueDate: '15 Jul 2026', progress: 0 },
+    { id: 'WO-2026-0009', task: 'Cleaning & Site Handover', category: 'Handover', assignee: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, priority: 'Low', status: 'Pending', startDate: '25 Jul 2026', dueDate: '28 Jul 2026', progress: 0 },
+    { id: 'WO-2026-0010', task: 'Documentation & Handover', category: 'Handover', assignee: { name: 'Manish Gupta', initials: 'MG', tone: 'violet' }, priority: 'Low', status: 'Overdue', startDate: '05 Jun 2026', dueDate: '10 Jun 2026', progress: 0 },
   ];
 
   const filteredOrders = orders.filter((order) => {
-    if (activeOrderTab === 'Pending Approval') return order.status === 'Pending';
-    if (activeOrderTab === 'Overdue') return order.status === 'Overdue';
-    if (!searchTerm.trim()) return true;
-    const haystack = `${order.id} ${order.task} ${order.category} ${order.assignee.name}`.toLowerCase();
-    return haystack.includes(searchTerm.toLowerCase());
-  }).filter((order) => {
-    if (!searchTerm.trim()) return true;
-    const haystack = `${order.id} ${order.task} ${order.category} ${order.assignee.name}`.toLowerCase();
-    return haystack.includes(searchTerm.toLowerCase());
+    if (activeOrderTab === 'Pending Approval') { if (order.status !== 'Pending') return false; }
+    else if (activeOrderTab === 'Overdue') { if (order.status !== 'Overdue') return false; }
+    if (searchTerm.trim()) {
+      const haystack = `${order.id} ${order.task} ${order.category} ${order.assignee.name}`.toLowerCase();
+      if (!haystack.includes(searchTerm.toLowerCase())) return false;
+    }
+    return true;
   });
 
   const statusData = [
@@ -22114,9 +22383,9 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const recentActivity = [
-    { title: 'Work Order WO-2024-0002 marked as Completed', actor: 'Ramesh Yadav', time: '20 May 2024, 11:30 AM', tone: 'green' },
-    { title: 'Work Order WO-2024-0003 status changed to In Progress', actor: 'Ramesh Yadav', time: '20 May 2024, 10:15 AM', tone: 'blue' },
-    { title: 'Work Order WO-2024-0001 marked as Completed', actor: 'Deepak Sharma', time: '19 May 2024, 05:45 PM', tone: 'green' },
+    { title: 'Work Order WO-2026-0002 marked as Completed', actor: 'Ramesh Yadav', time: '10 May 2026, 11:30 AM', tone: 'green' },
+    { title: 'Work Order WO-2026-0003 status changed to In Progress', actor: 'Ramesh Yadav', time: '15 May 2026, 10:15 AM', tone: 'blue' },
+    { title: 'Work Order WO-2026-0001 marked as Completed', actor: 'Deepak Sharma', time: '18 Mar 2026, 05:45 PM', tone: 'green' },
   ];
 
   const openOrderStat = (label) => {
@@ -24444,7 +24713,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       <PageHeading
         title="Users List"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
           { label: 'User & Access Management', onClick: () => onNotify('User & Access Management opened') },
           { label: 'Users' },
@@ -24679,7 +24948,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
       <PageHeading
         title="Roles & Permissions"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
           { label: 'User & Access Management', onClick: () => onNotify('User & Access Management opened') },
           { label: 'Roles & Permissions' },
@@ -24880,7 +25149,7 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
       <PageHeading
         title="User Activity Logs"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
           { label: 'User & Access Management', onClick: () => onNotify('User & Access Management opened') },
           { label: 'User Activity Logs' },
@@ -25015,7 +25284,7 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
       <PageHeading
         title="IP Restriction / Security Settings"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
           { label: 'User & Access Management', onClick: () => onNotify('User & Access Management opened') },
           { label: 'IP Restrictions' },
@@ -25228,7 +25497,7 @@ function SettingsCategoryPlaceholderPage({ activeSection, onOpenSection, onNotif
       <PageHeading
         title={title}
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
           { label: title },
         ]}
@@ -25337,7 +25606,7 @@ function UserManagementPage({ onNotify }) {
       <PageHeading
         title="User Management"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
           { label: 'User Management' },
         ]}
@@ -25515,7 +25784,7 @@ function UserDetailsPage({ user, onBack, onUpdateUser, onNotify }) {
       <PageHeading
         title="User Details"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Employee Management', onClick: () => onNotify('Employee Management breadcrumb selected') },
           { label: 'Users', onClick: onBack },
           { label: user.name },
@@ -25861,7 +26130,7 @@ function RolesPermissionsPage({ onNotify }) {
       <PageHeading
         title="Roles & Permissions"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
           { label: 'Roles & Permissions' },
         ]}
@@ -26036,7 +26305,7 @@ function ActivityLogsPage({ onNotify }) {
       <PageHeading
         title="Activity Logs"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
           { label: 'Activity Logs' },
         ]}
@@ -26368,6 +26637,18 @@ function ReportsPage({ onNotify }) {
   const [trendView, setTrendView] = useState('Daily');
   const [selectedStatus, setSelectedStatus] = useState('New');
   const [filtersApplied, setFiltersApplied] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  useEffect(() => {
+    setAnalyticsLoading(true);
+    const params = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    analyticsApi.leads(params).then((data) => {
+      if (data) setAnalyticsData(data);
+    }).catch(() => {}).finally(() => setAnalyticsLoading(false));
+  }, [dateFrom, dateTo, filtersApplied]);
 
   const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
 
@@ -26395,7 +26676,7 @@ function ReportsPage({ onNotify }) {
       <PageHeading
         title="Reports & Analytics"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onNotify('Dashboard breadcrumb selected') },
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Reports & Analytics' },
         ]}
         actions={(
@@ -26476,36 +26757,12 @@ function ReportsPage({ onNotify }) {
               className="sm:w-[120px]"
             />
           </div>
-          <ReportLineChart series={reportTrendSeries} view={trendView} onLegendClick={onNotify} />
+          <ReportLineChart data={analyticsData?.monthly_trend ?? []} loading={analyticsLoading} />
         </article>
 
         <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
           <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Leads by Status</h2>
-          <div className="mt-5 grid gap-5 md:grid-cols-[220px_minmax(0,1fr)] md:items-center xl:grid-cols-1 2xl:grid-cols-[220px_minmax(0,1fr)]">
-            <ReportDonut selectedStatus={selectedStatus} />
-            <div className="grid gap-2">
-              {reportStatusData.map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => {
-                    setSelectedStatus(item.label);
-                    onNotify(`${item.label} status segment selected`);
-                  }}
-                  className={cx(
-                    'flex items-center justify-between rounded-[9px] px-3 py-2 text-left text-[13px] font-bold transition hover:bg-[#f8fbff]',
-                    selectedStatus === item.label && 'bg-[#f5f9ff] ring-1 ring-[#dbe8ff]',
-                  )}
-                >
-                  <span className="inline-flex items-center gap-2 text-[#1e3261]">
-                    <span className="size-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                    {item.label}
-                  </span>
-                  <span className="text-[#314a79]">{item.value} ({item.percent})</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <ReportDonut data={analyticsData?.status_distribution ?? []} loading={analyticsLoading} />
         </article>
       </section>
 
@@ -26513,10 +26770,10 @@ function ReportsPage({ onNotify }) {
         <ReportTableCard
           title="Leads by Project Type"
           headers={['Project Type', 'Total Leads', 'Won Leads', 'Conversion Rate']}
-          rows={projectTypeReportRows}
+          rows={analyticsData?.project_type_stats?.map(p => [p.type || 'Unknown', p.total, p.won, `${p.conversion}%`]) ?? projectTypeReportRows}
           onRowClick={(row) => onNotify(`${row[0]} project report opened`)}
         />
-        <ReportEmployeeCard onNotify={onNotify} />
+        <ReportEmployeeCard data={analyticsData?.employee_stats ?? []} loading={analyticsLoading} onNotify={onNotify} />
         <ReportIvrsSummary onNotify={onNotify} />
       </section>
 
@@ -26628,95 +26885,116 @@ function ReportKpiCard({ kpi, onClick }) {
   );
 }
 
-function ReportLineChart({ series, view, onLegendClick }) {
-  const width = 680;
-  const height = 250;
-  const padding = { left: 38, right: 18, top: 26, bottom: 42 };
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
-  const maxValue = 40;
-  const labels = view === 'Daily'
-    ? ['01 May', '04 May', '07 May', '10 May', '13 May', '16 May', '19 May', '20 May']
-    : view === 'Weekly'
-      ? ['Week 1', 'Week 2', 'Week 3', 'Week 4']
-      : ['Jan', 'Feb', 'Mar', 'Apr', 'May'];
+function ReportLineChart({ data, loading }) {
+  if (loading) {
+    return <div className="flex h-[280px] items-center justify-center text-[13px] font-bold text-[#8a98af]">Loading chart...</div>;
+  }
+  if (!data || data.length === 0) {
+    return <div className="flex h-[280px] items-center justify-center text-[13px] font-bold text-[#8a98af]">No data available</div>;
+  }
+  return (
+    <div className="mt-4 h-[280px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+          <defs>
+            <linearGradient id="colorNew" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#1f7ff0" stopOpacity={0.15} />
+              <stop offset="95%" stopColor="#1f7ff0" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorWon" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#36a269" stopOpacity={0.15} />
+              <stop offset="95%" stopColor="#36a269" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorFollowUp" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#6b55e9" stopOpacity={0.15} />
+              <stop offset="95%" stopColor="#6b55e9" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#edf2f8" />
+          <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 700, fill: '#53647f' }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 11, fontWeight: 700, fill: '#53647f' }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={{ borderRadius: '10px', border: '1px solid #dbe5f2', fontSize: '12px', fontWeight: 700 }} />
+          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', fontWeight: 700, paddingTop: '12px' }} />
+          <Area type="monotone" dataKey="new" name="New Leads" stroke="#1f7ff0" strokeWidth={2.5} fill="url(#colorNew)" dot={{ r: 3, fill: '#1f7ff0' }} />
+          <Area type="monotone" dataKey="follow_up" name="Follow-ups" stroke="#6b55e9" strokeWidth={2.5} fill="url(#colorFollowUp)" dot={{ r: 3, fill: '#6b55e9' }} />
+          <Area type="monotone" dataKey="won" name="Won Leads" stroke="#36a269" strokeWidth={2.5} fill="url(#colorWon)" dot={{ r: 3, fill: '#36a269' }} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+const STATUS_COLORS = {
+  'New': '#1f7ff0',
+  'Follow-up': '#36a269',
+  'Quotation': '#f8c64d',
+  'Won': '#6b55e9',
+  'Lost': '#e44d4d',
+};
+
+function ReportDonut({ data, loading }) {
+  if (loading) {
+    return <div className="flex h-[220px] items-center justify-center text-[13px] font-bold text-[#8a98af]">Loading...</div>;
+  }
+  const chartData = (data || []).map(d => ({
+    name: d.status,
+    value: d.count,
+    color: STATUS_COLORS[d.status] || '#94a3b8',
+  }));
+  const total = chartData.reduce((s, d) => s + d.value, 0);
 
   return (
-    <div className="mt-5">
-      <div className="mb-4 flex flex-wrap items-center gap-4">
-        {series.map((item) => (
-          <button
-            type="button"
-            key={item.label}
-            onClick={() => onLegendClick(`${item.label} trend focused`)}
-            className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-[12px] font-extrabold text-[#314a79] transition hover:bg-[#f5f9ff]"
-          >
-            <span className="h-1.5 w-5 rounded-full" style={{ backgroundColor: item.color }} />
-            {item.label}
-          </button>
-        ))}
+    <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center">
+      <div className="mx-auto h-[200px] w-[200px] shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={chartData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={2} dataKey="value">
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip formatter={(value, name) => [value, name]} contentStyle={{ borderRadius: '10px', fontSize: '12px', fontWeight: 700 }} />
+          </PieChart>
+        </ResponsiveContainer>
       </div>
-
-      <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[620px]">
-          {[0, 10, 20, 30, 40].map((tick) => {
-            const y = padding.top + chartHeight - (tick / maxValue) * chartHeight;
-            return (
-              <g key={tick}>
-                <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="#e8eef6" strokeWidth="1" />
-                <text x={padding.left - 12} y={y + 4} textAnchor="end" fontSize="12" fontWeight="800" fill="#53647f">{tick}</text>
-              </g>
-            );
-          })}
-
-          {series.map((item) => {
-            const points = item.values.map((value, index) => {
-              const x = padding.left + (index / (item.values.length - 1)) * chartWidth;
-              const y = padding.top + chartHeight - (value / maxValue) * chartHeight;
-              return `${x},${y}`;
-            }).join(' ');
-
-            return (
-              <g key={item.label}>
-                <polyline points={points} fill="none" stroke={item.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                {item.values.map((value, index) => {
-                  const x = padding.left + (index / (item.values.length - 1)) * chartWidth;
-                  const y = padding.top + chartHeight - (value / maxValue) * chartHeight;
-                  return <circle key={`${item.label}-${index}`} cx={x} cy={y} r="3.4" fill={item.color} stroke="#fff" strokeWidth="1.5" />;
-                })}
-              </g>
-            );
-          })}
-
-          {labels.map((label, index) => {
-            const x = padding.left + (index / (labels.length - 1)) * chartWidth;
-            return <text key={label} x={x} y={height - 14} textAnchor="middle" fontSize="12" fontWeight="800" fill="#53647f">{label}</text>;
-          })}
-        </svg>
+      <div className="flex-1 space-y-2">
+        {chartData.map((item) => (
+          <div key={item.name} className="flex items-center justify-between rounded-[8px] px-3 py-2 hover:bg-[#f8fbff]">
+            <span className="flex items-center gap-2 text-[13px] font-bold text-[#1e3261]">
+              <span className="size-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+              {item.name}
+            </span>
+            <span className="text-[13px] font-extrabold text-[#314a79]">
+              {item.value} ({total ? ((item.value / total) * 100).toFixed(1) : 0}%)
+            </span>
+          </div>
+        ))}
+        <div className="mt-2 border-t border-[#edf2f8] pt-2 text-center text-[12px] font-extrabold text-[#53647f]">
+          Total: {total} Leads
+        </div>
       </div>
     </div>
   );
 }
 
-function ReportDonut({ selectedStatus }) {
-  let start = 0;
-  const total = reportStatusData.reduce((sum, item) => sum + item.value, 0);
-  const gradient = reportStatusData.map((item) => {
-    const end = start + (item.value / total) * 100;
-    const stop = `${item.color} ${start}% ${end}%`;
-    start = end;
-    return stop;
-  }).join(', ');
-
+function ReportBarChart({ data, dataKey, nameKey, color = '#1f7ff0', loading }) {
+  if (loading) {
+    return <div className="flex h-[220px] items-center justify-center text-[13px] font-bold text-[#8a98af]">Loading...</div>;
+  }
+  if (!data || data.length === 0) {
+    return <div className="flex h-[220px] items-center justify-center text-[13px] font-bold text-[#8a98af]">No data</div>;
+  }
   return (
-    <div className="mx-auto grid size-[220px] place-items-center rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
-      <div className="grid size-[112px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(219,229,242,0.9)]">
-        <div>
-          <p className="text-[12px] font-extrabold text-[#53647f]">Total</p>
-          <p className="font-display text-[24px] font-extrabold text-[#111827]">156</p>
-          <p className="mt-1 text-[10px] font-extrabold text-[#0b65e5]">{selectedStatus}</p>
-        </div>
-      </div>
+    <div className="h-[220px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }} layout="vertical">
+          <CartesianGrid strokeDasharray="3 3" stroke="#edf2f8" horizontal={false} />
+          <XAxis type="number" tick={{ fontSize: 11, fontWeight: 700, fill: '#53647f' }} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey={nameKey} tick={{ fontSize: 11, fontWeight: 700, fill: '#53647f' }} axisLine={false} tickLine={false} width={80} />
+          <Tooltip contentStyle={{ borderRadius: '10px', fontSize: '12px', fontWeight: 700 }} />
+          <Bar dataKey={dataKey} fill={color} radius={[0, 6, 6, 0]} maxBarSize={24} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -26747,27 +27025,35 @@ function ReportTableCard({ title, headers, rows, onRowClick }) {
   );
 }
 
-function ReportEmployeeCard({ onNotify }) {
+function ReportEmployeeCard({ data, loading, onNotify }) {
   return (
     <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
       <h2 className="font-display text-[16px] font-extrabold text-[#111827]">Top Assigned Employees</h2>
-      <div className="mt-4 overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
-        <table className="crm-table min-w-[560px] w-full">
-          <thead>
-            <tr>{['Employee', 'Total Leads', 'Won Leads', 'Conversion Rate'].map((header) => <th key={header}>{header}</th>)}</tr>
-          </thead>
-          <tbody>
-            {assignedEmployeeRows.map((row) => (
-              <tr key={row.employee} onClick={() => onNotify(`${row.employee} employee report opened`)} className="cursor-pointer">
-                <td><AssigneeCell assignee={row.assignee} compact /></td>
-                <td>{row.leads}</td>
-                <td>{row.won}</td>
-                <td>{row.conversion}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {loading ? (
+        <div className="mt-4 flex h-[160px] items-center justify-center text-[13px] font-bold text-[#8a98af]">Loading...</div>
+      ) : data.length > 0 ? (
+        <div className="mt-4 overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
+          <table className="crm-table min-w-[480px] w-full">
+            <thead>
+              <tr>{['Employee', 'Leads', 'Won', 'Conversion'].map((h) => <th key={h}>{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {data.map((row) => (
+                <tr key={row.name} onClick={() => onNotify(`${row.name} report`)} className="cursor-pointer">
+                  <td className="font-bold text-[#1e3261]">{row.name}</td>
+                  <td>{row.total}</td>
+                  <td>{row.won}</td>
+                  <td>{row.conversion}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="mt-4 flex h-[160px] items-center justify-center text-[13px] font-bold text-[#8a98af]">
+          No employee data yet — add leads and assign them to employees.
+        </div>
+      )}
     </article>
   );
 }
@@ -26796,6 +27082,21 @@ function ReportIvrsSummary({ onNotify }) {
       </div>
     </article>
   );
+}
+
+const MONTHS_SHORT = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
+function isFollowUpOverdue(dateStr) {
+  if (!dateStr) return false;
+  const parts = dateStr.split(' ');
+  if (parts.length !== 3) return false;
+  const d = parseInt(parts[0], 10);
+  const m = MONTHS_SHORT[parts[1]];
+  const y = parseInt(parts[2], 10);
+  if (Number.isNaN(d) || m === undefined || Number.isNaN(y)) return false;
+  const followUpDate = new Date(y, m, d);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return followUpDate < today;
 }
 
 function formatReportDate(value) {
@@ -26858,6 +27159,50 @@ function isDateWithinRange(value, dateFrom, dateTo) {
 
 function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel, onDashboard, onRequestApproval, onNotify }) {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const fd = new FormData(event.currentTarget);
+    const mobile = fd.get('mobile_number')?.trim();
+    const ivrs = fd.get('ivrs_number')?.trim();
+
+    if (ivrs) {
+      setDuplicateModalOpen(true);
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      const payload = {
+        customer_name: fd.get('customer_name'),
+        mobile_number: mobile,
+        ivrs_number: ivrs || undefined,
+        alternate_number: fd.get('alternate_number') || undefined,
+        email: fd.get('email') || undefined,
+        project_name: fd.get('project_name') || undefined,
+        project_type: fd.get('project_type') || undefined,
+        requirement_details: fd.get('requirement_details') || undefined,
+        source: fd.get('source') || undefined,
+        estimated_capacity: fd.get('estimated_capacity') || undefined,
+        next_follow_up: fd.get('next_follow_up') || undefined,
+        status: fd.get('status') || 'New',
+        priority: fd.get('priority') || undefined,
+        remarks: fd.get('remarks') || undefined,
+        address: fd.get('address') || undefined,
+        latitude: fd.get('latitude') || undefined,
+        longitude: fd.get('longitude') || undefined,
+      };
+      await leadApi.create(payload);
+      onCancel();
+    } catch (err) {
+      setSubmitError(err.message || 'Lead save karne mein error aayi');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -26895,24 +27240,28 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
           <button
             type="submit"
             form="create-lead-form"
+            disabled={submitting}
             data-action="create-lead-save"
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-[#10a64e] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9145] sm:w-auto"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-[#10a64e] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9145] disabled:opacity-60 sm:w-auto"
           >
             <Save className="size-4" />
-            Save Lead
+            {submitting ? 'Saving...' : 'Save Lead'}
           </button>
         </div>
       </div>
 
       <LeadSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
+      {submitError ? (
+        <div className="rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-bold text-red-600">
+          {submitError}
+        </div>
+      ) : null}
+
       <form
         id="create-lead-form"
         className="grid items-start gap-4 xl:grid-cols-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setDuplicateModalOpen(true);
-        }}
+        onSubmit={handleSubmit}
       >
         <LeadFormSection
           title="1. Basic Information"
@@ -26920,45 +27269,45 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
           tone="success"
         >
           <div className="grid gap-4 lg:grid-cols-3">
-            <LeadInput label="Customer Name" required icon={UserRound} placeholder="Enter customer name" />
-            <LeadPhoneInput label="Mobile Number" required placeholder="Enter mobile number" />
-            <LeadInput label="IVRS Number" required icon={CalendarDays} placeholder="Enter IVRS number" rightHint />
+            <LeadInput label="Customer Name" required icon={UserRound} placeholder="Enter customer name" name="customer_name" />
+            <LeadPhoneInput label="Mobile Number" required placeholder="Enter mobile number" name="mobile_number" />
+            <LeadInput label="IVRS Number" required icon={BadgeCheck} placeholder="Enter IVRS number" rightHint name="ivrs_number" />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <LeadPhoneInput label="Alternate Number" placeholder="Enter alternate number" />
-            <LeadInput label="Email Address" icon={Mail} placeholder="Enter email address" type="email" />
+            <LeadPhoneInput label="Alternate Number" placeholder="Enter alternate number" name="alternate_number" />
+            <LeadInput label="Email Address" icon={Mail} placeholder="Enter email address" type="email" name="email" />
           </div>
         </LeadFormSection>
 
         <LeadFormSection title="2. Project Information" icon={ClipboardPlus} tone="primary">
           <div className="grid gap-4 lg:grid-cols-2">
-            <LeadInput label="Project Name" icon={CalendarDays} placeholder="Enter project name" />
-            <LeadSelect label="Project Type" placeholder="Select project type" options={['On-Grid', 'Off-Grid', 'Hybrid']} />
+            <LeadInput label="Project Name" icon={FolderKanban} placeholder="Enter project name" name="project_name" />
+            <LeadSelect label="Project Type" placeholder="Select project type" options={['On-Grid', 'Off-Grid', 'Hybrid']} name="project_type" />
           </div>
-          <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." />
+          <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." name="requirement_details" />
           <div className="grid gap-4 lg:grid-cols-2">
-            <LeadSelect label="Source" placeholder="Select source" options={['Website', 'Referral', 'Walk-in', 'Campaign']} />
-            <LeadInput label="Estimated Capacity (kW)" icon={CalendarDays} placeholder="Enter capacity (e.g. 5, 10, 20)" />
+            <LeadSelect label="Source" placeholder="Select source" options={['Website', 'Referral', 'Walk-in', 'Campaign']} name="source" />
+            <LeadInput label="Estimated Capacity (kW)" icon={Zap} placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" />
           </div>
         </LeadFormSection>
 
         <LeadFormSection title="3. Assignment & Follow-up" icon={UserRound} tone="purple">
           <div className="grid gap-4 lg:grid-cols-3">
-            <LeadSelect label="Assigned Employee" required placeholder="Select employee" options={['Rohit Singh', 'Neha Kumari', 'Vikram Patel']} />
-            <LeadDateInput label="Follow-up Date" required />
-            <LeadSelect label="Lead Status" placeholder="New" options={['New', 'Follow-up', 'Quotation', 'Lost']} badgeValue="New" />
+            <LeadSelect label="Assigned Employee" required placeholder="Select employee" options={['Rohit Singh', 'Neha Kumari', 'Vikram Patel']} name="assigned_to_name" />
+            <LeadDateInput label="Follow-up Date" required name="next_follow_up" />
+            <LeadSelect label="Lead Status" placeholder="New" options={['New', 'Follow-up', 'Quotation', 'Lost']} badgeValue="New" name="status" />
           </div>
           <div className="grid gap-4 lg:grid-cols-[0.75fr_1.75fr]">
-            <LeadSelect label="Priority" icon={Flag} placeholder="Select priority" options={['High', 'Medium', 'Low']} />
-            <LeadTextarea label="Remarks" icon={MapPin} placeholder="Enter remarks (optional)" compact />
+            <LeadSelect label="Priority" icon={Flag} placeholder="Select priority" options={['High', 'Medium', 'Low']} name="priority" />
+            <LeadTextarea label="Remarks" icon={MapPin} placeholder="Enter remarks (optional)" compact name="remarks" />
           </div>
         </LeadFormSection>
 
         <LeadFormSection title="4. Location Information" titleSuffix="(Optional)" icon={MapPin} tone="warning">
-          <LeadTextarea label="Address" icon={MapPin} placeholder="Enter full address" />
+          <LeadTextarea label="Address" icon={MapPin} placeholder="Enter full address" name="address" />
           <div className="grid gap-4 lg:grid-cols-2">
-            <LeadInput label="Latitude" optional icon={MapPin} placeholder="Enter latitude" />
-            <LeadInput label="Longitude" optional icon={MapPin} placeholder="Enter longitude" />
+            <LeadInput label="Latitude" optional icon={MapPin} placeholder="Enter latitude" name="latitude" />
+            <LeadInput label="Longitude" optional icon={MapPin} placeholder="Enter longitude" name="longitude" />
           </div>
         </LeadFormSection>
 
@@ -27006,7 +27355,7 @@ function LeadFormSection({ title, titleSuffix, icon: Icon, tone = 'primary', cla
   );
 }
 
-function LeadInput({ label, placeholder, icon: Icon, required = false, optional = false, type = 'text', rightHint = false }) {
+function LeadInput({ label, placeholder, icon: Icon, required = false, optional = false, type = 'text', rightHint = false, name }) {
   return (
     <label className="block min-w-0">
       <LeadLabel label={label} required={required} optional={optional} rightHint={rightHint} />
@@ -27014,6 +27363,7 @@ function LeadInput({ label, placeholder, icon: Icon, required = false, optional 
         {Icon ? <Icon className="size-4 shrink-0 text-[#8391a8]" /> : null}
         <input
           type={type}
+          name={name}
           placeholder={placeholder}
           className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
         />
@@ -27022,7 +27372,7 @@ function LeadInput({ label, placeholder, icon: Icon, required = false, optional 
   );
 }
 
-function LeadPhoneInput({ label, placeholder, required = false }) {
+function LeadPhoneInput({ label, placeholder, required = false, name }) {
   return (
     <label className="block min-w-0">
       <LeadLabel label={label} required={required} />
@@ -27034,6 +27384,7 @@ function LeadPhoneInput({ label, placeholder, required = false }) {
         </select>
         <input
           type="tel"
+          name={name}
           placeholder={placeholder}
           className="min-w-0 flex-1 bg-transparent px-3 text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
         />
@@ -27042,7 +27393,7 @@ function LeadPhoneInput({ label, placeholder, required = false }) {
   );
 }
 
-function LeadSelect({ label, placeholder, options, required = false, icon: Icon, badgeValue }) {
+function LeadSelect({ label, placeholder, options, required = false, icon: Icon, badgeValue, name }) {
   return (
     <label className="block min-w-0">
       <LeadLabel label={label} required={required} />
@@ -27053,10 +27404,10 @@ function LeadSelect({ label, placeholder, options, required = false, icon: Icon,
             {badgeValue}
           </span>
         ) : null}
-        <select className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#53647f] outline-none">
-          <option>{placeholder}</option>
+        <select name={name} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#53647f] outline-none">
+          <option value="">{placeholder}</option>
           {options.map((option) => (
-            <option key={option}>{option}</option>
+            <option key={option} value={option}>{option}</option>
           ))}
         </select>
       </span>
@@ -27064,7 +27415,7 @@ function LeadSelect({ label, placeholder, options, required = false, icon: Icon,
   );
 }
 
-function LeadDateInput({ label, required = false }) {
+function LeadDateInput({ label, required = false, name }) {
   const dateInputRef = useRef(null);
   const [date, setDate] = useState('');
 
@@ -27098,6 +27449,7 @@ function LeadDateInput({ label, required = false }) {
         <input
           ref={dateInputRef}
           type="date"
+          name={name}
           value={date}
           onChange={(event) => setDate(event.target.value)}
           className="pointer-events-none absolute bottom-0 left-4 h-px w-px opacity-0"
@@ -27109,7 +27461,7 @@ function LeadDateInput({ label, required = false }) {
   );
 }
 
-function LeadTextarea({ label, placeholder, icon: Icon, compact = false }) {
+function LeadTextarea({ label, placeholder, icon: Icon, compact = false, name }) {
   return (
     <label className="block min-w-0">
       <LeadLabel label={label} />
@@ -27121,6 +27473,7 @@ function LeadTextarea({ label, placeholder, icon: Icon, compact = false }) {
       >
         {Icon ? <Icon className="mt-0.5 size-4 shrink-0 text-[#8391a8]" /> : null}
         <textarea
+          name={name}
           placeholder={placeholder}
           rows={compact ? 2 : 3}
           className="min-h-full min-w-0 flex-1 resize-y bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
@@ -27168,7 +27521,7 @@ function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUp
   const quickDetailActions = [
     { label: 'Add Follow-up', icon: ShieldCheck, tone: 'green', onClick: () => onOpenSection('Lead Follow-up Create') },
     { label: 'Schedule Site Visit', icon: CalendarDays, tone: 'blue', onClick: () => onOpenSection('Lead Site Visit Schedule') },
-    { label: 'Create Quotation (UI)', icon: CalendarDays, tone: 'blue', onClick: () => onOpenSection('Lead Quotation') },
+    { label: 'Create Quotation', icon: FilePlus2, tone: 'blue', onClick: () => onOpenSection('Lead Quotation') },
     { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => onOpenSection('Lead Assign') },
     { label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => onOpenSection('Lead Status Update') },
     { label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => onOpenSection('Lead Note Create') },
@@ -27233,7 +27586,7 @@ function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUp
               <DetailRow label="Address" value="123, Green Avenue, Indore, Madhya Pradesh - 452001" />
               <DetailRow label="Source" value="Website" />
               <DetailRow label="Assigned To" valueNode={<AssigneeCell assignee={{ name: 'Rohit Singh', initials: 'RS', tone: 'amber' }} compact />} />
-              <DetailRow label="Created On" value="20 May 2024, 10:30 AM" />
+              <DetailRow label="Created On" value="02 Jun 2026, 10:30 AM" />
             </InfoPanel>
 
             <InfoPanel title="2. Project Information" icon={ClipboardPlus} tone="primary">
@@ -27241,7 +27594,7 @@ function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUp
               <DetailRow label="Project Type" value="On-Grid" />
               <DetailRow label="Requirement Details" value="Customer is interested in installing 5kW On-Grid solar system for home." />
               <DetailRow label="Estimated Capacity" value="5 kW" />
-              <DetailRow label="Follow-up Date" value="20 May 2024" />
+              <DetailRow label="Follow-up Date" value="20 Jun 2026" />
               <DetailRow label="Lead Status" valueNode={<StatusBadge status="Follow-up" />} />
               <DetailRow label="Priority" valueNode={<span className="rounded-[8px] bg-[#fff0dc] px-2.5 py-1 text-[11px] font-extrabold text-[#f39b20]">Medium</span>} />
             </InfoPanel>
@@ -27250,9 +27603,9 @@ function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUp
           <InfoPanel title="3. Follow-up History" icon={Phone} actionLabel="View All Follow-ups" onAction={onFollowUpHistory}>
             <div className="space-y-5">
               {[
-                ['Follow-up Completed', 'Customer is interested and asked for site visit. Will share quotation after site visit.', '18 May 2024, 04:30 PM', 'success'],
-                ['Follow-up Scheduled', 'Site visit scheduled on 20 May 2024.', '16 May 2024, 11:00 AM', 'primary'],
-                ['Initial Call', 'Initial discussion done. Customer is interested in solar system.', '15 May 2024, 10:15 AM', 'slate'],
+                ['Follow-up Completed', 'Customer is interested and asked for site visit. Will share quotation after site visit.', '08 Jun 2026, 04:30 PM', 'success'],
+                ['Follow-up Scheduled', 'Site visit scheduled on 10 Jun 2026.', '06 Jun 2026, 11:00 AM', 'primary'],
+                ['Initial Call', 'Initial discussion done. Customer is interested in solar system.', '04 Jun 2026, 10:15 AM', 'slate'],
               ].map(([title, text, date, tone]) => (
                 <TimelineItem key={title} title={title} text={text} date={date} tone={tone} />
               ))}
@@ -27359,11 +27712,11 @@ function LeadQuotationPage({ onBackToDetails, onOpenSection, onNotify }) {
 function FollowUpHistoryPage({ onOpenSection, onBackToDetails, onNotify }) {
   const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
   const timeline = [
-    { title: 'Follow-up Completed', tag: 'Completed', text: 'Customer is interested in 5kW On-Grid system. Discussed product quality, subsidy and installation timeline.', date: '18 May 2024\n04:30 PM', tone: 'success', icon: Phone },
-    { title: 'Follow-up Scheduled', tag: 'Scheduled', text: 'Site visit scheduled on 20 May 2024 at 11:00 AM.', date: '16 May 2024\n11:00 AM', tone: 'primary', icon: CalendarDays },
-    { title: 'Site Visit Completed', tag: 'Completed', text: 'Site visit completed. Customer is satisfied with the site assessment.', date: '20 May 2024\n01:45 PM', tone: 'purple', icon: Users },
-    { title: 'Note Added', tag: 'Note', text: 'Customer will share electricity bill on WhatsApp for better system sizing.', date: '21 May 2024\n02:20 PM', tone: 'warning', icon: Flag },
-    { title: 'Initial Call', tag: 'Missed Call', text: 'Initial call made to customer.', date: '15 May 2024\n10:15 AM', tone: 'danger', icon: Phone },
+    { title: 'Note Added', tag: 'Note', text: 'Customer will share electricity bill on WhatsApp for better system sizing.', date: '12 Jun 2026\n02:20 PM', tone: 'warning', icon: Flag },
+    { title: 'Site Visit Completed', tag: 'Completed', text: 'Site visit completed. Customer is satisfied with the site assessment.', date: '10 Jun 2026\n01:45 PM', tone: 'purple', icon: Users },
+    { title: 'Follow-up Completed', tag: 'Completed', text: 'Customer is interested in 5kW On-Grid system. Discussed product quality, subsidy and installation timeline.', date: '08 Jun 2026\n04:30 PM', tone: 'success', icon: Phone },
+    { title: 'Follow-up Scheduled', tag: 'Scheduled', text: 'Site visit scheduled on 10 Jun 2026 at 11:00 AM.', date: '06 Jun 2026\n11:00 AM', tone: 'primary', icon: CalendarDays },
+    { title: 'Initial Call', tag: 'Connected', text: 'Initial call made to customer. Interest confirmed in rooftop solar system.', date: '04 Jun 2026\n10:15 AM', tone: 'danger', icon: Phone },
   ];
 
   return (
@@ -27390,7 +27743,7 @@ function FollowUpHistoryPage({ onOpenSection, onBackToDetails, onNotify }) {
             <p className="mt-2 flex flex-wrap gap-4 text-[13px] font-bold text-[#314a79]">Mobile: 9876543210 <span>IVRS: IVRS123456</span> <span>Project: 5kW On-Grid</span> <span>Assigned To: Rohit Singh</span></p>
           </div>
           <div><p className="text-[12px] font-extrabold text-[#53647f]">Lead Status</p><StatusBadge status="Follow-up" /></div>
-          <div><p className="text-[12px] font-extrabold text-[#53647f]">Next Follow-up</p><p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">25 May 2024, 11:00 AM</p></div>
+          <div><p className="text-[12px] font-extrabold text-[#53647f]">Next Follow-up</p><p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">20 Jun 2026, 11:00 AM</p></div>
         </div>
       </section>
 
@@ -27417,7 +27770,7 @@ function FollowUpHistoryPage({ onOpenSection, onBackToDetails, onNotify }) {
             ))}
           </InfoPanel>
           <InfoPanel title="Next Follow-up Details" icon={CalendarDays} tone="primary">
-            <DetailRow label="Date" value="25 May 2024" />
+            <DetailRow label="Date" value="20 Jun 2026" />
             <DetailRow label="Time" value="11:00 AM" />
             <DetailRow label="Type" value="Site Visit" />
             <DetailRow label="Assigned To" valueNode={<AssigneeCell assignee={{ name: 'Rohit Singh', initials: 'RS', tone: 'amber' }} compact />} />
@@ -27644,8 +27997,8 @@ function AdminApprovalPage({ onOpenSection, onLeadDetails, onNotify }) {
                     <td>{['Amit Sharma', 'Sunil Patidar', 'Neha Jain', 'Vikram Singh', 'Pooja Verma', 'Manish Gupta', 'Jatin Agrawal', 'Kavita Joshi'][index]}</td>
                     <td>{['9876543210', '9827456781', '9893012345', '9753124680', '9135782469', '9222334455', '9340011223', '9870098765'][index]}</td>
                     <td>{['5kW On-Grid', '10kW On-Grid', '3kW On-Grid', '5kW On-Grid', 'On-Grid', '10kW On-Grid', '5kW On-Grid', '3kW On-Grid'][index]}</td>
-                    <td>Rohit Singh</td>
-                    <td>20 May 2024<br />{['10:30 AM', '10:15 AM', '09:45 AM', '09:30 AM', '09:10 AM', '08:50 AM', '08:35 AM', '08:20 AM'][index]}</td>
+                    <td>{['Rohit Singh', 'Neha Kumari', 'Vikram Patel', 'Rohit Singh', 'Neha Kumari', 'Vikram Patel', 'Rohit Singh', 'Neha Kumari'][index]}</td>
+                    <td>{['02 Jun 2026', '03 Jun 2026', '04 Jun 2026', '05 Jun 2026', '06 Jun 2026', '09 Jun 2026', '10 Jun 2026', '11 Jun 2026'][index]}<br />{['10:30 AM', '10:15 AM', '09:45 AM', '09:30 AM', '09:10 AM', '08:50 AM', '08:35 AM', '08:20 AM'][index]}</td>
                     <td><div className="flex gap-2"><button type="button" onClick={() => onNotify(`${ivrs} approved`)} className="rounded-[7px] bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#087a39]">Approve</button><button type="button" onClick={() => onNotify(`${ivrs} rejected`)} className="rounded-[7px] bg-[#ffe9e6] px-2.5 py-1 text-[11px] font-extrabold text-[#e3342f]">Reject</button></div></td>
                   </tr>
                 ))}
@@ -27661,7 +28014,7 @@ function AdminApprovalPage({ onOpenSection, onLeadDetails, onNotify }) {
             <DetailRow label="Mobile Number" value="9876543210" />
             <DetailRow label="Project Type" value="5kW On-Grid" />
             <DetailRow label="Requested By" valueNode={<AssigneeCell assignee={{ name: 'Rohit Singh', initials: 'RS', tone: 'amber' }} compact />} />
-            <DetailRow label="Requested On" value="20 May 2024, 10:30 AM" />
+            <DetailRow label="Requested On" value="02 Jun 2026, 10:30 AM" />
           </InfoPanel>
           <InfoPanel title="IVRS Intelligence" icon={AlertTriangle} tone="warning">
             <div className="rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4 text-[13px] font-bold text-[#087a39]">IVRS: <span className="text-[#1e3261]">IVRS123456</span><p className="mt-2">This IVRS Number is unique. No duplicate found.</p></div>
