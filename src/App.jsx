@@ -1,5 +1,5 @@
 import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { authApi, leadApi, analyticsApi, inventoryApi, accountsModuleApi } from './api.js';
+import { authApi, leadApi, analyticsApi, inventoryApi, accountsModuleApi, followUpApi } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -80,7 +80,9 @@ const sidebarItems = [
 ];
 
 const leadSubItems = ['Lead List', 'Create Lead'];
-const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Lead Edit', 'Lead Quotation', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Follow-up History', 'Admin Approval'];
+const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Admin Approval'];
+// Pages jinhe ek selected lead chahiye — refresh/restore pe selectedLead null hota hai, isliye inhe Lead List se replace karo
+const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const employeeRelatedPages = [...employeeSubItems];
 const projectSubItems = ['Project Overview', 'Project KPI Analytics', 'Project List', 'Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation', 'Project Team Assignment', 'Project Material Planning', 'Project Work Orders', 'Project Expenses', 'Project Documents', 'Project Approvals', 'Project Reports'];
@@ -204,7 +206,6 @@ const leadSubRoutes = {
   'Lead List': '/lead/list',
   'Create Lead': '/lead/create',
   'Lead Edit': '/lead/edit/:leadId',
-  'Lead Quotation': '/lead/quotation/create/:leadId',
   'Lead Follow-up Create': '/lead/follow-up/create/:leadId',
   'Lead Site Visit Schedule': '/lead/site-visit/schedule/:leadId',
   'Lead Note Create': '/lead/notes/create/:leadId',
@@ -352,59 +353,62 @@ const leadCategoryTabs = [
   {
     label: 'New leads',
     shortLabel: 'New',
-    count: 48,
     icon: UserPlus,
     tone: 'green',
     priority: 'Fresh enquiries',
     description: 'Recently captured leads that need first contact and quick qualification.',
     nextAction: 'Assign an employee and schedule the first follow-up.',
-    leads: ['Pooja Mehta', 'Manish Tiwari', 'Vikas Yadav'],
   },
   {
     label: 'Hot leads',
     shortLabel: 'Hot',
-    count: 32,
     icon: Zap,
     tone: 'red',
     priority: 'High intent',
-    description: 'Customers who are ready for site visit, quotation, or final pricing discussion.',
+    description: 'High priority active leads ready for site visit, quotation, or final pricing discussion.',
     nextAction: 'Prioritize follow-up today and move toward quotation.',
-    leads: ['Amit Sharma', 'Rajesh Gupta', 'Deepak Joshi'],
   },
   {
     label: 'Warm leads',
     shortLabel: 'Warm',
-    count: 85,
     icon: Clock3,
     tone: 'amber',
     priority: 'Active nurturing',
-    description: 'Interested customers who need comparison, subsidy details, or approval follow-up.',
+    description: 'Follow-up stage leads that need comparison, subsidy details, or approval follow-up.',
     nextAction: 'Share proposal details and keep regular follow-up reminders.',
-    leads: ['Sunil Verma', 'Anjali Patel', 'Kavita Rana'],
   },
   {
     label: 'Cool leads',
     shortLabel: 'Cool',
-    count: 64,
     icon: Leaf,
     tone: 'blue',
     priority: 'Low urgency',
-    description: 'Leads that are interested but not ready to decide immediately.',
+    description: 'Low priority leads that are interested but not ready to decide immediately.',
     nextAction: 'Keep them in long-term nurturing with helpful updates.',
-    leads: ['Geeta Verma', 'Ramesh Patidar', 'Sarita Pandey'],
   },
   {
     label: 'Lost leads',
     shortLabel: 'Lost',
-    count: 18,
     icon: XCircle,
     tone: 'slate',
     priority: 'Closed lost',
     description: 'Customers who declined, postponed indefinitely, or selected another provider.',
     nextAction: 'Capture reason, keep record clean, and re-open only if customer responds.',
-    leads: ['Suresh Kumar', 'Meena Tiwari', 'Harish Yadav'],
   },
 ];
+
+// Har lead ko exactly EK category deta hai — overlap aur gap dono fix.
+// Count aur filter dono isi single source of truth ko use karte hain taaki kabhi mismatch na ho.
+// Precedence: Lost > Won(none) > High(Hot) > Low(Cool) > New(New) > Follow-up/Quotation(Warm).
+function classifyLeadCategory(lead) {
+  if (lead.status === 'Lost') return 'Lost leads';
+  if (lead.status === 'Won') return null; // Won closed hai — koi category tab nahi
+  if (lead.priority === 'High') return 'Hot leads';
+  if (lead.priority === 'Low') return 'Cool leads';
+  if (lead.status === 'New') return 'New leads';
+  if (lead.status === 'Follow-up' || lead.status === 'Quotation') return 'Warm leads';
+  return 'New leads'; // fallback (rarely hits)
+}
 
 const leadCategoryToneClasses = {
   green: {
@@ -456,7 +460,7 @@ const stats = [
     deltaTone: 'positive',
     icon: CalendarDays,
     iconBg: 'from-[#1277ff] to-[#2aa7ff]',
-    target: 'Follow-up History',
+    target: 'Lead List',
   },
   {
     title: 'Pending Quotations',
@@ -465,7 +469,7 @@ const stats = [
     deltaTone: 'neutral',
     icon: FileText,
     iconBg: 'from-[#4b49ef] to-[#7058ff]',
-    target: 'Lead Quotation',
+    target: 'Lead List',
   },
   {
     title: 'Won Projects',
@@ -847,22 +851,6 @@ const leadListRows = [
     nextFollowUp: '30 Jun 2026',
   },
 ];
-
-function getLeadRowsForCategory(category) {
-  if (!category) {
-    return leadListRows;
-  }
-
-  if (category.shortLabel === 'New') {
-    return leadListRows.filter((lead) => lead.status === 'New');
-  }
-
-  if (category.shortLabel === 'Lost') {
-    return leadListRows.filter((lead) => lead.status === 'Lost');
-  }
-
-  return leadListRows.filter((lead) => category.leads.includes(lead.customer));
-}
 
 const overdueFollowUps = [
   { customer: 'Amit Sharma', project: '5kW On-Grid', delay: '2 Days Overdue' },
@@ -1595,25 +1583,25 @@ const quickActions = [
     label: 'Add Follow-up',
     icon: ClipboardPlus,
     bg: 'from-[#1578ff] to-[#0a9ff5]',
-    target: 'Lead Follow-up Create',
+    target: 'Lead List',
   },
   {
     label: 'Create Quotation',
     icon: FilePlus2,
     bg: 'from-[#5242ef] to-[#6046eb]',
-    target: 'Lead Quotation',
+    target: 'Lead List',
   },
 ];
 
 const actionIcons = [
-  { icon: Bell, badge: '5', label: 'Notifications' },
-  { icon: MessageSquareMore, badge: '3', label: 'Messages' },
+  { icon: Bell, badge: null, label: 'Notifications' },
+  { icon: MessageSquareMore, badge: null, label: 'Messages' },
 ];
 
 const recentNotifications = [
   { title: 'New lead assigned', note: 'Amit Sharma - 5kW On-Grid', time: '2 min ago', target: 'Lead Details', tone: 'green' },
-  { title: 'Follow-up due today', note: 'Sunil Verma call pending', time: '18 min ago', target: 'Follow-up History', tone: 'blue' },
-  { title: 'Quotation pending', note: '64 quotations need review', time: '45 min ago', target: 'Lead Quotation', tone: 'amber' },
+  { title: 'Follow-up due today', note: 'Sunil Verma call pending', time: '18 min ago', target: 'Lead List', tone: 'blue' },
+  { title: 'Quotation pending', note: '64 quotations need review', time: '45 min ago', target: 'Lead List', tone: 'amber' },
   { title: 'Project milestone updated', note: '20kW installation moved to Work Progress', time: '1 hr ago', target: 'Project Installation', tone: 'purple' },
   { title: 'Payment reminder', note: 'Sungrow invoice payment pending', time: '2 hr ago', target: 'Payment Made', tone: 'red' },
 ];
@@ -1680,7 +1668,11 @@ function App() {
   const [currentPage, setCurrentPage] = useState(initialPreferences.currentPage === 'dashboard' ? 'dashboard' : 'signin');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
-  const [activeSidebarItem, setActiveSidebarItem] = useState(isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard');
+  const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
+    const stored = isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard';
+    // Refresh pe selectedLead null hota hai, isliye lead-specific page ki jagah Lead List dikhao
+    return leadDetailPages.includes(stored) ? 'Lead List' : stored;
+  });
   const [expandedSection, setExpandedSection] = useState(() => {
     const item = isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard';
     if (item === 'Lead' || leadRelatedPages.includes(item)) return 'Lead';
@@ -1698,6 +1690,11 @@ function App() {
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [messageMenuOpen, setMessageMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [loggedInUser, setLoggedInUser] = useState(null);
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [leadDetailsTab, setLeadDetailsTab] = useState('overview');
+  const updateSelectedLead = (patch) => setSelectedLead((prev) => (prev ? { ...prev, ...patch } : prev));
+  const [globalSearch, setGlobalSearch] = useState('');
   const [dashboardStats, setDashboardStats] = useState(stats);
   const [dashboardFollowUps, setDashboardFollowUps] = useState(todayFollowUps);
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
@@ -1729,11 +1726,20 @@ function App() {
   useEffect(() => {
     const handler = () => {
       setCurrentPage('signin');
+      setLoggedInUser(null);
       notify('Session expired — please login again');
     };
     window.addEventListener('auth:logout', handler);
     return () => window.removeEventListener('auth:logout', handler);
   }, []);
+
+  // Fetch logged-in user info when on dashboard
+  useEffect(() => {
+    if (currentPage !== 'dashboard') return;
+    authApi.me().then((data) => {
+      if (data) setLoggedInUser(data);
+    }).catch(() => {});
+  }, [currentPage]);
 
   // Fetch dashboard stats from API
   useEffect(() => {
@@ -1757,13 +1763,18 @@ function App() {
       if (!rows.length) return;
       setDashboardFollowUps(
         rows.map((lead) => ({
+          id: lead.id,
           customer: lead.customer_name,
           mobile: lead.mobile_number,
           ivrs: lead.ivrs_number,
           project: lead.project_name || '—',
           type: lead.project_type || 'On-Grid',
+          status: lead.status,
+          priority: lead.priority || '',
+          source: lead.source || '',
           assignedTo: { name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
           date: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN') : '—',
+          nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
         })),
       );
     }).catch(() => {});
@@ -1776,10 +1787,15 @@ function App() {
         id: lead.id,
         customer: lead.customer_name,
         mobile: lead.mobile_number,
+        ivrs: lead.ivrs_number,
         project: lead.project_name ? `${lead.estimated_capacity ? lead.estimated_capacity + 'kW ' : ''}${lead.project_type || 'On-Grid'}` : '—',
+        type: lead.project_type || 'On-Grid',
         status: lead.status,
+        priority: lead.priority || '',
+        source: lead.source || '',
         assignedTo: { name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
         createdOn: lead.created_at_display || '—',
+        nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
       })));
     }).catch(() => {});
 
@@ -1799,12 +1815,14 @@ function App() {
     }).catch(() => {});
   }, [currentPage]);
 
-  const openDashboardSection = (section, message) => {
+  const openDashboardSection = (section, message, lead, tab) => {
     if (!isKnownSection(section)) {
       notify(message ?? `${section} opened`);
       return;
     }
 
+    if (lead) setSelectedLead(lead);
+    if (section === 'Lead Details') setLeadDetailsTab(tab || 'overview');
     setActiveSidebarItem(section);
     setMobileSidebarOpen(false);
     setNotificationMenuOpen(false);
@@ -2543,9 +2561,11 @@ function App() {
                           aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
                         >
                           <Icon className="size-[18px]" />
-                          <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
-                            {action.badge}
-                          </span>
+                          {action.badge ? (
+                            <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
+                              {action.badge}
+                            </span>
+                          ) : null}
                         </button>
                         {action.label === 'Notifications' && notificationMenuOpen ? (
                           <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
@@ -2554,7 +2574,7 @@ function App() {
                           <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
                         ) : null}
                       </div>
-                      );
+                    );
                     })}
 
                     <div className="relative" data-profile-menu="true">
@@ -2570,12 +2590,12 @@ function App() {
 
                       {profileMenuOpen ? (
                         <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
-                          {['Sign in', 'Sign up', 'Logout'].map((item) => (
+                          {['My Profile', 'Logout'].map((item) => (
                             <button
                               key={`mobile-${item}`}
                               type="button"
                               onClick={() => handleProfileAction(item)}
-                              className="block w-full px-4 py-3 text-left text-[13px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+                              className={`block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff] ${item === 'Logout' ? 'text-[#e03434]' : 'text-[#263d72]'}`}
                             >
                               {item}
                             </button>
@@ -2590,9 +2610,20 @@ function App() {
                   <Search className="size-4 text-[#7486a3]" />
                   <input
                     type="search"
+                    value={globalSearch}
+                    onChange={(e) => setGlobalSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && globalSearch.trim()) {
+                        setActiveSidebarItem('Lead List');
+                        notify(`Searching: ${globalSearch.trim()}`);
+                      }
+                    }}
                     placeholder="Search leads, customers, projects..."
                     className="h-full min-w-0 w-full bg-transparent px-3 text-[14px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba]"
                   />
+                  {globalSearch && (
+                    <button type="button" onClick={() => setGlobalSearch('')} className="ml-1 text-[#8ea0ba] hover:text-[#e03434]">✕</button>
+                  )}
                 </label>
 
                 <div className="header-banner relative min-w-0 w-full overflow-hidden rounded-[10px] border border-[#dce8f5] bg-[#eef8fb] lg:col-span-2 xl:col-span-1">
@@ -2618,16 +2649,18 @@ function App() {
                           aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
                         >
                         <Icon className="size-[18px]" />
-                        <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
-                          {action.badge}
-                        </span>
+                        {action.badge ? (
+                          <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
+                            {action.badge}
+                          </span>
+                        ) : null}
                       </button>
-                        {action.label === 'Notifications' && notificationMenuOpen ? (
-                          <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
-                        ) : null}
-                        {action.label === 'Messages' && messageMenuOpen ? (
-                          <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
-                        ) : null}
+                      {action.label === 'Notifications' && notificationMenuOpen ? (
+                        <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
+                      ) : null}
+                      {action.label === 'Messages' && messageMenuOpen ? (
+                        <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
+                      ) : null}
                       </div>
                     );
                   })}
@@ -2640,10 +2673,10 @@ function App() {
                       aria-label="Open profile menu"
                       aria-expanded={profileMenuOpen}
                     >
-                      <AdminAvatar />
+                      <AdminAvatar name={loggedInUser?.name} />
                       <div className="text-right">
-                        <p className="text-[15px] font-extrabold leading-tight text-[#263d72]">Admin</p>
-                        <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">Super Admin</p>
+                        <p className="text-[15px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
+                        <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
                       </div>
                       <ChevronRight
                         className={cx(
@@ -2655,12 +2688,12 @@ function App() {
 
                     {profileMenuOpen ? (
                       <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
-                        {['Sign in', 'Sign up', 'Logout'].map((item) => (
+                        {['My Profile', 'Logout'].map((item) => (
                           <button
                             key={item}
                             type="button"
                             onClick={() => handleProfileAction(item)}
-                            className="block w-full px-4 py-3 text-left text-[13px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+                            className={`block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff] ${item === 'Logout' ? 'text-[#e03434]' : 'text-[#263d72]'}`}
                           >
                             {item}
                           </button>
@@ -2762,7 +2795,9 @@ function App() {
                   setActiveSidebarItem('Create Lead');
                   notify('Create Lead opened');
                 }}
-                onOpenLead={() => {
+                onOpenLead={(lead) => {
+                  setSelectedLead(lead);
+                  setLeadDetailsTab('overview');
                   setActiveSidebarItem('Lead Details');
                   notify('Lead Details opened');
                 }}
@@ -2791,6 +2826,9 @@ function App() {
               />
             ) : activeSidebarItem === 'Lead Details' ? (
               <LeadDetailsPage
+                lead={selectedLead}
+                initialTab={leadDetailsTab}
+                onLeadUpdated={updateSelectedLead}
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
@@ -2803,15 +2841,12 @@ function App() {
                   setActiveSidebarItem('Lead Edit');
                   notify('Edit Lead opened');
                 }}
-                onFollowUpHistory={() => {
-                  setActiveSidebarItem('Follow-up History');
-                  notify('Follow-up History opened');
-                }}
                 onNotify={notify}
               />
             ) : activeSidebarItem === 'Lead Edit' ? (
-              <LeadActionFormPage
-                type="edit"
+              <LeadEditPage
+                lead={selectedLead}
+                onLeadUpdated={updateSelectedLead}
                 onBackToDetails={() => {
                   setActiveSidebarItem('Lead Details');
                   notify('Lead Details opened');
@@ -2819,95 +2854,6 @@ function App() {
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
-                }}
-                onNotify={notify}
-              />
-            ) : activeSidebarItem === 'Lead Quotation' ? (
-              <LeadQuotationPage
-                onBackToDetails={() => {
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
-                }}
-                onOpenSection={(section) => {
-                  setActiveSidebarItem(section);
-                  notify(`${section} opened`);
-                }}
-                onNotify={notify}
-              />
-            ) : activeSidebarItem === 'Lead Follow-up Create' ? (
-              <LeadActionFormPage
-                type="follow-up"
-                onBackToDetails={() => {
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
-                }}
-                onOpenSection={(section) => {
-                  setActiveSidebarItem(section);
-                  notify(`${section} opened`);
-                }}
-                onNotify={notify}
-              />
-            ) : activeSidebarItem === 'Lead Site Visit Schedule' ? (
-              <LeadActionFormPage
-                type="site-visit"
-                onBackToDetails={() => {
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
-                }}
-                onOpenSection={(section) => {
-                  setActiveSidebarItem(section);
-                  notify(`${section} opened`);
-                }}
-                onNotify={notify}
-              />
-            ) : activeSidebarItem === 'Lead Note Create' ? (
-              <LeadActionFormPage
-                type="note"
-                onBackToDetails={() => {
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
-                }}
-                onOpenSection={(section) => {
-                  setActiveSidebarItem(section);
-                  notify(`${section} opened`);
-                }}
-                onNotify={notify}
-              />
-            ) : activeSidebarItem === 'Lead Status Update' ? (
-              <LeadActionFormPage
-                type="status"
-                onBackToDetails={() => {
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
-                }}
-                onOpenSection={(section) => {
-                  setActiveSidebarItem(section);
-                  notify(`${section} opened`);
-                }}
-                onNotify={notify}
-              />
-            ) : activeSidebarItem === 'Lead Assign' ? (
-              <LeadActionFormPage
-                type="assign"
-                onBackToDetails={() => {
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
-                }}
-                onOpenSection={(section) => {
-                  setActiveSidebarItem(section);
-                  notify(`${section} opened`);
-                }}
-                onNotify={notify}
-              />
-            ) : activeSidebarItem === 'Follow-up History' ? (
-              <FollowUpHistoryPage
-                onOpenSection={(section) => {
-                  setActiveSidebarItem(section);
-                  notify(`${section} opened`);
-                }}
-                onBackToDetails={() => {
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
                 }}
                 onNotify={notify}
               />
@@ -2940,7 +2886,7 @@ function App() {
                     <FollowUpCard
                       key={`${followUp.customer}-${followUp.ivrs}`}
                       followUp={followUp}
-                      onView={() => openDashboardSection('Follow-up History', `${followUp.customer} follow-up opened`)}
+                      onView={() => openDashboardSection('Lead Details', `${followUp.customer} follow-up opened`, followUp, 'follow-ups')}
                     />
                   ))}
                 </div>
@@ -2969,7 +2915,7 @@ function App() {
                             <td className="text-right">
                               <button
                                 type="button"
-                                onClick={() => openDashboardSection('Follow-up History', `${followUp.customer} follow-up opened`)}
+                                onClick={() => openDashboardSection('Lead Details', `${followUp.customer} follow-up opened`, followUp, 'follow-ups')}
                                 className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
                                 aria-label={`View ${followUp.customer}`}
                               >
@@ -2986,7 +2932,7 @@ function App() {
                 <div className="flex justify-center px-4 py-4">
                   <button
                     type="button"
-                    onClick={() => openDashboardSection('Follow-up History', 'All follow-ups opened')}
+                    onClick={() => openDashboardSection('Lead List', 'All follow-ups opened')}
                     className="inline-flex items-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-5 py-2.5 text-[13px] font-extrabold text-[#2a64dd] shadow-[0_8px_18px_rgba(17,39,84,0.06)] transition hover:bg-[#f8fbff]"
                   >
                     View All Follow-ups
@@ -3032,7 +2978,7 @@ function App() {
 
                 <div className="space-y-3 p-4 lg:hidden">
                   {(dashboardRecentLeads ?? recentLeads).map((lead) => (
-                    <RecentLeadCard key={`${lead.customer}-${lead.mobile}`} lead={lead} onView={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`)} />
+                    <RecentLeadCard key={`${lead.customer}-${lead.mobile}`} lead={lead} onView={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`, lead)} />
                   ))}
                 </div>
 
@@ -3062,7 +3008,7 @@ function App() {
                             <td className="text-right">
                               <button
                                 type="button"
-                                onClick={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`)}
+                                onClick={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`, lead)}
                                 className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
                                 aria-label={`View ${lead.customer}`}
                               >
@@ -3083,7 +3029,7 @@ function App() {
                   title="Overdue Follow-ups"
                   actionLabel="View All"
                   iconTone="danger"
-                  onAction={() => openDashboardSection('Follow-up History', 'All overdue follow-ups opened')}
+                  onAction={() => openDashboardSection('Lead List', 'All overdue follow-ups opened')}
                 />
 
                 <div className="m-4 divide-y divide-[#edf2f8] overflow-hidden rounded-[12px] border border-[#e5edf6] bg-[#fbfdff] px-4">
@@ -3471,6 +3417,26 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   const [activePage, setActivePage] = useState(1);
   const [apiLeads, setApiLeads] = useState(null);
   const [leadsLoading, setLeadsLoading] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersPopoverRef = useRef(null);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const handlePointerDown = (event) => {
+      if (!(event.target instanceof Element && event.target.closest('[data-lead-filters-popover="true"]'))) {
+        setFiltersOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setFiltersOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [filtersOpen]);
 
   useEffect(() => {
     setLeadsLoading(true);
@@ -3493,6 +3459,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         assignedTo: { name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
       })));
+      setActivePage(1);
     }).catch(() => {}).finally(() => setLeadsLoading(false));
   }, [statusFilter, searchQuery]);
   const followUpDateInputRef = useRef(null);
@@ -3531,30 +3498,31 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   };
 
   const categoryLeadCount = useMemo(() => {
-    if (!apiLeads) return {};
-    return {
-      'New leads': apiLeads.filter(l => l.status === 'New').length,
-      'Hot leads': apiLeads.filter(l => l.priority === 'High' && l.status !== 'Won' && l.status !== 'Lost').length,
-      'Warm leads': apiLeads.filter(l => l.status === 'Follow-up' && l.priority !== 'High').length,
-      'Cool leads': apiLeads.filter(l => l.priority === 'Low' && l.status !== 'Won' && l.status !== 'Lost').length,
-      'Lost leads': apiLeads.filter(l => l.status === 'Lost' || l.status === 'Won').length,
-    };
+    if (!apiLeads) return null;
+    const counts = { 'New leads': 0, 'Hot leads': 0, 'Warm leads': 0, 'Cool leads': 0, 'Lost leads': 0 };
+    for (const lead of apiLeads) {
+      const cat = classifyLeadCategory(lead);
+      if (cat && cat in counts) counts[cat] += 1;
+    }
+    return counts;
   }, [apiLeads]);
 
-  const visibleLeadRows = useMemo(() => {
-    let source = apiLeads ?? getLeadRowsForCategory(activeLeadCategory);
+  const assigneeOptions = useMemo(() => {
+    if (!apiLeads) return ['All'];
+    const names = [...new Set(apiLeads.map(l => l.assignedTo.name).filter(n => n && n !== 'Unassigned'))].sort();
+    return ['All', ...names];
+  }, [apiLeads]);
 
-    if (apiLeads && activeLeadCategory) {
+  const activeFilterCount = [projectTypeFilter, statusFilter, assignedToFilter].filter((v) => v !== 'All').length + (followUpDate ? 1 : 0);
+
+  const visibleLeadRows = useMemo(() => {
+    if (!apiLeads) return [];
+
+    let source = [...apiLeads];
+
+    if (activeLeadCategory) {
       const cat = activeLeadCategory.label;
-      source = source.filter((lead) => {
-        const isActive = lead.status !== 'Won' && lead.status !== 'Lost';
-        if (cat === 'New leads') return lead.status === 'New';
-        if (cat === 'Hot leads') return lead.priority === 'High' && isActive;
-        if (cat === 'Warm leads') return lead.status === 'Follow-up' && lead.priority !== 'High';
-        if (cat === 'Cool leads') return lead.priority === 'Low' && isActive;
-        if (cat === 'Lost leads') return lead.status === 'Lost' || lead.status === 'Won';
-        return true;
-      });
+      source = source.filter((lead) => classifyLeadCategory(lead) === cat);
     }
 
     return source.filter((lead) => {
@@ -3570,7 +3538,13 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
 
   const LEAD_PAGE_SIZE = 10;
   const totalLeadPages = Math.max(1, Math.ceil(visibleLeadRows.length / LEAD_PAGE_SIZE));
-  const pagedLeadRows = visibleLeadRows.slice((activePage - 1) * LEAD_PAGE_SIZE, activePage * LEAD_PAGE_SIZE);
+  const safePage = Math.min(activePage, totalLeadPages);
+  const pagedLeadRows = visibleLeadRows.slice((safePage - 1) * LEAD_PAGE_SIZE, safePage * LEAD_PAGE_SIZE);
+
+  // Agar list shrink ho jaaye aur current page range se bahar nikal jaaye to page wapas valid range mein laao
+  useEffect(() => {
+    if (activePage > totalLeadPages) setActivePage(totalLeadPages);
+  }, [activePage, totalLeadPages]);
 
   useEffect(() => {
     if (!activeLeadCategory) {
@@ -3652,9 +3626,11 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                   key={category.label}
                   type="button"
                   onClick={() => {
-                    setActiveLeadCategory(prev => prev?.label === category.label ? null : category);
+                    const isDeselecting = activeLeadCategory?.label === category.label;
+                    setActiveLeadCategory(isDeselecting ? null : category);
+                    setStatusFilter('All');
                     setActivePage(1);
-                    onNotify(`${category.label} list opened`);
+                    if (!isDeselecting) onNotify(`${category.label} filter applied`);
                   }}
                   data-action={`open-${category.shortLabel.toLowerCase()}-leads`}
                   className={cx(
@@ -3673,7 +3649,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                     </span>
                   </span>
                   <span className={cx('rounded-full px-2.5 py-1 text-[11px] font-extrabold', tone.count)}>
-                    {categoryLeadCount[category.label] ?? category.count}
+                    {categoryLeadCount ? (categoryLeadCount[category.label] ?? 0) : '—'}
                   </span>
                 </button>
               );
@@ -3683,8 +3659,8 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
       </section>
 
       <section className={`${panelClass} relative z-40 overflow-visible p-4 sm:p-5`}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1.4fr_1fr_1fr_1fr_1.1fr_auto] 2xl:items-end">
-          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="flex h-11 flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <input
               value={searchQuery}
               onChange={(event) => { setSearchQuery(event.target.value); setActivePage(1); }}
@@ -3695,32 +3671,68 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             <Search className="size-4 text-[#7386a3]" />
           </label>
 
-          <FilterSelect label="Project Type" value={projectTypeFilter} onChange={(v) => { setProjectTypeFilter(v); setActivePage(1); }} options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']} />
-          <FilterSelect label="Status" value={statusFilter} onChange={(v) => { setStatusFilter(v); setActivePage(1); }} options={['All', 'New', 'Follow-up', 'Quotation', 'Lost']} />
-          <FilterSelect label="Assigned To" value={assignedToFilter} onChange={(v) => { setAssignedToFilter(v); setActivePage(1); }} options={['All', 'Rohit Singh', 'Neha Kumari', 'Vikram Patel']} />
-
-          <label className="block">
-            <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Follow-up Date</span>
+          <div className="relative" data-lead-filters-popover="true">
             <button
               type="button"
-              onClick={openFollowUpDatePicker}
-              className="relative flex h-11 w-full items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-left text-[13px] font-bold text-[#6f7f98] transition hover:bg-[#fbfdff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              onClick={() => setFiltersOpen((open) => !open)}
+              aria-expanded={filtersOpen}
+              className={cx(
+                'inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border px-4 text-[13px] font-extrabold transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
+                activeFilterCount > 0 ? 'border-[#0b65e5] bg-[#eef6ff] text-[#0b65e5]' : 'border-black/20 bg-white text-[#284276] hover:bg-[#f8fbff]',
+              )}
             >
-              <CalendarDays className="size-4 text-[#7386a3]" />
-              <span className={cx('pointer-events-none', followUpDate ? 'text-[#30466d]' : 'text-[#6f7f98]')}>
-                {followUpDate || 'Select date range'}
-              </span>
-              <input
-                ref={followUpDateInputRef}
-                type="date"
-                value={followUpDate}
-                onChange={(event) => { setFollowUpDate(event.target.value); setActivePage(1); }}
-                className="pointer-events-none absolute bottom-0 left-4 h-px w-px opacity-0"
-                tabIndex={-1}
-                aria-label="Select follow-up date"
-              />
+              <Filter className="size-4" />
+              Filters
+              {activeFilterCount > 0 ? (
+                <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#0b65e5] text-[11px] font-extrabold text-white">{activeFilterCount}</span>
+              ) : null}
             </button>
-          </label>
+
+            {filtersOpen ? (
+              <div className="absolute right-0 z-50 mt-2 w-[300px] rounded-[12px] border border-[#e7eef7] bg-white p-4 shadow-[0_18px_38px_rgba(17,39,84,0.14)] sm:w-[340px]">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="font-display text-[14px] font-extrabold text-[#1e3261]">Filters</p>
+                  <button type="button" onClick={() => setFiltersOpen(false)} aria-label="Close filters" className="grid size-7 place-items-center rounded-[6px] text-[#7386a3] hover:bg-[#f1f5fb]">
+                    <X className="size-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <FilterSelect label="Project Type" value={projectTypeFilter} onChange={(v) => { setProjectTypeFilter(v); setActivePage(1); }} options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']} />
+                  <div>
+                    <FilterSelect label="Status" value={statusFilter} onChange={(v) => { setStatusFilter(v); setActiveLeadCategory(null); setActivePage(1); }} options={['All', 'New', 'Follow-up', 'Quotation', 'Won', 'Lost']} />
+                    {activeLeadCategory ? (
+                      <p className="mt-1.5 text-[11px] font-bold text-[#8493ab]">{activeLeadCategory.label} category active hai — status badalne par wo clear ho jaayegi.</p>
+                    ) : null}
+                  </div>
+                  <FilterSelect label="Assigned To" value={assignedToFilter} onChange={(v) => { setAssignedToFilter(v); setActivePage(1); }} options={assigneeOptions} />
+
+                  <label className="block">
+                    <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Follow-up Date</span>
+                    <button
+                      type="button"
+                      onClick={openFollowUpDatePicker}
+                      className="relative flex h-11 w-full items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-left text-[13px] font-bold text-[#6f7f98] transition hover:bg-[#fbfdff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    >
+                      <CalendarDays className="size-4 text-[#7386a3]" />
+                      <span className={cx('pointer-events-none', followUpDate ? 'text-[#30466d]' : 'text-[#6f7f98]')}>
+                        {followUpDate || 'Select date range'}
+                      </span>
+                      <input
+                        ref={followUpDateInputRef}
+                        type="date"
+                        value={followUpDate}
+                        onChange={(event) => { setFollowUpDate(event.target.value); setActivePage(1); }}
+                        className="pointer-events-none absolute bottom-0 left-4 h-px w-px opacity-0"
+                        tabIndex={-1}
+                        aria-label="Select follow-up date"
+                      />
+                    </button>
+                  </label>
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           <button
             type="button"
@@ -3732,6 +3744,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
               setFollowUpDate('');
               setActiveLeadCategory(null);
               setActivePage(1);
+              setFiltersOpen(false);
               onNotify('Lead filters reset');
             }}
             data-action="lead-reset-filters"
@@ -3785,18 +3798,35 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
           </div>
         ) : null}
 
+        {leadsLoading ? (
+          <div className="flex items-center justify-center gap-3 py-16 text-[14px] font-bold text-[#7386a3]">
+            <svg className="size-5 animate-spin text-[#0b65e5]" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+            </svg>
+            Leads load ho rahi hain...
+          </div>
+        ) : pagedLeadRows.length === 0 ? (
+          <div className="py-16 text-center text-[14px] font-bold text-[#7386a3]">
+            {activeLeadCategory ? `${activeLeadCategory.label} mein koi lead nahi mili` : 'Koi lead nahi mili'}
+          </div>
+        ) : null}
+
+        {!leadsLoading && pagedLeadRows.length > 0 && (
         <div className="space-y-3 lg:hidden">
           {pagedLeadRows.map((lead, index) => (
             <LeadListMobileCard
-              key={`${lead.ivrs}-${lead.mobile}`}
-              index={(activePage - 1) * LEAD_PAGE_SIZE + index + 1}
+              key={lead.id}
+              index={(safePage - 1) * LEAD_PAGE_SIZE + index + 1}
               lead={lead}
               onOpenLead={onOpenLead}
               onNotify={onNotify}
             />
           ))}
         </div>
+        )}
 
+        {!leadsLoading && pagedLeadRows.length > 0 && (
         <div className="hidden overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:block">
           <div className="overflow-x-auto">
             <table className="crm-table min-w-[1180px] w-full">
@@ -3809,8 +3839,8 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
               </thead>
               <tbody>
                 {pagedLeadRows.map((lead, index) => (
-                  <tr key={`${lead.ivrs}-${lead.mobile}`}>
-                    <td className="font-extrabold text-[#233a6b]">{(activePage - 1) * LEAD_PAGE_SIZE + index + 1}</td>
+                  <tr key={lead.id}>
+                    <td className="font-extrabold text-[#233a6b]">{(safePage - 1) * LEAD_PAGE_SIZE + index + 1}</td>
                     <td className="font-bold text-[#233a6b]">{lead.customer}</td>
                     <td>{lead.mobile}</td>
                     <td>{lead.ivrs}</td>
@@ -3829,7 +3859,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                       <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
-                          onClick={onOpenLead}
+                          onClick={() => onOpenLead(lead)}
                           data-action="lead-view"
                           className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
                           aria-label={`View ${lead.customer}`}
@@ -3838,7 +3868,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                         </button>
                         <button
                           type="button"
-                          onClick={onOpenLead}
+                          onClick={() => onOpenLead(lead)}
                           data-action="lead-more-actions"
                           className="inline-flex size-8 items-center justify-center rounded-[8px] text-[#53647f] transition hover:bg-[#f5f9ff]"
                           aria-label={`More actions for ${lead.customer}`}
@@ -3853,16 +3883,17 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             </table>
           </div>
         </div>
+        )}
 
         <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
           <p>
-            {visibleLeadRows.length === 0
-              ? 'No entries found'
-              : `Showing ${(activePage - 1) * LEAD_PAGE_SIZE + 1} to ${Math.min(activePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`}
+            {!leadsLoading && visibleLeadRows.length > 0
+              ? `Showing ${(safePage - 1) * LEAD_PAGE_SIZE + 1} to ${Math.min(safePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`
+              : null}
           </p>
           {totalLeadPages > 1 && (
             <div className="flex flex-wrap items-center gap-2">
-              <PaginationButton onClick={() => selectPage(Math.max(1, activePage - 1))}>
+              <PaginationButton onClick={() => selectPage(Math.max(1, safePage - 1))}>
                 <ChevronLeft className="size-4" />
               </PaginationButton>
               {(() => {
@@ -3871,19 +3902,19 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                   for (let i = 1; i <= totalLeadPages; i++) pages.push(i);
                 } else {
                   pages.push(1);
-                  if (activePage > 3) pages.push('ellipsis-start');
-                  const start = Math.max(2, activePage - 1);
-                  const end = Math.min(totalLeadPages - 1, activePage + 1);
+                  if (safePage > 3) pages.push('ellipsis-start');
+                  const start = Math.max(2, safePage - 1);
+                  const end = Math.min(totalLeadPages - 1, safePage + 1);
                   for (let i = start; i <= end; i++) pages.push(i);
-                  if (activePage < totalLeadPages - 2) pages.push('ellipsis-end');
+                  if (safePage < totalLeadPages - 2) pages.push('ellipsis-end');
                   pages.push(totalLeadPages);
                 }
                 return pages.map((page) => (page === 'ellipsis-start' || page === 'ellipsis-end')
                   ? <span key={page} className="px-2 text-[#53647f]">...</span>
-                  : <PaginationButton key={page} active={activePage === page} onClick={() => selectPage(page)}>{page}</PaginationButton>
+                  : <PaginationButton key={page} active={safePage === page} onClick={() => selectPage(page)}>{page}</PaginationButton>
                 );
               })()}
-              <PaginationButton onClick={() => selectPage(Math.min(totalLeadPages, activePage + 1))}>
+              <PaginationButton onClick={() => selectPage(Math.min(totalLeadPages, safePage + 1))}>
                 <ChevronRight className="size-4" />
               </PaginationButton>
             </div>
@@ -8210,7 +8241,6 @@ function LiaisonActionPage({ type, onOpenSection, onNotify }) {
             <div>
               <p className="font-display text-[18px] font-extrabold text-[#06135a]">{config.title}</p>
               <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">{config.note}</p>
-              <p className="mt-2 text-[11px] font-extrabold text-[#0b65e5]">{config.route}</p>
             </div>
           </div>
 
@@ -17028,7 +17058,6 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
             <div>
               <p className="font-display text-[18px] font-extrabold text-[#06135a]">{config.title}</p>
               <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">{config.note}</p>
-              <p className="mt-2 text-[11px] font-extrabold text-[#0b65e5]">{config.route}</p>
             </div>
           </div>
 
@@ -27168,11 +27197,6 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
     const mobile = fd.get('mobile_number')?.trim();
     const ivrs = fd.get('ivrs_number')?.trim();
 
-    if (ivrs) {
-      setDuplicateModalOpen(true);
-      return;
-    }
-
     setSubmitting(true);
     setSubmitError('');
     try {
@@ -27192,13 +27216,20 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
         priority: fd.get('priority') || undefined,
         remarks: fd.get('remarks') || undefined,
         address: fd.get('address') || undefined,
+        city: fd.get('city') || undefined,
+        state: fd.get('state') || undefined,
         latitude: fd.get('latitude') || undefined,
         longitude: fd.get('longitude') || undefined,
       };
       await leadApi.create(payload);
+      onNotify?.('Lead successfully create ho gayi!');
       onCancel();
     } catch (err) {
-      setSubmitError(err.message || 'Lead save karne mein error aayi');
+      if (err.message?.includes('IVRS number already exists')) {
+        setDuplicateModalOpen(true);
+      } else {
+        setSubmitError(err.message || 'Lead save karne mein error aayi. Dobara try karo.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -27514,17 +27545,90 @@ function CreateLeadNotice() {
   );
 }
 
-function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUpHistory, onNotify }) {
-  const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
-  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+function NoLeadSelected({ title, onGoToList }) {
+  return (
+    <div className="space-y-4">
+      <PageHeading title={title} crumbs={[{ label: 'Lead', onClick: onGoToList }, { label: title }]} />
+      <div className={`${panelClass} flex flex-col items-center justify-center gap-4 px-6 py-16 text-center`}>
+        <span className="grid size-16 place-items-center rounded-full bg-[#fff4e0] text-[#f59e0b]"><AlertTriangle className="size-8" /></span>
+        <div>
+          <p className="font-display text-[18px] font-extrabold text-[#1e3261]">Koi lead select nahi hai</p>
+          <p className="mt-2 text-[13px] font-semibold text-[#53647f]">Is page ko dekhne ke liye pehle Lead List se koi lead open karo.</p>
+        </div>
+        <button type="button" onClick={onGoToList} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
+          <Users className="size-4" />
+          Lead List Kholo
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Overview / Follow-ups / Quotation — ek hi page, tabs se switch hota hai.
+// Pehle ye 3 alag pages the (breadcrumb hopping + "Back" button chahiye tha); ab sab Lead Details ke andar hi hai.
+function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackToList, onCreateLead, onLeadUpdated, onNotify }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [followUps, setFollowUps] = useState(null);
+  const [activeModal, setActiveModal] = useState(null);
+  const [linkedLeads, setLinkedLeads] = useState(null);
+
+  const loadFollowUps = () => {
+    if (!lead?.id) { setFollowUps([]); return; }
+    followUpApi.list(lead.id).then((data) => setFollowUps(Array.isArray(data) ? data : data?.results ?? [])).catch(() => setFollowUps([]));
+  };
+
+  useEffect(() => {
+    setFollowUps(null);
+    loadFollowUps();
+  }, [lead?.id]);
+
+  useEffect(() => {
+    if (!lead?.mobile) { setLinkedLeads([]); return; }
+    setLinkedLeads(null);
+    leadApi.list({ search: lead.mobile }).then((data) => {
+      const rows = Array.isArray(data) ? data : data?.results ?? [];
+      setLinkedLeads(rows.filter((row) => row.id !== lead.id && row.mobile_number === lead.mobile));
+    }).catch(() => setLinkedLeads([]));
+  }, [lead?.id, lead?.mobile]);
+
+  if (!lead?.id) return <NoLeadSelected title="Lead Details" onGoToList={onBackToList} />;
 
   const quickDetailActions = [
-    { label: 'Add Follow-up', icon: ShieldCheck, tone: 'green', onClick: () => onOpenSection('Lead Follow-up Create') },
-    { label: 'Schedule Site Visit', icon: CalendarDays, tone: 'blue', onClick: () => onOpenSection('Lead Site Visit Schedule') },
-    { label: 'Create Quotation', icon: FilePlus2, tone: 'blue', onClick: () => onOpenSection('Lead Quotation') },
-    { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => onOpenSection('Lead Assign') },
-    { label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => onOpenSection('Lead Status Update') },
-    { label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => onOpenSection('Lead Note Create') },
+    { label: 'Schedule Site Visit', icon: CalendarDays, tone: 'blue', onClick: () => setActiveModal('site-visit') },
+    { label: 'Create Quotation', icon: FilePlus2, tone: 'blue', onClick: () => setActiveTab('quotation') },
+    { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => setActiveModal('assign') },
+    { label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => setActiveModal('status') },
+    { label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => setActiveModal('note') },
+  ];
+
+  const toneForStatus = { Completed: 'success', Missed: 'danger', Scheduled: 'primary' };
+  const iconForType = { Call: Phone, WhatsApp: MessageSquareMore, 'Site Visit': Users, Email: Phone, Note: Flag };
+  const fullTimeline = (followUps ?? []).map((item) => ({
+    id: item.id,
+    title: `${item.follow_up_type || 'Follow-up'} ${item.status || ''}`.trim(),
+    tag: item.status || 'Scheduled',
+    text: item.notes || '—',
+    date: item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + '\n' + new Date(item.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—',
+    tone: toneForStatus[item.status] || 'primary',
+    icon: iconForType[item.follow_up_type] || Phone,
+  }));
+  const completedCount = (followUps ?? []).filter((f) => f.status === 'Completed').length;
+  const scheduledCount = (followUps ?? []).filter((f) => f.status === 'Scheduled').length;
+  const missedCount = (followUps ?? []).filter((f) => f.status === 'Missed').length;
+  const nextFollowUp = (followUps ?? []).filter((f) => f.status === 'Scheduled').sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))[0];
+
+  const quoteRows = [
+    ['Solar Panels 540Wp', '10 Nos', 'Rs 16,200', 'Rs 1,62,000'],
+    ['5kW Inverter', '1 No', 'Rs 48,500', 'Rs 48,500'],
+    ['Mounting Structure', '1 Set', 'Rs 28,000', 'Rs 28,000'],
+    ['DC/AC Cables & Protection', '1 Set', 'Rs 21,500', 'Rs 21,500'],
+    ['Installation & Commissioning', '1 Job', 'Rs 32,000', 'Rs 32,000'],
+  ];
+
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'follow-ups', label: 'Follow-ups' },
+    { key: 'quotation', label: 'Quotation' },
   ];
 
   return (
@@ -27542,411 +27646,282 @@ function LeadDetailsPage({ onOpenSection, onBackToList, onCreateLead, onFollowUp
               <FileText className="size-4" />
               Edit Lead
             </button>
-            <button type="button" onClick={() => onOpenSection('Lead Follow-up Create')} data-route={leadSubRoutes['Lead Follow-up Create']} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
+            <button type="button" onClick={() => setActiveModal('follow-up')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
               <Plus className="size-4" />
               Add Follow-up
             </button>
-            <div className="relative">
-              <button type="button" onClick={() => setQuickActionsOpen((current) => !current)} className="inline-flex size-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b] transition hover:bg-[#f8fbff]" aria-label="More lead actions" aria-expanded={quickActionsOpen}>
-                <MoreVertical className="size-4" />
-              </button>
-              {quickActionsOpen ? (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[240px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white p-2 shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
-                  {quickDetailActions.map((action) => {
-                    const Icon = action.icon;
-                    return (
-                      <button key={action.label} type="button" onClick={() => { setQuickActionsOpen(false); action.onClick(); }} className="flex w-full items-center gap-3 rounded-[9px] px-3 py-2.5 text-left text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                        <Icon className="size-4 text-[#0b65e5]" />
-                        {action.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
           </>
         )}
       />
 
       <div className="flex flex-col gap-3 rounded-[12px] border border-[#f4cf83] bg-[#fff8e8] p-4 text-[13px] font-extrabold text-[#a76200] sm:flex-row sm:items-center sm:justify-between">
-        <span className="inline-flex items-center gap-2"><AlertTriangle className="size-4" /> IVRS Number: IVRS123456</span>
+        <span className="inline-flex items-center gap-2"><AlertTriangle className="size-4" /> IVRS Number: {lead?.ivrs || '—'}</span>
         <span className="rounded-[8px] bg-[#fff0cf] px-3 py-1">Duplicate Check: Unique</span>
-        <span className="rounded-[8px] bg-[#dff6e7] px-3 py-1 text-[#087a39]">Status: Follow-up</span>
+        <span className="rounded-[8px] bg-[#dff6e7] px-3 py-1 text-[#087a39]">Status: {lead?.status || '—'}</span>
       </div>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <InfoPanel title="1. Basic Information" icon={CalendarDays} tone="success">
-              <DetailRow label="Customer Name" value="Amit Sharma" />
-              <DetailRow label="Mobile Number" value="9876543210" />
-              <DetailRow label="Alternate Number" value="+91 9123456780" />
-              <DetailRow label="IVRS Number" valueNode={<span className="inline-flex items-center gap-2">IVRS123456 <StatusBadge status="Verified" /></span>} />
-              <DetailRow label="Email Address" value="amit.sharma@email.com" />
-              <DetailRow label="Address" value="123, Green Avenue, Indore, Madhya Pradesh - 452001" />
-              <DetailRow label="Source" value="Website" />
-              <DetailRow label="Assigned To" valueNode={<AssigneeCell assignee={{ name: 'Rohit Singh', initials: 'RS', tone: 'amber' }} compact />} />
-              <DetailRow label="Created On" value="02 Jun 2026, 10:30 AM" />
-            </InfoPanel>
+      <div className="flex gap-2 border-b border-[#e4ebf4]">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={cx(
+              '-mb-px border-b-2 px-4 py-2.5 text-[13px] font-extrabold transition',
+              activeTab === tab.key ? 'border-[#0b65e5] text-[#0b65e5]' : 'border-transparent text-[#53647f] hover:text-[#1e3261]',
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-            <InfoPanel title="2. Project Information" icon={ClipboardPlus} tone="primary">
-              <DetailRow label="Project Name" value="5kW On-Grid" />
-              <DetailRow label="Project Type" value="On-Grid" />
-              <DetailRow label="Requirement Details" value="Customer is interested in installing 5kW On-Grid solar system for home." />
-              <DetailRow label="Estimated Capacity" value="5 kW" />
-              <DetailRow label="Follow-up Date" value="20 Jun 2026" />
-              <DetailRow label="Lead Status" valueNode={<StatusBadge status="Follow-up" />} />
-              <DetailRow label="Priority" valueNode={<span className="rounded-[8px] bg-[#fff0dc] px-2.5 py-1 text-[11px] font-extrabold text-[#f39b20]">Medium</span>} />
-            </InfoPanel>
-          </div>
+      {activeTab === 'overview' ? (
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <InfoPanel title="1. Basic Information" icon={CalendarDays} tone="success">
+                <DetailRow label="Customer Name" value={lead?.customer || '—'} />
+                <DetailRow label="Mobile Number" value={lead?.mobile || '—'} />
+                <DetailRow label="Alternate Number" value="—" />
+                <DetailRow label="IVRS Number" valueNode={<span className="inline-flex items-center gap-2">{lead?.ivrs || '—'} <StatusBadge status="Verified" /></span>} />
+                <DetailRow label="Email Address" value="—" />
+                <DetailRow label="Address" value="—" />
+                <DetailRow label="Source" value={lead?.source || '—'} />
+                <DetailRow label="Assigned To" valueNode={<AssigneeCell assignee={lead?.assignedTo ?? { name: 'Unassigned', initials: 'UN', tone: 'amber' }} compact />} />
+                <DetailRow label="Created On" value="—" />
+              </InfoPanel>
 
-          <InfoPanel title="3. Follow-up History" icon={Phone} actionLabel="View All Follow-ups" onAction={onFollowUpHistory}>
-            <div className="space-y-5">
-              {[
-                ['Follow-up Completed', 'Customer is interested and asked for site visit. Will share quotation after site visit.', '08 Jun 2026, 04:30 PM', 'success'],
-                ['Follow-up Scheduled', 'Site visit scheduled on 10 Jun 2026.', '06 Jun 2026, 11:00 AM', 'primary'],
-                ['Initial Call', 'Initial discussion done. Customer is interested in solar system.', '04 Jun 2026, 10:15 AM', 'slate'],
-              ].map(([title, text, date, tone]) => (
-                <TimelineItem key={title} title={title} text={text} date={date} tone={tone} />
-              ))}
+              <InfoPanel title="2. Project Information" icon={ClipboardPlus} tone="primary">
+                <DetailRow label="Project Name" value={lead?.project || '—'} />
+                <DetailRow label="Project Type" value={lead?.type || '—'} />
+                <DetailRow label="Requirement Details" value="—" />
+                <DetailRow label="Estimated Capacity" value="—" />
+                <DetailRow label="Follow-up Date" value={lead?.nextFollowUp || '—'} />
+                <DetailRow label="Lead Status" valueNode={<StatusBadge status={lead?.status || 'New'} />} />
+                <DetailRow label="Priority" valueNode={<span className="rounded-[8px] bg-[#fff0dc] px-2.5 py-1 text-[11px] font-extrabold text-[#f39b20]">{lead?.priority || '—'}</span>} />
+              </InfoPanel>
             </div>
-          </InfoPanel>
-        </div>
 
-        <div className="space-y-4">
-          <InfoPanel title="IVRS Intelligence" icon={ShieldCheck} tone="success">
-            <div className="rounded-[10px] border border-[#d7f0df] bg-[#effbf3] p-4">
-              <p className="font-extrabold text-[#087a39]">IVRS: <span className="text-[#1e3261]">IVRS123456</span></p>
-              <p className="mt-2 text-[12px] font-bold text-[#087a39]">This IVRS Number is unique. No duplicate found.</p>
-            </div>
-          </InfoPanel>
-          <InfoPanel title="Linked Leads (Same Mobile Number)" icon={Phone} tone="danger" actionLabel="View All Linked Leads" onAction={onBackToList}>
-            <p className="mb-3 font-extrabold text-[#1e3261]">Mobile: 9876543210 <span className="ml-2 rounded-[8px] bg-[#dff6e7] px-2 py-1 text-[11px] text-[#087a39]">3 Leads</span></p>
-            {['5kW On-Grid', '10kW On-Grid', '3kW On-Grid'].map((item, index) => (
-              <div key={item} className="mb-2 flex items-center justify-between rounded-[8px] border border-[#edf2f8] bg-white px-3 py-2 text-[12px] font-bold text-[#263d72]">
-                <span>{item}</span>
-                <StatusBadge status={index === 0 ? 'Won' : index === 1 ? 'Follow-up' : 'Lost'} />
+            <InfoPanel title="3. Follow-up History" icon={Phone} actionLabel="View All Follow-ups" onAction={() => setActiveTab('follow-ups')}>
+              <div className="space-y-5">
+                {followUps === null ? (
+                  <p className="text-[13px] font-bold text-[#53647f]">Loading...</p>
+                ) : followUps.length === 0 ? (
+                  <p className="text-[13px] font-bold text-[#53647f]">Abhi tak koi follow-up nahi hua hai.</p>
+                ) : followUps.slice(0, 3).map((item) => (
+                  <TimelineItem
+                    key={item.id}
+                    title={item.status === 'Completed' ? 'Follow-up Completed' : item.status === 'Missed' ? 'Follow-up Missed' : 'Follow-up Scheduled'}
+                    text={item.notes || item.follow_up_type}
+                    date={item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                    tone={item.status === 'Completed' ? 'success' : item.status === 'Missed' ? 'slate' : 'primary'}
+                  />
+                ))}
               </div>
-            ))}
-          </InfoPanel>
-          <InfoPanel title="Quick Actions" icon={Zap} tone="success">
-            <div className="grid gap-3">
-              {quickDetailActions.map((action) => (
-                <MiniActionButton key={action.label} {...action} />
+            </InfoPanel>
+          </div>
+
+          <div className="space-y-4">
+            <InfoPanel title="IVRS Intelligence" icon={ShieldCheck} tone="success">
+              <div className="rounded-[10px] border border-[#d7f0df] bg-[#effbf3] p-4">
+                <p className="font-extrabold text-[#087a39]">IVRS: <span className="text-[#1e3261]">{lead?.ivrs || '—'}</span></p>
+                <p className="mt-2 text-[12px] font-bold text-[#087a39]">This IVRS Number is unique. No duplicate found.</p>
+              </div>
+            </InfoPanel>
+            <InfoPanel title="Linked Leads (Same Mobile Number)" icon={Phone} tone="danger" actionLabel="View All Linked Leads" onAction={onBackToList}>
+              <p className="mb-3 font-extrabold text-[#1e3261]">Mobile: {lead?.mobile || '—'} <span className="ml-2 rounded-[8px] bg-[#dff6e7] px-2 py-1 text-[11px] text-[#087a39]">{linkedLeads === null ? '...' : linkedLeads.length} Lead{linkedLeads?.length === 1 ? '' : 's'}</span></p>
+              {linkedLeads === null ? (
+                <p className="text-[12px] font-bold text-[#53647f]">Loading...</p>
+              ) : linkedLeads.length === 0 ? (
+                <p className="text-[12px] font-bold text-[#53647f]">Is mobile number se aur koi lead nahi mila.</p>
+              ) : linkedLeads.map((item) => (
+                <div key={item.id} className="mb-2 flex items-center justify-between rounded-[8px] border border-[#edf2f8] bg-white px-3 py-2 text-[12px] font-bold text-[#263d72]">
+                  <span>{item.project_name || '—'}</span>
+                  <StatusBadge status={item.status} />
+                </div>
               ))}
+            </InfoPanel>
+            <InfoPanel title="Quick Actions" icon={Zap} tone="success">
+              <div className="grid gap-3">
+                {quickDetailActions.map((action) => (
+                  <MiniActionButton key={action.label} {...action} />
+                ))}
+              </div>
+            </InfoPanel>
+          </div>
+        </section>
+      ) : activeTab === 'follow-ups' ? (
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <InfoPanel title="Follow-up Timeline" icon={ShieldCheck}>
+            <div className="space-y-8">
+              {followUps === null ? (
+                <p className="text-[13px] font-bold text-[#53647f]">Loading...</p>
+              ) : fullTimeline.length === 0 ? (
+                <p className="text-[13px] font-bold text-[#53647f]">Abhi tak koi follow-up history nahi hai.</p>
+              ) : fullTimeline.map((item) => <HistoryItem key={item.id} item={item} />)}
             </div>
           </InfoPanel>
-        </div>
-      </section>
+
+          <div className="space-y-4">
+            <InfoPanel title="Follow-up Summary" icon={ReceiptText} tone="success">
+              {[
+                ['Total Follow-ups', String((followUps ?? []).length), 'text-[#1e3261]'],
+                ['Completed', String(completedCount), 'text-[#0d9f4a]'],
+                ['Scheduled', String(scheduledCount), 'text-[#0b65e5]'],
+                ['Missed', String(missedCount), 'text-[#e3342f]'],
+              ].map(([label, value, color]) => (
+                <div key={label} className="flex justify-between border-b border-[#edf2f8] py-2 text-[13px] font-bold"><span>{label}</span><span className={color}>{value}</span></div>
+              ))}
+            </InfoPanel>
+            <InfoPanel title="Next Follow-up Details" icon={CalendarDays} tone="primary">
+              {nextFollowUp ? (
+                <>
+                  <DetailRow label="Date" value={new Date(nextFollowUp.scheduled_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} />
+                  <DetailRow label="Time" value={new Date(nextFollowUp.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} />
+                  <DetailRow label="Type" value={nextFollowUp.follow_up_type || '—'} />
+                </>
+              ) : <p className="text-[13px] font-bold text-[#53647f]">Koi follow-up scheduled nahi hai.</p>}
+            </InfoPanel>
+          </div>
+        </section>
+      ) : (
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="font-display text-[16px] font-extrabold text-[#1e3261]">Quotation Items</p>
+              <button type="button" onClick={() => onNotify('Quotation saved (Save API coming soon)')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"><Save className="size-4" />Save Quotation</button>
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <ReadonlyField label="Customer" value={lead?.customer || '—'} />
+              <ReadonlyField label="Lead / IVRS" value={lead?.ivrs || '—'} />
+              <ReadonlyField label="Project" value={lead?.project || '—'} />
+            </div>
+            <div className="mt-5 overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white">
+              <table className="crm-table min-w-[720px] w-full">
+                <thead><tr>{['Item', 'Qty', 'Rate', 'Amount'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <tbody>{quoteRows.map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={`${row[0]}-${index}`} className={index === 0 ? 'font-extrabold text-[#1e3261]' : undefined}>{cell}</td>)}</tr>)}</tbody>
+              </table>
+            </div>
+          </article>
+          <aside className="space-y-4">
+            <InfoPanel title="Quotation Summary" icon={ReceiptText} tone="success">
+              <DetailRow label="Subtotal" value="Rs 2,92,000" />
+              <DetailRow label="GST" value="Rs 35,040" />
+              <DetailRow label="Discount" value="Rs 7,040" />
+              <DetailRow label="Grand Total" value="Rs 3,20,000" />
+            </InfoPanel>
+            <InfoPanel title="Next Actions" icon={Zap} tone="primary">
+              <div className="grid gap-3">
+                <MiniActionButton label="Share on WhatsApp" icon={MessageSquareMore} tone="green" onClick={() => onNotify('Quotation WhatsApp share opened')} />
+                <MiniActionButton label="Request Approval" icon={ShieldCheck} tone="blue" onClick={() => onOpenSection('Admin Approval')} />
+              </div>
+            </InfoPanel>
+          </aside>
+        </section>
+      )}
 
       <DashboardFooter />
-      {followUpModalOpen ? <AddFollowUpModal onClose={() => setFollowUpModalOpen(false)} onSave={() => { setFollowUpModalOpen(false); onNotify('Follow-up saved'); }} /> : null}
+      {activeModal ? (
+        <LeadQuickActionModal
+          type={activeModal}
+          lead={lead}
+          onClose={() => setActiveModal(null)}
+          onSaved={loadFollowUps}
+          onLeadUpdated={onLeadUpdated}
+          onNotify={onNotify}
+        />
+      ) : null}
     </div>
   );
 }
 
-function LeadQuotationPage({ onBackToDetails, onOpenSection, onNotify }) {
-  const quoteRows = [
-    ['Solar Panels 540Wp', '10 Nos', 'Rs 16,200', 'Rs 1,62,000'],
-    ['5kW Inverter', '1 No', 'Rs 48,500', 'Rs 48,500'],
-    ['Mounting Structure', '1 Set', 'Rs 28,000', 'Rs 28,000'],
-    ['DC/AC Cables & Protection', '1 Set', 'Rs 21,500', 'Rs 21,500'],
-    ['Installation & Commissioning', '1 Job', 'Rs 32,000', 'Rs 32,000'],
-  ];
+// Edit Lead — sirf isi ek action ke liye full page hai, kyunki ye lead ke core fields update karta hai
+// (Follow-up/Site Visit/Note/Status/Assign ab LeadQuickActionModal mein modal ke roop mein hain).
+function LeadEditPage({ lead, onBackToDetails, onOpenSection, onLeadUpdated, onNotify }) {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  if (!lead?.id) return <NoLeadSelected title="Edit Lead" onGoToList={() => onOpenSection('Lead List')} />;
+
+  const handleSave = async (event) => {
+    event.preventDefault();
+    const fd = new FormData(event.currentTarget);
+    setSaving(true);
+    setSaveError('');
+    try {
+      const patch = {
+        customer_name: fd.get('customer_name') || lead.customer,
+        mobile_number: fd.get('mobile_number') || lead.mobile,
+        project_name: fd.get('project_name') || lead.project,
+        project_type: fd.get('project_type') || lead.type,
+        remarks: fd.get('notes') || '',
+      };
+      await leadApi.update(lead.id, patch);
+      onLeadUpdated?.({ customer: patch.customer_name, mobile: patch.mobile_number, project: patch.project_name, type: patch.project_type });
+      onNotify('Edit Lead successfully save ho gayi!');
+      onBackToDetails();
+    } catch (err) {
+      setSaveError(err.message || 'Save karne mein error aayi, dobara try karo');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
       <PageHeading
-        title="Create Quotation"
+        title="Edit Lead"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Lead', onClick: () => onOpenSection('Lead List') },
           { label: 'Lead Details', onClick: onBackToDetails },
-          { label: 'Create Quotation' },
+          { label: 'Edit Lead' },
         ]}
         actions={(
           <>
             <button type="button" onClick={onBackToDetails} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />Back</button>
-            <button type="button" onClick={() => onOpenSection('Project Documents')} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]"><FileText className="size-4" />View Documents</button>
-            <button type="button" onClick={() => onNotify('Quotation saved')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"><Save className="size-4" />Save Quotation</button>
+            <button form="lead-edit-form" type="submit" disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e] disabled:opacity-60"><Save className="size-4" />{saving ? 'Saving...' : 'Save Lead'}</button>
           </>
         )}
       />
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <article className={`${panelClass} p-4 sm:p-5`}>
-          <div className="grid gap-4 md:grid-cols-3">
-            <ReadonlyField label="Customer" value="Amit Sharma" />
-            <ReadonlyField label="Lead / IVRS" value="IVRS123456" />
-            <ReadonlyField label="Project" value="5kW On-Grid" />
-          </div>
-          <div className="mt-5 overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white">
-            <table className="crm-table min-w-[720px] w-full">
-              <thead><tr>{['Item', 'Qty', 'Rate', 'Amount'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
-              <tbody>{quoteRows.map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={`${row[0]}-${cell}`} className={index === 0 ? 'font-extrabold text-[#1e3261]' : undefined}>{cell}</td>)}</tr>)}</tbody>
-            </table>
-          </div>
-        </article>
-        <aside className="space-y-4">
-          <InfoPanel title="Quotation Summary" icon={ReceiptText} tone="success">
-            <DetailRow label="Subtotal" value="Rs 2,92,000" />
-            <DetailRow label="GST" value="Rs 35,040" />
-            <DetailRow label="Discount" value="Rs 7,040" />
-            <DetailRow label="Grand Total" value="Rs 3,20,000" />
-          </InfoPanel>
-          <InfoPanel title="Next Actions" icon={Zap} tone="primary">
-            <div className="grid gap-3">
-              <MiniActionButton label="Share on WhatsApp" icon={MessageSquareMore} tone="green" onClick={() => onNotify('Quotation WhatsApp share opened')} />
-              <MiniActionButton label="Request Approval" icon={ShieldCheck} tone="blue" onClick={() => onOpenSection('Admin Approval')} />
-              <MiniActionButton label="Back to Lead Details" icon={ArrowRight} tone="purple" onClick={onBackToDetails} />
+        <form id="lead-edit-form" onSubmit={handleSave}>
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex items-start gap-4 rounded-[12px] border border-[#edf2f8] bg-[#fbfdff] p-4">
+              <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#effbf3] text-[#0d9f4a]"><FileText className="size-5" /></span>
+              <div>
+                <p className="font-display text-[18px] font-extrabold text-[#06135a]">Edit Lead</p>
+                <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">Lead ki basic, project aur assignment details update karo.</p>
+              </div>
             </div>
-          </InfoPanel>
-        </aside>
-      </section>
-
-      <DashboardFooter />
-    </div>
-  );
-}
-
-function FollowUpHistoryPage({ onOpenSection, onBackToDetails, onNotify }) {
-  const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
-  const timeline = [
-    { title: 'Note Added', tag: 'Note', text: 'Customer will share electricity bill on WhatsApp for better system sizing.', date: '12 Jun 2026\n02:20 PM', tone: 'warning', icon: Flag },
-    { title: 'Site Visit Completed', tag: 'Completed', text: 'Site visit completed. Customer is satisfied with the site assessment.', date: '10 Jun 2026\n01:45 PM', tone: 'purple', icon: Users },
-    { title: 'Follow-up Completed', tag: 'Completed', text: 'Customer is interested in 5kW On-Grid system. Discussed product quality, subsidy and installation timeline.', date: '08 Jun 2026\n04:30 PM', tone: 'success', icon: Phone },
-    { title: 'Follow-up Scheduled', tag: 'Scheduled', text: 'Site visit scheduled on 10 Jun 2026 at 11:00 AM.', date: '06 Jun 2026\n11:00 AM', tone: 'primary', icon: CalendarDays },
-    { title: 'Initial Call', tag: 'Connected', text: 'Initial call made to customer. Interest confirmed in rooftop solar system.', date: '04 Jun 2026\n10:15 AM', tone: 'danger', icon: Phone },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Follow-up History"
-        crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Lead', onClick: () => onOpenSection('Lead List') }, { label: 'Lead Details', onClick: onBackToDetails }, { label: 'Follow-up History' }]}
-        actions={(
-          <>
-            <button type="button" onClick={() => onOpenSection('Lead Follow-up Create')} data-route={leadSubRoutes['Lead Follow-up Create']} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)]">
-              <Plus className="size-4" />
-              Add Follow-up
-            </button>
-            <button type="button" onClick={() => onOpenSection('Lead List')} className="inline-flex size-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#233a6b]"><MoreVertical className="size-4" /></button>
-          </>
-        )}
-      />
-
-      <section className={`${panelClass} p-4`}>
-        <div className="grid gap-4 lg:grid-cols-[auto_1fr_auto_auto] lg:items-center">
-          <span className="grid size-12 place-items-center rounded-full bg-[#e4f8ea] text-[#18a34a]"><Users className="size-6" /></span>
-          <div>
-            <p className="text-[17px] font-extrabold text-[#1e3261]">Amit Sharma <StatusBadge status="Follow-up" /></p>
-            <p className="mt-2 flex flex-wrap gap-4 text-[13px] font-bold text-[#314a79]">Mobile: 9876543210 <span>IVRS: IVRS123456</span> <span>Project: 5kW On-Grid</span> <span>Assigned To: Rohit Singh</span></p>
-          </div>
-          <div><p className="text-[12px] font-extrabold text-[#53647f]">Lead Status</p><StatusBadge status="Follow-up" /></div>
-          <div><p className="text-[12px] font-extrabold text-[#53647f]">Next Follow-up</p><p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">20 Jun 2026, 11:00 AM</p></div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <InfoPanel title="Follow-up Timeline" icon={ShieldCheck}>
-          <div className="space-y-8">
-            {timeline.map((item) => <HistoryItem key={item.title} item={item} />)}
-          </div>
-          <div className="mt-6 text-center">
-            <button type="button" onClick={() => onNotify('More history loaded')} className="inline-flex items-center gap-2 rounded-[8px] border border-[#d8e4f4] bg-white px-5 py-2 text-[13px] font-extrabold text-[#0b65e5]">Load More History <Download className="size-4" /></button>
-          </div>
-        </InfoPanel>
-
-        <div className="space-y-4">
-          <InfoPanel title="Follow-up Summary" icon={ReceiptText} tone="success">
-            {[
-              ['Total Follow-ups', '5', 'text-[#1e3261]'],
-              ['Completed', '2', 'text-[#0d9f4a]'],
-              ['Scheduled', '2', 'text-[#0b65e5]'],
-              ['Notes', '1', 'text-[#d98200]'],
-              ['Missed', '0', 'text-[#e3342f]'],
-            ].map(([label, value, color]) => (
-              <div key={label} className="flex justify-between border-b border-[#edf2f8] py-2 text-[13px] font-bold"><span>{label}</span><span className={color}>{value}</span></div>
-            ))}
-          </InfoPanel>
-          <InfoPanel title="Next Follow-up Details" icon={CalendarDays} tone="primary">
-            <DetailRow label="Date" value="20 Jun 2026" />
-            <DetailRow label="Time" value="11:00 AM" />
-            <DetailRow label="Type" value="Site Visit" />
-            <DetailRow label="Assigned To" valueNode={<AssigneeCell assignee={{ name: 'Rohit Singh', initials: 'RS', tone: 'amber' }} compact />} />
-            <DetailRow label="Reminder" value="1 Day Before" />
-            <button type="button" onClick={() => onOpenSection('Lead Follow-up Create')} className="mt-3 w-full rounded-[8px] bg-[#0d9f4a] px-4 py-2.5 text-[13px] font-extrabold text-white">Edit Next Follow-up</button>
-          </InfoPanel>
-          <InfoPanel title="Quick Actions" icon={Zap} tone="success">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              <MiniActionButton label="Add Follow-up" icon={ShieldCheck} tone="green" onClick={() => onOpenSection('Lead Follow-up Create')} />
-              <MiniActionButton label="Schedule Site Visit" icon={CalendarDays} tone="blue" onClick={() => onOpenSection('Lead Site Visit Schedule')} />
-              <MiniActionButton label="Add Note" icon={Users} tone="purple" onClick={() => onOpenSection('Lead Note Create')} />
-              <MiniActionButton label="Change Lead Status" icon={Clock3} tone="amber" onClick={() => onOpenSection('Lead Status Update')} />
+            {saveError ? <p className="mt-3 rounded-[8px] bg-[#ffe9e6] px-4 py-2 text-[13px] font-bold text-[#e3342f]">{saveError}</p> : null}
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <LeadInput label="Customer Name" name="customer_name" required icon={Users} placeholder={lead?.customer || 'Customer name'} />
+              <LeadInput label="Mobile Number" name="mobile_number" required icon={Phone} placeholder={lead?.mobile || 'Mobile number'} />
+              <ReadonlyField label="IVRS Number" value={lead?.ivrs || '—'} />
+              <LeadInput label="Project Name" name="project_name" icon={FileText} placeholder={lead?.project || 'Project name'} />
+              <LeadSelect label="Project Type" name="project_type" icon={Flag} placeholder={lead?.type || 'Select type'} options={['On-Grid', 'Off-Grid', 'Hybrid']} />
+              <LeadSelect label="Priority" name="priority" icon={Flag} placeholder={lead?.priority || 'Select priority'} options={['High', 'Medium', 'Low']} />
+              <div className="md:col-span-2">
+                <LeadTextarea label="Lead Remarks" name="notes" icon={FileText} placeholder="Lead ke baare mein remarks..." />
+              </div>
             </div>
-          </InfoPanel>
-        </div>
-      </section>
-
-      <DashboardFooter />
-      {followUpModalOpen ? <AddFollowUpModal onClose={() => setFollowUpModalOpen(false)} onSave={() => { setFollowUpModalOpen(false); onNotify('Follow-up saved'); }} /> : null}
-    </div>
-  );
-}
-
-function LeadActionFormPage({ type, onBackToDetails, onOpenSection, onNotify }) {
-  const config = {
-    edit: {
-      title: 'Edit Lead',
-      route: leadSubRoutes['Lead Edit'],
-      icon: FileText,
-      saveLabel: 'Save Lead',
-      note: 'Lead ki basic, project aur assignment details update karo.',
-      fields: [
-        ['Customer Name', 'Amit Sharma'],
-        ['Mobile Number', '9876543210'],
-        ['IVRS Number', 'IVRS123456'],
-        ['Project Name', '5kW On-Grid'],
-        ['Project Type', 'On-Grid'],
-        ['Assigned To', 'Rohit Singh'],
-      ],
-      textLabel: 'Lead Remarks',
-      textValue: 'Customer is interested and asked for final quotation after site visit.',
-    },
-    'follow-up': {
-      title: 'Add Follow-up',
-      route: leadSubRoutes['Lead Follow-up Create'],
-      icon: ShieldCheck,
-      saveLabel: 'Save Follow-up',
-      note: 'New customer follow-up add karo aur reminder schedule set karo.',
-      fields: [
-        ['Follow-up Type', 'Call'],
-        ['Follow-up Date', '25 May 2024'],
-        ['Follow-up Time', '11:00 AM'],
-        ['Assigned To', 'Rohit Singh'],
-        ['Reminder', '1 Day Before'],
-      ],
-      textLabel: 'Follow-up Remarks',
-      textValue: 'Customer asked for site visit and final quotation discussion.',
-    },
-    'site-visit': {
-      title: 'Schedule Site Visit',
-      route: leadSubRoutes['Lead Site Visit Schedule'],
-      icon: CalendarDays,
-      saveLabel: 'Schedule Visit',
-      note: 'Site visit planning, engineer assignment aur visit slot confirm karo.',
-      fields: [
-        ['Visit Date', '26 May 2024'],
-        ['Visit Time', '10:30 AM'],
-        ['Site Engineer', 'Vikram Patel'],
-        ['Visit Type', 'Residential Survey'],
-        ['Reminder', 'Same Day Morning'],
-      ],
-      textLabel: 'Visit Instructions',
-      textValue: 'Check shadow area, roof access, meter room and earthing point.',
-    },
-    note: {
-      title: 'Add Note',
-      route: leadSubRoutes['Lead Note Create'],
-      icon: Flag,
-      saveLabel: 'Save Note',
-      note: 'Internal discussion note add karo jo team ko lead context de.',
-      fields: [
-        ['Note Type', 'Internal'],
-        ['Visibility', 'Team Only'],
-        ['Priority', 'Medium'],
-        ['Tagged User', 'Rohit Singh'],
-        ['Reminder', 'No Reminder'],
-      ],
-      textLabel: 'Note',
-      textValue: 'Customer is comparing subsidy and panel brand options.',
-    },
-    status: {
-      title: 'Change Lead Status',
-      route: leadSubRoutes['Lead Status Update'],
-      icon: Clock3,
-      saveLabel: 'Update Status',
-      note: 'Lead stage update karo aur reason/history maintain karo.',
-      fields: [
-        ['Current Status', 'Follow-up'],
-        ['New Status', 'Quotation'],
-        ['Reason', 'Quotation Ready'],
-        ['Updated By', 'Rohit Singh'],
-        ['Notify Customer', 'No'],
-      ],
-      textLabel: 'Status Note',
-      textValue: 'Lead moved to quotation after customer confirmed requirement.',
-    },
-    assign: {
-      title: 'Assign Lead',
-      route: leadSubRoutes['Lead Assign'],
-      icon: Users,
-      saveLabel: 'Assign Lead',
-      note: 'Lead ko sahi sales/project team member ko assign karo.',
-      fields: [
-        ['Current Assignee', 'Rohit Singh'],
-        ['New Assignee', 'Neha Kumari'],
-        ['Department', 'Sales'],
-        ['Priority', 'Medium'],
-        ['Notify Assignee', 'Yes'],
-      ],
-      textLabel: 'Assignment Note',
-      textValue: 'Please follow up for quotation approval and schedule next customer call.',
-    },
-  }[type];
-
-  const Icon = config.icon;
-
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title={config.title}
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Lead', onClick: () => onOpenSection('Lead List') },
-          { label: 'Lead Details', onClick: onBackToDetails },
-          { label: config.title },
-        ]}
-        actions={(
-          <>
-            <button type="button" onClick={onBackToDetails} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />Back</button>
-            <button type="button" onClick={() => onNotify(`${config.title} saved`)} data-route={config.route} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"><Save className="size-4" />{config.saveLabel}</button>
-          </>
-        )}
-      />
-
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <article className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex items-start gap-4 rounded-[12px] border border-[#edf2f8] bg-[#fbfdff] p-4">
-            <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#effbf3] text-[#0d9f4a]"><Icon className="size-5" /></span>
-            <div>
-              <p className="font-display text-[18px] font-extrabold text-[#06135a]">{config.title}</p>
-              <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">{config.note}</p>
-              <p className="mt-2 text-[11px] font-extrabold text-[#0b65e5]">{config.route}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {config.fields.map(([label, value]) => <ReadonlyField key={label} label={label} value={value} />)}
-            <label className="block md:col-span-2">
-              <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{config.textLabel}</span>
-              <textarea defaultValue={config.textValue} rows={5} className="w-full rounded-[8px] border border-black/20 bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
-            </label>
-          </div>
-        </article>
+          </article>
+        </form>
 
         <aside className="space-y-4">
           <InfoPanel title="Lead Summary" icon={Users} tone="success">
-            <DetailRow label="Customer" value="Amit Sharma" />
-            <DetailRow label="Mobile" value="9876543210" />
-            <DetailRow label="IVRS" value="IVRS123456" />
-            <DetailRow label="Project" value="5kW On-Grid" />
-            <DetailRow label="Current Stage" value="Follow-up" />
+            <DetailRow label="Customer" value={lead?.customer || '—'} />
+            <DetailRow label="Mobile" value={lead?.mobile || '—'} />
+            <DetailRow label="IVRS" value={lead?.ivrs || '—'} />
+            <DetailRow label="Project" value={lead?.project || '—'} />
+            <DetailRow label="Current Stage" valueNode={<StatusBadge status={lead?.status || 'New'} />} />
           </InfoPanel>
           <InfoPanel title="Quick Navigation" icon={Zap} tone="primary">
             <div className="grid gap-3">
               <MiniActionButton label="Lead Details" icon={Eye} tone="blue" onClick={onBackToDetails} />
-              <MiniActionButton label="Follow-up History" icon={Phone} tone="green" onClick={() => onOpenSection('Follow-up History')} />
               <MiniActionButton label="Lead List" icon={Users} tone="purple" onClick={() => onOpenSection('Lead List')} />
             </div>
           </InfoPanel>
@@ -27959,72 +27934,114 @@ function LeadActionFormPage({ type, onBackToDetails, onOpenSection, onNotify }) 
 }
 
 function AdminApprovalPage({ onOpenSection, onLeadDetails, onNotify }) {
-  const rows = ['IVRS123456', 'IVRS789012', 'IVRS345678', 'IVRS901234', 'IVRS112233', 'IVRS445566', 'IVRS778899', 'IVRS667788'];
+  const allRows = [
+    { ivrs: 'IVRS123456', customer: 'Amit Sharma',    mobile: '9876543210', project: '5kW On-Grid',   by: 'Rohit Singh',   date: '02 Jun 2026', time: '10:30 AM', status: 'Pending' },
+    { ivrs: 'IVRS789012', customer: 'Sunil Patidar',  mobile: '9827456781', project: '10kW On-Grid',  by: 'Neha Kumari',   date: '03 Jun 2026', time: '10:15 AM', status: 'Pending' },
+    { ivrs: 'IVRS345678', customer: 'Neha Jain',      mobile: '9893012345', project: '3kW On-Grid',   by: 'Vikram Patel',  date: '04 Jun 2026', time: '09:45 AM', status: 'Approved' },
+    { ivrs: 'IVRS901234', customer: 'Vikram Singh',   mobile: '9753124680', project: '5kW On-Grid',   by: 'Rohit Singh',   date: '05 Jun 2026', time: '09:30 AM', status: 'Pending' },
+    { ivrs: 'IVRS112233', customer: 'Pooja Verma',    mobile: '9135782469', project: 'On-Grid',        by: 'Neha Kumari',   date: '06 Jun 2026', time: '09:10 AM', status: 'Rejected' },
+    { ivrs: 'IVRS445566', customer: 'Manish Gupta',   mobile: '9222334455', project: '10kW On-Grid',  by: 'Vikram Patel',  date: '09 Jun 2026', time: '08:50 AM', status: 'Approved' },
+    { ivrs: 'IVRS778899', customer: 'Jatin Agrawal',  mobile: '9340011223', project: '5kW On-Grid',   by: 'Rohit Singh',   date: '10 Jun 2026', time: '08:35 AM', status: 'Pending' },
+    { ivrs: 'IVRS667788', customer: 'Kavita Joshi',   mobile: '9870098765', project: '3kW On-Grid',   by: 'Neha Kumari',   date: '11 Jun 2026', time: '08:20 AM', status: 'Pending' },
+  ];
+
+  const tabs = ['Pending', 'Approved', 'Rejected', 'All'];
+  const [activeTab, setActiveTab] = useState('Pending');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRow, setSelectedRow] = useState(allRows[0]);
+
+  const filteredRows = allRows.filter((row) => {
+    const matchesTab = activeTab === 'All' || row.status === activeTab;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q || row.ivrs.toLowerCase().includes(q) || row.customer.toLowerCase().includes(q) || row.mobile.includes(q);
+    return matchesTab && matchesSearch;
+  });
+
+  const pendingCount = allRows.filter((r) => r.status === 'Pending').length;
 
   return (
     <div className="space-y-4">
       <PageHeading title="Admin Approval - IVRS Request" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Lead', onClick: () => onOpenSection('Lead List') }, { label: 'IVRS Approval' }]} />
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ['Pending Approvals', '8', 'warning', ReceiptText],
-          ['Approved Today', '5', 'success', CheckCircle2],
+          ['Pending Approvals', String(pendingCount), 'warning', ReceiptText],
+          ['Approved Today', '2', 'success', CheckCircle2],
           ['Rejected Today', '1', 'danger', XCircle],
-          ['Total Requests', '42', 'primary', FileText],
+          ['Total Requests', String(allRows.length), 'primary', FileText],
         ].map(([label, value, tone, Icon]) => <ApprovalStat key={label} label={label} value={value} tone={tone} Icon={Icon} />)}
       </section>
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <article className={`${panelClass} overflow-hidden`}>
           <div className="flex flex-col gap-3 border-b border-[#edf2f8] p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap gap-6 text-[13px] font-extrabold">
-              {['Pending (8)', 'Approved', 'Rejected', 'All'].map((tab, index) => <button key={tab} type="button" onClick={() => onNotify(`${tab} tab selected`)} className={cx('pb-2', index === 0 ? 'border-b-2 border-[#0d9f4a] text-[#0d9f4a]' : 'text-[#53647f]')}>{tab}</button>)}
+              {tabs.map((tab) => {
+                const label = tab === 'Pending' ? `Pending (${pendingCount})` : tab;
+                const isActive = activeTab === tab;
+                return (
+                  <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={cx('pb-2', isActive ? 'border-b-2 border-[#0d9f4a] text-[#0d9f4a]' : 'text-[#53647f]')}>{label}</button>
+                );
+              })}
             </div>
             <div className="flex gap-3">
               <label className="flex h-10 min-w-[260px] items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
                 <Search className="size-4 text-[#7585a2]" />
-                <input className="min-w-0 flex-1 bg-transparent text-[13px] font-bold outline-none" placeholder="Search by IVRS, name, mobile..." />
+                <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold outline-none" placeholder="Search by IVRS, name, mobile..." />
               </label>
-              <button type="button" onClick={() => onNotify('Approval filters opened')} className="rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#233a6b]">Filters</button>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="crm-table min-w-[880px] w-full">
-              <thead><tr>{['#', 'IVRS Number', 'Customer Name', 'Mobile Number', 'Project Type', 'Requested By', 'Requested On', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+              <thead><tr>{['#', 'IVRS Number', 'Customer Name', 'Mobile Number', 'Project Type', 'Requested By', 'Requested On', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
               <tbody>
-                {rows.map((ivrs, index) => (
-                  <tr key={ivrs}>
+                {filteredRows.length === 0 ? (
+                  <tr><td colSpan={9} className="py-8 text-center text-[13px] font-bold text-[#53647f]">Koi record nahi mila</td></tr>
+                ) : filteredRows.map((row, index) => (
+                  <tr key={row.ivrs} onClick={() => setSelectedRow(row)} className={cx('cursor-pointer', selectedRow?.ivrs === row.ivrs ? 'bg-[#f3f8ff]' : '')}>
                     <td>{index + 1}</td>
-                    <td className="font-extrabold text-[#233a6b]">{ivrs}</td>
-                    <td>{['Amit Sharma', 'Sunil Patidar', 'Neha Jain', 'Vikram Singh', 'Pooja Verma', 'Manish Gupta', 'Jatin Agrawal', 'Kavita Joshi'][index]}</td>
-                    <td>{['9876543210', '9827456781', '9893012345', '9753124680', '9135782469', '9222334455', '9340011223', '9870098765'][index]}</td>
-                    <td>{['5kW On-Grid', '10kW On-Grid', '3kW On-Grid', '5kW On-Grid', 'On-Grid', '10kW On-Grid', '5kW On-Grid', '3kW On-Grid'][index]}</td>
-                    <td>{['Rohit Singh', 'Neha Kumari', 'Vikram Patel', 'Rohit Singh', 'Neha Kumari', 'Vikram Patel', 'Rohit Singh', 'Neha Kumari'][index]}</td>
-                    <td>{['02 Jun 2026', '03 Jun 2026', '04 Jun 2026', '05 Jun 2026', '06 Jun 2026', '09 Jun 2026', '10 Jun 2026', '11 Jun 2026'][index]}<br />{['10:30 AM', '10:15 AM', '09:45 AM', '09:30 AM', '09:10 AM', '08:50 AM', '08:35 AM', '08:20 AM'][index]}</td>
-                    <td><div className="flex gap-2"><button type="button" onClick={() => onNotify(`${ivrs} approved`)} className="rounded-[7px] bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#087a39]">Approve</button><button type="button" onClick={() => onNotify(`${ivrs} rejected`)} className="rounded-[7px] bg-[#ffe9e6] px-2.5 py-1 text-[11px] font-extrabold text-[#e3342f]">Reject</button></div></td>
+                    <td className="font-extrabold text-[#233a6b]">{row.ivrs}</td>
+                    <td>{row.customer}</td>
+                    <td>{row.mobile}</td>
+                    <td>{row.project}</td>
+                    <td>{row.by}</td>
+                    <td>{row.date}<br />{row.time}</td>
+                    <td><StatusBadge status={row.status} /></td>
+                    <td>
+                      {row.status === 'Pending' ? (
+                        <div className="flex gap-2">
+                          <button type="button" onClick={(e) => { e.stopPropagation(); onNotify(`${row.ivrs} approved`); }} className="rounded-[7px] bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#087a39]">Approve</button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); onNotify(`${row.ivrs} rejected`); }} className="rounded-[7px] bg-[#ffe9e6] px-2.5 py-1 text-[11px] font-extrabold text-[#e3342f]">Reject</button>
+                        </div>
+                      ) : <span className="text-[12px] font-bold text-[#53647f]">{row.status}</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between px-4 py-4 text-[13px] font-bold text-[#53647f]"><span>Showing 1 to 8 of 8 entries</span><PaginationButton active onClick={() => onNotify('Page 1 selected')}>1</PaginationButton></div>
+          <div className="flex items-center justify-between px-4 py-4 text-[13px] font-bold text-[#53647f]"><span>Showing {filteredRows.length} of {allRows.length} entries</span></div>
         </article>
         <div className="space-y-4">
           <InfoPanel title="IVRS Request Details" icon={CalendarDays} tone="primary">
-            <DetailRow label="IVRS Number" value="IVRS123456" />
-            <DetailRow label="Customer Name" value="Amit Sharma" />
-            <DetailRow label="Mobile Number" value="9876543210" />
-            <DetailRow label="Project Type" value="5kW On-Grid" />
-            <DetailRow label="Requested By" valueNode={<AssigneeCell assignee={{ name: 'Rohit Singh', initials: 'RS', tone: 'amber' }} compact />} />
-            <DetailRow label="Requested On" value="02 Jun 2026, 10:30 AM" />
+            {selectedRow ? (
+              <>
+                <DetailRow label="IVRS Number" value={selectedRow.ivrs} />
+                <DetailRow label="Customer Name" value={selectedRow.customer} />
+                <DetailRow label="Mobile Number" value={selectedRow.mobile} />
+                <DetailRow label="Project Type" value={selectedRow.project} />
+                <DetailRow label="Requested By" valueNode={<AssigneeCell assignee={{ name: selectedRow.by, initials: selectedRow.by.slice(0, 2).toUpperCase(), tone: 'amber' }} compact />} />
+                <DetailRow label="Requested On" value={`${selectedRow.date}, ${selectedRow.time}`} />
+                <DetailRow label="Status" valueNode={<StatusBadge status={selectedRow.status} />} />
+              </>
+            ) : <p className="text-[13px] font-bold text-[#53647f]">Row select karo details dekhne ke liye</p>}
           </InfoPanel>
           <InfoPanel title="IVRS Intelligence" icon={AlertTriangle} tone="warning">
-            <div className="rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4 text-[13px] font-bold text-[#087a39]">IVRS: <span className="text-[#1e3261]">IVRS123456</span><p className="mt-2">This IVRS Number is unique. No duplicate found.</p></div>
+            <div className="rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4 text-[13px] font-bold text-[#087a39]">IVRS: <span className="text-[#1e3261]">{selectedRow?.ivrs || '—'}</span><p className="mt-2">This IVRS Number is unique. No duplicate found.</p></div>
           </InfoPanel>
           <InfoPanel title="Note" icon={InfoIcon} tone="primary">
             <p className="text-[13px] font-semibold leading-6 text-[#53647f]">Please verify customer details and project type before approving.</p>
           </InfoPanel>
           <InfoPanel title="Quick Actions" icon={Zap} tone="success">
             <MiniActionButton label="View Lead Details" icon={Search} tone="blue" onClick={onLeadDetails} />
-            <MiniActionButton label="View IVRS Intelligence" icon={ShieldCheck} tone="blue" onClick={() => onNotify('IVRS intelligence opened')} />
             <MiniActionButton label="Refresh List" icon={RefreshCw} tone="blue" onClick={() => onNotify('Approval list refreshed')} />
           </InfoPanel>
         </div>
@@ -28053,32 +28070,129 @@ function DuplicateIvrsModal({ onClose, onRequestApproval, onNotify }) {
   );
 }
 
-function AddFollowUpModal({ onClose, onSave }) {
+// Quick Actions (Add Follow-up, Schedule Site Visit, Add Note, Change Status, Assign Lead) ek modal mein —
+// Lead Details se bahar navigate karne ki zaroorat nahi, "Back" button khatam.
+function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onNotify }) {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  const meta = {
+    'follow-up': { title: 'Add Follow-up', icon: ShieldCheck, saveLabel: 'Save Follow-up' },
+    'site-visit': { title: 'Schedule Site Visit', icon: CalendarDays, saveLabel: 'Schedule Visit' },
+    note: { title: 'Add Note', icon: Flag, saveLabel: 'Save Note' },
+    status: { title: 'Change Lead Status', icon: Clock3, saveLabel: 'Update Status' },
+    assign: { title: 'Assign Lead', icon: Users, saveLabel: 'Assign Lead' },
+  }[type];
+  const Icon = meta.icon;
+
+  const handleSave = async (event) => {
+    event.preventDefault();
+    const fd = new FormData(event.currentTarget);
+    setSaving(true);
+    setSaveError('');
+    try {
+      if (type === 'follow-up' || type === 'site-visit') {
+        const dateVal = fd.get('date');
+        const timeVal = fd.get('time') || '10:00';
+        await followUpApi.create({
+          lead: lead.id,
+          follow_up_type: type === 'site-visit' ? 'Site Visit' : (fd.get('follow_up_type') || 'Call'),
+          scheduled_at: dateVal ? `${dateVal}T${timeVal}:00` : new Date().toISOString(),
+          notes: fd.get('notes') || '',
+        });
+        onSaved?.();
+      } else if (type === 'status') {
+        const newStatus = fd.get('new_status');
+        if (!newStatus) throw new Error('New Status select karo');
+        await leadApi.updateStatus(lead.id, newStatus);
+        onLeadUpdated?.({ status: newStatus });
+      } else {
+        onNotify(`${meta.title} saved (coming soon — API integration pending)`);
+        onClose();
+        return;
+      }
+      onNotify(`${meta.title} successfully save ho gayi!`);
+      onClose();
+    } catch (err) {
+      setSaveError(err.message || 'Save karne mein error aayi, dobara try karo');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const renderFields = () => {
+    if (type === 'follow-up') return (
+      <>
+        <LeadSelect label="Follow-up Type" name="follow_up_type" required icon={Phone} placeholder="Select type" options={['Call', 'WhatsApp', 'Site Visit', 'Email', 'Note']} />
+        <LeadDateInput label="Follow-up Date" name="date" required />
+        <LeadInput label="Follow-up Time" name="time" icon={Clock3} placeholder="e.g. 11:00 AM" />
+        <LeadSelect label="Reminder" name="reminder" icon={Bell} placeholder="Select reminder" options={['2 Hours Before', '1 Day Before', 'Same Day Morning', 'No Reminder']} />
+        <div className="md:col-span-2">
+          <LeadTextarea label="Follow-up Notes" name="notes" icon={FileText} placeholder="Customer se kya baat hui, kya discuss karna hai..." />
+        </div>
+      </>
+    );
+    if (type === 'site-visit') return (
+      <>
+        <LeadDateInput label="Visit Date" name="date" required />
+        <LeadInput label="Visit Time" name="time" icon={Clock3} placeholder="e.g. 10:30 AM" />
+        <LeadSelect label="Visit Type" name="visit_type" icon={Users} placeholder="Select visit type" options={['Residential Survey', 'Commercial Survey', 'Industrial Survey', 'Re-visit']} />
+        <LeadSelect label="Reminder" name="reminder" icon={Bell} placeholder="Select reminder" options={['2 Hours Before', '1 Day Before', 'Same Day Morning', 'No Reminder']} />
+        <div className="md:col-span-2">
+          <LeadTextarea label="Visit Instructions" name="notes" icon={FileText} placeholder="Shadow area check, roof access, meter room, earthing point..." />
+        </div>
+      </>
+    );
+    if (type === 'note') return (
+      <>
+        <LeadSelect label="Note Type" name="note_type" icon={Flag} placeholder="Select type" options={['Internal', 'Customer Call', 'Site Observation', 'Important']} />
+        <LeadSelect label="Priority" name="priority" icon={Flag} placeholder="Select priority" options={['High', 'Medium', 'Low']} />
+        <div className="md:col-span-2">
+          <LeadTextarea label="Note" name="notes" icon={FileText} placeholder="Lead ke baare mein important note likhiye..." />
+        </div>
+      </>
+    );
+    if (type === 'status') return (
+      <>
+        <ReadonlyField label="Current Status" value={lead?.status || '—'} />
+        <LeadSelect label="New Status" name="new_status" required icon={Clock3} placeholder="Select new status" options={['New', 'Follow-up', 'Quotation', 'Won', 'Lost']} />
+        <div className="md:col-span-2">
+          <LeadTextarea label="Status Note" name="notes" icon={FileText} placeholder="Status change ka reason..." />
+        </div>
+      </>
+    );
+    if (type === 'assign') return (
+      <>
+        <ReadonlyField label="Current Assignee" value={lead?.assignedTo?.name || 'Unassigned'} />
+        <LeadSelect label="New Assignee" name="new_assignee" required icon={Users} placeholder="Select team member" options={['Rohit Singh', 'Neha Kumari', 'Vikram Patel', 'Priya Sharma']} />
+        <div className="md:col-span-2">
+          <LeadTextarea label="Assignment Note" name="notes" icon={FileText} placeholder="Assignment ke baare mein note..." />
+        </div>
+      </>
+    );
+    return null;
+  };
+
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
-      <div className="max-h-[92vh] w-full max-w-[900px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="flex items-center gap-3 font-display text-[20px] font-extrabold text-[#111827]"><CalendarDays className="size-5 text-[#0b65e5]" /> Add Follow-up</h2><button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button></div>
-        <div className="grid gap-5 p-6 md:grid-cols-2 xl:grid-cols-4">
-          <ReadonlyField label="Lead Name" value="Amit Sharma" />
-          <ReadonlyField label="Mobile Number" value="9876543210" />
-          <ReadonlyField label="IVRS Number" value="IVRS123456" />
-          <ReadonlyField label="Project Name" value="5kW On-Grid" />
-          <LeadSelect label="Follow-up Type" required icon={Phone} placeholder="Phone Call" options={['Site Visit', 'WhatsApp', 'Email']} />
-          <LeadDateInput label="Follow-up Date" required />
-          <LeadInput label="Follow-up Time" required icon={Clock3} placeholder="04:30 PM" />
-          <LeadSelect label="Talked To" icon={Users} placeholder="Amit Sharma (Self)" options={['Family Member', 'Site Owner']} />
-          <div className="md:col-span-2 xl:col-span-4"><LeadTextarea label="Follow-up Notes" icon={FileText} placeholder="Customer is interested in 5kW On-Grid system..." /></div>
-          <LeadDateInput label="Next Follow-up Date" required />
-          <LeadInput label="Next Follow-up Time" icon={Clock3} placeholder="11:00 AM" />
-          <LeadSelect label="Reminder" icon={Bell} placeholder="1 Day Before" options={['2 Hours Before', 'Same Day']} />
-          <LeadSelect label="Assigned To" icon={Users} placeholder="Rohit Singh" options={['Neha Kumari', 'Vikram Patel']} />
-          <LeadSelect label="Priority" icon={Flag} placeholder="Medium" options={['High', 'Low']} />
-          <LeadInput label="Attachment" optional icon={FileText} placeholder="Upload file" />
+      <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
+          <h2 className="flex items-center gap-3 font-display text-[18px] font-extrabold text-[#111827]"><Icon className="size-5 text-[#0b65e5]" /> {meta.title}</h2>
+          <button type="button" onClick={onClose} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
         </div>
-        <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <label className="inline-flex items-center gap-3 text-[13px] font-bold text-[#314a79]"><input type="checkbox" defaultChecked className="size-5 rounded accent-[#0d9f4a]" /> Add to today follow-ups</label>
-          <div className="flex gap-3"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={onSave} className="h-10 rounded-[8px] bg-[linear-gradient(90deg,#0d9f4a,#116fd0)] px-6 text-[13px] font-extrabold text-white">Save Follow-up</button></div>
-        </div>
+        <form onSubmit={handleSave}>
+          <div className="p-6">
+            <p className="mb-4 text-[13px] font-bold text-[#53647f]">{lead?.customer} • {lead?.mobile} • IVRS {lead?.ivrs}</p>
+            {saveError ? <p className="mb-4 rounded-[8px] bg-[#ffe9e6] px-4 py-2 text-[13px] font-bold text-[#e3342f]">{saveError}</p> : null}
+            <div className="grid gap-4 md:grid-cols-2">
+              {renderFields()}
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+            <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+            <button type="submit" disabled={saving} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">{saving ? 'Saving...' : meta.saveLabel}</button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -28112,15 +28226,15 @@ function DetailRow({ label, value, valueNode }) {
   return <div className="grid gap-2 py-2 text-[13px] sm:grid-cols-[155px_1fr]"><span className="font-bold text-[#53647f]">{label}</span><span className="font-extrabold text-[#1e3261]">{valueNode ?? value}</span></div>;
 }
 
-function TimelineItem({ title, text, date, tone }) {
+function TimelineItem({ title, text, date, tone, by }) {
   const toneClass = { success: 'bg-[#e8f8eb] text-[#0d9f4a]', primary: 'bg-[#e8f2ff] text-[#0b65e5]', slate: 'bg-[#eef2f7] text-[#7585a2]' }[tone] ?? 'bg-[#eef2f7] text-[#7585a2]';
-  return <div className="flex gap-4"><span className={`grid size-10 shrink-0 place-items-center rounded-full ${toneClass}`}><Phone className="size-4" /></span><div className="min-w-0 flex-1"><div className="flex flex-col gap-1 sm:flex-row sm:justify-between"><p className="font-extrabold text-[#1e3261]">{title}</p><p className="text-[12px] font-bold text-[#53647f]">{date}</p></div><p className="mt-1 text-[12px] font-bold text-[#53647f]">By Rohit Singh</p><p className="mt-1 text-[13px] font-semibold text-[#53647f]">{text}</p></div></div>;
+  return <div className="flex gap-4"><span className={`grid size-10 shrink-0 place-items-center rounded-full ${toneClass}`}><Phone className="size-4" /></span><div className="min-w-0 flex-1"><div className="flex flex-col gap-1 sm:flex-row sm:justify-between"><p className="font-extrabold text-[#1e3261]">{title}</p><p className="text-[12px] font-bold text-[#53647f]">{date}</p></div>{by ? <p className="mt-1 text-[12px] font-bold text-[#53647f]">By {by}</p> : null}<p className="mt-1 text-[13px] font-semibold text-[#53647f]">{text}</p></div></div>;
 }
 
 function HistoryItem({ item }) {
   const Icon = item.icon;
   const toneClass = { success: 'bg-[#0d9f4a]', primary: 'bg-[#0b65e5]', purple: 'bg-[#5944e8]', warning: 'bg-[#f59e0b]', danger: 'bg-[#ef4444]' }[item.tone] ?? 'bg-[#7585a2]';
-  return <div className="grid gap-4 sm:grid-cols-[40px_1fr_auto]"><span className={`grid size-10 place-items-center rounded-full text-white ${toneClass}`}><Icon className="size-5" /></span><div><p className="font-extrabold text-[#1e3261]">{item.title} <span className="ml-2 rounded-[7px] bg-[#e8f8eb] px-2 py-1 text-[11px] text-[#0d9f4a]">{item.tag}</span></p><p className="mt-2 text-[12px] font-bold text-[#53647f]">By Rohit Singh</p><p className="mt-2 text-[13px] font-semibold text-[#53647f]">{item.text}</p></div><p className="whitespace-pre-line text-right text-[13px] font-bold text-[#53647f]">{item.date}</p></div>;
+  return <div className="grid gap-4 sm:grid-cols-[40px_1fr_auto]"><span className={`grid size-10 place-items-center rounded-full text-white ${toneClass}`}><Icon className="size-5" /></span><div><p className="font-extrabold text-[#1e3261]">{item.title} <span className="ml-2 rounded-[7px] bg-[#e8f8eb] px-2 py-1 text-[11px] text-[#0d9f4a]">{item.tag}</span></p>{item.by ? <p className="mt-2 text-[12px] font-bold text-[#53647f]">By {item.by}</p> : null}<p className="mt-2 text-[13px] font-semibold text-[#53647f]">{item.text}</p></div><p className="whitespace-pre-line text-right text-[13px] font-bold text-[#53647f]">{item.date}</p></div>;
 }
 
 function MiniActionButton({ label, icon: Icon, tone = 'blue', onClick }) {
@@ -28191,7 +28305,7 @@ function LeadListMobileCard({ index, lead, onOpenLead, onNotify }) {
       </div>
       <button
         type="button"
-        onClick={onOpenLead}
+        onClick={() => onOpenLead(lead)}
         data-action="lead-view-mobile"
         className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-3 py-2 text-[12px] font-extrabold text-[#2d67e1]"
       >
@@ -28353,18 +28467,27 @@ function MiniBrandMark({ compact = false, plain = false }) {
   );
 }
 
-function AdminAvatar() {
+function AdminAvatar({ name }) {
+  const initials = name
+    ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+    : null;
   return (
     <div className="grid size-11 place-items-center overflow-hidden rounded-full border-[3px] border-[#f2d27a] bg-white shadow-[0_8px_18px_rgba(40,66,118,0.14)]">
-      <svg viewBox="0 0 44 44" className="size-full" aria-hidden="true">
-        <rect width="44" height="44" rx="22" fill="#f7f3ea" />
-        <path d="M10 44c1-7 5-11 12-11s11 4 12 11" fill="#1f4e8c" />
-        <circle cx="22" cy="18" r="9" fill="#f1bf8b" />
-        <path d="M13 17c0-7 4-11 9-11 5 0 10 4 10 12-2-1-3-3-4-5-2 2-5 4-10 4-2 0-4 0-5 0z" fill="#2b251d" />
-        <circle cx="18.5" cy="18.5" r="0.9" fill="#33261e" />
-        <circle cx="25.5" cy="18.5" r="0.9" fill="#33261e" />
-        <path d="M19 23c2 1 4 1 6 0" stroke="#c86f5f" strokeWidth="1.2" strokeLinecap="round" />
-      </svg>
+      {initials ? (
+        <div className="flex size-full items-center justify-center bg-[#1f4e8c] text-[15px] font-extrabold text-white">
+          {initials}
+        </div>
+      ) : (
+        <svg viewBox="0 0 44 44" className="size-full" aria-hidden="true">
+          <rect width="44" height="44" rx="22" fill="#f7f3ea" />
+          <path d="M10 44c1-7 5-11 12-11s11 4 12 11" fill="#1f4e8c" />
+          <circle cx="22" cy="18" r="9" fill="#f1bf8b" />
+          <path d="M13 17c0-7 4-11 9-11 5 0 10 4 10 12-2-1-3-3-4-5-2 2-5 4-10 4-2 0-4 0-5 0z" fill="#2b251d" />
+          <circle cx="18.5" cy="18.5" r="0.9" fill="#33261e" />
+          <circle cx="25.5" cy="18.5" r="0.9" fill="#33261e" />
+          <path d="M19 23c2 1 4 1 6 0" stroke="#c86f5f" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      )}
     </div>
   );
 }

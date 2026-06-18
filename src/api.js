@@ -81,6 +81,7 @@ export const authApi = {
     if (data?.access) tokenStore.set(data.access, data.refresh);
     return data;
   },
+  me: () => request('/users/me/'),
   logout: () => tokenStore.clear(),
 };
 
