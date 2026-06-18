@@ -164,6 +164,7 @@ export const quotationApi = {
   list: (leadId) => request(`/quotations/?lead=${leadId}`),
   create: (data) => request('/quotations/', { method: 'POST', body: data }),
   update: (id, data) => request(`/quotations/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/quotations/${id}/`, { method: 'DELETE' }),
 };
 
 // ─── Projects ────────────────────────────────────────────────────────────────

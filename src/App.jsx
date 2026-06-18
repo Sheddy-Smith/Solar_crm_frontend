@@ -1,5 +1,5 @@
 import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { authApi, leadApi, analyticsApi, inventoryApi, accountsModuleApi, followUpApi } from './api.js';
+import { authApi, leadApi, analyticsApi, inventoryApi, accountsModuleApi, followUpApi, quotationApi } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -51,6 +51,7 @@ import {
   Settings,
   ShieldCheck,
   Star,
+  Trash2,
   Trophy,
   LogOut,
   Upload,
@@ -27590,6 +27591,40 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
       setLinkedLeads(rows.filter((row) => row.id !== lead.id && row.mobile_number === lead.mobile));
     }).catch(() => setLinkedLeads([]));
   }, [lead?.id, lead?.mobile]);
+
+  const emptyQuoteRow = () => ({ item_name: '', quantity: '', unit: 'Nos', rate: '' });
+  const [quotationLoading, setQuotationLoading] = useState(true);
+  const [savedQuotation, setSavedQuotation] = useState(null);
+  const [quoteItems, setQuoteItems] = useState([emptyQuoteRow()]);
+  const [gstPercent, setGstPercent] = useState('12');
+  const [discount, setDiscount] = useState('0');
+  const [quotationSaving, setQuotationSaving] = useState(false);
+  const [quotationError, setQuotationError] = useState('');
+  const [confirmingQuotationDelete, setConfirmingQuotationDelete] = useState(false);
+
+  const loadQuotation = () => {
+    if (!lead?.id) { setSavedQuotation(null); setQuoteItems([emptyQuoteRow()]); setQuotationLoading(false); return; }
+    setQuotationLoading(true);
+    quotationApi.list(lead.id).then((data) => {
+      const rows = Array.isArray(data) ? data : data?.results ?? [];
+      const existing = rows[0] || null;
+      setSavedQuotation(existing);
+      if (existing) {
+        setQuoteItems(existing.items.length ? existing.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })) : [emptyQuoteRow()]);
+        setGstPercent(String(existing.gst_percent));
+        setDiscount(String(existing.discount));
+      } else {
+        setQuoteItems([emptyQuoteRow()]);
+        setGstPercent('12');
+        setDiscount('0');
+      }
+    }).catch(() => { setSavedQuotation(null); setQuoteItems([emptyQuoteRow()]); }).finally(() => setQuotationLoading(false));
+  };
+
+  useEffect(() => {
+    loadQuotation();
+    setConfirmingQuotationDelete(false);
+  }, [lead?.id]);
 
   if (!lead?.id) return <NoLeadSelected title="Lead Details" onGoToList={onBackToList} />;
 
