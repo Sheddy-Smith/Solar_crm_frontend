@@ -27652,13 +27652,73 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
   const missedCount = (followUps ?? []).filter((f) => f.status === 'Missed').length;
   const nextFollowUp = (followUps ?? []).filter((f) => f.status === 'Scheduled').sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))[0];
 
-  const quoteRows = [
-    ['Solar Panels 540Wp', '10 Nos', 'Rs 16,200', 'Rs 1,62,000'],
-    ['5kW Inverter', '1 No', 'Rs 48,500', 'Rs 48,500'],
-    ['Mounting Structure', '1 Set', 'Rs 28,000', 'Rs 28,000'],
-    ['DC/AC Cables & Protection', '1 Set', 'Rs 21,500', 'Rs 21,500'],
-    ['Installation & Commissioning', '1 Job', 'Rs 32,000', 'Rs 32,000'],
-  ];
+  const parseNum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+  const rowAmount = (row) => parseNum(row.quantity) * parseNum(row.rate);
+  const quoteSubtotal = quoteItems.reduce((sum, row) => sum + rowAmount(row), 0);
+  const quoteGstAmount = quoteSubtotal * (parseNum(gstPercent) / 100);
+  const quoteGrandTotal = quoteSubtotal + quoteGstAmount - parseNum(discount);
+
+  const updateQuoteItem = (index, patch) => {
+    setQuoteItems((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  };
+  const addQuoteItem = () => setQuoteItems((prev) => [...prev, emptyQuoteRow()]);
+  const removeQuoteItem = (index) => setQuoteItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+
+  const handleResetQuotation = () => {
+    if (savedQuotation) {
+      setQuoteItems(savedQuotation.items.length ? savedQuotation.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })) : [emptyQuoteRow()]);
+      setGstPercent(String(savedQuotation.gst_percent));
+      setDiscount(String(savedQuotation.discount));
+    } else {
+      setQuoteItems([emptyQuoteRow()]);
+      setGstPercent('12');
+      setDiscount('0');
+    }
+    setQuotationError('');
+    onNotify('Quotation form reset ho gaya');
+  };
+
+  const handleSaveQuotation = async () => {
+    const items = quoteItems
+      .filter((row) => row.item_name.trim())
+      .map((row) => ({ item_name: row.item_name.trim(), quantity: row.quantity, unit: row.unit || 'Nos', rate: parseNum(row.rate), amount: rowAmount(row) }));
+
+    if (items.length === 0) { setQuotationError('Kam se kam ek item add karo'); return; }
+
+    setQuotationSaving(true);
+    setQuotationError('');
+    try {
+      const payload = { lead: lead.id, gst_percent: parseNum(gstPercent), discount: parseNum(discount), items };
+      const saved = savedQuotation ? await quotationApi.update(savedQuotation.id, payload) : await quotationApi.create(payload);
+      setSavedQuotation(saved);
+      setQuoteItems(saved.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })));
+      setGstPercent(String(saved.gst_percent));
+      setDiscount(String(saved.discount));
+      onNotify('Quotation successfully save ho gayi!');
+    } catch (err) {
+      setQuotationError(err.message || 'Quotation save nahi ho payi');
+    } finally {
+      setQuotationSaving(false);
+    }
+  };
+
+  const handleDeleteQuotation = async () => {
+    if (!savedQuotation?.id) return;
+    setQuotationSaving(true);
+    try {
+      await quotationApi.delete(savedQuotation.id);
+      setSavedQuotation(null);
+      setQuoteItems([emptyQuoteRow()]);
+      setGstPercent('12');
+      setDiscount('0');
+      setConfirmingQuotationDelete(false);
+      onNotify('Quotation delete ho gayi');
+    } catch (err) {
+      setQuotationError(err.message || 'Quotation delete nahi ho payi');
+    } finally {
+      setQuotationSaving(false);
+    }
+  };
 
   const tabs = [
     { key: 'overview', label: 'Overview' },
@@ -27824,27 +27884,99 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="font-display text-[16px] font-extrabold text-[#1e3261]">Quotation Items</p>
-              <button type="button" onClick={() => onNotify('Quotation saved (Save API coming soon)')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"><Save className="size-4" />Save Quotation</button>
+              <p className="font-display text-[16px] font-extrabold text-[#1e3261]">
+                Quotation Items {savedQuotation ? <span className="ml-2 rounded-[6px] bg-[#eef6ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{savedQuotation.status}</span> : null}
+              </p>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={handleResetQuotation} disabled={quotationSaving} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+                  <RefreshCw className="size-4 text-[#0b65e5]" />
+                  Reset
+                </button>
+                <button type="button" onClick={handleSaveQuotation} disabled={quotationSaving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e] disabled:opacity-60">
+                  <Save className="size-4" />
+                  {quotationSaving ? 'Saving...' : savedQuotation ? 'Update Quotation' : 'Save Quotation'}
+                </button>
+              </div>
             </div>
+
+            {quotationError ? (
+              <p className="mt-3 rounded-[8px] bg-[#fdecec] px-3 py-2 text-[12px] font-bold text-[#c0392b]">{quotationError}</p>
+            ) : null}
+
             <div className="mt-4 grid gap-4 md:grid-cols-3">
               <ReadonlyField label="Customer" value={lead?.customer || '—'} />
               <ReadonlyField label="Lead / IVRS" value={lead?.ivrs || '—'} />
               <ReadonlyField label="Project" value={lead?.project || '—'} />
             </div>
-            <div className="mt-5 overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white">
-              <table className="crm-table min-w-[720px] w-full">
-                <thead><tr>{['Item', 'Qty', 'Rate', 'Amount'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
-                <tbody>{quoteRows.map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={`${row[0]}-${index}`} className={index === 0 ? 'font-extrabold text-[#1e3261]' : undefined}>{cell}</td>)}</tr>)}</tbody>
-              </table>
-            </div>
+
+            {quotationLoading ? (
+              <p className="mt-5 text-[13px] font-bold text-[#53647f]">Loading quotation...</p>
+            ) : (
+              <>
+                <div className="mt-5 overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white">
+                  <table className="crm-table min-w-[720px] w-full">
+                    <thead><tr>{['Item', 'Qty', 'Unit', 'Rate', 'Amount', ''].map((header) => <th key={header || 'remove'}>{header}</th>)}</tr></thead>
+                    <tbody>
+                      {quoteItems.map((row, index) => (
+                        <tr key={index}>
+                          <td><input value={row.item_name} onChange={(e) => updateQuoteItem(index, { item_name: e.target.value })} placeholder="Item name" className="h-9 w-full min-w-[160px] rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                          <td><input value={row.quantity} onChange={(e) => updateQuoteItem(index, { quantity: e.target.value })} placeholder="Qty" className="h-9 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                          <td><input value={row.unit} onChange={(e) => updateQuoteItem(index, { unit: e.target.value })} placeholder="Unit" className="h-9 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                          <td><input value={row.rate} onChange={(e) => updateQuoteItem(index, { rate: e.target.value })} placeholder="Rate" className="h-9 w-24 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                          <td className="font-extrabold text-[#1e3261]">{formatCurrencyPrecise(rowAmount(row))}</td>
+                          <td>
+                            <button type="button" onClick={() => removeQuoteItem(index)} disabled={quoteItems.length === 1} aria-label="Remove item" className="grid size-8 place-items-center rounded-[6px] text-[#c0392b] transition hover:bg-[#fdecec] disabled:cursor-not-allowed disabled:opacity-30">
+                              <X className="size-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <button type="button" onClick={addQuoteItem} className="mt-3 inline-flex h-10 items-center gap-2 rounded-[8px] border border-dashed border-[#b9cce7] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
+                  <Plus className="size-4" />
+                  Add Item
+                </button>
+              </>
+            )}
+
+            {savedQuotation ? (
+              <div className="mt-5 border-t border-[#edf2f8] pt-4">
+                {!confirmingQuotationDelete ? (
+                  <button type="button" onClick={() => setConfirmingQuotationDelete(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#f5c6c6] bg-white px-4 text-[13px] font-extrabold text-[#c0392b] transition hover:bg-[#fdecec]">
+                    <Trash2 className="size-4" />
+                    Delete Quotation
+                  </button>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3 rounded-[10px] bg-[#fdecec] p-3">
+                    <span className="text-[12px] font-extrabold text-[#c0392b]">Pakka delete karna hai? Ye permanent hai.</span>
+                    <button type="button" onClick={handleDeleteQuotation} disabled={quotationSaving} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#c0392b] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#a93226] disabled:opacity-60">
+                      <Trash2 className="size-3.5" />
+                      Haan, Delete karo
+                    </button>
+                    <button type="button" onClick={() => setConfirmingQuotationDelete(false)} className="inline-flex h-9 items-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </article>
           <aside className="space-y-4">
             <InfoPanel title="Quotation Summary" icon={ReceiptText} tone="success">
-              <DetailRow label="Subtotal" value="Rs 2,92,000" />
-              <DetailRow label="GST" value="Rs 35,040" />
-              <DetailRow label="Discount" value="Rs 7,040" />
-              <DetailRow label="Grand Total" value="Rs 3,20,000" />
+              <DetailRow label="Subtotal" value={formatCurrencyPrecise(quoteSubtotal)} />
+              <div className="flex items-center justify-between gap-2 border-b border-[#edf2f8] py-2.5 text-[13px] font-bold text-[#314a79]">
+                <span>GST %</span>
+                <input aria-label="GST percent" value={gstPercent} onChange={(e) => setGstPercent(e.target.value)} className="h-8 w-16 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-right text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+              </div>
+              <DetailRow label="GST Amount" value={formatCurrencyPrecise(quoteGstAmount)} />
+              <div className="flex items-center justify-between gap-2 border-b border-[#edf2f8] py-2.5 text-[13px] font-bold text-[#314a79]">
+                <span>Discount (Rs)</span>
+                <input aria-label="Discount amount" value={discount} onChange={(e) => setDiscount(e.target.value)} className="h-8 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-right text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+              </div>
+              <DetailRow label="Grand Total" valueNode={<span className="text-[14px] font-extrabold text-[#0d9f4a]">{formatCurrencyPrecise(quoteGrandTotal)}</span>} />
             </InfoPanel>
             <InfoPanel title="Next Actions" icon={Zap} tone="primary">
               <div className="grid gap-3">
