@@ -36,6 +36,7 @@ class Project(models.Model):
     project_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='On-Grid')
     capacity_kwp = models.DecimalField(max_digits=8, decimal_places=2)
     system_type = models.CharField(max_length=100, blank=True, default='Rooftop Solar')
+    project_image = models.ImageField(upload_to='project_images/%Y/%m/', null=True, blank=True)
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Planning')
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='Medium')
@@ -233,9 +234,16 @@ class WorkOrder(models.Model):
 
 
 class ProjectTeamMember(models.Model):
+    ACCESS_CHOICES = [
+        ('full_access', 'Full Access'),
+        ('edit_access', 'Edit Access'),
+        ('view_only', 'View Only'),
+    ]
+
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='team_members')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='project_memberships')
     role_title = models.CharField(max_length=100, blank=True)
+    access_level = models.CharField(max_length=20, choices=ACCESS_CHOICES, default='view_only')
     added_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

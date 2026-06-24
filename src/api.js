@@ -17,7 +17,8 @@ export const tokenStore = {
 };
 
 async function request(path, { method = 'GET', body, auth = true } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+  const isFormData = body instanceof FormData;
+  const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (auth) {
     const token = tokenStore.getAccess();
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -27,7 +28,7 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
     fetch(`${API_BASE}${path}`, {
       method,
       headers: hdrs,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
     });
 
   let res = await doFetch(headers);
@@ -90,6 +91,26 @@ export const userApi = {
     const qs = new URLSearchParams(params).toString();
     return request(`/users/${qs ? '?' + qs : ''}`);
   },
+  create: (data) => request('/users/', { method: 'POST', body: data }),
+  update: (id, data) => request(`/users/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/users/${id}/`, { method: 'DELETE' }),
+  toggleActive: (id) => request(`/users/${id}/toggle_active/`, { method: 'POST' }),
+  changePassword: (id, data) => request(`/users/${id}/change_password/`, { method: 'POST', body: data }),
+};
+
+// ─── Roles & Permissions ──────────────────────────────────────────────────────
+
+export const roleApi = {
+  list: () => request('/roles/'),
+  create: (data) => request('/roles/', { method: 'POST', body: data }),
+  update: (id, data) => request(`/roles/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/roles/${id}/`, { method: 'DELETE' }),
+  getPermissions: (id) => request(`/roles/${id}/permissions/`),
+  setPermissions: (id, permissions) => request(`/roles/${id}/permissions/`, { method: 'PUT', body: permissions }),
+};
+
+export const branchApi = {
+  list: () => request('/branches/'),
 };
 
 // ─── Leads ───────────────────────────────────────────────────────────────────
@@ -102,6 +123,7 @@ export const leadApi = {
   create: (data) => request('/leads/', { method: 'POST', body: data }),
   get: (id) => request(`/leads/${id}/`),
   update: (id, data) => request(`/leads/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/leads/${id}/`, { method: 'DELETE' }),
   updateStatus: (id, status) =>
     request(`/leads/${id}/update_status/`, { method: 'POST', body: { status } }),
   assign: (id, userId) =>
@@ -170,6 +192,11 @@ export const approvalApi = {
 
 export const quotationApi = {
   list: (leadId) => request(`/quotations/?lead=${leadId}`),
+  listAll: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/quotations/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/quotations/${id}/`),
   create: (data) => request('/quotations/', { method: 'POST', body: data }),
   update: (id, data) => request(`/quotations/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/quotations/${id}/`, { method: 'DELETE' }),
@@ -185,6 +212,11 @@ export const projectApi = {
   create: (data) => request('/projects/', { method: 'POST', body: data }),
   get: (id) => request(`/projects/${id}/`),
   update: (id, data) => request(`/projects/${id}/`, { method: 'PATCH', body: data }),
+  uploadImage: (id, file) => {
+    const formData = new FormData();
+    formData.append('project_image', file);
+    return request(`/projects/${id}/`, { method: 'PATCH', body: formData });
+  },
   updateProgress: (id, progress) =>
     request(`/projects/${id}/update_progress/`, { method: 'POST', body: { progress_percent: progress } }),
   summary: () => request('/projects/summary/'),
@@ -227,6 +259,7 @@ export const projectNoteApi = {
 
 export const projectDocumentApi = {
   list: (projectId) => request(`/project-documents/?project=${projectId}`),
+  create: (formData) => request('/project-documents/', { method: 'POST', body: formData }),
   delete: (id) => request(`/project-documents/${id}/`, { method: 'DELETE' }),
 };
 
@@ -251,6 +284,7 @@ export const projectPaymentApi = {
 export const projectTeamApi = {
   list: (projectId) => request(`/project-team-members/?project=${projectId}`),
   create: (data) => request('/project-team-members/', { method: 'POST', body: data }),
+  update: (id, data) => request(`/project-team-members/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/project-team-members/${id}/`, { method: 'DELETE' }),
 };
 

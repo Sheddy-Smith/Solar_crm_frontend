@@ -29,6 +29,42 @@ class Role(models.Model):
         return self.name
 
 
+class RolePermission(models.Model):
+    MODULE_CHOICES = [
+        ('Dashboard', 'Dashboard'),
+        ('Leads', 'Leads'),
+        ('Follow-ups', 'Follow-ups'),
+        ('IVRS Management', 'IVRS Management'),
+        ('Approvals', 'Approvals'),
+        ('Project Management', 'Project Management'),
+        ('Liaisoning & Commissioning', 'Liaisoning & Commissioning'),
+        ('O&M', 'O&M'),
+        ('Accounts', 'Accounts'),
+        ('Reports', 'Reports'),
+        ('User Management', 'User Management'),
+        ('Settings', 'Settings'),
+    ]
+
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='permissions')
+    module = models.CharField(max_length=40, choices=MODULE_CHOICES)
+    can_view = models.BooleanField(default=False)
+    can_add = models.BooleanField(default=False)
+    can_edit = models.BooleanField(default=False)
+    can_delete = models.BooleanField(default=False)
+    can_export = models.BooleanField(default=False)
+    can_import = models.BooleanField(default=False)
+    can_approve = models.BooleanField(default=False)
+    full_access = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('role', 'module')
+        ordering = ['module']
+
+    def __str__(self):
+        return f'{self.role.name} / {self.module}'
+
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -79,12 +115,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     class Meta:
         verbose_name_plural = 'Users'
         ordering = ['-created_at']
-        permissions = [
-            ('view_user', 'Can view user'),
-            ('add_user', 'Can add user'),
-            ('change_user', 'Can change user'),
-            ('delete_user', 'Can delete user'),
-        ]
         constraints = [
             models.CheckConstraint(
                 check=models.Q(mobile='') | models.Q(mobile__regex=r'^\d{10}$'),

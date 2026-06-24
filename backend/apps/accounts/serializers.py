@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
-from .models import Branch, Role
+from .models import Branch, Role, RolePermission
+from .permissions import is_super_admin
 
 User = get_user_model()
 
@@ -10,6 +11,15 @@ class BranchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Branch
         fields = ['id', 'name', 'city', 'address', 'is_active', 'created_at']
+
+
+class RolePermissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RolePermission
+        fields = [
+            'module', 'can_view', 'can_add', 'can_edit', 'can_delete',
+            'can_export', 'can_import', 'can_approve', 'full_access',
+        ]
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -27,14 +37,27 @@ class UserSerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
     branch_name = serializers.CharField(source='branch.name', read_only=True)
     initials = serializers.ReadOnlyField()
+    is_super_admin = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'name', 'mobile', 'role', 'role_name', 'branch', 'branch_name', 'is_active', 'initials', 'created_at']
+        fields = [
+            'id', 'email', 'name', 'mobile', 'role', 'role_name', 'branch', 'branch_name',
+            'is_active', 'initials', 'created_at', 'is_super_admin', 'permissions',
+        ]
         extra_kwargs = {
             'role': {'write_only': True},
             'branch': {'write_only': True},
         }
+
+    def get_is_super_admin(self, obj):
+        return is_super_admin(obj)
+
+    def get_permissions(self, obj):
+        if not obj.role:
+            return []
+        return RolePermissionSerializer(obj.role.permissions.all(), many=True).data
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -53,7 +76,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
 
 class ChangePasswordSerializer(serializers.Serializer):
-    old_password = serializers.CharField(required=True)
+    old_password = serializers.CharField(required=False, allow_blank=True, default='')
     new_password = serializers.CharField(required=True, min_length=8)
 
 

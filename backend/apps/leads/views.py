@@ -1,7 +1,6 @@
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Q, Count
@@ -11,17 +10,13 @@ from .serializers import (
     LeadListSerializer, LeadDetailSerializer, LeadCreateSerializer,
     FollowUpSerializer, AdminApprovalSerializer, QuotationSerializer,
 )
-from apps.accounts.permissions import IsManagerOrAbove, IsAdminOrSuperAdmin
+from apps.accounts.permissions import HasModulePermission
 
 
 class LeadViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Leads'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-
-    def get_permissions(self):
-        if self.request.method in ('GET', 'HEAD', 'OPTIONS'):
-            return [IsAuthenticated()]
-        return [IsManagerOrAbove()]
     filterset_fields = ['status', 'category', 'assigned_to']
     search_fields = ['customer_name', 'mobile_number', 'ivrs_number', 'project_name']
     ordering_fields = ['created_at', 'next_follow_up', 'customer_name']
@@ -184,7 +179,8 @@ class LeadViewSet(viewsets.ModelViewSet):
 class FollowUpViewSet(viewsets.ModelViewSet):
     queryset = FollowUp.objects.select_related('lead', 'created_by').all()
     serializer_class = FollowUpSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Follow-ups'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['lead', 'follow_up_type', 'status']
     ordering = ['-created_at']
@@ -200,7 +196,8 @@ class FollowUpViewSet(viewsets.ModelViewSet):
 class AdminApprovalViewSet(viewsets.ModelViewSet):
     queryset = AdminApproval.objects.select_related('lead', 'requested_by', 'approved_by').all()
     serializer_class = AdminApprovalSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Approvals'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status']
     search_fields = [
@@ -217,7 +214,7 @@ class AdminApprovalViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(requested_by=self.request.user)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrSuperAdmin])
+    @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         approval = self.get_object()
         approval.status = 'Approved'
@@ -226,7 +223,7 @@ class AdminApprovalViewSet(viewsets.ModelViewSet):
         approval.save()
         return Response({'status': 'Approved'})
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrSuperAdmin])
+    @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         approval = self.get_object()
         approval.status = 'Rejected'
@@ -239,7 +236,8 @@ class AdminApprovalViewSet(viewsets.ModelViewSet):
 class QuotationViewSet(viewsets.ModelViewSet):
     queryset = Quotation.objects.select_related('lead', 'created_by').prefetch_related('items').all()
     serializer_class = QuotationSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Leads'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['lead', 'status']
     ordering = ['-created_at']

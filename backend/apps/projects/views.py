@@ -1,7 +1,6 @@
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from .models import (
@@ -16,17 +15,13 @@ from .serializers import (
     ProjectTeamMemberSerializer, ProjectSystemConfigSerializer, ProjectMilestoneSerializer,
     SiteSurveySerializer, ProjectChecklistItemSerializer, InstallationMaterialSerializer,
 )
-from apps.accounts.permissions import IsManagerOrAbove
+from apps.accounts.permissions import HasModulePermission
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-
-    def get_permissions(self):
-        if self.request.method in ('GET', 'HEAD', 'OPTIONS'):
-            return [IsAuthenticated()]
-        return [IsManagerOrAbove()]
     filterset_fields = ['status', 'project_type', 'manager', 'priority']
     search_fields = ['project_name', 'customer_name', 'site', 'project_id']
     ordering_fields = ['created_at', 'start_date', 'target_date', 'progress_percent']
@@ -106,12 +101,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
 class ProjectActivityViewSet(viewsets.ModelViewSet):
     queryset = ProjectActivity.objects.select_related('project', 'assigned_to', 'created_by').all()
     serializer_class = ProjectActivitySerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_permissions(self):
-        if self.request.method in ('GET', 'HEAD', 'OPTIONS'):
-            return [IsAuthenticated()]
-        return [IsManagerOrAbove()]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['project', 'status', 'activity_type', 'assigned_to']
     ordering = ['-created_at']
@@ -123,7 +114,8 @@ class ProjectActivityViewSet(viewsets.ModelViewSet):
 class ProjectNoteViewSet(viewsets.ModelViewSet):
     queryset = ProjectNote.objects.select_related('project', 'created_by').all()
     serializer_class = ProjectNoteSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['project', 'is_pinned']
     ordering = ['-is_pinned', '-created_at']
@@ -135,7 +127,8 @@ class ProjectNoteViewSet(viewsets.ModelViewSet):
 class ProjectDocumentViewSet(viewsets.ModelViewSet):
     queryset = ProjectDocument.objects.select_related('project', 'uploaded_by').all()
     serializer_class = ProjectDocumentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'category']
 
@@ -146,7 +139,8 @@ class ProjectDocumentViewSet(viewsets.ModelViewSet):
 class ProjectExpenseViewSet(viewsets.ModelViewSet):
     queryset = ProjectExpense.objects.select_related('project', 'created_by').all()
     serializer_class = ProjectExpenseSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['project', 'category']
     ordering = ['-date']
@@ -158,7 +152,8 @@ class ProjectExpenseViewSet(viewsets.ModelViewSet):
 class ProjectPaymentViewSet(viewsets.ModelViewSet):
     queryset = ProjectPayment.objects.select_related('project', 'created_by').all()
     serializer_class = ProjectPaymentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['project', 'payment_mode']
     ordering = ['-payment_date']
@@ -170,12 +165,8 @@ class ProjectPaymentViewSet(viewsets.ModelViewSet):
 class WorkOrderViewSet(viewsets.ModelViewSet):
     queryset = WorkOrder.objects.select_related('project', 'assignee', 'created_by').all()
     serializer_class = WorkOrderSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_permissions(self):
-        if self.request.method in ('GET', 'HEAD', 'OPTIONS'):
-            return [IsAuthenticated()]
-        return [IsManagerOrAbove()]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['project', 'status', 'assignee']
     search_fields = ['task', 'order_id', 'category']
@@ -188,7 +179,8 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
 class ProjectTeamMemberViewSet(viewsets.ModelViewSet):
     queryset = ProjectTeamMember.objects.select_related('project', 'user').all()
     serializer_class = ProjectTeamMemberSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'user']
 
@@ -196,7 +188,8 @@ class ProjectTeamMemberViewSet(viewsets.ModelViewSet):
 class ProjectMilestoneViewSet(viewsets.ModelViewSet):
     queryset = ProjectMilestone.objects.select_related('project', 'owner', 'parent').all()
     serializer_class = ProjectMilestoneSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['project', 'status', 'parent']
     ordering = ['sequence', 'start_date']
@@ -205,7 +198,8 @@ class ProjectMilestoneViewSet(viewsets.ModelViewSet):
 class ProjectChecklistItemViewSet(viewsets.ModelViewSet):
     queryset = ProjectChecklistItem.objects.select_related('project', 'checked_by').all()
     serializer_class = ProjectChecklistItemSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'phase', 'is_checked']
 
@@ -219,6 +213,7 @@ class ProjectChecklistItemViewSet(viewsets.ModelViewSet):
 class InstallationMaterialViewSet(viewsets.ModelViewSet):
     queryset = InstallationMaterial.objects.select_related('project', 'inventory_item').all()
     serializer_class = InstallationMaterialSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'status']

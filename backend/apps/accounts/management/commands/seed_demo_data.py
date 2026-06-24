@@ -10,6 +10,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write('Seeding demo data...')
         self._create_roles_and_branches()
+        self._create_role_permissions()
         self._create_users()
         self._create_leads()
         self._create_warehouses()
@@ -38,6 +39,61 @@ class Command(BaseCommand):
         for name, city in branches:
             Branch.objects.get_or_create(name=name, defaults={'city': city})
         self.stdout.write(f'  Branches: {len(branches)} created/verified')
+
+    # ─── Role Permissions ────────────────────────────────────────────────────
+
+    def _create_role_permissions(self):
+        from apps.accounts.models import Role, RolePermission
+
+        all_modules = [module for module, _ in RolePermission.MODULE_CHOICES]
+        full_access_modules = {m: m != 'User Management' for m in all_modules}
+
+        role_defaults = {
+            'Super Admin': {m: {'full_access': True} for m in all_modules},
+            'Admin': {m: {'full_access': full_access_modules[m]} for m in all_modules},
+            'Branch Manager': {
+                'Leads': {'full_access': True}, 'Follow-ups': {'full_access': True},
+                'Approvals': {'full_access': True}, 'Project Management': {'full_access': True},
+                'Accounts': {'can_view': True, 'can_export': True},
+                'Reports': {'can_view': True, 'can_export': True},
+                'Dashboard': {'can_view': True},
+                'IVRS Management': {'can_view': True},
+                'Liaisoning & Commissioning': {'can_view': True},
+                'O&M': {'can_view': True},
+            },
+            'Team Leader': {
+                'Leads': {'can_view': True, 'can_add': True, 'can_edit': True},
+                'Follow-ups': {'full_access': True},
+                'Approvals': {'can_view': True},
+                'Project Management': {'can_view': True, 'can_edit': True},
+                'Dashboard': {'can_view': True},
+                'Reports': {'can_view': True},
+            },
+            'Sales Executive': {
+                'Leads': {'can_view': True, 'can_add': True, 'can_edit': True},
+                'Follow-ups': {'can_view': True, 'can_add': True, 'can_edit': True},
+                'Dashboard': {'can_view': True},
+            },
+            'Viewer': {
+                'Leads': {'can_view': True}, 'Follow-ups': {'can_view': True},
+                'Project Management': {'can_view': True}, 'Accounts': {'can_view': True},
+                'Reports': {'can_view': True}, 'Dashboard': {'can_view': True},
+            },
+        }
+
+        count = 0
+        for role_name, module_flags in role_defaults.items():
+            role = Role.objects.filter(name=role_name).first()
+            if not role:
+                continue
+            for module in all_modules:
+                flags = module_flags.get(module, {})
+                _, created = RolePermission.objects.update_or_create(
+                    role=role, module=module, defaults=flags,
+                )
+                if created:
+                    count += 1
+        self.stdout.write(f'  Role permissions: {count} created/verified')
 
     # ─── Users ───────────────────────────────────────────────────────────────
 

@@ -12,7 +12,7 @@ class ProjectActivitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProjectActivity
-        fields = ['id', 'project', 'title', 'activity_type', 'status', 'assigned_to', 'assigned_to_name', 'start_date', 'due_date', 'completed_date', 'notes', 'created_at']
+        fields = ['id', 'project', 'title', 'activity_type', 'status', 'priority', 'assigned_to', 'assigned_to_name', 'start_date', 'due_date', 'completed_date', 'notes', 'created_at']
         read_only_fields = ['created_at']
 
 
@@ -66,10 +66,11 @@ class ProjectTeamMemberSerializer(serializers.ModelSerializer):
     user_initials = serializers.CharField(source='user.initials', read_only=True)
     user_email = serializers.CharField(source='user.email', read_only=True)
     user_mobile = serializers.CharField(source='user.mobile', read_only=True)
+    access_level_display = serializers.CharField(source='get_access_level_display', read_only=True)
 
     class Meta:
         model = ProjectTeamMember
-        fields = ['id', 'project', 'user', 'user_name', 'user_initials', 'user_email', 'user_mobile', 'role_title', 'added_at']
+        fields = ['id', 'project', 'user', 'user_name', 'user_initials', 'user_email', 'user_mobile', 'role_title', 'access_level', 'access_level_display', 'added_at']
         read_only_fields = ['added_at']
 
 
@@ -136,7 +137,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Project
-        fields = ['id', 'project_id', 'project_name', 'customer_name', 'site', 'project_type', 'capacity_kwp', 'status', 'priority', 'progress_percent', 'manager', 'manager_name', 'manager_initials', 'start_date', 'target_date', 'total_value', 'created_at']
+        fields = ['id', 'project_id', 'project_name', 'customer_name', 'site', 'project_type', 'capacity_kwp', 'project_image', 'status', 'priority', 'progress_percent', 'manager', 'manager_name', 'manager_initials', 'start_date', 'target_date', 'total_value', 'created_at']
 
 
 class ProjectDetailSerializer(serializers.ModelSerializer):

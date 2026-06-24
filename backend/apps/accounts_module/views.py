@@ -1,17 +1,18 @@
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Sum, Count, Q
 from .models import ChartOfAccount, Transaction
 from .serializers import ChartOfAccountSerializer, TransactionSerializer
+from apps.accounts.permissions import HasModulePermission
 
 
 class ChartOfAccountViewSet(viewsets.ModelViewSet):
     queryset = ChartOfAccount.objects.all()
     serializer_class = ChartOfAccountSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Accounts'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['account_type', 'is_active']
     search_fields = ['account_code', 'account_name']
@@ -20,7 +21,8 @@ class ChartOfAccountViewSet(viewsets.ModelViewSet):
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.select_related('debit_account', 'credit_account', 'created_by').all()
     serializer_class = TransactionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModulePermission]
+    permission_module = 'Accounts'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['transaction_type']
     ordering = ['-transaction_date']

@@ -1,14 +1,25 @@
 import os
 import django
+import base64
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'malwa_solar.settings.development')
 django.setup()
 
 from django.utils import timezone
 from datetime import timedelta
+from django.core.files.base import ContentFile
 from apps.accounts.models import User
 from apps.projects.models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, 
     ProjectExpense, WorkOrder
+)
+
+
+SAMPLE_PROJECT_IMAGE_BASE64 = (
+    'iVBORw0KGgoAAAANSUhEUgAAAZAAAADICAIAAABJdyC1AAABMElEQVR4nO3SQQ3AIADAQEDSNCEWWVOx8liioNf59n0A\n'
+    '8M2A2wO3B24P3B64PXB74PbA7YHbA7cHbg/cHrg9cHvg9sDtgdsDtwduD9weuD1we+D2wO2B2wO3B24P3B64PXB74PbA\n'
+    '7YHbA7cHbg/cHrg9cHvg9sDtgdsDtwduD9weuD1we+D2wO2B2wO3B24P3B64PXB74PbA7YHbA7cHbg/cHrg9cHvg9sDt\n'
+    'gdsDtwduD9weuD1we+D2wO2B2wO3B24P3B64PXB74PbA7YHbA7cHbg/cHrg9cHvg9sDtgdsDtwduD9weuD1we+D2wO2B\n'
+    '2wO3B24P3B64PXB74PbA7YHbA7cHbg/cHrg9cHvg9sDtgduDPwM3BHYmyrwAAAAASUVORK5CYII='
 )
 
 # Get the admin user
@@ -25,6 +36,15 @@ if not projects:
 
 project = projects[0]
 print(f"Testing project: {project.project_name} (ID: {project.id})")
+
+# Add sample project image
+if not project.project_image:
+    image_bytes = base64.b64decode(SAMPLE_PROJECT_IMAGE_BASE64)
+    image_name = f"project_{project.id}_sample.png"
+    project.project_image.save(image_name, ContentFile(image_bytes), save=True)
+    print(f"✓ Sample project image uploaded: {project.project_image.name}")
+else:
+    print(f"✓ Project already has image: {project.project_image.name}")
 
 # Add sample activities
 for i in range(3):
