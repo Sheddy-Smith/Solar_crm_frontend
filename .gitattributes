@@ -1,0 +1,51 @@
+# Normalize line endings for all text files on checkout
+* text=auto eol=lf
+
+# Python
+*.py    text eol=lf
+*.pyi   text eol=lf
+
+# Django / config files
+*.cfg   text eol=lf
+*.ini   text eol=lf
+*.toml  text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.env   text eol=lf
+*.env.example text eol=lf
+
+# JavaScript / React / Node
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+
+# Shell scripts always LF
+*.sh    text eol=lf
+
+# Windows batch files always CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Binary — never convert
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.svg   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.db    binary
+*.sqlite3 binary

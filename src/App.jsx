@@ -1,5 +1,9 @@
 import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { authApi, leadApi, analyticsApi, inventoryApi, accountsModuleApi, followUpApi, quotationApi } from './api.js';
+import {
+  authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, inventoryApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
+  projectApi, workOrderApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
+  projectTeamApi, projectMilestoneApi, projectChecklistApi, installationMaterialApi,
+} from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -17,6 +21,7 @@ import {
   Clock3,
   Cloud,
   ChevronLeft,
+  CreditCard,
   Eye,
   Database,
   Download,
@@ -41,6 +46,7 @@ import {
   Minus,
   MoreVertical,
   PauseCircle,
+  Pencil,
   Phone,
   Pin,
   Plus,
@@ -69,7 +75,8 @@ import navBarImage from './assets/data/nav_bar_img.png';
 
 const sidebarItems = [
   { label: 'Dashboard', icon: Home, active: true },
-  { label: 'Lead', icon: Users, showChevron: true },
+  { label: 'Lead', icon: Users },
+  { label: 'Quotation', icon: FileText },
   { label: 'Project Management', icon: FolderKanban, showChevron: true },
   { label: 'Liaisoning & Commissioning', icon: ShieldCheck, showChevron: true },
   { label: 'O&M', icon: Wrench, showChevron: true },
@@ -89,6 +96,8 @@ const employeeRelatedPages = [...employeeSubItems];
 const projectSubItems = ['Project Overview', 'Project KPI Analytics', 'Project List', 'Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation', 'Project Team Assignment', 'Project Material Planning', 'Project Work Orders', 'Project Expenses', 'Project Documents', 'Project Approvals', 'Project Reports'];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
 const projectRelatedPages = ['Project Management', ...projectActionPages, ...projectSubItems];
+// Pages jinhe ek selected project chahiye — refresh/restore pe selectedProject null hota hai, isliye inhe Project List se replace karo
+const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation'];
 const accountsSubItems = ['Accounts List', 'Transactions List', 'Chart of Accounts', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List'];
 const accountsRelatedPages = ['Accounts Overview', ...accountsSubItems];
 const inventorySubItems = ['Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
@@ -201,6 +210,31 @@ function getSettingsRouteKey(section) {
 function getSettingsGroupForSection(section) {
   const routeKey = getSettingsRouteKey(section);
   return settingsCardGroups.find((group) => group.items.some((item) => item.key === routeKey));
+}
+
+function mapLeadFromApi(lead, fallbackId = 0) {
+  return {
+    id: lead.id ?? fallbackId,
+    customer: lead.customer_name,
+    mobile: lead.mobile_number,
+    ivrs: lead.ivrs_number,
+    project: lead.project_name || '-',
+    type: lead.project_type || 'On-Grid',
+    status: lead.status,
+    priority: lead.priority || '',
+    source: lead.source || '',
+    assignedTo: {
+      id: lead.assigned_to || lead.assigned_to_detail?.id || null,
+      name: lead.assigned_to_name || lead.assigned_to_detail?.name || 'Unassigned',
+      initials: (lead.assigned_to_name || lead.assigned_to_detail?.name || 'UN').slice(0, 2).toUpperCase(),
+      tone: 'amber',
+    },
+    nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
+  };
+}
+
+function normalizeApiRows(data) {
+  return Array.isArray(data) ? data : (data?.results ?? []);
 }
 
 const leadSubRoutes = {
@@ -350,6 +384,94 @@ const amcSubRoutes = {
   'AMC Documents': '/amc/documents',
 };
 
+const sectionRoutes = {
+  Dashboard: '/dashboard',
+  Lead: '/lead/list',
+  'Project Management': '/projects/overview',
+  'Project List': '/projects/list',
+  'Project Details': '/projects/details/:projectId',
+  Accounts: '/accounts/overview',
+  Inventory: '/inventory/overview',
+  'Liaisoning & Commissioning': '/liaisoning/applications',
+  'AMC & Warranty': '/amc/contracts',
+  Settings: '/settings',
+  'O&M': '/om/overview',
+  Reports: '/reports',
+  ...leadSubRoutes,
+  ...employeeSubRoutes,
+  ...projectSubRoutes,
+  ...accountsSubRoutes,
+  ...inventorySubRoutes,
+  ...liaisonSubRoutes,
+  ...omSubRoutes,
+  ...amcSubRoutes,
+};
+
+function normalizePathname(pathname) {
+  if (!pathname || pathname === '/') return '/';
+  return pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+}
+
+function routeTemplateToRegex(template) {
+  const escaped = template.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const withGroups = escaped.replace(/:([a-zA-Z0-9_]+)/g, (_, name) => `(?<${name}>[^/]+)`);
+  return new RegExp(`^${withGroups}$`);
+}
+
+function resolveSectionFromPath(pathname) {
+  const path = normalizePathname(pathname);
+  if (path === '/projects') {
+    return { section: 'Project List', params: {} };
+  }
+
+  for (const [section, template] of Object.entries(sectionRoutes)) {
+    const regex = routeTemplateToRegex(normalizePathname(template));
+    const match = path.match(regex);
+    if (match) {
+      return { section, params: match.groups ?? {} };
+    }
+  }
+
+  return { section: null, params: {} };
+}
+
+function buildPathForSection(section, { selectedLead, selectedProject } = {}) {
+  const template = sectionRoutes[section];
+  if (!template) return '/';
+
+  const projectId = selectedProject?.id ?? null;
+  const leadId = selectedLead?.id ?? null;
+  const replacements = {
+    projectId,
+    leadId,
+    expenseId: null,
+    documentId: null,
+    approvalId: null,
+    reportId: null,
+    applicationId: null,
+    inspectionId: null,
+    commissioningId: null,
+    complianceId: null,
+  };
+
+  let path = template.replace(/:([a-zA-Z0-9_]+)/g, (_, key) => {
+    const value = replacements[key];
+    return value !== null && value !== undefined ? String(value) : `:${key}`;
+  });
+
+  if (path.includes(':')) {
+    if (section === 'Project Details' || section === 'Project Timeline' || section === 'Project Site Survey' || section === 'Project Installation') {
+      return '/projects/list';
+    }
+    if (section.startsWith('Lead ')) {
+      return '/lead/list';
+    }
+    path = path.replace(/\/:([a-zA-Z0-9_]+)/g, '');
+  }
+
+  return normalizePathname(path);
+}
+
 const leadCategoryTabs = [
   {
     label: 'New leads',
@@ -396,6 +518,15 @@ const leadCategoryTabs = [
     description: 'Customers who declined, postponed indefinitely, or selected another provider.',
     nextAction: 'Capture reason, keep record clean, and re-open only if customer responds.',
   },
+  {
+    label: 'Won leads',
+    shortLabel: 'Won',
+    icon: Trophy,
+    tone: 'teal',
+    priority: 'Closed won',
+    description: 'Customers who confirmed the deal — ready to move into project execution.',
+    nextAction: 'Hand off to Project Management and start installation planning.',
+  },
 ];
 
 // Har lead ko exactly EK category deta hai — overlap aur gap dono fix.
@@ -403,7 +534,7 @@ const leadCategoryTabs = [
 // Precedence: Lost > Won(none) > High(Hot) > Low(Cool) > New(New) > Follow-up/Quotation(Warm).
 function classifyLeadCategory(lead) {
   if (lead.status === 'Lost') return 'Lost leads';
-  if (lead.status === 'Won') return null; // Won closed hai — koi category tab nahi
+  if (lead.status === 'Won') return 'Won leads';
   if (lead.priority === 'High') return 'Hot leads';
   if (lead.priority === 'Low') return 'Cool leads';
   if (lead.status === 'New') return 'New leads';
@@ -441,6 +572,12 @@ const leadCategoryToneClasses = {
     icon: 'bg-[#e9eef6] text-[#475569]',
     count: 'bg-[#e9eef6] text-[#475569]',
     accent: 'from-[#64748b] to-[#334155]',
+  },
+  teal: {
+    button: 'border-[#a7e8d8] bg-[#f0fdf9] text-[#0f7d63] hover:border-[#7fdcc2] hover:bg-[#e3fbf3]',
+    icon: 'bg-[#d7f7ec] text-[#0f9d7c]',
+    count: 'bg-[#d7f7ec] text-[#0f7d63]',
+    accent: 'from-[#14b8a6] to-[#0d9488]',
   },
 };
 
@@ -980,21 +1117,6 @@ const roleCards = [
   { name: 'Team Leader', type: 'Custom Role', users: 4, icon: Users, tone: 'amber' },
   { name: 'Sales Executive', type: 'Custom Role', users: 18, icon: Users, tone: 'cyan' },
   { name: 'Viewer', type: 'Custom Role', users: 1, icon: Eye, tone: 'pink' },
-];
-
-const permissionModules = [
-  'Dashboard',
-  'Leads',
-  'Follow-ups',
-  'IVRS Management',
-  'Approvals',
-  'Project Management',
-  'Liaisoning & Commissioning',
-  'O&M',
-  'Accounts',
-  'Reports',
-  'User Management',
-  'Settings',
 ];
 
 const activityLogRows = [
@@ -1663,16 +1785,23 @@ function isKnownSection(section) {
 
 function App() {
   const initialPreferencesRef = useRef(readStoredPreferences());
+  const initialRouteRef = useRef(resolveSectionFromPath(typeof window !== 'undefined' ? window.location.pathname : '/'));
   const isPopStateRef = useRef(false);
   const prevNavStateRef = useRef(null);
   const initialPreferences = initialPreferencesRef.current;
+  const initialRoute = initialRouteRef.current;
   const [currentPage, setCurrentPage] = useState(initialPreferences.currentPage === 'dashboard' ? 'dashboard' : 'signin');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
   const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
+    const routeSection = isKnownSection(initialRoute.section) ? initialRoute.section : null;
     const stored = isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard';
+    const preferred = routeSection ?? stored;
     // Refresh pe selectedLead null hota hai, isliye lead-specific page ki jagah Lead List dikhao
-    return leadDetailPages.includes(stored) ? 'Lead List' : stored;
+    if (leadDetailPages.includes(preferred) && !initialRoute.params.leadId) return 'Lead List';
+    // Refresh pe selectedProject null hota hai, isliye project-specific page ki jagah Project List dikhao
+    if (projectDetailPages.includes(preferred) && !initialRoute.params.projectId) return 'Project List';
+    return preferred;
   });
   const [expandedSection, setExpandedSection] = useState(() => {
     const item = isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard';
@@ -1692,9 +1821,16 @@ function App() {
   const [messageMenuOpen, setMessageMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [loggedInUser, setLoggedInUser] = useState(null);
-  const [selectedLead, setSelectedLead] = useState(null);
+  const [selectedLead, setSelectedLead] = useState(() => {
+    const id = Number(initialRoute.params.leadId);
+    return Number.isFinite(id) && id > 0 ? { id } : null;
+  });
   const [leadDetailsTab, setLeadDetailsTab] = useState('overview');
   const updateSelectedLead = (patch) => setSelectedLead((prev) => (prev ? { ...prev, ...patch } : prev));
+  const [selectedProject, setSelectedProject] = useState(() => {
+    const id = Number(initialRoute.params.projectId);
+    return Number.isFinite(id) && id > 0 ? { id } : null;
+  });
   const [globalSearch, setGlobalSearch] = useState('');
   const [dashboardStats, setDashboardStats] = useState(stats);
   const [dashboardFollowUps, setDashboardFollowUps] = useState(todayFollowUps);
@@ -1794,7 +1930,7 @@ function App() {
         status: lead.status,
         priority: lead.priority || '',
         source: lead.source || '',
-        assignedTo: { name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
+        assignedTo: { id: lead.assigned_to || null, name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
         createdOn: lead.created_at_display || '—',
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
       })));
@@ -1942,7 +2078,14 @@ function App() {
   // Uses prevNavStateRef to deduplicate — prevents StrictMode double-push on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const navKey = `${currentPage}::${activeSidebarItem}`;
+    const nextPath = buildPathForSection(activeSidebarItem, { selectedLead, selectedProject });
+    const navKey = `${currentPage}::${activeSidebarItem}::${selectedLead?.id ?? ''}::${selectedProject?.id ?? ''}::${nextPath}`;
+    const historyState = {
+      activeSidebarItem,
+      currentPage,
+      selectedLeadId: selectedLead?.id ?? null,
+      selectedProjectId: selectedProject?.id ?? null,
+    };
 
     if (isPopStateRef.current) {
       // Change came from popstate — just track the new position, don't push
@@ -1954,33 +2097,49 @@ function App() {
     if (prevNavStateRef.current === null) {
       // Very first run — use replaceState so we don't add a spurious entry
       prevNavStateRef.current = navKey;
-      window.history.replaceState({ activeSidebarItem, currentPage }, '');
+      window.history.replaceState(historyState, '', nextPath);
       return;
     }
 
     if (prevNavStateRef.current === navKey) {
       // Same page re-render (StrictMode second pass) — replace in place, don't push
-      window.history.replaceState({ activeSidebarItem, currentPage }, '');
+      window.history.replaceState(historyState, '', nextPath);
       return;
     }
 
     // Genuine navigation — push new history entry
     prevNavStateRef.current = navKey;
-    window.history.pushState({ activeSidebarItem, currentPage }, '');
-  }, [activeSidebarItem, currentPage]);
+    window.history.pushState(historyState, '', nextPath);
+  }, [activeSidebarItem, currentPage, selectedLead?.id, selectedProject?.id]);
 
   // Handle browser back / forward buttons
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handlePopState = (event) => {
       const state = event.state;
-      if (!state) return;
+      if (!state) {
+        const resolved = resolveSectionFromPath(window.location.pathname);
+        if (resolved.section && isKnownSection(resolved.section)) {
+          isPopStateRef.current = true;
+          setCurrentPage('dashboard');
+          setActiveSidebarItem(resolved.section);
+          const leadId = Number(resolved.params.leadId);
+          const projectId = Number(resolved.params.projectId);
+          setSelectedLead(Number.isFinite(leadId) && leadId > 0 ? { id: leadId } : null);
+          setSelectedProject(Number.isFinite(projectId) && projectId > 0 ? { id: projectId } : null);
+        }
+        return;
+      }
       isPopStateRef.current = true;
       if (state.currentPage === 'signin') {
         setCurrentPage('signin');
       } else if (state.activeSidebarItem && isKnownSection(state.activeSidebarItem)) {
         setCurrentPage('dashboard');
         setActiveSidebarItem(state.activeSidebarItem);
+        const leadId = Number(state.selectedLeadId);
+        const projectId = Number(state.selectedProjectId);
+        setSelectedLead(Number.isFinite(leadId) && leadId > 0 ? { id: leadId } : null);
+        setSelectedProject(Number.isFinite(projectId) && projectId > 0 ? { id: projectId } : null);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -2081,7 +2240,7 @@ function App() {
 
         <aside
           className={cx(
-            'fixed inset-y-2 left-2 z-50 flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] border-r-white/10 bg-white shadow-xl shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
+            'fixed inset-y-2 left-2 z-50 flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] border-r-white/10 bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
             desktopSidebarCollapsed ? 'xl:w-[84px]' : 'xl:w-[236px]',
             mobileSidebarOpen ? 'translate-x-0' : '-translate-x-[110%] xl:translate-x-0',
           )}
@@ -2146,13 +2305,20 @@ function App() {
                       <button
                         type="button"
                         onClick={() => {
-                          const sectionKey = isLeadSection ? 'Lead' : isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee Management' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : isSettingsSection ? 'Settings' : null;
+                          if (isLeadSection) {
+                            setExpandedSection(null);
+                            setActiveSidebarItem('Lead List');
+                            notify('Lead List opened');
+                            setMobileSidebarOpen(false);
+                            return;
+                          }
+                          const sectionKey = isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee Management' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : isSettingsSection ? 'Settings' : null;
                           if (sectionKey) {
                             if (expandedSection === sectionKey) {
                               setExpandedSection(null);
                             } else {
                               setExpandedSection(sectionKey);
-                              const nextItem = isLeadSection ? 'Lead List' : isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'O&M Overview' : isAmcSection ? 'AMC Contracts' : 'Settings';
+                              const nextItem = isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'O&M Overview' : isAmcSection ? 'AMC Contracts' : 'Settings';
                               setActiveSidebarItem(nextItem);
                               notify(`${nextItem} section selected`);
                             }
@@ -2191,40 +2357,6 @@ function App() {
                           </span>
                         ) : null}
                       </button>
-                      {isLeadOpen && !desktopSidebarCollapsed ? (
-                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
-                          <div className="space-y-1">
-                            {leadSubItems.map((subItem) => {
-                              const isSubActive = activeSidebarItem === subItem;
-
-                              return (
-                                <button
-                                  key={subItem}
-                                  type="button"
-                                  data-route={leadSubRoutes[subItem]}
-                                  onClick={() => {
-                                    setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
-                                    notify(`${subItem} opened. Route can be connected later.`);
-                                  }}
-                                  className={cx(
-                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
-                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
-                                  )}
-                                >
-                                  <span
-                                    className={cx(
-                                      'size-1.5 rounded-full',
-                                      isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]',
-                                    )}
-                                  />
-                                  <span>{getModuleSubnavLabel(subItem)}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : null}
                       {isProjectOpen && !desktopSidebarCollapsed ? (
                         <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
                           <div className="space-y-1">
@@ -2517,7 +2649,7 @@ function App() {
         </aside>
 
         <main className="min-w-0 flex-1 w-full xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
-          <div className="space-y-4 xl:pb-3">
+          <div className="space-y-2.5 xl:pb-3">
             <header className={`${panelClass} relative z-30 overflow-visible px-3 py-3 sm:px-4`}>
               <div className="grid gap-3 lg:grid-cols-[44px_minmax(0,1fr)] xl:grid-cols-[44px_326px_minmax(0,1fr)_auto] xl:items-center">
                 <div className="flex items-center justify-between gap-3 lg:contents">
@@ -2715,9 +2847,9 @@ function App() {
             ) : activeSidebarItem === 'Settings IP Restrictions' ? (
               <SettingsIpRestrictionsPage activeSection="Settings IP Restrictions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Users' ? (
-              <UserManagementPage activeSection="Users" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              <UserManagementPage activeSection="Users" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} loggedInUser={loggedInUser} />
             ) : activeSidebarItem === 'Roles & Permissions' ? (
-              <RolesPermissionsPage activeSection="Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              <RolesPermissionsPage activeSection="Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} loggedInUser={loggedInUser} />
             ) : activeSidebarItem === 'Activity Logs' ? (
               <ActivityLogsPage activeSection="Activity Logs" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Reports' ? (
@@ -2728,6 +2860,12 @@ function App() {
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
+                }}
+                selectedProject={selectedProject}
+                onSelectProject={(project) => {
+                  setSelectedProject(project);
+                  setActiveSidebarItem('Project Details');
+                  notify('Project Details opened');
                 }}
                 onNotify={notify}
               />
@@ -2825,6 +2963,8 @@ function App() {
                 }}
                 onNotify={notify}
               />
+            ) : activeSidebarItem === 'Quotation' ? (
+              <QuotationListPage onNotify={notify} />
             ) : activeSidebarItem === 'Lead Details' ? (
               <LeadDetailsPage
                 lead={selectedLead}
@@ -2842,6 +2982,7 @@ function App() {
                   setActiveSidebarItem('Lead Edit');
                   notify('Edit Lead opened');
                 }}
+                onShareWhatsApp={openWhatsApp}
                 onNotify={notify}
               />
             ) : activeSidebarItem === 'Lead Edit' ? (
@@ -2864,7 +3005,9 @@ function App() {
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
                 }}
-                onLeadDetails={() => {
+                onViewLead={(lead) => {
+                  setSelectedLead(lead);
+                  setLeadDetailsTab('overview');
                   setActiveSidebarItem('Lead Details');
                   notify('Lead Details opened');
                 }}
@@ -2978,8 +3121,8 @@ function App() {
                 <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" onAction={() => openDashboardSection('Lead List', 'All recent leads opened')} />
 
                 <div className="space-y-3 p-4 lg:hidden">
-                  {(dashboardRecentLeads ?? recentLeads).map((lead) => (
-                    <RecentLeadCard key={`${lead.customer}-${lead.mobile}`} lead={lead} onView={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`, lead)} />
+                  {(dashboardRecentLeads ?? recentLeads).map((lead, index) => (
+                    <RecentLeadCard key={lead.id ?? `${lead.customer}-${lead.mobile}-${index}`} lead={lead} onView={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`, lead)} />
                   ))}
                 </div>
 
@@ -2994,8 +3137,8 @@ function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(dashboardRecentLeads ?? recentLeads).map((lead) => (
-                          <tr key={`${lead.customer}-${lead.mobile}`}>
+                        {(dashboardRecentLeads ?? recentLeads).map((lead, index) => (
+                          <tr key={lead.id ?? `${lead.customer}-${lead.mobile}-${index}`}>
                             <td className="font-bold text-[#3258aa]">{lead.customer}</td>
                             <td>{lead.mobile}</td>
                             <td>{lead.project}</td>
@@ -3259,8 +3402,8 @@ function SignInPage({ onLogin, onNotify }) {
               <span className="mt-1 block text-[#087532]">Sustainable Future</span>
             </h1>
             <p className="mt-6 max-w-[620px] text-[15px] font-bold leading-8 text-[#364255] sm:text-[18px]">
-              Leads, follow-ups, site visits, approvals aur revenue tracking ko ek clean workspace mein manage karo.
-              Team ko speed bhi milegi aur process visibility bhi.
+              Manage leads, follow-ups, site visits, approvals, and revenue tracking in one clean workspace.
+              Give your team more speed and more process visibility.
             </p>
             <div className="mt-7 flex flex-wrap gap-3 text-[12px] font-extrabold text-[#314a79] sm:text-[13px]">
               {['Role-based access', 'Daily pipeline visibility', 'Faster follow-ups'].map((item) => (
@@ -3420,6 +3563,42 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersPopoverRef = useRef(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editLeadId, setEditLeadId] = useState(null);
+  const [viewLeadId, setViewLeadId] = useState(null);
+
+  const exportVisibleLeads = () => {
+    const rows = visibleLeadRows;
+    if (!rows.length) {
+      onNotify('No leads available to export');
+      return;
+    }
+
+    const csvRows = [
+      ['Customer Name', 'Mobile Number', 'IVRS Number', 'Project Name', 'Project Type', 'Status', 'Assigned To', 'Next Follow-up'],
+      ...rows.map((lead) => [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name, lead.nextFollowUp]),
+    ];
+    const csv = csvRows.map((row) => row.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const fileName = `${(activeLeadCategory?.label || 'Lead List').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '')}.csv`;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    onNotify(`${rows.length} leads exported`);
+  };
+
+  const deleteLead = (lead) => {
+    if (!window.confirm(`Delete "${lead.customer}"? This cannot be undone.`)) return;
+    leadApi.delete(lead.id).then(() => {
+      onNotify(`${lead.customer} deleted`);
+      setRefreshKey((key) => key + 1);
+    }).catch((error) => onNotify(error.message || `Failed to delete ${lead.customer}`));
+  };
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -3441,7 +3620,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
 
   useEffect(() => {
     setLeadsLoading(true);
-    const params = { page_size: 200 };
+    const params = { page_size: 1000 };
     if (statusFilter !== 'All') params.status = statusFilter;
     if (searchQuery.trim()) params.search = searchQuery.trim();
     leadApi.list(params).then((data) => {
@@ -3457,12 +3636,12 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         status: lead.status,
         priority: lead.priority || '',
         source: lead.source || '',
-        assignedTo: { name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
+        assignedTo: { id: lead.assigned_to || null, name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
       })));
       setActivePage(1);
     }).catch(() => {}).finally(() => setLeadsLoading(false));
-  }, [statusFilter, searchQuery]);
+  }, [statusFilter, searchQuery, refreshKey]);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
   const headers = [
@@ -3500,7 +3679,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
 
   const categoryLeadCount = useMemo(() => {
     if (!apiLeads) return null;
-    const counts = { 'New leads': 0, 'Hot leads': 0, 'Warm leads': 0, 'Cool leads': 0, 'Lost leads': 0 };
+    const counts = { 'New leads': 0, 'Hot leads': 0, 'Warm leads': 0, 'Cool leads': 0, 'Lost leads': 0, 'Won leads': 0 };
     for (const lead of apiLeads) {
       const cat = classifyLeadCategory(lead);
       if (cat && cat in counts) counts[cat] += 1;
@@ -3556,68 +3735,35 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   }, [activeLeadCategory]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-4 rounded-[14px] bg-white/60 p-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-display text-[24px] font-extrabold leading-tight text-[#111827] sm:text-[28px]">
-            Lead List
-          </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] font-bold">
-            <button type="button" onClick={() => onOpenSection('Dashboard')} className="text-[#0b65e5]">
-              Dashboard
-            </button>
-            <ChevronRight className="size-3.5 text-[#9aa8bc]" />
-            <span className="text-[#53647f]">Lead</span>
-            <ChevronRight className="size-3.5 text-[#9aa8bc]" />
-            <span className="text-[#111827]">Lead List</span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => onOpenSection('Reports')}
-            data-action="lead-export"
-            className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
-          >
-            <Download className="size-4" />
-            Export
-          </button>
-          <button
-            type="button"
-            onClick={onCreateLead}
-            data-route={leadSubRoutes['Create Lead']}
-            className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#12a54f] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9145]"
-          >
-            <Plus className="size-4" />
-            Create Lead
-          </button>
-        </div>
-      </div>
-
-      <LeadSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
+    <div className="space-y-1">
       <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-display text-[16px] font-extrabold text-[#1e3261]">Lead Categories</p>
-            <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">
-              Quickly review lead quality buckets and add any lead when needed.
-            </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-display text-[16px] font-extrabold text-[#1e3261]">Lead Categories</p>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={exportVisibleLeads}
+              data-action="lead-export"
+              aria-label="Export"
+              title="Export"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-[7px] border border-[#d9e4f2] bg-white text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
+            >
+              <Download className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreateModalOpen(true)}
+              data-route={leadSubRoutes['Create Lead']}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] bg-[#12a54f] px-2.5 text-[12px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9145]"
+            >
+              <Plus className="size-3.5" />
+              Create Lead
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onCreateLead}
-            data-route={leadSubRoutes['Create Lead']}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]"
-          >
-            <UserPlus className="size-4" />
-            Add any lead
-          </button>
         </div>
 
-        <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">
-          <div className="flex min-w-max gap-3">
+        <div className="mt-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             {leadCategoryTabs.map((category) => {
               const Icon = category.icon;
               const tone = leadCategoryToneClasses[category.tone];
@@ -3635,21 +3781,21 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                   }}
                   data-action={`open-${category.shortLabel.toLowerCase()}-leads`}
                   className={cx(
-                    'group inline-flex h-[54px] min-w-[168px] items-center justify-between gap-3 rounded-[12px] border px-3.5 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
+                    'group inline-flex h-[46px] w-max shrink-0 items-center justify-between gap-2.5 rounded-[10px] border px-3 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
                     tone.button,
                     activeLeadCategory?.label === category.label ? 'ring-2 ring-[#0b65e5] ring-offset-2 ring-offset-white' : '',
                   )}
                 >
-                  <span className="inline-flex min-w-0 items-center gap-3">
-                    <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px]', tone.icon)}>
-                      <Icon className="size-[18px]" />
+                  <span className="inline-flex items-center gap-2">
+                    <span className={cx('grid size-7 shrink-0 place-items-center rounded-[8px]', tone.icon)}>
+                      <Icon className="size-[15px]" />
                     </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-[13px] font-extrabold">{category.label}</span>
-                      <span className="mt-0.5 block truncate text-[11px] font-bold opacity-75">{category.priority}</span>
+                    <span>
+                      <span className="block whitespace-nowrap text-[12px] font-extrabold">{category.label}</span>
+                      <span className="block whitespace-nowrap text-[10px] font-bold opacity-75">{category.priority}</span>
                     </span>
                   </span>
-                  <span className={cx('rounded-full px-2.5 py-1 text-[11px] font-extrabold', tone.count)}>
+                  <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold', tone.count)}>
                     {categoryLeadCount ? (categoryLeadCount[category.label] ?? 0) : '—'}
                   </span>
                 </button>
@@ -3659,7 +3805,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         </div>
       </section>
 
-      <section className={`${panelClass} relative z-40 overflow-visible p-4 sm:p-5`}>
+      <section className={`${panelClass} relative z-40 overflow-visible p-3 sm:p-4`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <label className="flex h-11 flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <input
@@ -3703,7 +3849,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                   <div>
                     <FilterSelect label="Status" value={statusFilter} onChange={(v) => { setStatusFilter(v); setActiveLeadCategory(null); setActivePage(1); }} options={['All', 'New', 'Follow-up', 'Quotation', 'Won', 'Lost']} />
                     {activeLeadCategory ? (
-                      <p className="mt-1.5 text-[11px] font-bold text-[#8493ab]">{activeLeadCategory.label} category active hai — status badalne par wo clear ho jaayegi.</p>
+                      <p className="mt-1.5 text-[11px] font-bold text-[#8493ab]">{activeLeadCategory.label} category is active — changing status will clear it.</p>
                     ) : null}
                   </div>
                   <FilterSelect label="Assigned To" value={assignedToFilter} onChange={(v) => { setAssignedToFilter(v); setActivePage(1); }} options={assigneeOptions} />
@@ -3805,11 +3951,11 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
-            Leads load ho rahi hain...
+            Loading leads...
           </div>
         ) : pagedLeadRows.length === 0 ? (
           <div className="py-16 text-center text-[14px] font-bold text-[#7386a3]">
-            {activeLeadCategory ? `${activeLeadCategory.label} mein koi lead nahi mili` : 'Koi lead nahi mili'}
+            {activeLeadCategory ? `No leads found in ${activeLeadCategory.label}` : 'No leads found'}
           </div>
         ) : null}
 
@@ -3829,12 +3975,25 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
 
         {!leadsLoading && pagedLeadRows.length > 0 && (
         <div className="hidden overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:block">
-          <div className="overflow-x-auto">
-            <table className="crm-table min-w-[1180px] w-full">
+          <table className="crm-table crm-table--fit w-full">
+            <colgroup>
+              <col style={{ width: '4%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '16%' }} />
+            </colgroup>
               <thead>
                 <tr>
                   {headers.map((header) => (
-                    <th key={header}>{header}</th>
+                    <th key={header} title={header}>
+                      <span className="block truncate">{header}</span>
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -3842,11 +4001,11 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                 {pagedLeadRows.map((lead, index) => (
                   <tr key={lead.id}>
                     <td className="font-extrabold text-[#233a6b]">{(safePage - 1) * LEAD_PAGE_SIZE + index + 1}</td>
-                    <td className="font-bold text-[#233a6b]">{lead.customer}</td>
-                    <td>{lead.mobile}</td>
-                    <td>{lead.ivrs}</td>
-                    <td className="font-bold text-[#233a6b]">{lead.project}</td>
-                    <td>{lead.type}</td>
+                    <td className="font-bold text-[#233a6b]" title={lead.customer}><span className="block truncate">{lead.customer}</span></td>
+                    <td title={lead.mobile}><span className="block truncate">{lead.mobile}</span></td>
+                    <td title={lead.ivrs}><span className="block truncate">{lead.ivrs}</span></td>
+                    <td className="font-bold text-[#233a6b]" title={lead.project}><span className="block truncate">{lead.project}</span></td>
+                    <td title={lead.type}><span className="block truncate">{lead.type}</span></td>
                     <td>
                       <StatusBadge status={lead.status} />
                     </td>
@@ -3854,27 +4013,39 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                       <AssigneeCell assignee={lead.assignedTo} compact />
                     </td>
                     <td className={cx('font-extrabold', isFollowUpOverdue(lead.nextFollowUp) ? 'text-[#f04438]' : 'text-[#233a6b]')}>
-                      {lead.nextFollowUp}
+                      <span className="block truncate">{lead.nextFollowUp}</span>
                     </td>
                     <td>
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          onClick={() => onOpenLead(lead)}
+                          onClick={() => setViewLeadId(lead.id)}
                           data-action="lead-view"
                           className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
                           aria-label={`View ${lead.customer}`}
+                          title="View"
                         >
                           <Eye className="size-4" />
                         </button>
                         <button
                           type="button"
-                          onClick={() => onOpenLead(lead)}
-                          data-action="lead-more-actions"
-                          className="inline-flex size-8 items-center justify-center rounded-[8px] text-[#53647f] transition hover:bg-[#f5f9ff]"
-                          aria-label={`More actions for ${lead.customer}`}
+                          onClick={() => setEditLeadId(lead.id)}
+                          data-action="lead-edit"
+                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#0d9f4a] transition hover:bg-[#f5f9ff]"
+                          aria-label={`Edit ${lead.customer}`}
+                          title="Edit"
                         >
-                          <MoreVertical className="size-4" />
+                          <Pencil className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteLead(lead)}
+                          data-action="lead-delete"
+                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffd5d5] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]"
+                          aria-label={`Delete ${lead.customer}`}
+                          title="Delete"
+                        >
+                          <Trash2 className="size-4" />
                         </button>
                       </div>
                     </td>
@@ -3882,11 +4053,10 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                 ))}
               </tbody>
             </table>
-          </div>
         </div>
         )}
 
-        <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 px-3 py-3 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
           <p>
             {!leadsLoading && visibleLeadRows.length > 0
               ? `Showing ${(safePage - 1) * LEAD_PAGE_SIZE + 1} to ${Math.min(safePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`
@@ -3924,6 +4094,45 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
       </section>
 
       <DashboardFooter />
+
+      {createModalOpen ? (
+        <LeadFormModal
+          mode="create"
+          onClose={() => setCreateModalOpen(false)}
+          onSaved={() => {
+            setCreateModalOpen(false);
+            setRefreshKey((key) => key + 1);
+          }}
+          onRequestApproval={() => onOpenSection('Admin Approval')}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {editLeadId ? (
+        <LeadFormModal
+          mode="edit"
+          lead={{ id: editLeadId }}
+          onClose={() => setEditLeadId(null)}
+          onSaved={() => {
+            setEditLeadId(null);
+            setRefreshKey((key) => key + 1);
+          }}
+          onRequestApproval={() => onOpenSection('Admin Approval')}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {viewLeadId ? (
+        <LeadViewModal
+          leadId={viewLeadId}
+          onClose={() => setViewLeadId(null)}
+          onEdit={() => {
+            const id = viewLeadId;
+            setViewLeadId(null);
+            setEditLeadId(id);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -6317,7 +6526,7 @@ function PaymentSwitch({ enabled, onToggle, label }) {
       aria-label={label}
       aria-pressed={enabled}
       className={cx(
-        'relative h-6 w-11 rounded-full transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8bb8ff]',
+        'relative h-6 w-11 rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8bb8ff]',
         enabled ? 'bg-[#0d9f4a]' : 'bg-[#cbd5e1]',
       )}
     >
@@ -7796,21 +8005,6 @@ function OmSubnavTabs({ activeSection, onOpenSection }) {
       activeClasses="border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] ring-2 ring-[#fff0dc]"
       activeDotClass="bg-[#f59e0b]"
       activeIconClass="text-[#f59e0b]"
-    />
-  );
-}
-
-function LeadSubnavTabs({ activeSection, onOpenSection }) {
-  return (
-    <HorizontalModuleTabs
-      title="Lead Subcategories"
-      helperText="Lead pages ko yahan se horizontally switch karein."
-      items={leadSubItems}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      activeClasses="border-[#bcefd1] bg-[#f1fff6] text-[#087a39] ring-2 ring-[#dff6e7]"
-      activeDotClass="bg-[#14b84c]"
-      activeIconClass="text-[#14b84c]"
     />
   );
 }
@@ -16190,7 +16384,7 @@ function buildProjectPolyline(values, width = 620, height = 220, paddingX = 26, 
   }).join(' ');
 }
 
-function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSection, onNotify }) {
+function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSection, selectedProject, onSelectProject, onNotify }) {
   const actionType = projectActionPageTypes[activeSection];
   if (actionType) {
     return <ProjectActionPage type={actionType} onOpenSection={onOpenSection} onNotify={onNotify} />;
@@ -16205,23 +16399,23 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project List') {
-    return <ProjectListPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return <ProjectListPage activeSection={activeSection} onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Details') {
-    return <ProjectDetailsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return <ProjectDetailsPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Timeline') {
-    return <ProjectTimelinePage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return <ProjectTimelinePage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Site Survey') {
-    return <ProjectSiteSurveyPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return <ProjectSiteSurveyPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Installation') {
-    return <ProjectInstallationPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return <ProjectInstallationPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Team Assignment') {
@@ -16261,64 +16455,108 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
   const [dateTo, setDateTo] = useState('2026-12-31');
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
+  const [projects, setProjects] = useState([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingProjects(true);
+    projectApi.list({ page_size: 1000 })
+      .then((res) => { if (!cancelled) setProjects(Array.isArray(res) ? res : res?.results ?? []); })
+      .catch(() => { if (!cancelled) setProjects([]); })
+      .finally(() => { if (!cancelled) setLoadingProjects(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const total = projects.length;
+  const pct = (n) => (total > 0 ? `${((n / total) * 100).toFixed(1)}%` : '0%');
+  const statusCounts = projects.reduce((acc, p) => { const k = p.status || 'Planning'; acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+  const getStatus = (s) => statusCounts[s] || 0;
+
   const heroStats = [
-    { label: 'Total Projects', value: '128', caption: '100%', icon: FolderKanban, tone: 'blue' },
-    { label: 'Active Projects', value: '64', caption: '50.00%', icon: Zap, tone: 'green' },
-    { label: 'Planning', value: '24', caption: '18.75%', icon: Clock3, tone: 'amber' },
-    { label: 'In Progress', value: '32', caption: '25.00%', icon: Wrench, tone: 'purple' },
-    { label: 'Completed', value: '08', caption: '6.25%', icon: CheckCircle2, tone: 'cyan' },
-    { label: 'Delayed Projects', value: '12', caption: '9.38%', icon: AlertTriangle, tone: 'red' },
+    { label: 'Total Projects', value: String(total), caption: '100%', icon: FolderKanban, tone: 'blue' },
+    { label: 'Active Projects', value: String(getStatus('Active')), caption: pct(getStatus('Active')), icon: Zap, tone: 'green' },
+    { label: 'Planning', value: String(getStatus('Planning')), caption: pct(getStatus('Planning')), icon: Clock3, tone: 'amber' },
+    { label: 'On Hold', value: String(getStatus('On Hold')), caption: pct(getStatus('On Hold')), icon: Wrench, tone: 'purple' },
+    { label: 'Completed', value: String(getStatus('Completed')), caption: pct(getStatus('Completed')), icon: CheckCircle2, tone: 'cyan' },
+    { label: 'Cancelled', value: String(getStatus('Cancelled')), caption: pct(getStatus('Cancelled')), icon: AlertTriangle, tone: 'red' },
   ];
 
+  const totalCapacity = projects.reduce((s, p) => s + Number(p.capacity_kwp || 0), 0);
+  const totalValueSum = projects.reduce((s, p) => s + Number(p.total_value || 0), 0);
+  const avgValue = total > 0 ? totalValueSum / total : 0;
+  const inr = (n) => `₹ ${Math.round(n).toLocaleString('en-IN')}`;
   const summaryStats = [
-    { label: 'Total Capacity (KWp)', value: '2,453.60', caption: '12.45% vs Last Year', icon: Zap, tone: 'green' },
-    { label: 'Total Project Value (₹)', value: '₹ 28,45,60,000', caption: '15.32% vs Last Year', icon: IndianRupee, tone: 'green' },
-    { label: 'Avg. Project Value (₹)', value: '₹ 22,23,438', caption: '8.21% vs Last Year', icon: BarChart3, tone: 'blue' },
-    { label: 'Projects Completed', value: '08', caption: '14.29% vs Last Year', icon: Trophy, tone: 'amber' },
+    { label: 'Total Capacity (KWp)', value: totalCapacity.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), caption: `${total} projects`, icon: Zap, tone: 'green' },
+    { label: 'Total Project Value (₹)', value: inr(totalValueSum), caption: 'Across all projects', icon: IndianRupee, tone: 'green' },
+    { label: 'Avg. Project Value (₹)', value: inr(avgValue), caption: 'Per project', icon: BarChart3, tone: 'blue' },
+    { label: 'Projects Completed', value: String(getStatus('Completed')), caption: pct(getStatus('Completed')), icon: Trophy, tone: 'amber' },
   ];
 
-  const statusData = [
-    { label: 'Planning', value: 24, color: '#f59e0b' },
-    { label: 'In Progress', value: 32, color: '#8b5cf6' },
-    { label: 'Completed', value: 8, color: '#14b84c' },
-    { label: 'On Hold', value: 12, color: '#ef4444' },
-    { label: 'Active', value: 64, color: '#2f80ff' },
-  ];
+  const statusPalette = { Planning: '#f59e0b', Active: '#2f80ff', 'On Hold': '#8b5cf6', Completed: '#14b84c', Cancelled: '#ef4444' };
+  const statusData = Object.keys(statusPalette)
+    .map((s) => ({ label: s, value: getStatus(s), color: statusPalette[s] }))
+    .filter((item) => item.value > 0);
+
+  const cityCounts = projects.reduce((acc, p) => { const k = (p.site || p.customer_name || 'Unspecified'); acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+  const sitePalette = ['#2f80ff', '#14b84c', '#f59e0b', '#8b5cf6', '#ef4444'];
+  const cityEntries = Object.entries(cityCounts).sort((a, b) => b[1] - a[1]);
+  const otherCount = cityEntries.slice(4).reduce((s, [, v]) => s + v, 0);
   const siteData = [
-    { label: 'Indore, MP', value: 42, color: '#2f80ff' },
-    { label: 'Ujjain, MP', value: 28, color: '#14b84c' },
-    { label: 'Dewas, MP', value: 20, color: '#f59e0b' },
-    { label: 'Bhopal, MP', value: 16, color: '#8b5cf6' },
-    { label: 'Other', value: 22, color: '#ef4444' },
+    ...cityEntries.slice(0, 4).map(([label, value], i) => ({ label, value, color: sitePalette[i] })),
+    ...(otherCount > 0 ? [{ label: 'Other', value: otherCount, color: sitePalette[4] }] : []),
   ];
 
+  const now = new Date();
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const trendMonths = Array.from({ length: 12 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - (11 - i), 1));
+  const monthKey = (d) => `${d.getFullYear()}-${d.getMonth()}`;
+  const newByMonth = {};
+  const completedByMonth = {};
+  projects.forEach((p) => {
+    if (p.created_at) { const d = new Date(p.created_at); newByMonth[monthKey(d)] = (newByMonth[monthKey(d)] || 0) + 1; }
+    if (p.status === 'Completed' && p.target_date) { const d = new Date(p.target_date); completedByMonth[monthKey(d)] = (completedByMonth[monthKey(d)] || 0) + 1; }
+  });
+  const trendLabels = trendMonths.map((d) => `${monthNames[d.getMonth()]}\n${d.getFullYear()}`);
   const trendSeries = [
-    { label: 'New Projects', color: '#2f80ff', values: [20, 23, 25, 29, 24, 24, 30, 28, 30, 30, 28, 30] },
-    { label: 'Completed Projects', color: '#29b36a', values: [12, 13, 15, 17, 14, 12, 16, 15, 16, 16, 13, 16] },
-    { label: 'Delayed Projects', color: '#ef4444', values: [3, 3, 2, 4, 2, 2, 5, 3, 3, 5, 3, 4] },
+    { label: 'New Projects', color: '#2f80ff', values: trendMonths.map((d) => newByMonth[monthKey(d)] || 0) },
+    { label: 'Completed Projects', color: '#29b36a', values: trendMonths.map((d) => completedByMonth[monthKey(d)] || 0) },
   ];
 
-  const recentProjects = [
-    { id: 1, name: '20KW On-Grid System', customer: 'Amit Sharma, Indore', capacity: '20.00', status: 'In Progress', manager: 'Rohit Singh', startDate: '10 Mar 2026', targetDate: '30 Jun 2026' },
-    { id: 2, name: '15kW Hybrid System', customer: 'Sunil Patidar, Ujjain', capacity: '15.00', status: 'Installation', manager: 'Neha Jain', startDate: '12 Apr 2026', targetDate: '02 Jul 2026' },
-    { id: 3, name: '10kW On-Grid System', customer: 'Kavita Joshi, Indore', capacity: '10.00', status: 'Planning', manager: 'Amit Sharma', startDate: '15 May 2026', targetDate: '05 Aug 2026' },
-    { id: 4, name: '5kW Off-Grid System', customer: 'Manish Gupta, Dewas', capacity: '5.00', status: 'On Hold', manager: 'Vikram Singh', startDate: '18 May 2026', targetDate: '-' },
-    { id: 5, name: '25kW On-Grid System', customer: 'Pooja Verma, Bhopal', capacity: '25.00', status: 'Completed', manager: 'Vikram Patel', startDate: '15 Jan 2026', targetDate: '15 Feb 2026' },
-  ];
+  const recentProjects = [...projects]
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    .slice(0, 5)
+    .map((p) => ({
+      id: p.id,
+      name: p.project_name,
+      customer: [p.customer_name, p.site].filter(Boolean).join(', ') || '—',
+      capacity: Number(p.capacity_kwp || 0).toFixed(2),
+      status: p.status,
+      manager: p.manager_name || '—',
+      startDate: p.start_date ? formatProjectDisplayDate(p.start_date) : '—',
+      targetDate: p.target_date ? formatProjectDisplayDate(p.target_date) : '—',
+    }));
 
-  const milestones = [
-    { title: 'Site Survey - 20kW Project', site: 'Indore, MP', due: '20 Jun 2026', note: '4 Days Left' },
-    { title: 'Installation Start - 15kW Project', site: 'Ujjain, MP', due: '23 Jun 2026', note: '7 Days Left' },
-    { title: 'Material Delivery - 10kW Project', site: 'Indore, MP', due: '25 Jun 2026', note: '9 Days Left' },
-  ];
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const milestones = projects
+    .filter((p) => p.target_date && p.target_date >= todayIso && p.status !== 'Completed' && p.status !== 'Cancelled')
+    .sort((a, b) => a.target_date.localeCompare(b.target_date))
+    .slice(0, 4)
+    .map((p) => ({
+      title: p.project_name,
+      site: [p.site, p.customer_name].filter(Boolean).join(' • ') || '—',
+      due: formatProjectDisplayDate(p.target_date),
+      note: projectDaysLeft(p.target_date),
+    }));
+
   const openProjectMetric = (label) => {
     const targets = {
       'Total Projects': 'Project List',
       'Active Projects': 'Project List',
       Planning: 'Project List',
-      'In Progress': 'Project Timeline',
+      'On Hold': 'Project List',
       Completed: 'Project Reports',
-      'Delayed Projects': 'Project Timeline',
+      Cancelled: 'Project List',
       'Total Capacity (KWp)': 'Project KPI Analytics',
       'Total Project Value (₹)': 'Project Expenses',
       'Avg. Project Value (₹)': 'Project KPI Analytics',
@@ -16358,9 +16596,9 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.25fr_0.95fr]">
-        <ProjectDonutCard title="Projects by Status" totalLabel="Total" totalValue="128" data={statusData} onNotify={onNotify} />
-        <ProjectLineChartCard title="Projects Trend (Monthly)" series={trendSeries} height={244} onNotify={onNotify} />
-        <ProjectDonutCard title="Projects by Site" totalLabel="Total" totalValue="128" data={siteData} onNotify={onNotify} />
+        <ProjectDonutCard title="Projects by Status" totalLabel="Total" totalValue={String(total)} data={statusData} onNotify={onNotify} />
+        <ProjectLineChartCard title="Projects Trend (Monthly)" series={trendSeries} labels={trendLabels} height={244} onNotify={onNotify} />
+        <ProjectDonutCard title="Projects by Site" totalLabel="Total" totalValue={String(total)} data={siteData} onNotify={onNotify} />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_360px]">
@@ -16385,6 +16623,9 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
                     <td>{row.targetDate}</td>
                   </tr>
                 ))}
+                {recentProjects.length === 0 ? (
+                  <tr><td colSpan={8} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">{loadingProjects ? 'Loading projects...' : 'No projects yet.'}</td></tr>
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -16423,6 +16664,9 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
                 </span>
               </button>
             ))}
+            {milestones.length === 0 ? (
+              <p className="text-[13px] font-bold text-[#8a98af]">{loadingProjects ? 'Loading...' : 'No upcoming milestones.'}</p>
+            ) : null}
           </div>
         </article>
       </section>
@@ -16438,44 +16682,74 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
   const [dateTo, setDateTo] = useState('2026-12-31');
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
+  const [projects, setProjects] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    projectApi.list({ page_size: 1000 })
+      .then((res) => { if (!cancelled) setProjects(Array.isArray(res) ? res : res?.results ?? []); })
+      .catch(() => { if (!cancelled) setProjects([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const total = projects.length;
+  const pct = (n) => (total > 0 ? `${((n / total) * 100).toFixed(1)}%` : '0%');
+  const statusCounts = projects.reduce((acc, p) => { const k = p.status || 'Planning'; acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+  const getStatus = (s) => statusCounts[s] || 0;
+  const inr = (n) => `₹ ${Math.round(n).toLocaleString('en-IN')}`;
+
   const heroStats = [
-    { label: 'Total Projects', value: '128', caption: '100%', icon: FolderKanban, tone: 'blue' },
-    { label: 'Active Projects', value: '64', caption: '50.00%', icon: Zap, tone: 'green' },
-    { label: 'Planning', value: '24', caption: '18.75%', icon: Clock3, tone: 'amber' },
-    { label: 'In Progress', value: '32', caption: '25.00%', icon: Wrench, tone: 'purple' },
-    { label: 'Completed', value: '08', caption: '6.25%', icon: CheckCircle2, tone: 'cyan' },
-    { label: 'Delayed Projects', value: '12', caption: '9.38%', icon: AlertTriangle, tone: 'red' },
+    { label: 'Total Projects', value: String(total), caption: '100%', icon: FolderKanban, tone: 'blue' },
+    { label: 'Active Projects', value: String(getStatus('Active')), caption: pct(getStatus('Active')), icon: Zap, tone: 'green' },
+    { label: 'Planning', value: String(getStatus('Planning')), caption: pct(getStatus('Planning')), icon: Clock3, tone: 'amber' },
+    { label: 'On Hold', value: String(getStatus('On Hold')), caption: pct(getStatus('On Hold')), icon: Wrench, tone: 'purple' },
+    { label: 'Completed', value: String(getStatus('Completed')), caption: pct(getStatus('Completed')), icon: CheckCircle2, tone: 'cyan' },
+    { label: 'Cancelled', value: String(getStatus('Cancelled')), caption: pct(getStatus('Cancelled')), icon: AlertTriangle, tone: 'red' },
   ];
 
+  const now = new Date();
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const trendMonths = Array.from({ length: 12 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - (11 - i), 1));
+  const monthKey = (d) => `${d.getFullYear()}-${d.getMonth()}`;
+  const newByMonth = {};
+  const completedByMonth = {};
+  projects.forEach((p) => {
+    if (p.created_at) { const d = new Date(p.created_at); newByMonth[monthKey(d)] = (newByMonth[monthKey(d)] || 0) + 1; }
+    if (p.status === 'Completed' && p.target_date) { const d = new Date(p.target_date); completedByMonth[monthKey(d)] = (completedByMonth[monthKey(d)] || 0) + 1; }
+  });
+  const trendLabels = trendMonths.map((d) => `${monthNames[d.getMonth()]}\n${d.getFullYear()}`);
   const trendSeries = [
-    { label: 'New Projects', color: '#2f80ff', values: [12, 15, 18, 24, 20, 26, 28, 30, 32, 34, 29, 33] },
-    { label: 'Completed Projects', color: '#29b36a', values: [6, 8, 10, 12, 14, 12, 16, 14, 18, 16, 14, 17] },
-    { label: 'Delayed Projects', color: '#ef4444', values: [3, 3, 2, 4, 3, 5, 4, 6, 7, 5, 4, 5] },
+    { label: 'New Projects', color: '#2f80ff', values: trendMonths.map((d) => newByMonth[monthKey(d)] || 0) },
+    { label: 'Completed Projects', color: '#29b36a', values: trendMonths.map((d) => completedByMonth[monthKey(d)] || 0) },
   ];
-  const statusData = [
-    { label: 'Planning', value: 24, color: '#f59e0b' },
-    { label: 'In Progress', value: 32, color: '#8b5cf6' },
-    { label: 'Completed', value: 8, color: '#14b84c' },
-    { label: 'On Hold', value: 12, color: '#ef4444' },
-    { label: 'Active', value: 64, color: '#2f80ff' },
-  ];
+
+  const statusPalette = { Planning: '#f59e0b', Active: '#2f80ff', 'On Hold': '#8b5cf6', Completed: '#14b84c', Cancelled: '#ef4444' };
+  const statusData = Object.keys(statusPalette)
+    .map((s) => ({ label: s, value: getStatus(s), color: statusPalette[s] }))
+    .filter((item) => item.value > 0);
+
+  const cityCounts = projects.reduce((acc, p) => { const k = (p.site || p.customer_name || 'Unspecified'); acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+  const sitePalette = ['#2f80ff', '#14b84c', '#f59e0b', '#8b5cf6', '#ef4444'];
+  const cityEntries = Object.entries(cityCounts).sort((a, b) => b[1] - a[1]);
+  const otherCount = cityEntries.slice(4).reduce((s, [, v]) => s + v, 0);
   const siteData = [
-    { label: 'Indore, MP', value: 42, color: '#2f80ff' },
-    { label: 'Ujjain, MP', value: 28, color: '#14b84c' },
-    { label: 'Dewas, MP', value: 20, color: '#f59e0b' },
-    { label: 'Bhopal, MP', value: 16, color: '#8b5cf6' },
-    { label: 'Others', value: 22, color: '#ef4444' },
+    ...cityEntries.slice(0, 4).map(([label, value], i) => ({ label, value, color: sitePalette[i] })),
+    ...(otherCount > 0 ? [{ label: 'Others', value: otherCount, color: sitePalette[4] }] : []),
   ];
-  const typeData = [
-    { label: 'On-Grid', value: 68, color: '#2f80ff' },
-    { label: 'Hybrid', value: 28, color: '#8b5cf6' },
-    { label: 'Off-Grid', value: 18, color: '#14b84c' },
-    { label: 'Commercial', value: 14, color: '#f59e0b' },
-  ];
+
+  const typePalette = { 'On-Grid': '#2f80ff', Hybrid: '#8b5cf6', 'Off-Grid': '#14b84c' };
+  const typeCounts = projects.reduce((acc, p) => { const k = p.project_type || 'On-Grid'; acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+  const typeData = Object.keys(typePalette)
+    .map((t) => ({ label: t, value: typeCounts[t] || 0, color: typePalette[t] }))
+    .filter((item) => item.value > 0);
+
+  const totalValueSum = projects.reduce((s, p) => s + Number(p.total_value || 0), 0);
+  const avgValue = total > 0 ? totalValueSum / total : 0;
+  const avgProgress = total > 0 ? Math.round(projects.reduce((s, p) => s + Number(p.progress_percent || 0), 0) / total) : 0;
   const financialRows = [
-    { label: 'Total Project Value', value: '₹ 28,45,60,000', change: '15.32% vs Last Year', color: '#29b36a', points: [22, 30, 28, 24, 31, 33, 24, 28, 32] },
-    { label: 'Avg. Project Value', value: '₹ 22,23,438', change: '8.21% vs Last Year', color: '#8b5cf6', points: [18, 12, 16, 11, 15, 18, 13, 15, 18] },
-    { label: 'Cost Incurred', value: '₹ 18,72,44,000', change: '12.45% vs Last Year', color: '#f59e0b', points: [10, 14, 14, 9, 15, 18, 10, 14, 18] },
+    { label: 'Total Project Value', value: inr(totalValueSum), change: 'Across all projects', color: '#29b36a', points: [22, 30, 28, 24, 31, 33, 24, 28, 32] },
+    { label: 'Avg. Project Value', value: inr(avgValue), change: 'Per project', color: '#8b5cf6', points: [18, 12, 16, 11, 15, 18, 13, 15, 18] },
+    { label: 'Total Capacity (KWp)', value: projects.reduce((s, p) => s + Number(p.capacity_kwp || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), change: 'Installed + planned', color: '#f59e0b', points: [10, 14, 14, 9, 15, 18, 10, 14, 18] },
   ];
   const performanceStats = [
     { label: 'On-Time Delivery', value: '76.12%', note: '9.45% vs Last Year', icon: Clock3, tone: 'blue' },
@@ -16490,9 +16764,9 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
       'Total Projects': 'Project List',
       'Active Projects': 'Project List',
       Planning: 'Project List',
-      'In Progress': 'Project Timeline',
+      'On Hold': 'Project List',
       Completed: 'Project Reports',
-      'Delayed Projects': 'Project Timeline',
+      Cancelled: 'Project List',
     };
     onOpenSection(targets[label] ?? 'Project KPI Analytics');
   };
@@ -16524,14 +16798,14 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
       </section>
 
       <section className="grid items-start gap-4 xl:grid-cols-[1.45fr_0.95fr_0.9fr]">
-        <ProjectLineChartCard title="Projects Trend (Monthly)" series={trendSeries} height={232} onNotify={onNotify} />
-        <ProjectDonutCard title="Projects by Status" totalLabel="Total" totalValue="128" data={statusData} onNotify={onNotify} />
-        <ProjectCompletionGauge value={72.45} />
+        <ProjectLineChartCard title="Projects Trend (Monthly)" series={trendSeries} labels={trendLabels} height={232} onNotify={onNotify} />
+        <ProjectDonutCard title="Projects by Status" totalLabel="Total" totalValue={String(total)} data={statusData} onNotify={onNotify} />
+        <ProjectCompletionGauge value={avgProgress} />
       </section>
 
       <section className="grid items-start gap-4 xl:grid-cols-[0.95fr_0.95fr_1.25fr]">
-        <ProjectDonutCard title="Projects by Site" totalLabel="Total" totalValue="128" data={siteData} onNotify={onNotify} />
-        <ProjectDonutCard title="Projects by Type" totalLabel="Total" totalValue="128" data={typeData} onNotify={onNotify} />
+        <ProjectDonutCard title="Projects by Site" totalLabel="Total" totalValue={String(total)} data={siteData} onNotify={onNotify} />
+        <ProjectDonutCard title="Projects by Type" totalLabel="Total" totalValue={String(total)} data={typeData} onNotify={onNotify} />
         <ProjectFinancialOverview rows={financialRows} />
       </section>
 
@@ -16541,39 +16815,56 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
   );
 }
 
-const projectListRows = [
-  { id: 1, projectName: '20kW On-Grid System', customer: 'Amit Sharma', site: 'Indore, MP', type: 'On-Grid', capacity: '20.00', status: 'In Progress', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2026-03-10', targetDate: '2026-06-30', progress: 65 },
-  { id: 2, projectName: '15kW Hybrid System', customer: 'Sunil Patidar', site: 'Ujjain, MP', type: 'Hybrid', capacity: '15.00', status: 'Installation', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2026-04-12', targetDate: '2026-07-02', progress: 40 },
-  { id: 3, projectName: '10kW On-Grid System', customer: 'Kavita Joshi', site: 'Indore, MP', type: 'On-Grid', capacity: '10.00', status: 'Planning', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2026-05-15', targetDate: '2026-08-05', progress: 25 },
-  { id: 4, projectName: '5kW Off-Grid System', customer: 'Manish Gupta', site: 'Dewas, MP', type: 'Off-Grid', capacity: '5.00', status: 'On Hold', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2026-05-18', targetDate: '', progress: 0 },
-  { id: 5, projectName: '25kW On-Grid System', customer: 'Pooja Verma', site: 'Bhopal, MP', type: 'On-Grid', capacity: '25.00', status: 'Completed', manager: { name: 'Vikram Patel', initials: 'VP', tone: 'green' }, startDate: '2026-01-15', targetDate: '2026-02-15', progress: 100 },
-  { id: 6, projectName: '30kW Hybrid System', customer: 'Ramesh Yadav', site: 'Jabalpur, MP', type: 'Hybrid', capacity: '30.00', status: 'In Progress', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2026-04-20', targetDate: '2026-07-10', progress: 60 },
-  { id: 7, projectName: '12kW On-Grid System', customer: 'Anjali Mehta', site: 'Gwalior, MP', type: 'On-Grid', capacity: '12.00', status: 'Installation', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2026-05-01', targetDate: '2026-07-08', progress: 50 },
-  { id: 8, projectName: '8kW Off-Grid System', customer: 'Vijay Singh', site: 'Ratlam, MP', type: 'Off-Grid', capacity: '8.00', status: 'Planning', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2026-05-05', targetDate: '2026-08-12', progress: 20 },
-  { id: 9, projectName: '50kW On-Grid System', customer: 'Shivam Enterprises', site: 'Indore, MP', type: 'On-Grid', capacity: '50.00', status: 'In Progress', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2026-04-10', targetDate: '2026-07-25', progress: 55 },
-  { id: 10, projectName: '40kW Hybrid System', customer: 'Mera Electricals', site: 'Ujjain, MP', type: 'Hybrid', capacity: '40.00', status: 'Planning', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2026-05-20', targetDate: '2026-08-30', progress: 15 },
-  { id: 11, projectName: '8kW Off-Grid System', customer: 'Sunita Bhatt', site: 'Ratlam, MP', type: 'Off-Grid', capacity: '8.00', status: 'Site Survey', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2026-05-26', targetDate: '2026-09-05', progress: 10 },
-  { id: 12, projectName: '25kW On-Grid System', customer: 'Ramesh Patidar', site: 'Bhopal, MP', type: 'On-Grid', capacity: '25.00', status: 'Installation', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2026-04-27', targetDate: '2026-07-20', progress: 45 },
-  { id: 13, projectName: '12kW Hybrid System', customer: 'Lokesh Sharma', site: 'Gwalior, MP', type: 'Hybrid', capacity: '12.00', status: 'Design', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2026-05-28', targetDate: '2026-09-10', progress: 20 },
-  { id: 14, projectName: '30kW On-Grid System', customer: 'Anil Dubey', site: 'Indore, MP', type: 'On-Grid', capacity: '30.00', status: 'Procurement', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2026-04-29', targetDate: '2026-08-15', progress: 30 },
-  { id: 15, projectName: '5kW Hybrid System', customer: 'Priya Jain', site: 'Ujjain, MP', type: 'Hybrid', capacity: '5.00', status: 'Completed', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2026-01-20', targetDate: '2026-02-28', progress: 100 },
-  { id: 16, projectName: '15kW Off-Grid System', customer: 'Vivek Chouhan', site: 'Jabalpur, MP', type: 'Off-Grid', capacity: '15.00', status: 'Quality Check', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2026-05-01', targetDate: '2026-07-20', progress: 70 },
-  { id: 17, projectName: '20kW Hybrid System', customer: 'Asha Kulkarni', site: 'Dewas, MP', type: 'Hybrid', capacity: '20.00', status: 'Planning', manager: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, startDate: '2026-06-03', targetDate: '2026-08-25', progress: 5 },
-  { id: 18, projectName: '35kW On-Grid System', customer: 'Meena Tiwari', site: 'Sagar, MP', type: 'On-Grid', capacity: '35.00', status: 'On Hold', manager: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' }, startDate: '2026-05-30', targetDate: '', progress: 0 },
-  { id: 19, projectName: '6kW Off-Grid System', customer: 'Harish Yadav', site: 'Mandsor, MP', type: 'Off-Grid', capacity: '6.00', status: 'In Progress', manager: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, startDate: '2026-06-05', targetDate: '2026-07-30', progress: 35 },
-  { id: 20, projectName: '18kW On-Grid System', customer: 'Sarita Pandey', site: 'Indore, MP', type: 'On-Grid', capacity: '18.00', status: 'Site Survey', manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' }, startDate: '2026-06-06', targetDate: '2026-08-01', progress: 8 },
-];
+const projectManagerTones = ['amber', 'blue', 'green'];
 
-function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
+function projectRowFromApi(p) {
+  return {
+    id: p.id,
+    projectName: p.project_name,
+    customer: p.customer_name,
+    site: p.site,
+    type: p.project_type,
+    capacity: p.capacity_kwp,
+    status: p.status,
+    manager: p.manager
+      ? { name: p.manager_name || 'Unassigned', initials: p.manager_initials || '—', tone: projectManagerTones[p.manager % projectManagerTones.length] }
+      : { name: 'Unassigned', initials: '—', tone: 'blue' },
+    startDate: p.start_date || '',
+    targetDate: p.target_date || '',
+    progress: p.progress_percent || 0,
+  };
+}
+
+function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNotify }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('2026-01-01');
   const [dateTo, setDateTo] = useState('2026-12-31');
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [activePage, setActivePage] = useState(1);
+  const [projectRows, setProjectRows] = useState([]);
+  const [loading, setLoading] = useState(true);
   const deferredQuery = useDeferredValue(query);
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
-  const projectRows = projectListRows;
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    projectApi.list({ page_size: 1000 })
+      .then((data) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : data?.results ?? [];
+        setProjectRows(list.map(projectRowFromApi));
+      })
+      .catch(() => { if (!cancelled) setProjectRows([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleOpenProject = (row) => {
+    onSelectProject?.({ id: row.id });
+  };
+
   const PROJECT_PAGE_SIZE = 10;
 
   const filteredRows = useMemo(() => {
@@ -16583,16 +16874,38 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
         const haystack = [row.projectName, row.customer, row.site, row.manager.name].join(' ').toLowerCase();
         if (!haystack.includes(normalizedQuery)) return false;
       }
+      if (statusFilter !== 'All' && row.status !== statusFilter) return false;
       if (dateFrom && row.startDate && row.startDate < dateFrom) return false;
       if (dateTo && row.startDate && row.startDate > dateTo) return false;
       return true;
     });
-  }, [deferredQuery, projectRows, dateFrom, dateTo]);
+  }, [deferredQuery, projectRows, statusFilter, dateFrom, dateTo]);
 
   const totalProjectPages = Math.max(1, Math.ceil(filteredRows.length / PROJECT_PAGE_SIZE));
   const pagedProjectRows = filteredRows.slice((activePage - 1) * PROJECT_PAGE_SIZE, activePage * PROJECT_PAGE_SIZE);
 
-  useEffect(() => { setActivePage(1); }, [deferredQuery, dateFrom, dateTo]);
+  useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, dateFrom, dateTo]);
+
+  const exportProjectsCsv = () => {
+    if (!filteredRows.length) {
+      onNotify('No projects available to export');
+      return;
+    }
+    const csvRows = [
+      ['Project ID', 'Project Name', 'Customer', 'Site', 'Project Type', 'Capacity (KWp)', 'Status', 'Project Manager', 'Start Date', 'Target Date', 'Progress %'],
+      ...filteredRows.map((row) => [row.id, row.projectName, row.customer, row.site, row.type, row.capacity, row.status, row.manager.name, row.startDate, row.targetDate, row.progress]),
+    ];
+    const csv = csvRows.map((row) => row.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'Project_List.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    onNotify(`${filteredRows.length} projects exported`);
+  };
 
   return (
     <div className="space-y-4">
@@ -16608,7 +16921,7 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
             <div className="w-full sm:w-[280px]">
               <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
             </div>
-            <button type="button" onClick={() => onNotify(`Project list exported for ${formattedRange}`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={exportProjectsCsv} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
           </>
         )}
       />
@@ -16621,7 +16934,17 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
             <Search className="size-4 text-[#7e8fab]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search projects by name, customer, site, project manager..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
           </label>
-          <button type="button" onClick={() => onNotify(`Project filters opened for ${filteredRows.length} rows`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
+          <label className="relative flex h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+            <Filter className="size-4 text-[#0b65e5]" />
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none">
+              <option value="All">All Status</option>
+              <option value="Planning">Planning</option>
+              <option value="Active">Active</option>
+              <option value="On Hold">On Hold</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </label>
           <button type="button" onClick={() => onOpenSection('Project Create')} data-route={projectSubRoutes['Project Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Project</button>
         </div>
       </section>
@@ -16654,55 +16977,60 @@ function ProjectListPage({ activeSection, onOpenSection, onNotify }) {
                   <td><ProjectProgressBar value={row.progress} /></td>
                   <td>
                     <div className="flex items-center gap-2">
-                      <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => onOpenSection('Project Details')} />
-                      <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={() => onOpenSection('Project Details')} />
+                      <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => handleOpenProject(row)} />
+                      <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={() => handleOpenProject(row)} />
                     </div>
                   </td>
                 </tr>
               ))}
+              {!loading && pagedProjectRows.length === 0 ? (
+                <tr><td colSpan={11} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</td></tr>
+              ) : null}
             </tbody>
           </table>
         </div>
 
         <div className="space-y-3 lg:hidden">
-          {pagedProjectRows.map((row, index) => (
+          {pagedProjectRows.map((row) => (
             <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[12px] font-extrabold text-[#8a98af]">#{(activePage - 1) * PROJECT_PAGE_SIZE + index + 1}</p>
-                  <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.projectName}</p>
-                  <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.customer} - {row.site}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-extrabold text-[#1e3261]">{row.projectName}</p>
+                  <p className="mt-0.5 truncate text-[12px] font-bold text-[#53647f]">{row.customer} &middot; {row.site}</p>
                 </div>
                 <ProjectPhaseBadge label={row.status} />
               </div>
-              <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
-                <InfoCell label="Project Type" valueNode={<ProjectTypeBadge type={row.type} />} />
-                <InfoCell label="Capacity" value={`${row.capacity} KWp`} />
-                <InfoCell label="Project Manager" valueNode={<AssigneeCell assignee={row.manager} compact />} />
-                <InfoCell label="Target Date" value={row.targetDate ? formatProjectDisplayDate(row.targetDate) : '-'} />
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <ProjectTypeBadge type={row.type} />
+                <span className="text-[12px] font-extrabold text-[#314a79]">{row.capacity} KWp</span>
+                <span className="ml-1 inline-flex min-w-0"><AssigneeCell assignee={row.manager} compact /></span>
               </div>
-              <div className="mt-4">
-                <p className="text-[12px] font-extrabold text-[#53647f]">Progress</p>
-                <div className="mt-2"><ProjectProgressBar value={row.progress} /></div>
+
+              <div className="mt-3 flex items-center gap-3">
+                <div className="min-w-0 flex-1"><ProjectProgressBar value={row.progress} /></div>
+                <span className="shrink-0 text-[12px] font-bold text-[#7b8ca8]">{row.targetDate ? formatProjectDisplayDate(row.targetDate) : 'No target date'}</span>
               </div>
-              <div className="mt-4 flex gap-2">
-                <button type="button" onClick={() => onOpenSection('Project Details')} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
-                <button type="button" onClick={() => onOpenSection('Project Details')} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
+
+              <div className="mt-3 flex gap-2">
+                <button type="button" onClick={() => handleOpenProject(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
+                <button type="button" onClick={() => handleOpenProject(row)} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
               </div>
             </article>
           ))}
+          {!loading && pagedProjectRows.length === 0 ? (
+            <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</p>
+          ) : null}
         </div>
 
         <div className="mt-4 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[13px] font-bold text-[#53647f]">Showing {filteredRows.length === 0 ? 0 : (activePage - 1) * PROJECT_PAGE_SIZE + 1} to {Math.min(activePage * PROJECT_PAGE_SIZE, filteredRows.length)} of {filteredRows.length} entries</p>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <PaginationButton onClick={() => setActivePage(1)}><ChevronLeft className="size-4" /></PaginationButton>
             <PaginationButton onClick={() => setActivePage((p) => Math.max(1, p - 1))}><ChevronLeft className="size-4" /></PaginationButton>
             {Array.from({ length: totalProjectPages }, (_, i) => i + 1).map((page) => (
               <PaginationButton key={page} active={page === activePage} onClick={() => setActivePage(page)}>{page}</PaginationButton>
             ))}
             <PaginationButton onClick={() => setActivePage((p) => Math.min(totalProjectPages, p + 1))}><ChevronRight className="size-4" /></PaginationButton>
-            <PaginationButton onClick={() => setActivePage(totalProjectPages)}><ChevronRight className="size-4" /></PaginationButton>
           </div>
         </div>
       </article>
@@ -17093,8 +17421,948 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
   );
 }
 
-function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
-  const [activeDetailTab, setActiveDetailTab] = useState('Activities');
+function projectDaysLeft(targetDate) {
+  if (!targetDate) return '—';
+  const diff = Math.ceil((new Date(targetDate) - new Date()) / (1000 * 60 * 60 * 24));
+  return diff >= 0 ? `${diff} Days` : 'Overdue';
+}
+
+function projectActivityProgress(status) {
+  if (status === 'Completed') return 100;
+  if (status === 'In Progress') return 50;
+  return 0;
+}
+
+function daysBetween(a, b) {
+  return Math.round((new Date(b) - new Date(a)) / (1000 * 60 * 60 * 24));
+}
+
+function milestoneStatusColor(status) {
+  if (status === 'Completed') return '#16a34a';
+  if (status === 'In Progress') return '#2563eb';
+  if (status === 'Delayed') return '#ef4444';
+  return '#8b5cf6';
+}
+
+function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
+  const [activeDetailTab, setActiveDetailTab] = useState('Overview');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [newNoteContent, setNewNoteContent] = useState('');
+  const [newNotePinned, setNewNotePinned] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [newExpense, setNewExpense] = useState({ category: 'Materials', description: '', amount: '', date: new Date().toISOString().slice(0, 10) });
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [newPayment, setNewPayment] = useState({ amount: '', payment_mode: 'Bank Transfer', payment_date: new Date().toISOString().slice(0, 10), reference: '', notes: '' });
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [userOptions, setUserOptions] = useState([]);
+  const [newMember, setNewMember] = useState({ user: '', role_title: '', access_level: 'view_only' });
+  const [savingMember, setSavingMember] = useState(false);
+  const [editMemberId, setEditMemberId] = useState(null);
+  const [editMemberForm, setEditMemberForm] = useState({ role_title: '', access_level: 'view_only' });
+  const [savingEditMember, setSavingEditMember] = useState(false);
+  const [uploadDocForm, setUploadDocForm] = useState({ name: '', category: '', file: null });
+  const [savingDocument, setSavingDocument] = useState(false);
+  const [showUploadDocPanel, setShowUploadDocPanel] = useState(false);
+  const [activityCategoryFilter, setActivityCategoryFilter] = useState('All Categories');
+  const [activityStatusFilter, setActivityStatusFilter] = useState('All Status');
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
+  const [newActivity, setNewActivity] = useState({ title: '', activity_type: 'Site Survey', status: 'Pending', priority: 'Medium', assigned_to: '', start_date: '', due_date: '', notes: '' });
+  const [savingActivity, setSavingActivity] = useState(false);
+  const [documentCategoryFilter, setDocumentCategoryFilter] = useState(null);
+  const [customerSiteForm, setCustomerSiteForm] = useState({ customer_name: '', site: '', site_address: '', city: '', state: '' });
+  const [surveyForm, setSurveyForm] = useState({ survey_date: '', building_type: '', roof_type: '', feasibility: '', status: 'Draft', summary_notes: '' });
+  const [savingCustomerSite, setSavingCustomerSite] = useState(false);
+  const [savingSurvey, setSavingSurvey] = useState(false);
+  const [systemConfigForm, setSystemConfigForm] = useState({ inverter_brand: '', inverter_model: '', inverter_capacity_kw: '', panel_brand: '', panel_model: '', panel_wattage_w: '', panel_count: '', string_count: '', protection_devices: '', notes: '' });
+  const [savingSystemConfig, setSavingSystemConfig] = useState(false);
+  const [newMilestone, setNewMilestone] = useState({ title: '', category: '', status: 'Pending', progress_percent: '', start_date: '', end_date: '', owner: '' });
+  const [savingMilestone, setSavingMilestone] = useState(false);
+  const [updatingProgress, setUpdatingProgress] = useState(false);
+  const [uploadingProjectImage, setUploadingProjectImage] = useState(false);
+  const [progressDraft, setProgressDraft] = useState(0);
+
+  useEffect(() => {
+    userApi.list({ is_active: true }).then((res) => {
+      const list = Array.isArray(res) ? res : res?.results ?? [];
+      setUserOptions(list);
+    }).catch(() => setUserOptions([]));
+  }, []);
+
+  const fetchProjectDetails = useCallback(async ({ silent = false } = {}) => {
+    if (!projectProp?.id) {
+      setData(null);
+      setLoading(false);
+      setLoadError('');
+      return;
+    }
+    if (!silent) setLoading(true);
+    setLoadError('');
+    try {
+      const res = await projectApi.get(projectProp.id);
+      setData(res);
+    } catch (err) {
+      setData(null);
+      setLoadError(err?.message || 'Unable to load project details.');
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [projectProp?.id]);
+
+  const reloadProject = useCallback(() => fetchProjectDetails({ silent: true }), [fetchProjectDetails]);
+
+  const runMutationWithRefresh = useCallback(async ({ action, successMessage, fallbackError }) => {
+    try {
+      await action();
+      await reloadProject();
+      if (successMessage) onNotify(successMessage);
+    } catch (err) {
+      onNotify(err.message || fallbackError);
+    }
+  }, [reloadProject, onNotify]);
+
+  useEffect(() => {
+    fetchProjectDetails();
+  }, [fetchProjectDetails]);
+
+  useEffect(() => {
+    if (!data) return;
+    setProgressDraft(Math.max(0, Math.min(Number(data.progress_percent || 0), 100)));
+    setCustomerSiteForm({
+      customer_name: data.customer_name || '',
+      site: data.site || '',
+      site_address: data.site_address || '',
+      city: data.city || '',
+      state: data.state || '',
+    });
+    setSurveyForm({
+      survey_date: data.site_survey?.survey_date || '',
+      building_type: data.site_survey?.building_type || '',
+      roof_type: data.site_survey?.roof_type || '',
+      feasibility: data.site_survey?.feasibility || '',
+      status: data.site_survey?.status || 'Draft',
+      summary_notes: data.site_survey?.summary_notes || '',
+    });
+    const cfg = data.system_config;
+    setSystemConfigForm({
+      inverter_brand: cfg?.inverter_brand || '',
+      inverter_model: cfg?.inverter_model || '',
+      inverter_capacity_kw: cfg?.inverter_capacity_kw != null ? String(cfg.inverter_capacity_kw) : '',
+      panel_brand: cfg?.panel_brand || '',
+      panel_model: cfg?.panel_model || '',
+      panel_wattage_w: cfg?.panel_wattage_w != null ? String(cfg.panel_wattage_w) : '',
+      panel_count: cfg?.panel_count != null ? String(cfg.panel_count) : '',
+      string_count: cfg?.string_count != null ? String(cfg.string_count) : '',
+      protection_devices: cfg?.protection_devices || '',
+      notes: cfg?.notes || '',
+    });
+  }, [data]);
+
+  const handleAddExpense = async () => {
+    const amount = parseFloat(newExpense.amount);
+    if (!newExpense.description.trim() || !amount || amount <= 0) { onNotify('Enter a description and a valid amount'); return; }
+    setSavingExpense(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectExpenseApi.create({ project: projectProp.id, category: newExpense.category, description: newExpense.description.trim(), amount, date: newExpense.date }),
+        successMessage: 'Expense added',
+        fallbackError: 'Failed to add expense',
+      });
+      setNewExpense({ category: 'Materials', description: '', amount: '', date: new Date().toISOString().slice(0, 10) });
+    } finally {
+      setSavingExpense(false);
+    }
+  };
+
+  const handleAddPayment = async () => {
+    const amount = parseFloat(newPayment.amount);
+    if (!amount || amount <= 0) { onNotify('Enter a valid payment amount'); return; }
+    setSavingPayment(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectPaymentApi.create({
+          project: projectProp.id,
+          amount,
+          payment_mode: newPayment.payment_mode,
+          payment_date: newPayment.payment_date,
+          reference: newPayment.reference.trim(),
+          notes: newPayment.notes.trim(),
+        }),
+        successMessage: 'Payment recorded',
+        fallbackError: 'Failed to record payment',
+      });
+      setNewPayment({ amount: '', payment_mode: 'Bank Transfer', payment_date: new Date().toISOString().slice(0, 10), reference: '', notes: '' });
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!newMember.user) { onNotify('Select a user to add'); return; }
+    setSavingMember(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectTeamApi.create({ project: projectProp.id, user: Number(newMember.user), role_title: newMember.role_title.trim(), access_level: newMember.access_level }),
+        successMessage: 'Team member added',
+        fallbackError: 'Failed to add team member',
+      });
+      setNewMember({ user: '', role_title: '', access_level: 'view_only' });
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (id, name) => {
+    if (!window.confirm(`Remove "${name}" from this project?`)) return;
+    await runMutationWithRefresh({
+      action: () => projectTeamApi.delete(id),
+      successMessage: 'Team member removed',
+      fallbackError: 'Failed to remove team member',
+    });
+  };
+
+  const handleStartEditMember = (row) => {
+    setEditMemberId(row.id);
+    setEditMemberForm({ role_title: row.role, access_level: row.accessLevel });
+  };
+
+  const handleUpdateMember = async (id) => {
+    setSavingEditMember(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectTeamApi.update(id, { role_title: editMemberForm.role_title.trim(), access_level: editMemberForm.access_level }),
+        successMessage: 'Team member updated',
+        fallbackError: 'Failed to update team member',
+      });
+      setEditMemberId(null);
+    } finally {
+      setSavingEditMember(false);
+    }
+  };
+
+  const handleUploadDocument = async () => {
+    if (!uploadDocForm.name.trim()) { onNotify('Enter a document name'); return; }
+    if (!uploadDocForm.file) { onNotify('Select a file to upload'); return; }
+    setSavingDocument(true);
+    try {
+      const fd = new FormData();
+      fd.append('project', projectProp.id);
+      fd.append('name', uploadDocForm.name.trim());
+      fd.append('category', uploadDocForm.category.trim());
+      fd.append('file', uploadDocForm.file);
+      await runMutationWithRefresh({
+        action: () => projectDocumentApi.create(fd),
+        successMessage: 'Document uploaded',
+        fallbackError: 'Failed to upload document',
+      });
+      setUploadDocForm({ name: '', category: '', file: null });
+      setShowUploadDocPanel(false);
+    } finally {
+      setSavingDocument(false);
+    }
+  };
+
+  const handleDeleteDocument = async (id, name) => {
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    await runMutationWithRefresh({
+      action: () => projectDocumentApi.delete(id),
+      successMessage: 'Document deleted',
+      fallbackError: 'Failed to delete document',
+    });
+  };
+
+  const handleDownloadDocument = async (fileUrl, name) => {
+    if (!fileUrl) { onNotify('No file available to download'); return; }
+    // The file is served from the backend (different origin), so the anchor
+    // `download` attribute is ignored by the browser. Fetch it as a blob and
+    // trigger a same-origin download instead.
+    const urlName = decodeURIComponent(fileUrl.split('/').pop().split('?')[0] || '');
+    const ext = urlName.includes('.') ? urlName.slice(urlName.lastIndexOf('.')) : '';
+    const fileName = name && !name.includes('.') && ext ? `${name}${ext}` : (name || urlName || 'document');
+    try {
+      const res = await fetch(fileUrl);
+      if (!res.ok) throw new Error('fetch failed');
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      onNotify('Failed to download document');
+    }
+  };
+
+  const handleAddActivity = async () => {
+    if (!newActivity.title.trim()) { onNotify('Enter an activity name'); return; }
+    setSavingActivity(true);
+    try {
+      const payload = {
+        project: projectProp.id,
+        title: newActivity.title.trim(),
+        activity_type: newActivity.activity_type,
+        status: newActivity.status,
+        priority: newActivity.priority,
+        assigned_to: newActivity.assigned_to || null,
+        start_date: newActivity.start_date || null,
+        due_date: newActivity.due_date || null,
+        notes: newActivity.notes.trim(),
+      };
+      await runMutationWithRefresh({
+        action: () => projectActivityApi.create(payload),
+        successMessage: 'Activity added',
+        fallbackError: 'Failed to add activity',
+      });
+      setNewActivity({ title: '', activity_type: 'Site Survey', status: 'Pending', priority: 'Medium', assigned_to: '', start_date: '', due_date: '', notes: '' });
+      setActivityModalOpen(false);
+    } finally {
+      setSavingActivity(false);
+    }
+  };
+
+  const handleDeleteActivity = async (id, name) => {
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    await runMutationWithRefresh({
+      action: () => projectActivityApi.delete(id),
+      successMessage: 'Activity deleted',
+      fallbackError: 'Failed to delete activity',
+    });
+  };
+
+  const handleAddNote = async () => {
+    if (!newNoteContent.trim()) { onNotify('Write something before saving the note'); return; }
+    setSavingNote(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectNoteApi.create({ project: projectProp.id, content: newNoteContent.trim(), is_pinned: newNotePinned }),
+        successMessage: 'Note saved',
+        fallbackError: 'Failed to save note',
+      });
+      setNewNoteContent('');
+      setNewNotePinned(false);
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const handleToggleNotePin = async (id, currentlyPinned) => {
+    await runMutationWithRefresh({
+      action: () => projectNoteApi.update(id, { is_pinned: !currentlyPinned }),
+      successMessage: currentlyPinned ? 'Note unpinned' : 'Note pinned',
+      fallbackError: 'Failed to update note',
+    });
+  };
+
+  const handleDeleteNote = async (id) => {
+    if (!window.confirm('Delete this note? This cannot be undone.')) return;
+    await runMutationWithRefresh({
+      action: () => projectNoteApi.delete(id),
+      successMessage: 'Note deleted',
+      fallbackError: 'Failed to delete note',
+    });
+  };
+
+  const handleSaveCustomerSite = async () => {
+    if (!customerSiteForm.customer_name.trim() || !customerSiteForm.site.trim()) {
+      onNotify('Customer Name and Site are required');
+      return;
+    }
+    setSavingCustomerSite(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectApi.update(projectProp.id, {
+          customer_name: customerSiteForm.customer_name.trim(),
+          site: customerSiteForm.site.trim(),
+          site_address: customerSiteForm.site_address.trim(),
+          city: customerSiteForm.city.trim(),
+          state: customerSiteForm.state.trim(),
+        }),
+        successMessage: 'Customer & Site info saved',
+        fallbackError: 'Failed to save customer/site info',
+      });
+    } finally {
+      setSavingCustomerSite(false);
+    }
+  };
+
+  const handleSaveSurvey = async () => {
+    setSavingSurvey(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectApi.saveSiteSurvey(projectProp.id, {
+          survey_date: surveyForm.survey_date || null,
+          building_type: surveyForm.building_type.trim(),
+          roof_type: surveyForm.roof_type.trim(),
+          feasibility: surveyForm.feasibility,
+          status: surveyForm.status,
+          summary_notes: surveyForm.summary_notes.trim(),
+        }),
+        successMessage: 'Site survey details saved',
+        fallbackError: 'Failed to save site survey details',
+      });
+    } finally {
+      setSavingSurvey(false);
+    }
+  };
+
+  const handleSaveSystemConfig = async () => {
+    setSavingSystemConfig(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectApi.saveSystemConfig(projectProp.id, {
+          inverter_brand: systemConfigForm.inverter_brand.trim(),
+          inverter_model: systemConfigForm.inverter_model.trim(),
+          inverter_capacity_kw: systemConfigForm.inverter_capacity_kw !== '' ? Number(systemConfigForm.inverter_capacity_kw) : null,
+          panel_brand: systemConfigForm.panel_brand.trim(),
+          panel_model: systemConfigForm.panel_model.trim(),
+          panel_wattage_w: systemConfigForm.panel_wattage_w !== '' ? Number(systemConfigForm.panel_wattage_w) : null,
+          panel_count: systemConfigForm.panel_count !== '' ? Number(systemConfigForm.panel_count) : null,
+          string_count: systemConfigForm.string_count !== '' ? Number(systemConfigForm.string_count) : null,
+          protection_devices: systemConfigForm.protection_devices.trim(),
+          notes: systemConfigForm.notes.trim(),
+        }),
+        successMessage: 'System configuration saved',
+        fallbackError: 'Failed to save system configuration',
+      });
+    } finally {
+      setSavingSystemConfig(false);
+    }
+  };
+
+  const handleAddMilestone = async () => {
+    if (!newMilestone.title.trim()) {
+      onNotify('Milestone title is required');
+      return;
+    }
+    setSavingMilestone(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectMilestoneApi.create({
+          project: projectProp.id,
+          title: newMilestone.title.trim(),
+          category: newMilestone.category.trim(),
+          status: newMilestone.status,
+          progress_percent: newMilestone.progress_percent !== '' ? Math.max(0, Math.min(100, Number(newMilestone.progress_percent))) : 0,
+          start_date: newMilestone.start_date || null,
+          end_date: newMilestone.end_date || null,
+          owner: newMilestone.owner ? Number(newMilestone.owner) : null,
+          sequence: topMilestones.length + 1,
+        }),
+        successMessage: 'Milestone added',
+        fallbackError: 'Failed to add milestone',
+      });
+      setNewMilestone({ title: '', category: '', status: 'Pending', progress_percent: '', start_date: '', end_date: '', owner: '' });
+    } finally {
+      setSavingMilestone(false);
+    }
+  };
+
+  const handleUpdateMilestoneInline = async (id, patchData) => {
+    await runMutationWithRefresh({
+      action: () => projectMilestoneApi.update(id, patchData),
+      successMessage: 'Milestone updated',
+      fallbackError: 'Failed to update milestone',
+    });
+  };
+
+  const handleUpdateProjectProgress = async (nextValue) => {
+    const progressPercent = Math.max(0, Math.min(100, Number(nextValue)));
+    setUpdatingProgress(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectApi.updateProgress(projectProp.id, progressPercent),
+        successMessage: 'Project progress updated',
+        fallbackError: 'Failed to update project progress',
+      });
+    } finally {
+      setUpdatingProgress(false);
+    }
+  };
+
+  const handleProjectImageUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      onNotify('Please select a valid image file');
+      event.target.value = '';
+      return;
+    }
+
+    setUploadingProjectImage(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectApi.uploadImage(projectProp.id, file),
+        successMessage: 'Project image uploaded',
+        fallbackError: 'Failed to upload project image',
+      });
+    } finally {
+      setUploadingProjectImage(false);
+      event.target.value = '';
+    }
+  };
+
+  if (!projectProp?.id) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Project Details' }]} />
+        <article className={`${panelClass} p-8 text-center`}>
+          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
+          <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
+          <p className="mx-auto mt-3 max-w-[480px] text-[13px] font-bold text-[#53647f]">Open a project from the Project List to view its details.</p>
+          <button type="button" onClick={() => onOpenSection('Project List')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white"><ArrowRight className="size-4" />Go to Project List</button>
+        </article>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Project Details' }]} />
+        <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>Loading project...</article>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Project Details' }]} />
+        <article className={`${panelClass} p-8 text-center`}>
+          <p className="text-[13px] font-bold text-[#53647f]">{loadError || 'Project not found.'}</p>
+          <button type="button" onClick={() => fetchProjectDetails()} className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+            <RefreshCw className="size-4 text-[#0b65e5]" />
+            Retry
+          </button>
+        </article>
+      </div>
+    );
+  }
+
+  const d = data;
+  const allMilestones = (d.milestones || []).flatMap((m) => [m, ...(m.children || [])]);
+  const topMilestones = d.milestones || [];
+  const documents = d.documents || [];
+  const notes = d.notes || [];
+  const activities = d.activities || [];
+  const teamMembersList = d.team_members || [];
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const project = {
+    name: d.project_name,
+    address: d.site_address || '—',
+    city: [d.city, d.state].filter(Boolean).join(', ') || '—',
+    type: d.project_type,
+    capacity: d.capacity_kwp,
+    customer: d.customer_name,
+    site: d.site,
+    manager: d.manager_detail ? { name: d.manager_detail.name, initials: d.manager_detail.initials, tone: 'amber' } : { name: 'Unassigned', initials: '—', tone: 'blue' },
+    startDate: d.start_date || '',
+    targetDate: d.target_date || '',
+    projectId: d.project_id,
+    siteEngineer: d.site_engineer_detail?.name || 'Unassigned',
+    contractDate: d.contract_date || '',
+    poNumber: d.po_number || '—',
+    priority: d.priority,
+    systemType: d.system_type,
+    status: d.status,
+    workDaysLeft: projectDaysLeft(d.target_date),
+  };
+  const projectImageUrl = d.project_image || navBarImage;
+
+  const customerRows = [
+    { label: 'Customer Name', value: d.customer_name || '—' },
+    { label: 'Project ID', value: d.project_id },
+    { label: 'Status', valueNode: <ProjectPhaseBadge label={d.status} /> },
+    { label: 'Priority', valueNode: <ProjectInfoPill tone={d.priority === 'High' ? 'red' : d.priority === 'Low' ? 'blue' : 'amber'}>{d.priority}</ProjectInfoPill> },
+  ];
+
+  const siteRows = [
+    { label: 'Site', value: d.site || '—' },
+    { label: 'Address', value: d.site_address || '—' },
+    { label: 'City', value: d.city || '—' },
+    { label: 'State', value: d.state || '—' },
+    { label: 'Roof Type', value: d.site_survey?.roof_type || '—' },
+  ];
+
+  const additionalInfo = d.site_survey ? [
+    [
+      { label: 'Survey Status', valueNode: <ProjectInfoPill tone="green">{d.site_survey.status}</ProjectInfoPill> },
+      { label: 'Survey Date', value: d.site_survey.survey_date ? formatProjectDisplayDate(d.site_survey.survey_date) : '—' },
+    ],
+    [
+      { label: 'Building Type', value: d.site_survey.building_type || '—' },
+      { label: 'Feasibility', value: d.site_survey.feasibility || '—' },
+    ],
+    [
+      { label: 'Surveyed By', value: d.site_survey.surveyed_by_name || '—' },
+      { label: 'Summary', value: d.site_survey.summary_notes || '—' },
+    ],
+  ] : [[{ label: 'Site Survey', value: 'Not conducted yet' }]];
+
+  const systemOverviewRows = [
+    { label: 'System Type', value: d.system_type || '—' },
+    { label: 'Project Type', valueNode: <ProjectTypeBadge type={d.project_type} /> },
+    { label: 'Total Capacity (kWp)', value: d.capacity_kwp },
+    { label: 'Status', valueNode: <ProjectPhaseBadge label={d.status} /> },
+  ];
+
+  const cfg = d.system_config;
+  const inverterRows = [
+    { label: 'Inverter Brand', value: cfg?.inverter_brand || '—' },
+    { label: 'Inverter Model', value: cfg?.inverter_model || '—' },
+    { label: 'Inverter Capacity', value: cfg?.inverter_capacity_kw ? `${cfg.inverter_capacity_kw} kW` : '—' },
+    { label: 'String Count', value: cfg?.string_count ?? '—' },
+  ];
+
+  const panelRows = [
+    { label: 'Panel Brand', value: cfg?.panel_brand || '—' },
+    { label: 'Panel Model', value: cfg?.panel_model || '—' },
+    { label: 'Panel Wattage', value: cfg?.panel_wattage_w ? `${cfg.panel_wattage_w} Wp` : '—' },
+    { label: 'No. of Panels', value: cfg?.panel_count ?? '—' },
+    { label: 'Total DC Capacity', value: cfg?.panel_wattage_w && cfg?.panel_count ? `${((cfg.panel_wattage_w * cfg.panel_count) / 1000).toFixed(2)} kWp` : '—' },
+  ];
+
+  const protectionText = cfg?.protection_devices || 'Not specified yet.';
+
+  const systemDocuments = documents.slice(0, 5).map((doc) => ({
+    name: doc.name,
+    meta: `${doc.category || 'Document'} • ${formatProjectDisplayDate(doc.uploaded_at?.slice(0, 10))}`,
+    file: doc.file || null,
+  }));
+
+  const milestoneIcon = (status) => (status === 'Completed' ? CheckCircle2 : status === 'In Progress' ? Clock3 : ClipboardPlus);
+  const milestoneTone = (status) => (status === 'Completed' ? 'green' : status === 'In Progress' ? 'amber' : 'slate');
+
+  const progressStages = topMilestones.map((m) => ({
+    title: m.title,
+    status: m.status,
+    date: m.end_date ? formatProjectDisplayDate(m.end_date) : '',
+    icon: milestoneIcon(m.status),
+    tone: milestoneTone(m.status),
+  }));
+
+  const msCounts = {
+    Completed: allMilestones.filter((m) => m.status === 'Completed').length,
+    'In Progress': allMilestones.filter((m) => m.status === 'In Progress').length,
+    Pending: allMilestones.filter((m) => m.status === 'Pending').length,
+    Delayed: allMilestones.filter((m) => m.status === 'Delayed').length,
+  };
+
+  // Task counts: use milestones when available, otherwise fall back to activities
+  const taskCounts = allMilestones.length > 0
+    ? { total: allMilestones.length, completed: msCounts.Completed, inProgress: msCounts['In Progress'], pending: msCounts.Pending, delayed: msCounts.Delayed }
+    : {
+        total: activities.length,
+        completed: activities.filter((a) => a.status === 'Completed').length,
+        inProgress: activities.filter((a) => a.status === 'In Progress').length,
+        pending: activities.filter((a) => a.status === 'Pending').length,
+        delayed: activities.filter((a) => a.status !== 'Completed' && a.due_date && a.due_date < todayIso).length,
+      };
+
+  const progressStats = [
+    { label: 'Overall Progress', value: `${d.progress_percent}%`, note: `Project is ${d.progress_percent}% complete`, action: 'View Progress Report', icon: BarChart3, tone: 'green', radial: true },
+    { label: 'Completed Tasks', value: String(taskCounts.completed), detail: `of ${taskCounts.total}`, note: 'Tasks completed', icon: CheckCircle2, tone: 'green' },
+    { label: 'In Progress Tasks', value: String(taskCounts.inProgress), note: 'Tasks in progress', icon: Boxes, tone: 'amber' },
+    { label: 'Pending Tasks', value: String(taskCounts.pending), note: 'Tasks pending', icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Delayed Tasks', value: String(taskCounts.delayed), note: taskCounts.delayed ? 'Tasks delayed' : 'No delayed tasks', icon: FileText, tone: 'red' },
+  ];
+
+  const progressRows = allMilestones.length > 0
+    ? allMilestones.map((m) => ({
+        id: m.id,
+        stage: m.title,
+        description: m.category || '—',
+        startRaw: m.start_date || '',
+        endRaw: m.end_date || '',
+        start: m.start_date ? formatProjectDisplayDate(m.start_date) : '—',
+        end: m.end_date ? formatProjectDisplayDate(m.end_date) : '—',
+        status: m.status,
+        progress: m.progress_percent,
+        ownerId: m.owner || '',
+        owner: m.owner_name || 'Unassigned',
+        remarks: '—',
+        editable: true,
+      }))
+    : activities.map((a) => ({
+        id: a.id,
+        stage: a.title,
+        description: a.activity_type || '—',
+        startRaw: a.start_date || '',
+        endRaw: a.due_date || '',
+        start: a.start_date ? formatProjectDisplayDate(a.start_date) : '—',
+        end: a.due_date ? formatProjectDisplayDate(a.due_date) : '—',
+        status: a.status,
+        progress: projectActivityProgress(a.status),
+        ownerId: a.assigned_to || '',
+        owner: a.assigned_to_name || 'Unassigned',
+        remarks: a.priority || '—',
+        editable: false,
+      }));
+
+  const totalExpense = d.total_expense || 0;
+  const totalPaid = d.total_paid || 0;
+  const totalValue = Number(d.total_value || 0);
+  const netBalance = totalValue - Number(totalPaid);
+  const financialStats = [
+    { label: 'Total Project Value', value: formatCurrencyPrecise(totalValue), note: 'Contract value', icon: IndianRupee, tone: 'green' },
+    { label: 'Amount Received', value: formatCurrencyPrecise(Number(totalPaid)), note: 'Payments from customer', icon: CreditCard, tone: 'blue' },
+    { label: 'Total Expenses', value: formatCurrencyPrecise(Number(totalExpense)), note: 'Recorded project expenses', icon: ReceiptText, tone: 'amber' },
+    { label: 'Net Balance', value: formatCurrencyPrecise(netBalance), note: netBalance < 0 ? 'Outstanding to pay' : 'Remaining to collect', icon: Hourglass, tone: netBalance < 0 ? 'red' : 'purple' },
+  ];
+
+  const expenseRows = d.expenses || [];
+  const paymentRows = d.payments || [];
+
+  // expense breakdown by category
+  const expenseByCategory = ['Materials', 'Labor', 'Transport', 'Equipment', 'Miscellaneous'].map((cat) => ({
+    category: cat,
+    total: expenseRows.filter((e) => e.category === cat).reduce((s, e) => s + Number(e.amount), 0),
+  })).filter((c) => c.total > 0);
+
+  const teamStats = [
+    { label: 'Total Team Members', value: String(teamMembersList.length), note: 'Assigned to this project', icon: UsersRound, tone: 'green' },
+    { label: 'Project Manager', value: d.manager_detail?.name || 'Unassigned', note: 'Owner', icon: UserPlus, tone: 'blue' },
+    { label: 'Site Engineer', value: d.site_engineer_detail?.name || 'Unassigned', note: 'On-site lead', icon: Wrench, tone: 'amber' },
+  ];
+
+  const addedUserIds = new Set(teamMembersList.map((m) => m.user));
+
+  const accessLevelLabel = { full_access: 'Full Access', edit_access: 'Edit Access', view_only: 'View Only' };
+  const accessLevelTone = { full_access: 'green', edit_access: 'blue', view_only: 'purple' };
+
+  const teamAvatarTones = ['blue', 'green', 'purple', 'amber', 'orange', 'slate'];
+  const teamRows = teamMembersList.map((m, index) => ({
+    id: m.id,
+    userId: m.user,
+    initials: m.user_initials || '—',
+    name: m.user_name || '—',
+    role: m.role_title || 'Member',
+    accessLevel: m.access_level || 'view_only',
+    accessLevelDisplay: m.access_level_display || 'View Only',
+    roleTone: 'blue',
+    avatarTone: teamAvatarTones[index % teamAvatarTones.length],
+    email: m.user_email || '—',
+    phone: m.user_mobile || '—',
+  }));
+
+  const permissionRows = [
+    { title: 'Full Access', text: 'Can view, edit, approve and manage all project data.', icon: ShieldCheck, tone: 'green' },
+    { title: 'Edit Access', text: 'Can view and edit assigned project data.', icon: FileText, tone: 'blue' },
+    { title: 'View Only', text: 'Can view project data only.', icon: Eye, tone: 'purple' },
+  ];
+
+  const documentCategoryCounts = documents.reduce((acc, doc) => {
+    const key = doc.category || 'Uncategorized';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const documentCategories = Object.entries(documentCategoryCounts).map(([label, count]) => ({ label, count, active: label === documentCategoryFilter }));
+  const documentStats = [
+    { label: 'Total Documents', value: String(documents.length), note: 'All documents', icon: FolderKanban, tone: 'blue' },
+    { label: 'Categories', value: String(documentCategories.length), note: 'In use', icon: CheckCircle2, tone: 'green' },
+  ];
+
+  const documentRows = documents.map((doc) => ({
+    id: doc.id,
+    name: doc.name,
+    category: doc.category || '—',
+    uploadedBy: doc.uploaded_by_name || '—',
+    uploadedOn: doc.uploaded_at ? formatProjectDisplayDate(doc.uploaded_at.slice(0, 10)) : '—',
+    file: doc.file || null,
+  }));
+
+  const filteredDocumentRows = documentCategoryFilter ? documentRows.filter((row) => row.category === documentCategoryFilter) : documentRows;
+
+  const noteRows = notes.map((n) => ({
+    id: n.id,
+    title: n.title || 'Untitled',
+    content: n.content,
+    createdBy: n.created_by_name || '—',
+    createdOn: n.created_at ? formatProjectDisplayDate(n.created_at.slice(0, 10)) : '—',
+    pinned: n.is_pinned,
+  }));
+
+  const pinnedNotes = notes.filter((n) => n.is_pinned).map((n) => ({ id: n.id, title: n.title || n.content || 'Untitled', date: n.created_at ? formatProjectDisplayDate(n.created_at.slice(0, 10)) : '—' }));
+
+  const activityCounts = {
+    Completed: activities.filter((a) => a.status === 'Completed').length,
+    'In Progress': activities.filter((a) => a.status === 'In Progress').length,
+    Pending: activities.filter((a) => a.status === 'Pending').length,
+    Overdue: activities.filter((a) => a.status !== 'Completed' && a.due_date && a.due_date < todayIso).length,
+  };
+  const activityTotal = activities.length || 1;
+  const activityStats = [
+    { label: 'Total Activities', value: String(activities.length), note: 'All activities', icon: CalendarDays, tone: 'green' },
+    { label: 'Completed', value: String(activityCounts.Completed), note: `${Math.round((activityCounts.Completed / activityTotal) * 100)}%`, icon: CheckCircle2, tone: 'blue' },
+    { label: 'In Progress', value: String(activityCounts['In Progress']), note: `${Math.round((activityCounts['In Progress'] / activityTotal) * 100)}%`, icon: Clock3, tone: 'amber' },
+    { label: 'Pending', value: String(activityCounts.Pending), note: `${Math.round((activityCounts.Pending / activityTotal) * 100)}%`, icon: PauseCircle, tone: 'purple' },
+    { label: 'Overdue', value: String(activityCounts.Overdue), note: `${Math.round((activityCounts.Overdue / activityTotal) * 100)}%`, icon: XCircle, tone: 'red' },
+  ];
+
+  const activityRows = activities.map((a) => ({
+    id: a.id,
+    name: a.title,
+    category: a.activity_type,
+    assignee: { name: a.assigned_to_name || 'Unassigned', initials: (a.assigned_to_name || '—').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(), tone: 'blue' },
+    start: a.start_date ? formatProjectDisplayDate(a.start_date) : '—',
+    due: a.due_date ? formatProjectDisplayDate(a.due_date) : '—',
+    status: a.status,
+    priority: a.priority,
+    progress: projectActivityProgress(a.status),
+  }));
+
+  const activityCategoryOptions = ['All Categories', ...new Set(activities.map((a) => a.activity_type).filter(Boolean))];
+  const activityStatusOptions = ['All Status', ...new Set(activities.map((a) => a.status).filter(Boolean))];
+  const filteredActivityRows = activityRows.filter(
+    (row) => (activityCategoryFilter === 'All Categories' || row.category === activityCategoryFilter) &&
+      (activityStatusFilter === 'All Status' || row.status === activityStatusFilter),
+  );
+
+  const activitySummary = [
+    { label: 'Completed', value: `${activityCounts.Completed} (${Math.round((activityCounts.Completed / activityTotal) * 100)}%)`, color: '#16a34a' },
+    { label: 'In Progress', value: `${activityCounts['In Progress']} (${Math.round((activityCounts['In Progress'] / activityTotal) * 100)}%)`, color: '#2563eb' },
+    { label: 'Pending', value: `${activityCounts.Pending} (${Math.round((activityCounts.Pending / activityTotal) * 100)}%)`, color: '#f5b500' },
+    { label: 'Overdue', value: `${activityCounts.Overdue} (${Math.round((activityCounts.Overdue / activityTotal) * 100)}%)`, color: '#ef4444' },
+  ];
+
+  const upcomingActivities = activities
+    .filter((a) => a.status !== 'Completed' && a.due_date)
+    .sort((a, b) => (a.due_date < b.due_date ? -1 : 1))
+    .slice(0, 3)
+    .map((a) => ({ title: a.title, due: `Due on ${formatProjectDisplayDate(a.due_date)}`, status: a.status }));
+
+  const safeProjectProgress = Math.max(0, Math.min(Number(d.progress_percent || 0), 100));
+  const safeProgressDraft = Math.max(0, Math.min(Number(progressDraft || 0), 100));
+  const hasMilestoneProgress = allMilestones.length > 0;
+
+  // Actual overall progress: average of all milestone progress_percent values from backend
+  const overallProgress = allMilestones.length > 0
+    ? Math.round(allMilestones.reduce((sum, m) => sum + (m.progress_percent ?? 0), 0) / allMilestones.length)
+    : activities.length > 0
+    ? Math.round(activities.reduce((sum, a) => sum + projectActivityProgress(a.status), 0) / activities.length)
+    : safeProjectProgress;
+
+  // Simple 2-color progress ring: green = actual progress %, gray = remaining
+  const progressBreakdown = [
+    { label: 'Completed', value: overallProgress, percent: overallProgress, color: '#16a34a' },
+    { label: 'Remaining', value: Math.max(0, 100 - overallProgress), percent: Math.max(0, 100 - overallProgress), color: '#e7eef7' },
+  ];
+
+  // Status distribution legend (count-based) — shown separately below the donut
+  const statusLegend = hasMilestoneProgress
+    ? [
+      { label: 'Completed', value: msCounts.Completed, total: allMilestones.length, percent: allMilestones.length ? Math.round((msCounts.Completed / allMilestones.length) * 100) : 0, color: '#16a34a' },
+      { label: 'In Progress', value: msCounts['In Progress'], total: allMilestones.length, percent: allMilestones.length ? Math.round((msCounts['In Progress'] / allMilestones.length) * 100) : 0, color: '#2563eb' },
+      { label: 'Pending', value: msCounts.Pending, total: allMilestones.length, percent: allMilestones.length ? Math.round((msCounts.Pending / allMilestones.length) * 100) : 0, color: '#f59e0b' },
+    ]
+    : activities.length > 0
+    ? [
+      { label: 'Completed', value: activityCounts.Completed, total: activityTotal, percent: activityTotal ? Math.round((activityCounts.Completed / activityTotal) * 100) : 0, color: '#16a34a' },
+      { label: 'In Progress', value: activityCounts['In Progress'], total: activityTotal, percent: activityTotal ? Math.round((activityCounts['In Progress'] / activityTotal) * 100) : 0, color: '#2563eb' },
+      { label: 'Pending', value: activityCounts.Pending, total: activityTotal, percent: activityTotal ? Math.round((activityCounts.Pending / activityTotal) * 100) : 0, color: '#f59e0b' },
+    ]
+    : [];
+
+  const milestoneRows = topMilestones.length > 0
+    ? topMilestones.map((m) => ({
+      label: m.title,
+      percent: m.progress_percent,
+      color: m.status === 'Completed' ? '#16a34a' : m.status === 'In Progress' ? '#2563eb' : '#d9e4f2',
+    }))
+    : activities.length > 0
+    ? activities.slice(0, 8).map((a) => ({
+      label: a.title,
+      percent: projectActivityProgress(a.status),
+      color: a.status === 'Completed' ? '#16a34a' : a.status === 'In Progress' ? '#2563eb' : '#d9e4f2',
+    }))
+    : [{ label: 'Overall Progress', percent: safeProjectProgress, color: '#16a34a' }];
+
+  const progressStatusChartData = hasMilestoneProgress
+    ? [
+      { status: 'Completed', value: msCounts.Completed },
+      { status: 'In Progress', value: msCounts['In Progress'] },
+      { status: 'Pending', value: msCounts.Pending },
+      { status: 'Delayed', value: msCounts.Delayed },
+    ]
+    : activities.length > 0
+    ? [
+      { status: 'Completed', value: activityCounts.Completed },
+      { status: 'In Progress', value: activityCounts['In Progress'] },
+      { status: 'Pending', value: activityCounts.Pending },
+      { status: 'Overdue', value: activityCounts.Overdue },
+    ]
+    : [
+      { status: 'Completed', value: safeProjectProgress },
+      { status: 'In Progress', value: 0 },
+      { status: 'Pending', value: 100 - safeProjectProgress },
+      { status: 'Delayed', value: 0 },
+    ];
+
+  const milestoneTrendData = topMilestones.length > 0
+    ? topMilestones.map((m, index) => ({
+      name: `M${index + 1}`,
+      title: m.title,
+      progress: Number(m.progress_percent || 0),
+    }))
+    : activities.length > 0
+    ? activities.slice(0, 8).map((a, index) => ({
+      name: `A${index + 1}`,
+      title: a.title,
+      progress: projectActivityProgress(a.status),
+    }))
+    : [{ name: 'Project', title: 'Overall', progress: safeProjectProgress }];
+
+  const overviewRows = [
+    { label: 'Project Status', valueNode: <ProjectPhaseBadge label={d.status} /> },
+    { label: 'Project Type', valueNode: <ProjectTypeBadge type={project.type} /> },
+    { label: 'Capacity (KWp)', value: project.capacity },
+    { label: 'System Type', value: project.systemType },
+    { label: 'Contract Date', value: project.contractDate ? formatProjectDisplayDate(project.contractDate) : '—' },
+    { label: 'PO / Contract No.', value: project.poNumber },
+    { label: 'Priority', valueNode: <span className="inline-flex rounded-[7px] bg-[#fff5e8] px-2.5 py-1 text-[11px] font-extrabold text-[#f59e0b]">{project.priority}</span> },
+  ];
+
+  const quickInfoRows = [
+    ['Project ID', project.projectId],
+    ['Customer / Site', project.customer],
+    ['Location', project.site],
+    ['Project Manager', project.manager.name],
+    ['Site Engineer', project.siteEngineer],
+    ['Start Date', project.startDate ? formatProjectDisplayDate(project.startDate) : '—'],
+    ['Target Date', project.targetDate ? formatProjectDisplayDate(project.targetDate) : '—'],
+    ['Work Days Left', project.workDaysLeft, true],
+  ];
+
+  const recentActivities = [...activities]
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+    .slice(0, 3)
+    .map((a) => ({ title: a.title, user: a.assigned_to_name || 'Unassigned', date: a.created_at ? formatProjectDisplayDate(a.created_at.slice(0, 10)) : '—', icon: CheckCircle2, tone: a.status === 'Completed' ? 'green' : a.status === 'In Progress' ? 'amber' : 'blue' }));
+
+  const recentDocuments = documents.slice(0, 3).map((doc) => ({
+    name: doc.name,
+    note: `Added by ${doc.uploaded_by_name || '—'} on ${doc.uploaded_at ? formatProjectDisplayDate(doc.uploaded_at.slice(0, 10)) : '—'}`,
+    size: '—',
+    tone: 'red',
+  }));
+
+  const recentTeamMembers = teamMembersList.slice(0, 3).map((m) => ({ name: m.user_name, role: m.role_title || 'Member', initials: m.user_initials, tone: 'amber' }));
+
+  const progressGradient = (() => {
+    const total = progressBreakdown.reduce((sum, item) => sum + item.value, 0) || 1;
+    let current = 0;
+    return progressBreakdown.map((item) => {
+      const start = (current / total) * 100;
+      current += item.value;
+      const end = (current / total) * 100;
+      return `${item.color} ${start}% ${end}%`;
+    }).join(', ');
+  })();
 
   const detailTabs = [
     { label: 'Overview', icon: Home },
@@ -17107,384 +18375,6 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
     { label: 'Activities', icon: ClipboardPlus },
     { label: 'Notes', icon: MessageSquareMore },
   ];
-
-  const project = {
-    name: '20kW On-Grid System',
-    address: '123, Scheme No. 54, Vijay Nagar',
-    city: 'Indore, Madhya Pradesh - 452010',
-    type: 'On-Grid',
-    capacity: '20.00',
-    customer: 'Amit Sharma',
-    site: 'Indore, MP',
-    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    startDate: '2026-03-10',
-    targetDate: '2026-07-30',
-    projectId: 'PRJ-2026-0001',
-    siteEngineer: 'Vikram Singh',
-    contractDate: '2026-03-05',
-    poNumber: 'PO-2026-115',
-    expectedGeneration: '80 Units/Day',
-    estimatedCompletion: '2026-07-30',
-    priority: 'Medium',
-    systemType: 'Rooftop Solar',
-    workDaysLeft: '44 Days',
-  };
-
-  const customerRows = [
-    { label: 'Customer Name', value: 'Amit Sharma' },
-    { label: 'Contact Person', value: 'Amit Sharma' },
-    { label: 'Mobile Number', value: '+91 98765 43210', action: 'phone' },
-    { label: 'Email Address', value: 'amit.sharma@email.com', action: 'mail' },
-    { label: 'Address', value: '123, Scheme No. 54, Vijay Nagar\nIndore, Madhya Pradesh - 452010' },
-    { label: 'GST Number', value: '23ABCDE1234F1Z5' },
-    { label: 'PAN Number', value: 'ABCDE1234F' },
-    { label: 'Customer Type', valueNode: <ProjectInfoPill tone="green">Individual</ProjectInfoPill> },
-    { label: 'Registration Date', value: '05 Mar 2026' },
-  ];
-
-  const siteRows = [
-    { label: 'Site Address', value: '123, Scheme No. 54, Vijay Nagar\nIndore, Madhya Pradesh - 452010' },
-    { label: 'Site Contact Person', value: 'Amit Sharma' },
-    { label: 'Site Contact Number', value: '+91 98765 43210', action: 'phone' },
-    { label: 'Landmark', value: 'Near Vijay Nagar Square' },
-    { label: 'Latitude', value: '22.7196' },
-    { label: 'Longitude', value: '75.8577' },
-    { label: 'Roof Type', value: 'RCC' },
-    { label: 'Installation Type', valueNode: <ProjectInfoPill tone="green">Rooftop</ProjectInfoPill> },
-    { label: 'Site Accessibility', valueNode: <ProjectInfoPill tone="green">Good</ProjectInfoPill> },
-  ];
-
-  const additionalInfo = [
-    [
-      { label: 'Electricity Provider', value: 'MPPKVVCL' },
-      { label: 'Nearest Substation', value: 'Vijay Nagar Substation' },
-    ],
-    [
-      { label: 'Meter Type', value: 'Net Metering' },
-      { label: 'Discom Approval', valueNode: <ProjectInfoPill tone="green">Approved</ProjectInfoPill> },
-    ],
-    [
-      { label: 'Site Survey Date', value: '02 Mar 2026' },
-      { label: 'Remarks', value: 'Site is suitable for installation.' },
-    ],
-  ];
-
-  const systemOverviewRows = [
-    { label: 'System Type', value: 'On-Grid' },
-    { label: 'System Configuration', value: 'Single Phase' },
-    { label: 'Total Capacity (kWp)', value: '20.00' },
-    { label: 'DC Capacity (kWp)', value: '22.00' },
-    { label: 'AC Capacity (kW)', value: '20.00' },
-    { label: 'Grid Voltage', value: '230V, 50Hz' },
-    { label: 'Commissioning Date', value: '-' },
-    { label: 'Warranty Status', valueNode: <ProjectInfoPill tone="green">Active</ProjectInfoPill> },
-  ];
-
-  const inverterRows = [
-    { label: 'Inverter Brand', value: 'Growatt' },
-    { label: 'Inverter Model', value: 'MIN 20KTL-X' },
-    { label: 'Inverter Capacity', value: '20 kW' },
-    { label: 'Inverter Quantity', value: '1' },
-    { label: 'Inverter Serial No.', value: 'GRW20KTLX123456' },
-    { label: 'Max. Efficiency', value: '98.6%' },
-    { label: 'MPPT Range', value: '200V - 1000V' },
-    { label: 'Warranty', value: '5 Years' },
-  ];
-
-  const panelRows = [
-    { label: 'Panel Brand', value: 'Waaree' },
-    { label: 'Panel Model', value: 'WSMD-550' },
-    { label: 'Panel Capacity', value: '550 Wp' },
-    { label: 'No. of Panels', value: '40' },
-    { label: 'Total DC Capacity', value: '22.00 kWp' },
-    { label: 'Panel Type', value: 'Monocrystalline' },
-    { label: 'Panel Efficiency', value: '21.3%' },
-    { label: 'Warranty', value: '25 Years' },
-  ];
-
-  const protectionRows = [
-    { component: 'ACDB', brand: 'Havells', specification: 'ACDB 2P 63A', quantity: '1', remarks: 'With SPD & MCB' },
-    { component: 'DCDB', brand: 'Havells', specification: 'DCDB 1000V 32A', quantity: '1', remarks: 'With SPD & DC MCB' },
-    { component: 'AC Cable', brand: 'Polycab', specification: '4 Sq.mm', quantity: '50 m', remarks: 'FRLS Copper' },
-    { component: 'DC Cable', brand: 'Polycab', specification: '6 Sq.mm', quantity: '100 m', remarks: 'Solar DC Cable' },
-    { component: 'Earthing', brand: 'UTL', specification: 'GI Earthing Kit', quantity: '1', remarks: 'Complete Set' },
-    { component: 'Net Meter', brand: 'Secure', specification: '3 Phase, 10-60A', quantity: '1', remarks: 'Net Metering Approved' },
-  ];
-
-  const systemDocuments = [
-    { name: 'Single Line Diagram (SLD)', meta: 'PDF - 245 KB' },
-    { name: 'Inverter Datasheet', meta: 'PDF - 512 KB' },
-    { name: 'Panel Datasheet', meta: 'PDF - 620 KB' },
-    { name: 'Layout Drawing', meta: 'PDF - 1.2 MB' },
-    { name: 'Net Meter Approval', meta: 'PDF - 325 KB' },
-  ];
-
-  const progressStages = [
-    { title: 'Lead & Proposal', status: 'Completed', date: '10 Mar 2026', icon: CheckCircle2, tone: 'green' },
-    { title: 'Site Survey', status: 'Completed', date: '12 Mar 2026', icon: CheckCircle2, tone: 'green' },
-    { title: 'Design & Approval', status: 'Completed', date: '15 Mar 2026', icon: CheckCircle2, tone: 'green' },
-    { title: 'Procurement', status: 'In Progress', date: '18 Mar 2026', icon: Boxes, tone: 'green' },
-    { title: 'Installation', status: 'Pending', date: '', icon: Wrench, tone: 'slate' },
-    { title: 'Testing & Commissioning', status: 'Pending', date: '', icon: Settings, tone: 'slate' },
-    { title: 'Handover', status: 'Pending', date: '', icon: UsersRound, tone: 'slate' },
-  ];
-
-  const progressStats = [
-    { label: 'Overall Progress', value: '58%', note: 'Project is 58% complete', action: 'View Progress Report', icon: BarChart3, tone: 'green', radial: true },
-    { label: 'Completed Tasks', value: '7', detail: 'of 12', note: 'Tasks completed', icon: CheckCircle2, tone: 'green' },
-    { label: 'In Progress Tasks', value: '3', note: 'Tasks in progress', icon: Boxes, tone: 'amber' },
-    { label: 'Pending Tasks', value: '2', note: 'Tasks pending', icon: ClipboardPlus, tone: 'blue' },
-    { label: 'Delayed Tasks', value: '0', note: 'No delayed tasks', icon: FileText, tone: 'red' },
-  ];
-
-  const progressRows = [
-    { stage: 'Lead & Proposal', description: 'Lead received and proposal submitted', start: '10 Mar 2026', end: '10 Mar 2026', status: 'Completed', progress: 100, owner: 'Amit Sharma', remarks: '-' },
-    { stage: 'Site Survey', description: 'Site survey and feasibility check', start: '11 Mar 2026', end: '12 Mar 2026', status: 'Completed', progress: 100, owner: 'Suresh Patel', remarks: '-' },
-    { stage: 'Design & Approval', description: 'System designing and approval', start: '13 Mar 2026', end: '15 Mar 2026', status: 'Completed', progress: 100, owner: 'Neha Verma', remarks: '-' },
-    { stage: 'Procurement', description: 'Material procurement and delivery', start: '16 Mar 2026', end: '30 Apr 2026', status: 'In Progress', progress: 60, owner: 'Rohit Singh', remarks: 'Partial material received' },
-    { stage: 'Installation', description: 'System installation at site', start: '01 May 2026', end: '15 Jun 2026', status: 'Pending', progress: 0, owner: 'Installation Team', remarks: '-' },
-    { stage: 'Testing & Commissioning', description: 'System testing and commissioning', start: '16 Jun 2026', end: '30 Jun 2026', status: 'Pending', progress: 0, owner: 'Technical Team', remarks: '-' },
-    { stage: 'Handover', description: 'Project handover to customer', start: '30 Jul 2026', end: '30 Jul 2026', status: 'Pending', progress: 0, owner: 'Rohit Singh', remarks: '-' },
-  ];
-
-  const financialStats = [
-    { label: 'Total Project Value', value: 'Rs 8,50,000.00', note: 'Incl. of all taxes', icon: IndianRupee, tone: 'green' },
-    { label: 'Total Received', value: 'Rs 3,40,000.00', note: '40.00% of total', icon: ReceiptText, tone: 'blue' },
-    { label: 'Total Due', value: 'Rs 5,10,000.00', note: '60.00% of total', icon: Hourglass, tone: 'amber' },
-    { label: 'Overdue Amount', value: 'Rs 1,20,000.00', note: 'As on 16 Jun 2026', icon: CalendarDays, tone: 'purple', alert: true },
-  ];
-
-  const paymentRows = [
-    { milestone: 'Booking Advance', invoice: 'INV-2026-0001', invoiceDate: '10 Mar 2026', dueDate: '10 Mar 2026', amount: '85,000.00', received: '85,000.00', status: 'Paid' },
-    { milestone: 'Material Procurement', invoice: 'INV-2026-0002', invoiceDate: '25 Apr 2026', dueDate: '25 Apr 2026', amount: '2,12,500.00', received: '2,12,500.00', status: 'Paid' },
-    { milestone: 'Installation & Commissioning', invoice: 'INV-2026-0003', invoiceDate: '20 May 2026', dueDate: '20 May 2026', amount: '2,12,500.00', received: '1,42,500.00', status: 'Partially Paid' },
-    { milestone: 'Net Metering & Handover', invoice: 'INV-2026-0004', invoiceDate: '10 Jul 2026', dueDate: '10 Jul 2026', amount: '1,70,000.00', received: '0.00', status: 'Pending' },
-    { milestone: 'Final Payment', invoice: 'INV-2026-0005', invoiceDate: '30 Jul 2026', dueDate: '30 Jul 2026', amount: '70,000.00', received: '0.00', status: 'Pending' },
-  ];
-
-  const invoiceRows = paymentRows.map(({ invoice, invoiceDate, amount, status }) => ({
-    invoice,
-    invoiceDate,
-    amount,
-    status,
-  }));
-
-  const paymentSummaryRows = [
-    { label: 'Total Project Value', value: 'Rs 8,50,000.00', color: 'bg-[#dce4ef]' },
-    { label: 'Total Received', value: 'Rs 3,40,000.00', color: 'bg-[#14b84c]' },
-    { label: 'Total Due', value: 'Rs 5,10,000.00', color: 'bg-[#f5b500]' },
-    { label: 'Overdue Amount', value: 'Rs 1,20,000.00', color: 'bg-[#ff6464]', danger: true },
-  ];
-
-  const bankRows = [
-    ['Account Name', 'Malwa Solar Energy Pvt. Ltd.'],
-    ['Bank Name', 'HDFC Bank'],
-    ['Account Number', '50200012345678'],
-    ['IFSC Code', 'HDFC0001234'],
-    ['Account Type', 'Current Account'],
-  ];
-
-  const financialNotes = [
-    'Payment terms: 40% advance, 40% on installation, 20% on handover.',
-    'All payments should be made via NEFT/RTGS to the above bank account.',
-    'Please share payment screenshot for faster reconciliation.',
-    'For any queries, contact your assigned project manager.',
-  ];
-
-  const teamStats = [
-    { label: 'Total Team Members', value: '7', note: 'Active members', icon: UsersRound, tone: 'green' },
-    { label: 'Project Managers', value: '1', note: 'Managing the project', icon: UserPlus, tone: 'blue' },
-    { label: 'Technicians', value: '3', note: 'On-site execution', icon: Wrench, tone: 'amber' },
-    { label: 'Viewers / Others', value: '3', note: 'View only access', icon: Eye, tone: 'purple' },
-  ];
-
-  const teamRows = [
-    { initials: 'RS', name: 'Rohit Singh', self: true, role: 'Project Manager', roleTone: 'green', department: 'Operations', email: 'rohit.singh@malwasolar.com', phone: '+91 98765 43210', access: 'Full Access', accessTone: 'green', status: 'Active', avatarTone: 'green' },
-    { initials: 'AK', name: 'Amit Sharma', role: 'Site Engineer', roleTone: 'blue', department: 'Engineering', email: 'amit.sharma@malwasolar.com', phone: '+91 98260 11223', access: 'Edit Access', accessTone: 'blue', status: 'Active', avatarTone: 'blue' },
-    { initials: 'NP', name: 'Neha Patel', role: 'Design Engineer', roleTone: 'blue', department: 'Engineering', email: 'neha.patel@malwasolar.com', phone: '+91 90987 65432', access: 'Edit Access', accessTone: 'blue', status: 'Active', avatarTone: 'slate' },
-    { initials: 'VK', name: 'Vikas Kumar', role: 'Technician', roleTone: 'amber', department: 'Execution', email: 'vikas.kumar@malwasolar.com', phone: '+91 89654 77890', access: 'Limited Access', accessTone: 'amber', status: 'Active', avatarTone: 'amber' },
-    { initials: 'MJ', name: 'Mohit Jain', role: 'Technician', roleTone: 'amber', department: 'Execution', email: 'mohit.jain@malwasolar.com', phone: '+91 75098 44321', access: 'Limited Access', accessTone: 'amber', status: 'Active', avatarTone: 'orange' },
-    { initials: 'SK', name: 'Sunil Kumar', role: 'Technician', roleTone: 'amber', department: 'Execution', email: 'sunil.kumar@malwasolar.com', phone: '+91 93456 22110', access: 'Limited Access', accessTone: 'amber', status: 'Active', avatarTone: 'red' },
-    { initials: 'PS', name: 'Priya Sharma', role: 'Accountant', roleTone: 'purple', department: 'Finance', email: 'priya.sharma@malwasolar.com', phone: '+91 88199 22334', access: 'View Only', accessTone: 'purple', status: 'Active', avatarTone: 'purple' },
-  ];
-
-  const permissionRows = [
-    { title: 'Full Access', text: 'Can view, edit, approve and manage all project data.', icon: ShieldCheck, tone: 'green' },
-    { title: 'Edit Access', text: 'Can view and edit assigned project data.', icon: FileText, tone: 'blue' },
-    { title: 'Limited Access', text: 'Can view and update limited project data.', icon: LockKeyhole, tone: 'amber' },
-    { title: 'View Only', text: 'Can view project data only.', icon: Eye, tone: 'purple' },
-  ];
-
-  const documentStats = [
-    { label: 'Total Documents', value: '24', note: 'All documents', icon: FolderKanban, tone: 'blue' },
-    { label: 'Approved', value: '14', note: 'Documents', icon: CheckCircle2, tone: 'green' },
-    { label: 'Pending Review', value: '6', note: 'Documents', icon: Clock3, tone: 'amber' },
-    { label: 'Rejected', value: '2', note: 'Documents', icon: XCircle, tone: 'red' },
-    { label: 'Confidential', value: '5', note: 'Documents', icon: LockKeyhole, tone: 'purple' },
-  ];
-
-  const documentCategories = [
-    { label: 'Project Documents', count: 8, active: true, children: [{ label: 'Project Proposals', count: 3 }, { label: 'Agreements & Contracts', count: 2 }, { label: 'Approvals & Permits', count: 3 }] },
-    { label: 'Technical Documents', count: 7 },
-    { label: 'Design & Drawings', count: 4 },
-    { label: 'Installation Documents', count: 3 },
-    { label: 'Financial Documents', count: 2 },
-  ];
-
-  const documentRows = [
-    { name: 'Project Proposal.pdf', category: 'Project Proposals', uploadedBy: 'Rohit Singh', uploadedOn: '10 Mar 2026, 11:25 AM', status: 'Approved', size: '1.24 MB' },
-    { name: 'Customer Agreement.pdf', category: 'Agreements & Contracts', uploadedBy: 'Rohit Singh', uploadedOn: '10 Mar 2026, 11:40 AM', status: 'Approved', size: '2.18 MB' },
-    { name: 'Site Ownership Proof.pdf', category: 'Approvals & Permits', uploadedBy: 'Amit Sharma', uploadedOn: '12 Mar 2026, 09:15 AM', status: 'Pending Review', size: '1.05 MB' },
-    { name: 'Electricity Connection Approval.pdf', category: 'Approvals & Permits', uploadedBy: 'Neha Patel', uploadedOn: '12 Mar 2026, 09:45 AM', status: 'Approved', size: '1.78 MB' },
-    { name: 'Technical Specification.pdf', category: 'Technical Documents', uploadedBy: 'Amit Sharma', uploadedOn: '13 Mar 2026, 02:30 PM', status: 'Approved', size: '3.32 MB' },
-    { name: 'Single Line Diagram.pdf', category: 'Design & Drawings', uploadedBy: 'Vikas Kumar', uploadedOn: '20 Mar 2026, 10:20 AM', status: 'Pending Review', size: '1.66 MB' },
-    { name: 'Foundation Drawings.pdf', category: 'Design & Drawings', uploadedBy: 'Vikas Kumar', uploadedOn: '20 Mar 2026, 10:35 AM', status: 'Approved', size: '2.54 MB' },
-    { name: 'Installation Plan.pdf', category: 'Installation Documents', uploadedBy: 'Mohit Jain', uploadedOn: '25 Mar 2026, 03:10 PM', status: 'Rejected', size: '1.12 MB' },
-    { name: 'Material List.pdf', category: 'Installation Documents', uploadedBy: 'Sunil Kumar', uploadedOn: '25 Mar 2026, 04:00 PM', status: 'Approved', size: '2.01 MB' },
-    { name: 'Payment Schedule.pdf', category: 'Financial Documents', uploadedBy: 'Priya Sharma', uploadedOn: '01 Apr 2026, 11:00 AM', status: 'Pending Review', size: '0.98 MB' },
-  ];
-
-  const noteCategories = [
-    { label: 'All Notes', count: 22, tone: 'green', active: true },
-    { label: 'Meeting', count: 4, tone: 'purple' },
-    { label: 'Site Survey', count: 3, tone: 'blue' },
-    { label: 'Planning', count: 2, tone: 'green' },
-    { label: 'Design', count: 2, tone: 'cyan' },
-    { label: 'Procurement', count: 2, tone: 'red' },
-    { label: 'Installation', count: 2, tone: 'blue' },
-    { label: 'Equipment', count: 2, tone: 'amber' },
-    { label: 'Safety', count: 1, tone: 'slate' },
-    { label: 'Feedback', count: 1, tone: 'purple' },
-    { label: 'General', count: 1, tone: 'slate' },
-  ];
-
-  const noteRows = [
-    { title: 'Client meeting notes', category: 'Meeting', createdBy: 'Rohit Singh', createdOn: '10 Mar 2026, 11:30 AM', updatedOn: '10 Mar 2026, 11:30 AM', priority: 'High', pinned: true },
-    { title: 'Site survey observations', category: 'Site Survey', createdBy: 'Amit Sharma', createdOn: '12 Mar 2026, 04:15 PM', updatedOn: '12 Mar 2026, 04:15 PM', priority: 'Medium' },
-    { title: 'Load analysis summary', category: 'Planning', createdBy: 'Neha Patel', createdOn: '12 Mar 2026, 12:20 PM', updatedOn: '12 Mar 2026, 12:20 PM', priority: 'High' },
-    { title: 'Inverter selection notes', category: 'Equipment', createdBy: 'Vikas Kumar', createdOn: '15 Mar 2026, 10:05 AM', updatedOn: '15 Mar 2026, 10:05 AM', priority: 'Medium' },
-    { title: 'Structure design remarks', category: 'Design', createdBy: 'Amit Sharma', createdOn: '18 Mar 2026, 02:40 PM', updatedOn: '18 Mar 2026, 02:40 PM', priority: 'Medium', pinned: true },
-    { title: 'Material procurement plan', category: 'Procurement', createdBy: 'Mohit Jain', createdOn: '20 Mar 2026, 09:30 AM', updatedOn: '20 Mar 2026, 09:30 AM', priority: 'High' },
-    { title: 'Electrical wiring notes', category: 'Installation', createdBy: 'Sunil Kumar', createdOn: '01 Apr 2026, 03:25 PM', updatedOn: '01 Apr 2026, 03:25 PM', priority: 'Low' },
-    { title: 'Safety guidelines', category: 'Safety', createdBy: 'Rohit Singh', createdOn: '05 Apr 2026, 11:10 AM', updatedOn: '05 Apr 2026, 11:10 AM', priority: 'Medium' },
-    { title: 'Client feedback', category: 'Feedback', createdBy: 'Priya Sharma', createdOn: '10 Apr 2026, 05:45 PM', updatedOn: '10 Apr 2026, 05:45 PM', priority: 'High' },
-    { title: 'Next steps & action items', category: 'General', createdBy: 'Rohit Singh', createdOn: '15 Apr 2026, 10:00 AM', updatedOn: '15 Apr 2026, 10:00 AM', priority: 'Medium', pinned: true },
-  ];
-
-  const pinnedNotes = [
-    { title: 'Client meeting notes', date: '10 Mar 2026', category: 'Meeting' },
-    { title: 'Structure design remarks', date: '18 Mar 2026', category: 'Design' },
-    { title: 'Next steps & action items', date: '15 Apr 2026', category: 'General' },
-  ];
-
-  const activityStats = [
-    { label: 'Total Activities', value: '28', note: 'All activities', icon: CalendarDays, tone: 'green' },
-    { label: 'Completed', value: '16', note: '57.14%', icon: CheckCircle2, tone: 'blue' },
-    { label: 'In Progress', value: '8', note: '28.57%', icon: Clock3, tone: 'amber' },
-    { label: 'Pending', value: '4', note: '14.29%', icon: PauseCircle, tone: 'purple' },
-    { label: 'Overdue', value: '2', note: '7.14%', icon: XCircle, tone: 'red' },
-  ];
-
-  const activityRows = [
-    { name: 'Site Survey', category: 'Site Survey', assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'purple' }, start: '08 Mar 2026', due: '10 Mar 2026', status: 'Completed', priority: 'High', progress: 100 },
-    { name: 'Load Analysis', category: 'Planning', assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, start: '09 Mar 2026', due: '11 Mar 2026', status: 'Completed', priority: 'High', progress: 100 },
-    { name: 'System Design', category: 'Design', assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'blue' }, start: '10 Mar 2026', due: '13 Mar 2026', status: 'Completed', priority: 'High', progress: 100 },
-    { name: 'Client Approval', category: 'Approvals', assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'green' }, start: '13 Mar 2026', due: '15 Mar 2026', status: 'Completed', priority: 'Medium', progress: 100 },
-    { name: 'Material Procurement', category: 'Procurement', assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, start: '16 Mar 2026', due: '30 Apr 2026', status: 'In Progress', priority: 'High', progress: 60 },
-    { name: 'Structure Installation', category: 'Installation', assignee: { name: 'Mohit Jain', initials: 'MJ', tone: 'orange' }, start: '01 May 2026', due: '20 May 2026', status: 'In Progress', priority: 'High', progress: 40 },
-    { name: 'Module Installation', category: 'Installation', assignee: { name: 'Sunil Kumar', initials: 'SK', tone: 'red' }, start: '15 May 2026', due: '10 Jun 2026', status: 'In Progress', priority: 'High', progress: 30 },
-    { name: 'Inverter Installation', category: 'Installation', assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, start: '20 Jun 2026', due: '30 Jun 2026', status: 'Pending', priority: 'Medium', progress: 0 },
-    { name: 'Electrical Wiring', category: 'Installation', assignee: { name: 'Sunil Kumar', initials: 'SK', tone: 'red' }, start: '01 Jul 2026', due: '15 Jul 2026', status: 'Pending', priority: 'Medium', progress: 0 },
-    { name: 'System Testing', category: 'Commissioning', assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, start: '16 Jul 2026', due: '25 Jul 2026', status: 'Pending', priority: 'High', progress: 0 },
-  ];
-
-  const activitySummary = [
-    { label: 'Completed', value: '16 (57.14%)', color: '#16a34a' },
-    { label: 'In Progress', value: '8 (28.57%)', color: '#2563eb' },
-    { label: 'Pending', value: '4 (14.29%)', color: '#f5b500' },
-    { label: 'Overdue', value: '2 (7.14%)', color: '#ef4444' },
-  ];
-
-  const upcomingActivities = [
-    { title: 'Material Procurement', due: 'Due on 30 Apr 2026', status: 'In Progress' },
-    { title: 'Structure Installation', due: 'Due on 20 May 2026', status: 'In Progress' },
-    { title: 'Module Installation', due: 'Due on 10 Jun 2026', status: 'In Progress' },
-  ];
-
-  const calendarDays = [
-    { label: '28', muted: true }, { label: '29', muted: true }, { label: '30', muted: true }, { label: '1' }, { label: '2' }, { label: '3' }, { label: '4' },
-    { label: '5' }, { label: '6' }, { label: '7' }, { label: '8' }, { label: '9' }, { label: '10' }, { label: '11' },
-    { label: '12' }, { label: '13' }, { label: '14' }, { label: '15' }, { label: '16' }, { label: '17' }, { label: '18' },
-    { label: '19' }, { label: '20', active: true }, { label: '21' }, { label: '22' }, { label: '23' }, { label: '24' }, { label: '25' },
-    { label: '26' }, { label: '27' }, { label: '28' }, { label: '29' }, { label: '30' }, { label: '31' }, { label: '1', muted: true },
-  ];
-
-  const progressBreakdown = [
-    { label: 'Completed', value: 13, percent: 65, color: '#16a34a' },
-    { label: 'In Progress', value: 5, percent: 25, color: '#2563eb' },
-    { label: 'Pending', value: 2, percent: 10, color: '#f59e0b' },
-  ];
-
-  const milestoneRows = [
-    { label: 'Project Planning', percent: 100, color: '#16a34a' },
-    { label: 'Site Survey', percent: 100, color: '#16a34a' },
-    { label: 'Design & Approval', percent: 60, color: '#2563eb' },
-    { label: 'Procurement', percent: 40, color: '#2563eb' },
-    { label: 'Installation', percent: 0, color: '#d9e4f2' },
-    { label: 'Commissioning', percent: 0, color: '#d9e4f2' },
-  ];
-
-  const overviewRows = [
-    { label: 'Project Status', valueNode: <ProjectPhaseBadge label="In Progress" /> },
-    { label: 'Project Type', valueNode: <ProjectTypeBadge type={project.type} /> },
-    { label: 'Capacity (KWp)', value: project.capacity },
-    { label: 'System Type', value: project.systemType },
-    { label: 'Contract Date', value: formatProjectDisplayDate(project.contractDate) },
-    { label: 'PO / Contract No.', value: project.poNumber },
-    { label: 'Expected Generation', value: project.expectedGeneration },
-    { label: 'Estimated Completion', value: formatProjectDisplayDate(project.estimatedCompletion) },
-    { label: 'Priority', valueNode: <span className="inline-flex rounded-[7px] bg-[#fff5e8] px-2.5 py-1 text-[11px] font-extrabold text-[#f59e0b]">Medium</span> },
-  ];
-
-  const quickInfoRows = [
-    ['Project ID', project.projectId],
-    ['Customer / Site', project.customer],
-    ['Location', project.site],
-    ['Project Manager', project.manager.name],
-    ['Site Engineer', project.siteEngineer],
-    ['Start Date', formatProjectDisplayDate(project.startDate)],
-    ['Target Date', formatProjectDisplayDate(project.targetDate)],
-    ['Work Days Left', project.workDaysLeft, true],
-  ];
-
-  const activities = [
-    { title: 'Site survey completed', user: 'Vikram Singh', date: '12 Mar 2026 10:30 AM', icon: CheckCircle2, tone: 'green' },
-    { title: 'System design approved', user: 'Rohit Singh', date: '15 Mar 2026 04:15 PM', icon: FileText, tone: 'blue' },
-    { title: 'Materials ordered', user: 'Pooja Verma', date: '16 Mar 2026 02:20 PM', icon: Boxes, tone: 'amber' },
-  ];
-
-  const documents = [
-    { name: 'Project Proposal.pdf', note: 'Added by Rohit Singh on 10 Mar 2026', size: '2.4 MB', tone: 'red' },
-    { name: 'Technical Design.pdf', note: 'Added by Neha Jain on 13 Mar 2026', size: '3.1 MB', tone: 'red' },
-    { name: 'Cost Estimate.xlsx', note: 'Added by Pooja Verma on 15 Mar 2026', size: '1.8 MB', tone: 'green' },
-  ];
-
-  const teamMembers = [
-    { name: 'Rohit Singh', role: 'Project Manager', initials: 'RS', tone: 'amber' },
-    { name: 'Vikram Singh', role: 'Site Engineer', initials: 'VS', tone: 'green' },
-    { name: 'Amit Sharma', role: 'Installation Engineer', initials: 'AS', tone: 'amber' },
-  ];
-
-  const progressGradient = (() => {
-    const total = progressBreakdown.reduce((sum, item) => sum + item.value, 0);
-    let current = 0;
-    return progressBreakdown.map((item) => {
-      const start = (current / total) * 100;
-      current += item.value;
-      const end = (current / total) * 100;
-      return `${item.color} ${start}% ${end}%`;
-    }).join(', ');
-  })();
 
   const activeDetailDescription = {
     'Customer & Site Info': 'View and manage customer details and site information associated with this project.',
@@ -17534,11 +18424,16 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
       <section className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,1.65fr)] 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,2fr)] 2xl:items-center">
           <div className="grid gap-4 sm:grid-cols-[minmax(136px,170px)_minmax(0,1fr)]">
-            <img src={navBarImage} alt={project.name} loading="lazy" decoding="async" className="h-[132px] w-full rounded-[8px] object-cover sm:h-[112px]" />
+            <img src={projectImageUrl} alt={project.name} loading="lazy" decoding="async" className="h-[132px] w-full rounded-[8px] object-cover sm:h-[112px]" />
             <div className="min-w-0">
               <h2 className="font-display text-[22px] font-extrabold leading-tight text-[#06135a] sm:text-[26px]">{project.name}</h2>
               <p className="mt-2 text-[13px] font-bold leading-6 text-[#1f3360]">{project.address}<br />{project.city}</p>
               <button type="button" onClick={() => onOpenSection('Project Site Survey')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View on Map</button>
+              <label className="mt-3 inline-flex h-9 cursor-pointer items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <Upload className="size-3.5 text-[#0b65e5]" />
+                {uploadingProjectImage ? 'Uploading image…' : 'Upload Project Image'}
+                <input type="file" accept="image/*" className="hidden" onChange={handleProjectImageUpload} disabled={uploadingProjectImage} />
+              </label>
             </div>
           </div>
 
@@ -17546,13 +18441,13 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
             <ProjectHeroFact label="Project ID" value={project.projectId} />
             <ProjectHeroFact label="Project Type" valueNode={<ProjectTypeBadge type={project.type} />} />
             <ProjectHeroFact label="Capacity (kWp)" value={project.capacity} featured />
-            <ProjectHeroFact label="Project Manager" valueNode={<><AssigneeCell assignee={project.manager} compact /><span className="mt-2 block text-[13px] font-bold text-[#1e3261]">+91 98765 43210</span></>} />
+            <ProjectHeroFact label="Project Manager" valueNode={<><AssigneeCell assignee={project.manager} compact />{d.manager_detail?.mobile ? <span className="mt-2 block text-[13px] font-bold text-[#1e3261]">+91 {d.manager_detail.mobile}</span> : null}</>} />
             <ProjectHeroFact label="Start Date" valueNode={<span className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#0b65e5]" />{formatProjectDisplayDate(project.startDate)}</span>} />
           </div>
         </div>
         <div className="mt-5 grid gap-4 border-t border-[#edf2f8] pt-5 sm:grid-cols-2 xl:max-w-[380px]">
           <ProjectHeroFact label="Target Date" valueNode={<span className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#0b65e5]" />{formatProjectDisplayDate(project.targetDate)}</span>} compact />
-          <ProjectHeroFact label="Status" valueNode={<ProjectInfoPill tone="green">In Progress</ProjectInfoPill>} compact />
+          <ProjectHeroFact label="Status" valueNode={<ProjectPhaseBadge label={d.status} />} compact />
         </div>
       </section>
 
@@ -17581,6 +18476,22 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
 
       {activeDetailTab === 'Activities' ? (
         <>
+          <section className={`${panelClass} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-[#e8f2ff] text-[#0b65e5]">
+                <CalendarDays className="size-5" />
+              </span>
+              <div>
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Project Activities</h2>
+                <p className="mt-1 text-[13px] font-bold text-[#53647f]">Track every task on this project — who is doing it, its status, and when it is due. Click <span className="text-[#0d9f4a]">Add Activity</span> to create a new task.</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => setActivityModalOpen(true)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+              <Plus className="size-4" />
+              Add Activity
+            </button>
+          </section>
+
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {activityStats.map((stat) => (
               <ProjectDocumentStat key={stat.label} stat={stat} />
@@ -17590,21 +18501,15 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.86fr)_minmax(300px,0.62fr)]">
             <article className={`${panelClass} overflow-hidden`}>
               <div className="flex flex-col gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
-                <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
-                  <button type="button" onClick={() => onNotify('Activity category filter opened')} className="inline-flex h-10 items-center justify-between gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
-                    All Categories
-                    <ChevronDown className="size-4 text-[#0b65e5]" />
-                  </button>
-                  <button type="button" onClick={() => onNotify('Activity status filter opened')} className="inline-flex h-10 items-center justify-between gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
-                    All Status
-                    <ChevronDown className="size-4 text-[#0b65e5]" />
-                  </button>
-                  <button type="button" onClick={() => onNotify('Activity filters opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
-                    <Filter className="size-4 text-[#0b65e5]" />
-                    Filter
-                  </button>
+                <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[360px]">
+                  <select value={activityCategoryFilter} onChange={(e) => setActivityCategoryFilter(e.target.value)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
+                    {activityCategoryOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                  <select value={activityStatusFilter} onChange={(e) => setActivityStatusFilter(e.target.value)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
+                    {activityStatusOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
                 </div>
-                <button type="button" onClick={() => onOpenSection('Project Activity Create')} data-route={projectSubRoutes['Project Activity Create']} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+                <button type="button" onClick={() => setActivityModalOpen(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
                   <Plus className="size-4" />
                   Add Activity
                 </button>
@@ -17620,8 +18525,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {activityRows.map((row, index) => (
-                      <tr key={row.name}>
+                    {filteredActivityRows.map((row, index) => (
+                      <tr key={row.id}>
                         <td>{index + 1}</td>
                         <td className="font-extrabold text-[#1e3261]">{row.name}</td>
                         <td><ProjectActivityCategoryBadge category={row.category} /></td>
@@ -17637,35 +18542,37 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                         <td><ProjectNotePriorityBadge priority={row.priority} /></td>
                         <td><ProjectProgressInline value={row.progress} status={row.status} tone="blue" /></td>
                         <td>
-                          <button type="button" onClick={() => onOpenSection('Project Activity Create')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}>
-                            <MoreVertical className="size-4" />
+                          <button type="button" onClick={() => handleDeleteActivity(row.id, row.name)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#ef4444]" aria-label={`Delete ${row.name}`}>
+                            <Trash2 className="size-4" />
                           </button>
                         </td>
                       </tr>
                     ))}
+                    {filteredActivityRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="py-12 text-center">
+                          <span className="mx-auto grid size-12 place-items-center rounded-full bg-[#eef2f7] text-[#8a98af]">
+                            <CalendarDays className="size-5" />
+                          </span>
+                          <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">No activities yet</p>
+                          <p className="mt-1 text-[12px] font-bold text-[#8a98af]">Click "Add Activity" to create the first task for this project.</p>
+                        </td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>
 
               <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <span>Showing 1 to 10 of 28 entries</span>
-                <div className="inline-flex items-center gap-2">
-                  <PaginationButton onClick={() => onNotify('Activities previous page')}><ChevronLeft className="size-4" /></PaginationButton>
-                  {[1, 2, 3].map((page) => (
-                    <PaginationButton key={page} active={page === 1} onClick={() => onNotify(`Activities page ${page}`)}>{page}</PaginationButton>
-                  ))}
-                  <PaginationButton onClick={() => onNotify('Activities next page')}><ChevronRight className="size-4" /></PaginationButton>
-                </div>
+                <span>Showing {filteredActivityRows.length} of {activityRows.length} entries</span>
               </div>
             </article>
 
             <aside className="space-y-4">
-              <ProjectActivityCalendar days={calendarDays} onNotify={onNotify} />
-
               <article className={`${panelClass} p-4 sm:p-5`}>
                 <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Activity Summary</h2>
                 <div className="mt-5 grid gap-5 sm:grid-cols-[150px_minmax(0,1fr)] xl:grid-cols-1 2xl:grid-cols-[150px_minmax(0,1fr)]">
-                  <ProjectActivitySummaryDonut />
+                  <ProjectActivitySummaryDonut counts={activityCounts} total={activities.length} />
                   <div className="space-y-3">
                     {activitySummary.map((item) => (
                       <div key={item.label} className="flex items-center justify-between gap-3 text-[12px] font-bold text-[#1e3261]">
@@ -17703,102 +18610,160 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
               </article>
             </aside>
           </section>
-        </>
-      ) : activeDetailTab === 'Notes' ? (
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(300px,0.64fr)]">
-          <div className="space-y-4">
-            <article className={`${panelClass} overflow-hidden`}>
-              <div className="flex flex-col gap-4 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Notes</h2>
-                <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_minmax(150px,0.45fr)_minmax(150px,0.45fr)_auto_auto]">
-                  <label className="relative block">
-                    <Search className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-[#0b65e5]" />
-                    <input type="search" placeholder="Search notes..." className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 pr-11 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
-                  </label>
-                  <button type="button" onClick={() => onNotify('Note category filter opened')} className="inline-flex h-11 items-center justify-between gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
-                    All Categories
-                    <ChevronDown className="size-4 text-[#0b65e5]" />
+
+          {activityModalOpen ? (
+            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#0b1f4a]/40 p-4 sm:items-center" onClick={() => setActivityModalOpen(false)}>
+              <div className="w-full max-w-[560px] rounded-[16px] bg-white p-5 shadow-[0_24px_60px_rgba(11,31,74,0.28)] sm:p-6" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-[#dff7e8] text-[#0d9f4a]">
+                      <ClipboardPlus className="size-5" />
+                    </span>
+                    <div>
+                      <h2 className="font-display text-[17px] font-extrabold text-[#06135a]">Add Activity</h2>
+                      <p className="mt-1 text-[12px] font-bold text-[#8a98af]">Create a new task and assign it to a team member.</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => setActivityModalOpen(false)} className="grid size-8 place-items-center rounded-[8px] text-[#8a98af] hover:bg-[#f1f5fa]" aria-label="Close">
+                    <X className="size-5" />
                   </button>
-                  <button type="button" onClick={() => onNotify('Note creator filter opened')} className="inline-flex h-11 items-center justify-between gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
-                    All Created By
-                    <ChevronDown className="size-4 text-[#0b65e5]" />
-                  </button>
-                  <button type="button" onClick={() => onNotify('Note filters opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#284276]">
-                    <Filter className="size-4 text-[#0b65e5]" />
-                    Filter
-                  </button>
-                  <button type="button" onClick={() => onOpenSection('Project Note Create')} data-route={projectSubRoutes['Project Note Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+                </div>
+
+                <div className="mt-5 space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-[12px] font-extrabold text-[#53647f]">Activity Name *</label>
+                    <input value={newActivity.title} onChange={(e) => setNewActivity((p) => ({ ...p, title: e.target.value }))} type="text" placeholder="e.g. Rooftop site survey" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="block text-[12px] font-extrabold text-[#53647f]">Type</label>
+                      <select value={newActivity.activity_type} onChange={(e) => setNewActivity((p) => ({ ...p, activity_type: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                        {['Site Survey', 'Material Delivery', 'Installation', 'Testing', 'Commissioning', 'Safety', 'Other'].map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-[12px] font-extrabold text-[#53647f]">Assigned To</label>
+                      <select value={newActivity.assigned_to} onChange={(e) => setNewActivity((p) => ({ ...p, assigned_to: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                        <option value="">Unassigned</option>
+                        {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-[12px] font-extrabold text-[#53647f]">Status</label>
+                      <select value={newActivity.status} onChange={(e) => setNewActivity((p) => ({ ...p, status: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                        {['Pending', 'In Progress', 'Completed'].map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-[12px] font-extrabold text-[#53647f]">Priority</label>
+                      <select value={newActivity.priority} onChange={(e) => setNewActivity((p) => ({ ...p, priority: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                        {['Low', 'Medium', 'High'].map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-[12px] font-extrabold text-[#53647f]">Start Date</label>
+                      <input value={newActivity.start_date} onChange={(e) => setNewActivity((p) => ({ ...p, start_date: e.target.value }))} type="date" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-[12px] font-extrabold text-[#53647f]">Due Date</label>
+                      <input value={newActivity.due_date} onChange={(e) => setNewActivity((p) => ({ ...p, due_date: e.target.value }))} type="date" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]" />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[12px] font-extrabold text-[#53647f]">Notes</label>
+                    <textarea value={newActivity.notes} onChange={(e) => setNewActivity((p) => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Optional details about this activity" className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 py-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                  <button type="button" onClick={() => setActivityModalOpen(false)} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#53647f]">Cancel</button>
+                  <button type="button" disabled={savingActivity || !newActivity.title.trim()} onClick={handleAddActivity} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.2)] disabled:opacity-60 disabled:shadow-none">
                     <Plus className="size-4" />
-                    Add Note
+                    {savingActivity ? 'Saving...' : 'Save Activity'}
                   </button>
                 </div>
               </div>
+            </div>
+          ) : null}
+        </>
+      ) : activeDetailTab === 'Notes' ? (
+        <>
+          <section className={`${panelClass} flex items-start gap-3 p-4 sm:p-5`}>
+            <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-[#f3edff] text-[#7c3aed]">
+              <MessageSquareMore className="size-5" />
+            </span>
+            <div>
+              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Project Notes</h2>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">Save important updates, reminders or instructions for this project. Use the box below to write a note, and tap the star to pin the important ones on the right.</p>
+            </div>
+          </section>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(300px,0.64fr)]">
+          <div className="space-y-4">
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Notes</h2>
+                <span className="inline-flex h-7 items-center rounded-full bg-[#eef2f7] px-3 text-[12px] font-extrabold text-[#53647f]">
+                  {noteRows.length} {noteRows.length === 1 ? 'note' : 'notes'}
+                </span>
+              </div>
 
               <div className="responsive-scroll overflow-x-auto">
-                <table className="crm-table min-w-[1060px] w-full">
+                <table className="crm-table min-w-[760px] w-full">
                   <thead>
                     <tr>
-                      {['#', 'Note Title', 'Category', 'Created By', 'Created On', 'Updated On', 'Priority', 'Pinned', 'Action'].map((header) => (
+                      {['#', 'Note', 'Created By', 'Created On', 'Pinned', 'Action'].map((header) => (
                         <th key={header}>{header}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {noteRows.map((row, index) => (
-                      <tr key={row.title}>
+                      <tr key={row.id}>
                         <td>{index + 1}</td>
-                        <td className="font-extrabold text-[#1e3261]">{row.title}</td>
-                        <td><ProjectNoteCategoryBadge category={row.category} /></td>
+                        <td className="max-w-[320px] font-bold text-[#1e3261]">{row.content}</td>
                         <td>{row.createdBy}</td>
                         <td>{row.createdOn}</td>
-                        <td>{row.updatedOn}</td>
-                        <td><ProjectNotePriorityBadge priority={row.priority} /></td>
                         <td>
-                          <Star className={cx('size-4', row.pinned ? 'fill-[#f5b500] text-[#f5b500]' : 'text-[#7b8ca8]')} />
+                          <button type="button" onClick={() => handleToggleNotePin(row.id, row.pinned)} aria-label={row.pinned ? 'Unpin note' : 'Pin note'}>
+                            <Star className={cx('size-4', row.pinned ? 'fill-[#f5b500] text-[#f5b500]' : 'text-[#7b8ca8]')} />
+                          </button>
                         </td>
                         <td>
-                          <button type="button" onClick={() => onOpenSection('Project Note Create')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.title} actions`}>
-                            <MoreVertical className="size-4" />
+                          <button type="button" onClick={() => handleDeleteNote(row.id)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#ef4444]" aria-label="Delete note">
+                            <Trash2 className="size-4" />
                           </button>
                         </td>
                       </tr>
                     ))}
+                    {noteRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center">
+                          <span className="mx-auto grid size-12 place-items-center rounded-full bg-[#eef2f7] text-[#8a98af]">
+                            <MessageSquareMore className="size-5" />
+                          </span>
+                          <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">No notes yet</p>
+                          <p className="mt-1 text-[12px] font-bold text-[#8a98af]">Write your first note in the box below to get started.</p>
+                        </td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
-              </div>
-
-              <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <span>Showing 1 to 10 of 22 entries</span>
-                <div className="inline-flex items-center gap-2">
-                  <PaginationButton onClick={() => onNotify('Notes previous page')}><ChevronLeft className="size-4" /></PaginationButton>
-                  {[1, 2, 3].map((page) => (
-                    <PaginationButton key={page} active={page === 1} onClick={() => onNotify(`Notes page ${page}`)}>{page}</PaginationButton>
-                  ))}
-                  <PaginationButton onClick={() => onNotify('Notes next page')}><ChevronRight className="size-4" /></PaginationButton>
-                </div>
               </div>
             </article>
 
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Add a New Note</h2>
-              <textarea placeholder="Write your note here..." className="mt-4 min-h-[84px] w-full resize-y rounded-[8px] border border-[#d9e4f2] bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
-              <div className="mt-4 grid gap-3 md:grid-cols-[minmax(180px,0.35fr)_minmax(180px,0.28fr)_minmax(160px,1fr)_auto] md:items-center">
-                <button type="button" onClick={() => onNotify('New note category opened')} className="inline-flex h-11 items-center justify-between rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#53647f]">
-                  Select Category
-                  <ChevronDown className="size-4 text-[#0b65e5]" />
-                </button>
-                <button type="button" onClick={() => onNotify('New note priority opened')} className="inline-flex h-11 items-center justify-between rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#53647f]">
-                  Select Priority
-                  <ChevronDown className="size-4 text-[#0b65e5]" />
-                </button>
+              <textarea value={newNoteContent} onChange={(e) => setNewNoteContent(e.target.value)} placeholder="Write your note here..." className="mt-4 min-h-[84px] w-full resize-y rounded-[8px] border border-[#d9e4f2] bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <label className="inline-flex h-11 items-center gap-2 text-[13px] font-bold text-[#284276]">
-                  <input type="checkbox" className="size-4 rounded border-[#d9e4f2]" />
+                  <input type="checkbox" checked={newNotePinned} onChange={(e) => setNewNotePinned(e.target.checked)} className="size-4 rounded border-[#d9e4f2]" />
                   <Pin className="size-4 text-[#284276]" />
                   Pin this note
                 </label>
-                <button type="button" onClick={() => onOpenSection('Project Note Create')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.18)]">
+                <button type="button" disabled={savingNote} onClick={handleAddNote} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.18)] disabled:opacity-60">
                   <Save className="size-4" />
-                  Save Note
+                  {savingNote ? 'Saving...' : 'Save Note'}
                 </button>
               </div>
             </article>
@@ -17806,19 +18771,10 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
 
           <aside className="space-y-4">
             <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Note Categories</h2>
-              <div className="mt-5 space-y-1.5">
-                {noteCategories.map((category) => (
-                  <ProjectNoteCategoryRow key={category.label} category={category} onNotify={onNotify} />
-                ))}
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Pinned Notes</h2>
               <div className="mt-5 space-y-4">
                 {pinnedNotes.map((note) => (
-                  <div key={note.title} className="flex items-start gap-3">
+                  <div key={note.id} className="flex items-start gap-3">
                     <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#f3edff] text-[#4f46e5]">
                       <Pin className="size-4 fill-current" />
                     </span>
@@ -17826,124 +18782,164 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                       <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{note.title}</span>
                       <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{note.date}</span>
                     </span>
-                    <ProjectNoteCategoryBadge category={note.category} />
                   </div>
                 ))}
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Recent Note</h2>
-              <div className="mt-5 flex items-start gap-3">
-                <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#e8f2ff] text-[#0b65e5]">
-                  <ClipboardPlus className="size-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[13px] font-extrabold text-[#1e3261]">Electrical wiring notes</p>
-                  <p className="mt-2 text-[12px] font-bold leading-5 text-[#53647f]">Discussed electrical layout, cable routing and safety measures to be followed during installation.</p>
-                  <p className="mt-2 text-[12px] font-bold text-[#284276]">14 May 2024, 03:25 PM<br />by Sunil Kumar</p>
-                </div>
+                {pinnedNotes.length === 0 ? <p className="text-[13px] font-bold text-[#8a98af]">No pinned notes.</p> : null}
               </div>
             </article>
           </aside>
         </section>
+        </>
       ) : activeDetailTab === 'Team' ? (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(180px,0.72fr)]">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {teamStats.map((stat) => (
               <ProjectDocumentStat key={stat.label} stat={stat} />
             ))}
-            <div className="flex items-stretch xl:items-center xl:justify-end">
-              <button type="button" onClick={() => onOpenSection('Project Team Add')} data-route={projectSubRoutes['Project Team Add']} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] xl:w-auto">
-                <Plus className="size-4" />
-                Add Team Member
-              </button>
-            </div>
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.9fr)_minmax(310px,0.64fr)]">
             <article className={`${panelClass} overflow-hidden`}>
-              <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Team Members</h2>
+              <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#e8f2ff] text-[#0b65e5]">
+                    <UsersRound className="size-4" />
+                  </span>
+                  <div>
+                    <h2 className="font-display text-[16px] font-extrabold leading-none text-[#06135a]">Team Members</h2>
+                    <p className="mt-1.5 text-[12px] font-bold text-[#8a98af]">People assigned to this project</p>
+                  </div>
+                </div>
+                <span className="inline-flex h-7 items-center rounded-full bg-[#eef2f7] px-3 text-[12px] font-extrabold text-[#53647f]">
+                  {teamRows.length} {teamRows.length === 1 ? 'member' : 'members'}
+                </span>
               </div>
               <div className="responsive-scroll overflow-x-auto">
-                <table className="crm-table min-w-[1080px] w-full">
+                <table className="crm-table min-w-[900px] w-full">
                   <thead>
                     <tr>
-                      {['#', 'Full Name', 'Role', 'Department', 'Email', 'Phone', 'Access Level', 'Status', 'Action'].map((header) => (
+                      {['#', 'Full Name', 'Role', 'Access Level', 'Email', 'Phone', 'Action'].map((header) => (
                         <th key={header}>{header}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {teamRows.map((row, index) => (
-                      <tr key={row.email}>
+                      <tr key={row.id}>
                         <td>{index + 1}</td>
                         <td>
                           <div className="flex items-center gap-3">
                             <ProjectTeamAvatar initials={row.initials} tone={row.avatarTone} />
-                            <div className="flex min-w-0 items-center gap-2">
-                              <span className="truncate font-extrabold text-[#1e3261]">{row.name}</span>
-                              {row.self ? <span className="rounded-[7px] bg-[#dff7e8] px-2 py-0.5 text-[10px] font-extrabold text-[#0d9f4a]">You</span> : null}
-                            </div>
+                            <span className="truncate font-extrabold text-[#1e3261]">{row.name}</span>
                           </div>
                         </td>
-                        <td><ProjectInfoPill label={row.role} tone={row.roleTone} /></td>
-                        <td>{row.department}</td>
+                        <td>
+                          {editMemberId === row.id ? (
+                            <input
+                              value={editMemberForm.role_title}
+                              onChange={(e) => setEditMemberForm((prev) => ({ ...prev, role_title: e.target.value }))}
+                              className="h-8 w-full rounded-[6px] border border-[#d9e4f2] px-2 text-[12px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5]"
+                              placeholder="Role title"
+                            />
+                          ) : (
+                            <ProjectInfoPill label={row.role} tone={row.roleTone} />
+                          )}
+                        </td>
+                        <td>
+                          {editMemberId === row.id ? (
+                            <select
+                              value={editMemberForm.access_level}
+                              onChange={(e) => setEditMemberForm((prev) => ({ ...prev, access_level: e.target.value }))}
+                              className="h-8 rounded-[6px] border border-[#d9e4f2] px-2 text-[12px] font-bold text-[#1e3261] outline-none"
+                            >
+                              <option value="full_access">Full Access</option>
+                              <option value="edit_access">Edit Access</option>
+                              <option value="view_only">View Only</option>
+                            </select>
+                          ) : (
+                            <ProjectInfoPill label={row.accessLevelDisplay} tone={accessLevelTone[row.accessLevel] || 'blue'} />
+                          )}
+                        </td>
                         <td>{row.email}</td>
                         <td>{row.phone}</td>
-                        <td><ProjectInfoPill label={row.access} tone={row.accessTone} /></td>
-                        <td><ProjectInfoPill label={row.status} tone="green" /></td>
                         <td>
-                          <button type="button" onClick={() => onOpenSection('Project Team Add')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}>
-                            <MoreVertical className="size-4" />
-                          </button>
+                          <div className="inline-flex items-center gap-2">
+                            {editMemberId === row.id ? (
+                              <>
+                                <button type="button" disabled={savingEditMember} onClick={() => handleUpdateMember(row.id)} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] bg-[#0d9f4a] px-2 text-[11px] font-extrabold text-white disabled:opacity-60">
+                                  {savingEditMember ? '…' : 'Save'}
+                                </button>
+                                <button type="button" onClick={() => setEditMemberId(null)} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white px-2 text-[11px] font-extrabold text-[#53647f]">
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button type="button" onClick={() => handleStartEditMember(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Edit ${row.name}`}>
+                                  <Pencil className="size-4" />
+                                </button>
+                                <button type="button" onClick={() => handleRemoveMember(row.id, row.name)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#ef4444]" aria-label={`Remove ${row.name}`}>
+                                  <Trash2 className="size-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
+                    {teamRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center">
+                          <span className="mx-auto grid size-12 place-items-center rounded-full bg-[#eef2f7] text-[#8a98af]">
+                            <UsersRound className="size-5" />
+                          </span>
+                          <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">No team members yet</p>
+                          <p className="mt-1 text-[12px] font-bold text-[#8a98af]">Use the form on the right to assign your first member.</p>
+                        </td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
-              </div>
-              <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <div className="flex items-center gap-2">
-                  <span>Show</span>
-                  <button type="button" onClick={() => onNotify('Team page size opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
-                    10 <ChevronDown className="size-4 text-[#0b65e5]" />
-                  </button>
-                  <span>entries</span>
-                </div>
-                <span>Showing 1 to 7 of 7 entries</span>
-                <div className="inline-flex items-center gap-2">
-                  <PaginationButton onClick={() => onNotify('Team previous page')}><ChevronLeft className="size-4" /></PaginationButton>
-                  <PaginationButton active onClick={() => onNotify('Team page 1')}>1</PaginationButton>
-                  <PaginationButton onClick={() => onNotify('Team next page')}><ChevronRight className="size-4" /></PaginationButton>
-                </div>
               </div>
             </article>
 
             <aside className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Add Team Member</h2>
+                <p className="mt-1 text-[12px] font-bold text-[#8a98af]">Assign a user and set their access level.</p>
+                <div className="mt-5 space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-[12px] font-extrabold text-[#53647f]">User</label>
+                    <select value={newMember.user} onChange={(e) => setNewMember((prev) => ({ ...prev, user: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                      <option value="">Select user</option>
+                      {userOptions.filter((u) => !addedUserIds.has(u.id)).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[12px] font-extrabold text-[#53647f]">Role Title</label>
+                    <input value={newMember.role_title} onChange={(e) => setNewMember((prev) => ({ ...prev, role_title: e.target.value }))} type="text" placeholder="e.g. Site Engineer" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[12px] font-extrabold text-[#53647f]">Access Level</label>
+                    <select value={newMember.access_level} onChange={(e) => setNewMember((prev) => ({ ...prev, access_level: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                      <option value="full_access">Full Access</option>
+                      <option value="edit_access">Edit Access</option>
+                      <option value="view_only">View Only</option>
+                    </select>
+                  </div>
+                  <button type="button" disabled={savingMember || !newMember.user} onClick={handleAddMember} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.2)] disabled:opacity-60 disabled:shadow-none">
+                    <Plus className="size-4" />
+                    {savingMember ? 'Adding...' : 'Add Member'}
+                  </button>
+                </div>
+              </article>
+
               <article className={`${panelClass} p-4 sm:p-5`}>
                 <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Role & Permissions</h2>
                 <div className="mt-5 space-y-5">
                   {permissionRows.map((item) => (
                     <ProjectPermissionRow key={item.title} item={item} />
                   ))}
-                </div>
-              </article>
-
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Invite Team Member</h2>
-                <p className="mt-2 text-[12px] font-bold text-[#314a79]">Send invitation to add new team member to this project.</p>
-                <div className="mt-5 space-y-3">
-                  <input type="email" placeholder="Enter email address" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
-                  <button type="button" onClick={() => onNotify('Invite role opened')} className="inline-flex h-11 w-full items-center justify-between rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#53647f]">
-                    Select Role
-                    <ChevronDown className="size-4 text-[#0b65e5]" />
-                  </button>
-                  <button type="button" onClick={() => onNotify('Team invitation sent')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.2)]">
-                    <Mail className="size-4" />
-                    Send Invitation
-                  </button>
                 </div>
               </article>
             </aside>
@@ -17958,244 +18954,423 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[minmax(260px,0.48fr)_minmax(0,1.52fr)]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Document Categories</h2>
-                <button type="button" onClick={() => onOpenSection('Project Folder Create')} data-route={projectSubRoutes['Project Folder Create']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#e8f8eb] px-3 text-[12px] font-extrabold text-[#0d9f4a]">
-                  <Plus className="size-4" />
-                  New Category
-                </button>
-              </div>
-
-              <div className="mt-5 space-y-2">
-                {documentCategories.map((category) => (
-                  <ProjectDocumentCategory key={category.label} category={category} onNotify={onNotify} />
-                ))}
-              </div>
-
-              <div className="mt-8 rounded-[8px] border border-[#dce6f3] bg-white p-4">
-                <div className="flex items-center justify-between gap-3 text-[12px] font-extrabold text-[#1e3261]">
-                  <span>Storage Used</span>
-                  <span className="text-[#0f766e]">24.8%</span>
+            <aside className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Document Categories</h2>
                 </div>
-                <p className="mt-3 text-[12px] font-bold text-[#1e3261]"><span className="font-extrabold">1.24 GB</span> of 5 GB used</p>
-                <span className="mt-4 block h-3 overflow-hidden rounded-full bg-[#e5ebf4]">
-                  <span className="block h-full w-[24.8%] rounded-full bg-[#14b84c]" />
-                </span>
-              </div>
-            </article>
+                <div className="mt-5 space-y-2">
+                  {documentCategories.length === 0 ? (
+                    <p className="text-[13px] font-bold text-[#8a98af]">No categories yet. Upload a document with a category to create one.</p>
+                  ) : documentCategories.map((category) => (
+                    <ProjectDocumentCategory key={category.label} category={category} onSelect={setDocumentCategoryFilter} />
+                  ))}
+                  {documentCategoryFilter ? (
+                    <button type="button" onClick={() => setDocumentCategoryFilter(null)} className="mt-2 text-[12px] font-extrabold text-[#0b65e5] underline underline-offset-2">
+                      Clear filter
+                    </button>
+                  ) : null}
+                </div>
+              </article>
 
-            <article className={`${panelClass} overflow-hidden`}>
-              <div className="flex flex-col gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
-                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">All Documents</h2>
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                  <button type="button" onClick={() => onNotify('Document category filter opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
-                    All Categories
-                    <ChevronDown className="size-4 text-[#0b65e5]" />
-                  </button>
-                  <button type="button" onClick={() => onNotify('Document filters opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
-                    <Filter className="size-4 text-[#0b65e5]" />
-                    Filters
-                    <ChevronDown className="size-4 text-[#0b65e5]" />
-                  </button>
-                  <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Upload Document</h2>
+                  {showUploadDocPanel ? (
+                    <button type="button" onClick={() => setShowUploadDocPanel(false)} className="text-[12px] font-extrabold text-[#8a98af]">Cancel</button>
+                  ) : null}
+                </div>
+                {showUploadDocPanel ? (
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#53647f]">Document Name *</label>
+                      <input
+                        value={uploadDocForm.name}
+                        onChange={(e) => setUploadDocForm((prev) => ({ ...prev, name: e.target.value }))}
+                        type="text"
+                        placeholder="e.g. Site Survey Report"
+                        className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#53647f]">Category</label>
+                      <input
+                        value={uploadDocForm.category}
+                        onChange={(e) => setUploadDocForm((prev) => ({ ...prev, category: e.target.value }))}
+                        type="text"
+                        placeholder="e.g. Electrical, Survey"
+                        list="doc-categories-list"
+                        className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]"
+                      />
+                      <datalist id="doc-categories-list">
+                        {documentCategories.map((c) => <option key={c.label} value={c.label} />)}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#53647f]">File *</label>
+                      <input
+                        type="file"
+                        onChange={(e) => setUploadDocForm((prev) => ({ ...prev, file: e.target.files[0] ?? null }))}
+                        className="w-full rounded-[8px] border border-[#d9e4f2] bg-white p-2 text-[12px] font-bold text-[#1e3261] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#e8f0fc] file:px-3 file:py-1 file:text-[11px] file:font-extrabold file:text-[#0b65e5]"
+                      />
+                    </div>
+                    <button type="button" disabled={savingDocument} onClick={handleUploadDocument} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] text-[13px] font-extrabold text-white disabled:opacity-60">
+                      <Upload className="size-4" />
+                      {savingDocument ? 'Uploading...' : 'Upload Document'}
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setShowUploadDocPanel(true)} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.2)]">
                     <Upload className="size-4" />
                     Upload Document
                   </button>
-                </div>
+                )}
+              </article>
+            </aside>
+
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex flex-col gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">
+                  {documentCategoryFilter ? `Documents — ${documentCategoryFilter}` : 'All Documents'}
+                </h2>
               </div>
 
               <div className="responsive-scroll overflow-x-auto">
                 <table className="crm-table min-w-[1040px] w-full">
                   <thead>
                     <tr>
-                      {['#', 'Document Name', 'Category', 'Uploaded By', 'Uploaded On', 'Status', 'Size', 'Action'].map((header) => (
+                      {['#', 'Document Name', 'Category', 'Uploaded By', 'Uploaded On', 'Action'].map((header) => (
                         <th key={header}>{header}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {documentRows.map((row, index) => (
-                      <tr key={row.name}>
+                    {filteredDocumentRows.map((row, index) => (
+                      <tr key={row.id}>
                         <td>{index + 1}</td>
                         <td className="font-extrabold text-[#1e3261]">{row.name}</td>
                         <td>{row.category}</td>
                         <td>{row.uploadedBy}</td>
                         <td>{row.uploadedOn}</td>
-                        <td><ProjectDocumentStatusBadge status={row.status} /></td>
-                        <td>{row.size}</td>
                         <td>
                           <div className="inline-flex items-center gap-2">
-                            <button type="button" onClick={() => onOpenSection('Project Document Preview')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.name}`}><Eye className="size-4" /></button>
-                            <button type="button" onClick={() => onNotify(`${row.name} downloaded`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${row.name}`}><Download className="size-4" /></button>
-                            <button type="button" onClick={() => onOpenSection('Project Document Preview')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.name} actions`}><MoreVertical className="size-4" /></button>
+                            {row.file ? (
+                              <a href={row.file} target="_blank" rel="noreferrer" className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.name}`}>
+                                <Eye className="size-4" />
+                              </a>
+                            ) : (
+                              <span className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#edf2f8] bg-[#f8fafc] text-[#c4cede]"><Eye className="size-4" /></span>
+                            )}
+                            {row.file ? (
+                              <button type="button" onClick={() => handleDownloadDocument(row.file, row.name)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${row.name}`}>
+                                <Download className="size-4" />
+                              </button>
+                            ) : (
+                              <span className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#edf2f8] bg-[#f8fafc] text-[#c4cede]"><Download className="size-4" /></span>
+                            )}
+                            <button type="button" onClick={() => handleDeleteDocument(row.id, row.name)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#ef4444]" aria-label={`Delete ${row.name}`}>
+                              <Trash2 className="size-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
                     ))}
+                    {filteredDocumentRows.length === 0 ? (
+                      <tr><td colSpan={6} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No documents uploaded yet.</td></tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>
 
               <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <span>Showing 1 to 10 of 24 entries</span>
-                <div className="inline-flex items-center gap-2">
-                  <PaginationButton onClick={() => onNotify('Documents previous page')}><ChevronLeft className="size-4" /></PaginationButton>
-                  {[1, 2, 3].map((page) => (
-                    <PaginationButton key={page} active={page === 1} onClick={() => onNotify(`Documents page ${page}`)}>{page}</PaginationButton>
-                  ))}
-                  <PaginationButton onClick={() => onNotify('Documents next page')}><ChevronRight className="size-4" /></PaginationButton>
-                </div>
+                <span>Showing {filteredDocumentRows.length} of {documentRows.length} entries</span>
               </div>
             </article>
           </section>
         </>
       ) : activeDetailTab === 'Financials' ? (
         <>
+          {/* ── 4 summary stats ───────────────────────────────────────── */}
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {financialStats.map((stat) => (
               <ProjectFinancialStat key={stat.label} stat={stat} />
             ))}
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.95fr)_minmax(330px,1fr)]">
-            <div className="space-y-4">
-              <article className={`${panelClass} overflow-hidden`}>
-                <div className="flex items-center gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-                  <span className="grid size-8 place-items-center rounded-[8px] bg-[#dff7e8] text-[#0d9f4a]"><CalendarDays className="size-4" /></span>
-                  <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Payment Schedule</h2>
-                </div>
-                <div className="responsive-scroll overflow-x-auto">
-                  <table className="crm-table min-w-[980px] w-full">
-                    <thead>
-                      <tr>
-                        {['#', 'Milestone / Stage', 'Invoice No.', 'Invoice Date', 'Due Date', 'Amount (Rs)', 'Received (Rs)', 'Status', 'Action'].map((header) => (
-                          <th key={header}>{header}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paymentRows.map((row, index) => (
-                        <tr key={row.invoice}>
-                          <td>{index + 1}</td>
-                          <td className="font-extrabold text-[#1e3261]">{row.milestone}</td>
-                          <td>{row.invoice}</td>
-                          <td>{row.invoiceDate}</td>
-                          <td>{row.dueDate}</td>
-                          <td>{row.amount}</td>
-                          <td>{row.received}</td>
-                          <td><ProjectPaymentStatusBadge status={row.status} /></td>
-                          <td>
-                            <button type="button" onClick={() => onOpenSection('Project Expense Details')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.invoice}`}>
-                              <Eye className="size-4" />
-                            </button>
-                          </td>
-                        </tr>
+          {/* ── Payments + Financial Summary ──────────────────────────── */}
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.9fr)_minmax(280px,0.85fr)]">
+            {/* Payments Received table + add form */}
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex items-center gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                <span className="grid size-8 place-items-center rounded-[8px] bg-[#eef4ff] text-[#0b65e5]"><CreditCard className="size-4" /></span>
+                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Payments Received</h2>
+                {paymentRows.length > 0 && (
+                  <span className="ml-auto text-[12px] font-extrabold text-[#0b65e5]">{paymentRows.length} record{paymentRows.length !== 1 ? 's' : ''}</span>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="crm-table min-w-[680px] w-full">
+                  <thead>
+                    <tr>
+                      {['#', 'Date', 'Amount', 'Mode', 'Reference', 'Notes', 'By'].map((h) => (
+                        <th key={h}>{h}</th>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                  <label className="inline-flex items-center gap-2">Show <select className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#1e3261]"><option>10</option></select> entries</label>
-                  <span>Showing 1 to 5 of 5 entries</span>
-                  <div className="inline-flex items-center gap-2">
-                    {[ChevronLeft, ChevronRight].map((Icon, index) => (
-                      <button key={index === 0 ? 'prev' : 'next'} type="button" onClick={() => onNotify('Payment page changed')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]">
-                        <Icon className="size-4" />
-                      </button>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentRows.map((row, i) => (
+                      <tr key={row.id}>
+                        <td>{i + 1}</td>
+                        <td>{formatProjectDisplayDate(row.payment_date)}</td>
+                        <td className="font-extrabold text-[#0d9f4a]">{formatCurrencyPrecise(Number(row.amount))}</td>
+                        <td><span className="inline-flex rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{row.payment_mode}</span></td>
+                        <td className="text-[#53647f]">{row.reference || '—'}</td>
+                        <td className="text-[#53647f]">{row.notes || '—'}</td>
+                        <td>{row.created_by_name || '—'}</td>
+                      </tr>
                     ))}
-                  </div>
+                    {paymentRows.length === 0 && (
+                      <tr><td colSpan={7} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No payments recorded yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {/* Add payment form */}
+              <div className="border-t border-[#edf2f8] px-4 py-4 sm:px-5">
+                <p className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Record a Payment</p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[140px_140px_150px_minmax(0,1fr)_auto]">
+                  <input value={newPayment.amount} onChange={(e) => setNewPayment((p) => ({ ...p, amount: e.target.value }))} type="number" min="0" step="0.01" placeholder="Amount (Rs)" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  <select value={newPayment.payment_mode} onChange={(e) => setNewPayment((p) => ({ ...p, payment_mode: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                    {['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'NEFT', 'RTGS'].map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <input value={newPayment.payment_date} onChange={(e) => setNewPayment((p) => ({ ...p, payment_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+                  <input value={newPayment.reference} onChange={(e) => setNewPayment((p) => ({ ...p, reference: e.target.value }))} type="text" placeholder="Reference / UTR / Cheque No." className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  <button type="button" disabled={savingPayment} onClick={handleAddPayment} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#0950c2]">
+                    <Plus className="size-4" />{savingPayment ? 'Saving…' : 'Add Payment'}
+                  </button>
                 </div>
-              </article>
+              </div>
+            </article>
 
-              <article className={`${panelClass} overflow-hidden`}>
-                <div className="flex items-center gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-                  <span className="grid size-8 place-items-center rounded-[8px] bg-[#dff7e8] text-[#0d9f4a]"><FileText className="size-4" /></span>
-                  <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Invoice History</h2>
-                </div>
-                <div className="responsive-scroll overflow-x-auto">
-                  <table className="crm-table min-w-[720px] w-full">
-                    <thead>
-                      <tr>
-                        {['Invoice No.', 'Invoice Date', 'Amount (Rs)', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoiceRows.map((row) => (
-                        <tr key={row.invoice}>
-                          <td className="font-extrabold text-[#1e3261]">{row.invoice}</td>
-                          <td>{row.invoiceDate}</td>
-                          <td>{row.amount}</td>
-                          <td><ProjectPaymentStatusBadge status={row.status} /></td>
-                          <td>
-                            <div className="inline-flex items-center gap-2">
-                              <button type="button" onClick={() => onOpenSection('Project Expense Details')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.invoice}`}><Eye className="size-4" /></button>
-                              <button type="button" onClick={() => onNotify(`${row.invoice} downloaded`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${row.invoice}`}><Download className="size-4" /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </article>
-            </div>
-
+            {/* Financial summary sidebar */}
             <aside className="space-y-4">
               <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Payment Summary</h2>
-                <div className="mt-5 grid gap-5 md:grid-cols-[170px_minmax(0,1fr)] xl:grid-cols-1 2xl:grid-cols-[170px_minmax(0,1fr)]">
-                  <ProjectPaymentDonut />
-                  <div className="space-y-4">
-                    {paymentSummaryRows.map((row) => (
-                      <div key={row.label} className="flex items-center justify-between gap-3 text-[13px] font-bold text-[#1e3261]">
-                        <span className="inline-flex min-w-0 items-center gap-3">
-                          <span className={cx('size-3 rounded-[3px]', row.color)} />
-                          <span>{row.label}</span>
-                        </span>
-                        <span className={cx('shrink-0 font-extrabold', row.danger && 'text-[#ef4444]')}>{row.value}</span>
+                <div className="flex items-center gap-2 border-b border-[#edf2f8] pb-3">
+                  <span className="grid size-7 place-items-center rounded-full bg-[#e8fdf0] text-[#0d9f4a]"><IndianRupee className="size-4" /></span>
+                  <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Financial Summary</h2>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {financialStats.map((row) => (
+                    <div key={row.label} className="flex items-center justify-between gap-2 text-[13px]">
+                      <span className="font-bold text-[#53647f]">{row.label}</span>
+                      <span className="shrink-0 font-extrabold text-[#1e3261]">{row.value}</span>
+                    </div>
+                  ))}
+                  {totalValue > 0 && (
+                    <div className="mt-3 border-t border-[#edf2f8] pt-3">
+                      <div className="mb-1 flex justify-between text-[12px]">
+                        <span className="font-bold text-[#53647f]">Collection %</span>
+                        <span className="font-extrabold text-[#0d9f4a]">{((Number(totalPaid) / totalValue) * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[#e8f0fb]">
+                        <div className="h-full rounded-full bg-[#0d9f4a] transition-all" style={{ width: `${Math.min((Number(totalPaid) / totalValue) * 100, 100)}%` }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </article>
+
+              {/* Expense by category */}
+              {expenseByCategory.length > 0 && (
+                <article className={`${panelClass} p-4 sm:p-5`}>
+                  <h2 className="font-display text-[14px] font-extrabold text-[#06135a]">Expenses by Category</h2>
+                  <div className="mt-4 space-y-2">
+                    {expenseByCategory.map((cat) => (
+                      <div key={cat.category}>
+                        <div className="mb-1 flex justify-between text-[12px]">
+                          <span className="font-bold text-[#53647f]">{cat.category}</span>
+                          <span className="font-extrabold text-[#1e3261]">{formatCurrencyPrecise(cat.total)}</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#edf2f8]">
+                          <div className="h-full rounded-full bg-[#f59e0b] transition-all" style={{ width: totalExpense > 0 ? `${(cat.total / Number(totalExpense)) * 100}%` : '0%' }} />
+                        </div>
                       </div>
                     ))}
                   </div>
-                </div>
-              </article>
-
-              <ProjectInfoCard title="Bank Details" icon={ReceiptText} tone="green">
-                {bankRows.map(([label, value]) => (
-                  <ProjectInfoRow key={label} row={{ label, value }} compact onNotify={onNotify} />
-                ))}
-              </ProjectInfoCard>
-
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <div className="flex items-center gap-3">
-                  <span className="grid size-8 place-items-center rounded-[8px] bg-[#dff7e8] text-[#0d9f4a]"><FileText className="size-4" /></span>
-                  <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Notes</h2>
-                </div>
-                <ul className="mt-4 list-disc space-y-2 pl-5 text-[12px] font-bold leading-6 text-[#1e3261]">
-                  {financialNotes.map((note) => <li key={note}>{note}</li>)}
-                </ul>
-              </article>
+                </article>
+              )}
             </aside>
           </section>
+
+          {/* ── Expenses ──────────────────────────────────────────────── */}
+          <article className={`${panelClass} overflow-hidden`}>
+            <div className="flex items-center gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+              <span className="grid size-8 place-items-center rounded-[8px] bg-[#fff8e8] text-[#f59e0b]"><ReceiptText className="size-4" /></span>
+              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Expenses</h2>
+              {expenseRows.length > 0 && (
+                <span className="ml-auto text-[12px] font-extrabold text-[#f59e0b]">{expenseRows.length} record{expenseRows.length !== 1 ? 's' : ''} · Total {formatCurrencyPrecise(Number(totalExpense))}</span>
+              )}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="crm-table min-w-[700px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Category', 'Description', 'Date', 'Amount (Rs)', 'Added By'].map((h) => (
+                      <th key={h}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenseRows.map((row, i) => (
+                    <tr key={row.id}>
+                      <td>{i + 1}</td>
+                      <td><span className="inline-flex rounded-full bg-[#fff8e8] px-2 py-0.5 text-[11px] font-extrabold text-[#b45309]">{row.category}</span></td>
+                      <td className="font-bold text-[#1e3261]">{row.description}</td>
+                      <td className="text-[#53647f]">{formatProjectDisplayDate(row.date)}</td>
+                      <td className="font-extrabold text-[#ef4444]">{formatCurrencyPrecise(Number(row.amount))}</td>
+                      <td className="text-[#53647f]">{row.created_by_name || '—'}</td>
+                    </tr>
+                  ))}
+                  {expenseRows.length === 0 && (
+                    <tr><td colSpan={6} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No expenses recorded yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t border-[#edf2f8] px-4 py-4 sm:px-5">
+              <p className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Add Expense</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[150px_minmax(0,1fr)_130px_140px_auto]">
+                <select value={newExpense.category} onChange={(e) => setNewExpense((p) => ({ ...p, category: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  {['Materials', 'Labor', 'Transport', 'Equipment', 'Miscellaneous'].map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input value={newExpense.description} onChange={(e) => setNewExpense((p) => ({ ...p, description: e.target.value }))} type="text" placeholder="Description" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#f59e0b]" />
+                <input value={newExpense.amount} onChange={(e) => setNewExpense((p) => ({ ...p, amount: e.target.value }))} type="number" min="0" placeholder="Amount (Rs)" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#f59e0b]" />
+                <input value={newExpense.date} onChange={(e) => setNewExpense((p) => ({ ...p, date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+                <button type="button" disabled={savingExpense} onClick={handleAddExpense} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#f59e0b] px-4 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#d97706]">
+                  <Plus className="size-4" />{savingExpense ? 'Saving…' : 'Add Expense'}
+                </button>
+              </div>
+            </div>
+          </article>
         </>
       ) : activeDetailTab === 'Progress' ? (
         <>
-          <section className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Project Progress Overview</h2>
-              <button type="button" onClick={() => onNotify('Progress view changed')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                View by: Stage
-                <ChevronDown className="size-4 text-[#0b65e5]" />
-              </button>
-            </div>
-
-            <div className="mt-6 overflow-x-auto pb-3">
-              <div className="grid min-w-[960px] grid-cols-7 items-start gap-0">
-                {progressStages.map((stage, index) => (
-                  <ProjectProgressStage key={stage.title} stage={stage} isLast={index === progressStages.length - 1} />
-                ))}
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="font-display text-[17px] font-extrabold text-[#06135a]">Project Progress Overview</h2>
+                <div className="inline-flex items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-3 py-1.5 text-[12px] font-bold text-[#53647f]">
+                  Overall
+                  <input
+                    value={safeProgressDraft}
+                    onChange={(e) => setProgressDraft(Number(e.target.value))}
+                    type="range"
+                    min="0"
+                    max="100"
+                    className="w-28 accent-[#0d9f4a]"
+                    disabled={updatingProgress}
+                  />
+                  <span className="font-extrabold text-[#0d9f4a]">{safeProgressDraft}%</span>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateProjectProgress(safeProgressDraft)}
+                    disabled={updatingProgress || safeProgressDraft === safeProjectProgress}
+                    className="inline-flex h-7 items-center justify-center rounded-[6px] bg-[#0d9f4a] px-2.5 text-[11px] font-extrabold text-white disabled:opacity-60"
+                  >
+                    {updatingProgress ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
               </div>
-            </div>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-[10px] border border-[#e6edf7] bg-white p-3">
+                  <p className="mb-2 text-[12px] font-extrabold text-[#314a79]">{hasMilestoneProgress ? 'Milestone' : 'Activity'} Status Distribution</p>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={progressStatusChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e6edf7" />
+                      <XAxis dataKey="status" tick={{ fontSize: 11 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} domain={[0, 'auto']} />
+                      <Tooltip formatter={(v) => [v, 'Count']} />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                        {progressStatusChartData.map((entry, idx) => (
+                          <Cell key={`${entry.status}-${idx}`} fill={entry.status === 'Completed' ? '#16a34a' : entry.status === 'In Progress' ? '#2563eb' : (entry.status === 'Delayed' || entry.status === 'Overdue') ? '#ef4444' : '#f59e0b'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="rounded-[10px] border border-[#e6edf7] bg-white p-3">
+                  <p className="mb-2 text-[12px] font-extrabold text-[#314a79]">{hasMilestoneProgress ? 'Milestone' : 'Activity'} Progress Trend</p>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={milestoneTrendData}>
+                      <defs>
+                        <linearGradient id="progressGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0b65e5" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#0b65e5" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e6edf7" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={(value) => `${value}%`} labelFormatter={(label, payload) => payload?.[0]?.payload?.title || label} />
+                      <Area type="monotone" dataKey="progress" stroke="#0b65e5" fill="url(#progressGrad)" strokeWidth={2.5} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-x-auto pb-2">
+                {progressStages.length > 0 ? (
+                  <div className="grid items-start gap-0" style={{ gridTemplateColumns: `repeat(${progressStages.length}, minmax(120px, 1fr))`, minWidth: `${progressStages.length * 130}px` }}>
+                    {progressStages.map((stage, index) => (
+                      <ProjectProgressStage key={index} stage={stage} isLast={index === progressStages.length - 1} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[13px] font-bold text-[#8a98af]">No milestones added yet.</p>
+                )}
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Add Milestone</h2>
+              <p className="mt-1 text-[12px] font-bold text-[#53647f]">Simple entry form — data saves directly to backend API.</p>
+              <div className="mt-4 grid gap-3">
+                <input value={newMilestone.title} onChange={(e) => setNewMilestone((p) => ({ ...p, title: e.target.value }))} type="text" placeholder="Milestone title" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                <input value={newMilestone.category} onChange={(e) => setNewMilestone((p) => ({ ...p, category: e.target.value }))} type="text" placeholder="Category (e.g. Installation)" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                <div className="grid grid-cols-2 gap-3">
+                  <select value={newMilestone.status} onChange={(e) => setNewMilestone((p) => ({ ...p, status: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                    {['Pending', 'In Progress', 'Completed', 'Delayed'].map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <input value={newMilestone.progress_percent} onChange={(e) => setNewMilestone((p) => ({ ...p, progress_percent: e.target.value }))} type="number" min="0" max="100" placeholder="Progress %" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <input value={newMilestone.start_date} onChange={(e) => setNewMilestone((p) => ({ ...p, start_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+                  <input value={newMilestone.end_date} onChange={(e) => setNewMilestone((p) => ({ ...p, end_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+                </div>
+                <select value={newMilestone.owner} onChange={(e) => setNewMilestone((p) => ({ ...p, owner: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  <option value="">Select owner (optional)</option>
+                  {userOptions.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+                <button type="button" disabled={savingMilestone} onClick={handleAddMilestone} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+                  <Plus className="size-4" />{savingMilestone ? 'Saving…' : 'Add Milestone'}
+                </button>
+              </div>
+
+              <div className="mt-5 border-t border-[#edf2f8] pt-4">
+                <h3 className="text-[13px] font-extrabold text-[#1e3261]">Quick Stats</h3>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[12px] font-bold text-[#53647f]">
+                  <span>{hasMilestoneProgress ? 'Total milestones' : 'Total activities'}</span><span className="text-right font-extrabold text-[#1e3261]">{taskCounts.total}</span>
+                  <span>Completed</span><span className="text-right font-extrabold text-[#16a34a]">{taskCounts.completed}</span>
+                  <span>In Progress</span><span className="text-right font-extrabold text-[#2563eb]">{taskCounts.inProgress}</span>
+                  <span>Pending</span><span className="text-right font-extrabold text-[#f59e0b]">{taskCounts.pending}</span>
+                  <span>{hasMilestoneProgress ? 'Delayed' : 'Overdue'}</span><span className="text-right font-extrabold text-[#ef4444]">{taskCounts.delayed}</span>
+                </div>
+              </div>
+            </article>
           </section>
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -18207,6 +19382,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
           <section className={`${panelClass} overflow-hidden`}>
             <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
               <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Task / Stage Details</h2>
+              <p className="mt-1 text-[12px] font-bold text-[#53647f]">Edit status and progress directly from table (saved via API).</p>
             </div>
             <div className="responsive-scroll overflow-x-auto">
               <table className="crm-table min-w-[1120px] w-full">
@@ -18219,27 +19395,67 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                 </thead>
                 <tbody>
                   {progressRows.map((row, index) => (
-                    <tr key={row.stage}>
+                    <tr key={row.id}>
                       <td>{index + 1}</td>
                       <td className="font-extrabold text-[#1e3261]">{row.stage}</td>
                       <td>{row.description}</td>
                       <td>{row.start}</td>
                       <td>{row.end}</td>
-                      <td><ProjectPhaseBadge label={row.status} /></td>
-                      <td><ProjectProgressInline value={row.progress} status={row.status} /></td>
+                      <td>
+                        {row.editable
+                          ? (
+                            <select
+                              value={row.status}
+                              onChange={(e) => handleUpdateMilestoneInline(row.id, { status: e.target.value })}
+                              className="h-8 rounded-[7px] border border-[#d9e4f2] bg-white px-2 text-[12px] font-bold text-[#1e3261]"
+                            >
+                              {['Pending', 'In Progress', 'Completed', 'Delayed'].map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          ) : (
+                            <span className={`inline-flex rounded-[6px] px-2 py-0.5 text-[11px] font-extrabold ${row.status === 'Completed' ? 'bg-[#e8fdf0] text-[#16a34a]' : row.status === 'In Progress' ? 'bg-[#eff6ff] text-[#2563eb]' : row.status === 'Pending' ? 'bg-[#fffbeb] text-[#f59e0b]' : 'bg-[#fef2f2] text-[#ef4444]'}`}>{row.status}</span>
+                          )}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          {row.editable
+                            ? (
+                              <>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="100"
+                                  value={row.progress}
+                                  onChange={(e) => handleUpdateMilestoneInline(row.id, { progress_percent: Number(e.target.value) })}
+                                  className="w-24 accent-[#0d9f4a]"
+                                />
+                                <span className="text-[11px] font-extrabold text-[#0d9f4a]">{row.progress}%</span>
+                              </>
+                            ) : (
+                              <>
+                                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-[#e6edf7]">
+                                  <div className="h-full rounded-full bg-[#0d9f4a]" style={{ width: `${row.progress}%` }} />
+                                </div>
+                                <span className="text-[11px] font-extrabold text-[#0d9f4a]">{row.progress}%</span>
+                              </>
+                            )}
+                        </div>
+                      </td>
                       <td>{row.owner}</td>
                       <td>{row.remarks}</td>
                     </tr>
                   ))}
+                  {progressRows.length === 0 ? (
+                    <tr><td colSpan={9} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No tasks/milestones yet.</td></tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
             <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[12px] font-bold text-[#314a79] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-              <p>Showing 1 to 7 of 7 entries</p>
+              <p>Showing {progressRows.length} of {progressRows.length} entries</p>
               <div className="flex flex-wrap items-center gap-4">
                 <ProjectProgressLegend color="bg-[#14b84c]" label="Completed" />
-                <ProjectProgressLegend color="bg-[#f59e0b]" label="In Progress" />
-                <ProjectProgressLegend color="bg-[#a8b0bd]" label="Pending" />
+                <ProjectProgressLegend color="bg-[#2563eb]" label="In Progress" />
+                <ProjectProgressLegend color="bg-[#f59e0b]" label="Pending" />
                 <ProjectProgressLegend color="bg-[#ef4444]" label="Delayed" />
               </div>
             </div>
@@ -18247,55 +19463,114 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
         </>
       ) : activeDetailTab === 'System Details' ? (
         <>
-          <section className="grid gap-4 xl:grid-cols-3">
-            <ProjectInfoCard title="System Overview" icon={BadgeCheck} tone="green">
-              {systemOverviewRows.map((row) => (
-                <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
-              ))}
-            </ProjectInfoCard>
+          {/* Row 1: System Overview (read-only) + Inverter + Panel forms */}
+          <section className="grid gap-4 xl:grid-cols-[1fr_1.5fr]">
+            {/* System overview — read-only summary from project fields */}
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center gap-2">
+                <span className="grid size-8 place-items-center rounded-full bg-[#e8fdf0] text-[#0d9f4a]"><BadgeCheck className="size-4" /></span>
+                <h2 className="font-display text-[17px] font-extrabold text-[#06135a]">System Overview</h2>
+              </div>
+              <div className="mt-4 space-y-3">
+                {systemOverviewRows.map((row) => (
+                  <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
+                ))}
+              </div>
+            </article>
 
-            <ProjectInfoCard title="Inverter Details" icon={ClipboardPlus} tone="blue">
-              {inverterRows.map((row) => (
-                <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
-              ))}
-            </ProjectInfoCard>
+            {/* Inverter + Panel editable forms stacked */}
+            <div className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex items-center gap-2">
+                  <span className="grid size-8 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><ClipboardPlus className="size-4" /></span>
+                  <h2 className="font-display text-[17px] font-extrabold text-[#06135a]">Inverter Details</h2>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Inverter Brand</label>
+                    <input value={systemConfigForm.inverter_brand} onChange={(e) => setSystemConfigForm((p) => ({ ...p, inverter_brand: e.target.value }))} type="text" placeholder="e.g. Growatt" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Inverter Model</label>
+                    <input value={systemConfigForm.inverter_model} onChange={(e) => setSystemConfigForm((p) => ({ ...p, inverter_model: e.target.value }))} type="text" placeholder="e.g. MIN 5KTL-X" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Capacity (kW)</label>
+                    <input value={systemConfigForm.inverter_capacity_kw} onChange={(e) => setSystemConfigForm((p) => ({ ...p, inverter_capacity_kw: e.target.value }))} type="number" min="0" step="0.01" placeholder="e.g. 5" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">String Count</label>
+                    <input value={systemConfigForm.string_count} onChange={(e) => setSystemConfigForm((p) => ({ ...p, string_count: e.target.value }))} type="number" min="0" step="1" placeholder="e.g. 2" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </div>
+                </div>
+              </article>
 
-            <ProjectInfoCard title="Solar Panel Details" icon={Zap} tone="amber">
-              {panelRows.map((row) => (
-                <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
-              ))}
-            </ProjectInfoCard>
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex items-center gap-2">
+                  <span className="grid size-8 place-items-center rounded-full bg-[#fffbeb] text-[#f59e0b]"><Zap className="size-4" /></span>
+                  <h2 className="font-display text-[17px] font-extrabold text-[#06135a]">Solar Panel Details</h2>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Panel Brand</label>
+                    <input value={systemConfigForm.panel_brand} onChange={(e) => setSystemConfigForm((p) => ({ ...p, panel_brand: e.target.value }))} type="text" placeholder="e.g. Waaree" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Panel Model</label>
+                    <input value={systemConfigForm.panel_model} onChange={(e) => setSystemConfigForm((p) => ({ ...p, panel_model: e.target.value }))} type="text" placeholder="e.g. WSMD-550" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Wattage (Wp)</label>
+                    <input value={systemConfigForm.panel_wattage_w} onChange={(e) => setSystemConfigForm((p) => ({ ...p, panel_wattage_w: e.target.value }))} type="number" min="0" step="1" placeholder="e.g. 550" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">No. of Panels</label>
+                    <input value={systemConfigForm.panel_count} onChange={(e) => setSystemConfigForm((p) => ({ ...p, panel_count: e.target.value }))} type="number" min="0" step="1" placeholder="e.g. 10" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                  </div>
+                </div>
+                {/* Auto-calculated DC capacity */}
+                {systemConfigForm.panel_wattage_w && systemConfigForm.panel_count ? (
+                  <p className="mt-3 text-[12px] font-extrabold text-[#0d9f4a]">
+                    Total DC Capacity: {((Number(systemConfigForm.panel_wattage_w) * Number(systemConfigForm.panel_count)) / 1000).toFixed(2)} kWp
+                  </p>
+                ) : null}
+              </article>
+            </div>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.9fr)_minmax(320px,0.95fr)]">
-            <ProjectInfoCard title="Electrical & Protection Details" icon={ShieldCheck} tone="purple">
-              <div className="responsive-scroll -mx-4 overflow-x-auto sm:-mx-5">
-                <table className="crm-table min-w-[760px] w-full">
-                  <thead>
-                    <tr>
-                      {['Component', 'Brand / Model', 'Specification', 'Quantity', 'Remarks'].map((header) => (
-                        <th key={header}>{header}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {protectionRows.map((row) => (
-                      <tr key={row.component}>
-                        <td>{row.component}</td>
-                        <td>{row.brand}</td>
-                        <td>{row.specification}</td>
-                        <td>{row.quantity}</td>
-                        <td>{row.remarks}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {/* Row 2: Electrical/Protection + Save + Documents */}
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.9fr)_minmax(300px,0.95fr)]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center gap-2">
+                <span className="grid size-8 place-items-center rounded-full bg-[#f5f0ff] text-[#7c3aed]"><ShieldCheck className="size-4" /></span>
+                <h2 className="font-display text-[17px] font-extrabold text-[#06135a]">Electrical &amp; Protection Details</h2>
+                <ProjectInfoPill tone="blue">API Connected</ProjectInfoPill>
               </div>
-            </ProjectInfoCard>
+              <p className="mt-1 text-[12px] font-bold text-[#6c7f9f]">Edit and save all inverter, panel and protection specs directly to the database.</p>
+              <div className="mt-4">
+                <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Protection Devices &amp; Notes</label>
+                <textarea value={systemConfigForm.protection_devices} onChange={(e) => setSystemConfigForm((p) => ({ ...p, protection_devices: e.target.value }))} placeholder="e.g. ACDB, DCDB, AC/DC cables, earthing kit, lightning arrestor…" className="min-h-[80px] w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+              </div>
+              <div className="mt-3">
+                <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Additional Notes</label>
+                <textarea value={systemConfigForm.notes} onChange={(e) => setSystemConfigForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Any special design notes, deviations or remarks…" className="min-h-[60px] w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[12px] font-bold text-[#53647f]">Project: <span className="font-extrabold text-[#1e3261]">{d.project_id}</span></p>
+                <button type="button" disabled={savingSystemConfig} onClick={handleSaveSystemConfig} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#078c3e]">
+                  <Save className="size-4" />
+                  {savingSystemConfig ? 'Saving…' : 'Save System Config'}
+                </button>
+              </div>
+            </article>
 
-            <ProjectInfoCard title="System Documents" icon={FileText} tone="red">
-              <div className="space-y-3">
-                {systemDocuments.map((doc) => (
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center gap-2">
+                <span className="grid size-8 place-items-center rounded-full bg-[#ffecef] text-[#ef4444]"><FileText className="size-4" /></span>
+                <h2 className="font-display text-[17px] font-extrabold text-[#06135a]">System Documents</h2>
+              </div>
+              <div className="mt-4 space-y-3">
+                {systemDocuments.length > 0 ? systemDocuments.map((doc) => (
                   <div key={doc.name} className="flex items-center gap-3 rounded-[8px] border border-transparent p-2 transition hover:border-[#edf2f8] hover:bg-[#f8fbff]">
                     <span className="grid size-9 shrink-0 place-items-center rounded-[8px] bg-[#ffecef] text-[#ef4444]">
                       <FileText className="size-4" />
@@ -18304,42 +19579,84 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                       <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{doc.name}</span>
                       <span className="mt-0.5 block text-[11px] font-bold text-[#53647f]">{doc.meta}</span>
                     </span>
-                    <button type="button" onClick={() => onNotify(`${doc.name} downloaded`)} className="inline-flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5] transition hover:bg-[#f8fbff]" aria-label={`Download ${doc.name}`}>
-                      <Download className="size-4" />
-                    </button>
+                    {doc.file ? (
+                      <a href={doc.file} target="_blank" rel="noreferrer" className="inline-flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5] transition hover:bg-[#f8fbff]" aria-label={`Download ${doc.name}`}>
+                        <Download className="size-4" />
+                      </a>
+                    ) : (
+                      <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-[#edf2f8] bg-[#f8fafc] text-[#c4cede]">
+                        <Download className="size-4" />
+                      </span>
+                    )}
                   </div>
-                ))}
+                )) : (
+                  <p className="py-4 text-center text-[13px] font-bold text-[#8a98af]">No documents uploaded yet.</p>
+                )}
               </div>
-              <button type="button" onClick={() => setActiveDetailTab('Documents')} className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#86dba3] bg-white text-[13px] font-extrabold text-[#0d9f4a] transition hover:bg-[#f1fff6]">
+              <button type="button" onClick={() => setActiveDetailTab('Documents')} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#86dba3] bg-white text-[13px] font-extrabold text-[#0d9f4a] transition hover:bg-[#f1fff6]">
                 <FileText className="size-4" />
                 View All Documents
               </button>
-            </ProjectInfoCard>
+            </article>
           </section>
         </>
       ) : activeDetailTab === 'Customer & Site Info' ? (
         <>
-          <section className="grid gap-4 xl:grid-cols-2">
-            <ProjectInfoCard title="Customer Information" icon={UserRound} tone="green">
-              {customerRows.map((row) => (
-                <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
-              ))}
-            </ProjectInfoCard>
+          <section className="grid gap-4 xl:grid-cols-[1.25fr_1fr]">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Customer & Site Details</h2>
+                <ProjectInfoPill tone="blue">API Connected</ProjectInfoPill>
+              </div>
+              <p className="mt-2 text-[12px] font-bold text-[#6c7f9f]">Simple form - edit and save directly to backend/database.</p>
 
-            <ProjectInfoCard title="Site Information" icon={MapPin} tone="green">
-              {siteRows.map((row) => (
-                <ProjectInfoRow key={row.label} row={row} onNotify={onNotify} />
-              ))}
-            </ProjectInfoCard>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <input value={customerSiteForm.customer_name} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, customer_name: e.target.value }))} type="text" placeholder="Customer Name" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                <input value={customerSiteForm.site} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site: e.target.value }))} type="text" placeholder="Site" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                <input value={customerSiteForm.city} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, city: e.target.value }))} type="text" placeholder="City" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                <input value={customerSiteForm.state} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, state: e.target.value }))} type="text" placeholder="State" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                <textarea value={customerSiteForm.site_address} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site_address: e.target.value }))} placeholder="Site Address" className="sm:col-span-2 min-h-[88px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[12px] font-bold text-[#53647f]">Project ID: <span className="font-extrabold text-[#1e3261]">{d.project_id}</span></p>
+                <button type="button" disabled={savingCustomerSite} onClick={handleSaveCustomerSite} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+                  <Save className="size-4" />
+                  {savingCustomerSite ? 'Saving...' : 'Save Customer & Site'}
+                </button>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Survey Snapshot</h2>
+              <div className="mt-5 grid gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input value={surveyForm.survey_date} onChange={(e) => setSurveyForm((prev) => ({ ...prev, survey_date: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+                  <select value={surveyForm.status} onChange={(e) => setSurveyForm((prev) => ({ ...prev, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                    {['Draft', 'Completed'].map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+                <input value={surveyForm.building_type} onChange={(e) => setSurveyForm((prev) => ({ ...prev, building_type: e.target.value }))} type="text" placeholder="Building Type" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                <input value={surveyForm.roof_type} onChange={(e) => setSurveyForm((prev) => ({ ...prev, roof_type: e.target.value }))} type="text" placeholder="Roof Type" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                <select value={surveyForm.feasibility} onChange={(e) => setSurveyForm((prev) => ({ ...prev, feasibility: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  <option value="">Feasibility</option>
+                  {['Feasible', 'Feasible with Conditions', 'Not Feasible'].map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+                <textarea value={surveyForm.summary_notes} onChange={(e) => setSurveyForm((prev) => ({ ...prev, summary_notes: e.target.value }))} placeholder="Survey summary / notes" className="min-h-[86px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+              </div>
+              <button type="button" disabled={savingSurvey} onClick={handleSaveSurvey} className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+                <Database className="size-4" />
+                {savingSurvey ? 'Saving...' : 'Save Survey Details'}
+              </button>
+            </article>
           </section>
 
-          <ProjectInfoCard title="Additional Information" icon={Database} tone="blue">
-            <div className="grid gap-4 xl:grid-cols-3">
-              {additionalInfo.map((group, index) => (
-                <div key={group.map((item) => item.label).join('-')} className={cx('space-y-0 xl:px-4', index > 0 && 'xl:border-l xl:border-[#dce6f3]')}>
-                  {group.map((row) => (
-                    <ProjectInfoRow key={row.label} row={row} compact onNotify={onNotify} />
-                  ))}
+          <ProjectInfoCard title="Quick Read Only Snapshot" icon={Info} tone="green">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[['Customer', d.customer_name || '—'], ['Site', d.site || '—'], ['Address', d.site_address || '—'], ['Survey Status', d.site_survey?.status || 'Draft']].map(([label, value]) => (
+                <div key={label} className="rounded-[10px] border border-[#e7eef7] bg-white p-3">
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.04em] text-[#7a8da9]">{label}</p>
+                  <p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">{value}</p>
                 </div>
               ))}
             </div>
@@ -18357,10 +19674,6 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                     <span className="font-extrabold text-[#1e3261]">{row.valueNode ?? row.value}</span>
                   </div>
                 ))}
-                <div className="grid gap-2 text-[13px] sm:grid-cols-[170px_1fr]">
-                  <span className="font-bold text-[#53647f]">Description</span>
-                  <span className="font-semibold text-[#44557a]">20kW rooftop on-grid solar system for residential building.</span>
-                </div>
               </div>
             </article>
 
@@ -18369,20 +19682,23 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
               <div className="mt-5 grid gap-5 md:grid-cols-[190px_minmax(0,1fr)] md:items-center">
                 <div className="mx-auto flex size-[190px] items-center justify-center rounded-full border border-[#edf2f8]" style={{ background: `conic-gradient(${progressGradient})` }}>
                   <div className="grid size-[96px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(237,242,248,0.9)]">
-                    <span className="text-[34px] font-extrabold text-[#1f3360]">65%</span>
+                    <span className="text-[34px] font-extrabold text-[#1f3360]">{overallProgress}%</span>
                     <span className="text-[12px] font-bold text-[#6f7f98]">Completed</span>
                   </div>
                 </div>
                 <div className="space-y-4">
-                  {progressBreakdown.map((item) => (
+                  {statusLegend.map((item) => (
                     <div key={item.label} className="flex items-center justify-between gap-3 text-[13px] font-bold text-[#314a79]">
                       <span className="inline-flex min-w-0 items-center gap-3">
                         <span className="size-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                         <span>{item.label}</span>
                       </span>
-                      <span className="shrink-0 font-extrabold">{item.value} ({item.percent}%)</span>
+                      <span className="shrink-0 font-extrabold">{item.value} of {item.total} ({item.percent}%)</span>
                     </div>
                   ))}
+                  {statusLegend.length === 0 && (
+                    <p className="text-[13px] font-bold text-[#6f7f98]">No milestone data available.</p>
+                  )}
                 </div>
               </div>
               <div className="mt-6 border-t border-[#edf2f8] pt-5">
@@ -18413,14 +19729,17 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
               </div>
               <div className="mt-6 rounded-[14px] border border-[#caeed8] bg-[#effbf3] p-4">
                 <p className="text-[14px] font-extrabold text-[#0d9f4a]">Next Activity</p>
-                <div className="mt-3 flex items-center gap-3">
-                  <span className="grid size-10 place-items-center rounded-full bg-white text-[#14b84c] shadow-[0_10px_18px_rgba(20,184,76,0.12)]"><CalendarDays className="size-4" /></span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[14px] font-extrabold text-[#1e3261]">Module Installation</span>
-                    <span className="mt-1 block text-[12px] font-bold text-[#53647f]">18 May 2024 • Vikram Singh</span>
-                  </span>
-                  <button type="button" onClick={() => onNotify('Next activity opened')} className="inline-flex size-10 items-center justify-center rounded-[10px] bg-white text-[#0d9f4a] shadow-[0_10px_18px_rgba(20,184,76,0.12)]"><ChevronRight className="size-4" /></button>
-                </div>
+                {upcomingActivities[0] ? (
+                  <div className="mt-3 flex items-center gap-3">
+                    <span className="grid size-10 place-items-center rounded-full bg-white text-[#14b84c] shadow-[0_10px_18px_rgba(20,184,76,0.12)]"><CalendarDays className="size-4" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[14px] font-extrabold text-[#1e3261]">{upcomingActivities[0].title}</span>
+                      <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{upcomingActivities[0].due}</span>
+                    </span>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-[13px] font-bold text-[#53647f]">No upcoming activity.</p>
+                )}
               </div>
             </article>
           </section>
@@ -18432,11 +19751,11 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                 <button type="button" onClick={() => setActiveDetailTab('Activities')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
               </div>
               <div className="mt-5 space-y-5">
-                {activities.map((item) => {
+                {recentActivities.map((item, index) => {
                   const Icon = item.icon;
                   const toneClass = item.tone === 'green' ? 'bg-[#effbf3] text-[#16a34a]' : item.tone === 'amber' ? 'bg-[#fff5e8] text-[#f59e0b]' : 'bg-[#eef5ff] text-[#2563eb]';
                   return (
-                    <div key={item.title} className="flex gap-3">
+                    <div key={index} className="flex gap-3">
                       <span className={cx('grid size-10 shrink-0 place-items-center rounded-full', toneClass)}><Icon className="size-4" /></span>
                       <span className="min-w-0">
                         <span className="block text-[14px] font-extrabold text-[#1e3261]">{item.title}</span>
@@ -18445,6 +19764,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                     </div>
                   );
                 })}
+                {recentActivities.length === 0 ? <p className="text-[13px] font-bold text-[#8a98af]">No activities yet.</p> : null}
               </div>
             </article>
 
@@ -18454,8 +19774,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                 <button type="button" onClick={() => setActiveDetailTab('Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
               </div>
               <div className="mt-5 space-y-4">
-                {documents.map((doc) => (
-                  <div key={doc.name} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                {recentDocuments.map((doc, index) => (
+                  <div key={index} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
                     <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', doc.tone === 'green' ? 'bg-[#16a34a]' : 'bg-[#ef4444]')}>
                       <FileText className="size-4" />
                     </span>
@@ -18463,12 +19783,9 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                       <span className="block truncate text-[14px] font-extrabold text-[#1e3261]">{doc.name}</span>
                       <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{doc.note}</span>
                     </span>
-                    <span className="shrink-0 text-right">
-                      <span className="block text-[12px] font-extrabold text-[#314a79]">{doc.size}</span>
-                      <button type="button" onClick={() => onNotify(`${doc.name} downloaded`)} className="mt-2 inline-flex text-[#0b65e5]"><Download className="size-4" /></button>
-                    </span>
                   </div>
                 ))}
+                {recentDocuments.length === 0 ? <p className="text-[13px] font-bold text-[#8a98af]">No documents yet.</p> : null}
               </div>
             </article>
 
@@ -18478,16 +19795,16 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
                 <button type="button" onClick={() => setActiveDetailTab('Team')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
               </div>
               <div className="mt-5 space-y-4">
-                {teamMembers.map((member) => (
-                  <div key={member.name} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                {recentTeamMembers.map((member, index) => (
+                  <div key={index} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
                     <AssigneeCell assignee={{ name: member.name, initials: member.initials, tone: member.tone }} compact />
                     <span className="min-w-0 flex-1">
                       <span className="block text-[14px] font-extrabold text-[#1e3261]">{member.name}</span>
                       <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{member.role}</span>
                     </span>
-                    <button type="button" onClick={() => onNotify(`Call ${member.name}`)} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#0b65e5]"><Phone className="size-4" /></button>
                   </div>
                 ))}
+                {recentTeamMembers.length === 0 ? <p className="text-[13px] font-bold text-[#8a98af]">No team members yet.</p> : null}
               </div>
             </article>
           </section>
@@ -18499,7 +19816,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, onNotify }) {
           </span>
           <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeDetailTab}</h2>
           <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
-            Is tab ka dedicated detail panel next pass me aur deep build kiya ja sakta hai. Abhi tab switch working hai aur aap overview par wapas aake complete project snapshot dekh sakte ho.
+            This tab's detail panel is coming soon. Go back to Overview for the complete project snapshot.
           </p>
           <button type="button" onClick={() => setActiveDetailTab('System Details')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to System Details</button>
         </article>
@@ -18654,34 +19971,6 @@ function ProjectNotePriorityBadge({ priority }) {
   return <span className={cx('inline-flex w-fit rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{priority}</span>;
 }
 
-function ProjectNoteCategoryRow({ category, onNotify }) {
-  const tone = category.tone ?? getProjectNoteTone(category.label);
-  const dotClass = {
-    amber: 'bg-[#f5b500]',
-    blue: 'bg-[#2563eb]',
-    cyan: 'bg-[#12b8ba]',
-    green: 'bg-[#14b84c]',
-    purple: 'bg-[#8b5cf6]',
-    red: 'bg-[#ef2d5a]',
-    slate: 'bg-[#9aa8bc]',
-  }[tone] ?? 'bg-[#9aa8bc]';
-
-  return (
-    <button
-      type="button"
-      onClick={() => onNotify(`${category.label} notes opened`)}
-      className={cx(
-        'flex min-h-9 w-full items-center gap-3 rounded-[8px] px-3 text-left text-[13px] font-bold transition',
-        category.active ? 'bg-[#e8f8eb] text-[#0d9f4a]' : 'text-[#314a79] hover:bg-[#f8fbff]',
-      )}
-    >
-      {category.active ? <FolderKanban className="size-4 shrink-0 text-[#0d9f4a]" /> : <span className={cx('size-2 shrink-0 rounded-full', dotClass)} />}
-      <span className="min-w-0 flex-1 truncate">{category.label}</span>
-      <span className={cx('rounded-[7px] px-2 py-0.5 text-[11px] font-extrabold', category.active ? 'bg-[#dff7e8] text-[#0d9f4a]' : 'bg-[#f5f8fc] text-[#284276]')}>{category.count}</span>
-    </button>
-  );
-}
-
 function getProjectActivityTone(category) {
   return {
     'Site Survey': 'blue',
@@ -18709,52 +19998,23 @@ function ProjectActivityStatusBadge({ status }) {
   return <span className={cx('inline-flex w-fit whitespace-nowrap rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
 }
 
-function ProjectActivitySummaryDonut() {
+function ProjectActivitySummaryDonut({ counts, total }) {
+  const safeTotal = total > 0 ? total : 1;
+  const c1 = (counts.Completed / safeTotal) * 100;
+  const c2 = c1 + (counts['In Progress'] / safeTotal) * 100;
+  const c3 = c2 + (counts.Pending / safeTotal) * 100;
+  const background = total > 0
+    ? `conic-gradient(#16a34a 0 ${c1}%, #2563eb ${c1}% ${c2}%, #f5b500 ${c2}% ${c3}%, #ef4444 ${c3}% 100%)`
+    : '#eef2f7';
   return (
-    <div className="mx-auto grid size-[132px] place-items-center rounded-full" style={{ background: 'conic-gradient(#16a34a 0 57%, #2563eb 57% 86%, #f5b500 86% 95%, #ef4444 95% 100%)' }}>
+    <div className="mx-auto grid size-[132px] place-items-center rounded-full" style={{ background }}>
       <div className="grid size-[86px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_#edf2f8]">
         <span>
-          <span className="block font-display text-[24px] font-extrabold leading-none text-[#06135a]">28</span>
+          <span className="block font-display text-[24px] font-extrabold leading-none text-[#06135a]">{total}</span>
           <span className="mt-1 block text-[11px] font-bold text-[#314a79]">Total</span>
         </span>
       </div>
     </div>
-  );
-}
-
-function ProjectActivityCalendar({ days, onNotify }) {
-  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  return (
-    <article className={`${panelClass} p-4 sm:p-5`}>
-      <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Calendar</h2>
-      <div className="mt-4 flex items-center justify-between">
-        <button type="button" onClick={() => onNotify('Previous activity month')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#edf2f8] bg-white text-[#0b65e5]" aria-label="Previous activity month">
-          <ChevronLeft className="size-4" />
-        </button>
-        <p className="text-[14px] font-extrabold text-[#06135a]">May 2024</p>
-        <button type="button" onClick={() => onNotify('Next activity month')} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#edf2f8] bg-white text-[#0b65e5]" aria-label="Next activity month">
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
-      <div className="mt-4 grid grid-cols-7 gap-1 text-center">
-        {weekdays.map((day) => (
-          <span key={day} className="py-1 text-[11px] font-extrabold text-[#53647f]">{day}</span>
-        ))}
-        {days.map((day, index) => (
-          <button
-            key={`${day.label}-${index}`}
-            type="button"
-            onClick={() => onNotify(`Calendar day ${day.label} opened`)}
-            className={cx(
-              'grid aspect-square min-h-8 place-items-center rounded-full text-[12px] font-bold transition',
-              day.active ? 'bg-[#14b84c] text-white shadow-[0_8px_14px_rgba(20,184,76,0.24)]' : day.muted ? 'text-[#b9c4d6]' : 'text-[#1e3261] hover:bg-[#f5f9ff]',
-            )}
-          >
-            {day.label}
-          </button>
-        ))}
-      </div>
-    </article>
   );
 }
 
@@ -18784,12 +20044,12 @@ function ProjectDocumentStat({ stat }) {
   );
 }
 
-function ProjectDocumentCategory({ category, onNotify }) {
+function ProjectDocumentCategory({ category, onSelect }) {
   return (
     <div>
       <button
         type="button"
-        onClick={() => onNotify(`${category.label} opened`)}
+        onClick={() => onSelect(category.active ? null : category.label)}
         className={cx(
           'flex min-h-11 w-full items-center gap-3 rounded-[8px] px-3 text-left text-[13px] font-extrabold transition',
           category.active ? 'bg-[#e8f8eb] text-[#06135a]' : 'text-[#1e3261] hover:bg-[#f8fbff]',
@@ -18803,11 +20063,11 @@ function ProjectDocumentCategory({ category, onNotify }) {
       {category.children?.length ? (
         <div className="mt-1 space-y-1 pl-10">
           {category.children.map((child) => (
-            <button key={child.label} type="button" onClick={() => onNotify(`${child.label} opened`)} className="flex min-h-9 w-full items-center gap-3 rounded-[8px] px-2 text-left text-[12px] font-bold text-[#284276] hover:bg-[#f8fbff]">
+            <span key={child.label} className="flex min-h-9 w-full items-center gap-3 rounded-[8px] px-2 text-left text-[12px] font-bold text-[#284276]">
               <FolderKanban className="size-4 shrink-0 text-[#7b8ca8]" />
               <span className="min-w-0 flex-1 truncate">{child.label}</span>
               <span className="rounded-[7px] border border-[#dce6f3] bg-white px-2 py-0.5 text-[11px] text-[#0b65e5]">{child.count}</span>
-            </button>
+            </span>
           ))}
         </div>
       ) : null}
@@ -18903,9 +20163,11 @@ function ProjectProgressStat({ stat, onNotify }) {
   }[stat.tone] ?? 'bg-[#eef5ff] text-[#2563eb]';
 
   if (stat.radial) {
+    const radialValue = Number.parseInt(String(stat.value).replace('%', ''), 10) || 0;
+    const clampedRadialValue = Math.max(0, Math.min(100, radialValue));
     return (
       <article className={`${panelClass} flex min-h-[128px] items-center gap-4 p-4 sm:p-5`}>
-        <div className="grid size-[88px] shrink-0 place-items-center rounded-full" style={{ background: 'conic-gradient(#0d9f4a 0 58%, #edf2f8 58% 100%)' }}>
+        <div className="grid size-[88px] shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#0d9f4a 0 ${clampedRadialValue}%, #edf2f8 ${clampedRadialValue}% 100%)` }}>
           <div className="grid size-[64px] place-items-center rounded-full bg-white text-[18px] font-extrabold text-[#06135a]">{stat.value}</div>
         </div>
         <div className="min-w-0">
@@ -18959,202 +20221,232 @@ function ProjectProgressLegend({ color, label }) {
   );
 }
 
-function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
+function ProjectTimelinePage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
   const [viewMode, setViewMode] = useState('List View');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [timelineUsers, setTimelineUsers] = useState([]);
+  const [milestoneModalOpen, setMilestoneModalOpen] = useState(false);
+  const [newMilestone, setNewMilestone] = useState({ title: '', category: '', status: 'Pending', owner: '', start_date: '', end_date: '', progress_percent: 0 });
+  const [savingMilestone, setSavingMilestone] = useState(false);
 
-  const project = {
-    name: '20kW On-Grid System',
-    address: '123, Scheme No. 54, Vijay Nagar',
-    city: 'Indore, Madhya Pradesh - 452010',
-    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    startDate: '2024-05-10',
-    targetDate: '2024-05-30',
-    progress: 65,
-    daysLeft: '10 Days',
+  const reloadTimeline = () => {
+    if (!projectProp?.id) return;
+    projectApi.get(projectProp.id).then(setData).catch(() => {});
   };
 
-  const timelineGroups = [
-    {
-      title: '1. Project Planning',
-      start: '10 May 24',
-      end: '15 May 24',
-      duration: '6 days',
-      color: '#16a34a',
-      bar: { start: 1, span: 6, label: 'Project Planning' },
-      children: [
-        { title: 'Requirement Analysis', start: '10 May 24', end: '11 May 24', duration: '2 days', bar: { start: 1, span: 2, label: 'Requirement Analysis' } },
-        { title: 'Site Feasibility Study', start: '12 May 24', end: '13 May 24', duration: '2 days', bar: { start: 3, span: 2 } },
-        { title: 'System Design', start: '14 May 24', end: '15 May 24', duration: '2 days', bar: { start: 5, span: 2 } },
-      ],
-    },
-    {
-      title: '2. Approvals & Documentation',
-      start: '16 May 24',
-      end: '20 May 24',
-      duration: '5 days',
-      color: '#2563eb',
-      bar: { start: 9, span: 5, label: 'Approvals & Documentation' },
-      children: [
-        { title: 'Document Preparation', start: '16 May 24', end: '17 May 24', duration: '2 days', bar: { start: 9, span: 2, tone: '#60a5fa' } },
-        { title: 'Submission & Follow-up', start: '18 May 24', end: '19 May 24', duration: '2 days', bar: { start: 11, span: 2 } },
-        { title: 'Approval Received', start: '20 May 24', end: '20 May 24', duration: '1 day', bar: { start: 13, span: 1, label: 'Approval Received' } },
-      ],
-    },
-    {
-      title: '3. Procurement',
-      start: '21 May 24',
-      end: '25 May 24',
-      duration: '5 days',
-      color: '#8b5cf6',
-      bar: { start: 15, span: 5, label: 'Procurement' },
-      children: [
-        { title: 'Material Ordering', start: '21 May 24', end: '22 May 24', duration: '2 days', bar: { start: 15, span: 2, tone: '#a78bfa' } },
-        { title: 'Material Delivery', start: '23 May 24', end: '25 May 24', duration: '3 days', bar: { start: 18, span: 3, label: 'Material Delivery' } },
-      ],
-    },
-    {
-      title: '4. Installation',
-      start: '26 May 24',
-      end: '30 May 24',
-      duration: '5 days',
-      color: '#f59e0b',
-      bar: { start: 21, span: 5, label: 'Installation' },
-      children: [
-        { title: 'Site Preparation', start: '26 May 24', end: '27 May 24', duration: '2 days', bar: { start: 21, span: 2, tone: '#fb923c' } },
-        { title: 'System Installation', start: '28 May 24', end: '29 May 24', duration: '2 days', bar: { start: 23, span: 2 } },
-        { title: 'Testing & Commissioning', start: '30 May 24', end: '30 May 24', duration: '1 day', bar: { start: 25, span: 1, label: 'Testing & Commissioning' } },
-      ],
-    },
-  ];
+  useEffect(() => {
+    if (!projectProp?.id) { setLoading(false); return; }
+    let cancelled = false;
+    setLoading(true);
+    projectApi.get(projectProp.id)
+      .then((res) => { if (!cancelled) setData(res); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectProp?.id]);
+
+  useEffect(() => {
+    userApi.list({ is_active: true })
+      .then((res) => setTimelineUsers(Array.isArray(res) ? res : res?.results ?? []))
+      .catch(() => setTimelineUsers([]));
+  }, []);
+
+  const handleAddMilestone = async () => {
+    if (!newMilestone.title.trim()) { onNotify('Enter a task name'); return; }
+    setSavingMilestone(true);
+    try {
+      await projectMilestoneApi.create({
+        project: projectProp.id,
+        title: newMilestone.title.trim(),
+        category: newMilestone.category.trim(),
+        status: newMilestone.status,
+        owner: newMilestone.owner || null,
+        start_date: newMilestone.start_date || null,
+        end_date: newMilestone.end_date || null,
+        progress_percent: Number(newMilestone.progress_percent) || 0,
+      });
+      onNotify('Task added to timeline');
+      setNewMilestone({ title: '', category: '', status: 'Pending', owner: '', start_date: '', end_date: '', progress_percent: 0 });
+      setMilestoneModalOpen(false);
+      reloadTimeline();
+    } catch {
+      onNotify('Failed to add task');
+    } finally {
+      setSavingMilestone(false);
+    }
+  };
+
+  const handleDeleteMilestone = async (id, name) => {
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    try {
+      await projectMilestoneApi.delete(id);
+      onNotify('Task deleted');
+      reloadTimeline();
+    } catch {
+      onNotify('Failed to delete task');
+    }
+  };
+
+  if (!projectProp?.id) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Timeline" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Timeline' }]} />
+        <article className={`${panelClass} p-8 text-center`}>
+          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
+          <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
+          <p className="mx-auto mt-3 max-w-[480px] text-[13px] font-bold text-[#53647f]">Open a project from the Project List to view its timeline.</p>
+          <button type="button" onClick={() => onOpenSection('Project List')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white"><ArrowRight className="size-4" />Go to Project List</button>
+        </article>
+      </div>
+    );
+  }
+
+  if (loading || !data) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Timeline" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Timeline' }]} />
+        <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>{loading ? 'Loading timeline...' : 'Project not found.'}</article>
+      </div>
+    );
+  }
+
+  const d = data;
+  const topMilestones = d.milestones || [];
+  const allMilestones = topMilestones.flatMap((m) => [m, ...(m.children || [])]);
+
+  const project = {
+    name: d.project_name,
+    address: d.site_address || '—',
+    city: [d.city, d.state].filter(Boolean).join(', ') || '—',
+    manager: d.manager_detail ? { name: d.manager_detail.name, initials: d.manager_detail.initials, tone: 'amber' } : { name: 'Unassigned', initials: '—', tone: 'blue' },
+    startDate: d.start_date || '',
+    targetDate: d.target_date || '',
+    progress: d.progress_percent,
+    daysLeft: projectDaysLeft(d.target_date),
+  };
+
+  const msCounts = {
+    Completed: allMilestones.filter((m) => m.status === 'Completed').length,
+    'In Progress': allMilestones.filter((m) => m.status === 'In Progress').length,
+    Pending: allMilestones.filter((m) => m.status === 'Pending').length,
+    Delayed: allMilestones.filter((m) => m.status === 'Delayed').length,
+  };
+  const msTotal = allMilestones.length || 1;
+
+  // Real overall progress = average completion across all tasks (Completed = 100%).
+  // Falls back to the project's stored progress only when there are no tasks yet.
+  const overallProgress = allMilestones.length
+    ? Math.round(allMilestones.reduce((sum, m) => sum + (m.status === 'Completed' ? 100 : Number(m.progress_percent || 0)), 0) / allMilestones.length)
+    : Number(d.progress_percent || 0);
 
   const overallBreakdown = [
-    { label: 'Completed', value: '13 (65%)', color: '#16a34a' },
-    { label: 'In Progress', value: '5 (25%)', color: '#2563eb' },
-    { label: 'Pending', value: '2 (10%)', color: '#f59e0b' },
-    { label: 'Not Started', value: '0 (0%)', color: '#cbd5e1' },
+    { label: 'Completed', value: `${msCounts.Completed} (${Math.round((msCounts.Completed / msTotal) * 100)}%)`, color: '#16a34a' },
+    { label: 'In Progress', value: `${msCounts['In Progress']} (${Math.round((msCounts['In Progress'] / msTotal) * 100)}%)`, color: '#2563eb' },
+    { label: 'Pending', value: `${msCounts.Pending} (${Math.round((msCounts.Pending / msTotal) * 100)}%)`, color: '#f59e0b' },
+    { label: 'Delayed', value: `${msCounts.Delayed} (${Math.round((msCounts.Delayed / msTotal) * 100)}%)`, color: '#ef4444' },
   ];
 
   const summaryCards = [
-    { label: 'Total Tasks', value: '20', icon: ClipboardPlus, tone: 'blue' },
-    { label: 'Completed', value: '13', icon: CheckCircle2, tone: 'green' },
-    { label: 'In Progress', value: '5', icon: Clock3, tone: 'cyan' },
-    { label: 'Pending', value: '2', icon: AlertTriangle, tone: 'amber' },
-    { label: 'Not Started', value: '0', icon: XCircle, tone: 'slate' },
+    { label: 'Total Tasks', value: String(allMilestones.length), icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Completed', value: String(msCounts.Completed), icon: CheckCircle2, tone: 'green' },
+    { label: 'In Progress', value: String(msCounts['In Progress']), icon: Clock3, tone: 'cyan' },
+    { label: 'Pending', value: String(msCounts.Pending), icon: AlertTriangle, tone: 'amber' },
+    { label: 'Delayed', value: String(msCounts.Delayed), icon: XCircle, tone: 'slate' },
   ];
 
+  const tpCounts = {
+    Completed: topMilestones.filter((m) => m.status === 'Completed').length,
+    'In Progress': topMilestones.filter((m) => m.status === 'In Progress').length,
+    Pending: topMilestones.filter((m) => m.status === 'Pending').length,
+  };
   const milestoneStats = [
-    { label: 'Total Milestones', value: '6', note: 'All stages', icon: Flag, tone: 'blue' },
-    { label: 'Completed', value: '3', note: '50.00%', icon: CheckCircle2, tone: 'green' },
-    { label: 'In Progress', value: '2', note: '33.33%', icon: Clock3, tone: 'amber' },
-    { label: 'Pending', value: '1', note: '16.67%', icon: PauseCircle, tone: 'purple' },
+    { label: 'Total Milestones', value: String(topMilestones.length), note: 'All stages', icon: Flag, tone: 'blue' },
+    { label: 'Completed', value: String(tpCounts.Completed), note: topMilestones.length ? `${Math.round((tpCounts.Completed / topMilestones.length) * 100)}%` : '0%', icon: CheckCircle2, tone: 'green' },
+    { label: 'In Progress', value: String(tpCounts['In Progress']), note: topMilestones.length ? `${Math.round((tpCounts['In Progress'] / topMilestones.length) * 100)}%` : '0%', icon: Clock3, tone: 'amber' },
+    { label: 'Pending', value: String(tpCounts.Pending), note: topMilestones.length ? `${Math.round((tpCounts.Pending / topMilestones.length) * 100)}%` : '0%', icon: PauseCircle, tone: 'purple' },
   ];
 
-  const milestoneRows = [
-    {
-      title: 'Project Planning',
-      category: 'Planning',
-      start: '10 May 24',
-      end: '15 May 24',
-      duration: '6 days',
-      owner: 'Amit Sharma',
-      status: 'Completed',
-      progress: 100,
-      color: '#16a34a',
-      deliverables: ['Requirement Analysis', 'Site Feasibility', 'System Design'],
-      dependency: 'Lead conversion',
-      risk: 'Low',
-    },
-    {
-      title: 'Approvals & Documentation',
-      category: 'Approvals',
-      start: '16 May 24',
-      end: '20 May 24',
-      duration: '5 days',
-      owner: 'Rohit Singh',
-      status: 'Completed',
-      progress: 100,
-      color: '#2563eb',
-      deliverables: ['Document Preparation', 'Submission', 'Approval Received'],
-      dependency: 'Planning sign-off',
-      risk: 'Medium',
-    },
-    {
-      title: 'Procurement',
-      category: 'Procurement',
-      start: '21 May 24',
-      end: '25 May 24',
-      duration: '5 days',
-      owner: 'Vikas Kumar',
-      status: 'In Progress',
-      progress: 60,
-      color: '#8b5cf6',
-      deliverables: ['Material Ordering', 'Material Delivery'],
-      dependency: 'Approved BOM',
-      risk: 'Medium',
-    },
-    {
-      title: 'Installation',
-      category: 'Installation',
-      start: '26 May 24',
-      end: '30 May 24',
-      duration: '5 days',
-      owner: 'Installation Team',
-      status: 'In Progress',
-      progress: 35,
-      color: '#f59e0b',
-      deliverables: ['Site Preparation', 'System Installation'],
-      dependency: 'Material delivery',
-      risk: 'High',
-    },
-    {
-      title: 'Testing & Commissioning',
-      category: 'Commissioning',
-      start: '31 May 24',
-      end: '03 Jun 24',
-      duration: '4 days',
-      owner: 'Technical Team',
-      status: 'Pending',
-      progress: 0,
-      color: '#14b8a6',
-      deliverables: ['System Testing', 'Discom Sync', 'Commissioning Report'],
-      dependency: 'Installation completion',
-      risk: 'Medium',
-    },
-    {
-      title: 'Project Handover',
-      category: 'Handover',
-      start: '03 Jun 24',
-      end: '03 Jun 24',
-      duration: '1 day',
-      owner: 'Rohit Singh',
-      status: 'Pending',
-      progress: 0,
-      color: '#ec4899',
-      deliverables: ['Customer Training', 'Warranty Docs', 'Final Sign-off'],
-      dependency: 'Commissioning approval',
-      risk: 'Low',
-    },
-  ];
+  const milestoneRows = topMilestones.map((m) => ({
+    id: m.id,
+    title: m.title,
+    category: m.category || '—',
+    start: m.start_date ? formatProjectDisplayDate(m.start_date) : '—',
+    end: m.end_date ? formatProjectDisplayDate(m.end_date) : '—',
+    duration: m.start_date && m.end_date ? `${daysBetween(m.start_date, m.end_date) + 1} days` : '—',
+    owner: m.owner_name || 'Unassigned',
+    status: m.status,
+    progress: m.progress_percent,
+    color: milestoneStatusColor(m.status),
+  }));
 
   const viewTabs = ['Gantt View', 'Milestone View', 'List View'];
-  const ganttDays = ['6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '1', '2', '3'];
-  const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M', 'T', 'W', 'T', 'F', 'S', 'S', 'M'];
-  const timelineListRows = [
-    { task: 'Project Planning', category: 'Planning', start: '10 May 2024', end: '15 May 2024', duration: '6 days', status: 'Completed', progress: 100, assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'purple' }, priority: 'High' },
-    { task: 'Requirement Analysis', category: 'Planning', start: '10 May 2024', end: '11 May 2024', duration: '2 days', status: 'Completed', progress: 100, assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, priority: 'Medium' },
-    { task: 'Site Feasibility Study', category: 'Planning', start: '12 May 2024', end: '13 May 2024', duration: '2 days', status: 'Completed', progress: 100, assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'purple' }, priority: 'Medium' },
-    { task: 'System Design', category: 'Planning', start: '14 May 2024', end: '15 May 2024', duration: '2 days', status: 'Completed', progress: 100, assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'purple' }, priority: 'High' },
-    { task: 'Approvals & Documentation', category: 'Approvals', start: '16 May 2024', end: '20 May 2024', duration: '5 days', status: 'In Progress', progress: 60, assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'green' }, priority: 'High' },
-    { task: 'Document Preparation', category: 'Approvals', start: '16 May 2024', end: '17 May 2024', duration: '2 days', status: 'Completed', progress: 100, assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'green' }, priority: 'Medium' },
-    { task: 'Submission & Follow-up', category: 'Approvals', start: '18 May 2024', end: '19 May 2024', duration: '2 days', status: 'In Progress', progress: 50, assignee: { name: 'Neha Patel', initials: 'NP', tone: 'slate' }, priority: 'Medium' },
-    { task: 'Approval Received', category: 'Approvals', start: '20 May 2024', end: '20 May 2024', duration: '1 day', status: 'Pending', progress: 0, assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'green' }, priority: 'High' },
-    { task: 'Procurement', category: 'Procurement', start: '21 May 2024', end: '25 May 2024', duration: '5 days', status: 'In Progress', progress: 40, assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, priority: 'High' },
-    { task: 'Material Ordering', category: 'Procurement', start: '21 May 2024', end: '22 May 2024', duration: '2 days', status: 'Completed', progress: 100, assignee: { name: 'Vikas Kumar', initials: 'VK', tone: 'amber' }, priority: 'Medium' },
-  ];
 
-  const flattenedRows = timelineGroups.flatMap((group) => [
-    { key: group.title, isGroup: true, title: group.title, start: group.start, end: group.end, duration: group.duration, color: group.color, bar: group.bar },
-    ...group.children.map((child) => ({ ...child, key: `${group.title}-${child.title}`, isGroup: false, color: group.color })),
+  const timelineListRows = allMilestones.map((m) => ({
+    id: m.id,
+    task: m.title,
+    category: m.category || '—',
+    start: m.start_date ? formatProjectDisplayDate(m.start_date) : '—',
+    end: m.end_date ? formatProjectDisplayDate(m.end_date) : '—',
+    duration: m.start_date && m.end_date ? `${daysBetween(m.start_date, m.end_date) + 1} days` : '—',
+    status: m.status,
+    progress: m.progress_percent,
+    assignee: m.owner_name ? { name: m.owner_name, initials: m.owner_name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(), tone: 'blue' } : { name: 'Unassigned', initials: '—', tone: 'slate' },
+  }));
+
+  const datedMilestones = allMilestones.filter((m) => m.start_date && m.end_date);
+  const ganttStartDate = datedMilestones.length
+    ? datedMilestones.reduce((min, m) => (m.start_date < min ? m.start_date : min), datedMilestones[0].start_date)
+    : null;
+  const ganttEndDate = datedMilestones.length
+    ? datedMilestones.reduce((max, m) => (m.end_date > max ? m.end_date : max), datedMilestones[0].end_date)
+    : null;
+  const ganttTotalDays = ganttStartDate && ganttEndDate ? daysBetween(ganttStartDate, ganttEndDate) + 1 : 0;
+
+  // Group the Gantt range into month segments for a clean, readable header
+  // (instead of rendering one cramped column per day).
+  const ganttMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const ganttMonths = [];
+  if (ganttStartDate && ganttTotalDays > 0) {
+    let cursor = new Date(ganttStartDate);
+    const rangeEnd = new Date(ganttEndDate);
+    while (cursor <= rangeEnd) {
+      const y = cursor.getFullYear();
+      const m = cursor.getMonth();
+      const monthLastDay = new Date(y, m + 1, 0);
+      const segEnd = monthLastDay < rangeEnd ? monthLastDay : rangeEnd;
+      const offsetDays = daysBetween(ganttStartDate, cursor.toISOString().slice(0, 10));
+      const spanDays = daysBetween(cursor.toISOString().slice(0, 10), segEnd.toISOString().slice(0, 10)) + 1;
+      ganttMonths.push({ key: `${y}-${m}`, label: `${ganttMonthNames[m]} ${y}`, offsetPct: (offsetDays / ganttTotalDays) * 100, widthPct: (spanDays / ganttTotalDays) * 100 });
+      cursor = new Date(y, m + 1, 1);
+    }
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayOffsetPct = ganttStartDate && ganttTotalDays > 0 && todayStr >= ganttStartDate && todayStr <= ganttEndDate
+    ? (daysBetween(ganttStartDate, todayStr) / ganttTotalDays) * 100
+    : null;
+
+  const makeBar = (m) => {
+    if (!m.start_date || !m.end_date || !ganttStartDate) return null;
+    return { start: daysBetween(ganttStartDate, m.start_date) + 1, span: Math.max(daysBetween(m.start_date, m.end_date) + 1, 1) };
+  };
+
+  const flattenedRows = topMilestones.flatMap((group) => [
+    {
+      key: `g-${group.id}`, isGroup: true, title: group.title, status: group.status, progress: Number(group.progress_percent || 0),
+      start: group.start_date ? formatProjectDisplayDate(group.start_date) : '—',
+      end: group.end_date ? formatProjectDisplayDate(group.end_date) : '—',
+      duration: group.start_date && group.end_date ? `${daysBetween(group.start_date, group.end_date) + 1} days` : '—',
+      color: milestoneStatusColor(group.status), bar: makeBar(group),
+    },
+    ...(group.children || []).map((child) => ({
+      key: `c-${child.id}`, isGroup: false, title: child.title, status: child.status, progress: Number(child.progress_percent || 0),
+      start: child.start_date ? formatProjectDisplayDate(child.start_date) : '—',
+      end: child.end_date ? formatProjectDisplayDate(child.end_date) : '—',
+      duration: child.start_date && child.end_date ? `${daysBetween(child.start_date, child.end_date) + 1} days` : '—',
+      color: milestoneStatusColor(child.status), bar: makeBar(child),
+    })),
   ]);
 
   return (
@@ -19169,13 +20461,24 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
           { label: 'Timeline' },
         ]}
         actions={(
-          <>
-            <button type="button" onClick={() => onNotify('Timeline baseline opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><CalendarDays className="size-4 text-[#0b65e5]" />Baseline</button>
-            <button type="button" onClick={() => onNotify('Timeline exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => onOpenSection('Project Progress Update')} data-route={projectSubRoutes['Project Progress Update']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><CheckCircle2 className="size-4" />Update Progress</button>
-          </>
+          <button type="button" onClick={() => setMilestoneModalOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Task</button>
         )}
       />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className={`${panelClass} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
+        <div className="flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-[#e8f2ff] text-[#0b65e5]">
+            <CalendarDays className="size-5" />
+          </span>
+          <div>
+            <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Project Timeline</h2>
+            <p className="mt-1 text-[13px] font-bold text-[#53647f]">Plan and track each stage of this project — survey, material, installation, testing and handover. Click <span className="text-[#0d9f4a]">Add Task</span> to add a step, set its dates, owner and progress. Switch views below to see a List, Milestone cards or a Gantt chart.</p>
+          </div>
+        </div>
+        <button type="button" onClick={() => setMilestoneModalOpen(true)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]"><Plus className="size-4" />Add Task</button>
+      </section>
 
       <section className={`${panelClass} p-4 sm:p-5`}>
         <div className="grid gap-4 xl:grid-cols-[2fr_repeat(5,minmax(0,1fr))] xl:items-center">
@@ -19205,7 +20508,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Progress</p>
-            <ProjectProgressBar value={project.progress} />
+            <ProjectProgressBar value={overallProgress} />
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <p className="text-[12px] font-extrabold text-[#5b6d8a]">Days Left</p>
@@ -19254,12 +20557,13 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
               </button>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => onNotify('Timeline moved to today')} className="inline-flex h-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">Today</button>
-              <button type="button" onClick={() => onNotify('Zoom in')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><Search className="size-4" /></button>
-              <button type="button" onClick={() => onNotify('Zoom out')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><Minus className="size-4" /></button>
-              <ReportSelect label="Timeline View" value="Days" onChange={() => onNotify('Timeline view changed')} options={['Days']} hideLabel className="w-[90px]" />
-              <button type="button" onClick={() => onNotify('Timeline fullscreen opened')} className="inline-flex size-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><ArrowUpRight className="size-4" /></button>
+            <div className="flex flex-wrap items-center gap-3">
+              {[['Completed', '#16a34a'], ['In Progress', '#2563eb'], ['Pending', '#f59e0b'], ['Delayed', '#ef4444']].map(([label, color]) => (
+                <span key={label} className="inline-flex items-center gap-2 text-[12px] font-extrabold text-[#314a79]">
+                  <span className="size-3 rounded-full" style={{ backgroundColor: color }} />
+                  {label}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -19268,17 +20572,17 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
       {viewMode === 'List View' ? (
         <section className={`${panelClass} overflow-hidden`}>
           <div className="responsive-scroll overflow-x-auto">
-            <table className="crm-table min-w-[1320px] w-full">
+            <table className="crm-table min-w-[1180px] w-full">
               <thead>
                 <tr>
-                  {['#', 'Task / Milestone', 'Category', 'Start Date', 'End Date', 'Duration', 'Status', 'Progress', 'Assigned To', 'Priority', 'Actions'].map((header) => (
+                  {['#', 'Task / Milestone', 'Category', 'Start Date', 'End Date', 'Duration', 'Status', 'Progress', 'Assigned To', 'Actions'].map((header) => (
                     <th key={header}>{header}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {timelineListRows.map((row, index) => (
-                  <tr key={row.task}>
+                  <tr key={row.id}>
                     <td>{index + 1}</td>
                     <td className="font-extrabold text-[#1e3261]">{row.task}</td>
                     <td><ProjectActivityCategoryBadge category={row.category} /></td>
@@ -19293,26 +20597,29 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
                         <span className="font-bold text-[#1e3261]">{row.assignee.name}</span>
                       </div>
                     </td>
-                    <td><ProjectNotePriorityBadge priority={row.priority} /></td>
                     <td>
-                      <button type="button" onClick={() => onOpenSection('Project Progress Update')} data-route={projectSubRoutes['Project Progress Update']} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`${row.task} actions`}>
-                        <MoreVertical className="size-4" />
+                      <button type="button" onClick={() => handleDeleteMilestone(row.id, row.task)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#ef4444]" aria-label={`Delete ${row.task}`}>
+                        <Trash2 className="size-4" />
                       </button>
                     </td>
                   </tr>
                 ))}
+                {timelineListRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center">
+                      <span className="mx-auto grid size-12 place-items-center rounded-full bg-[#eef2f7] text-[#8a98af]">
+                        <CalendarDays className="size-5" />
+                      </span>
+                      <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">No tasks yet</p>
+                      <p className="mt-1 text-[12px] font-bold text-[#8a98af]">Click "Add Task" at the top to create the first step of this project.</p>
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
           <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <span>Showing 1 to 10 of 16 entries</span>
-            <div className="inline-flex items-center gap-2">
-              <PaginationButton onClick={() => onNotify('Timeline previous page')}><ChevronLeft className="size-4" /></PaginationButton>
-              {[1, 2].map((page) => (
-                <PaginationButton key={page} active={page === 1} onClick={() => onNotify(`Timeline page ${page}`)}>{page}</PaginationButton>
-              ))}
-              <PaginationButton onClick={() => onNotify('Timeline next page')}><ChevronRight className="size-4" /></PaginationButton>
-            </div>
+            <span>Showing {timelineListRows.length} of {timelineListRows.length} entries</span>
           </div>
         </section>
       ) : viewMode === 'Milestone View' ? (
@@ -19331,13 +20638,13 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
               </div>
               <span className="inline-flex w-fit items-center gap-2 rounded-[10px] bg-[#effbf3] px-3 py-2 text-[12px] font-extrabold text-[#0d9f4a]">
                 <CheckCircle2 className="size-4" />
-                3 of 6 stages completed
+                {tpCounts.Completed} of {topMilestones.length} stages completed
               </span>
             </div>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
               {milestoneRows.map((milestone, index) => (
-                <article key={milestone.title} className="relative overflow-hidden rounded-[14px] border border-[#e4edf7] bg-white p-4 shadow-[0_10px_22px_rgba(24,48,87,0.05)]">
+                <article key={milestone.id} className="relative overflow-hidden rounded-[14px] border border-[#e4edf7] bg-white p-4 shadow-[0_10px_22px_rgba(24,48,87,0.05)]">
                   <div className="absolute left-0 top-0 h-full w-1.5" style={{ backgroundColor: milestone.color }} />
                   <div className="flex items-start justify-between gap-4 pl-2">
                     <div className="flex min-w-0 items-start gap-3">
@@ -19368,13 +20675,9 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2 pl-2">
-                    {milestone.deliverables.map((deliverable) => (
-                      <span key={deliverable} className="rounded-[8px] bg-[#f5f8fc] px-2.5 py-1 text-[11px] font-extrabold text-[#314a79]">{deliverable}</span>
-                    ))}
-                  </div>
                 </article>
               ))}
+              {milestoneRows.length === 0 ? <p className="text-[13px] font-bold text-[#8a98af]">No milestones added yet.</p> : null}
             </div>
           </section>
 
@@ -19384,23 +20687,21 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Milestone Details</h2>
               </div>
               <div className="responsive-scroll overflow-x-auto">
-                <table className="crm-table min-w-[1080px] w-full">
+                <table className="crm-table min-w-[860px] w-full">
                   <thead>
                     <tr>
-                      {['#', 'Milestone', 'Category', 'Dependency', 'Owner', 'Risk', 'Status', 'Progress'].map((header) => (
+                      {['#', 'Milestone', 'Category', 'Owner', 'Status', 'Progress'].map((header) => (
                         <th key={header}>{header}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {milestoneRows.map((milestone, index) => (
-                      <tr key={`milestone-row-${milestone.title}`}>
+                      <tr key={milestone.id}>
                         <td>{index + 1}</td>
                         <td className="font-extrabold text-[#1e3261]">{milestone.title}</td>
                         <td><ProjectActivityCategoryBadge category={milestone.category} /></td>
-                        <td>{milestone.dependency}</td>
                         <td>{milestone.owner}</td>
-                        <td><ProjectNotePriorityBadge priority={milestone.risk} /></td>
                         <td><ProjectActivityStatusBadge status={milestone.status} /></td>
                         <td><ProjectProgressInline value={milestone.progress} status={milestone.status} tone="blue" /></td>
                       </tr>
@@ -19415,7 +20716,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Next Milestones</h2>
                 <div className="mt-5 space-y-4">
                   {milestoneRows.filter((milestone) => milestone.status !== 'Completed').slice(0, 3).map((milestone) => (
-                    <div key={`next-${milestone.title}`} className="flex items-start gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3">
+                    <div key={milestone.id} className="flex items-start gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3">
                       <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-[10px] text-white" style={{ backgroundColor: milestone.color }}>
                         <Flag className="size-4" />
                       </span>
@@ -19426,16 +20727,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
                       <ProjectActivityStatusBadge status={milestone.status} />
                     </div>
                   ))}
-                </div>
-              </article>
-
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Milestone Health</h2>
-                <div className="mt-5 space-y-4">
-                  <InfoCell label="Critical Stage" value="Installation" valueClass="text-[#f59e0b]" />
-                  <InfoCell label="Blocked Items" value="0" valueClass="text-[#16a34a]" />
-                  <InfoCell label="Highest Risk" value="Installation" valueClass="text-[#ef4444]" />
-                  <InfoCell label="Next Review" value="26 May 2024" />
+                  {milestoneRows.filter((m) => m.status !== 'Completed').length === 0 ? <p className="text-[13px] font-bold text-[#8a98af]">No pending milestones.</p> : null}
                 </div>
               </article>
             </aside>
@@ -19444,83 +20736,78 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
       ) : (
         <>
       <section className={`${panelClass} overflow-hidden`}>
-        <div className="grid xl:grid-cols-[480px_minmax(0,1fr)]">
-          <div className="overflow-x-auto border-b border-[#e7eef7] xl:border-b-0 xl:border-r">
-            <table className="crm-table min-w-[480px] w-full">
-              <thead>
-                <tr>
-                  {['#', 'Task / Milestone', 'Start Date', 'End Date', 'Duration'].map((header) => <th key={header}>{header}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {flattenedRows.map((row, index) => (
-                  <tr key={row.key}>
-                    <td>{row.isGroup ? index + 1 : ''}</td>
-                    <td>
-                      <div className={cx('flex items-center gap-2', !row.isGroup && 'pl-4')}>
-                        <span className={cx('size-2.5 rounded-full', row.isGroup ? '' : 'bg-transparent')} style={row.isGroup ? { backgroundColor: row.color } : undefined} />
-                        <span className={cx(row.isGroup ? 'font-extrabold text-[#1e3261]' : 'font-bold text-[#53647f]')}>{row.title}</span>
-                      </div>
-                    </td>
-                    <td>{row.start}</td>
-                    <td>{row.end}</td>
-                    <td>{row.duration}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
+        {ganttTotalDays > 0 ? (
           <div className="overflow-x-auto">
-            <div className="min-w-[900px]">
-              <div className="grid grid-cols-[repeat(29,minmax(0,1fr))] border-b border-[#e7eef7] bg-[#fbfdff] px-4 py-3">
-                {ganttDays.map((day, index) => (
-                  <div key={`${day}-${index}`} className="text-center">
-                    <p className={cx('text-[12px] font-extrabold', day === '14' ? 'text-[#2563eb]' : 'text-[#314a79]')}>{day}</p>
-                    <p className="mt-1 text-[11px] font-bold text-[#8a9ab4]">{weekDays[index]}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="relative px-4 py-3">
-                <div className="absolute inset-0 grid grid-cols-[repeat(29,minmax(0,1fr))]">
-                  {ganttDays.map((day, index) => <div key={`grid-${day}-${index}`} className="border-r border-[#edf2f8]" />)}
-                </div>
-                <div className="relative space-y-3">
-                  {flattenedRows.map((row) => (
-                    <div key={`bar-${row.key}`} className="relative h-9">
-                      <div
-                        className={cx('absolute top-1/2 h-4 -translate-y-1/2 rounded-full', row.isGroup ? 'opacity-100' : 'opacity-90')}
-                        style={{
-                          left: `${((row.bar.start - 1) / 29) * 100}%`,
-                          width: `${(row.bar.span / 29) * 100}%`,
-                          backgroundColor: row.bar.tone ?? row.color,
-                        }}
-                      />
-                      {row.bar.label ? (
-                        <span
-                          className="absolute top-1/2 -translate-y-1/2 text-[12px] font-extrabold text-[#314a79]"
-                          style={{ left: `calc(${((row.bar.start - 1 + row.bar.span) / 29) * 100}% + 10px)` }}
-                        >
-                          {row.bar.label}
-                        </span>
-                      ) : null}
-                    </div>
+            <div className="min-w-[760px]">
+              {/* Header row: task column + month groups */}
+              <div className="flex items-stretch border-b border-[#e7eef7] bg-[#f8fbff]">
+                <div className="w-[240px] shrink-0 border-r border-[#e7eef7] px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#8a9ab4]">Task / Milestone</div>
+                <div className="flex flex-1">
+                  {ganttMonths.map((mo) => (
+                    <div key={mo.key} style={{ width: `${mo.widthPct}%` }} className="border-r border-[#edf2f8] px-2 py-3 text-center text-[12px] font-extrabold text-[#314a79] last:border-r-0">{mo.label}</div>
                   ))}
                 </div>
               </div>
+
+              {/* One aligned row per task: label on the left, bar on the right */}
+              {flattenedRows.map((row) => (
+                <div key={`g-row-${row.key}`} className="flex items-stretch border-b border-[#f1f5fa] last:border-b-0 hover:bg-[#f8fbff]">
+                  <div className={cx('w-[240px] shrink-0 border-r border-[#e7eef7] px-4 py-3', !row.isGroup && 'pl-8')}>
+                    <div className="flex items-center gap-2">
+                      <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                      <span className={cx('truncate text-[13px]', row.isGroup ? 'font-extrabold text-[#1e3261]' : 'font-bold text-[#53647f]')}>{row.title}</span>
+                    </div>
+                    <p className="mt-1 pl-[18px] text-[11px] font-bold text-[#8a98af]">{row.bar ? `${row.start} → ${row.end}` : 'No dates set'}</p>
+                  </div>
+                  <div className="relative flex-1 py-3">
+                    {/* month gridlines */}
+                    <div className="absolute inset-0 flex">
+                      {ganttMonths.map((mo) => <div key={mo.key} style={{ width: `${mo.widthPct}%` }} className="border-r border-[#f1f5fa] last:border-r-0" />)}
+                    </div>
+                    {/* today marker */}
+                    {todayOffsetPct !== null ? <div className="absolute bottom-0 top-0 z-10 w-[2px] bg-[#ef4444]/70" style={{ left: `${todayOffsetPct}%` }} /> : null}
+                    {/* task bar with progress fill */}
+                    {row.bar ? (
+                      <div
+                        className="absolute top-1/2 h-5 -translate-y-1/2 overflow-hidden rounded-full shadow-[0_2px_6px_rgba(24,48,87,0.12)]"
+                        title={`${row.title} — ${row.status}, ${row.progress}% done`}
+                        style={{ left: `${((row.bar.start - 1) / ganttTotalDays) * 100}%`, width: `${(row.bar.span / ganttTotalDays) * 100}%`, backgroundColor: `${row.color}2e` }}
+                      >
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(row.progress, 0), 100)}%`, backgroundColor: row.color }} />
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center px-2 text-[10px] font-extrabold text-[#1e3261]">{row.progress}%</span>
+                      </div>
+                    ) : (
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#c4cede]">No schedule</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {todayOffsetPct !== null ? (
+                <div className="flex items-center gap-2 border-t border-[#e7eef7] bg-[#f8fbff] px-4 py-2.5 text-[11px] font-bold text-[#8a98af]">
+                  <span className="inline-block h-3.5 w-[2px] bg-[#ef4444]/70" /> Red line marks today ({formatProjectDisplayDate(todayStr)})
+                </div>
+              ) : null}
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="px-4 py-12 text-center">
+            <span className="mx-auto grid size-12 place-items-center rounded-full bg-[#eef2f7] text-[#8a98af]"><CalendarDays className="size-5" /></span>
+            <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">No scheduled tasks to chart</p>
+            <p className="mt-1 text-[12px] font-bold text-[#8a98af]">Add a task with a Start and End date (use “Add Task”) to see it on the Gantt chart.</p>
+          </div>
+        )}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_1.15fr_1fr_0.9fr]">
         <article className={`${panelClass} p-4 sm:p-5`}>
           <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Overall Progress</h2>
+          <p className="mt-1 text-[12px] font-bold text-[#8a98af]">Average completion across all {msTotal} task{msTotal === 1 ? '' : 's'}.</p>
           <div className="mt-5 grid gap-5 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
-            <div className="mx-auto flex size-[160px] items-center justify-center rounded-full border border-[#edf2f8]" style={{ background: 'conic-gradient(#16a34a 0 65%, #2563eb 65% 90%, #f59e0b 90% 100%, #e7eef7 100% 100%)' }}>
-              <div className="grid size-[86px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(237,242,248,0.9)]">
-                <span className="text-[32px] font-extrabold text-[#1f3360]">65%</span>
-                <span className="text-[12px] font-bold text-[#6f7f98]">Completed</span>
+            <div className="mx-auto flex size-[160px] items-center justify-center rounded-full" style={{ background: `conic-gradient(#16a34a 0% ${overallProgress}%, #e7eef7 ${overallProgress}% 100%)` }}>
+              <div className="grid size-[112px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(237,242,248,0.9)]">
+                <span className="font-display text-[34px] font-extrabold leading-none text-[#16a34a]">{overallProgress}%</span>
+                <span className="mt-1 text-[12px] font-bold text-[#6f7f98]">Complete</span>
               </div>
             </div>
             <div className="space-y-4">
@@ -19553,22 +20840,28 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
 
         <article className={`${panelClass} p-4 sm:p-5`}>
           <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Timeline</h2>
-          <div className="mt-5 grid gap-5 sm:grid-cols-2">
-            <InfoCell label="Project Start" value={formatProjectDisplayDate(project.startDate)} />
-            <InfoCell label="Target Date" value={formatProjectDisplayDate(project.targetDate)} />
-            <InfoCell label="Days Left" value={project.daysLeft} valueClass="text-[#16a34a]" />
-            <InfoCell label="Project Duration" value="21 Days" />
-          </div>
+          {(() => {
+            const effStart = project.startDate || ganttStartDate || '';
+            const effEnd = project.targetDate || ganttEndDate || '';
+            return (
+              <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                <InfoCell label="Project Start" value={effStart ? formatProjectDisplayDate(effStart) : '—'} />
+                <InfoCell label="Target / End" value={effEnd ? formatProjectDisplayDate(effEnd) : '—'} />
+                <InfoCell label="Days Left" value={project.daysLeft} valueClass="text-[#16a34a]" />
+                <InfoCell label="Project Duration" value={effStart && effEnd ? `${daysBetween(effStart, effEnd) + 1} Days` : '—'} />
+              </div>
+            );
+          })()}
         </article>
 
         <article className={`${panelClass} p-4 sm:p-5`}>
           <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Legend</h2>
           <div className="mt-5 space-y-4">
             {[
-              ['Project Planning', '#16a34a'],
-              ['Approvals & Documentation', '#2563eb'],
-              ['Procurement', '#8b5cf6'],
-              ['Installation', '#f59e0b'],
+              ['Completed', milestoneStatusColor('Completed')],
+              ['In Progress', milestoneStatusColor('In Progress')],
+              ['Pending', milestoneStatusColor('Pending')],
+              ['Delayed', milestoneStatusColor('Delayed')],
             ].map(([label, color]) => (
               <div key={label} className="flex items-center gap-3 text-[13px] font-bold text-[#314a79]">
                 <span className="size-3 rounded-full" style={{ backgroundColor: color }} />
@@ -19581,24 +20874,147 @@ function ProjectTimelinePage({ activeSection, onOpenSection, onNotify }) {
         </>
       )}
 
+      {milestoneModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#0b1f4a]/40 p-4 sm:items-center" onClick={() => setMilestoneModalOpen(false)}>
+          <div className="w-full max-w-[560px] rounded-[16px] bg-white p-5 shadow-[0_24px_60px_rgba(11,31,74,0.28)] sm:p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-[#dff7e8] text-[#0d9f4a]">
+                  <Flag className="size-5" />
+                </span>
+                <div>
+                  <h2 className="font-display text-[17px] font-extrabold text-[#06135a]">Add Task to Timeline</h2>
+                  <p className="mt-1 text-[12px] font-bold text-[#8a98af]">Create a project step and set its schedule, owner and progress.</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setMilestoneModalOpen(false)} className="grid size-8 place-items-center rounded-[8px] text-[#8a98af] hover:bg-[#f1f5fa]" aria-label="Close">
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-extrabold text-[#53647f]">Task Name *</label>
+                <input value={newMilestone.title} onChange={(e) => setNewMilestone((p) => ({ ...p, title: e.target.value }))} type="text" placeholder="e.g. Site survey completed" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="block text-[12px] font-extrabold text-[#53647f]">Category</label>
+                  <input value={newMilestone.category} onChange={(e) => setNewMilestone((p) => ({ ...p, category: e.target.value }))} type="text" placeholder="e.g. Survey, Installation" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[12px] font-extrabold text-[#53647f]">Owner</label>
+                  <select value={newMilestone.owner} onChange={(e) => setNewMilestone((p) => ({ ...p, owner: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                    <option value="">Unassigned</option>
+                    {timelineUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[12px] font-extrabold text-[#53647f]">Status</label>
+                  <select value={newMilestone.status} onChange={(e) => setNewMilestone((p) => ({ ...p, status: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                    {['Pending', 'In Progress', 'Completed', 'Delayed'].map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[12px] font-extrabold text-[#53647f]">Progress (%)</label>
+                  <input value={newMilestone.progress_percent} onChange={(e) => setNewMilestone((p) => ({ ...p, progress_percent: e.target.value.replace(/[^0-9]/g, '').slice(0, 3) }))} type="text" inputMode="numeric" placeholder="0" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5]" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[12px] font-extrabold text-[#53647f]">Start Date</label>
+                  <input value={newMilestone.start_date} onChange={(e) => setNewMilestone((p) => ({ ...p, start_date: e.target.value }))} type="date" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[12px] font-extrabold text-[#53647f]">End Date</label>
+                  <input value={newMilestone.end_date} onChange={(e) => setNewMilestone((p) => ({ ...p, end_date: e.target.value }))} type="date" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]" />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setMilestoneModalOpen(false)} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#53647f]">Cancel</button>
+              <button type="button" disabled={savingMilestone || !newMilestone.title.trim()} onClick={handleAddMilestone} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.2)] disabled:opacity-60 disabled:shadow-none">
+                <Plus className="size-4" />
+                {savingMilestone ? 'Saving...' : 'Save Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <DashboardFooter />
     </div>
   );
 }
 
-function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
+function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
   const [activeSurveyTab, setActiveSurveyTab] = useState('Overview');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const reloadSurvey = () => {
+    if (!projectProp?.id) return;
+    projectApi.get(projectProp.id).then(setData).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!projectProp?.id) { setLoading(false); return; }
+    let cancelled = false;
+    setLoading(true);
+    projectApi.get(projectProp.id)
+      .then((res) => { if (!cancelled) setData(res); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectProp?.id]);
+
+  if (!projectProp?.id) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Site Survey" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Site Survey' }]} />
+        <article className={`${panelClass} p-8 text-center`}>
+          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
+          <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
+          <p className="mx-auto mt-3 max-w-[480px] text-[13px] font-bold text-[#53647f]">Open a project from the Project List to view its site survey.</p>
+          <button type="button" onClick={() => onOpenSection('Project List')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white"><ArrowRight className="size-4" />Go to Project List</button>
+        </article>
+      </div>
+    );
+  }
+
+  if (loading || !data) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Site Survey" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Site Survey' }]} />
+        <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>{loading ? 'Loading site survey...' : 'Project not found.'}</article>
+      </div>
+    );
+  }
+
+  const d = data;
+  const survey = d.site_survey || {};
+  const checklist = (d.checklist_items || []).filter((c) => c.phase === 'Site Survey');
+  const checklistChecked = checklist.filter((c) => c.is_checked);
+  const checklistPending = checklist.filter((c) => !c.is_checked);
+  const checklistByCategory = {};
+  checklist.forEach((c) => {
+    const key = c.category || 'General';
+    (checklistByCategory[key] = checklistByCategory[key] || []).push(c);
+  });
+
+  const toggleChecklistItem = (item) => {
+    projectChecklistApi.update(item.id, { is_checked: !item.is_checked }).then(reloadSurvey).catch((e) => onNotify(e.message));
+  };
 
   const project = {
-    name: '20kW On-Grid System',
-    address: '123, Scheme No. 54, Vijay Nagar',
-    city: 'Indore, Madhya Pradesh - 452010',
-    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    surveyBy: { name: 'Vikram Singh', initials: 'VS', tone: 'green' },
-    customer: 'Amit Sharma',
-    site: 'Indore, MP',
-    surveyDate: '2024-05-12',
-    surveyId: 'SS-2024-0012',
+    name: d.project_name,
+    address: d.site_address || '—',
+    city: [d.city, d.state].filter(Boolean).join(', ') || '—',
+    manager: d.manager_detail ? { name: d.manager_detail.name, initials: d.manager_detail.initials, tone: 'amber' } : { name: 'Unassigned', initials: '—', tone: 'blue' },
+    customer: d.customer_name,
+    site: d.site || '—',
+    surveyBy: survey.surveyed_by_name ? { name: survey.surveyed_by_name, initials: survey.surveyed_by_name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(), tone: 'green' } : { name: 'Unassigned', initials: '—', tone: 'slate' },
+    surveyDate: survey.survey_date,
+    surveyId: survey.survey_id || '—',
   };
 
   const surveyTabs = [
@@ -19606,160 +21022,70 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
     { label: 'Site Details', icon: MapPin },
     { label: 'Roof Details', icon: Boxes },
     { label: 'Electrical Details', icon: Zap },
-    { label: 'Photos & Documents', icon: FileText },
+    { label: 'Documents', icon: FileText },
     { label: 'Observations', icon: Info },
     { label: 'Checklist', icon: ClipboardPlus },
     { label: 'Summary', icon: BarChart3 },
   ];
 
+  const feasibilityTone = survey.feasibility === 'Feasible' ? 'green' : survey.feasibility === 'Not Feasible' ? 'red' : survey.feasibility ? 'amber' : 'slate';
+
+  const roofUsableArea = (survey.roof_stats || []).find((s) => /usable/i.test(s.label || ''));
+
   const statCards = [
-    { label: 'Total Usable Roof Area', value: '1560 sq ft', caption: '144.9 sq m', icon: Boxes, tone: 'purple' },
-    { label: 'Recommended Capacity', value: '20.00 kWp', caption: 'On-Grid System', icon: FolderKanban, tone: 'blue' },
-    { label: 'Estimated Generation', value: '80 Units/Day', caption: '~ 2400 Units/Month', icon: Zap, tone: 'green' },
-    { label: 'Shading Loss', value: '2.8%', caption: 'Low', icon: AlertTriangle, tone: 'amber' },
-    { label: 'Roof Condition', value: 'Good', caption: 'Load Bearing: Good', icon: CheckCircle2, tone: 'cyan' },
-    { label: 'Overall Feasibility', value: 'Feasible', caption: 'Recommended', icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Usable Roof Area', value: roofUsableArea?.value || '—', caption: roofUsableArea?.caption || 'From roof survey', icon: Boxes, tone: 'purple' },
+    { label: 'Recommended Capacity', value: `${d.capacity_kwp ?? '—'} kWp`, caption: d.project_type || '—', icon: FolderKanban, tone: 'blue' },
+    { label: 'Building Type', value: survey.building_type || '—', caption: survey.floor_count ? `${survey.floor_count} floor(s)` : '—', icon: Home, tone: 'cyan' },
+    { label: 'Roof Type', value: survey.roof_type || '—', caption: 'As surveyed', icon: HardDrive, tone: 'green' },
+    { label: 'Feasibility', value: survey.feasibility || 'Pending', caption: 'Survey result', icon: ClipboardPlus, tone: feasibilityTone === 'red' ? 'amber' : feasibilityTone },
+    { label: 'Survey Status', value: survey.status || 'Draft', caption: survey.survey_id || 'Not yet created', icon: CheckCircle2, tone: survey.status === 'Completed' ? 'green' : 'amber' },
   ];
 
-  const siteSurveyRows = [
-    ['Building Type', 'Residential'],
-    ['No. of Floors', '2'],
-    ['Roof Type', 'RCC Flat Roof'],
-    ['Roof Height', '28 ft'],
-    ['Grid Availability', 'Yes'],
-    ['Nearest Grid Distance', '0.35 km'],
-    ['Main ACDB Location', 'Ground Floor (South Side)'],
-    ['Internet Connectivity', 'Available'],
-    ['Safety Access', 'Good'],
-    ['Remarks', 'Site is suitable for 20kW On-Grid solar installation.'],
+  const siteDetailsRows = survey.site_details || [];
+  const roofDetailsRows = survey.roof_details || [];
+  const electricalDetailsRows = survey.electrical_details || [];
+  const roofStatsRows = survey.roof_stats || [];
+  const roofStatTones = [
+    { icon: Boxes, tone: 'blue' },
+    { icon: CheckCircle2, tone: 'green' },
+    { icon: HardDrive, tone: 'purple' },
+    { icon: AlertTriangle, tone: 'amber' },
   ];
 
-  const locationRows = [
-    ['Latitude', '22.7196° N'],
-    ['Longitude', '75.8577° E'],
-    ['Elevation', '553 m'],
-    ['Access Type', 'Road'],
-    ['Location Type', 'Residential'],
+  const documents = d.documents || [];
+  const documentCategories = new Set(documents.map((doc) => doc.category).filter(Boolean));
+  const latestDocument = documents[0];
+
+  const docStatCards = [
+    { label: 'Total Documents', value: String(documents.length), caption: 'Uploaded for this project', icon: FileText, tone: 'blue' },
+    { label: 'Categories', value: String(documentCategories.size), caption: documentCategories.size ? Array.from(documentCategories).join(', ') : 'None yet', icon: Boxes, tone: 'purple' },
+    { label: 'Latest Upload', value: latestDocument ? formatProjectDisplayDate(latestDocument.uploaded_at) : '—', caption: latestDocument?.name || 'No documents yet', icon: Upload, tone: 'green' },
   ];
 
-  const roofRows = [
-    ['Total Roof Area', '1920 sq ft'],
-    ['Usable Roof Area', '1560 sq ft (81.25%)'],
-    ['Roof Orientation', 'South'],
-    ['Tilt Angle', '0°'],
-    ['Azimuth Angle', '180°'],
-  ];
-
-  const photos = [
-    { title: 'Front View', date: '12 May 2024 | 10:30 AM' },
-    { title: 'Roof Top - North Side', date: '12 May 2024 | 10:32 AM' },
-    { title: 'Roof Top - South Side', date: '12 May 2024 | 10:33 AM' },
-    { title: 'Electrical Panel Location', date: '12 May 2024 | 10:35 AM' },
-  ];
-
-  const documents = [
-    { name: 'Site Survey Report.pdf', note: 'Uploaded on 12 May 2024', size: '2.4 MB', tone: 'red' },
-    { name: 'Electrical Single Line Diagram.pdf', note: 'Uploaded on 12 May 2024', size: '1.2 MB', tone: 'red' },
-    { name: 'Roof Layout Plan.dwg', note: 'Uploaded on 12 May 2024', size: '1.8 MB', tone: 'amber' },
-    { name: 'Load Calculation Sheet.xlsx', note: 'Uploaded on 12 May 2024', size: '980 KB', tone: 'green' },
-  ];
-
-  const roofStats = [
-    { label: 'Total Roof Area', value: '1920 sq ft', caption: '48 x 40 ft', icon: Boxes, tone: 'blue' },
-    { label: 'Usable Area', value: '1560 sq ft', caption: '81.25% usable', icon: CheckCircle2, tone: 'green' },
-    { label: 'Roof Type', value: 'RCC Flat', caption: 'Good condition', icon: HardDrive, tone: 'purple' },
-    { label: 'Shading Loss', value: '2.8%', caption: 'Low impact', icon: AlertTriangle, tone: 'amber' },
-  ];
-
-  const roofDetailRows = [
-    ['Roof Material', 'Reinforced cement concrete'],
-    ['Roof Age', '8 Years'],
-    ['Parapet Height', '3.5 ft'],
-    ['Water Tank Clearance', '12 ft'],
-    ['Existing Load', 'Low'],
-    ['Structural Condition', 'Good'],
-    ['Recommended Tilt', '15 deg mounting structure'],
-    ['Maintenance Path', '3 ft clear walkway available'],
-  ];
-
-  const roofObstructions = [
-    { item: 'Water Tank', location: 'North-East corner', impact: 'Low', clearance: '12 ft' },
-    { item: 'Staircase Room', location: 'South-West corner', impact: 'Medium', clearance: '8 ft' },
-    { item: 'Dish Antenna', location: 'West edge', impact: 'Low', clearance: 'Relocate recommended' },
-    { item: 'Parapet Shadow', location: 'East edge', impact: 'Low', clearance: 'Avoid first 3 ft' },
-  ];
-
-  const electricalStats = [
-    { label: 'Sanction Load', value: '25 kW', caption: 'Residential LT', icon: Zap, tone: 'blue' },
-    { label: 'Meter Type', value: 'Net Meter', caption: 'Compatible', icon: ReceiptText, tone: 'green' },
-    { label: 'Phase', value: '3 Phase', caption: '230/415V', icon: Database, tone: 'purple' },
-    { label: 'Earthing', value: 'Available', caption: 'Needs testing', icon: ShieldCheck, tone: 'amber' },
-  ];
-
-  const electricalRows = [
-    ['Connection Type', 'LT Residential'],
-    ['Sanctioned Load', '25 kW'],
-    ['Existing Meter', '3 Phase Smart Meter'],
-    ['Main Panel Location', 'Ground Floor - South Side'],
-    ['Cable Route Length', '38 m approx.'],
-    ['ACDB Location', 'Near main distribution panel'],
-    ['Earthing Pits', '2 Existing + 1 New Required'],
-    ['Discom', 'MPPKVVCL'],
-  ];
-
-  const electricalChecklist = [
-    { item: 'Main panel accessible', status: 'Completed', remark: 'Clear access available' },
-    { item: 'Meter room ventilation', status: 'Completed', remark: 'Suitable' },
-    { item: 'Cable tray route identified', status: 'In Progress', remark: 'Final route marking required' },
-    { item: 'Earthing resistance test', status: 'Pending', remark: 'To be tested during installation' },
-  ];
-
-  const photoGallery = [
-    { title: 'Front Elevation', category: 'Site', date: '12 May 2024, 10:30 AM', status: 'Approved' },
-    { title: 'Roof North Side', category: 'Roof', date: '12 May 2024, 10:32 AM', status: 'Approved' },
-    { title: 'Roof South Side', category: 'Roof', date: '12 May 2024, 10:33 AM', status: 'Approved' },
-    { title: 'Main Panel', category: 'Electrical', date: '12 May 2024, 10:35 AM', status: 'Pending Review' },
-    { title: 'Meter Room', category: 'Electrical', date: '12 May 2024, 10:38 AM', status: 'Approved' },
-    { title: 'Access Staircase', category: 'Safety', date: '12 May 2024, 10:42 AM', status: 'Approved' },
-  ];
-
-  const surveyDocumentRows = [
-    { name: 'Site Survey Report.pdf', type: 'PDF', category: 'Survey', uploadedBy: 'Vikram Singh', date: '12 May 2024', size: '2.4 MB', status: 'Approved' },
-    { name: 'Electrical SLD.pdf', type: 'PDF', category: 'Electrical', uploadedBy: 'Vikram Singh', date: '12 May 2024', size: '1.2 MB', status: 'Approved' },
-    { name: 'Roof Layout Plan.dwg', type: 'DWG', category: 'Roof', uploadedBy: 'Vikram Singh', date: '12 May 2024', size: '1.8 MB', status: 'Pending Review' },
-    { name: 'Load Calculation.xlsx', type: 'XLSX', category: 'Electrical', uploadedBy: 'Vikram Singh', date: '12 May 2024', size: '980 KB', status: 'Approved' },
-  ];
-
-  const observationStats = [
-    { label: 'Total Observations', value: '12', caption: 'Survey notes', icon: Info, tone: 'blue' },
-    { label: 'Critical', value: '0', caption: 'No blockers', icon: XCircle, tone: 'green' },
-    { label: 'Action Needed', value: '3', caption: 'Before install', icon: AlertTriangle, tone: 'amber' },
-    { label: 'Resolved', value: '9', caption: 'Completed', icon: CheckCircle2, tone: 'green' },
-  ];
-
-  const observationRows = [
-    { area: 'Roof', note: 'Usable roof area is sufficient for 20kW layout.', priority: 'Low', owner: 'Site Engineer', status: 'Completed' },
-    { area: 'Roof', note: 'Dish antenna should be relocated before mounting.', priority: 'Medium', owner: 'Customer', status: 'In Progress' },
-    { area: 'Electrical', note: 'AC cable route requires final marking.', priority: 'Medium', owner: 'Technical Team', status: 'In Progress' },
-    { area: 'Safety', note: 'Staircase access is suitable for material movement.', priority: 'Low', owner: 'Installation Team', status: 'Completed' },
-    { area: 'Documentation', note: 'Electricity bill copy received and verified.', priority: 'Low', owner: 'Back Office', status: 'Completed' },
-  ];
-
-  const checklistSections = [
-    { title: 'Site Readiness', items: [['Customer availability confirmed', true], ['Roof access checked', true], ['Material lifting path identified', true], ['Water leakage points checked', true]] },
-    { title: 'Roof & Structure', items: [['Roof condition verified', true], ['Usable area measured', true], ['Obstructions mapped', true], ['Mounting structure feasible', true]] },
-    { title: 'Electrical', items: [['Meter details captured', true], ['Main panel inspected', true], ['Cable route identified', true], ['Earthing test completed', false]] },
+  const checklistStats = [
+    { label: 'Checklist Progress', value: checklist.length ? `${Math.round((checklistChecked.length / checklist.length) * 100)}%` : '0%', caption: `${checklistChecked.length} of ${checklist.length} done`, icon: CheckCircle2, tone: 'green' },
+    { label: 'Completed', value: String(checklistChecked.length), caption: 'Verified points', icon: BadgeCheck, tone: 'blue' },
+    { label: 'Pending', value: String(checklistPending.length), caption: checklistPending[0]?.label || 'None', icon: Hourglass, tone: 'amber' },
+    { label: 'Ready Status', value: checklistPending.length === 0 && checklist.length > 0 ? 'Good' : 'In Progress', caption: checklistPending.length === 0 && checklist.length > 0 ? 'All items verified' : 'Items pending', icon: ShieldCheck, tone: checklistPending.length === 0 && checklist.length > 0 ? 'green' : 'amber' },
   ];
 
   const summaryRows = [
-    ['Survey Result', 'Feasible'],
-    ['Recommended System', '20kW On-Grid Rooftop'],
-    ['Estimated Generation', '80 Units/Day'],
-    ['Expected Monthly Units', '2400 Units'],
-    ['Major Risk', 'No major blocker'],
-    ['Pending Action', 'Relocate dish antenna, earthing test'],
-    ['Next Step', 'Proceed to design and approval'],
+    ['Survey Result', survey.feasibility || 'Pending'],
+    ['Recommended System', `${d.capacity_kwp ?? '—'} kWp ${d.project_type || ''}`.trim()],
+    ['Building Type', survey.building_type || '—'],
+    ['Roof Type', survey.roof_type || '—'],
+    ['Survey Date', survey.survey_date ? formatProjectDisplayDate(survey.survey_date) : '—'],
+    ['Surveyed By', survey.surveyed_by_name || 'Unassigned'],
+    ['Pending Action', checklistPending.length ? `${checklistPending.length} checklist item(s) pending` : 'None'],
+    ['Status', survey.status || 'Draft'],
   ];
+
+  const checklistCompletionPercent = checklist.length ? Math.round((checklistChecked.length / checklist.length) * 100) : 0;
+  const categoryCompletion = Object.entries(checklistByCategory).map(([category, items]) => ({
+    category,
+    done: items.filter((i) => i.is_checked).length,
+    total: items.length,
+  }));
 
   return (
     <div className="space-y-4">
@@ -19774,9 +21100,8 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
         ]}
         actions={(
           <>
-            <button type="button" onClick={() => onNotify('Survey report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => setActiveSurveyTab('Site Details')} data-route={projectSubRoutes['Project Site Survey']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Survey</button>
-            <button type="button" onClick={() => setActiveSurveyTab('Overview')} data-route={projectSubRoutes['Project Site Survey']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Survey</button>
+            <button type="button" onClick={() => onNotify('Survey report download is not available yet')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => setActiveSurveyTab('Site Details')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Survey</button>
           </>
         )}
       />
@@ -19790,7 +21115,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
-                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">{d.status}</span>
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
@@ -19808,7 +21133,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <p className="text-[12px] font-extrabold text-[#5b6d8a]">Survey Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.surveyDate)}</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{project.surveyDate ? formatProjectDisplayDate(project.surveyDate) : 'Not scheduled'}</p>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <p className="text-[12px] font-extrabold text-[#5b6d8a]">Survey By</p>
@@ -19862,18 +21187,10 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
                 </div>
                 <div className="mt-4 flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[15px] font-extrabold text-[#1e3261]">123, Scheme No. 54, Vijay Nagar</p>
-                    <p className="mt-1 text-[13px] font-bold text-[#53647f]">Indore, Madhya Pradesh - 452010</p>
+                    <p className="text-[15px] font-extrabold text-[#1e3261]">{project.address}</p>
+                    <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
                   </div>
                   <button type="button" onClick={() => setActiveSurveyTab('Site Details')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />Open in Maps</button>
-                </div>
-                <div className="mt-5 space-y-3">
-                  {locationRows.map(([label, value]) => (
-                    <div key={label} className="grid gap-2 text-[13px] sm:grid-cols-[120px_1fr]">
-                      <span className="font-bold text-[#53647f]">{label}</span>
-                      <span className="font-extrabold text-[#1e3261]">{value}</span>
-                    </div>
-                  ))}
                 </div>
               </div>
             </article>
@@ -19881,12 +21198,12 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Survey Details</h2>
               <div className="mt-5 space-y-4">
-                {siteSurveyRows.map(([label, value]) => (
+                {siteDetailsRows.length ? siteDetailsRows.map(([label, value]) => (
                   <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[170px_1fr]">
                     <span className="font-bold text-[#53647f]">{label}</span>
                     <span className="font-extrabold text-[#1e3261]">{value}</span>
                   </div>
-                ))}
+                )) : <p className="text-[13px] font-bold text-[#53647f]">No site details recorded yet.</p>}
               </div>
             </article>
 
@@ -19899,8 +21216,6 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
                     <div className="absolute left-[16px] top-[18px] h-[182px] w-[170px] rounded-[4px] border-2 border-[#2563eb] bg-[rgba(37,99,235,0.12)]" />
                     <div className="absolute left-[178px] top-[18px] h-[102px] w-[28px] rounded-[4px] border-2 border-[#2563eb] bg-white/70" />
                     <div className="absolute bottom-[18px] right-[18px] h-[42px] w-[92px] rounded-[4px] border-2 border-[#2563eb] bg-white/80" />
-                    <div className="absolute left-[22px] top-[-22px] text-[12px] font-extrabold text-[#314a79]">48 ft</div>
-                    <div className="absolute right-[-30px] top-[112px] text-[12px] font-extrabold text-[#314a79]">32 ft</div>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-6 text-[12px] font-extrabold text-[#314a79]">
                     <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] border border-[#2563eb] bg-[rgba(37,99,235,0.18)]" />Usable Area</span>
@@ -19908,63 +21223,63 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
                   </div>
                 </div>
                 <div className="space-y-4">
-                  {roofRows.map(([label, value]) => (
+                  {roofDetailsRows.length ? roofDetailsRows.map(([label, value]) => (
                     <div key={label} className="grid gap-2 text-[13px] sm:grid-cols-[150px_1fr]">
                       <span className="font-bold text-[#53647f]">{label}</span>
                       <span className="font-extrabold text-[#1e3261]">{value}</span>
                     </div>
-                  ))}
-                  <div className="pt-4">
-                    <button type="button" onClick={() => onNotify('Roof 3D view opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Boxes className="size-4 text-[#0b65e5]" />View 3D View</button>
-                  </div>
+                  )) : <p className="text-[13px] font-bold text-[#53647f]">No roof details recorded yet.</p>}
                 </div>
               </div>
             </article>
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[1.2fr_0.95fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Photos</h2>
-                <button type="button" onClick={() => setActiveSurveyTab('Photos & Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Photos</button>
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Documents</h2>
+                <button type="button" onClick={() => setActiveSurveyTab('Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Documents</button>
               </div>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {photos.map((photo) => (
-                  <button key={photo.title} type="button" onClick={() => onNotify(`${photo.title} opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-left transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
-                    <img src={navBarImage} alt={photo.title} loading="lazy" decoding="async" className="h-[120px] w-full rounded-[10px] object-cover" />
-                    <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{photo.title}</p>
-                    <p className="mt-2 text-[12px] font-bold text-[#53647f]">{photo.date}</p>
-                  </button>
-                ))}
+              <div className="p-4 sm:p-5">
+                {documents.length ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {documents.slice(0, 4).map((doc) => (
+                      <div key={doc.id} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#0b65e5] text-white"><FileText className="size-4" /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[14px] font-extrabold text-[#1e3261]">{doc.name}</span>
+                          <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{doc.category || 'Uncategorized'} · {formatProjectDisplayDate(doc.uploaded_at)}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-[13px] font-bold text-[#53647f]">No documents uploaded yet for this project.</p>}
               </div>
             </article>
 
             <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Documents</h2>
-                <button type="button" onClick={() => setActiveSurveyTab('Photos & Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Documents</button>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Checklist Snapshot</h2>
+              <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-[#eef2f7]">
+                <div className="h-full rounded-full bg-[#0d9f4a]" style={{ width: `${checklistCompletionPercent}%` }} />
               </div>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {documents.map((doc) => (
-                  <div key={doc.name} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                    <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', doc.tone === 'green' ? 'bg-[#16a34a]' : doc.tone === 'amber' ? 'bg-[#f59e0b]' : 'bg-[#ef4444]')}>
-                      <FileText className="size-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[14px] font-extrabold text-[#1e3261]">{doc.name}</span>
-                      <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{doc.note}</span>
-                    </span>
-                    <span className="shrink-0 text-[12px] font-extrabold text-[#314a79]">{doc.size}</span>
+              <p className="mt-2 text-[12px] font-bold text-[#53647f]">{checklistChecked.length} of {checklist.length} items verified</p>
+              <div className="mt-4 space-y-3">
+                {checklistPending.slice(0, 3).map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">
+                    <Hourglass className="size-4 shrink-0 text-[#f59e0b]" />
+                    {item.label}
                   </div>
                 ))}
+                {checklistPending.length === 0 ? <p className="text-[13px] font-bold text-[#53647f]">All checklist items are verified.</p> : null}
               </div>
+              <button type="button" onClick={() => setActiveSurveyTab('Checklist')} className="mt-4 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><ArrowRight className="size-4" />Open Checklist</button>
             </article>
           </section>
         </>
       ) : activeSurveyTab === 'Site Details' ? (
         <section className="grid gap-4 xl:grid-cols-2">
           <article className={`${panelClass} p-4 sm:p-5`}>
-            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Address & Coordinates</h2>
+            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Address</h2>
             <div className="mt-5 rounded-[14px] border border-[#edf2f8] bg-[#fbfdff] p-4">
               <p className="text-[15px] font-extrabold text-[#1e3261]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
@@ -19973,25 +21288,17 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
                 View on Map
               </button>
             </div>
-            <div className="mt-5 space-y-4">
-              {locationRows.map(([label, value]) => (
-                <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[150px_1fr]">
-                  <span className="font-bold text-[#53647f]">{label}</span>
-                  <span className="font-extrabold text-[#1e3261]">{value}</span>
-                </div>
-              ))}
-            </div>
           </article>
 
           <article className={`${panelClass} p-4 sm:p-5`}>
             <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Condition Details</h2>
             <div className="mt-5 space-y-4">
-              {siteSurveyRows.map(([label, value]) => (
+              {siteDetailsRows.length ? siteDetailsRows.map(([label, value]) => (
                 <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[180px_1fr]">
                   <span className="font-bold text-[#53647f]">{label}</span>
                   <span className="font-extrabold text-[#1e3261]">{value}</span>
                 </div>
-              ))}
+              )) : <p className="text-[13px] font-bold text-[#53647f]">No site details recorded yet.</p>}
             </div>
           </article>
 
@@ -19999,32 +21306,20 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Readiness</h2>
-                <p className="mt-1 text-[13px] font-bold text-[#53647f]">Site accessibility, utility availability and installation readiness summary.</p>
+                <p className="mt-1 text-[13px] font-bold text-[#53647f]">Feasibility outcome and summary notes recorded during the survey.</p>
               </div>
-              <ProjectInfoPill tone="green">Ready for Planning</ProjectInfoPill>
+              <ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>
             </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                ['Access', 'Good', MapPin, 'green'],
-                ['Grid', 'Available', Zap, 'blue'],
-                ['Internet', 'Available', Cloud, 'cyan'],
-                ['Safety', 'Good', ShieldCheck, 'green'],
-              ].map(([label, value, Icon, tone]) => (
-                <div key={label} className="rounded-[14px] border border-[#edf2f8] bg-white p-4">
-                  <span className={cx('grid size-10 place-items-center rounded-[12px]', tone === 'green' ? 'bg-[#effbf3] text-[#16a34a]' : tone === 'cyan' ? 'bg-[#eefafb] text-[#0891b2]' : 'bg-[#eef5ff] text-[#2563eb]')}>
-                    <Icon className="size-4" />
-                  </span>
-                  <p className="mt-3 text-[12px] font-extrabold text-[#53647f]">{label}</p>
-                  <p className="mt-1 font-display text-[20px] font-extrabold text-[#06135a]">{value}</p>
-                </div>
-              ))}
-            </div>
+            <p className="mt-4 text-[13px] font-bold leading-6 text-[#53647f]">{survey.summary_notes || 'No summary notes recorded yet.'}</p>
           </article>
         </section>
       ) : activeSurveyTab === 'Roof Details' ? (
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {roofStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+            {roofStatsRows.length ? roofStatsRows.map((stat, index) => {
+              const { icon, tone } = roofStatTones[index % roofStatTones.length];
+              return <ProjectSummaryCard key={stat.label} stat={{ ...stat, icon, tone }} onClick={() => onNotify(`${stat.label} opened`)} />;
+            }) : <p className="text-[13px] font-bold text-[#53647f] sm:col-span-2 xl:col-span-4">No roof stats recorded yet.</p>}
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
@@ -20032,9 +21327,9 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof Layout Plan</h2>
-                  <p className="mt-1 text-[13px] font-bold text-[#53647f]">Measured usable area, obstructions and maintenance path for panel placement.</p>
+                  <p className="mt-1 text-[13px] font-bold text-[#53647f]">Illustrative panel placement layout for this rooftop.</p>
                 </div>
-                <ProjectInfoPill tone="green">Layout Feasible</ProjectInfoPill>
+                <ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>
               </div>
               <div className="mt-5 overflow-hidden rounded-[16px] border border-[#dbe7f4] bg-[linear-gradient(135deg,#f8fbff,#eef5ff)] p-4">
                 <div className="relative mx-auto h-[360px] max-w-[620px] rounded-[14px] border-2 border-[#b8cbe6] bg-white">
@@ -20048,8 +21343,6 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
                   <div className="absolute right-[10%] top-[10%] h-[30%] w-[12%] rounded-[6px] border-2 border-[#94a3b8] bg-white/90" />
                   <div className="absolute bottom-[10%] right-[9%] h-[17%] w-[28%] rounded-[6px] border-2 border-[#94a3b8] bg-white/90" />
                   <div className="absolute bottom-[11%] left-[9%] h-[8%] w-[50%] rounded-full bg-[#dff7e8] text-center text-[11px] font-extrabold leading-7 text-[#0d9f4a]">Maintenance Path</div>
-                  <span className="absolute left-[10%] top-[3%] text-[12px] font-extrabold text-[#314a79]">48 ft</span>
-                  <span className="absolute right-[3%] top-[45%] rotate-90 text-[12px] font-extrabold text-[#314a79]">40 ft</span>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-4 text-[12px] font-extrabold text-[#314a79]">
                   <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] border border-[#0b65e5] bg-[#dcecff]" />Panel Zone</span>
@@ -20062,12 +21355,12 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof Measurements</h2>
               <div className="mt-5 space-y-4">
-                {[...roofRows, ...roofDetailRows].map(([label, value]) => (
+                {roofDetailsRows.length ? roofDetailsRows.map(([label, value]) => (
                   <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[150px_1fr]">
                     <span className="font-bold text-[#53647f]">{label}</span>
                     <span className="font-extrabold text-[#1e3261]">{value}</span>
                   </div>
-                ))}
+                )) : <p className="text-[13px] font-bold text-[#53647f]">No roof details recorded yet.</p>}
               </div>
             </article>
           </section>
@@ -20075,53 +21368,50 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
             <article className={`${panelClass} overflow-hidden`}>
               <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Obstructions & Shading</h2>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof & Structure Checklist</h2>
               </div>
               <div className="responsive-scroll overflow-x-auto">
-                <table className="crm-table min-w-[820px] w-full">
-                  <thead><tr>{['#', 'Item', 'Location', 'Impact', 'Clearance / Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <table className="crm-table min-w-[680px] w-full">
+                  <thead><tr>{['#', 'Item', 'Status', 'Checked By'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
                   <tbody>
-                    {roofObstructions.map((row, index) => (
-                      <tr key={row.item}>
+                    {(checklistByCategory['Roof & Structure'] || []).map((item, index) => (
+                      <tr key={item.id}>
                         <td>{index + 1}</td>
-                        <td className="font-extrabold text-[#1e3261]">{row.item}</td>
-                        <td>{row.location}</td>
-                        <td><ProjectNotePriorityBadge priority={row.impact} /></td>
-                        <td>{row.clearance}</td>
+                        <td className="font-extrabold text-[#1e3261]">{item.label}</td>
+                        <td><ProjectActivityStatusBadge status={item.is_checked ? 'Completed' : 'Pending'} /></td>
+                        <td>{item.checked_by_name || '—'}</td>
                       </tr>
                     ))}
+                    {!(checklistByCategory['Roof & Structure'] || []).length ? (
+                      <tr><td colSpan={4} className="text-center text-[13px] font-bold text-[#53647f]">No roof checklist items recorded yet.</td></tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>
             </article>
 
             <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Mounting Recommendation</h2>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Outcome</h2>
               <div className="mt-5 space-y-4">
-                <InfoCell label="Structure Type" value="RCC ballast mounting" />
-                <InfoCell label="Recommended Tilt" value="15 deg" />
-                <InfoCell label="Panel Rows" value="4 Rows" />
-                <InfoCell label="Wind Safety" value="Suitable" valueClass="text-[#16a34a]" />
+                <InfoCell label="Feasibility" value={survey.feasibility || 'Pending'} />
+                <InfoCell label="Building Type" value={survey.building_type || '—'} />
+                <InfoCell label="Roof Type" value={survey.roof_type || '—'} />
               </div>
             </article>
           </section>
         </>
       ) : activeSurveyTab === 'Electrical Details' ? (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {electricalStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
-          </section>
-
           <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Electrical Connection Details</h2>
               <div className="mt-5 space-y-4">
-                {electricalRows.map(([label, value]) => (
+                {electricalDetailsRows.length ? electricalDetailsRows.map(([label, value]) => (
                   <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[170px_1fr]">
                     <span className="font-bold text-[#53647f]">{label}</span>
                     <span className="font-extrabold text-[#1e3261]">{value}</span>
                   </div>
-                ))}
+                )) : <p className="text-[13px] font-bold text-[#53647f]">No electrical details recorded yet.</p>}
               </div>
             </article>
 
@@ -20131,13 +21421,13 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
                   <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Single Line Diagram</h2>
                   <p className="mt-1 text-[13px] font-bold text-[#53647f]">Proposed energy flow from solar array to grid meter.</p>
                 </div>
-                <ProjectInfoPill tone="green">Compatible</ProjectInfoPill>
+                <ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>
               </div>
               <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center">
                 {[
-                  ['Solar Array', Boxes, '20kW DC'],
-                  ['Inverter', Zap, '20kW AC'],
-                  ['Net Meter', ReceiptText, '3 Phase'],
+                  ['Solar Array', Boxes, `${d.capacity_kwp ?? '—'} kW DC`],
+                  ['Inverter', Zap, `${d.capacity_kwp ?? '—'} kW AC`],
+                  ['Net Meter', ReceiptText, 'Grid Connection'],
                 ].map(([label, Icon, note], index) => (
                   <div key={label} className="contents">
                     <div className="rounded-[14px] border border-[#dce6f3] bg-white p-4 text-center">
@@ -20152,74 +21442,34 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
             </article>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
-            <article className={`${panelClass} overflow-hidden`}>
-              <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Electrical Verification</h2>
-              </div>
-              <div className="responsive-scroll overflow-x-auto">
-                <table className="crm-table min-w-[760px] w-full">
-                  <thead><tr>{['#', 'Check', 'Status', 'Remarks'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
-                  <tbody>
-                    {electricalChecklist.map((row, index) => (
-                      <tr key={row.item}>
-                        <td>{index + 1}</td>
-                        <td className="font-extrabold text-[#1e3261]">{row.item}</td>
-                        <td><ProjectActivityStatusBadge status={row.status} /></td>
-                        <td>{row.remark}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Required Additions</h2>
-              <div className="mt-5 space-y-3">
-                {['1 new earthing pit', 'AC cable tray marking', 'SPD and MCB protection', 'Net meter application'].map((item) => (
-                  <div key={item} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">
-                    <CheckCircle2 className="size-4 shrink-0 text-[#0d9f4a]" />
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </article>
-          </section>
+          <article className={`${panelClass} overflow-hidden`}>
+            <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Electrical Verification</h2>
+            </div>
+            <div className="responsive-scroll overflow-x-auto">
+              <table className="crm-table min-w-[760px] w-full">
+                <thead><tr>{['#', 'Check', 'Status', 'Remarks'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <tbody>
+                  {(checklistByCategory['Electrical'] || []).map((item, index) => (
+                    <tr key={item.id}>
+                      <td>{index + 1}</td>
+                      <td className="font-extrabold text-[#1e3261]">{item.label}</td>
+                      <td><ProjectActivityStatusBadge status={item.is_checked ? 'Completed' : 'Pending'} /></td>
+                      <td>{item.notes || '—'}</td>
+                    </tr>
+                  ))}
+                  {!(checklistByCategory['Electrical'] || []).length ? (
+                    <tr><td colSpan={4} className="text-center text-[13px] font-bold text-[#53647f]">No electrical checklist items recorded yet.</td></tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </article>
         </>
-      ) : activeSurveyTab === 'Photos & Documents' ? (
+      ) : activeSurveyTab === 'Documents' ? (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Total Photos', value: '18', caption: '6 visible here', icon: Eye, tone: 'blue' },
-              { label: 'Documents', value: '4', caption: 'All uploaded', icon: FileText, tone: 'green' },
-              { label: 'Pending Review', value: '1', caption: 'Roof drawing', icon: Hourglass, tone: 'amber' },
-              { label: 'Storage Used', value: '6.38 MB', caption: 'Survey files', icon: HardDrive, tone: 'purple' },
-            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
-          </section>
-
-          <section className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Photo Gallery</h2>
-              <button type="button" onClick={() => onNotify('Upload survey photo opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white"><Upload className="size-4" />Upload Photo</button>
-            </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {photoGallery.map((photo) => (
-                <article key={photo.title} className="overflow-hidden rounded-[14px] border border-[#edf2f8] bg-white">
-                  <img src={navBarImage} alt={photo.title} loading="lazy" decoding="async" className="h-[150px] w-full object-cover" />
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-[14px] font-extrabold text-[#1e3261]">{photo.title}</h3>
-                        <p className="mt-1 text-[12px] font-bold text-[#53647f]">{photo.date}</p>
-                      </div>
-                      <ProjectDocumentStatusBadge status={photo.status} />
-                    </div>
-                    <p className="mt-3 text-[12px] font-extrabold text-[#0b65e5]">{photo.category}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
+          <section className="grid gap-4 sm:grid-cols-3">
+            {docStatCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
           </section>
 
           <article className={`${panelClass} overflow-hidden`}>
@@ -20228,22 +21478,28 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
               <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Upload className="size-4 text-[#0b65e5]" />Upload Document</button>
             </div>
             <div className="responsive-scroll overflow-x-auto">
-              <table className="crm-table min-w-[980px] w-full">
-                <thead><tr>{['#', 'Document Name', 'Type', 'Category', 'Uploaded By', 'Date', 'Size', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <table className="crm-table min-w-[780px] w-full">
+                <thead><tr>{['#', 'Document Name', 'Category', 'Uploaded By', 'Date', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
                 <tbody>
-                  {surveyDocumentRows.map((doc, index) => (
-                    <tr key={doc.name}>
+                  {documents.map((doc, index) => (
+                    <tr key={doc.id}>
                       <td>{index + 1}</td>
                       <td className="font-extrabold text-[#1e3261]">{doc.name}</td>
-                      <td>{doc.type}</td>
-                      <td>{doc.category}</td>
-                      <td>{doc.uploadedBy}</td>
-                      <td>{doc.date}</td>
-                      <td>{doc.size}</td>
-                      <td><ProjectDocumentStatusBadge status={doc.status} /></td>
-                      <td><UserActionButton label={`Download ${doc.name}`} icon={Download} tone="blue" onClick={() => onNotify(`${doc.name} downloaded`)} /></td>
+                      <td>{doc.category || '—'}</td>
+                      <td>{doc.uploaded_by_name || '—'}</td>
+                      <td>{formatProjectDisplayDate(doc.uploaded_at)}</td>
+                      <td>
+                        {doc.file ? (
+                          <a href={doc.file} target="_blank" rel="noreferrer">
+                            <UserActionButton label={`Download ${doc.name}`} icon={Download} tone="blue" onClick={() => {}} />
+                          </a>
+                        ) : '—'}
+                      </td>
                     </tr>
                   ))}
+                  {!documents.length ? (
+                    <tr><td colSpan={6} className="text-center text-[13px] font-bold text-[#53647f]">No documents uploaded yet for this project.</td></tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
@@ -20252,28 +21508,34 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
       ) : activeSurveyTab === 'Observations' ? (
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {observationStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+            {[
+              { label: 'Checklist Items', value: String(checklist.length), caption: 'Site survey phase', icon: Info, tone: 'blue' },
+              { label: 'Verified', value: String(checklistChecked.length), caption: 'Completed', icon: CheckCircle2, tone: 'green' },
+              { label: 'Pending Action', value: String(checklistPending.length), caption: 'Before installation', icon: AlertTriangle, tone: 'amber' },
+              { label: 'Days Since Survey', value: survey.survey_date ? String(daysBetween(survey.survey_date, new Date().toISOString().slice(0, 10))) : '—', caption: 'Since survey date', icon: CalendarDays, tone: 'cyan' },
+            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.55fr)]">
             <article className={`${panelClass} overflow-hidden`}>
               <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Observations</h2>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Pending Action Items</h2>
               </div>
               <div className="responsive-scroll overflow-x-auto">
-                <table className="crm-table min-w-[980px] w-full">
-                  <thead><tr>{['#', 'Area', 'Observation', 'Priority', 'Owner', 'Status'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <table className="crm-table min-w-[780px] w-full">
+                  <thead><tr>{['#', 'Category', 'Item', 'Status'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
                   <tbody>
-                    {observationRows.map((row, index) => (
-                      <tr key={row.note}>
+                    {checklistPending.map((item, index) => (
+                      <tr key={item.id}>
                         <td>{index + 1}</td>
-                        <td><ProjectActivityCategoryBadge category={row.area} /></td>
-                        <td className="font-extrabold text-[#1e3261]">{row.note}</td>
-                        <td><ProjectNotePriorityBadge priority={row.priority} /></td>
-                        <td>{row.owner}</td>
-                        <td><ProjectActivityStatusBadge status={row.status} /></td>
+                        <td><ProjectActivityCategoryBadge category={item.category || 'General'} /></td>
+                        <td className="font-extrabold text-[#1e3261]">{item.label}</td>
+                        <td><ProjectActivityStatusBadge status="Pending" /></td>
                       </tr>
                     ))}
+                    {!checklistPending.length ? (
+                      <tr><td colSpan={4} className="text-center text-[13px] font-bold text-[#53647f]">No pending items — survey checklist fully verified.</td></tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>
@@ -20281,20 +21543,8 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
 
             <aside className="space-y-4">
               <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Key Notes</h2>
-                <div className="mt-5 space-y-3">
-                  {['No major shadow issue found.', 'Roof is structurally suitable.', 'Dish antenna relocation needed.', 'Earthing resistance test pending.'].map((note) => (
-                    <div key={note} className="rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-bold text-[#314a79]">{note}</div>
-                  ))}
-                </div>
-              </article>
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Action Owner</h2>
-                <div className="mt-5 space-y-4">
-                  <InfoCell label="Customer" value="Relocate dish antenna" />
-                  <InfoCell label="Technical Team" value="Finalize cable route" />
-                  <InfoCell label="Installation Team" value="Earthing test" />
-                </div>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Notes</h2>
+                <p className="mt-4 text-[13px] font-bold leading-6 text-[#53647f]">{survey.summary_notes || 'No summary notes recorded yet.'}</p>
               </article>
             </aside>
           </section>
@@ -20302,40 +21552,28 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
       ) : activeSurveyTab === 'Checklist' ? (
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Checklist Progress', value: '92%', caption: '11 of 12 done', icon: CheckCircle2, tone: 'green' },
-              { label: 'Completed', value: '11', caption: 'Verified points', icon: BadgeCheck, tone: 'blue' },
-              { label: 'Pending', value: '1', caption: 'Earthing test', icon: Hourglass, tone: 'amber' },
-              { label: 'Ready Status', value: 'Good', caption: 'Proceed with caution', icon: ShieldCheck, tone: 'green' },
-            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+            {checklistStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
           </section>
 
           <section className="grid gap-4 xl:grid-cols-3">
-            {checklistSections.map((section) => (
-              <article key={section.title} className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{section.title}</h2>
+            {Object.entries(checklistByCategory).map(([category, items]) => (
+              <article key={category} className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{category}</h2>
                 <div className="mt-5 space-y-3">
-                  {section.items.map(([item, done]) => (
-                    <label key={item} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">
-                      <input type="checkbox" checked={done} readOnly className="size-4 accent-[#0d9f4a]" />
-                      <span className="min-w-0 flex-1">{item}</span>
-                      {done ? <ProjectInfoPill tone="green">Done</ProjectInfoPill> : <ProjectInfoPill tone="amber">Pending</ProjectInfoPill>}
+                  {items.map((item) => (
+                    <label key={item.id} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">
+                      <input type="checkbox" checked={item.is_checked} onChange={() => toggleChecklistItem(item)} className="size-4 accent-[#0d9f4a]" />
+                      <span className="min-w-0 flex-1">{item.label}</span>
+                      {item.is_checked ? <ProjectInfoPill tone="green">Done</ProjectInfoPill> : <ProjectInfoPill tone="amber">Pending</ProjectInfoPill>}
                     </label>
                   ))}
                 </div>
               </article>
             ))}
+            {!checklist.length ? (
+              <article className={`${panelClass} p-4 sm:p-5 xl:col-span-3 text-center text-[13px] font-bold text-[#53647f]`}>No checklist items recorded yet for this survey.</article>
+            ) : null}
           </section>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Final Checklist Remark</h2>
-                <p className="mt-2 text-[13px] font-bold text-[#53647f]">Survey checklist is nearly complete. Earthing resistance test remains pending and should be completed before installation handover.</p>
-              </div>
-              <button type="button" onClick={() => onNotify('Checklist submitted for approval')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white"><CheckCircle2 className="size-4" />Submit Checklist</button>
-            </div>
-          </article>
         </>
       ) : activeSurveyTab === 'Summary' ? (
         <>
@@ -20344,9 +21582,9 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <h2 className="font-display text-[24px] font-extrabold text-[#06135a]">Survey Summary</h2>
-                  <p className="mt-2 max-w-[720px] text-[13px] font-bold leading-6 text-[#53647f]">Site survey indicates the rooftop is technically feasible for a 20kW on-grid solar system with minor pre-installation actions.</p>
+                  <p className="mt-2 max-w-[720px] text-[13px] font-bold leading-6 text-[#53647f]">{survey.summary_notes || 'No summary notes recorded yet.'}</p>
                 </div>
-                <ProjectInfoPill tone="green">Feasible</ProjectInfoPill>
+                <ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>
               </div>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 {summaryRows.map(([label, value]) => (
@@ -20356,35 +21594,37 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
             </article>
 
             <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Feasibility Score</h2>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Checklist Completion</h2>
               <div className="mt-6 grid place-items-center">
-                <div className="grid size-[180px] place-items-center rounded-full" style={{ background: 'conic-gradient(#14b84c 0 88%, #edf2f8 88% 100%)' }}>
+                <div className="grid size-[180px] place-items-center rounded-full" style={{ background: `conic-gradient(#14b84c 0 ${checklistCompletionPercent}%, #edf2f8 ${checklistCompletionPercent}% 100%)` }}>
                   <div className="grid size-[118px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_#edf2f8]">
-                    <span className="font-display text-[34px] font-extrabold text-[#06135a]">88%</span>
-                    <span className="-mt-5 text-[12px] font-extrabold text-[#53647f]">Score</span>
+                    <span className="font-display text-[34px] font-extrabold text-[#06135a]">{checklistCompletionPercent}%</span>
+                    <span className="-mt-5 text-[12px] font-extrabold text-[#53647f]">Verified</span>
                   </div>
                 </div>
               </div>
               <div className="mt-6 space-y-3">
-                <InfoCell label="Roof Score" value="90%" valueClass="text-[#16a34a]" />
-                <InfoCell label="Electrical Score" value="84%" valueClass="text-[#0b65e5]" />
-                <InfoCell label="Safety Score" value="92%" valueClass="text-[#16a34a]" />
+                {categoryCompletion.map((c) => (
+                  <InfoCell key={c.category} label={c.category} value={`${c.done}/${c.total}`} valueClass={c.done === c.total ? 'text-[#16a34a]' : 'text-[#0b65e5]'} />
+                ))}
+                {!categoryCompletion.length ? <p className="text-[13px] font-bold text-[#53647f]">No checklist data yet.</p> : null}
               </div>
             </article>
           </section>
 
           <section className="grid gap-4 xl:grid-cols-3">
             {[
-              ['Proceed to Design', 'System design and panel layout can start.', CheckCircle2, 'green'],
-              ['Customer Action', 'Relocate dish antenna before material dispatch.', AlertTriangle, 'amber'],
-              ['Technical Action', 'Complete earthing resistance test.', Zap, 'blue'],
-            ].map(([title, note, Icon, tone]) => (
-              <article key={title} className={`${panelClass} p-4 sm:p-5`}>
-                <span className={cx('grid size-12 place-items-center rounded-[14px]', tone === 'green' ? 'bg-[#effbf3] text-[#16a34a]' : tone === 'amber' ? 'bg-[#fff5e8] text-[#f59e0b]' : 'bg-[#eef5ff] text-[#0b65e5]')}>
-                  <Icon className="size-5" />
+              survey.feasibility === 'Feasible'
+                ? { title: 'Proceed to Design', note: 'Survey marked feasible — system design can start.', icon: CheckCircle2, tone: 'green' }
+                : { title: 'Awaiting Feasibility', note: 'Survey feasibility has not been finalized yet.', icon: AlertTriangle, tone: 'amber' },
+              ...checklistPending.slice(0, 2).map((item) => ({ title: `Pending: ${item.label}`, note: `Category: ${item.category || 'General'}`, icon: Hourglass, tone: 'amber' })),
+            ].map((card) => (
+              <article key={card.title} className={`${panelClass} p-4 sm:p-5`}>
+                <span className={cx('grid size-12 place-items-center rounded-[14px]', card.tone === 'green' ? 'bg-[#effbf3] text-[#16a34a]' : 'bg-[#fff5e8] text-[#f59e0b]')}>
+                  <card.icon className="size-5" />
                 </span>
-                <h3 className="mt-4 font-display text-[16px] font-extrabold text-[#06135a]">{title}</h3>
-                <p className="mt-2 text-[13px] font-bold leading-6 text-[#53647f]">{note}</p>
+                <h3 className="mt-4 font-display text-[16px] font-extrabold text-[#06135a]">{card.title}</h3>
+                <p className="mt-2 text-[13px] font-bold leading-6 text-[#53647f]">{card.note}</p>
               </article>
             ))}
           </section>
@@ -20395,9 +21635,6 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
             <FolderKanban className="size-8" />
           </span>
           <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeSurveyTab}</h2>
-          <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
-            Is survey tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi overview, site details aur tab navigation fully working hai.
-          </p>
           <button type="button" onClick={() => setActiveSurveyTab('Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Overview</button>
         </article>
       )}
@@ -20407,18 +21644,87 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, onNotify }) {
   );
 }
 
-function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
+
+function ProjectInstallationPage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
   const [activeInstallationTab, setActiveInstallationTab] = useState('Overview');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const reloadInstallation = () => {
+    if (!projectProp?.id) return;
+    projectApi.get(projectProp.id).then(setData).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!projectProp?.id) { setLoading(false); return; }
+    let cancelled = false;
+    setLoading(true);
+    projectApi.get(projectProp.id)
+      .then((res) => { if (!cancelled) setData(res); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectProp?.id]);
+
+  if (!projectProp?.id) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Installation" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Installation' }]} />
+        <article className={`${panelClass} p-8 text-center`}>
+          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
+          <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
+          <p className="mx-auto mt-3 max-w-[480px] text-[13px] font-bold text-[#53647f]">Open a project from the Project List to view its installation.</p>
+          <button type="button" onClick={() => onOpenSection('Project List')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white"><ArrowRight className="size-4" />Go to Project List</button>
+        </article>
+      </div>
+    );
+  }
+
+  if (loading || !data) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Installation" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Installation' }]} />
+        <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>{loading ? 'Loading installation...' : 'Project not found.'}</article>
+      </div>
+    );
+  }
+
+  const d = data;
+  const config = d.system_config || {};
+  const materials = d.installation_materials || [];
+  const checklist = (d.checklist_items || []).filter((c) => c.phase === 'Installation');
+  const safetyChecklist = checklist.filter((c) => c.category === 'Safety');
+  const qaChecklist = checklist.filter((c) => c.category !== 'Safety');
+  const qaByCategory = {};
+  qaChecklist.forEach((c) => {
+    const key = c.category || 'General';
+    (qaByCategory[key] = qaByCategory[key] || []).push(c);
+  });
+
+  const toggleChecklistItem = (item) => {
+    projectChecklistApi.update(item.id, { is_checked: !item.is_checked }).then(reloadInstallation).catch((e) => onNotify(e.message));
+  };
+
+  const installationMilestone = (d.milestones || []).find((m) => m.title === 'Installation') || null;
+  const tasks = (installationMilestone?.children || []);
+  const tasksCompleted = tasks.filter((t) => t.status === 'Completed');
+  const tasksInProgress = tasks.filter((t) => t.status === 'In Progress');
+  const tasksPending = tasks.filter((t) => t.status === 'Pending' || t.status === 'Delayed');
+  const overallProgress = installationMilestone?.progress_percent ?? 0;
+
+  const findMaterial = (re) => materials.find((m) => re.test(m.category || '') || re.test(m.item_name || ''));
+  const panelMaterial = findMaterial(/panel|module/i);
+  const inverterMaterial = findMaterial(/inverter/i);
 
   const project = {
-    name: '20kW On-Grid System',
-    address: '123, Scheme No. 54, Vijay Nagar',
-    city: 'Indore, Madhya Pradesh - 452010',
-    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    installationLead: { name: 'Vikram Singh', initials: 'VS', tone: 'green' },
-    startDate: '2024-05-18',
-    targetDate: '2024-05-28',
-    installationId: 'INS-2024-0015',
+    name: d.project_name,
+    address: d.site_address || '—',
+    city: [d.city, d.state].filter(Boolean).join(', ') || '—',
+    manager: d.manager_detail ? { name: d.manager_detail.name, initials: d.manager_detail.initials, tone: 'amber' } : { name: 'Unassigned', initials: '—', tone: 'blue' },
+    installationLead: d.site_engineer_detail ? { name: d.site_engineer_detail.name, initials: d.site_engineer_detail.initials, tone: 'green' } : { name: 'Unassigned', initials: '—', tone: 'slate' },
+    startDate: d.start_date,
+    targetDate: d.target_date,
+    installationId: d.project_id,
   };
 
   const installationTabs = [
@@ -20433,179 +21739,154 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
   ];
 
   const statCards = [
-    { label: 'Total Capacity', value: '20.00 kWp', caption: 'On-Grid System', icon: FolderKanban, tone: 'blue' },
-    { label: 'Installation Progress', value: '65%', caption: '13 of 20 Tasks Completed', icon: CheckCircle2, tone: 'green' },
-    { label: 'Panels Installed', value: '32 / 40', caption: '80% Completed', icon: Boxes, tone: 'purple' },
-    { label: 'Inverters Installed', value: '1 / 1', caption: '100% Completed', icon: Zap, tone: 'amber' },
-    { label: 'Safety Compliance', value: '100%', caption: 'All Good', icon: ShieldCheck, tone: 'cyan' },
-    { label: 'Workforce On Site', value: '8', caption: 'Technicians', icon: Users, tone: 'blue' },
+    { label: 'Total Capacity', value: `${d.capacity_kwp ?? '—'} kWp`, caption: d.project_type || '—', icon: FolderKanban, tone: 'blue' },
+    { label: 'Installation Progress', value: `${overallProgress}%`, caption: `${tasksCompleted.length} of ${tasks.length} tasks completed`, icon: CheckCircle2, tone: 'green' },
+    { label: 'Panels Installed', value: panelMaterial ? `${panelMaterial.consumed_qty} / ${panelMaterial.required_qty}` : '—', caption: panelMaterial ? `${Math.round((Number(panelMaterial.consumed_qty) / Number(panelMaterial.required_qty || 1)) * 100)}% completed` : 'No data yet', icon: Boxes, tone: 'purple' },
+    { label: 'Inverters Installed', value: inverterMaterial ? `${inverterMaterial.consumed_qty} / ${inverterMaterial.required_qty}` : '—', caption: inverterMaterial?.status || 'No data yet', icon: Zap, tone: 'amber' },
+    { label: 'Safety Compliance', value: safetyChecklist.length ? `${Math.round((safetyChecklist.filter((c) => c.is_checked).length / safetyChecklist.length) * 100)}%` : '—', caption: `${safetyChecklist.filter((c) => c.is_checked).length} of ${safetyChecklist.length} verified`, icon: ShieldCheck, tone: 'cyan' },
+    { label: 'Workforce On Site', value: String((d.team_members || []).length), caption: 'Assigned team members', icon: Users, tone: 'blue' },
   ];
 
   const installationDetails = [
-    ['Installation Type', 'On-Grid'],
-    ['System Type', 'Rooftop Solar'],
-    ['Capacity (kWp)', '20.00'],
-    ['No. of Panels', '40'],
-    ['Panel Capacity', '550 Wp Each'],
-    ['Inverter', '1 x 20kW'],
-    ['Mounting Structure', 'GI - Tilt'],
-    ['Installation Start Date', '18 May 2024'],
-    ['Target Completion Date', '28 May 2024'],
-    ['Expected Generation', '80 Units/Day'],
-    ['Installation Status', 'In Progress'],
-    ['Remarks', 'Installation is going as per plan.'],
+    ['Installation Type', d.project_type || '—'],
+    ['System Type', d.system_type || '—'],
+    ['Capacity (kWp)', d.capacity_kwp ?? '—'],
+    ['No. of Panels', config.panel_count ?? '—'],
+    ['Panel Rating', config.panel_wattage_w ? `${config.panel_wattage_w} Wp Each` : '—'],
+    ['Inverter', config.inverter_brand ? `${config.inverter_brand} ${config.inverter_model || ''}`.trim() : '—'],
+    ['Protection Devices', config.protection_devices || '—'],
+    ['Installation Start Date', project.startDate],
+    ['Target Completion Date', project.targetDate],
+    ['Installation Status', installationMilestone?.status || 'Not Started'],
+    ['Remarks', config.notes || 'No remarks added yet.'],
   ];
 
-  const progressRows = [
-    { task: '1. Material Delivery', status: 'Completed', progress: 100, start: '18 May 2024', end: '18 May 2024' },
-    { task: '2. Mounting Structure', status: 'Completed', progress: 100, start: '19 May 2024', end: '21 May 2024' },
-    { task: '3. Panel Installation', status: 'In Progress', progress: 70, start: '22 May 2024', end: '24 May 2024' },
-    { task: '4. DC Wiring', status: 'In Progress', progress: 60, start: '23 May 2024', end: '25 May 2024' },
-    { task: '5. Inverter Installation', status: 'Completed', progress: 100, start: '25 May 2024', end: '25 May 2024' },
-    { task: '6. AC Wiring', status: 'Pending', progress: 0, start: '26 May 2024', end: '27 May 2024' },
-    { task: '7. Testing & Commissioning', status: 'Pending', progress: 0, start: '28 May 2024', end: '28 May 2024' },
-  ];
+  const progressRows = tasks.map((t) => ({
+    task: t.title,
+    status: t.status,
+    progress: t.progress_percent,
+    start: t.start_date,
+    end: t.end_date,
+  }));
 
-  const siteWeatherRows = [
-    ['Installation Site', '123, Scheme No. 54, Vijay Nagar, Indore, MP'],
-    ['Roof Type', 'RCC Flat Roof'],
-    ['Roof Condition', 'Good'],
-    ['Weather', 'Clear'],
-    ['Temperature', '32°C'],
-    ['Wind Speed', '12 km/h'],
-    ['Humidity', '45%'],
-    ["Today's Condition", 'Suitable for Installation'],
-  ];
+  const qaCategoryCompletion = Object.entries(qaByCategory).map(([category, items]) => ({
+    category,
+    done: items.filter((i) => i.is_checked).length,
+    total: items.length,
+  }));
 
-  const photos = [
-    { title: 'Structure Setup', date: '18 May 2024 | 09:30 AM' },
-    { title: 'Panel Installation', date: '22 May 2024 | 11:15 AM' },
-    { title: 'Inverter Placement', date: '25 May 2024 | 03:20 PM' },
-    { title: 'ACDB Installation', date: '25 May 2024 | 04:10 PM' },
-  ];
+  const teamMembers = (d.team_members || []).map((m, index) => ({
+    name: m.user_name,
+    role: m.role_title || 'Team Member',
+    initials: m.user_initials,
+    tone: ['green', 'cyan', 'purple', 'pink'][index % 4],
+  }));
 
-  const teamMembers = [
-    { name: 'Vikram Singh', role: 'Site Engineer', initials: 'VS', tone: 'green' },
-    { name: 'Ramesh Yadav', role: 'Technician', initials: 'RS', tone: 'cyan' },
-    { name: 'Amit Joshi', role: 'Electrician', initials: 'AJ', tone: 'purple' },
-    { name: 'Pooja Mehta', role: 'Helper', initials: 'PM', tone: 'pink' },
-  ];
-
-  const upcomingActivities = [
-    { title: 'AC Wiring', date: '26 May 2024', status: 'Upcoming', tone: 'blue' },
-    { title: 'Testing & Commissioning', date: '28 May 2024', status: 'Upcoming', tone: 'purple' },
-    { title: 'Handover to Customer', date: '30 May 2024', status: 'Planned', tone: 'amber' },
-  ];
+  const upcomingActivities = tasks
+    .filter((t) => t.status !== 'Completed')
+    .slice(0, 3)
+    .map((t) => ({
+      title: t.title,
+      date: t.end_date ? formatProjectDisplayDate(t.end_date) : 'Not scheduled',
+      status: t.status,
+      tone: t.status === 'In Progress' ? 'blue' : 'amber',
+    }));
 
   const systemConfigStats = [
-    { label: 'System Type', value: 'On-Grid', caption: 'Rooftop', icon: FolderKanban, tone: 'blue' },
-    { label: 'DC Capacity', value: '22.00 kWp', caption: '40 panels', icon: Boxes, tone: 'green' },
-    { label: 'AC Capacity', value: '20.00 kW', caption: '1 inverter', icon: Zap, tone: 'amber' },
-    { label: 'String Count', value: '4', caption: '10 panels each', icon: Database, tone: 'purple' },
+    { label: 'System Type', value: d.system_type || '—', caption: d.project_type || '—', icon: FolderKanban, tone: 'blue' },
+    { label: 'Panel Count', value: config.panel_count != null ? String(config.panel_count) : '—', caption: config.panel_wattage_w ? `${config.panel_wattage_w} Wp each` : '—', icon: Boxes, tone: 'green' },
+    { label: 'Inverter Capacity', value: config.inverter_capacity_kw != null ? `${config.inverter_capacity_kw} kW` : '—', caption: config.inverter_brand || '—', icon: Zap, tone: 'amber' },
+    { label: 'String Count', value: config.string_count != null ? String(config.string_count) : '—', caption: config.panel_count && config.string_count ? `${Math.round(config.panel_count / config.string_count)} panels each` : '—', icon: Database, tone: 'purple' },
   ];
 
   const systemConfigRows = [
-    ['System Configuration', 'Three Phase On-Grid'],
-    ['Module Brand / Model', 'Waaree WSMD-550'],
-    ['Module Rating', '550 Wp'],
-    ['No. of Modules', '40'],
-    ['Inverter Brand / Model', 'Growatt MIN 20KTL-X'],
-    ['Inverter Capacity', '20 kW'],
-    ['Structure Type', 'GI elevated tilt structure'],
-    ['Monitoring', 'Wi-Fi data logger'],
+    ['System Configuration', d.project_type || '—'],
+    ['Module Brand / Model', [config.panel_brand, config.panel_model].filter(Boolean).join(' ') || '—'],
+    ['Module Rating', config.panel_wattage_w ? `${config.panel_wattage_w} Wp` : '—'],
+    ['No. of Modules', config.panel_count ?? '—'],
+    ['Inverter Brand / Model', [config.inverter_brand, config.inverter_model].filter(Boolean).join(' ') || '—'],
+    ['Inverter Capacity', config.inverter_capacity_kw != null ? `${config.inverter_capacity_kw} kW` : '—'],
+    ['Protection Devices', config.protection_devices || '—'],
+    ['Notes', config.notes || '—'],
   ];
 
-  const stringRows = [
-    { string: 'String 1', panels: 10, capacity: '5.50 kWp', direction: 'South', status: 'Completed' },
-    { string: 'String 2', panels: 10, capacity: '5.50 kWp', direction: 'South', status: 'Completed' },
-    { string: 'String 3', panels: 10, capacity: '5.50 kWp', direction: 'South-West', status: 'In Progress' },
-    { string: 'String 4', panels: 10, capacity: '5.50 kWp', direction: 'South-West', status: 'Pending' },
+  const systemLayoutChips = [
+    [config.panel_count != null ? `${config.panel_count} Panels` : 'Panels —', config.panel_wattage_w && config.panel_count ? `${((config.panel_count * config.panel_wattage_w) / 1000).toFixed(2)} kWp DC` : '—', Boxes, 'bg-[#eef5ff] text-[#0b65e5]'],
+    [config.string_count != null ? `${config.string_count} Strings` : 'Strings —', config.panel_count && config.string_count ? `${Math.round(config.panel_count / config.string_count)} panels per string` : '—', Database, 'bg-[#effbf3] text-[#14b84c]'],
+    [config.inverter_capacity_kw != null ? `${config.inverter_capacity_kw}kW Inverter` : 'Inverter —', [config.inverter_brand, config.inverter_model].filter(Boolean).join(' ') || '—', Zap, 'bg-[#fff5e8] text-[#f59e0b]'],
   ];
 
   const materialStats = [
-    { label: 'Total Items', value: '42', caption: 'Installation BOM', icon: Boxes, tone: 'blue' },
-    { label: 'Issued', value: '38', caption: '90.48%', icon: CheckCircle2, tone: 'green' },
-    { label: 'Pending', value: '4', caption: 'To be issued', icon: Hourglass, tone: 'amber' },
-    { label: 'Consumed', value: '31', caption: 'Site usage', icon: ClipboardPlus, tone: 'purple' },
+    { label: 'Total Items', value: String(materials.length), caption: 'Installation BOM', icon: Boxes, tone: 'blue' },
+    { label: 'Fully Issued', value: String(materials.filter((m) => Number(m.issued_qty) >= Number(m.required_qty)).length), caption: 'Items at full issue', icon: CheckCircle2, tone: 'green' },
+    { label: 'Pending', value: String(materials.filter((m) => m.status === 'Pending').length), caption: 'To be issued', icon: Hourglass, tone: 'amber' },
+    { label: 'Completed', value: String(materials.filter((m) => m.status === 'Completed').length), caption: 'Fully consumed', icon: ClipboardPlus, tone: 'purple' },
   ];
 
-  const materialRows = [
-    { item: 'Solar Module 550Wp', category: 'Panel', required: '40 Nos', issued: '40 Nos', consumed: '32 Nos', status: 'In Progress' },
-    { item: '20kW On-Grid Inverter', category: 'Inverter', required: '1 Nos', issued: '1 Nos', consumed: '1 Nos', status: 'Completed' },
-    { item: 'GI Mounting Structure', category: 'Structure', required: '1 Set', issued: '1 Set', consumed: '1 Set', status: 'Completed' },
-    { item: 'DC Cable 6 sq.mm', category: 'Cable', required: '100 m', issued: '100 m', consumed: '70 m', status: 'In Progress' },
-    { item: 'AC Cable 4 sq.mm', category: 'Cable', required: '50 m', issued: '30 m', consumed: '0 m', status: 'Pending' },
-    { item: 'MC4 Connector', category: 'Accessory', required: '24 Pair', issued: '24 Pair', consumed: '18 Pair', status: 'In Progress' },
-  ];
+  const materialRows = materials.map((m) => ({
+    item: m.item_name,
+    category: m.category || '—',
+    required: `${m.required_qty} ${m.unit || ''}`.trim(),
+    issued: `${m.issued_qty} ${m.unit || ''}`.trim(),
+    consumed: `${m.consumed_qty} ${m.unit || ''}`.trim(),
+    status: m.status,
+  }));
 
-  const equipmentRows = [
-    ['Drilling Machine', '2 Nos', 'Available'],
-    ['Torque Wrench', '2 Nos', 'Available'],
-    ['Safety Harness', '8 Nos', 'Available'],
-    ['Crimping Tool', '1 Nos', 'Available'],
-    ['Insulation Tester', '1 Nos', 'Pending'],
-  ];
+  const totalRequired = materials.reduce((sum, m) => sum + Number(m.required_qty || 0), 0);
+  const totalIssued = materials.reduce((sum, m) => sum + Number(m.issued_qty || 0), 0);
+  const totalConsumed = materials.reduce((sum, m) => sum + Number(m.consumed_qty || 0), 0);
+  const issuedPercent = totalRequired ? Math.round((totalIssued / totalRequired) * 100) : 0;
+  const consumedPercent = totalRequired ? Math.round((totalConsumed / totalRequired) * 100) : 0;
 
   const workProgressStats = [
-    { label: 'Overall Progress', value: '65%', caption: '13 of 20 tasks', icon: BarChart3, tone: 'green' },
-    { label: 'Completed Tasks', value: '5', caption: 'Milestones done', icon: CheckCircle2, tone: 'blue' },
-    { label: 'In Progress', value: '2', caption: 'Active work', icon: Clock3, tone: 'amber' },
-    { label: 'Pending', value: '2', caption: 'Upcoming work', icon: Hourglass, tone: 'purple' },
+    { label: 'Overall Progress', value: `${overallProgress}%`, caption: `${tasksCompleted.length} of ${tasks.length} tasks`, icon: BarChart3, tone: 'green' },
+    { label: 'Completed Tasks', value: String(tasksCompleted.length), caption: 'Milestones done', icon: CheckCircle2, tone: 'blue' },
+    { label: 'In Progress', value: String(tasksInProgress.length), caption: 'Active work', icon: Clock3, tone: 'amber' },
+    { label: 'Pending', value: String(tasksPending.length), caption: 'Upcoming work', icon: Hourglass, tone: 'purple' },
   ];
 
-  const dailyProgressRows = [
-    { date: '18 May 2024', activity: 'Material delivery and site setup', team: 'Logistics', progress: 100, remarks: 'Completed' },
-    { date: '19 May 2024', activity: 'Structure marking and drilling', team: 'Installation', progress: 100, remarks: 'Completed' },
-    { date: '22 May 2024', activity: 'Module mounting started', team: 'Installation', progress: 70, remarks: '32 panels installed' },
-    { date: '23 May 2024', activity: 'DC wiring and string routing', team: 'Electrical', progress: 60, remarks: '2 strings pending' },
-    { date: '25 May 2024', activity: 'Inverter placement and mounting', team: 'Electrical', progress: 100, remarks: 'Completed' },
-  ];
-
+  const qaCompleted = qaChecklist.filter((c) => c.is_checked);
+  const qaPending = qaChecklist.filter((c) => !c.is_checked);
   const qualityStats = [
-    { label: 'QA Progress', value: '78%', caption: '14 of 18 checks', icon: CheckCircle2, tone: 'green' },
-    { label: 'Passed', value: '14', caption: 'Quality checks', icon: BadgeCheck, tone: 'blue' },
-    { label: 'Pending', value: '4', caption: 'Before handover', icon: Hourglass, tone: 'amber' },
-    { label: 'Issues', value: '0', caption: 'No rejection', icon: XCircle, tone: 'green' },
+    { label: 'QA Progress', value: qaChecklist.length ? `${Math.round((qaCompleted.length / qaChecklist.length) * 100)}%` : '0%', caption: `${qaCompleted.length} of ${qaChecklist.length} checks`, icon: CheckCircle2, tone: 'green' },
+    { label: 'Passed', value: String(qaCompleted.length), caption: 'Quality checks', icon: BadgeCheck, tone: 'blue' },
+    { label: 'Pending', value: String(qaPending.length), caption: 'Before handover', icon: Hourglass, tone: 'amber' },
+    { label: 'Categories', value: String(Object.keys(qaByCategory).length), caption: Object.keys(qaByCategory).join(', ') || 'None yet', icon: Boxes, tone: 'purple' },
   ];
 
-  const qualitySections = [
-    { title: 'Structure QA', items: [['Anchor bolts tightened', true], ['Tilt alignment checked', true], ['Rust protection verified', true], ['Walkway clearance maintained', true]] },
-    { title: 'Module QA', items: [['Panel clamps tightened', true], ['Module serials captured', true], ['Glass condition checked', true], ['String polarity checked', false]] },
-    { title: 'Electrical QA', items: [['DC cable ferruling done', true], ['AC termination checked', false], ['Earthing continuity checked', false], ['Inverter startup test', false]] },
-  ];
-
+  const safetyCompleted = safetyChecklist.filter((c) => c.is_checked);
+  const safetyPending = safetyChecklist.filter((c) => !c.is_checked);
   const safetyStats = [
-    { label: 'Safety Score', value: '100%', caption: 'No incident', icon: ShieldCheck, tone: 'green' },
-    { label: 'PPE Compliance', value: '8 / 8', caption: 'All workers', icon: Users, tone: 'blue' },
-    { label: 'Toolbox Talks', value: '4', caption: 'Completed', icon: ClipboardPlus, tone: 'purple' },
-    { label: 'Incidents', value: '0', caption: 'Safe site', icon: CheckCircle2, tone: 'green' },
+    { label: 'Safety Score', value: safetyChecklist.length ? `${Math.round((safetyCompleted.length / safetyChecklist.length) * 100)}%` : '—', caption: 'Checklist verified', icon: ShieldCheck, tone: 'green' },
+    { label: 'Verified Items', value: String(safetyCompleted.length), caption: 'Confirmed safe', icon: CheckCircle2, tone: 'blue' },
+    { label: 'Pending Items', value: String(safetyPending.length), caption: 'Needs verification', icon: Hourglass, tone: 'amber' },
+    { label: 'Total Checks', value: String(safetyChecklist.length), caption: 'Safety checklist', icon: ClipboardPlus, tone: 'purple' },
   ];
 
-  const safetyRows = [
-    { item: 'Helmet and safety shoes', owner: 'All team', status: 'Completed', priority: 'High' },
-    { item: 'Lifeline and harness at height', owner: 'Safety Officer', status: 'Completed', priority: 'High' },
-    { item: 'Electrical isolation before work', owner: 'Electrician', status: 'Completed', priority: 'High' },
-    { item: 'Material lifting barricade', owner: 'Supervisor', status: 'Completed', priority: 'Medium' },
-    { item: 'Fire extinguisher near inverter', owner: 'Site Engineer', status: 'In Progress', priority: 'Medium' },
-  ];
+  const documents = d.documents || [];
+  const documentCategories = new Set(documents.map((doc) => doc.category).filter(Boolean));
+  const latestDocument = documents[0];
 
-  const installationDocumentRows = [
-    { name: 'Installation Checklist.pdf', category: 'Quality', uploadedBy: 'Vikram Singh', date: '25 May 2024', size: '1.1 MB', status: 'Approved' },
-    { name: 'Panel Serial Register.xlsx', category: 'Material', uploadedBy: 'Ramesh Yadav', date: '24 May 2024', size: '860 KB', status: 'Approved' },
-    { name: 'Safety Compliance Photos.zip', category: 'Safety', uploadedBy: 'Sunil Patidar', date: '23 May 2024', size: '4.2 MB', status: 'Approved' },
-    { name: 'Inverter Installation Report.pdf', category: 'Electrical', uploadedBy: 'Amit Joshi', date: '25 May 2024', size: '1.6 MB', status: 'Pending Review' },
-    { name: 'Commissioning Precheck.pdf', category: 'Testing', uploadedBy: 'Neha Jain', date: '28 May 2024', size: '1.3 MB', status: 'Pending Review' },
+  const docStatCards = [
+    { label: 'Total Documents', value: String(documents.length), caption: 'Uploaded for this project', icon: FileText, tone: 'blue' },
+    { label: 'Categories', value: String(documentCategories.size), caption: documentCategories.size ? Array.from(documentCategories).join(', ') : 'None yet', icon: Boxes, tone: 'purple' },
+    { label: 'Latest Upload', value: latestDocument ? formatProjectDisplayDate(latestDocument.uploaded_at) : '—', caption: latestDocument?.name || 'No documents yet', icon: Upload, tone: 'green' },
   ];
 
   const installationSummaryRows = [
-    ['Installation Status', 'In Progress'],
-    ['Overall Progress', '65%'],
-    ['Installed Modules', '32 of 40'],
-    ['Structure Status', 'Completed'],
-    ['Inverter Status', 'Installed'],
-    ['Pending Work', 'AC wiring, testing and commissioning'],
-    ['Target Completion', '28 May 2024'],
-    ['Handover Plan', '30 May 2024'],
+    ['Installation Status', installationMilestone?.status || 'Not Started'],
+    ['Overall Progress', `${overallProgress}%`],
+    ['Installed Modules', panelMaterial ? `${panelMaterial.consumed_qty} of ${panelMaterial.required_qty}` : '—'],
+    ['Inverter Status', inverterMaterial?.status || '—'],
+    ['Quality Checklist', qaChecklist.length ? `${qaCompleted.length} of ${qaChecklist.length} done` : 'No items yet'],
+    ['Safety Checklist', safetyChecklist.length ? `${safetyCompleted.length} of ${safetyChecklist.length} done` : 'No items yet'],
+    ['Pending Tasks', tasksPending.length ? tasksPending.map((t) => t.title).join(', ') : 'None'],
+    ['Target Completion', project.targetDate ? formatProjectDisplayDate(project.targetDate) : '—'],
+  ];
+
+  const nextActions = [
+    ...tasksPending.slice(0, 2).map((t) => ({ title: t.title, date: t.end_date ? formatProjectDisplayDate(t.end_date) : 'Not scheduled', status: 'Pending' })),
+    ...tasksInProgress.slice(0, 1).map((t) => ({ title: t.title, date: t.end_date ? formatProjectDisplayDate(t.end_date) : 'Not scheduled', status: 'In Progress' })),
   ];
 
   return (
@@ -20621,9 +21902,8 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
         ]}
         actions={(
           <>
-            <button type="button" onClick={() => onNotify('Installation report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onOpenSection('Project Progress Update')} data-route={projectSubRoutes['Project Progress Update']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Installation</button>
-            <button type="button" onClick={() => onOpenSection('Project Work Order Create')} data-route={projectSubRoutes['Project Work Order Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Installation</button>
+            <button type="button" onClick={() => onNotify('Installation report download is not available yet')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
+            <button type="button" onClick={() => setActiveInstallationTab('System Configuration')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Installation</button>
           </>
         )}
       />
@@ -20637,7 +21917,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
-                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">{installationMilestone?.status || d.status}</span>
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
@@ -20654,14 +21934,14 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{project.startDate ? formatProjectDisplayDate(project.startDate) : '—'}</p>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
+            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{project.targetDate ? formatProjectDisplayDate(project.targetDate) : '—'}</p>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
+            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project ID</p>
             <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
           </div>
         </div>
@@ -20719,7 +21999,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                   <span>Start Date</span>
                   <span>End Date</span>
                 </div>
-                {progressRows.map((row) => (
+                {progressRows.length ? progressRows.map((row) => (
                   <div key={row.task} className="grid grid-cols-[1.45fr_0.8fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
                     <span className="font-extrabold text-[#1e3261]">{row.task}</span>
                     <span><ProjectPhaseBadge status={row.status} /></span>
@@ -20727,10 +22007,12 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                       <ProjectProgressBar value={row.progress} color={row.progress === 100 ? 'green' : row.progress > 0 ? 'blue' : 'amber'} />
                       <span className="block text-[11px] font-extrabold text-[#53647f]">{row.progress}%</span>
                     </span>
-                    <span>{row.start}</span>
-                    <span>{row.end}</span>
+                    <span>{row.start ? formatProjectDisplayDate(row.start) : '—'}</span>
+                    <span>{row.end ? formatProjectDisplayDate(row.end) : '—'}</span>
                   </div>
-                ))}
+                )) : (
+                  <div className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">No installation tasks recorded yet.</div>
+                )}
               </div>
               <div className="mt-5 text-center">
                 <button type="button" onClick={() => setActiveInstallationTab('Work Progress')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><ArrowRight className="size-4" />View Detailed Work Progress</button>
@@ -20738,44 +22020,38 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             </article>
 
             <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site & Weather Details</h2>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Checklist Snapshot</h2>
               <div className="mt-4 space-y-3">
-                {siteWeatherRows.map(([label, value]) => (
-                  <div key={label} className="grid gap-2 text-[13px] sm:grid-cols-[130px_1fr]">
-                    <span className="font-bold text-[#53647f]">{label}</span>
-                    <span className={cx('font-extrabold text-[#1e3261]', label === "Today's Condition" && 'inline-flex w-fit rounded-[999px] bg-[#eefbf1] px-3 py-1 text-[12px] text-[#15803d]')}>
-                      {label === 'Weather' ? <span className="inline-flex items-center gap-2"><Cloud className="size-4 text-[#f59e0b]" />{value}</span> : value}
-                    </span>
+                {qaCategoryCompletion.length ? qaCategoryCompletion.map((c) => (
+                  <div key={c.category} className="rounded-[12px] border border-[#edf2f8] p-3">
+                    <div className="flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
+                      <span>{c.category}</span>
+                      <span>{c.done}/{c.total}</span>
+                    </div>
+                    <div className="mt-2"><ProjectProgressBar value={c.total ? Math.round((c.done / c.total) * 100) : 0} color={c.done === c.total ? 'green' : 'blue'} compact /></div>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-[13px] font-bold text-[#53647f]">No quality checklist items recorded yet.</p>
+                )}
+                <div className="rounded-[12px] border border-[#edf2f8] p-3">
+                  <div className="flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
+                    <span>Safety</span>
+                    <span>{safetyCompleted.length}/{safetyChecklist.length}</span>
+                  </div>
+                  <div className="mt-2"><ProjectProgressBar value={safetyChecklist.length ? Math.round((safetyCompleted.length / safetyChecklist.length) * 100) : 0} color={safetyCompleted.length === safetyChecklist.length ? 'green' : 'amber'} compact /></div>
+                </div>
               </div>
             </article>
           </section>
 
-          <section className="grid items-start gap-4 xl:grid-cols-[1.45fr_0.75fr_0.8fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Photos</h2>
-                <button type="button" onClick={() => setActiveInstallationTab('Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Photos</button>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {photos.map((photo) => (
-                  <button key={photo.title} type="button" onClick={() => onNotify(`${photo.title} opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-left transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
-                    <img src={navBarImage} alt={photo.title} className="h-[88px] w-full rounded-[10px] object-cover sm:h-[96px]" />
-                    <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{photo.title}</p>
-                    <p className="mt-2 text-[12px] font-bold text-[#53647f]">{photo.date}</p>
-                  </button>
-                ))}
-              </div>
-            </article>
-
+          <section className="grid items-start gap-4 xl:grid-cols-[1fr_1fr]">
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Team on Site</h2>
                 <button type="button" onClick={() => onOpenSection('Project Team Assignment')} className="text-[12px] font-extrabold text-[#0b65e5]">View Team</button>
               </div>
               <div className="mt-4 space-y-3">
-                {teamMembers.map((member) => (
+                {teamMembers.length ? teamMembers.map((member) => (
                   <div key={member.name} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
                     <div className={cx('grid size-11 place-items-center rounded-full text-[13px] font-extrabold text-white', member.tone === 'green' ? 'bg-[#16a34a]' : member.tone === 'cyan' ? 'bg-[#14b8a6]' : member.tone === 'purple' ? 'bg-[#8b5cf6]' : 'bg-[#d946ef]')}>
                       {member.initials}
@@ -20784,18 +22060,19 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                       <p className="truncate text-[14px] font-extrabold text-[#1e3261]">{member.name}</p>
                       <p className="mt-1 text-[12px] font-bold text-[#53647f]">{member.role}</p>
                     </div>
-                    <button type="button" onClick={() => onNotify(`Calling ${member.name}`)} className="grid size-10 place-items-center rounded-[10px] border border-[#dce6f3] text-[#2563eb] transition hover:bg-[#f8fbff]"><Phone className="size-4" /></button>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-[13px] font-bold text-[#53647f]">No team members assigned yet.</p>
+                )}
               </div>
             </article>
 
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Upcoming Activity</h2>
               <div className="mt-4 space-y-3">
-                {upcomingActivities.map((activity) => (
+                {upcomingActivities.length ? upcomingActivities.map((activity) => (
                   <div key={activity.title} className="flex items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                    <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', activity.tone === 'blue' ? 'bg-[#2f80ff]' : activity.tone === 'purple' ? 'bg-[#8b5cf6]' : 'bg-[#f59e0b]')}>
+                    <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', activity.tone === 'blue' ? 'bg-[#2f80ff]' : 'bg-[#f59e0b]')}>
                       <CalendarDays className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
@@ -20806,7 +22083,9 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                       {activity.status}
                     </span>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-[13px] font-bold text-[#53647f]">No pending activities — installation tasks are all completed.</p>
+                )}
               </div>
               <div className="mt-5 text-center">
                 <button type="button" onClick={() => onOpenSection('Project Timeline')} data-route={projectSubRoutes['Project Timeline']} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><ArrowRight className="size-4" />View All Activities</button>
@@ -20824,7 +22103,6 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">System Configuration Details</h2>
-                <ProjectPhaseBadge status="Approved" />
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {systemConfigRows.map(([label, value]) => (
@@ -20836,52 +22114,22 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">System Layout</h2>
-                <button type="button" onClick={() => onNotify('System layout opened')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View Drawing</button>
               </div>
-              <div className="mt-5 grid gap-3 md:grid-cols-4">
-                {[
-                  ['40 Panels', '22.00 kWp DC', Boxes, 'bg-[#eef5ff] text-[#0b65e5]'],
-                  ['4 Strings', '10 panels per string', Database, 'bg-[#effbf3] text-[#14b84c]'],
-                  ['20kW Inverter', 'Growatt MIN 20KTL-X', Zap, 'bg-[#fff5e8] text-[#f59e0b]'],
-                  ['Net Meter', 'Three phase output', ReceiptText, 'bg-[#f6f0ff] text-[#8b5cf6]'],
-                ].map(([title, note, Icon, tone], index) => (
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                {systemLayoutChips.map(([title, note, Icon, tone], index) => (
                   <div key={title} className="relative rounded-[14px] border border-[#edf2f8] bg-[#fbfdff] p-4 text-center">
                     <span className={cx('mx-auto grid size-12 place-items-center rounded-full', tone)}><Icon className="size-5" /></span>
                     <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{title}</p>
                     <p className="mt-1 text-[12px] font-bold text-[#53647f]">{note}</p>
-                    {index < 3 ? <span className="pointer-events-none absolute right-[-18px] top-1/2 hidden h-px w-8 bg-[#d9e4f2] md:block" /> : null}
+                    {index < 2 ? <span className="pointer-events-none absolute right-[-18px] top-1/2 hidden h-px w-8 bg-[#d9e4f2] md:block" /> : null}
                   </div>
                 ))}
               </div>
               <p className="mt-4 rounded-[12px] bg-[#f8fbff] p-3 text-[13px] font-bold leading-6 text-[#53647f]">
-                Array layout south-facing hai, inverter utility room ke paas mounted hai, aur monitoring Wi-Fi data logger se enabled hai.
+                {config.protection_devices ? `Protection devices installed: ${config.protection_devices}.` : 'No protection device details recorded yet.'}
               </p>
             </article>
           </div>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">String Configuration</h2>
-            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-              <div className="min-w-[680px]">
-                <div className="grid grid-cols-[1.1fr_0.8fr_1fr_1fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>String</span>
-                  <span>Panels</span>
-                  <span>Capacity</span>
-                  <span>Direction</span>
-                  <span>Status</span>
-                </div>
-                {stringRows.map((row) => (
-                  <div key={row.string} className="grid grid-cols-[1.1fr_0.8fr_1fr_1fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{row.string}</span>
-                    <span>{row.panels}</span>
-                    <span>{row.capacity}</span>
-                    <span>{row.direction}</span>
-                    <span><ProjectPhaseBadge status={row.status} /></span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </article>
         </section>
       ) : activeInstallationTab === 'Material & Equipment' ? (
         <section className="space-y-4">
@@ -20893,7 +22141,6 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material & Equipment List</h2>
-                <button type="button" onClick={() => onNotify('Material issue slip downloaded')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5]"><Download className="size-4" />Issue Slip</button>
               </div>
               <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
                 <div className="min-w-[850px]">
@@ -20905,7 +22152,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                     <span>Consumed</span>
                     <span>Status</span>
                   </div>
-                  {materialRows.map((row) => (
+                  {materialRows.length ? materialRows.map((row) => (
                     <div key={row.item} className="grid grid-cols-[1.4fr_0.85fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
                       <span className="font-extrabold text-[#1e3261]">{row.item}</span>
                       <span><ProjectActivityCategoryBadge category={row.category} /></span>
@@ -20914,47 +22161,31 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                       <span>{row.consumed}</span>
                       <span><ProjectActivityStatusBadge status={row.status} /></span>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">No materials recorded for this project yet.</div>
+                  )}
                 </div>
               </div>
             </article>
 
             <aside className="space-y-4">
               <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Tools & Equipment</h2>
-                <div className="mt-4 space-y-3">
-                  {equipmentRows.map(([tool, qty, status]) => (
-                    <div key={tool} className="flex items-center justify-between gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                      <span className="min-w-0">
-                        <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{tool}</span>
-                        <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{qty}</span>
-                      </span>
-                      <ProjectPhaseBadge status={status === 'Available' ? 'Completed' : 'Pending'} label={status} />
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className={`${panelClass} p-4 sm:p-5`}>
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Status</h2>
                 <div className="mt-4 space-y-4">
                   <div>
                     <div className="flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
                       <span>Issued vs Required</span>
-                      <span>90%</span>
+                      <span>{issuedPercent}%</span>
                     </div>
-                    <ProjectProgressBar value={90} color="green" compact />
+                    <ProjectProgressBar value={issuedPercent} color="green" compact />
                   </div>
                   <div>
                     <div className="flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
                       <span>Consumed on Site</span>
-                      <span>74%</span>
+                      <span>{consumedPercent}%</span>
                     </div>
-                    <ProjectProgressBar value={74} color="blue" compact />
+                    <ProjectProgressBar value={consumedPercent} color="blue" compact />
                   </div>
-                  <p className="rounded-[12px] bg-[#fffaf0] p-3 text-[12px] font-bold leading-6 text-[#8a5a00]">
-                    AC Cable aur insulation tester pending hain. Procurement team ko follow-up assign kiya gaya hai.
-                  </p>
                 </div>
               </article>
             </aside>
@@ -20978,15 +22209,17 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                     <span>Start</span>
                     <span>End</span>
                   </div>
-                  {progressRows.map((row) => (
+                  {progressRows.length ? progressRows.map((row) => (
                     <div key={row.task} className="grid grid-cols-[1.45fr_0.8fr_1fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
                       <span className="font-extrabold text-[#1e3261]">{row.task}</span>
                       <span><ProjectActivityStatusBadge status={row.status} /></span>
                       <ProjectProgressInline value={row.progress} status={row.status} tone="blue" />
-                      <span>{row.start}</span>
-                      <span>{row.end}</span>
+                      <span>{row.start ? formatProjectDisplayDate(row.start) : '—'}</span>
+                      <span>{row.end ? formatProjectDisplayDate(row.end) : '—'}</span>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">No installation tasks recorded yet.</div>
+                  )}
                 </div>
               </div>
             </article>
@@ -20994,12 +22227,12 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Milestone Progress</h2>
               <div className="mt-5 space-y-4">
-                {progressRows.slice(0, 5).map((row, index) => (
+                {progressRows.length ? progressRows.map((row, index) => (
                   <div key={row.task} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3">
                     <span className={cx('grid size-9 place-items-center rounded-full text-[12px] font-extrabold text-white', row.status === 'Completed' ? 'bg-[#14b84c]' : row.status === 'In Progress' ? 'bg-[#2f80ff]' : 'bg-[#9aa8bc]')}>{index + 1}</span>
                     <div className="min-w-0 rounded-[12px] border border-[#edf2f8] p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-extrabold text-[#1e3261]">{row.task.replace(/^\d+\.\s*/, '')}</p>
+                        <p className="font-extrabold text-[#1e3261]">{row.task}</p>
                         <ProjectPhaseBadge status={row.status} />
                       </div>
                       <div className="mt-3">
@@ -21007,27 +22240,12 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                       </div>
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-[13px] font-bold text-[#53647f]">No installation tasks recorded yet.</p>
+                )}
               </div>
             </article>
           </div>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Daily Progress Updates</h2>
-            <div className="mt-4 grid gap-3 lg:grid-cols-5">
-              {dailyProgressRows.map((row) => (
-                <div key={`${row.date}-${row.activity}`} className="rounded-[14px] border border-[#edf2f8] bg-white p-4">
-                  <p className="text-[12px] font-extrabold text-[#0b65e5]">{row.date}</p>
-                  <h3 className="mt-2 min-h-[44px] text-[14px] font-extrabold leading-5 text-[#1e3261]">{row.activity}</h3>
-                  <p className="mt-2 text-[12px] font-bold text-[#53647f]">{row.team}</p>
-                  <div className="mt-3">
-                    <ProjectProgressBar value={row.progress} color={row.progress === 100 ? 'green' : 'blue'} compact />
-                  </div>
-                  <p className="mt-3 text-[12px] font-bold text-[#53647f]">{row.remarks}</p>
-                </div>
-              ))}
-            </div>
-          </article>
         </section>
       ) : activeInstallationTab === 'Quality Checklist' ? (
         <section className="space-y-4">
@@ -21036,37 +22254,31 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
           </div>
 
           <div className="grid gap-4 xl:grid-cols-3">
-            {qualitySections.map((section) => {
-              const completed = section.items.filter(([, done]) => done).length;
+            {Object.entries(qaByCategory).length ? Object.entries(qaByCategory).map(([category, items]) => {
+              const completed = items.filter((i) => i.is_checked).length;
               return (
-                <article key={section.title} className={`${panelClass} p-4 sm:p-5`}>
+                <article key={category} className={`${panelClass} p-4 sm:p-5`}>
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{section.title}</h2>
-                    <span className="rounded-[999px] bg-[#eef5ff] px-3 py-1 text-[12px] font-extrabold text-[#0b65e5]">{completed}/{section.items.length}</span>
+                    <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{category}</h2>
+                    <span className="rounded-[999px] bg-[#eef5ff] px-3 py-1 text-[12px] font-extrabold text-[#0b65e5]">{completed}/{items.length}</span>
                   </div>
                   <div className="mt-4 space-y-3">
-                    {section.items.map(([item, done]) => (
-                      <button key={item} type="button" onClick={() => onNotify(`${item} checklist opened`)} className="flex w-full items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#fbfdff]">
-                        <span className={cx('grid size-8 shrink-0 place-items-center rounded-full', done ? 'bg-[#effbf3] text-[#14b84c]' : 'bg-[#fff5e8] text-[#f59e0b]')}>
-                          {done ? <CheckCircle2 className="size-4" /> : <Hourglass className="size-4" />}
+                    {items.map((item) => (
+                      <button key={item.id} type="button" onClick={() => toggleChecklistItem(item)} className="flex w-full items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#fbfdff]">
+                        <span className={cx('grid size-8 shrink-0 place-items-center rounded-full', item.is_checked ? 'bg-[#effbf3] text-[#14b84c]' : 'bg-[#fff5e8] text-[#f59e0b]')}>
+                          {item.is_checked ? <CheckCircle2 className="size-4" /> : <Hourglass className="size-4" />}
                         </span>
-                        <span className="min-w-0 flex-1 text-[13px] font-extrabold text-[#1e3261]">{item}</span>
-                        <ProjectPhaseBadge status={done ? 'Completed' : 'Pending'} />
+                        <span className="min-w-0 flex-1 text-[13px] font-extrabold text-[#1e3261]">{item.label}</span>
+                        <ProjectPhaseBadge status={item.is_checked ? 'Completed' : 'Pending'} />
                       </button>
                     ))}
                   </div>
                 </article>
               );
-            })}
+            }) : (
+              <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>No quality checklist items recorded for this project yet.</article>
+            )}
           </div>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr]">
-              <InfoCell label="Final QA Remark" value="Structure quality is good. Electrical termination and inverter startup verification pending before commissioning." />
-              <InfoCell label="QA Engineer" value="Neha Jain" />
-              <InfoCell label="Next Inspection" value="28 May 2024" />
-            </div>
-          </article>
         </section>
       ) : activeInstallationTab === 'Safety' ? (
         <section className="space-y-4">
@@ -21074,113 +22286,67 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             {safetyStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} safety opened`)} />)}
           </div>
 
-          <div className="grid items-start gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Safety Checklist</h2>
-                <ProjectPhaseBadge status="Completed" label="No Incident" />
-              </div>
-              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-                <div className="min-w-[720px]">
-                  <div className="grid grid-cols-[1.6fr_1fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                    <span>Safety Item</span>
-                    <span>Owner</span>
-                    <span>Status</span>
-                    <span>Priority</span>
-                  </div>
-                  {safetyRows.map((row) => (
-                    <div key={row.item} className="grid grid-cols-[1.6fr_1fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                      <span className="font-extrabold text-[#1e3261]">{row.item}</span>
-                      <span>{row.owner}</span>
-                      <span><ProjectActivityStatusBadge status={row.status} /></span>
-                      <span><ProjectNotePriorityBadge priority={row.priority} /></span>
-                    </div>
-                  ))}
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Safety Checklist</h2>
+              <ProjectPhaseBadge status={safetyPending.length === 0 && safetyChecklist.length > 0 ? 'Completed' : 'Pending'} label={safetyPending.length === 0 && safetyChecklist.length > 0 ? 'All Verified' : `${safetyPending.length} Pending`} />
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[640px]">
+                <div className="grid grid-cols-[1.6fr_1fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Safety Item</span>
+                  <span>Checked By</span>
+                  <span>Status</span>
                 </div>
+                {safetyChecklist.length ? safetyChecklist.map((item) => (
+                  <button key={item.id} type="button" onClick={() => toggleChecklistItem(item)} className="grid w-full grid-cols-[1.6fr_1fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-left text-[13px] font-bold text-[#53647f] transition last:border-b-0 hover:bg-[#fbfdff]">
+                    <span className="font-extrabold text-[#1e3261]">{item.label}</span>
+                    <span>{item.checked_by_name || '—'}</span>
+                    <span><ProjectActivityStatusBadge status={item.is_checked ? 'Completed' : 'Pending'} /></span>
+                  </button>
+                )) : (
+                  <div className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">No safety checklist items recorded for this project yet.</div>
+                )}
               </div>
-            </article>
-
-            <aside className="space-y-4">
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">PPE & Toolbox</h2>
-                <div className="mt-4 space-y-3">
-                  {[
-                    ['Toolbox Talk', '4 sessions completed', ClipboardPlus],
-                    ['PPE Audit', '8 workers verified', ShieldCheck],
-                    ['Height Work Permit', 'Valid till 28 May', BadgeCheck],
-                    ['First Aid Kit', 'Available on site', Heart],
-                  ].map(([title, note, Icon]) => (
-                    <div key={title} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                      <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#effbf3] text-[#14b84c]"><Icon className="size-4" /></span>
-                      <span>
-                        <span className="block text-[13px] font-extrabold text-[#1e3261]">{title}</span>
-                        <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{note}</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            </aside>
-          </div>
+            </div>
+          </article>
         </section>
       ) : activeInstallationTab === 'Documents' ? (
         <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Total Documents', value: '12', caption: 'Installation files', icon: FileText, tone: 'blue' },
-              { label: 'Approved', value: '8', caption: 'Ready for handover', icon: BadgeCheck, tone: 'green' },
-              { label: 'Pending Review', value: '4', caption: 'Needs approval', icon: Hourglass, tone: 'amber' },
-              { label: 'Photos', value: '28', caption: 'Site evidence', icon: Eye, tone: 'purple' },
-            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} documents opened`)} />)}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {docStatCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} documents opened`)} />)}
           </div>
 
-          <div className="grid items-start gap-4 xl:grid-cols-[1.35fr_0.85fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Documents</h2>
-                <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
-              </div>
-              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-                <div className="min-w-[850px]">
-                  <div className="grid grid-cols-[1.35fr_0.9fr_1fr_0.95fr_0.7fr_0.9fr_0.45fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                    <span>Document Name</span>
-                    <span>Category</span>
-                    <span>Uploaded By</span>
-                    <span>Uploaded On</span>
-                    <span>Size</span>
-                    <span>Status</span>
-                    <span>Action</span>
-                  </div>
-                  {installationDocumentRows.map((doc) => (
-                    <div key={doc.name} className="grid grid-cols-[1.35fr_0.9fr_1fr_0.95fr_0.7fr_0.9fr_0.45fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                      <span className="font-extrabold text-[#1e3261]">{doc.name}</span>
-                      <span>{doc.category}</span>
-                      <span>{doc.uploadedBy}</span>
-                      <span>{doc.date}</span>
-                      <span>{doc.size}</span>
-                      <span><ProjectDocumentStatusBadge status={doc.status} /></span>
-                      <span>
-                        <button type="button" onClick={() => onNotify(`${doc.name} downloaded`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#0b65e5]"><Download className="size-4" /></button>
-                      </span>
-                    </div>
-                  ))}
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Documents</h2>
+              <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
+              <div className="min-w-[760px]">
+                <div className="grid grid-cols-[1.45fr_0.9fr_1.1fr_1fr_0.55fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
+                  <span>Document Name</span>
+                  <span>Category</span>
+                  <span>Uploaded By</span>
+                  <span>Uploaded On</span>
+                  <span>Action</span>
                 </div>
+                {documents.length ? documents.map((doc) => (
+                  <div key={doc.id} className="grid grid-cols-[1.45fr_0.9fr_1.1fr_1fr_0.55fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
+                    <span className="font-extrabold text-[#1e3261]">{doc.name}</span>
+                    <span>{doc.category || '—'}</span>
+                    <span>{doc.uploaded_by_name || '—'}</span>
+                    <span>{formatProjectDisplayDate(doc.uploaded_at)}</span>
+                    <span>
+                      {doc.file ? <a href={doc.file} target="_blank" rel="noreferrer" className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#0b65e5]"><Download className="size-4" /></a> : '—'}
+                    </span>
+                  </div>
+                )) : (
+                  <div className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">No documents uploaded yet for this project.</div>
+                )}
               </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Photos</h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                {photos.map((photo) => (
-                  <button key={photo.title} type="button" onClick={() => onNotify(`${photo.title} photo opened`)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-left transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
-                    <img src={navBarImage} alt={photo.title} loading="lazy" decoding="async" className="h-[96px] w-full rounded-[10px] object-cover" />
-                    <p className="mt-3 text-[13px] font-extrabold text-[#1e3261]">{photo.title}</p>
-                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">{photo.date}</p>
-                  </button>
-                ))}
-              </div>
-            </article>
-          </div>
+            </div>
+          </article>
         </section>
       ) : activeInstallationTab === 'Summary' ? (
         <section className="space-y-4">
@@ -21188,15 +22354,15 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Completion Score</h2>
               <div className="mt-5 flex flex-col items-center text-center">
-                <div className="grid size-[150px] place-items-center rounded-full" style={{ background: 'conic-gradient(#14b84c 0 65%, #e7eef7 65% 100%)' }}>
+                <div className="grid size-[150px] place-items-center rounded-full" style={{ background: `conic-gradient(#14b84c 0 ${overallProgress}%, #e7eef7 ${overallProgress}% 100%)` }}>
                   <div className="grid size-[102px] place-items-center rounded-full bg-white shadow-[inset_0_0_0_1px_#edf2f8]">
                     <span>
-                      <span className="block font-display text-[34px] font-extrabold leading-none text-[#06135a]">65%</span>
+                      <span className="block font-display text-[34px] font-extrabold leading-none text-[#06135a]">{overallProgress}%</span>
                       <span className="mt-1 block text-[11px] font-bold text-[#53647f]">Complete</span>
                     </span>
                   </div>
                 </div>
-                <p className="mt-4 text-[13px] font-bold leading-6 text-[#53647f]">Installation target ke hisaab se track par hai. Testing aur commissioning final pending items hain.</p>
+                <p className="mt-4 text-[13px] font-bold leading-6 text-[#53647f]">{tasksPending.length ? `${tasksPending.length} task(s) pending: ${tasksPending.map((t) => t.title).join(', ')}.` : 'All installation tasks are completed.'}</p>
               </div>
             </article>
 
@@ -21212,21 +22378,18 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Next Actions</h2>
               <div className="mt-4 space-y-3">
-                {[
-                  ['AC Wiring', '26 May 2024', 'Pending'],
-                  ['Testing & Commissioning', '28 May 2024', 'Pending'],
-                  ['Customer Handover', '30 May 2024', 'Planned'],
-                ].map(([title, date, status]) => (
-                  <div key={title} className="rounded-[12px] border border-[#edf2f8] p-3">
+                {nextActions.length ? nextActions.map((action) => (
+                  <div key={action.title} className="rounded-[12px] border border-[#edf2f8] p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-[13px] font-extrabold text-[#1e3261]">{title}</p>
-                      <ProjectPhaseBadge status={status === 'Planned' ? 'In Progress' : status} label={status} />
+                      <p className="text-[13px] font-extrabold text-[#1e3261]">{action.title}</p>
+                      <ProjectPhaseBadge status={action.status} />
                     </div>
-                    <p className="mt-2 text-[12px] font-bold text-[#53647f]">{date}</p>
+                    <p className="mt-2 text-[12px] font-bold text-[#53647f]">{action.date}</p>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-[13px] font-bold text-[#53647f]">No pending actions — installation is complete.</p>
+                )}
               </div>
-              <button type="button" onClick={() => onNotify('Installation summary exported')} className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-4 text-[13px] font-extrabold text-white"><Download className="size-4" />Export Summary</button>
             </article>
           </div>
         </section>
@@ -24178,15 +25341,17 @@ function ProjectSummaryCard({ stat, onClick }) {
 
 function ProjectDonutCard({ title, data, totalLabel, totalValue, onNotify = () => {}, onView }) {
   const total = data.reduce((sum, item) => sum + item.value, 0);
-  const gradient = (() => {
-    let current = 0;
-    return data.map((item) => {
-      const start = (current / total) * 100;
-      current += item.value;
-      const end = (current / total) * 100;
-      return `${item.color} ${start}% ${end}%`;
-    }).join(', ');
-  })();
+  const gradient = total > 0
+    ? (() => {
+      let current = 0;
+      return data.map((item) => {
+        const start = (current / total) * 100;
+        current += item.value;
+        const end = (current / total) * 100;
+        return `${item.color} ${start}% ${end}%`;
+      }).join(', ');
+    })()
+    : '#e7eef7 0% 100%';
 
   return (
     <article className={`${panelClass} p-4 sm:p-5`}>
@@ -24202,6 +25367,9 @@ function ProjectDonutCard({ title, data, totalLabel, totalValue, onNotify = () =
           </div>
         </div>
         <div className="space-y-2.5">
+          {data.length === 0 ? (
+            <p className="text-[13px] font-bold text-[#8a98af]">No data to show yet.</p>
+          ) : null}
           {data.map((item) => (
             <div key={item.label} className="flex items-center justify-between gap-3 text-[12px] font-bold text-[#314a79]">
               <span className="inline-flex min-w-0 items-center gap-3">
@@ -24221,8 +25389,8 @@ function ProjectDonutCard({ title, data, totalLabel, totalValue, onNotify = () =
   );
 }
 
-function ProjectLineChartCard({ title, series, height = 240, onNotify }) {
-  const labels = ['Apr\n2024', 'May\n2024', 'Jun\n2024', 'Jul\n2024', 'Aug\n2024', 'Sep\n2024', 'Oct\n2024', 'Nov\n2024', 'Dec\n2024', 'Jan\n2025', 'Feb\n2025', 'Mar\n2025'];
+function ProjectLineChartCard({ title, series, height = 240, onNotify, labels: labelsProp }) {
+  const labels = labelsProp ?? ['Apr\n2024', 'May\n2024', 'Jun\n2024', 'Jul\n2024', 'Aug\n2024', 'Sep\n2024', 'Oct\n2024', 'Nov\n2024', 'Dec\n2024', 'Jan\n2025', 'Feb\n2025', 'Mar\n2025'];
   const max = Math.max(...series.flatMap((item) => item.values), 1);
 
   return (
@@ -25572,14 +26740,55 @@ function SettingsCategoryPlaceholderPage({ activeSection, onOpenSection, onNotif
   );
 }
 
-function UserManagementPage({ onNotify }) {
-  const [users, setUsers] = useState(userManagementRows);
+function mapApiUserToRow(apiUser) {
+  const name = apiUser.name || 'Unnamed User';
+  const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NU';
+  return {
+    id: apiUser.id,
+    name,
+    email: apiUser.email,
+    mobile: apiUser.mobile || '',
+    role: apiUser.role_name || 'Unassigned',
+    branch: apiUser.branch_name || 'Unassigned',
+    status: apiUser.is_active ? 'Active' : 'Inactive',
+    createdOn: apiUser.created_at ? new Date(apiUser.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+    assignee: { name, initials, tone: 'emerald' },
+    _isSuperAdmin: Boolean(apiUser.is_super_admin),
+  };
+}
+
+function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
+  const isSuperAdmin = Boolean(loggedInUser?.is_super_admin);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(isSuperAdmin);
   const [query, setQuery] = useState('');
   const [role, setRole] = useState('All');
   const [status, setStatus] = useState('All');
   const [branch, setBranch] = useState('All');
   const [selectedUser, setSelectedUser] = useState(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    setLoading(true);
+    userApi.list().then((data) => {
+      const list = data?.results ?? data ?? [];
+      setUsers(list.map(mapApiUserToRow));
+    }).catch((error) => onNotify?.(error.message || 'Failed to load users')).finally(() => setLoading(false));
+  }, [isSuperAdmin]);
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="User Management" crumbs={[{ label: 'User Management' }]} />
+        <section className={`${panelClass} flex flex-col items-center justify-center gap-3 p-10 text-center`}>
+          <ShieldCheck className="size-10 text-[#d98200]" />
+          <h2 className="font-display text-[16px] font-extrabold text-[#1e3261]">Super Admin access required</h2>
+          <p className="max-w-[420px] text-[13px] font-bold text-[#53647f]">User accounts, roles and permissions are managed exclusively by the Super Admin.</p>
+        </section>
+      </div>
+    );
+  }
 
   const filteredUsers = users.filter((user) => {
     const queryMatch = [user.name, user.email, user.mobile].some((value) => value.toLowerCase().includes(query.toLowerCase()));
@@ -25605,11 +26814,13 @@ function UserManagementPage({ onNotify }) {
   };
 
   const deleteUser = (user) => {
-    setUsers((current) => current.filter((item) => item.id !== user.id));
-    if (selectedUser?.id === user.id) {
-      setSelectedUser(null);
-    }
-    onNotify(`${user.name} deleted from local list`);
+    userApi.delete(user.id).then(() => {
+      setUsers((current) => current.filter((item) => item.id !== user.id));
+      if (selectedUser?.id === user.id) {
+        setSelectedUser(null);
+      }
+      onNotify(`${user.name} deleted`);
+    }).catch((error) => onNotify(error.message || `Failed to delete ${user.name}`));
   };
 
   const updateUser = (updatedUser) => {
@@ -25715,7 +26926,9 @@ function UserManagementPage({ onNotify }) {
               <tr>{['#', 'User Name', 'Email', 'Mobile Number', 'Role', 'Assigned Branch', 'Status', 'Created On', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr>
             </thead>
             <tbody>
-              {filteredUsers.map((user, index) => (
+              {loading ? (
+                <tr><td colSpan={9} className="py-6 text-center text-[13px] font-bold text-[#7585a2]">Loading users...</td></tr>
+              ) : filteredUsers.map((user, index) => (
                 <tr key={user.id}>
                   <td>{index + 1}</td>
                   <td><AssigneeCell assignee={user.assignee} compact /></td>
@@ -25755,8 +26968,9 @@ function UserManagementPage({ onNotify }) {
       {addUserOpen ? (
         <AddUserModal
           onClose={() => setAddUserOpen(false)}
+          onNotify={onNotify}
           onSave={(newUser) => {
-            setUsers((current) => [newUser, ...current]);
+            setUsers((current) => [mapApiUserToRow(newUser), ...current]);
             setAddUserOpen(false);
             onNotify(`${newUser.name} added`);
           }}
@@ -26130,29 +27344,92 @@ function AccessBadge({ access }) {
   return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{access}</span>;
 }
 
-function RolesPermissionsPage({ onNotify }) {
-  const [roles, setRoles] = useState(roleCards);
-  const [selectedRole, setSelectedRole] = useState(roleCards[2]);
+const PERMISSION_ACTION_FIELDS = [
+  ['View', 'can_view'],
+  ['Add', 'can_add'],
+  ['Edit', 'can_edit'],
+  ['Delete', 'can_delete'],
+  ['Export', 'can_export'],
+  ['Import', 'can_import'],
+  ['Approve', 'can_approve'],
+];
+
+function roleVisuals(roleName) {
+  const known = roleCards.find((item) => item.name === roleName);
+  return { icon: known?.icon ?? ShieldCheck, tone: known?.tone ?? 'blue' };
+}
+
+function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
+  const isSuperAdmin = Boolean(loggedInUser?.is_super_admin);
+  const [roles, setRoles] = useState([]);
+  const [selectedRoleId, setSelectedRoleId] = useState(null);
   const [activeTab, setActiveTab] = useState('Permissions');
-  const [permissionLevel, setPermissionLevel] = useState('Page-Level Access');
   const [addRoleOpen, setAddRoleOpen] = useState(false);
-  const [permissions, setPermissions] = useState(() => createDefaultPermissions());
+  const [permissions, setPermissions] = useState([]);
+  const [roleUsers, setRoleUsers] = useState([]);
+  const [loadingPermissions, setLoadingPermissions] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const selectedRoleUsers = userManagementRows.filter((user) => user.role === selectedRole.name);
+  const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? null;
 
-  const togglePermission = (module, action) => {
-    setPermissions((current) => ({
-      ...current,
-      [module]: {
-        ...current[module],
-        [action]: !current[module]?.[action],
-      },
-    }));
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    roleApi.list().then((data) => {
+      const list = data?.results ?? data ?? [];
+      setRoles(list);
+      if (list.length) setSelectedRoleId(list[0].id);
+    }).catch((error) => onNotify?.(error.message || 'Failed to load roles'));
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || !selectedRoleId) return;
+    setLoadingPermissions(true);
+    roleApi.getPermissions(selectedRoleId).then((data) => {
+      setPermissions(data ?? []);
+    }).catch((error) => onNotify?.(error.message || 'Failed to load permissions')).finally(() => setLoadingPermissions(false));
+    userApi.list({ role: selectedRoleId }).then((data) => {
+      setRoleUsers((data?.results ?? data ?? []).map(mapApiUserToRow));
+    }).catch(() => setRoleUsers([]));
+  }, [isSuperAdmin, selectedRoleId]);
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Roles & Permissions" crumbs={[{ label: 'Roles & Permissions' }]} />
+        <section className={`${panelClass} flex flex-col items-center justify-center gap-3 p-10 text-center`}>
+          <ShieldCheck className="size-10 text-[#d98200]" />
+          <h2 className="font-display text-[16px] font-extrabold text-[#1e3261]">Super Admin access required</h2>
+          <p className="max-w-[420px] text-[13px] font-bold text-[#53647f]">Roles and module permissions are managed exclusively by the Super Admin.</p>
+        </section>
+      </div>
+    );
+  }
+
+  const togglePermission = (module, field) => {
+    setPermissions((current) => current.map((row) => (row.module === module ? { ...row, [field]: !row[field] } : row)));
+  };
+
+  const toggleFullAccess = (module) => {
+    setPermissions((current) => current.map((row) => (row.module === module ? { ...row, full_access: !row.full_access } : row)));
+  };
+
+  const savePermissions = () => {
+    setSaving(true);
+    roleApi.setPermissions(selectedRoleId, permissions)
+      .then((data) => {
+        setPermissions(data ?? permissions);
+        onNotify(`${selectedRole?.name ?? 'Role'} permissions saved`);
+      })
+      .catch((error) => onNotify(error.message || 'Failed to save permissions'))
+      .finally(() => setSaving(false));
   };
 
   const resetPermissions = () => {
-    setPermissions(createDefaultPermissions());
-    onNotify('Permissions reset to default');
+    setPermissions((current) => current.map((row) => ({
+      ...row, can_view: false, can_add: false, can_edit: false, can_delete: false,
+      can_export: false, can_import: false, can_approve: false, full_access: false,
+    })));
+    onNotify('Permissions reset — click Save Permissions to apply');
   };
 
   return (
@@ -26160,7 +27437,7 @@ function RolesPermissionsPage({ onNotify }) {
       <PageHeading
         title="Roles & Permissions"
         crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Dashboard', onClick: () => onOpenSection?.('Dashboard') },
           { label: 'Settings', onClick: () => onNotify('Settings breadcrumb selected') },
           { label: 'Roles & Permissions' },
         ]}
@@ -26180,15 +27457,15 @@ function RolesPermissionsPage({ onNotify }) {
             </button>
           </div>
           <div className="space-y-2">
-            {roles.map((roleItem, index) => {
-              const RoleIcon = roleItem.icon;
-              const active = selectedRole.name === roleItem.name;
+            {roles.map((roleItem) => {
+              const { icon: RoleIcon, tone } = roleVisuals(roleItem.name);
+              const active = selectedRoleId === roleItem.id;
               return (
                 <button
-                  key={roleItem.name}
+                  key={roleItem.id}
                   type="button"
                   onClick={() => {
-                    setSelectedRole(roleItem);
+                    setSelectedRoleId(roleItem.id);
                     onNotify(`${roleItem.name} role selected`);
                   }}
                   className={cx(
@@ -26196,14 +27473,14 @@ function RolesPermissionsPage({ onNotify }) {
                     active ? 'border-[#cbeed7] bg-[#effbf3]' : 'border-transparent bg-white hover:border-[#e7eef7] hover:bg-[#f8fbff]',
                   )}
                 >
-                  <span className={cx('grid size-10 place-items-center rounded-full', getRoleToneClass(roleItem.tone))}>
+                  <span className={cx('grid size-10 place-items-center rounded-full', getRoleToneClass(tone))}>
                     <RoleIcon className="size-5" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13px] font-extrabold text-[#1e3261]">{roleItem.name}</span>
-                    <span className="mt-1 block text-[11px] font-bold text-[#6f7f98]">{roleItem.type}</span>
+                    <span className="mt-1 block text-[11px] font-bold text-[#6f7f98]">{roleItem.role_type === 'system' ? 'System Role' : 'Custom Role'}</span>
                   </span>
-                  <span className="rounded-[7px] border border-[#d9e4f2] bg-white px-2 py-1 text-[11px] font-extrabold text-[#53647f]">{index === 4 ? 18 : roleItem.users}</span>
+                  <span className="rounded-[7px] border border-[#d9e4f2] bg-white px-2 py-1 text-[11px] font-extrabold text-[#53647f]">{roleItem.user_count ?? 0}</span>
                 </button>
               );
             })}
@@ -26211,16 +27488,17 @@ function RolesPermissionsPage({ onNotify }) {
           <div className="mt-auto border-t border-[#edf2f8] pt-4 text-[13px] font-bold text-[#53647f]">Total Roles: {roles.length}</div>
         </article>
 
+        {selectedRole ? (
         <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
           <h2 className="font-display text-[16px] font-extrabold text-[#1e3261]">Role Details</h2>
           <div className="mt-4 grid gap-4 lg:grid-cols-[0.75fr_1.25fr]">
             <LeadInput label="Role Name" required placeholder={selectedRole.name} />
-            <LeadInput label="Role Description" placeholder={`Can manage ${selectedRole.name.toLowerCase()} access and assigned work.`} />
+            <LeadInput label="Role Description" placeholder={selectedRole.description || `Can manage ${selectedRole.name.toLowerCase()} access and assigned work.`} />
           </div>
 
           <div className="mt-6 flex flex-col gap-3 border-b border-[#edf2f8] sm:flex-row sm:items-center sm:justify-between">
             <div className="flex gap-6 text-[13px] font-extrabold">
-              {['Permissions', `Users with this Role (${selectedRoleUsers.length || selectedRole.users})`].map((tab) => (
+              {['Permissions', `Users with this Role (${roleUsers.length})`].map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -26231,61 +27509,87 @@ function RolesPermissionsPage({ onNotify }) {
                 </button>
               ))}
             </div>
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row">
-              <ReportSelect label="Permission Level" value={permissionLevel} onChange={setPermissionLevel} options={['Page-Level Access', 'Module-Level Access', 'Read Only']} hideLabel className="sm:w-[170px]" />
-              <button type="button" onClick={resetPermissions} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                <RefreshCw className="size-4" />
-                Reset to Default
-              </button>
-            </div>
+            {activeTab === 'Permissions' ? (
+              <div className="mb-3 flex flex-col gap-3 sm:flex-row">
+                <button type="button" onClick={resetPermissions} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                  <RefreshCw className="size-4" />
+                  Reset to Default
+                </button>
+              </div>
+            ) : null}
           </div>
 
           {activeTab === 'Permissions' ? (
             <div className="mt-4">
               <h3 className="mb-3 text-[14px] font-extrabold text-[#1e3261]">Module Permissions</h3>
+              {loadingPermissions ? (
+                <p className="py-6 text-center text-[13px] font-bold text-[#7585a2]">Loading permissions...</p>
+              ) : (
               <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
-                <table className="crm-table min-w-[780px] w-full">
-                  <thead><tr>{['Module', 'View', 'Add', 'Edit', 'Delete', 'Export'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                <table className="crm-table min-w-[920px] w-full">
+                  <thead><tr>{['Module', ...PERMISSION_ACTION_FIELDS.map(([label]) => label), 'Full Access'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
                   <tbody>
-                    {permissionModules.map((module, index) => (
-                      <tr key={module}>
-                        <td className="font-extrabold text-[#1e3261]">{module}</td>
-                        {['View', 'Add', 'Edit', 'Delete', 'Export'].map((action) => (
-                          <td key={`${module}-${action}`}>
-                            {index === 0 && action !== 'View' ? (
+                    {permissions.map((row) => {
+                      const isLocked = row.module === 'User Management';
+                      return (
+                        <tr key={row.module}>
+                          <td className="font-extrabold text-[#1e3261]">
+                            {row.module}
+                            {isLocked ? <span className="ml-2 text-[10px] font-bold text-[#9aa8bc]">(Super Admin only)</span> : null}
+                          </td>
+                          {PERMISSION_ACTION_FIELDS.map(([label, field]) => (
+                            <td key={`${row.module}-${field}`}>
+                              {isLocked ? (
+                                <span className="text-[#9aa8bc]">-</span>
+                              ) : (
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(row.full_access || row[field])}
+                                  disabled={row.full_access}
+                                  onChange={() => togglePermission(row.module, field)}
+                                  className="size-4 rounded border-[#b9c4d6] accent-[#0d9f4a]"
+                                  aria-label={`${row.module} ${label}`}
+                                />
+                              )}
+                            </td>
+                          ))}
+                          <td>
+                            {isLocked ? (
                               <span className="text-[#9aa8bc]">-</span>
                             ) : (
                               <input
                                 type="checkbox"
-                                checked={Boolean(permissions[module]?.[action])}
-                                onChange={() => togglePermission(module, action)}
+                                checked={Boolean(row.full_access)}
+                                onChange={() => toggleFullAccess(row.module)}
                                 className="size-4 rounded border-[#b9c4d6] accent-[#0d9f4a]"
-                                aria-label={`${module} ${action}`}
+                                aria-label={`${row.module} Full Access`}
                               />
                             )}
                           </td>
-                        ))}
-                      </tr>
-                    ))}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-              <button type="button" onClick={() => onNotify(`${selectedRole.name} permissions saved`)} className="mt-5 h-11 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#078c3e]">
-                Save Permissions
+              )}
+              <button type="button" disabled={saving || loadingPermissions} onClick={savePermissions} className="mt-5 h-11 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#078c3e] disabled:opacity-60">
+                {saving ? 'Saving...' : 'Save Permissions'}
               </button>
             </div>
           ) : (
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {(selectedRoleUsers.length ? selectedRoleUsers : userManagementRows.slice(0, 3)).map((user) => (
+              {roleUsers.length ? roleUsers.map((user) => (
                 <article key={user.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
                   <AssigneeCell assignee={user.assignee} />
                   <p className="mt-2 text-[12px] font-bold text-[#6f7f98]">{user.email}</p>
                   <p className="mt-3"><EmployeeStatusBadge status={user.status} /></p>
                 </article>
-              ))}
+              )) : <p className="text-[13px] font-bold text-[#7585a2]">No users assigned to this role yet.</p>}
             </div>
           )}
         </article>
+        ) : <article className={`${panelClass} p-6 text-[13px] font-bold text-[#7585a2]`}>Select a role to view its permissions.</article>}
       </section>
 
       <DashboardFooter />
@@ -26294,11 +27598,12 @@ function RolesPermissionsPage({ onNotify }) {
         <AddRoleModal
           onClose={() => setAddRoleOpen(false)}
           onSave={(roleName) => {
-            const newRole = { name: roleName, type: 'Custom Role', users: 0, icon: ShieldCheck, tone: 'blue' };
-            setRoles((current) => [...current, newRole]);
-            setSelectedRole(newRole);
-            setAddRoleOpen(false);
-            onNotify(`${roleName} role added`);
+            roleApi.create({ name: roleName, role_type: 'custom' }).then((newRole) => {
+              setRoles((current) => [...current, newRole]);
+              setSelectedRoleId(newRole.id);
+              setAddRoleOpen(false);
+              onNotify(`${roleName} role added`);
+            }).catch((error) => onNotify(error.message || 'Failed to add role'));
           }}
         />
       ) : null}
@@ -26473,31 +27778,56 @@ function UserActionButton({ label, icon: Icon, tone, onClick }) {
   );
 }
 
-function AddUserModal({ onClose, onSave }) {
+function AddUserModal({ onClose, onSave, onNotify }) {
   const [form, setForm] = useState({
     name: '',
     email: '',
     mobile: '',
-    role: 'Sales Executive',
-    branch: 'Indore Branch',
+    password: '',
+    role: '',
+    branch: '',
     status: 'Active',
   });
+  const [roles, setRoles] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    roleApi.list().then((data) => {
+      const list = data?.results ?? data ?? [];
+      setRoles(list);
+      if (list.length) setForm((current) => ({ ...current, role: String(list[0].id) }));
+    }).catch(() => {});
+    branchApi.list().then((data) => {
+      const list = data?.results ?? data ?? [];
+      setBranches(list);
+      if (list.length) setForm((current) => ({ ...current, branch: String(list[0].id) }));
+    }).catch(() => {});
+  }, []);
 
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
-  const saveUser = () => {
-    const name = form.name.trim() || 'New User';
-    const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NU';
-    onSave({
-      id: Date.now(),
-      name,
-      email: form.email.trim() || `${name.toLowerCase().replace(/\s+/g, '.')}@malwasolar.com`,
-      mobile: form.mobile.trim() || '9000000000',
-      role: form.role,
-      branch: form.branch,
-      status: form.status,
-      createdOn: 'Today',
-      assignee: { name, initials, tone: 'emerald' },
-    });
+
+  const saveUser = async () => {
+    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
+      onNotify?.('Name, email and password are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const created = await userApi.create({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        mobile: form.mobile.trim(),
+        password: form.password,
+        role: form.role || null,
+        branch: form.branch || null,
+      });
+      onSave(created);
+    } catch (error) {
+      onNotify?.(error.message || 'Failed to create user');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -26511,15 +27841,27 @@ function AddUserModal({ onClose, onSave }) {
           <ModalTextInput label="User Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Enter user name" />
           <ModalTextInput label="Email" value={form.email} onChange={(value) => updateField('email', value)} placeholder="Enter email address" />
           <ModalTextInput label="Mobile Number" value={form.mobile} onChange={(value) => updateField('mobile', value)} placeholder="Enter mobile number" />
-          <ReportSelect label="Role" value={form.role} onChange={(value) => updateField('role', value)} options={['Sales Executive', 'Team Leader', 'Branch Manager', 'Super Admin']} />
-          <ReportSelect label="Assigned Branch" value={form.branch} onChange={(value) => updateField('branch', value)} options={['Head Office', 'Indore Branch', 'Ujjain Branch', 'Dewas Branch']} />
-          <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} />
+          <ModalTextInput label="Temporary Password" value={form.password} onChange={(value) => updateField('password', value)} placeholder="Minimum 8 characters" />
+          <ReportSelect
+            label="Role"
+            value={form.role}
+            onChange={(value) => updateField('role', value)}
+            options={roles.map((role) => String(role.id))}
+            optionLabels={Object.fromEntries(roles.map((role) => [String(role.id), role.name]))}
+          />
+          <ReportSelect
+            label="Assigned Branch"
+            value={form.branch}
+            onChange={(value) => updateField('branch', value)}
+            options={branches.map((branch) => String(branch.id))}
+            optionLabels={Object.fromEntries(branches.map((branch) => [String(branch.id), branch.name]))}
+          />
         </div>
         <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-5 sm:flex-row">
           <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
-          <button type="button" onClick={saveUser} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">
+          <button type="button" disabled={saving} onClick={saveUser} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white disabled:opacity-60">
             <Save className="size-4" />
-            Save User
+            {saving ? 'Saving...' : 'Save User'}
           </button>
         </div>
       </div>
@@ -26640,21 +27982,6 @@ function getRoleToneClass(tone) {
     cyan: 'bg-[#e6f8fb] text-[#0891b2]',
     pink: 'bg-[#ffe5f0] text-[#f43f7f]',
   }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
-}
-
-function createDefaultPermissions() {
-  const editableModules = ['Leads', 'Follow-ups', 'IVRS Management', 'Project Management', 'Liaisoning & Commissioning', 'O&M', 'User Management'];
-  const exportModules = ['Leads', 'Follow-ups', 'IVRS Management', 'Project Management', 'Liaisoning & Commissioning', 'Reports'];
-  return Object.fromEntries(permissionModules.map((module) => [
-    module,
-    {
-      View: true,
-      Add: editableModules.includes(module),
-      Edit: editableModules.includes(module),
-      Delete: false,
-      Export: exportModules.includes(module),
-    },
-  ]));
 }
 
 function ReportsPage({ onNotify }) {
@@ -26864,7 +28191,7 @@ function ReportDateRangePicker({ open, onToggle, onClose, dateFrom, dateTo, setD
   );
 }
 
-function ReportSelect({ label, value, onChange, options, hideLabel = false, className = '' }) {
+function ReportSelect({ label, value, onChange, options, optionLabels, hideLabel = false, className = '' }) {
   return (
     <label className={cx('block min-w-0', className)}>
       {!hideLabel ? <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{label}</span> : null}
@@ -26875,7 +28202,7 @@ function ReportSelect({ label, value, onChange, options, hideLabel = false, clas
         className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
       >
         {options.map((option) => (
-          <option key={option}>{option}</option>
+          <option key={option} value={option}>{optionLabels?.[option] ?? option}</option>
         ))}
       </select>
     </label>
@@ -27187,10 +28514,38 @@ function isDateWithinRange(value, dateFrom, dateTo) {
   return parsedValue >= rangeStart && parsedValue <= rangeEnd;
 }
 
+let cachedEmployeeOptions = null;
+let employeeOptionsPromise = null;
+
+function getEmployeeOptions() {
+  if (cachedEmployeeOptions) return Promise.resolve(cachedEmployeeOptions);
+  if (!employeeOptionsPromise) {
+    employeeOptionsPromise = userApi.list({ is_active: true })
+      .then((data) => {
+        const users = normalizeApiRows(data);
+        cachedEmployeeOptions = users.map((user) => ({ label: user.name || user.email, value: String(user.id) }));
+        return cachedEmployeeOptions;
+      })
+      .catch(() => {
+        cachedEmployeeOptions = [];
+        return cachedEmployeeOptions;
+      });
+  }
+  return employeeOptionsPromise;
+}
+
 function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel, onDashboard, onRequestApproval, onNotify }) {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [duplicateIvrs, setDuplicateIvrs] = useState('');
+  const [duplicateLeadMatches, setDuplicateLeadMatches] = useState([]);
+  const [duplicateLeadPayload, setDuplicateLeadPayload] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [employeeOptions, setEmployeeOptions] = useState(cachedEmployeeOptions || []);
+
+  useEffect(() => {
+    getEmployeeOptions().then(setEmployeeOptions);
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -27200,36 +28555,41 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
 
     setSubmitting(true);
     setSubmitError('');
+    const payload = {
+      customer_name: fd.get('customer_name'),
+      mobile_number: mobile,
+      ivrs_number: ivrs || undefined,
+      alternate_number: fd.get('alternate_number') || undefined,
+      email: fd.get('email') || undefined,
+      project_name: fd.get('project_name') || undefined,
+      project_type: fd.get('project_type') || undefined,
+      requirement_details: fd.get('requirement_details') || undefined,
+      source: fd.get('source') || undefined,
+      estimated_capacity: fd.get('estimated_capacity') || undefined,
+      next_follow_up: fd.get('next_follow_up') || undefined,
+      assigned_to: fd.get('assigned_to') || undefined,
+      status: fd.get('status') || 'New',
+      remarks: fd.get('remarks') || undefined,
+      address: fd.get('address') || undefined,
+      city: fd.get('city') || undefined,
+      state: fd.get('state') || undefined,
+      latitude: fd.get('latitude') || undefined,
+      longitude: fd.get('longitude') || undefined,
+    };
     try {
-      const payload = {
-        customer_name: fd.get('customer_name'),
-        mobile_number: mobile,
-        ivrs_number: ivrs || undefined,
-        alternate_number: fd.get('alternate_number') || undefined,
-        email: fd.get('email') || undefined,
-        project_name: fd.get('project_name') || undefined,
-        project_type: fd.get('project_type') || undefined,
-        requirement_details: fd.get('requirement_details') || undefined,
-        source: fd.get('source') || undefined,
-        estimated_capacity: fd.get('estimated_capacity') || undefined,
-        next_follow_up: fd.get('next_follow_up') || undefined,
-        status: fd.get('status') || 'New',
-        priority: fd.get('priority') || undefined,
-        remarks: fd.get('remarks') || undefined,
-        address: fd.get('address') || undefined,
-        city: fd.get('city') || undefined,
-        state: fd.get('state') || undefined,
-        latitude: fd.get('latitude') || undefined,
-        longitude: fd.get('longitude') || undefined,
-      };
       await leadApi.create(payload);
-      onNotify?.('Lead successfully create ho gayi!');
+      onNotify?.('Lead created successfully!');
       onCancel();
     } catch (err) {
-      if (err.message?.includes('IVRS number already exists')) {
+      if (err.message?.toLowerCase().includes('ivrs number already exists')) {
+        const matches = await leadApi.list({ search: ivrs }).catch(() => null);
+        const matchRows = matches ? (Array.isArray(matches) ? matches : matches.results ?? []) : [];
+        setDuplicateLeadMatches(matchRows.filter((row) => row.ivrs_number === ivrs));
+        setDuplicateLeadPayload(payload);
+        setDuplicateIvrs(ivrs);
         setDuplicateModalOpen(true);
       } else {
-        setSubmitError(err.message || 'Lead save karne mein error aayi. Dobara try karo.');
+        setSubmitError(err.message || 'Error saving lead. Please try again.');
       }
     } finally {
       setSubmitting(false);
@@ -27282,8 +28642,6 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
         </div>
       </div>
 
-      <LeadSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
       {submitError ? (
         <div className="rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-bold text-red-600">
           {submitError}
@@ -27325,12 +28683,11 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
 
         <LeadFormSection title="3. Assignment & Follow-up" icon={UserRound} tone="purple">
           <div className="grid gap-4 lg:grid-cols-3">
-            <LeadSelect label="Assigned Employee" required placeholder="Select employee" options={['Rohit Singh', 'Neha Kumari', 'Vikram Patel']} name="assigned_to_name" />
+            <LeadSelect label="Assigned Employee" required placeholder={employeeOptions.length ? 'Select employee' : 'No active employees found'} options={employeeOptions} name="assigned_to" />
             <LeadDateInput label="Follow-up Date" required name="next_follow_up" />
             <LeadSelect label="Lead Status" placeholder="New" options={['New', 'Follow-up', 'Quotation', 'Lost']} badgeValue="New" name="status" />
           </div>
-          <div className="grid gap-4 lg:grid-cols-[0.75fr_1.75fr]">
-            <LeadSelect label="Priority" icon={Flag} placeholder="Select priority" options={['High', 'Medium', 'Low']} name="priority" />
+          <div className="grid gap-4 lg:grid-cols-2">
             <LeadTextarea label="Remarks" icon={MapPin} placeholder="Enter remarks (optional)" compact name="remarks" />
           </div>
         </LeadFormSection>
@@ -27350,14 +28707,1232 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
 
       {duplicateModalOpen ? (
         <DuplicateIvrsModal
-          onClose={() => setDuplicateModalOpen(false)}
+          ivrsNumber={duplicateIvrs}
+          existingLeads={duplicateLeadMatches}
+          requestedLead={duplicateLeadPayload}
+          onClose={() => {
+            setDuplicateModalOpen(false);
+            setDuplicateLeadPayload(null);
+          }}
           onRequestApproval={() => {
             setDuplicateModalOpen(false);
+            setDuplicateLeadPayload(null);
             onRequestApproval();
           }}
           onNotify={onNotify}
         />
       ) : null}
+    </div>
+  );
+}
+
+function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestApproval, onNotify }) {
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [duplicateIvrs, setDuplicateIvrs] = useState('');
+  const [duplicateLeadMatches, setDuplicateLeadMatches] = useState([]);
+  const [duplicateLeadPayload, setDuplicateLeadPayload] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [employeeOptions, setEmployeeOptions] = useState(cachedEmployeeOptions || []);
+  const [detail, setDetail] = useState(mode === 'edit' ? null : {});
+  const [loadingDetail, setLoadingDetail] = useState(mode === 'edit');
+  const formRef = useRef(null);
+  const [quotationTemplate, setQuotationTemplate] = useState('');
+  const [quotationDetail, setQuotationDetail] = useState(null);
+  const [showQuotationDetailModal, setShowQuotationDetailModal] = useState(false);
+
+  useEffect(() => {
+    getEmployeeOptions().then(setEmployeeOptions);
+  }, []);
+
+  useEffect(() => {
+    if (mode !== 'edit' || !lead?.id) return;
+    setLoadingDetail(true);
+    leadApi.get(lead.id).then((data) => setDetail(data || {})).catch(() => setDetail({})).finally(() => setLoadingDetail(false));
+  }, [mode, lead?.id]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const fd = new FormData(event.currentTarget);
+    const mobile = fd.get('mobile_number')?.trim();
+    const ivrs = fd.get('ivrs_number')?.trim();
+
+    setSubmitting(true);
+    setSubmitError('');
+    const payload = {
+      customer_name: fd.get('customer_name'),
+      mobile_number: mobile,
+      ivrs_number: ivrs || undefined,
+      alternate_number: fd.get('alternate_number') || undefined,
+      email: fd.get('email') || undefined,
+      project_name: fd.get('project_name') || undefined,
+      project_type: fd.get('project_type') || undefined,
+      requirement_details: fd.get('requirement_details') || undefined,
+      source: fd.get('source') || undefined,
+      estimated_capacity: fd.get('estimated_capacity') || undefined,
+      next_follow_up: fd.get('next_follow_up') || undefined,
+      assigned_to: fd.get('assigned_to') || undefined,
+      status: fd.get('status') || 'New',
+      remarks: fd.get('remarks') || undefined,
+      address: fd.get('address') || undefined,
+      city: fd.get('city') || undefined,
+      state: fd.get('state') || undefined,
+      latitude: fd.get('latitude') || undefined,
+      longitude: fd.get('longitude') || undefined,
+    };
+
+    try {
+      let savedLead;
+      if (mode === 'edit') {
+        savedLead = await leadApi.update(lead.id, payload);
+        onNotify?.('Lead updated successfully!');
+      } else {
+        savedLead = await leadApi.create(payload);
+        onNotify?.('Lead created successfully!');
+      }
+
+      if (quotationDetail) {
+        quotationApi.create(buildQuotationDetailPayload(quotationDetail.template, quotationDetail.form, savedLead.id, quotationDetail.items)).catch(() => {});
+      }
+
+      onSaved?.(savedLead);
+    } catch (err) {
+      if (mode === 'create' && err.message?.toLowerCase().includes('ivrs number already exists')) {
+        const matches = await leadApi.list({ search: ivrs }).catch(() => null);
+        const matchRows = matches ? (Array.isArray(matches) ? matches : matches.results ?? []) : [];
+        setDuplicateLeadMatches(matchRows.filter((row) => row.ivrs_number === ivrs));
+        setDuplicateLeadPayload(payload);
+        setDuplicateIvrs(ivrs);
+        setDuplicateModalOpen(true);
+      } else {
+        setSubmitError(err.message || 'Error saving lead. Please try again.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const d = detail || {};
+  const followUpDateValue = d.next_follow_up ? new Date(d.next_follow_up).toISOString().slice(0, 10) : '';
+
+  return (
+    <div
+      className="modal-overlay fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/55 p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+          <h2 className="font-display text-[18px] font-extrabold text-[#111827]">
+            {mode === 'edit' ? 'Edit Lead' : 'Create Lead'}
+          </h2>
+          <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+
+        <div className="scroll-soft flex-1 overflow-y-auto p-6">
+          {submitError ? (
+            <div className="mb-4 rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-bold text-red-600">
+              {submitError}
+            </div>
+          ) : null}
+
+          {loadingDetail ? (
+            <div className="flex items-center justify-center gap-3 py-16 text-[14px] font-bold text-[#7386a3]">Loading lead...</div>
+          ) : (
+          <form id="lead-form-modal" ref={formRef} className="space-y-4" onSubmit={handleSubmit}>
+            <LeadFormSection title="1. Basic Information" icon={ReceiptText} tone="success">
+              <div className="grid gap-4 lg:grid-cols-3">
+                <LeadInput label="Customer Name" required icon={UserRound} placeholder="Enter customer name" name="customer_name" defaultValue={d.customer_name} />
+                <LeadPhoneInput label="Mobile Number" required placeholder="Enter mobile number" name="mobile_number" defaultValue={d.mobile_number} />
+                <LeadInput label="IVRS Number" required icon={BadgeCheck} placeholder="Enter IVRS number" rightHint name="ivrs_number" defaultValue={d.ivrs_number} />
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <LeadPhoneInput label="Alternate Number" placeholder="Enter alternate number" name="alternate_number" defaultValue={d.alternate_number} />
+                <LeadInput label="Email Address" icon={Mail} placeholder="Enter email address" type="email" name="email" defaultValue={d.email} />
+              </div>
+            </LeadFormSection>
+
+            <LeadFormSection title="2. Project Information" icon={ClipboardPlus} tone="primary">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <LeadInput label="Project Name" icon={FolderKanban} placeholder="Enter project name" name="project_name" defaultValue={d.project_name} />
+                <LeadSelect label="Project Type" placeholder="Select project type" options={['On-Grid', 'Off-Grid', 'Hybrid']} name="project_type" defaultValue={d.project_type} />
+              </div>
+              <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." name="requirement_details" defaultValue={d.requirement_details} />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <LeadSelect label="Source" placeholder="Select source" options={['Website', 'Referral', 'Walk-in', 'Campaign']} name="source" defaultValue={d.source} />
+                <LeadInput label="Estimated Capacity (kW)" icon={Zap} placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" defaultValue={d.estimated_capacity} />
+              </div>
+            </LeadFormSection>
+
+            <LeadFormSection title="3. Assignment & Follow-up" icon={UserRound} tone="purple">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <LeadDateInput label="Follow-up Date" required name="next_follow_up" defaultValue={followUpDateValue} />
+                <LeadSelect label="Lead Status" placeholder="New" options={['New', 'Follow-up', 'Quotation', 'Won', 'Lost']} badgeValue={mode === 'create' ? 'New' : undefined} name="status" defaultValue={d.status} />
+              </div>
+              <LeadTextarea label="Remarks" icon={MapPin} placeholder="Enter remarks (optional)" compact name="remarks" defaultValue={d.remarks} />
+            </LeadFormSection>
+
+            <LeadFormSection title="4. Location Information" titleSuffix="(Optional)" icon={MapPin} tone="warning">
+              <LeadTextarea label="Address" icon={MapPin} placeholder="Enter full address" name="address" defaultValue={d.address} />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <LeadInput label="Latitude" optional icon={MapPin} placeholder="Enter latitude" name="latitude" defaultValue={d.latitude} />
+                <LeadInput label="Longitude" optional icon={MapPin} placeholder="Enter longitude" name="longitude" defaultValue={d.longitude} />
+              </div>
+            </LeadFormSection>
+
+            <LeadFormSection title="5. Quotation" titleSuffix="(Optional)" icon={ReceiptText} tone="primary">
+              <p className="-mt-1 mb-1 text-[12px] font-bold text-[#7386a3]">Pick a quotation template, fill its detail in a separate form, then save it here. Manage full quotations later from the lead's details page.</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {QUOTATION_TEMPLATE_OPTIONS.map((option) => {
+                  const active = quotationTemplate === option;
+                  const savedForThis = quotationDetail && quotationTemplate === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setQuotationTemplate(option)}
+                      className={cx(
+                        'flex items-center justify-between gap-2 rounded-[10px] border px-4 py-3 text-left text-[13px] font-extrabold transition',
+                        active ? 'border-[#0b65e5] bg-[#edf5ff] text-[#0b65e5]' : 'border-[#dbe5f2] bg-white text-[#30466d] hover:bg-[#f8fbff]',
+                      )}
+                    >
+                      {option}
+                      {savedForThis ? <CheckCircle2 className="size-4 shrink-0 text-[#0d9f4a]" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                disabled={!quotationTemplate}
+                onClick={() => setShowQuotationDetailModal(true)}
+                className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-[#0b65e5] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#edf5ff] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <FileText className="size-4" />
+                {quotationDetail && quotationTemplate === quotationDetail.template ? 'Edit Detail' : 'Fill Detail'}
+              </button>
+              {quotationDetail && quotationTemplate === quotationDetail.template ? (
+                <p className="text-[12px] font-bold text-[#087a39]">Detail saved for {quotationDetail.template}. It will be created with this lead.</p>
+              ) : null}
+            </LeadFormSection>
+
+            <LeadFormSection title="6. Assigned To" titleSuffix="(Optional)" icon={UserRound} tone="purple">
+              <LeadSelect label="Assigned Employee" optional placeholder={employeeOptions.length ? 'Select employee' : 'No active employees found'} options={employeeOptions} name="assigned_to" defaultValue={d.assigned_to ? String(d.assigned_to) : ''} />
+            </LeadFormSection>
+          </form>
+          )}
+        </div>
+
+        <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-4 sm:flex-row">
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="lead-form-modal"
+            disabled={submitting || loadingDetail}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60"
+          >
+            <Save className="size-4" />
+            {submitting ? 'Saving...' : mode === 'edit' ? 'Update Lead' : 'Save Lead'}
+          </button>
+        </div>
+      </div>
+
+      {duplicateModalOpen ? (
+        <DuplicateIvrsModal
+          ivrsNumber={duplicateIvrs}
+          existingLeads={duplicateLeadMatches}
+          requestedLead={duplicateLeadPayload}
+          onClose={() => {
+            setDuplicateModalOpen(false);
+            setDuplicateLeadPayload(null);
+          }}
+          onRequestApproval={() => {
+            setDuplicateModalOpen(false);
+            setDuplicateLeadPayload(null);
+            onRequestApproval?.();
+          }}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {showQuotationDetailModal ? (
+        <QuotationDetailModal
+          template={quotationTemplate}
+          initialForm={quotationTemplate === quotationDetail?.template ? quotationDetail.form : null}
+          initialItems={quotationTemplate === quotationDetail?.template ? quotationDetail.items : null}
+          leadSnapshot={(() => {
+            const snap = formRef.current ? new FormData(formRef.current) : null;
+            return {
+              customer_name: snap?.get('customer_name') || '',
+              mobile_number: snap?.get('mobile_number') || '',
+              alternate_number: snap?.get('alternate_number') || '',
+              email: snap?.get('email') || '',
+              address: snap?.get('address') || '',
+              project_name: snap?.get('project_name') || '',
+              source: snap?.get('source') || '',
+            };
+          })()}
+          onClose={() => setShowQuotationDetailModal(false)}
+          onTemplateChange={setQuotationTemplate}
+          onSave={(savedTemplate, form, items) => {
+            setQuotationTemplate(savedTemplate);
+            setQuotationDetail({ template: savedTemplate, form, items });
+            setShowQuotationDetailModal(false);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function LeadViewModal({ leadId, onClose, onEdit }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    leadApi.get(leadId).then((data) => setDetail(data)).catch(() => setDetail(null)).finally(() => setLoading(false));
+  }, [leadId]);
+
+  return (
+    <div
+      className="modal-overlay fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/50 p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-pop-in scroll-soft flex max-h-[90vh] w-full max-w-[640px] flex-col overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="font-display text-[19px] font-extrabold text-[#111827]">Lead Details</h2>
+          <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        {loading ? (
+          <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Loading...</p>
+        ) : !detail ? (
+          <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Lead not found.</p>
+        ) : (
+          <>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <InfoCell label="Customer Name" value={detail.customer_name} />
+              <InfoCell label="Mobile Number" value={detail.mobile_number} />
+              <InfoCell label="IVRS Number" value={detail.ivrs_number || '—'} />
+              <InfoCell label="Email" value={detail.email || '—'} />
+              <InfoCell label="Project Name" value={detail.project_name || '—'} />
+              <InfoCell label="Project Type" value={detail.project_type || '—'} />
+              <InfoCell label="Estimated Capacity" value={detail.estimated_capacity ? `${detail.estimated_capacity} kW` : '—'} />
+              <InfoCell label="Status" valueNode={<StatusBadge status={detail.status} />} />
+              <InfoCell label="Assigned To" value={detail.assigned_to_detail?.name || 'Unassigned'} />
+              <InfoCell label="Next Follow-up" value={detail.next_follow_up ? new Date(detail.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
+              <InfoCell label="Source" value={detail.source || '—'} />
+            </div>
+            {detail.address ? (
+              <div className="mt-4"><InfoCell label="Address" value={detail.address} /></div>
+            ) : null}
+            {detail.remarks ? (
+              <div className="mt-4"><InfoCell label="Remarks" value={detail.remarks} /></div>
+            ) : null}
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Close</button>
+              <button type="button" onClick={onEdit} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><Pencil className="size-4" />Edit Lead</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const QUOTATION_TEMPLATE_OPTIONS = [
+  'Residential Subsidy',
+  'Residential Non-Subsidy',
+  'Commercial',
+  'Industrial',
+  'Structure',
+  'BOS Kit',
+];
+
+const QUOTATION_SECTION_VISIBILITY = {
+  'Residential Subsidy': { project: true, plant: true, panel: true, inverter: true, structure: true, bos: true, items: true, subsidy: true, payment: true, warranty: true },
+  'Residential Non-Subsidy': { project: true, plant: true, panel: true, inverter: true, structure: false, bos: false, items: true, subsidy: false, payment: true, warranty: true },
+  Commercial: { project: true, plant: true, panel: true, inverter: true, structure: false, bos: false, items: false, subsidy: false, payment: true, warranty: true },
+  Industrial: { project: true, plant: true, panel: true, inverter: true, structure: true, bos: false, items: false, subsidy: false, payment: true, warranty: true },
+  Structure: { project: false, plant: false, panel: false, inverter: false, structure: true, bos: false, items: true, subsidy: false, payment: false, warranty: true },
+  'BOS Kit': { project: false, plant: false, panel: false, inverter: false, structure: false, bos: true, items: true, subsidy: false, payment: false, warranty: true },
+};
+
+const QUOTATION_TEMPLATE_DISPLAY_NAMES = {
+  'Residential Subsidy': 'Residential Subsidy Solar Quotation',
+  'Residential Non-Subsidy': 'Residential Non-Subsidy Quotation',
+  Commercial: 'Commercial Solar Quotation',
+  Industrial: 'Industrial Solar Quotation',
+  Structure: 'Solar Structure Quotation',
+  'BOS Kit': 'BOS Kit Quotation',
+};
+
+const QUOTATION_TEMPLATE_PROJECT_TYPE = {
+  'Residential Subsidy': 'Residential Subsidy',
+  'Residential Non-Subsidy': 'Residential Non Subsidy',
+  Commercial: 'Commercial',
+  Industrial: 'Industrial',
+};
+
+function formatMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+}
+
+function emptyQuotationFields() {
+  return {
+    template: 'Residential Subsidy', quotation_date: '', valid_till: '', sales_executive: '',
+    company_name: '', alternate_number: '', email: '', gst_number: '', address: '', city: '', state: '', pincode: '',
+    project_type: '', installation_type: '', sanctioned_load_kw: '', monthly_electricity_bill: '', discom_name: '',
+    plant_capacity_kw: '', estimated_annual_generation: '', shadow_free_area: '', module_orientation: '',
+    panel_brand: '', panel_model: '', panel_wattage: '', number_of_panels: '',
+    inverter_brand: '', inverter_model: '', inverter_capacity: '', inverter_quantity: '',
+    structure_type: '', structure_material: '', foundation_type: '', wind_speed_rating: '',
+    dc_cable: '', ac_cable: '', earthing_kit: '', lightning_arrester: '', acdb: '', dcdb: '', connectors: '',
+    material_cost: '0', structure_cost: '0', installation_cost: '0', transportation_cost: '0',
+    liaisoning_charges: '0', net_metering_charges: '0', other_charges: '0',
+    subsidy_applicable: false, subsidy_amount: '0',
+    gst_percent: '12', discount: '0',
+    advance_percent: '', material_dispatch_percent: '', installation_percent: '', commissioning_percent: '',
+    panel_warranty: '', inverter_warranty: '', structure_warranty: '', workmanship_warranty: '',
+    special_instructions: '', scope_of_work: '', exclusions: '', notes: '',
+  };
+}
+
+function fieldsFromQuotation(q) {
+  const base = emptyQuotationFields();
+  const next = { ...base };
+  Object.keys(base).forEach((key) => {
+    if (q[key] === null || q[key] === undefined) return;
+    next[key] = typeof base[key] === 'boolean' ? Boolean(q[key]) : String(q[key]);
+  });
+  return next;
+}
+
+const QUOTATION_NULLABLE_NUMERIC_FIELDS = [
+  'sanctioned_load_kw', 'monthly_electricity_bill', 'plant_capacity_kw', 'estimated_annual_generation',
+  'panel_wattage', 'advance_percent', 'material_dispatch_percent', 'installation_percent', 'commissioning_percent',
+  'number_of_panels', 'inverter_quantity',
+];
+const QUOTATION_ZERO_DEFAULT_NUMERIC_FIELDS = [
+  'material_cost', 'structure_cost', 'installation_cost', 'transportation_cost',
+  'liaisoning_charges', 'net_metering_charges', 'other_charges', 'subsidy_amount', 'gst_percent', 'discount',
+];
+const QUOTATION_NULLABLE_DATE_FIELDS = ['quotation_date', 'valid_till'];
+
+function buildQuotationPayload(qForm, leadId, items) {
+  const payload = { lead: leadId, items, ...qForm };
+  QUOTATION_NULLABLE_NUMERIC_FIELDS.forEach((key) => {
+    payload[key] = qForm[key] === '' || qForm[key] == null ? null : Number(qForm[key]);
+  });
+  QUOTATION_ZERO_DEFAULT_NUMERIC_FIELDS.forEach((key) => {
+    payload[key] = qForm[key] === '' || qForm[key] == null ? 0 : Number(qForm[key]);
+  });
+  QUOTATION_NULLABLE_DATE_FIELDS.forEach((key) => {
+    payload[key] = qForm[key] || null;
+  });
+  payload.sales_executive = qForm.sales_executive || null;
+  payload.subsidy_applicable = !!qForm.subsidy_applicable;
+  return payload;
+}
+
+function numberToWordsIndian(value) {
+  const num = Math.round(Number(value) || 0);
+  if (num <= 0) return 'Zero';
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const twoDigits = (n) => (n < 20 ? ones[n] : `${tens[Math.floor(n / 10)]}${n % 10 ? ' ' + ones[n % 10] : ''}`);
+  const threeDigits = (n) => {
+    const h = Math.floor(n / 100);
+    const rest = n % 100;
+    return `${h ? ones[h] + ' Hundred' : ''}${h && rest ? ' ' : ''}${rest ? twoDigits(rest) : ''}`;
+  };
+  const crore = Math.floor(num / 10000000);
+  const lakh = Math.floor((num % 10000000) / 100000);
+  const thousand = Math.floor((num % 100000) / 1000);
+  const hundred = num % 1000;
+  const parts = [];
+  if (crore) parts.push(`${twoDigits(crore)} Crore`);
+  if (lakh) parts.push(`${twoDigits(lakh)} Lakh`);
+  if (thousand) parts.push(`${twoDigits(thousand)} Thousand`);
+  if (hundred) parts.push(threeDigits(hundred));
+  return parts.filter(Boolean).join(' ');
+}
+
+const RESIDENTIAL_SUBSIDY_TERMS = [
+  'Prices are valid for the specified validity period.',
+  'Net metering approval depends on DISCOM.',
+  'Subsidy release is subject to government norms.',
+  'Additional civil work is excluded.',
+  'Transportation beyond city limits is chargeable.',
+  'Any tax revision shall be applicable extra.',
+  'Warranty shall be as per OEM standards.',
+];
+
+function emptyQuotationDetailForm(template) {
+  return {
+    quotation_date: '', valid_till: '', sales_executive: '',
+    customer_name: '', mobile_number: '', alternate_number: '', email: '', aadhaar_number: '',
+    company_name: '', gst_number: '',
+    address: '', city: '', state: '', pincode: '', discom_name: '',
+    project_name: '', installation_type: '', sanctioned_load_kw: '', monthly_electricity_bill: '',
+    existing_meter_number: '', connection_type: '', consumer_number: '', execution_timeline: '',
+    plant_capacity_kw: '', estimated_annual_generation: '', shadow_free_area: '', module_orientation: '',
+    panel_brand: '', panel_model: '', panel_type: '', panel_wattage: '',
+    inverter_brand: '', inverter_model: '', inverter_type: '', inverter_capacity: '', inverter_quantity: '',
+    structure_type: '', structure_material: '', coating_details: '', foundation_type: '', wind_speed_rating: '',
+    dc_cable: '', mc4_connector: '', dcdb: '', ac_cable: '', acdb: '', earthing_kit: '', lightning_arrester: '',
+    cable_tray: '', fasteners: '', pvc_pipe: '',
+    material_cost: '0', structure_cost: '0', installation_cost: '0', transportation_cost: '0',
+    liaisoning_charges: '0', net_metering_charges: '0', other_charges: '0',
+    subsidy_applicable: template === 'Residential Subsidy', subsidy_amount: '0',
+    gst_percent: '13.8',
+    advance_percent: '20', material_dispatch_percent: '50', installation_percent: '20', commissioning_percent: '10',
+    panel_warranty: '12 Years Product / 25 Years Performance', inverter_warranty: '5 Years',
+    structure_warranty: '10 Years', workmanship_warranty: '5 Years',
+    special_instructions: '', scope_of_work: '', exclusions: '', notes: '',
+  };
+}
+
+function buildQuotationDetailPayload(template, form, leadId, items) {
+  const num = (v) => (v === '' || v === null || v === undefined ? 0 : Number(v));
+  const nullableNum = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
+  const cleanItems = items.filter((row) => row.item_name && row.item_name.trim());
+  const panelWattage = num(form.panel_wattage);
+  const plantCapacity = num(form.plant_capacity_kw);
+  const numberOfPanels = panelWattage && plantCapacity ? Math.ceil((plantCapacity * 1000) / panelWattage) : null;
+
+  return {
+    lead: leadId,
+    template,
+    project_type: QUOTATION_TEMPLATE_PROJECT_TYPE[template] || '',
+    company_name: form.company_name || '',
+    gst_number: form.gst_number || '',
+    items: cleanItems.map((row) => ({
+      item_name: row.item_name.trim(),
+      brand: row.brand || '',
+      specification: row.specification || '',
+      quantity: row.quantity || '0',
+      unit: row.unit || 'Nos',
+      rate: num(row.rate),
+      amount: num(row.quantity) * num(row.rate),
+    })),
+    quotation_date: form.quotation_date || null,
+    valid_till: form.valid_till || null,
+    sales_executive: form.sales_executive || null,
+    alternate_number: form.alternate_number || '',
+    email: form.email || '',
+    aadhaar_number: form.aadhaar_number || '',
+    address: form.address || '',
+    city: form.city || '',
+    state: form.state || '',
+    pincode: form.pincode || '',
+    discom_name: form.discom_name || '',
+    installation_type: form.installation_type || '',
+    sanctioned_load_kw: nullableNum(form.sanctioned_load_kw),
+    monthly_electricity_bill: nullableNum(form.monthly_electricity_bill),
+    existing_meter_number: form.existing_meter_number || '',
+    connection_type: form.connection_type || '',
+    consumer_number: form.consumer_number || '',
+    execution_timeline: form.execution_timeline || '',
+    plant_capacity_kw: nullableNum(form.plant_capacity_kw),
+    estimated_annual_generation: form.estimated_annual_generation === '' ? (plantCapacity ? plantCapacity * 1500 : null) : num(form.estimated_annual_generation),
+    shadow_free_area: form.shadow_free_area || '',
+    module_orientation: form.module_orientation || '',
+    panel_brand: form.panel_brand || '',
+    panel_model: form.panel_model || '',
+    panel_type: form.panel_type || '',
+    panel_wattage: nullableNum(form.panel_wattage),
+    number_of_panels: numberOfPanels,
+    inverter_brand: form.inverter_brand || '',
+    inverter_model: form.inverter_model || '',
+    inverter_type: form.inverter_type || '',
+    inverter_capacity: form.inverter_capacity || '',
+    inverter_quantity: nullableNum(form.inverter_quantity),
+    structure_type: form.structure_type || '',
+    structure_material: form.structure_material || '',
+    coating_details: form.coating_details || '',
+    foundation_type: form.foundation_type || '',
+    wind_speed_rating: form.wind_speed_rating || '',
+    dc_cable: form.dc_cable || '',
+    mc4_connector: form.mc4_connector || '',
+    dcdb: form.dcdb || '',
+    ac_cable: form.ac_cable || '',
+    acdb: form.acdb || '',
+    earthing_kit: form.earthing_kit || '',
+    lightning_arrester: form.lightning_arrester || '',
+    cable_tray: form.cable_tray || '',
+    fasteners: form.fasteners || '',
+    pvc_pipe: form.pvc_pipe || '',
+    material_cost: num(form.material_cost),
+    structure_cost: num(form.structure_cost),
+    installation_cost: num(form.installation_cost),
+    transportation_cost: num(form.transportation_cost),
+    liaisoning_charges: num(form.liaisoning_charges),
+    net_metering_charges: num(form.net_metering_charges),
+    other_charges: num(form.other_charges),
+    subsidy_applicable: !!form.subsidy_applicable,
+    subsidy_amount: num(form.subsidy_amount),
+    gst_percent: num(form.gst_percent),
+    advance_percent: nullableNum(form.advance_percent),
+    material_dispatch_percent: nullableNum(form.material_dispatch_percent),
+    installation_percent: nullableNum(form.installation_percent),
+    commissioning_percent: nullableNum(form.commissioning_percent),
+    panel_warranty: form.panel_warranty || '',
+    inverter_warranty: form.inverter_warranty || '',
+    structure_warranty: form.structure_warranty || '',
+    workmanship_warranty: form.workmanship_warranty || '',
+    special_instructions: form.special_instructions || '',
+    scope_of_work: form.scope_of_work || '',
+    exclusions: form.exclusions || '',
+    notes: form.notes || '',
+  };
+}
+
+function QuotationDetailModal({ template, initialForm, initialItems, leadSnapshot, onClose, onTemplateChange, onSave }) {
+  const [activeTemplate, setActiveTemplate] = useState(template);
+  const visibility = QUOTATION_SECTION_VISIBILITY[activeTemplate] || {};
+  const emptyItemRow = () => ({ item_name: '', brand: '', specification: '', quantity: '', unit: 'Nos', rate: '' });
+
+  const buildFormFor = (tpl) => {
+    const base = emptyQuotationDetailForm(tpl);
+    if (tpl === template && initialForm) return { ...base, ...initialForm };
+    return {
+      ...base,
+      customer_name: leadSnapshot?.customer_name || '',
+      mobile_number: leadSnapshot?.mobile_number || '',
+      alternate_number: leadSnapshot?.alternate_number || '',
+      email: leadSnapshot?.email || '',
+      address: leadSnapshot?.address || '',
+      project_name: leadSnapshot?.project_name || '',
+    };
+  };
+  const buildItemsFor = (tpl) => (tpl === template && initialItems?.length ? initialItems : [emptyItemRow()]);
+
+  const [form, setForm] = useState(() => buildFormFor(template));
+  const [items, setItems] = useState(() => buildItemsFor(template));
+  const [formError, setFormError] = useState('');
+
+  const update = (name, value) => setForm((prev) => ({ ...prev, [name]: value }));
+  const updateItem = (index, patch) => setItems((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const addItem = () => setItems((prev) => [...prev, emptyItemRow()]);
+  const removeItem = (index) => setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+
+  const handleTemplateSwitch = (newTemplate) => {
+    if (newTemplate === activeTemplate) return;
+    setActiveTemplate(newTemplate);
+    setForm(buildFormFor(newTemplate));
+    setItems(buildItemsFor(newTemplate));
+    setFormError('');
+    onTemplateChange?.(newTemplate);
+  };
+
+  const num = (v) => (v === '' || v === null || v === undefined ? 0 : Number(v));
+  const panelWattage = num(form.panel_wattage);
+  const plantCapacity = num(form.plant_capacity_kw);
+  const numberOfPanels = panelWattage && plantCapacity ? Math.ceil((plantCapacity * 1000) / panelWattage) : null;
+  const totalDcCapacity = numberOfPanels && panelWattage ? (numberOfPanels * panelWattage) / 1000 : null;
+  const autoAnnualGeneration = plantCapacity ? plantCapacity * 1500 : null;
+  const itemsTotal = items.reduce((sum, row) => sum + num(row.quantity) * num(row.rate), 0);
+  const costsTotal = ['material_cost', 'structure_cost', 'installation_cost', 'transportation_cost', 'liaisoning_charges', 'net_metering_charges', 'other_charges']
+    .reduce((sum, key) => sum + num(form[key]), 0);
+  const subtotal = itemsTotal + costsTotal;
+  const gstAmount = subtotal * (num(form.gst_percent) / 100);
+  const totalAmount = subtotal + gstAmount;
+  const finalPayable = form.subsidy_applicable ? totalAmount - num(form.subsidy_amount) : totalAmount;
+  const costPerWatt = totalDcCapacity ? finalPayable / (totalDcCapacity * 1000) : null;
+  const annualSavings = num(form.monthly_electricity_bill) ? num(form.monthly_electricity_bill) * 12 : null;
+  const roiPercent = annualSavings && finalPayable ? (annualSavings / finalPayable) * 100 : null;
+  const paybackYears = annualSavings && finalPayable ? finalPayable / annualSavings : null;
+  const paymentTermsSum = ['advance_percent', 'material_dispatch_percent', 'installation_percent', 'commissioning_percent'].reduce((sum, key) => sum + num(form[key]), 0);
+  const paymentTermsValid = !visibility.payment || Math.abs(paymentTermsSum - 100) < 0.01;
+
+  const handleSaveDetail = () => {
+    if (!paymentTermsValid) {
+      setFormError(`Payment Terms must add up to 100% (currently ${paymentTermsSum.toFixed(1)}%).`);
+      return;
+    }
+    setFormError('');
+    onSave(activeTemplate, form, items);
+  };
+
+  return (
+    <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="modal-pop-in flex max-h-[94vh] w-full max-w-[980px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-start justify-between gap-3 border-b border-[#edf2f8] px-6 py-4">
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={onClose} aria-label="Back to template selection" title="Back to template selection" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+              <ChevronLeft className="size-4" />
+              Back
+            </button>
+            <div className="min-w-0">
+              <h2 className="font-display text-[16px] font-extrabold leading-tight text-[#111827]">Fill Detail</h2>
+              <label className="mt-1 block">
+                <span className="sr-only">Quotation template</span>
+                <select
+                  value={activeTemplate}
+                  onChange={(event) => handleTemplateSwitch(event.target.value)}
+                  className="h-7 max-w-[260px] truncate rounded-[6px] border border-[#cfe0fb] bg-[#f3f8ff] px-2 text-[12px] font-bold text-[#0b65e5] outline-none transition focus:border-[#0b65e5] focus:ring-2 focus:ring-[#dce9ff]"
+                >
+                  {QUOTATION_TEMPLATE_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>{QUOTATION_TEMPLATE_DISPLAY_NAMES[opt] || opt}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+
+        <div className="scroll-soft flex-1 overflow-y-auto p-6 space-y-4">
+          {formError ? <p className="rounded-[8px] bg-[#fdecec] px-3 py-2 text-[12px] font-bold text-[#c0392b]">{formError}</p> : null}
+
+          <div className="grid gap-3 rounded-[10px] border border-[#d7e8d2] bg-[#f3fbf0] p-4 sm:grid-cols-3 lg:grid-cols-4">
+            <QReadout label="Plant Capacity" value={plantCapacity ? `${plantCapacity} kW` : '—'} />
+            <QReadout label="Number of Panels" value={numberOfPanels ?? '—'} />
+            <QReadout label="Total DC Capacity" value={totalDcCapacity ? `${totalDcCapacity.toFixed(2)} kW` : '—'} />
+            <QReadout label="Subtotal" value={formatCurrencyPrecise(subtotal)} />
+            <QReadout label="GST Amount" value={formatCurrencyPrecise(gstAmount)} />
+            <QReadout label="Total Amount" value={formatCurrencyPrecise(totalAmount)} />
+            <QReadout label="Final Payable" value={formatCurrencyPrecise(finalPayable)} accent />
+            <QReadout label="Cost / Watt" value={costPerWatt ? `₹${costPerWatt.toFixed(2)}/W` : '—'} />
+            <QReadout label="Est. Annual Savings" value={annualSavings ? formatCurrencyPrecise(annualSavings) : '—'} />
+            <QReadout label="ROI" value={roiPercent ? `${roiPercent.toFixed(1)}%` : '—'} />
+            <QReadout label="Payback Period" value={paybackYears ? `${paybackYears.toFixed(1)} years` : '—'} />
+          </div>
+          <p className="text-[12px] font-bold text-[#53647f]">Final Payable Amount in Words: <span className="text-[#1e3261]">{numberToWordsIndian(finalPayable)} Rupees Only</span></p>
+
+          <LeadFormSection title="Basic Details" icon={FileText} tone="primary">
+            <div className="grid gap-4 md:grid-cols-3">
+              <QField label="Quotation No" value="Auto-generated on save" readOnly />
+              <QField label="Lead ID" value="Auto-generated on save" readOnly />
+              <QField label="Customer Category" value={activeTemplate} readOnly />
+              <QField label="Quotation Date" name="quotation_date" type="date" value={form.quotation_date} onChange={update} optional />
+              <QField label="Valid Till" name="valid_till" type="date" value={form.valid_till} onChange={update} optional />
+              <QField label="Lead Source" value={leadSnapshot?.source || '—'} readOnly />
+            </div>
+          </LeadFormSection>
+
+          <LeadFormSection title="Customer Details" icon={UserRound} tone="success">
+            <div className="grid gap-4 md:grid-cols-3">
+              <QField label="Customer Name" value={form.customer_name || '—'} readOnly />
+              <QField label="Mobile Number" value={form.mobile_number || '—'} readOnly />
+              <QField label="Company Name" name="company_name" value={form.company_name} onChange={update} placeholder="Enter company name" optional />
+              <QField label="Alternate Number" name="alternate_number" value={form.alternate_number} onChange={update} placeholder="Enter alternate number" optional />
+              <QField label="Email ID" name="email" type="email" value={form.email} onChange={update} placeholder="Enter email" optional />
+              <QField label="GST Number" name="gst_number" value={form.gst_number} onChange={update} placeholder="Enter GST number" optional />
+              <QField label="Aadhaar Number" name="aadhaar_number" value={form.aadhaar_number} onChange={update} placeholder="Enter Aadhaar number" optional />
+              <QField label="City" name="city" value={form.city} onChange={update} placeholder="Enter city" optional />
+              <QField label="State" name="state" value={form.state} onChange={update} placeholder="Enter state" optional />
+              <QField label="Pincode" name="pincode" value={form.pincode} onChange={update} placeholder="Enter pincode" optional />
+              <QField label="DISCOM Name" name="discom_name" value={form.discom_name} onChange={update} placeholder="Enter DISCOM name" optional />
+            </div>
+            <QTextarea label="Address" name="address" value={form.address} onChange={update} placeholder="Enter full address" optional compact />
+          </LeadFormSection>
+
+          {visibility.project ? (
+          <LeadFormSection title="Project Details" icon={ClipboardPlus} tone="primary">
+            <div className="grid gap-4 md:grid-cols-3">
+              <QField label="Project Name" value={form.project_name || '—'} readOnly />
+              <QField label="Project Type" value={QUOTATION_TEMPLATE_PROJECT_TYPE[activeTemplate] || activeTemplate} readOnly />
+              <QSelect label="Installation Type" name="installation_type" value={form.installation_type} onChange={update} options={['Rooftop', 'Ground Mounted', 'Elevated Structure']} optional />
+              <QField label="Sanctioned Load (kW)" name="sanctioned_load_kw" type="number" value={form.sanctioned_load_kw} onChange={update} placeholder="Enter sanctioned load" optional />
+              <QField label="Monthly Electricity Bill (₹)" name="monthly_electricity_bill" type="number" value={form.monthly_electricity_bill} onChange={update} placeholder="Enter monthly bill" optional />
+              <QField label="Existing Meter Number" name="existing_meter_number" value={form.existing_meter_number} onChange={update} placeholder="Enter meter number" optional />
+              <QField label="Connection Type" name="connection_type" value={form.connection_type} onChange={update} placeholder="e.g. Single Phase" optional />
+              <QField label="Consumer Number" name="consumer_number" value={form.consumer_number} onChange={update} placeholder="Enter consumer number" optional />
+              {activeTemplate === 'Industrial' ? (
+                <QField label="Project Execution Timeline" name="execution_timeline" value={form.execution_timeline} onChange={update} placeholder="e.g. 45 days from advance payment" optional />
+              ) : null}
+            </div>
+          </LeadFormSection>
+          ) : null}
+
+          {visibility.plant ? (
+          <LeadFormSection title="Plant Details" icon={Zap} tone="warning">
+            <div className="grid gap-4 md:grid-cols-3">
+              <QField label="Plant Capacity (kW)" name="plant_capacity_kw" type="number" value={form.plant_capacity_kw} onChange={update} placeholder="Enter plant capacity" optional />
+              <QField label="Estimated Annual Generation (kWh)" name="estimated_annual_generation" type="number" value={form.estimated_annual_generation} onChange={update} placeholder={autoAnnualGeneration ? `Auto: ${autoAnnualGeneration}` : 'Capacity × 1500'} optional />
+              <QField label="Shadow Free Area Available" name="shadow_free_area" value={form.shadow_free_area} onChange={update} placeholder="e.g. 350 sq.ft" optional />
+              <QSelect label="Module Orientation" name="module_orientation" value={form.module_orientation} onChange={update} options={['South', 'East-West', 'South-East', 'South-West']} optional />
+            </div>
+          </LeadFormSection>
+          ) : null}
+
+          {visibility.panel ? (
+          <LeadFormSection title="Solar Panel Details" icon={BadgeCheck} tone="success">
+            <div className="grid gap-4 md:grid-cols-3">
+              <QField label="Panel Brand" name="panel_brand" value={form.panel_brand} onChange={update} placeholder="Enter brand" optional />
+              <QField label="Panel Model" name="panel_model" value={form.panel_model} onChange={update} placeholder="Enter model" optional />
+              <QSelect label="Panel Type" name="panel_type" value={form.panel_type} onChange={update} options={['Mono PERC', 'TOPCon', 'Bifacial']} optional />
+              <QField label="Panel Wattage (W)" name="panel_wattage" type="number" value={form.panel_wattage} onChange={update} placeholder="e.g. 540" optional />
+              <QField label="Number of Panels" value={numberOfPanels ?? 'Auto-calculated'} readOnly />
+              <QField label="Total DC Capacity (kW)" value={totalDcCapacity ? totalDcCapacity.toFixed(2) : 'Auto-calculated'} readOnly />
+            </div>
+          </LeadFormSection>
+          ) : null}
+
+          {visibility.inverter ? (
+          <LeadFormSection title="Inverter Details" icon={Zap} tone="purple">
+            <div className="grid gap-4 md:grid-cols-4">
+              <QField label="Inverter Brand" name="inverter_brand" value={form.inverter_brand} onChange={update} placeholder="Enter brand" optional />
+              <QField label="Inverter Model" name="inverter_model" value={form.inverter_model} onChange={update} placeholder="Enter model" optional />
+              <QSelect label="Inverter Type" name="inverter_type" value={form.inverter_type} onChange={update} options={['String Inverter', 'Micro Inverter']} optional />
+              <QField label="Inverter Capacity" name="inverter_capacity" value={form.inverter_capacity} onChange={update} placeholder="e.g. 5kW" optional />
+              <QField label="Quantity" name="inverter_quantity" type="number" value={form.inverter_quantity} onChange={update} placeholder="Enter qty" optional />
+            </div>
+          </LeadFormSection>
+          ) : null}
+
+          {visibility.structure ? (
+          <LeadFormSection title="Structure Details" icon={FolderKanban} tone="warning">
+            <div className="grid gap-4 md:grid-cols-4">
+              <QSelect label="Structure Type" name="structure_type" value={form.structure_type} onChange={update} options={['Standard Structure', 'Elevated Structure']} optional />
+              <QSelect label="Material Grade" name="structure_material" value={form.structure_material} onChange={update} options={['GI', 'HDGI', 'Aluminium']} optional />
+              <QField label="Coating Details" name="coating_details" value={form.coating_details} onChange={update} placeholder="e.g. Hot-Dip Galvanized, 80 microns" optional />
+              <QField label="Foundation Type" name="foundation_type" value={form.foundation_type} onChange={update} placeholder="Enter foundation type" optional />
+              <QField label="Wind Speed Rating" name="wind_speed_rating" value={form.wind_speed_rating} onChange={update} placeholder="e.g. 150 km/h" optional />
+            </div>
+          </LeadFormSection>
+          ) : null}
+
+          {visibility.bos ? (
+          <LeadFormSection title="BOS Material" icon={Boxes} tone="primary">
+            <div className="grid gap-4 md:grid-cols-3">
+              {!visibility.structure ? (
+                <QField label="Module Mounting Structure" name="structure_type" value={form.structure_type} onChange={update} placeholder="Enter mounting structure spec" optional />
+              ) : null}
+              <QField label="DC Cable" name="dc_cable" value={form.dc_cable} onChange={update} placeholder="Enter spec" optional />
+              <QField label="MC4 Connector" name="mc4_connector" value={form.mc4_connector} onChange={update} placeholder="Enter spec" optional />
+              <QField label="DCDB" name="dcdb" value={form.dcdb} onChange={update} placeholder="Enter spec" optional />
+              <QField label="AC Cable" name="ac_cable" value={form.ac_cable} onChange={update} placeholder="Enter spec" optional />
+              <QField label="ACDB" name="acdb" value={form.acdb} onChange={update} placeholder="Enter spec" optional />
+              <QField label="Earthing Kit" name="earthing_kit" value={form.earthing_kit} onChange={update} placeholder="Enter spec" optional />
+              <QField label="Lightning Arrester" name="lightning_arrester" value={form.lightning_arrester} onChange={update} placeholder="Enter spec" optional />
+              <QField label="Cable Tray" name="cable_tray" value={form.cable_tray} onChange={update} placeholder="Enter spec" optional />
+              <QField label="Fasteners" name="fasteners" value={form.fasteners} onChange={update} placeholder="Enter spec" optional />
+              <QField label="PVC Pipe" name="pvc_pipe" value={form.pvc_pipe} onChange={update} placeholder="Enter spec" optional />
+            </div>
+          </LeadFormSection>
+          ) : null}
+
+          {visibility.items ? (
+          <LeadFormSection title="Material Details Table" titleSuffix="(Optional)" icon={ReceiptText} tone="success">
+            <div className="overflow-x-auto rounded-[10px] border border-[#e7eef7] bg-white">
+              <table className="crm-table min-w-[760px] w-full">
+                <thead><tr>{['#', 'Material Name', 'Brand', 'Specification', 'Qty', 'Unit', 'Rate', 'Amount', ''].map((header) => <th key={header || 'remove'}>{header}</th>)}</tr></thead>
+                <tbody>
+                  {items.map((row, index) => (
+                    <tr key={index}>
+                      <td className="text-[12px] font-bold text-[#7386a3]">{index + 1}</td>
+                      <td><input value={row.item_name} onChange={(e) => updateItem(index, { item_name: e.target.value })} placeholder="Material name" className="h-9 w-full min-w-[140px] rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                      <td><input value={row.brand} onChange={(e) => updateItem(index, { brand: e.target.value })} placeholder="Brand" className="h-9 w-full min-w-[100px] rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                      <td><input value={row.specification} onChange={(e) => updateItem(index, { specification: e.target.value })} placeholder="Specification" className="h-9 w-full min-w-[140px] rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                      <td><input value={row.quantity} onChange={(e) => updateItem(index, { quantity: e.target.value })} placeholder="Qty" className="h-9 w-16 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                      <td><input value={row.unit} onChange={(e) => updateItem(index, { unit: e.target.value })} placeholder="Unit" className="h-9 w-16 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                      <td><input value={row.rate} onChange={(e) => updateItem(index, { rate: e.target.value })} placeholder="Rate" className="h-9 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                      <td className="font-extrabold text-[#1e3261]">{formatCurrencyPrecise(num(row.quantity) * num(row.rate))}</td>
+                      <td>
+                        <button type="button" onClick={() => removeItem(index)} disabled={items.length === 1} aria-label="Remove row" className="grid size-8 place-items-center rounded-[6px] text-[#c0392b] transition hover:bg-[#fdecec] disabled:cursor-not-allowed disabled:opacity-30">
+                          <X className="size-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <button type="button" onClick={addItem} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-dashed border-[#b9cce7] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
+                <Plus className="size-4" />
+                Add Material Row
+              </button>
+              <p className="text-[13px] font-extrabold text-[#1e3261]">Material Table Total: {formatCurrencyPrecise(itemsTotal)} <span className="font-bold text-[#7386a3]">(already included in subtotal — also add any lump-sum material cost below if not itemized)</span></p>
+            </div>
+          </LeadFormSection>
+          ) : null}
+
+          <LeadFormSection title="Project Costing" icon={IndianRupee} tone="warning">
+            <div className="grid gap-4 md:grid-cols-4">
+              <QField label="Material Cost" name="material_cost" type="number" value={form.material_cost} onChange={update} optional />
+              <QField label="Structure Cost" name="structure_cost" type="number" value={form.structure_cost} onChange={update} optional />
+              <QField label="Installation Cost" name="installation_cost" type="number" value={form.installation_cost} onChange={update} optional />
+              <QField label="Transportation Cost" name="transportation_cost" type="number" value={form.transportation_cost} onChange={update} optional />
+              <QField label="Liaisoning Charges" name="liaisoning_charges" type="number" value={form.liaisoning_charges} onChange={update} optional />
+              <QField label="Net Metering Charges" name="net_metering_charges" type="number" value={form.net_metering_charges} onChange={update} optional />
+              <QField label="Other Charges" name="other_charges" type="number" value={form.other_charges} onChange={update} optional />
+              <QField label="Subtotal" value={formatCurrencyPrecise(subtotal)} readOnly />
+            </div>
+          </LeadFormSection>
+
+          {visibility.subsidy ? (
+          <LeadFormSection title="Subsidy Section" icon={ShieldCheck} tone="success">
+            <div className="grid gap-4 md:grid-cols-3">
+              <QSelect label="Subsidy Applicable" value={form.subsidy_applicable ? 'Yes' : 'No'} onChange={(_, v) => update('subsidy_applicable', v === 'Yes')} options={['Yes', 'No']} />
+              <QField label="Subsidy Amount" name="subsidy_amount" type="number" value={form.subsidy_amount} onChange={update} optional />
+              <QField label="Customer Contribution" value={formatCurrencyPrecise(finalPayable)} readOnly />
+            </div>
+          </LeadFormSection>
+          ) : null}
+
+          <LeadFormSection title="GST Section" icon={ReceiptText} tone="primary">
+            <div className="grid gap-4 md:grid-cols-3">
+              <QField label="GST %" name="gst_percent" type="number" value={form.gst_percent} onChange={update} />
+              <QField label="GST Amount" value={formatCurrencyPrecise(gstAmount)} readOnly />
+              <QField label="Total Amount" value={formatCurrencyPrecise(totalAmount)} readOnly />
+            </div>
+          </LeadFormSection>
+
+          <LeadFormSection title="Final Payable Amount" icon={IndianRupee} tone="success">
+            <div className="grid gap-4 md:grid-cols-2">
+              <QField label="Final Customer Payable Amount (₹)" value={formatCurrencyPrecise(finalPayable)} readOnly />
+              <QField label="Amount in Words" value={`${numberToWordsIndian(finalPayable)} Rupees Only`} readOnly />
+            </div>
+          </LeadFormSection>
+
+          {visibility.payment ? (
+          <LeadFormSection title="Payment Terms" icon={CreditCard} tone="purple">
+            <div className="grid gap-4 md:grid-cols-4">
+              <QField label="Advance %" name="advance_percent" type="number" value={form.advance_percent} onChange={update} optional />
+              <QField label="Material Dispatch %" name="material_dispatch_percent" type="number" value={form.material_dispatch_percent} onChange={update} optional />
+              <QField label="Installation %" name="installation_percent" type="number" value={form.installation_percent} onChange={update} optional />
+              <QField label="Commissioning %" name="commissioning_percent" type="number" value={form.commissioning_percent} onChange={update} optional />
+            </div>
+            <p className={cx('text-[12px] font-bold', paymentTermsValid ? 'text-[#087a39]' : 'text-[#c0392b]')}>
+              Total: {paymentTermsSum.toFixed(1)}% {paymentTermsValid ? '✓ matches 100%' : '— must equal 100%'}
+            </p>
+          </LeadFormSection>
+          ) : null}
+
+          {visibility.warranty ? (
+          <LeadFormSection title="Warranty" icon={ShieldCheck} tone="success">
+            <div className="grid gap-4 md:grid-cols-4">
+              <QField label="Panel Warranty" name="panel_warranty" value={form.panel_warranty} onChange={update} placeholder="e.g. 12y product / 25y performance" optional />
+              <QField label="Inverter Warranty" name="inverter_warranty" value={form.inverter_warranty} onChange={update} placeholder="e.g. 5 years" optional />
+              <QField label="Structure Warranty" name="structure_warranty" value={form.structure_warranty} onChange={update} placeholder="e.g. 10 years" optional />
+              <QField label="Workmanship Warranty" name="workmanship_warranty" value={form.workmanship_warranty} onChange={update} placeholder="e.g. 5 years" optional />
+            </div>
+          </LeadFormSection>
+          ) : null}
+
+          <LeadFormSection title="Additional Notes" titleSuffix="(Optional)" icon={FileText} tone="warning">
+            <QTextarea label="Special Instructions" name="special_instructions" value={form.special_instructions} onChange={update} optional compact />
+            <QTextarea label="Scope of Work" name="scope_of_work" value={form.scope_of_work} onChange={update} optional compact />
+            <QTextarea label="Exclusions" name="exclusions" value={form.exclusions} onChange={update} optional compact />
+            <QTextarea label="Remarks" name="notes" value={form.notes} onChange={update} optional compact />
+          </LeadFormSection>
+
+          <LeadFormSection title="Terms & Conditions" icon={FileText} tone="primary">
+            <ol className="list-decimal space-y-1 pl-5 text-[12px] font-bold text-[#53647f]">
+              {RESIDENTIAL_SUBSIDY_TERMS.map((term) => <li key={term}>{term}</li>)}
+            </ol>
+          </LeadFormSection>
+        </div>
+
+        <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-4 sm:flex-row">
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
+            Cancel
+          </button>
+          <button type="button" onClick={handleSaveDetail} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145]">
+            <Save className="size-4" />
+            Save Detail
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuotationListPage({ onNotify }) {
+  const [quotations, setQuotations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [templateFilter, setTemplateFilter] = useState('All');
+  const [viewQuotationId, setViewQuotationId] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    setLoading(true);
+    quotationApi.listAll().then((data) => {
+      setQuotations(normalizeApiRows(data));
+    }).catch(() => setQuotations([])).finally(() => setLoading(false));
+  }, [refreshKey]);
+
+  const deleteQuotation = async (quotation) => {
+    if (!window.confirm(`Delete quotation ${quotation.quotation_number || '#' + quotation.id}? This cannot be undone.`)) return;
+    try {
+      await quotationApi.delete(quotation.id);
+      onNotify?.('Quotation deleted');
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to delete quotation');
+    }
+  };
+
+  const filteredQuotations = quotations.filter((q) => {
+    const statusMatch = statusFilter === 'All' || q.status === statusFilter;
+    const templateMatch = templateFilter === 'All' || q.template === templateFilter;
+    const query = searchQuery.trim().toLowerCase();
+    const searchMatch = !query
+      || q.quotation_number?.toLowerCase().includes(query)
+      || q.lead_customer_name?.toLowerCase().includes(query)
+      || q.lead_ivrs_number?.toLowerCase().includes(query);
+    return statusMatch && templateMatch && searchMatch;
+  });
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex flex-col gap-3 rounded-[14px] bg-white/60 p-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="font-display text-[24px] font-extrabold leading-tight text-[#111827] sm:text-[28px]">Quotation</h1>
+          <p className="mt-1 text-[13px] font-bold text-[#53647f]">All quotations raised across leads and projects.</p>
+        </div>
+      </div>
+
+      <section className={`${panelClass} p-3 sm:p-4`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="flex h-11 flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              type="search"
+              placeholder="Search by quotation no., customer, IVRS..."
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
+            />
+            <Search className="size-4 text-[#7386a3]" />
+          </label>
+          <select value={templateFilter} onChange={(event) => setTemplateFilter(event.target.value)} className="h-11 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-bold text-[#30466d] outline-none">
+            <option value="All">All Templates</option>
+            {QUOTATION_TEMPLATE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-bold text-[#30466d] outline-none">
+            <option value="All">All Status</option>
+            {['Draft', 'Sent', 'Approved', 'Rejected'].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </section>
+
+      <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+        {loading ? (
+          <div className="flex items-center justify-center gap-3 py-16 text-[14px] font-bold text-[#7386a3]">Loading quotations...</div>
+        ) : filteredQuotations.length === 0 ? (
+          <div className="py-16 text-center text-[14px] font-bold text-[#7386a3]">No quotations found</div>
+        ) : (
+          <div className="overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white">
+            <table className="crm-table crm-table--fit w-full">
+              <colgroup>
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '18%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '14%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  {['Quotation No', 'Customer', 'Template', 'Status', 'Grand Total', 'Date', 'Action'].map((h) => (
+                    <th key={h}><span className="block truncate">{h}</span></th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredQuotations.map((q) => (
+                  <tr key={q.id}>
+                    <td className="font-extrabold text-[#233a6b]"><span className="block truncate">{q.quotation_number || `#${q.id}`}</span></td>
+                    <td className="font-bold text-[#233a6b]"><span className="block truncate">{q.lead_customer_name || '—'}</span></td>
+                    <td><span className="block truncate">{q.template}</span></td>
+                    <td><StatusBadge status={q.status} /></td>
+                    <td className="font-extrabold text-[#233a6b]"><span className="block truncate">{formatMoney(q.grand_total)}</span></td>
+                    <td><span className="block truncate">{q.created_at ? new Date(q.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span></td>
+                    <td>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button type="button" onClick={() => setViewQuotationId(q.id)} title="View" aria-label={`View ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]">
+                          <Eye className="size-4" />
+                        </button>
+                        <button type="button" onClick={() => deleteQuotation(q)} title="Delete" aria-label={`Delete ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffd5d5] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]">
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {viewQuotationId ? (
+        <QuotationViewModal quotationId={viewQuotationId} onClose={() => setViewQuotationId(null)} />
+      ) : null}
+    </div>
+  );
+}
+
+function QuotationViewModal({ quotationId, onClose }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    quotationApi.get(quotationId).then(setDetail).catch(() => setDetail(null)).finally(() => setLoading(false));
+  }, [quotationId]);
+
+  const visibility = detail ? (QUOTATION_SECTION_VISIBILITY[detail.template] || {}) : {};
+
+  return (
+    <div
+      className="modal-overlay fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/50 p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-pop-in scroll-soft flex max-h-[90vh] w-full max-w-[820px] flex-col overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-display text-[19px] font-extrabold text-[#111827]">{detail?.quotation_number || 'Quotation'}</h2>
+            {detail ? <p className="mt-1 text-[13px] font-bold text-[#53647f]">{detail.template} • {detail.lead_customer_name}</p> : null}
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+
+        {loading ? (
+          <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Loading...</p>
+        ) : !detail ? (
+          <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Quotation not found.</p>
+        ) : (
+          <div className="mt-5 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InfoCell label="Status" valueNode={<StatusBadge status={detail.status} />} />
+              <InfoCell label="Quotation Date" value={detail.quotation_date || '—'} />
+              <InfoCell label="Valid Till" value={detail.valid_till || '—'} />
+              <InfoCell label="Sales Executive" value={detail.sales_executive_name || '—'} />
+              <InfoCell label="IVRS Number" value={detail.lead_ivrs_number || '—'} />
+              <InfoCell label="Company / GST" value={detail.company_name || detail.gst_number ? `${detail.company_name || '—'} (${detail.gst_number || '—'})` : '—'} />
+            </div>
+
+            {visibility.plant || visibility.panel || visibility.inverter ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <InfoCell label="Plant Capacity" value={detail.plant_capacity_kw ? `${detail.plant_capacity_kw} kW` : '—'} />
+                <InfoCell label="Total DC Capacity" value={detail.total_dc_capacity ? `${detail.total_dc_capacity} kW` : '—'} />
+                <InfoCell label="Panel" value={detail.panel_brand ? `${detail.panel_brand} ${detail.panel_model} (${detail.number_of_panels || 0} x ${detail.panel_wattage || 0}W)` : '—'} />
+                <InfoCell label="Inverter" value={detail.inverter_brand ? `${detail.inverter_brand} ${detail.inverter_model} (${detail.inverter_capacity || '—'})` : '—'} />
+              </div>
+            ) : null}
+
+            {visibility.structure || visibility.bos ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {visibility.structure ? <InfoCell label="Structure" value={detail.structure_type ? `${detail.structure_type} — ${detail.structure_material || ''}`.trim() : '—'} /> : null}
+                {visibility.bos ? <InfoCell label="DC / AC Cable" value={`${detail.dc_cable || '—'} / ${detail.ac_cable || '—'}`} /> : null}
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InfoCell label="Subtotal" value={formatMoney(detail.subtotal)} />
+              <InfoCell label="GST" value={`${detail.gst_percent}% — ${formatMoney(detail.gst_amount)}`} />
+              {visibility.subsidy ? <InfoCell label="Subsidy Amount" value={formatMoney(detail.subsidy_amount)} /> : null}
+              <InfoCell label="Grand Total" value={formatMoney(detail.grand_total)} />
+              <InfoCell label="Customer Payable" value={formatMoney(detail.customer_contribution)} />
+              <InfoCell label="Cost / Watt" value={detail.cost_per_watt ? `₹${detail.cost_per_watt}/W` : '—'} />
+              <InfoCell label="ROI" value={detail.roi_percent ? `${detail.roi_percent}%` : '—'} />
+              <InfoCell label="Payback Period" value={detail.payback_period_years ? `${detail.payback_period_years} years` : '—'} />
+            </div>
+
+            {detail.items?.length ? (
+              <div>
+                <p className="mb-2 text-[12px] font-extrabold text-[#34466c]">Items</p>
+                <div className="overflow-hidden rounded-[10px] border border-[#e7eef7]">
+                  <table className="crm-table w-full">
+                    <thead><tr>{['Item', 'Qty', 'Unit', 'Rate', 'Amount'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {detail.items.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.item_name}</td>
+                          <td>{item.quantity}</td>
+                          <td>{item.unit}</td>
+                          <td>{formatMoney(item.rate)}</td>
+                          <td>{formatMoney(item.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {detail.notes ? <InfoCell label="Remarks" value={detail.notes} /> : null}
+
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Close</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QField({ label, name, value, onChange, type = 'text', placeholder, optional = false, readOnly = false }) {
+  return (
+    <label className="block min-w-0">
+      <LeadLabel label={label} optional={optional} />
+      <input
+        type={type}
+        value={value ?? ''}
+        readOnly={readOnly}
+        onChange={(e) => onChange(name, e.target.value)}
+        placeholder={placeholder}
+        className={cx(
+          'mt-2 h-11 w-full rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
+          readOnly && 'bg-[#f5f7fb] text-[#7386a3]',
+        )}
+      />
+    </label>
+  );
+}
+
+function QSelect({ label, name, value, onChange, options, optional = false, placeholder = 'Select' }) {
+  return (
+    <label className="block min-w-0">
+      <LeadLabel label={label} optional={optional} />
+      <select
+        value={value ?? ''}
+        onChange={(e) => onChange(name, e.target.value)}
+        className="mt-2 h-11 w-full rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-bold text-[#53647f] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+      >
+        <option value="">{placeholder}</option>
+        {options.map((opt) => {
+          const v = typeof opt === 'object' ? opt.value : opt;
+          const l = typeof opt === 'object' ? opt.label : opt;
+          return <option key={v} value={v}>{l}</option>;
+        })}
+      </select>
+    </label>
+  );
+}
+
+function QTextarea({ label, name, value, onChange, placeholder, optional = false, compact = false }) {
+  return (
+    <label className="block min-w-0">
+      <LeadLabel label={label} optional={optional} />
+      <textarea
+        value={value ?? ''}
+        onChange={(e) => onChange(name, e.target.value)}
+        placeholder={placeholder}
+        rows={compact ? 2 : 3}
+        className="mt-2 w-full resize-y rounded-[8px] border border-black/20 bg-white px-3 py-3 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+      />
+    </label>
+  );
+}
+
+function QReadout({ label, value, accent = false }) {
+  return (
+    <div className="rounded-[8px] border border-[#e7eef7] bg-[#f8fbff] px-3 py-2.5">
+      <p className="text-[11px] font-extrabold text-[#7386a3]">{label}</p>
+      <p className={cx('mt-0.5 text-[14px] font-extrabold', accent ? 'text-[#0d9f4a]' : 'text-[#1e3261]')}>{value}</p>
     </div>
   );
 }
@@ -27387,7 +29962,7 @@ function LeadFormSection({ title, titleSuffix, icon: Icon, tone = 'primary', cla
   );
 }
 
-function LeadInput({ label, placeholder, icon: Icon, required = false, optional = false, type = 'text', rightHint = false, name }) {
+function LeadInput({ label, placeholder, icon: Icon, required = false, optional = false, type = 'text', rightHint = false, name, defaultValue }) {
   return (
     <label className="block min-w-0">
       <LeadLabel label={label} required={required} optional={optional} rightHint={rightHint} />
@@ -27397,6 +29972,7 @@ function LeadInput({ label, placeholder, icon: Icon, required = false, optional 
           type={type}
           name={name}
           placeholder={placeholder}
+          defaultValue={defaultValue ?? ''}
           className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
         />
       </span>
@@ -27404,7 +29980,7 @@ function LeadInput({ label, placeholder, icon: Icon, required = false, optional 
   );
 }
 
-function LeadPhoneInput({ label, placeholder, required = false, name }) {
+function LeadPhoneInput({ label, placeholder, required = false, name, defaultValue }) {
   return (
     <label className="block min-w-0">
       <LeadLabel label={label} required={required} />
@@ -27418,6 +29994,7 @@ function LeadPhoneInput({ label, placeholder, required = false, name }) {
           type="tel"
           name={name}
           placeholder={placeholder}
+          defaultValue={defaultValue ?? ''}
           className="min-w-0 flex-1 bg-transparent px-3 text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
         />
       </span>
@@ -27425,10 +30002,10 @@ function LeadPhoneInput({ label, placeholder, required = false, name }) {
   );
 }
 
-function LeadSelect({ label, placeholder, options, required = false, icon: Icon, badgeValue, name }) {
+function LeadSelect({ label, placeholder, options, required = false, optional = false, icon: Icon, badgeValue, name, defaultValue }) {
   return (
     <label className="block min-w-0">
-      <LeadLabel label={label} required={required} />
+      <LeadLabel label={label} required={required} optional={optional} />
       <span className="mt-2 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
         {Icon ? <Icon className="size-4 shrink-0 text-[#8391a8]" /> : null}
         {badgeValue ? (
@@ -27436,20 +30013,22 @@ function LeadSelect({ label, placeholder, options, required = false, icon: Icon,
             {badgeValue}
           </span>
         ) : null}
-        <select name={name} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#53647f] outline-none">
+        <select name={name} defaultValue={defaultValue ?? ''} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#53647f] outline-none">
           <option value="">{placeholder}</option>
-          {options.map((option) => (
-            <option key={option} value={option}>{option}</option>
-          ))}
+          {options.map((option) => {
+            const value = typeof option === 'object' ? option.value : option;
+            const label = typeof option === 'object' ? option.label : option;
+            return <option key={value} value={value}>{label}</option>;
+          })}
         </select>
       </span>
     </label>
   );
 }
 
-function LeadDateInput({ label, required = false, name }) {
+function LeadDateInput({ label, required = false, name, defaultValue }) {
   const dateInputRef = useRef(null);
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(defaultValue ?? '');
 
   const openPicker = () => {
     const input = dateInputRef.current;
@@ -27493,10 +30072,10 @@ function LeadDateInput({ label, required = false, name }) {
   );
 }
 
-function LeadTextarea({ label, placeholder, icon: Icon, compact = false, name }) {
+function LeadTextarea({ label, placeholder, icon: Icon, compact = false, optional = false, name, defaultValue }) {
   return (
     <label className="block min-w-0">
-      <LeadLabel label={label} />
+      <LeadLabel label={label} optional={optional} />
       <span
         className={cx(
           'mt-2 flex items-start gap-3 rounded-[8px] border border-black/20 bg-white px-3 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100',
@@ -27508,6 +30087,7 @@ function LeadTextarea({ label, placeholder, icon: Icon, compact = false, name })
           name={name}
           placeholder={placeholder}
           rows={compact ? 2 : 3}
+          defaultValue={defaultValue ?? ''}
           className="min-h-full min-w-0 flex-1 resize-y bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
         />
       </span>
@@ -27553,12 +30133,12 @@ function NoLeadSelected({ title, onGoToList }) {
       <div className={`${panelClass} flex flex-col items-center justify-center gap-4 px-6 py-16 text-center`}>
         <span className="grid size-16 place-items-center rounded-full bg-[#fff4e0] text-[#f59e0b]"><AlertTriangle className="size-8" /></span>
         <div>
-          <p className="font-display text-[18px] font-extrabold text-[#1e3261]">Koi lead select nahi hai</p>
-          <p className="mt-2 text-[13px] font-semibold text-[#53647f]">Is page ko dekhne ke liye pehle Lead List se koi lead open karo.</p>
+          <p className="font-display text-[18px] font-extrabold text-[#1e3261]">No lead selected</p>
+          <p className="mt-2 text-[13px] font-semibold text-[#53647f]">Open a lead from the Lead List to view this page.</p>
         </div>
         <button type="button" onClick={onGoToList} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
           <Users className="size-4" />
-          Lead List Kholo
+          Go to Lead List
         </button>
       </div>
     </div>
@@ -27567,7 +30147,7 @@ function NoLeadSelected({ title, onGoToList }) {
 
 // Overview / Follow-ups / Quotation — ek hi page, tabs se switch hota hai.
 // Pehle ye 3 alag pages the (breadcrumb hopping + "Back" button chahiye tha); ab sab Lead Details ke andar hi hai.
-function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackToList, onCreateLead, onLeadUpdated, onNotify }) {
+function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackToList, onCreateLead, onShareWhatsApp, onLeadUpdated, onNotify }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [followUps, setFollowUps] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
@@ -27596,29 +30176,33 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
   const [quotationLoading, setQuotationLoading] = useState(true);
   const [savedQuotation, setSavedQuotation] = useState(null);
   const [quoteItems, setQuoteItems] = useState([emptyQuoteRow()]);
-  const [gstPercent, setGstPercent] = useState('12');
-  const [discount, setDiscount] = useState('0');
+  const [qForm, setQForm] = useState(emptyQuotationFields());
   const [quotationSaving, setQuotationSaving] = useState(false);
   const [quotationError, setQuotationError] = useState('');
   const [confirmingQuotationDelete, setConfirmingQuotationDelete] = useState(false);
+  const [employeeOptions, setEmployeeOptions] = useState(cachedEmployeeOptions || []);
+
+  useEffect(() => {
+    getEmployeeOptions().then(setEmployeeOptions);
+  }, []);
+
+  const updateQField = (name, value) => setQForm((prev) => ({ ...prev, [name]: value }));
 
   const loadQuotation = () => {
-    if (!lead?.id) { setSavedQuotation(null); setQuoteItems([emptyQuoteRow()]); setQuotationLoading(false); return; }
+    if (!lead?.id) { setSavedQuotation(null); setQForm(emptyQuotationFields()); setQuoteItems([emptyQuoteRow()]); setQuotationLoading(false); return; }
     setQuotationLoading(true);
     quotationApi.list(lead.id).then((data) => {
       const rows = Array.isArray(data) ? data : data?.results ?? [];
       const existing = rows[0] || null;
       setSavedQuotation(existing);
       if (existing) {
-        setQuoteItems(existing.items.length ? existing.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })) : [emptyQuoteRow()]);
-        setGstPercent(String(existing.gst_percent));
-        setDiscount(String(existing.discount));
+        setQForm(fieldsFromQuotation(existing));
+        setQuoteItems(existing.items?.length ? existing.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })) : [emptyQuoteRow()]);
       } else {
+        setQForm(emptyQuotationFields());
         setQuoteItems([emptyQuoteRow()]);
-        setGstPercent('12');
-        setDiscount('0');
       }
-    }).catch(() => { setSavedQuotation(null); setQuoteItems([emptyQuoteRow()]); }).finally(() => setQuotationLoading(false));
+    }).catch(() => { setSavedQuotation(null); setQForm(emptyQuotationFields()); setQuoteItems([emptyQuoteRow()]); }).finally(() => setQuotationLoading(false));
   };
 
   useEffect(() => {
@@ -27654,9 +30238,23 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
 
   const parseNum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
   const rowAmount = (row) => parseNum(row.quantity) * parseNum(row.rate);
-  const quoteSubtotal = quoteItems.reduce((sum, row) => sum + rowAmount(row), 0);
-  const quoteGstAmount = quoteSubtotal * (parseNum(gstPercent) / 100);
-  const quoteGrandTotal = quoteSubtotal + quoteGstAmount - parseNum(discount);
+
+  const sectionVisibility = QUOTATION_SECTION_VISIBILITY[qForm.template] || {};
+  const itemsTotal = quoteItems.reduce((sum, row) => sum + rowAmount(row), 0);
+  const costsTotal = ['material_cost', 'structure_cost', 'installation_cost', 'transportation_cost', 'liaisoning_charges', 'net_metering_charges', 'other_charges']
+    .reduce((sum, key) => sum + parseNum(qForm[key]), 0);
+  const computedSubtotal = itemsTotal + costsTotal;
+  const computedGstAmount = computedSubtotal * (parseNum(qForm.gst_percent) / 100);
+  const computedGrandTotal = computedSubtotal + computedGstAmount - parseNum(qForm.discount);
+  const computedCustomerContribution = qForm.subsidy_applicable ? computedGrandTotal - parseNum(qForm.subsidy_amount) : computedGrandTotal;
+  const computedTotalDcCapacity = (parseNum(qForm.number_of_panels) && parseNum(qForm.panel_wattage))
+    ? (parseNum(qForm.number_of_panels) * parseNum(qForm.panel_wattage)) / 1000
+    : null;
+  const computedPlantCapacity = parseNum(qForm.plant_capacity_kw) || computedTotalDcCapacity || null;
+  const computedCostPerWatt = computedTotalDcCapacity ? computedCustomerContribution / (computedTotalDcCapacity * 1000) : null;
+  const computedAnnualSavings = parseNum(qForm.monthly_electricity_bill) ? parseNum(qForm.monthly_electricity_bill) * 12 : null;
+  const computedRoiPercent = (computedAnnualSavings && computedCustomerContribution) ? (computedAnnualSavings / computedCustomerContribution) * 100 : null;
+  const computedPaybackYears = (computedAnnualSavings && computedCustomerContribution) ? computedCustomerContribution / computedAnnualSavings : null;
 
   const updateQuoteItem = (index, patch) => {
     setQuoteItems((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -27666,16 +30264,14 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
 
   const handleResetQuotation = () => {
     if (savedQuotation) {
-      setQuoteItems(savedQuotation.items.length ? savedQuotation.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })) : [emptyQuoteRow()]);
-      setGstPercent(String(savedQuotation.gst_percent));
-      setDiscount(String(savedQuotation.discount));
+      setQForm(fieldsFromQuotation(savedQuotation));
+      setQuoteItems(savedQuotation.items?.length ? savedQuotation.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })) : [emptyQuoteRow()]);
     } else {
+      setQForm(emptyQuotationFields());
       setQuoteItems([emptyQuoteRow()]);
-      setGstPercent('12');
-      setDiscount('0');
     }
     setQuotationError('');
-    onNotify('Quotation form reset ho gaya');
+    onNotify('Quotation form has been reset');
   };
 
   const handleSaveQuotation = async () => {
@@ -27683,20 +30279,17 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
       .filter((row) => row.item_name.trim())
       .map((row) => ({ item_name: row.item_name.trim(), quantity: row.quantity, unit: row.unit || 'Nos', rate: parseNum(row.rate), amount: rowAmount(row) }));
 
-    if (items.length === 0) { setQuotationError('Kam se kam ek item add karo'); return; }
-
     setQuotationSaving(true);
     setQuotationError('');
     try {
-      const payload = { lead: lead.id, gst_percent: parseNum(gstPercent), discount: parseNum(discount), items };
+      const payload = buildQuotationPayload(qForm, lead.id, items);
       const saved = savedQuotation ? await quotationApi.update(savedQuotation.id, payload) : await quotationApi.create(payload);
       setSavedQuotation(saved);
-      setQuoteItems(saved.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })));
-      setGstPercent(String(saved.gst_percent));
-      setDiscount(String(saved.discount));
-      onNotify('Quotation successfully save ho gayi!');
+      setQForm(fieldsFromQuotation(saved));
+      setQuoteItems(saved.items?.length ? saved.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })) : [emptyQuoteRow()]);
+      onNotify('Quotation saved successfully!');
     } catch (err) {
-      setQuotationError(err.message || 'Quotation save nahi ho payi');
+      setQuotationError(err.message || 'Failed to save quotation');
     } finally {
       setQuotationSaving(false);
     }
@@ -27708,13 +30301,27 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
     try {
       await quotationApi.delete(savedQuotation.id);
       setSavedQuotation(null);
+      setQForm(emptyQuotationFields());
       setQuoteItems([emptyQuoteRow()]);
-      setGstPercent('12');
-      setDiscount('0');
       setConfirmingQuotationDelete(false);
-      onNotify('Quotation delete ho gayi');
+      onNotify('Quotation deleted');
     } catch (err) {
-      setQuotationError(err.message || 'Quotation delete nahi ho payi');
+      setQuotationError(err.message || 'Failed to delete quotation');
+    } finally {
+      setQuotationSaving(false);
+    }
+  };
+
+  const handleRequestApproval = async () => {
+    if (!savedQuotation) { onNotify('Save the quotation first, then request approval'); return; }
+    setQuotationSaving(true);
+    setQuotationError('');
+    try {
+      const updated = await quotationApi.update(savedQuotation.id, { status: 'Sent' });
+      setSavedQuotation(updated);
+      onNotify('Quotation sent for approval');
+    } catch (err) {
+      setQuotationError(err.message || 'Failed to update quotation status');
     } finally {
       setQuotationSaving(false);
     }
@@ -27794,7 +30401,6 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
                 <DetailRow label="Estimated Capacity" value="—" />
                 <DetailRow label="Follow-up Date" value={lead?.nextFollowUp || '—'} />
                 <DetailRow label="Lead Status" valueNode={<StatusBadge status={lead?.status || 'New'} />} />
-                <DetailRow label="Priority" valueNode={<span className="rounded-[8px] bg-[#fff0dc] px-2.5 py-1 text-[11px] font-extrabold text-[#f39b20]">{lead?.priority || '—'}</span>} />
               </InfoPanel>
             </div>
 
@@ -27803,7 +30409,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
                 {followUps === null ? (
                   <p className="text-[13px] font-bold text-[#53647f]">Loading...</p>
                 ) : followUps.length === 0 ? (
-                  <p className="text-[13px] font-bold text-[#53647f]">Abhi tak koi follow-up nahi hua hai.</p>
+                  <p className="text-[13px] font-bold text-[#53647f]">No follow-ups yet.</p>
                 ) : followUps.slice(0, 3).map((item) => (
                   <TimelineItem
                     key={item.id}
@@ -27829,7 +30435,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
               {linkedLeads === null ? (
                 <p className="text-[12px] font-bold text-[#53647f]">Loading...</p>
               ) : linkedLeads.length === 0 ? (
-                <p className="text-[12px] font-bold text-[#53647f]">Is mobile number se aur koi lead nahi mila.</p>
+                <p className="text-[12px] font-bold text-[#53647f]">No other leads found with this mobile number.</p>
               ) : linkedLeads.map((item) => (
                 <div key={item.id} className="mb-2 flex items-center justify-between rounded-[8px] border border-[#edf2f8] bg-white px-3 py-2 text-[12px] font-bold text-[#263d72]">
                   <span>{item.project_name || '—'}</span>
@@ -27853,7 +30459,17 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
               {followUps === null ? (
                 <p className="text-[13px] font-bold text-[#53647f]">Loading...</p>
               ) : fullTimeline.length === 0 ? (
-                <p className="text-[13px] font-bold text-[#53647f]">Abhi tak koi follow-up history nahi hai.</p>
+                <div className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center">
+                  <span className="grid size-12 place-items-center rounded-full bg-[#eef2f7] text-[#7585a2]"><Phone className="size-6" /></span>
+                  <div>
+                    <p className="font-display text-[14px] font-extrabold text-[#1e3261]">No follow-ups yet</p>
+                    <p className="mt-1 text-[12px] font-semibold text-[#53647f]">Schedule the first follow-up to start tracking this lead's history.</p>
+                  </div>
+                  <button type="button" onClick={() => setActiveModal('follow-up')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
+                    <Plus className="size-4" />
+                    Add Follow-up
+                  </button>
+                </div>
               ) : fullTimeline.map((item) => <HistoryItem key={item.id} item={item} />)}
             </div>
           </InfoPanel>
@@ -27876,16 +30492,16 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
                   <DetailRow label="Time" value={new Date(nextFollowUp.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} />
                   <DetailRow label="Type" value={nextFollowUp.follow_up_type || '—'} />
                 </>
-              ) : <p className="text-[13px] font-bold text-[#53647f]">Koi follow-up scheduled nahi hai.</p>}
+              ) : <p className="text-[13px] font-bold text-[#53647f]">No follow-up scheduled.</p>}
             </InfoPanel>
           </div>
         </section>
       ) : (
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-4">
+            <div className={`${panelClass} flex flex-wrap items-center justify-between gap-3 p-4`}>
               <p className="font-display text-[16px] font-extrabold text-[#1e3261]">
-                Quotation Items {savedQuotation ? <span className="ml-2 rounded-[6px] bg-[#eef6ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{savedQuotation.status}</span> : null}
+                Quotation {savedQuotation ? <span className="ml-2 rounded-[6px] bg-[#eef6ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{savedQuotation.quotation_number} • {savedQuotation.status}</span> : null}
               </p>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={handleResetQuotation} disabled={quotationSaving} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
@@ -27900,50 +30516,202 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
             </div>
 
             {quotationError ? (
-              <p className="mt-3 rounded-[8px] bg-[#fdecec] px-3 py-2 text-[12px] font-bold text-[#c0392b]">{quotationError}</p>
+              <p className="rounded-[8px] bg-[#fdecec] px-3 py-2 text-[12px] font-bold text-[#c0392b]">{quotationError}</p>
             ) : null}
 
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
-              <ReadonlyField label="Customer" value={lead?.customer || '—'} />
-              <ReadonlyField label="Lead / IVRS" value={lead?.ivrs || '—'} />
-              <ReadonlyField label="Project" value={lead?.project || '—'} />
-            </div>
-
             {quotationLoading ? (
-              <p className="mt-5 text-[13px] font-bold text-[#53647f]">Loading quotation...</p>
+              <p className="text-[13px] font-bold text-[#53647f]">Loading quotation...</p>
             ) : (
               <>
-                <div className="mt-5 overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white">
-                  <table className="crm-table min-w-[720px] w-full">
-                    <thead><tr>{['Item', 'Qty', 'Unit', 'Rate', 'Amount', ''].map((header) => <th key={header || 'remove'}>{header}</th>)}</tr></thead>
-                    <tbody>
-                      {quoteItems.map((row, index) => (
-                        <tr key={index}>
-                          <td><input value={row.item_name} onChange={(e) => updateQuoteItem(index, { item_name: e.target.value })} placeholder="Item name" className="h-9 w-full min-w-[160px] rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
-                          <td><input value={row.quantity} onChange={(e) => updateQuoteItem(index, { quantity: e.target.value })} placeholder="Qty" className="h-9 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
-                          <td><input value={row.unit} onChange={(e) => updateQuoteItem(index, { unit: e.target.value })} placeholder="Unit" className="h-9 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
-                          <td><input value={row.rate} onChange={(e) => updateQuoteItem(index, { rate: e.target.value })} placeholder="Rate" className="h-9 w-24 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
-                          <td className="font-extrabold text-[#1e3261]">{formatCurrencyPrecise(rowAmount(row))}</td>
-                          <td>
-                            <button type="button" onClick={() => removeQuoteItem(index)} disabled={quoteItems.length === 1} aria-label="Remove item" className="grid size-8 place-items-center rounded-[6px] text-[#c0392b] transition hover:bg-[#fdecec] disabled:cursor-not-allowed disabled:opacity-30">
-                              <X className="size-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <LeadFormSection title="A. Basic Details" icon={FileText} tone="primary">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <QField label="Quotation No" value={savedQuotation?.quotation_number || 'Auto-generated on save'} readOnly />
+                    <QField label="Lead ID" value={lead?.ivrs || `#${lead?.id}`} readOnly />
+                    <QSelect label="Quotation Template" name="template" value={qForm.template} onChange={updateQField} options={QUOTATION_TEMPLATE_OPTIONS} />
+                    <QField label="Quotation Date" name="quotation_date" type="date" value={qForm.quotation_date} onChange={updateQField} optional />
+                    <QField label="Valid Till" name="valid_till" type="date" value={qForm.valid_till} onChange={updateQField} optional />
+                    <QSelect label="Sales Executive" name="sales_executive" value={qForm.sales_executive} onChange={updateQField} options={employeeOptions} optional placeholder={employeeOptions.length ? 'Select employee' : 'No active employees found'} />
+                  </div>
+                </LeadFormSection>
 
-                <button type="button" onClick={addQuoteItem} className="mt-3 inline-flex h-10 items-center gap-2 rounded-[8px] border border-dashed border-[#b9cce7] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
-                  <Plus className="size-4" />
-                  Add Item
-                </button>
+                <LeadFormSection title="B. Customer Details" icon={UserRound} tone="success">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <QField label="Customer Name" value={lead?.customer || '—'} readOnly />
+                    <QField label="Mobile Number" value={lead?.mobile || '—'} readOnly />
+                    <QField label="Company Name" name="company_name" value={qForm.company_name} onChange={updateQField} placeholder="Enter company name" optional />
+                    <QField label="Alternate Number" name="alternate_number" value={qForm.alternate_number} onChange={updateQField} placeholder="Enter alternate number" optional />
+                    <QField label="Email ID" name="email" type="email" value={qForm.email} onChange={updateQField} placeholder="Enter email" optional />
+                    <QField label="GST Number" name="gst_number" value={qForm.gst_number} onChange={updateQField} placeholder="Enter GST number" optional />
+                    <QField label="City" name="city" value={qForm.city} onChange={updateQField} placeholder="Enter city" optional />
+                    <QField label="State" name="state" value={qForm.state} onChange={updateQField} placeholder="Enter state" optional />
+                    <QField label="Pincode" name="pincode" value={qForm.pincode} onChange={updateQField} placeholder="Enter pincode" optional />
+                  </div>
+                  <QTextarea label="Address" name="address" value={qForm.address} onChange={updateQField} placeholder="Enter full address" optional compact />
+                </LeadFormSection>
+
+                {sectionVisibility.project ? (
+                  <LeadFormSection title="C. Project Details" icon={ClipboardPlus} tone="primary">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <QSelect label="Project Type" name="project_type" value={qForm.project_type} onChange={updateQField} options={['Residential Subsidy', 'Residential Non Subsidy', 'Commercial', 'Industrial', 'Agriculture']} optional />
+                      <QSelect label="Installation Type" name="installation_type" value={qForm.installation_type} onChange={updateQField} options={['Rooftop', 'Ground Mounted', 'Elevated Structure']} optional />
+                      <QField label="Sanctioned Load (kW)" name="sanctioned_load_kw" type="number" value={qForm.sanctioned_load_kw} onChange={updateQField} placeholder="Enter sanctioned load" optional />
+                      <QField label="Monthly Electricity Bill (₹)" name="monthly_electricity_bill" type="number" value={qForm.monthly_electricity_bill} onChange={updateQField} placeholder="Enter monthly bill" optional />
+                      <QField label="DISCOM Name" name="discom_name" value={qForm.discom_name} onChange={updateQField} placeholder="Enter DISCOM name" optional />
+                    </div>
+                  </LeadFormSection>
+                ) : null}
+
+                {sectionVisibility.plant ? (
+                  <LeadFormSection title="D. Plant Details" icon={Zap} tone="warning">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <QField label="Plant Capacity (kW)" name="plant_capacity_kw" type="number" value={qForm.plant_capacity_kw} onChange={updateQField} placeholder={computedTotalDcCapacity ? String(computedTotalDcCapacity) : 'Auto from panels'} optional />
+                      <QField label="Estimated Annual Generation (kWh)" name="estimated_annual_generation" type="number" value={qForm.estimated_annual_generation} onChange={updateQField} placeholder="Enter estimate" optional />
+                      <QField label="Shadow Free Area" name="shadow_free_area" value={qForm.shadow_free_area} onChange={updateQField} placeholder="e.g. 350 sq.ft" optional />
+                      <QField label="Module Orientation" name="module_orientation" value={qForm.module_orientation} onChange={updateQField} placeholder="e.g. South facing" optional />
+                    </div>
+                  </LeadFormSection>
+                ) : null}
+
+                {sectionVisibility.panel ? (
+                  <LeadFormSection title="E. Panel Details" icon={BadgeCheck} tone="success">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <QField label="Panel Brand" name="panel_brand" value={qForm.panel_brand} onChange={updateQField} placeholder="Enter brand" optional />
+                      <QField label="Panel Model" name="panel_model" value={qForm.panel_model} onChange={updateQField} placeholder="Enter model" optional />
+                      <QField label="Panel Wattage (W)" name="panel_wattage" type="number" value={qForm.panel_wattage} onChange={updateQField} placeholder="e.g. 550" optional />
+                      <QField label="Number of Panels" name="number_of_panels" type="number" value={qForm.number_of_panels} onChange={updateQField} placeholder="Enter count" optional />
+                      <QField label="Total DC Capacity (kW)" value={computedTotalDcCapacity ? computedTotalDcCapacity.toFixed(2) : 'Auto-calculated'} readOnly />
+                    </div>
+                  </LeadFormSection>
+                ) : null}
+
+                {sectionVisibility.inverter ? (
+                  <LeadFormSection title="F. Inverter Details" icon={Zap} tone="purple">
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <QField label="Inverter Brand" name="inverter_brand" value={qForm.inverter_brand} onChange={updateQField} placeholder="Enter brand" optional />
+                      <QField label="Inverter Model" name="inverter_model" value={qForm.inverter_model} onChange={updateQField} placeholder="Enter model" optional />
+                      <QField label="Inverter Capacity" name="inverter_capacity" value={qForm.inverter_capacity} onChange={updateQField} placeholder="e.g. 5kW" optional />
+                      <QField label="Quantity" name="inverter_quantity" type="number" value={qForm.inverter_quantity} onChange={updateQField} placeholder="Enter qty" optional />
+                    </div>
+                  </LeadFormSection>
+                ) : null}
+
+                {sectionVisibility.structure ? (
+                  <LeadFormSection title="G. Structure Details" icon={FolderKanban} tone="warning">
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <QField label="Structure Type" name="structure_type" value={qForm.structure_type} onChange={updateQField} placeholder="Enter structure type" optional />
+                      <QSelect label="Material" name="structure_material" value={qForm.structure_material} onChange={updateQField} options={['GI', 'HDGI', 'Aluminium']} optional />
+                      <QField label="Foundation Type" name="foundation_type" value={qForm.foundation_type} onChange={updateQField} placeholder="Enter foundation type" optional />
+                      <QField label="Wind Speed Rating" name="wind_speed_rating" value={qForm.wind_speed_rating} onChange={updateQField} placeholder="e.g. 150 km/h" optional />
+                    </div>
+                  </LeadFormSection>
+                ) : null}
+
+                {sectionVisibility.bos ? (
+                  <LeadFormSection title="H. BOS Material" icon={Boxes} tone="primary">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <QField label="DC Cable" name="dc_cable" value={qForm.dc_cable} onChange={updateQField} placeholder="Enter spec" optional />
+                      <QField label="AC Cable" name="ac_cable" value={qForm.ac_cable} onChange={updateQField} placeholder="Enter spec" optional />
+                      <QField label="Earthing Kit" name="earthing_kit" value={qForm.earthing_kit} onChange={updateQField} placeholder="Enter spec" optional />
+                      <QField label="Lightning Arrester" name="lightning_arrester" value={qForm.lightning_arrester} onChange={updateQField} placeholder="Enter spec" optional />
+                      <QField label="ACDB" name="acdb" value={qForm.acdb} onChange={updateQField} placeholder="Enter spec" optional />
+                      <QField label="DCDB" name="dcdb" value={qForm.dcdb} onChange={updateQField} placeholder="Enter spec" optional />
+                      <QField label="Connectors" name="connectors" value={qForm.connectors} onChange={updateQField} placeholder="Enter spec" optional />
+                    </div>
+                  </LeadFormSection>
+                ) : null}
+
+                <LeadFormSection title="Line Items" titleSuffix="(Optional)" icon={ReceiptText} tone="success">
+                  <div className="overflow-hidden rounded-[10px] border border-[#e7eef7] bg-white">
+                    <table className="crm-table min-w-[640px] w-full">
+                      <thead><tr>{['Item', 'Qty', 'Unit', 'Rate', 'Amount', ''].map((header) => <th key={header || 'remove'}>{header}</th>)}</tr></thead>
+                      <tbody>
+                        {quoteItems.map((row, index) => (
+                          <tr key={index}>
+                            <td><input value={row.item_name} onChange={(e) => updateQuoteItem(index, { item_name: e.target.value })} placeholder="Item name" className="h-9 w-full min-w-[160px] rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                            <td><input value={row.quantity} onChange={(e) => updateQuoteItem(index, { quantity: e.target.value })} placeholder="Qty" className="h-9 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                            <td><input value={row.unit} onChange={(e) => updateQuoteItem(index, { unit: e.target.value })} placeholder="Unit" className="h-9 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                            <td><input value={row.rate} onChange={(e) => updateQuoteItem(index, { rate: e.target.value })} placeholder="Rate" className="h-9 w-24 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
+                            <td className="font-extrabold text-[#1e3261]">{formatCurrencyPrecise(rowAmount(row))}</td>
+                            <td>
+                              <button type="button" onClick={() => removeQuoteItem(index)} disabled={quoteItems.length === 1} aria-label="Remove item" className="grid size-8 place-items-center rounded-[6px] text-[#c0392b] transition hover:bg-[#fdecec] disabled:cursor-not-allowed disabled:opacity-30">
+                                <X className="size-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button type="button" onClick={addQuoteItem} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-dashed border-[#b9cce7] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
+                    <Plus className="size-4" />
+                    Add Item
+                  </button>
+                </LeadFormSection>
+
+                <LeadFormSection title="I. Costing Section" icon={IndianRupee} tone="warning">
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <QField label="Material Cost" name="material_cost" type="number" value={qForm.material_cost} onChange={updateQField} optional />
+                    <QField label="Structure Cost" name="structure_cost" type="number" value={qForm.structure_cost} onChange={updateQField} optional />
+                    <QField label="Installation Cost" name="installation_cost" type="number" value={qForm.installation_cost} onChange={updateQField} optional />
+                    <QField label="Transportation Cost" name="transportation_cost" type="number" value={qForm.transportation_cost} onChange={updateQField} optional />
+                    <QField label="Liaisoning Charges" name="liaisoning_charges" type="number" value={qForm.liaisoning_charges} onChange={updateQField} optional />
+                    <QField label="Net Metering Charges" name="net_metering_charges" type="number" value={qForm.net_metering_charges} onChange={updateQField} optional />
+                    <QField label="Other Charges" name="other_charges" type="number" value={qForm.other_charges} onChange={updateQField} optional />
+                  </div>
+                </LeadFormSection>
+
+                {sectionVisibility.subsidy ? (
+                  <LeadFormSection title="J. Subsidy Section" icon={ShieldCheck} tone="success">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <QSelect label="Subsidy Applicable" value={qForm.subsidy_applicable ? 'Yes' : 'No'} onChange={(_, v) => updateQField('subsidy_applicable', v === 'Yes')} options={['Yes', 'No']} />
+                      <QField label="Subsidy Amount" name="subsidy_amount" type="number" value={qForm.subsidy_amount} onChange={updateQField} optional />
+                      <QField label="Customer Contribution" value={formatCurrencyPrecise(computedCustomerContribution)} readOnly />
+                    </div>
+                  </LeadFormSection>
+                ) : null}
+
+                <LeadFormSection title="K. Tax Section" icon={ReceiptText} tone="primary">
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <QField label="GST %" name="gst_percent" type="number" value={qForm.gst_percent} onChange={updateQField} />
+                    <QField label="GST Amount" value={formatCurrencyPrecise(computedGstAmount)} readOnly />
+                    <QField label="Discount" name="discount" type="number" value={qForm.discount} onChange={updateQField} optional />
+                    <QField label="Total Amount" value={formatCurrencyPrecise(computedGrandTotal)} readOnly />
+                  </div>
+                </LeadFormSection>
+
+                {sectionVisibility.payment ? (
+                  <LeadFormSection title="L. Payment Terms" icon={CreditCard} tone="purple">
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <QField label="Advance %" name="advance_percent" type="number" value={qForm.advance_percent} onChange={updateQField} optional />
+                      <QField label="Material Dispatch %" name="material_dispatch_percent" type="number" value={qForm.material_dispatch_percent} onChange={updateQField} optional />
+                      <QField label="Installation %" name="installation_percent" type="number" value={qForm.installation_percent} onChange={updateQField} optional />
+                      <QField label="Commissioning %" name="commissioning_percent" type="number" value={qForm.commissioning_percent} onChange={updateQField} optional />
+                    </div>
+                  </LeadFormSection>
+                ) : null}
+
+                {sectionVisibility.warranty ? (
+                  <LeadFormSection title="M. Warranty" icon={ShieldCheck} tone="success">
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <QField label="Panel Warranty" name="panel_warranty" value={qForm.panel_warranty} onChange={updateQField} placeholder="e.g. 25 years" optional />
+                      <QField label="Inverter Warranty" name="inverter_warranty" value={qForm.inverter_warranty} onChange={updateQField} placeholder="e.g. 5 years" optional />
+                      <QField label="Structure Warranty" name="structure_warranty" value={qForm.structure_warranty} onChange={updateQField} placeholder="e.g. 10 years" optional />
+                      <QField label="Workmanship Warranty" name="workmanship_warranty" value={qForm.workmanship_warranty} onChange={updateQField} placeholder="e.g. 2 years" optional />
+                    </div>
+                  </LeadFormSection>
+                ) : null}
+
+                <LeadFormSection title="N. Additional Notes" titleSuffix="(Optional)" icon={FileText} tone="warning">
+                  <QTextarea label="Special Instructions" name="special_instructions" value={qForm.special_instructions} onChange={updateQField} optional compact />
+                  <QTextarea label="Scope of Work" name="scope_of_work" value={qForm.scope_of_work} onChange={updateQField} optional compact />
+                  <QTextarea label="Exclusions" name="exclusions" value={qForm.exclusions} onChange={updateQField} optional compact />
+                  <QTextarea label="Remarks" name="notes" value={qForm.notes} onChange={updateQField} optional compact />
+                </LeadFormSection>
               </>
             )}
 
             {savedQuotation ? (
-              <div className="mt-5 border-t border-[#edf2f8] pt-4">
+              <div className={`${panelClass} p-4`}>
                 {!confirmingQuotationDelete ? (
                   <button type="button" onClick={() => setConfirmingQuotationDelete(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#f5c6c6] bg-white px-4 text-[13px] font-extrabold text-[#c0392b] transition hover:bg-[#fdecec]">
                     <Trash2 className="size-4" />
@@ -27951,10 +30719,10 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
                   </button>
                 ) : (
                   <div className="flex flex-wrap items-center gap-3 rounded-[10px] bg-[#fdecec] p-3">
-                    <span className="text-[12px] font-extrabold text-[#c0392b]">Pakka delete karna hai? Ye permanent hai.</span>
+                    <span className="text-[12px] font-extrabold text-[#c0392b]">Are you sure you want to delete this? This cannot be undone.</span>
                     <button type="button" onClick={handleDeleteQuotation} disabled={quotationSaving} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#c0392b] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#a93226] disabled:opacity-60">
                       <Trash2 className="size-3.5" />
-                      Haan, Delete karo
+                      Yes, Delete
                     </button>
                     <button type="button" onClick={() => setConfirmingQuotationDelete(false)} className="inline-flex h-9 items-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
                       Cancel
@@ -27963,25 +30731,41 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
                 )}
               </div>
             ) : null}
-          </article>
+          </div>
           <aside className="space-y-4">
-            <InfoPanel title="Quotation Summary" icon={ReceiptText} tone="success">
-              <DetailRow label="Subtotal" value={formatCurrencyPrecise(quoteSubtotal)} />
-              <div className="flex items-center justify-between gap-2 border-b border-[#edf2f8] py-2.5 text-[13px] font-bold text-[#314a79]">
-                <span>GST %</span>
-                <input aria-label="GST percent" value={gstPercent} onChange={(e) => setGstPercent(e.target.value)} className="h-8 w-16 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-right text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-              </div>
-              <DetailRow label="GST Amount" value={formatCurrencyPrecise(quoteGstAmount)} />
-              <div className="flex items-center justify-between gap-2 border-b border-[#edf2f8] py-2.5 text-[13px] font-bold text-[#314a79]">
-                <span>Discount (Rs)</span>
-                <input aria-label="Discount amount" value={discount} onChange={(e) => setDiscount(e.target.value)} className="h-8 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-right text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-              </div>
-              <DetailRow label="Grand Total" valueNode={<span className="text-[14px] font-extrabold text-[#0d9f4a]">{formatCurrencyPrecise(quoteGrandTotal)}</span>} />
+            <InfoPanel title="Auto Calculations" icon={Zap} tone="success">
+              <DetailRow label="Plant Capacity" value={computedPlantCapacity ? `${computedPlantCapacity.toFixed(2)} kW` : '—'} />
+              <DetailRow label="Total DC Capacity" value={computedTotalDcCapacity ? `${computedTotalDcCapacity.toFixed(2)} kW` : '—'} />
+              <DetailRow label="Subtotal" value={formatCurrencyPrecise(computedSubtotal)} />
+              <DetailRow label="GST Amount" value={formatCurrencyPrecise(computedGstAmount)} />
+              <DetailRow label="Grand Total" valueNode={<span className="text-[14px] font-extrabold text-[#0d9f4a]">{formatCurrencyPrecise(computedGrandTotal)}</span>} />
+              <DetailRow label="Customer Payable" valueNode={<span className="text-[14px] font-extrabold text-[#0d9f4a]">{formatCurrencyPrecise(computedCustomerContribution)}</span>} />
+              <DetailRow label="Cost / Watt" value={computedCostPerWatt ? `₹${computedCostPerWatt.toFixed(2)}/W` : '—'} />
+              <DetailRow label="ROI" value={computedRoiPercent ? `${computedRoiPercent.toFixed(1)}%` : '—'} />
+              <DetailRow label="Payback Period" value={computedPaybackYears ? `${computedPaybackYears.toFixed(1)} years` : '—'} />
             </InfoPanel>
             <InfoPanel title="Next Actions" icon={Zap} tone="primary">
               <div className="grid gap-3">
-                <MiniActionButton label="Share on WhatsApp" icon={MessageSquareMore} tone="green" onClick={() => onNotify('Quotation WhatsApp share opened')} />
-                <MiniActionButton label="Request Approval" icon={ShieldCheck} tone="blue" onClick={() => onOpenSection('Admin Approval')} />
+                <MiniActionButton
+                  label="Share on WhatsApp"
+                  icon={MessageSquareMore}
+                  tone="green"
+                  onClick={() => {
+                    if (!savedQuotation) { onNotify('Save the quotation first, then share it'); return; }
+                    const message = [
+                      `Hi ${lead?.customer || ''}, here is your solar quotation from Malwa Solar Energy.`,
+                      `Project: ${lead?.project || '—'}`,
+                      `Grand Total: ${formatCurrencyPrecise(computedGrandTotal)}`,
+                      'Thank you for choosing us!',
+                    ].join('\n');
+                    onShareWhatsApp?.({ name: lead?.customer, phone: lead?.mobile, message });
+                  }}
+                />
+                {(!savedQuotation || savedQuotation.status === 'Draft') ? (
+                  <MiniActionButton label="Request Approval" icon={ShieldCheck} tone="blue" disabled={quotationSaving} onClick={handleRequestApproval} />
+                ) : (
+                  <p className="rounded-[8px] border border-[#d7f0df] bg-[#effbf3] px-4 py-3 text-[13px] font-extrabold text-[#087a39]">Quotation status: {savedQuotation.status}</p>
+                )}
               </div>
             </InfoPanel>
           </aside>
@@ -28026,10 +30810,10 @@ function LeadEditPage({ lead, onBackToDetails, onOpenSection, onLeadUpdated, onN
       };
       await leadApi.update(lead.id, patch);
       onLeadUpdated?.({ customer: patch.customer_name, mobile: patch.mobile_number, project: patch.project_name, type: patch.project_type });
-      onNotify('Edit Lead successfully save ho gayi!');
+      onNotify('Lead updated successfully!');
       onBackToDetails();
     } catch (err) {
-      setSaveError(err.message || 'Save karne mein error aayi, dobara try karo');
+      setSaveError(err.message || 'Error saving. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -28060,7 +30844,7 @@ function LeadEditPage({ lead, onBackToDetails, onOpenSection, onLeadUpdated, onN
               <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#effbf3] text-[#0d9f4a]"><FileText className="size-5" /></span>
               <div>
                 <p className="font-display text-[18px] font-extrabold text-[#06135a]">Edit Lead</p>
-                <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">Lead ki basic, project aur assignment details update karo.</p>
+                <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">Update the lead's basic, project, and assignment details.</p>
               </div>
             </div>
             {saveError ? <p className="mt-3 rounded-[8px] bg-[#ffe9e6] px-4 py-2 text-[13px] font-bold text-[#e3342f]">{saveError}</p> : null}
@@ -28070,9 +30854,8 @@ function LeadEditPage({ lead, onBackToDetails, onOpenSection, onLeadUpdated, onN
               <ReadonlyField label="IVRS Number" value={lead?.ivrs || '—'} />
               <LeadInput label="Project Name" name="project_name" icon={FileText} placeholder={lead?.project || 'Project name'} />
               <LeadSelect label="Project Type" name="project_type" icon={Flag} placeholder={lead?.type || 'Select type'} options={['On-Grid', 'Off-Grid', 'Hybrid']} />
-              <LeadSelect label="Priority" name="priority" icon={Flag} placeholder={lead?.priority || 'Select priority'} options={['High', 'Medium', 'Low']} />
               <div className="md:col-span-2">
-                <LeadTextarea label="Lead Remarks" name="notes" icon={FileText} placeholder="Lead ke baare mein remarks..." />
+                <LeadTextarea label="Lead Remarks" name="notes" icon={FileText} placeholder="Add remarks about this lead..." />
               </div>
             </div>
           </article>
@@ -28100,31 +30883,120 @@ function LeadEditPage({ lead, onBackToDetails, onOpenSection, onLeadUpdated, onN
   );
 }
 
-function AdminApprovalPage({ onOpenSection, onLeadDetails, onNotify }) {
-  const allRows = [
-    { ivrs: 'IVRS123456', customer: 'Amit Sharma',    mobile: '9876543210', project: '5kW On-Grid',   by: 'Rohit Singh',   date: '02 Jun 2026', time: '10:30 AM', status: 'Pending' },
-    { ivrs: 'IVRS789012', customer: 'Sunil Patidar',  mobile: '9827456781', project: '10kW On-Grid',  by: 'Neha Kumari',   date: '03 Jun 2026', time: '10:15 AM', status: 'Pending' },
-    { ivrs: 'IVRS345678', customer: 'Neha Jain',      mobile: '9893012345', project: '3kW On-Grid',   by: 'Vikram Patel',  date: '04 Jun 2026', time: '09:45 AM', status: 'Approved' },
-    { ivrs: 'IVRS901234', customer: 'Vikram Singh',   mobile: '9753124680', project: '5kW On-Grid',   by: 'Rohit Singh',   date: '05 Jun 2026', time: '09:30 AM', status: 'Pending' },
-    { ivrs: 'IVRS112233', customer: 'Pooja Verma',    mobile: '9135782469', project: 'On-Grid',        by: 'Neha Kumari',   date: '06 Jun 2026', time: '09:10 AM', status: 'Rejected' },
-    { ivrs: 'IVRS445566', customer: 'Manish Gupta',   mobile: '9222334455', project: '10kW On-Grid',  by: 'Vikram Patel',  date: '09 Jun 2026', time: '08:50 AM', status: 'Approved' },
-    { ivrs: 'IVRS778899', customer: 'Jatin Agrawal',  mobile: '9340011223', project: '5kW On-Grid',   by: 'Rohit Singh',   date: '10 Jun 2026', time: '08:35 AM', status: 'Pending' },
-    { ivrs: 'IVRS667788', customer: 'Kavita Joshi',   mobile: '9870098765', project: '3kW On-Grid',   by: 'Neha Kumari',   date: '11 Jun 2026', time: '08:20 AM', status: 'Pending' },
-  ];
-
+function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
   const tabs = ['Pending', 'Approved', 'Rejected', 'All'];
+  const [rows, setRows] = useState(null);
   const [activeTab, setActiveTab] = useState('Pending');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRow, setSelectedRow] = useState(allRows[0]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [actingId, setActingId] = useState(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
+  const [actionError, setActionError] = useState('');
+  const [loadingLead, setLoadingLead] = useState(false);
 
-  const filteredRows = allRows.filter((row) => {
+  const loadApprovals = () => {
+    approvalApi.list().then((data) => {
+      const list = Array.isArray(data) ? data : data?.results ?? [];
+      setRows(list);
+    }).catch(() => setRows([]));
+  };
+
+  useEffect(() => { loadApprovals(); }, []);
+
+  useEffect(() => {
+    if (!rows || rows.length === 0) { setSelectedId(null); return; }
+    if (!rows.some((r) => r.id === selectedId)) setSelectedId(rows[0].id);
+  }, [rows]);
+
+  const approvalCustomerName = (row) => row?.requested_customer_name || row?.lead_customer_name || '';
+  const approvalMobileNumber = (row) => row?.requested_mobile_number || row?.lead_mobile_number || '';
+  const approvalProjectType = (row) => row?.requested_project_type || row?.lead_project_type || '';
+  const approvalProjectName = (row) => row?.requested_project_name || row?.requested_payload?.project_name || '';
+
+  const filteredRows = (rows ?? []).filter((row) => {
     const matchesTab = activeTab === 'All' || row.status === activeTab;
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = !q || row.ivrs.toLowerCase().includes(q) || row.customer.toLowerCase().includes(q) || row.mobile.includes(q);
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q
+      || row.ivrs_number?.toLowerCase().includes(q)
+      || approvalCustomerName(row).toLowerCase().includes(q)
+      || approvalMobileNumber(row).includes(q)
+      || approvalProjectName(row).toLowerCase().includes(q);
     return matchesTab && matchesSearch;
   });
 
-  const pendingCount = allRows.filter((r) => r.status === 'Pending').length;
+  const selectedRow = filteredRows.find((r) => r.id === selectedId) || filteredRows[0] || null;
+  const pendingCount = (rows ?? []).filter((r) => r.status === 'Pending').length;
+  const isToday = (iso) => { if (!iso) return false; const d = new Date(iso); const t = new Date(); return d.toDateString() === t.toDateString(); };
+  const approvedTodayCount = (rows ?? []).filter((r) => r.status === 'Approved' && isToday(r.updated_at)).length;
+  const rejectedTodayCount = (rows ?? []).filter((r) => r.status === 'Rejected' && isToday(r.updated_at)).length;
+
+  const handleApprove = async (row) => {
+    setActingId(row.id);
+    setActionError('');
+    try {
+      await approvalApi.approve(row.id);
+      onNotify(`${row.ivrs_number} approved`);
+      loadApprovals();
+    } catch (err) {
+      setActionError(err.message || 'Failed to approve request');
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const handleReject = async (row) => {
+    setActingId(row.id);
+    setActionError('');
+    try {
+      await approvalApi.reject(row.id);
+      onNotify(`${row.ivrs_number} rejected`);
+      loadApprovals();
+    } catch (err) {
+      setActionError(err.message || 'Failed to reject request');
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const handleDelete = async (row) => {
+    setActingId(row.id);
+    setActionError('');
+    try {
+      await approvalApi.delete(row.id);
+      setConfirmingDeleteId(null);
+      onNotify('Approval request deleted');
+      loadApprovals();
+    } catch (err) {
+      setActionError(err.message || 'Failed to delete request');
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const handleViewLead = async (row) => {
+    if (!row?.lead) return;
+    setLoadingLead(true);
+    try {
+      const lead = await leadApi.get(row.lead);
+      onViewLead({
+        id: lead.id,
+        customer: lead.customer_name,
+        mobile: lead.mobile_number,
+        ivrs: lead.ivrs_number,
+        project: lead.project_name || '—',
+        type: lead.project_type || 'On-Grid',
+        status: lead.status,
+        priority: lead.priority || '',
+        source: lead.source || '',
+        assignedTo: { name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
+        nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+      });
+    } catch {
+      onNotify('Failed to load lead details');
+    } finally {
+      setLoadingLead(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -28132,11 +31004,12 @@ function AdminApprovalPage({ onOpenSection, onLeadDetails, onNotify }) {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ['Pending Approvals', String(pendingCount), 'warning', ReceiptText],
-          ['Approved Today', '2', 'success', CheckCircle2],
-          ['Rejected Today', '1', 'danger', XCircle],
-          ['Total Requests', String(allRows.length), 'primary', FileText],
+          ['Approved Today', String(approvedTodayCount), 'success', CheckCircle2],
+          ['Rejected Today', String(rejectedTodayCount), 'danger', XCircle],
+          ['Total Requests', String((rows ?? []).length), 'primary', FileText],
         ].map(([label, value, tone, Icon]) => <ApprovalStat key={label} label={label} value={value} tone={tone} Icon={Icon} />)}
       </section>
+      {actionError ? <p className="rounded-[8px] bg-[#fdecec] px-3 py-2 text-[12px] font-bold text-[#c0392b]">{actionError}</p> : null}
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <article className={`${panelClass} overflow-hidden`}>
           <div className="flex flex-col gap-3 border-b border-[#edf2f8] p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -28160,56 +31033,72 @@ function AdminApprovalPage({ onOpenSection, onLeadDetails, onNotify }) {
             <table className="crm-table min-w-[880px] w-full">
               <thead><tr>{['#', 'IVRS Number', 'Customer Name', 'Mobile Number', 'Project Type', 'Requested By', 'Requested On', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
               <tbody>
-                {filteredRows.length === 0 ? (
-                  <tr><td colSpan={9} className="py-8 text-center text-[13px] font-bold text-[#53647f]">Koi record nahi mila</td></tr>
+                {rows === null ? (
+                  <tr><td colSpan={9} className="py-8 text-center text-[13px] font-bold text-[#53647f]">Loading...</td></tr>
+                ) : filteredRows.length === 0 ? (
+                  <tr><td colSpan={9} className="py-8 text-center text-[13px] font-bold text-[#53647f]">No records found</td></tr>
                 ) : filteredRows.map((row, index) => (
-                  <tr key={row.ivrs} onClick={() => setSelectedRow(row)} className={cx('cursor-pointer', selectedRow?.ivrs === row.ivrs ? 'bg-[#f3f8ff]' : '')}>
+                  <tr key={row.id} onClick={() => setSelectedId(row.id)} className={cx('cursor-pointer', selectedId === row.id ? 'bg-[#f3f8ff]' : '')}>
                     <td>{index + 1}</td>
-                    <td className="font-extrabold text-[#233a6b]">{row.ivrs}</td>
-                    <td>{row.customer}</td>
-                    <td>{row.mobile}</td>
-                    <td>{row.project}</td>
-                    <td>{row.by}</td>
-                    <td>{row.date}<br />{row.time}</td>
+                    <td className="font-extrabold text-[#233a6b]">{row.ivrs_number}</td>
+                    <td>{approvalCustomerName(row) || '—'}</td>
+                    <td>{approvalMobileNumber(row) || '—'}</td>
+                    <td>{approvalProjectType(row) || '—'}</td>
+                    <td>{row.requested_by_name || '—'}</td>
+                    <td>{new Date(row.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}<br />{new Date(row.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
                     <td><StatusBadge status={row.status} /></td>
-                    <td>
-                      {row.status === 'Pending' ? (
-                        <div className="flex gap-2">
-                          <button type="button" onClick={(e) => { e.stopPropagation(); onNotify(`${row.ivrs} approved`); }} className="rounded-[7px] bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#087a39]">Approve</button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); onNotify(`${row.ivrs} rejected`); }} className="rounded-[7px] bg-[#ffe9e6] px-2.5 py-1 text-[11px] font-extrabold text-[#e3342f]">Reject</button>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      {confirmingDeleteId === row.id ? (
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" onClick={() => handleDelete(row)} disabled={actingId === row.id} className="rounded-[7px] bg-[#c0392b] px-2 py-1 text-[11px] font-extrabold text-white disabled:opacity-60">Confirm</button>
+                          <button type="button" onClick={() => setConfirmingDeleteId(null)} className="rounded-[7px] border border-[#d9e4f2] px-2 py-1 text-[11px] font-extrabold text-[#284276]">Cancel</button>
                         </div>
-                      ) : <span className="text-[12px] font-bold text-[#53647f]">{row.status}</span>}
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {row.status === 'Pending' ? (
+                            <>
+                              <button type="button" onClick={() => handleApprove(row)} disabled={actingId === row.id} className="rounded-[7px] bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#087a39] disabled:opacity-60">Approve</button>
+                              <button type="button" onClick={() => handleReject(row)} disabled={actingId === row.id} className="rounded-[7px] bg-[#ffe9e6] px-2.5 py-1 text-[11px] font-extrabold text-[#e3342f] disabled:opacity-60">Reject</button>
+                            </>
+                          ) : <span className="text-[12px] font-bold text-[#53647f]">{row.status}</span>}
+                          <button type="button" onClick={() => setConfirmingDeleteId(row.id)} disabled={actingId === row.id} aria-label="Delete request" className="grid size-6 place-items-center rounded-[7px] text-[#7585a2] hover:bg-[#f1f5fb] disabled:opacity-60"><Trash2 className="size-3.5" /></button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between px-4 py-4 text-[13px] font-bold text-[#53647f]"><span>Showing {filteredRows.length} of {allRows.length} entries</span></div>
+          <div className="flex items-center justify-between px-4 py-4 text-[13px] font-bold text-[#53647f]"><span>Showing {filteredRows.length} of {(rows ?? []).length} entries</span></div>
         </article>
         <div className="space-y-4">
           <InfoPanel title="IVRS Request Details" icon={CalendarDays} tone="primary">
             {selectedRow ? (
               <>
-                <DetailRow label="IVRS Number" value={selectedRow.ivrs} />
-                <DetailRow label="Customer Name" value={selectedRow.customer} />
-                <DetailRow label="Mobile Number" value={selectedRow.mobile} />
-                <DetailRow label="Project Type" value={selectedRow.project} />
-                <DetailRow label="Requested By" valueNode={<AssigneeCell assignee={{ name: selectedRow.by, initials: selectedRow.by.slice(0, 2).toUpperCase(), tone: 'amber' }} compact />} />
-                <DetailRow label="Requested On" value={`${selectedRow.date}, ${selectedRow.time}`} />
+                <DetailRow label="IVRS Number" value={selectedRow.ivrs_number} />
+                <DetailRow label="Customer Name" value={approvalCustomerName(selectedRow) || '—'} />
+                <DetailRow label="Mobile Number" value={approvalMobileNumber(selectedRow) || '—'} />
+                <DetailRow label="Project Name" value={approvalProjectName(selectedRow) || '—'} />
+                <DetailRow label="Project Type" value={approvalProjectType(selectedRow) || '—'} />
+                <DetailRow label="Requested By" valueNode={selectedRow.requested_by_name ? <AssigneeCell assignee={{ name: selectedRow.requested_by_name, initials: selectedRow.requested_by_name.slice(0, 2).toUpperCase(), tone: 'amber' }} compact /> : '—'} />
+                <DetailRow label="Requested On" value={new Date(selectedRow.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} />
                 <DetailRow label="Status" valueNode={<StatusBadge status={selectedRow.status} />} />
+                {selectedRow.reason ? <DetailRow label="Reason" value={selectedRow.reason} /> : null}
               </>
-            ) : <p className="text-[13px] font-bold text-[#53647f]">Row select karo details dekhne ke liye</p>}
+            ) : <p className="text-[13px] font-bold text-[#53647f]">Select a row to view details</p>}
           </InfoPanel>
           <InfoPanel title="IVRS Intelligence" icon={AlertTriangle} tone="warning">
-            <div className="rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4 text-[13px] font-bold text-[#087a39]">IVRS: <span className="text-[#1e3261]">{selectedRow?.ivrs || '—'}</span><p className="mt-2">This IVRS Number is unique. No duplicate found.</p></div>
+            <div className="rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4 text-[13px] font-bold text-[#a76200]">IVRS: <span className="text-[#1e3261]">{selectedRow?.ivrs_number || '—'}</span><p className="mt-2">{selectedRow ? 'This IVRS Number already exists on another lead — admin review required.' : 'Select a request to see details.'}</p></div>
           </InfoPanel>
           <InfoPanel title="Note" icon={InfoIcon} tone="primary">
             <p className="text-[13px] font-semibold leading-6 text-[#53647f]">Please verify customer details and project type before approving.</p>
           </InfoPanel>
           <InfoPanel title="Quick Actions" icon={Zap} tone="success">
-            <MiniActionButton label="View Lead Details" icon={Search} tone="blue" onClick={onLeadDetails} />
-            <MiniActionButton label="Refresh List" icon={RefreshCw} tone="blue" onClick={() => onNotify('Approval list refreshed')} />
+            <div className="grid gap-3">
+              <MiniActionButton label="View Lead Details" icon={Search} tone="blue" disabled={!selectedRow || loadingLead} onClick={() => handleViewLead(selectedRow)} />
+              <MiniActionButton label="Refresh List" icon={RefreshCw} tone="blue" onClick={() => { loadApprovals(); onNotify('Approval list refreshed'); }} />
+            </div>
           </InfoPanel>
         </div>
       </section>
@@ -28218,7 +31107,36 @@ function AdminApprovalPage({ onOpenSection, onLeadDetails, onNotify }) {
   );
 }
 
-function DuplicateIvrsModal({ onClose, onRequestApproval, onNotify }) {
+function DuplicateIvrsModal({ ivrsNumber, existingLeads = [], requestedLead, onClose, onRequestApproval, onNotify }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const primaryMatch = existingLeads[0];
+
+  const handleRequestApproval = async () => {
+    if (!primaryMatch) { onNotify('No matching lead found for this IVRS number'); onClose(); return; }
+    setSaving(true);
+    setError('');
+    try {
+      await approvalApi.create({
+        lead: primaryMatch.id,
+        ivrs_number: ivrsNumber,
+        duplicate_of: primaryMatch.id,
+        requested_customer_name: requestedLead?.customer_name || '',
+        requested_mobile_number: requestedLead?.mobile_number || '',
+        requested_project_name: requestedLead?.project_name || '',
+        requested_project_type: requestedLead?.project_type || '',
+        requested_payload: requestedLead || {},
+        reason: `New lead creation blocked — IVRS number already used by ${primaryMatch.customer_name} (${primaryMatch.mobile_number}).`,
+      });
+      onNotify('Approval request submitted');
+      onRequestApproval();
+    } catch (err) {
+      setError(err.message || 'Failed to submit approval request');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="max-h-[92vh] w-full max-w-[650px] overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
@@ -28226,12 +31144,42 @@ function DuplicateIvrsModal({ onClose, onRequestApproval, onNotify }) {
           <div className="flex gap-3"><span className="grid size-10 place-items-center rounded-full bg-[#fff0dc] text-[#f59e0b]"><AlertTriangle className="size-6" /></span><div><h2 className="font-display text-[20px] font-extrabold text-[#111827]">Duplicate IVRS Detected</h2><p className="mt-1 text-[13px] font-semibold text-[#53647f]">The IVRS Number you entered already exists in our system.</p></div></div>
           <button type="button" onClick={onClose} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
         </div>
-        <div className="rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4"><p className="text-[12px] font-extrabold text-[#a76200]">Entered IVRS Number</p><p className="mt-1 text-[22px] font-extrabold text-[#111827]">IVRS123456</p></div>
+        <div className="rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4"><p className="text-[12px] font-extrabold text-[#a76200]">Entered IVRS Number</p><p className="mt-1 text-[22px] font-extrabold text-[#111827]">{ivrsNumber || '—'}</p></div>
+        {requestedLead ? (
+          <div className="mt-4 grid gap-3 rounded-[10px] border border-[#d9e4f2] bg-[#f8fbff] p-4 sm:grid-cols-2">
+            <DetailRow label="Requested Customer" value={requestedLead.customer_name || '-'} />
+            <DetailRow label="Requested Mobile" value={requestedLead.mobile_number || '-'} />
+            <DetailRow label="Requested Project" value={requestedLead.project_name || '-'} />
+            <DetailRow label="Project Type" value={requestedLead.project_type || '-'} />
+          </div>
+        ) : null}
         <p className="mt-5 text-[13px] font-extrabold text-[#1e3261]">Existing Lead(s) with this IVRS Number</p>
-        <div className="mt-3 overflow-hidden rounded-[10px] border border-[#e7eef7]"><table className="crm-table min-w-[540px] w-full"><thead><tr>{['#', 'Customer Name', 'Mobile Number', 'Project Name', 'Lead Status', 'Assigned To', 'Created On'].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>{['5kW On-Grid', '10kW On-Grid', '3kW On-Grid'].map((project, index) => <tr key={project}><td>{index + 1}</td><td>Amit Sharma</td><td>9876543210</td><td>{project}</td><td><StatusBadge status={index === 0 ? 'Follow-up' : index === 1 ? 'Won' : 'Lost'} /></td><td>Rohit Singh</td><td>{index === 0 ? '18 May 2024' : index === 1 ? '10 May 2024' : '02 May 2024'}</td></tr>)}</tbody></table></div>
+        <div className="mt-3 overflow-hidden rounded-[10px] border border-[#e7eef7]">
+          <table className="crm-table min-w-[540px] w-full">
+            <thead><tr>{['#', 'Customer Name', 'Mobile Number', 'Project Name', 'Lead Status', 'Assigned To', 'Created On'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+            <tbody>
+              {existingLeads.length === 0 ? (
+                <tr><td colSpan={7} className="py-4 text-center text-[12px] font-bold text-[#53647f]">No matching lead found</td></tr>
+              ) : existingLeads.map((row, index) => (
+                <tr key={row.id}>
+                  <td>{index + 1}</td>
+                  <td>{row.customer_name}</td>
+                  <td>{row.mobile_number}</td>
+                  <td>{row.project_name || '—'}</td>
+                  <td><StatusBadge status={row.status} /></td>
+                  <td>{row.assigned_to_name || 'Unassigned'}</td>
+                  <td>{row.created_at_display}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <div className="mt-5 rounded-[10px] border border-[#f6dda9] bg-[#fff8e8] p-4 text-[13px] font-semibold text-[#314a79]"><p className="font-extrabold text-[#d98200]">System Rule (IVRS Protection)</p><p className="mt-2">Same IVRS = Same Customer</p><p>Different project with same IVRS requires Admin Approval.</p><p>You cannot create a new lead with the same IVRS without approval.</p></div>
-        <div className="mt-5 space-y-3 text-[13px] font-bold text-[#1e3261]"><p>What would you like to do?</p><label className="flex items-center gap-2"><input type="radio" defaultChecked className="accent-[#0d9f4a]" /> Request Admin Approval to create new lead with this IVRS</label><label className="flex items-center gap-2"><input type="radio" className="accent-[#0d9f4a]" /> Cancel and use a different IVRS Number</label></div>
-        <div className="mt-6 flex flex-col justify-end gap-3 sm:flex-row"><button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={onRequestApproval} className="h-11 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Request Approval</button></div>
+        {error ? <p className="mt-4 rounded-[8px] bg-[#fdecec] px-3 py-2 text-[12px] font-bold text-[#c0392b]">{error}</p> : null}
+        <div className="mt-6 flex flex-col justify-end gap-3 sm:flex-row">
+          <button type="button" onClick={onClose} disabled={saving} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b] disabled:opacity-60">Cancel</button>
+          <button type="button" onClick={handleRequestApproval} disabled={saving} className="h-11 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white disabled:opacity-60">{saving ? 'Submitting...' : 'Request Approval'}</button>
+        </div>
       </div>
     </div>
   );
@@ -28242,6 +31190,15 @@ function DuplicateIvrsModal({ onClose, onRequestApproval, onNotify }) {
 function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onNotify }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [employeeOptions, setEmployeeOptions] = useState([]);
+
+  useEffect(() => {
+    if (type !== 'assign') return;
+    userApi.list({ is_active: true }).then((data) => {
+      const users = normalizeApiRows(data);
+      setEmployeeOptions(users.map((user) => ({ label: user.name || user.email, value: String(user.id) })));
+    }).catch(() => setEmployeeOptions([]));
+  }, [type]);
 
   const meta = {
     'follow-up': { title: 'Add Follow-up', icon: ShieldCheck, saveLabel: 'Save Follow-up' },
@@ -28258,30 +31215,44 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
     setSaving(true);
     setSaveError('');
     try {
-      if (type === 'follow-up' || type === 'site-visit') {
+      if (type === 'follow-up' || type === 'site-visit' || type === 'note') {
         const dateVal = fd.get('date');
         const timeVal = fd.get('time') || '10:00';
         await followUpApi.create({
           lead: lead.id,
-          follow_up_type: type === 'site-visit' ? 'Site Visit' : (fd.get('follow_up_type') || 'Call'),
+          follow_up_type: type === 'site-visit' ? 'Site Visit' : type === 'note' ? 'Note' : (fd.get('follow_up_type') || 'Call'),
           scheduled_at: dateVal ? `${dateVal}T${timeVal}:00` : new Date().toISOString(),
+          status: type === 'note' ? 'Completed' : 'Scheduled',
           notes: fd.get('notes') || '',
         });
         onSaved?.();
       } else if (type === 'status') {
         const newStatus = fd.get('new_status');
-        if (!newStatus) throw new Error('New Status select karo');
+        if (!newStatus) throw new Error('Select a new status');
         await leadApi.updateStatus(lead.id, newStatus);
         onLeadUpdated?.({ status: newStatus });
+      } else if (type === 'assign') {
+        const assigneeId = fd.get('new_assignee');
+        if (!assigneeId) throw new Error('Select a new assignee');
+        await leadApi.assign(lead.id, assigneeId);
+        const selectedEmployee = employeeOptions.find((employee) => employee.value === assigneeId);
+        onLeadUpdated?.({
+          assignedTo: {
+            id: Number(assigneeId),
+            name: selectedEmployee?.label || 'Assigned',
+            initials: (selectedEmployee?.label || 'AS').slice(0, 2).toUpperCase(),
+            tone: 'amber',
+          },
+        });
       } else {
         onNotify(`${meta.title} saved (coming soon — API integration pending)`);
         onClose();
         return;
       }
-      onNotify(`${meta.title} successfully save ho gayi!`);
+      onNotify(`${meta.title} saved successfully!`);
       onClose();
     } catch (err) {
-      setSaveError(err.message || 'Save karne mein error aayi, dobara try karo');
+      setSaveError(err.message || 'Error saving. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -28292,17 +31263,17 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
       <>
         <LeadSelect label="Follow-up Type" name="follow_up_type" required icon={Phone} placeholder="Select type" options={['Call', 'WhatsApp', 'Site Visit', 'Email', 'Note']} />
         <LeadDateInput label="Follow-up Date" name="date" required />
-        <LeadInput label="Follow-up Time" name="time" icon={Clock3} placeholder="e.g. 11:00 AM" />
+        <LeadInput label="Follow-up Time" name="time" icon={Clock3} type="time" placeholder="e.g. 11:00" />
         <LeadSelect label="Reminder" name="reminder" icon={Bell} placeholder="Select reminder" options={['2 Hours Before', '1 Day Before', 'Same Day Morning', 'No Reminder']} />
         <div className="md:col-span-2">
-          <LeadTextarea label="Follow-up Notes" name="notes" icon={FileText} placeholder="Customer se kya baat hui, kya discuss karna hai..." />
+          <LeadTextarea label="Follow-up Notes" name="notes" icon={FileText} placeholder="What was discussed with the customer..." />
         </div>
       </>
     );
     if (type === 'site-visit') return (
       <>
         <LeadDateInput label="Visit Date" name="date" required />
-        <LeadInput label="Visit Time" name="time" icon={Clock3} placeholder="e.g. 10:30 AM" />
+        <LeadInput label="Visit Time" name="time" icon={Clock3} type="time" placeholder="e.g. 10:30" />
         <LeadSelect label="Visit Type" name="visit_type" icon={Users} placeholder="Select visit type" options={['Residential Survey', 'Commercial Survey', 'Industrial Survey', 'Re-visit']} />
         <LeadSelect label="Reminder" name="reminder" icon={Bell} placeholder="Select reminder" options={['2 Hours Before', '1 Day Before', 'Same Day Morning', 'No Reminder']} />
         <div className="md:col-span-2">
@@ -28314,8 +31285,9 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
       <>
         <LeadSelect label="Note Type" name="note_type" icon={Flag} placeholder="Select type" options={['Internal', 'Customer Call', 'Site Observation', 'Important']} />
         <LeadSelect label="Priority" name="priority" icon={Flag} placeholder="Select priority" options={['High', 'Medium', 'Low']} />
+        <LeadInput label="Note Date" name="date" icon={CalendarDays} type="date" placeholder="Today" />
         <div className="md:col-span-2">
-          <LeadTextarea label="Note" name="notes" icon={FileText} placeholder="Lead ke baare mein important note likhiye..." />
+          <LeadTextarea label="Note" name="notes" icon={FileText} placeholder="Write an important note about this lead..." />
         </div>
       </>
     );
@@ -28324,16 +31296,16 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
         <ReadonlyField label="Current Status" value={lead?.status || '—'} />
         <LeadSelect label="New Status" name="new_status" required icon={Clock3} placeholder="Select new status" options={['New', 'Follow-up', 'Quotation', 'Won', 'Lost']} />
         <div className="md:col-span-2">
-          <LeadTextarea label="Status Note" name="notes" icon={FileText} placeholder="Status change ka reason..." />
+          <LeadTextarea label="Status Note" name="notes" icon={FileText} placeholder="Reason for status change..." />
         </div>
       </>
     );
     if (type === 'assign') return (
       <>
         <ReadonlyField label="Current Assignee" value={lead?.assignedTo?.name || 'Unassigned'} />
-        <LeadSelect label="New Assignee" name="new_assignee" required icon={Users} placeholder="Select team member" options={['Rohit Singh', 'Neha Kumari', 'Vikram Patel', 'Priya Sharma']} />
+        <LeadSelect label="New Assignee" name="new_assignee" required icon={Users} placeholder={employeeOptions.length ? 'Select team member' : 'No active users found'} options={employeeOptions} />
         <div className="md:col-span-2">
-          <LeadTextarea label="Assignment Note" name="notes" icon={FileText} placeholder="Assignment ke baare mein note..." />
+          <LeadTextarea label="Assignment Note" name="notes" icon={FileText} placeholder="Note about this assignment..." />
         </div>
       </>
     );
@@ -28404,9 +31376,9 @@ function HistoryItem({ item }) {
   return <div className="grid gap-4 sm:grid-cols-[40px_1fr_auto]"><span className={`grid size-10 place-items-center rounded-full text-white ${toneClass}`}><Icon className="size-5" /></span><div><p className="font-extrabold text-[#1e3261]">{item.title} <span className="ml-2 rounded-[7px] bg-[#e8f8eb] px-2 py-1 text-[11px] text-[#0d9f4a]">{item.tag}</span></p>{item.by ? <p className="mt-2 text-[12px] font-bold text-[#53647f]">By {item.by}</p> : null}<p className="mt-2 text-[13px] font-semibold text-[#53647f]">{item.text}</p></div><p className="whitespace-pre-line text-right text-[13px] font-bold text-[#53647f]">{item.date}</p></div>;
 }
 
-function MiniActionButton({ label, icon: Icon, tone = 'blue', onClick }) {
+function MiniActionButton({ label, icon: Icon, tone = 'blue', onClick, disabled = false }) {
   const toneClass = { green: 'border-[#d7f0df] bg-[#effbf3] text-[#087a39]', blue: 'border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]', purple: 'border-[#e2ddff] bg-[#f7f5ff] text-[#5944e8]', amber: 'border-[#f6dda9] bg-[#fff8e8] text-[#b76b00]', slate: 'border-[#d9e4f2] bg-[#f8fbff] text-[#1e3261]' }[tone] ?? 'border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]';
-  return <button type="button" onClick={onClick} className={`flex w-full items-center gap-3 rounded-[8px] border px-4 py-3 text-left text-[13px] font-extrabold transition hover:-translate-y-0.5 ${toneClass}`}><Icon className="size-4" />{label}</button>;
+  return <button type="button" onClick={onClick} disabled={disabled} className={`flex w-full items-center gap-3 rounded-[8px] border px-4 py-3 text-left text-[13px] font-extrabold transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 ${toneClass}`}><Icon className="size-4" />{label}</button>;
 }
 
 function ApprovalStat({ label, value, tone, Icon }) {
