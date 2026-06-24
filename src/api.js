@@ -42,8 +42,8 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
         body: JSON.stringify({ refresh: refreshToken }),
       });
       if (rRes.ok) {
-        const { access } = await rRes.json();
-        tokenStore.set(access, null);
+        const refreshData = await rRes.json();
+        tokenStore.set(refreshData.access, refreshData.refresh || null);
         headers['Authorization'] = `Bearer ${access}`;
         res = await doFetch(headers);
       } else {

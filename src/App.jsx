@@ -21,6 +21,7 @@ import {
   Clock3,
   Cloud,
   ChevronLeft,
+  Copy,
   CreditCard,
   Eye,
   Database,
@@ -50,6 +51,7 @@ import {
   Phone,
   Pin,
   Plus,
+  Printer,
   Save,
   ReceiptText,
   RefreshCw,
@@ -1790,7 +1792,9 @@ function App() {
   const prevNavStateRef = useRef(null);
   const initialPreferences = initialPreferencesRef.current;
   const initialRoute = initialRouteRef.current;
-  const [currentPage, setCurrentPage] = useState(initialPreferences.currentPage === 'dashboard' ? 'dashboard' : 'signin');
+  const [currentPage, setCurrentPage] = useState(
+    initialPreferences.currentPage === 'dashboard' && Boolean(localStorage.getItem('malwa_access')) ? 'dashboard' : 'signin',
+  );
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
   const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
@@ -1836,6 +1840,7 @@ function App() {
   const [dashboardFollowUps, setDashboardFollowUps] = useState(todayFollowUps);
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
   const [dashboardOverdue, setDashboardOverdue] = useState(null);
+  const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
 
   const notify = (message) => {
     setToast({ id: Date.now(), message });
@@ -1895,10 +1900,8 @@ function App() {
     }).catch(() => {});
 
     leadApi.todayFollowUps().then((data) => {
-      if (!data?.results?.length && !Array.isArray(data)) return;
-      const rows = Array.isArray(data) ? data : data.results;
-      if (!rows.length) return;
-      setDashboardFollowUps(
+      const rows = Array.isArray(data) ? data : (data?.results ?? []);
+      setDashboardFollowUps(rows.length === 0 ? [] :
         rows.map((lead) => ({
           id: lead.id,
           customer: lead.customer_name,
@@ -1917,10 +1920,8 @@ function App() {
     }).catch(() => {});
 
     leadApi.recent().then((data) => {
-      if (!data) return;
-      const rows = Array.isArray(data) ? data : (data.results ?? []);
-      if (!rows.length) return;
-      setDashboardRecentLeads(rows.map((lead) => ({
+      const rows = Array.isArray(data) ? data : (data?.results ?? []);
+      setDashboardRecentLeads(rows.length === 0 ? [] : rows.map((lead) => ({
         id: lead.id,
         customer: lead.customer_name,
         mobile: lead.mobile_number,
@@ -1937,9 +1938,8 @@ function App() {
     }).catch(() => {});
 
     leadApi.overdue().then((data) => {
-      if (!data) return;
-      const rows = Array.isArray(data) ? data : (data.results ?? []);
-      if (!rows.length) return;
+      const rows = Array.isArray(data) ? data : (data?.results ?? []);
+      if (rows.length === 0) { setDashboardOverdue([]); return; }
       setDashboardOverdue(rows.map((lead) => {
         const dueDate = lead.next_follow_up ? new Date(lead.next_follow_up) : null;
         const diffDays = dueDate ? Math.ceil((Date.now() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
@@ -3096,7 +3096,13 @@ function App() {
                       <button
                         key={action.label}
                         type="button"
-                        onClick={() => openDashboardSection(action.target, `${action.label} opened`)}
+                        onClick={() => {
+                          if (action.label === 'Add Lead') {
+                            setDashboardCreateLeadOpen(true);
+                          } else {
+                            openDashboardSection(action.target, `${action.label} opened`);
+                          }
+                        }}
                         className={cx(
                           'flex w-full items-center justify-between rounded-[10px] bg-gradient-to-r px-4 py-4 text-left text-white shadow-[0_12px_24px_rgba(22,65,145,0.16)] transition hover:-translate-y-0.5 hover:brightness-[1.03] sm:min-h-[92px] xl:min-h-0',
                           action.bg,
@@ -3205,6 +3211,22 @@ function App() {
           </div>
         </main>
       </div>
+
+      {dashboardCreateLeadOpen ? (
+        <LeadFormModal
+          mode="create"
+          onClose={() => setDashboardCreateLeadOpen(false)}
+          onSaved={() => {
+            setDashboardCreateLeadOpen(false);
+            notify('Lead created successfully!');
+          }}
+          onRequestApproval={() => {
+            setDashboardCreateLeadOpen(false);
+            openDashboardSection('Admin Approval', 'Approval opened');
+          }}
+          onNotify={notify}
+        />
+      ) : null}
 
       <Toast toast={toast} />
     </div>
@@ -3640,7 +3662,9 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
       })));
       setActivePage(1);
-    }).catch(() => {}).finally(() => setLeadsLoading(false));
+    }).catch((err) => {
+      onNotify?.((err && err.message) ? `Failed to load leads: ${err.message}` : 'Failed to load leads. Please try again.');
+    }).finally(() => setLeadsLoading(false));
   }, [statusFilter, searchQuery, refreshKey]);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
@@ -16837,8 +16861,8 @@ function projectRowFromApi(p) {
 
 function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNotify }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState('2026-01-01');
-  const [dateTo, setDateTo] = useState('2026-12-31');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [activePage, setActivePage] = useState(1);
@@ -29081,6 +29105,76 @@ function formatMoney(value) {
   return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 }
 
+async function copyQuotationRecord(quotationId) {
+  const detail = await quotationApi.get(quotationId);
+  if (!detail?.lead) throw new Error('Cannot copy quotation');
+  const leadId = typeof detail.lead === 'object' ? detail.lead.id : detail.lead;
+  const items = (detail.items ?? [])
+    .filter((item) => item.item_name?.trim())
+    .map((item) => ({
+      item_name: item.item_name.trim(),
+      quantity: item.quantity,
+      unit: item.unit || 'Nos',
+      rate: Number(item.rate) || 0,
+      amount: (Number(item.quantity) || 0) * (Number(item.rate) || 0),
+    }));
+  const payload = buildQuotationPayload(fieldsFromQuotation(detail), leadId, items);
+  payload.status = 'Draft';
+  return quotationApi.create(payload);
+}
+
+async function printQuotationRecord(quotationId) {
+  const detail = await quotationApi.get(quotationId);
+  if (!detail) throw new Error('Quotation not found');
+  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
+  if (!printWindow) throw new Error('Please allow pop-ups to print quotation');
+  const itemsHtml = (detail.items ?? []).length
+    ? (detail.items ?? []).map((item) => `
+        <tr>
+          <td>${item.item_name || '—'}</td>
+          <td>${item.quantity ?? '—'}</td>
+          <td>${item.unit || '—'}</td>
+          <td>${formatMoney(item.rate)}</td>
+          <td>${formatMoney(item.amount)}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="5">No line items</td></tr>';
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html><head><title>${detail.quotation_number || 'Quotation'}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; color: #1e3261; }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      p { margin: 4px 0; font-size: 13px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+      th, td { border: 1px solid #d9e4f2; padding: 8px; text-align: left; font-size: 12px; }
+      th { background: #f8fbff; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+      .box { border: 1px solid #e7eef7; border-radius: 8px; padding: 12px; }
+      .label { font-size: 11px; font-weight: 700; color: #53647f; text-transform: uppercase; }
+      .value { margin-top: 4px; font-size: 14px; font-weight: 700; }
+    </style></head><body>
+      <h1>${detail.quotation_number || `Quotation #${detail.id}`}</h1>
+      <p>${detail.template || '—'} • ${detail.lead_customer_name || '—'}</p>
+      <p>Status: ${detail.status || '—'} | Date: ${detail.quotation_date || '—'} | Valid Till: ${detail.valid_till || '—'}</p>
+      <div class="grid">
+        <div class="box"><div class="label">Grand Total</div><div class="value">${formatMoney(detail.grand_total)}</div></div>
+        <div class="box"><div class="label">Customer Payable</div><div class="value">${formatMoney(detail.customer_contribution)}</div></div>
+        <div class="box"><div class="label">IVRS Number</div><div class="value">${detail.lead_ivrs_number || '—'}</div></div>
+        <div class="box"><div class="label">Sales Executive</div><div class="value">${detail.sales_executive_name || '—'}</div></div>
+      </div>
+      <table>
+        <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr></thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+      ${detail.notes ? `<p style="margin-top:20px;"><strong>Remarks:</strong> ${detail.notes}</p>` : ''}
+    </body></html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
+
 function emptyQuotationFields() {
   return {
     template: 'Residential Subsidy', quotation_date: '', valid_till: '', sales_executive: '',
@@ -29653,6 +29747,9 @@ function QuotationListPage({ onNotify }) {
   const [templateFilter, setTemplateFilter] = useState('All');
   const [viewQuotationId, setViewQuotationId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [openActionMenuId, setOpenActionMenuId] = useState(null);
+  const [copyingId, setCopyingId] = useState(null);
+  const actionMenuRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
@@ -29661,14 +29758,49 @@ function QuotationListPage({ onNotify }) {
     }).catch(() => setQuotations([])).finally(() => setLoading(false));
   }, [refreshKey]);
 
+  useEffect(() => {
+    if (!openActionMenuId) return;
+    const handlePointerDown = (event) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target)) {
+        setOpenActionMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [openActionMenuId]);
+
   const deleteQuotation = async (quotation) => {
     if (!window.confirm(`Delete quotation ${quotation.quotation_number || '#' + quotation.id}? This cannot be undone.`)) return;
     try {
       await quotationApi.delete(quotation.id);
       onNotify?.('Quotation deleted');
+      setOpenActionMenuId(null);
       setRefreshKey((k) => k + 1);
     } catch (err) {
       onNotify?.(err.message || 'Failed to delete quotation');
+    }
+  };
+
+  const copyQuotation = async (quotation) => {
+    setCopyingId(quotation.id);
+    try {
+      await copyQuotationRecord(quotation.id);
+      onNotify?.('Quotation copied successfully');
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to copy quotation');
+    } finally {
+      setCopyingId(null);
+    }
+  };
+
+  const printQuotation = async (quotation) => {
+    try {
+      await printQuotationRecord(quotation.id);
+      setOpenActionMenuId(null);
+      onNotify?.('Print quotation opened');
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to print quotation');
     }
   };
 
@@ -29753,9 +29885,48 @@ function QuotationListPage({ onNotify }) {
                         <button type="button" onClick={() => setViewQuotationId(q.id)} title="View" aria-label={`View ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]">
                           <Eye className="size-4" />
                         </button>
-                        <button type="button" onClick={() => deleteQuotation(q)} title="Delete" aria-label={`Delete ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffd5d5] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]">
-                          <Trash2 className="size-4" />
+                        <button
+                          type="button"
+                          onClick={() => copyQuotation(q)}
+                          disabled={copyingId === q.id}
+                          title="Copy"
+                          aria-label={`Copy ${q.quotation_number}`}
+                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#233a6b] transition hover:bg-[#f5f9ff] disabled:opacity-60"
+                        >
+                          <Copy className="size-4" />
                         </button>
+                        <div className="relative" ref={openActionMenuId === q.id ? actionMenuRef : null}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenActionMenuId((current) => (current === q.id ? null : q.id))}
+                            title="More actions"
+                            aria-label={`More actions for ${q.quotation_number}`}
+                            aria-expanded={openActionMenuId === q.id}
+                            className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#53647f] transition hover:bg-[#f5f9ff]"
+                          >
+                            <MoreVertical className="size-4" />
+                          </button>
+                          {openActionMenuId === q.id ? (
+                            <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[190px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                              <button
+                                type="button"
+                                onClick={() => printQuotation(q)}
+                                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+                              >
+                                <Printer className="size-4" />
+                                Print Quotation
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteQuotation(q)}
+                                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12px] font-extrabold text-[#ef4444] transition hover:bg-[#fff5f5]"
+                              >
+                                <Trash2 className="size-4" />
+                                Delete
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -30152,6 +30323,36 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
   const [followUps, setFollowUps] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
   const [linkedLeads, setLinkedLeads] = useState(null);
+
+  // BUG-04 fix: hydrate lead fields from API when only id is available (e.g. after page refresh)
+  useEffect(() => {
+    if (!lead?.id) return;
+    const isPartial = !lead.customer || !lead.mobile || !lead.ivrs;
+    if (!isPartial) return;
+    let cancelled = false;
+    leadApi.get(lead.id).then((data) => {
+      if (cancelled || !data) return;
+      onLeadUpdated?.({
+        customer: data.customer_name || '—',
+        mobile: data.mobile_number || '—',
+        ivrs: data.ivrs_number || '—',
+        project: data.project_name || '—',
+        type: data.project_type || '—',
+        status: data.status || 'New',
+        source: data.source || '',
+        nextFollowUp: data.next_follow_up
+          ? new Date(data.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+          : '—',
+        assignedTo: {
+          id: data.assigned_to ?? null,
+          name: data.assigned_to_name || 'Unassigned',
+          initials: (data.assigned_to_name || 'UN').slice(0, 2).toUpperCase(),
+          tone: 'amber',
+        },
+      });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [lead?.id, lead?.customer, lead?.mobile, lead?.ivrs, onLeadUpdated]);
 
   const loadFollowUps = () => {
     if (!lead?.id) { setFollowUps([]); return; }
