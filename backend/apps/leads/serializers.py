@@ -35,20 +35,52 @@ class AdminApprovalSerializer(serializers.ModelSerializer):
 class QuotationItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = QuotationItem
-        fields = ['id', 'item_name', 'quantity', 'unit', 'rate', 'amount']
+        fields = ['id', 'item_name', 'brand', 'specification', 'quantity', 'unit', 'rate', 'amount']
 
 
 class QuotationSerializer(serializers.ModelSerializer):
-    items = QuotationItemSerializer(many=True)
+    items = QuotationItemSerializer(many=True, required=False)
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    sales_executive_name = serializers.CharField(source='sales_executive.name', read_only=True)
+    lead_customer_name = serializers.CharField(source='lead.customer_name', read_only=True)
+    lead_ivrs_number = serializers.CharField(source='lead.ivrs_number', read_only=True)
+    cost_per_watt = serializers.ReadOnlyField()
+    estimated_annual_savings = serializers.ReadOnlyField()
+    roi_percent = serializers.ReadOnlyField()
+    payback_period_years = serializers.ReadOnlyField()
 
     class Meta:
         model = Quotation
-        fields = ['id', 'lead', 'items', 'subtotal', 'gst_percent', 'gst_amount', 'discount', 'grand_total', 'status', 'notes', 'created_by', 'created_by_name', 'created_at', 'updated_at']
-        read_only_fields = ['created_by', 'subtotal', 'gst_amount', 'grand_total', 'created_at', 'updated_at']
+        fields = [
+            'id', 'lead', 'lead_customer_name', 'lead_ivrs_number', 'items',
+            'quotation_number', 'template', 'quotation_date', 'valid_till',
+            'sales_executive', 'sales_executive_name',
+            'company_name', 'alternate_number', 'email', 'gst_number', 'aadhaar_number', 'address', 'city', 'state', 'pincode',
+            'project_type', 'installation_type', 'sanctioned_load_kw', 'monthly_electricity_bill', 'discom_name',
+            'existing_meter_number', 'connection_type', 'consumer_number', 'execution_timeline',
+            'plant_capacity_kw', 'estimated_annual_generation', 'shadow_free_area', 'module_orientation',
+            'panel_brand', 'panel_model', 'panel_type', 'panel_wattage', 'number_of_panels', 'total_dc_capacity',
+            'inverter_brand', 'inverter_model', 'inverter_type', 'inverter_capacity', 'inverter_quantity',
+            'structure_type', 'structure_material', 'coating_details', 'foundation_type', 'wind_speed_rating',
+            'dc_cable', 'ac_cable', 'earthing_kit', 'lightning_arrester', 'acdb', 'dcdb', 'connectors',
+            'mc4_connector', 'cable_tray', 'fasteners', 'pvc_pipe',
+            'material_cost', 'structure_cost', 'installation_cost', 'transportation_cost',
+            'liaisoning_charges', 'net_metering_charges', 'other_charges',
+            'subsidy_applicable', 'subsidy_amount', 'customer_contribution',
+            'subtotal', 'gst_percent', 'gst_amount', 'discount', 'grand_total',
+            'advance_percent', 'material_dispatch_percent', 'installation_percent', 'commissioning_percent',
+            'panel_warranty', 'inverter_warranty', 'structure_warranty', 'workmanship_warranty',
+            'special_instructions', 'scope_of_work', 'exclusions', 'notes',
+            'cost_per_watt', 'estimated_annual_savings', 'roi_percent', 'payback_period_years',
+            'status', 'created_by', 'created_by_name', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'created_by', 'quotation_number', 'subtotal', 'gst_amount', 'grand_total',
+            'customer_contribution', 'total_dc_capacity', 'created_at', 'updated_at',
+        ]
 
     def create(self, validated_data):
-        items_data = validated_data.pop('items')
+        items_data = validated_data.pop('items', [])
         quotation = Quotation.objects.create(**validated_data)
         for item_data in items_data:
             QuotationItem.objects.create(quotation=quotation, **item_data)
@@ -64,7 +96,7 @@ class QuotationSerializer(serializers.ModelSerializer):
             instance.items.all().delete()
             for item_data in items_data:
                 QuotationItem.objects.create(quotation=instance, **item_data)
-            instance.recalculate_totals()
+        instance.recalculate_totals()
         return instance
 
 
