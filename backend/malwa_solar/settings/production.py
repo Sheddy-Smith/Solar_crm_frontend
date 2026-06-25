@@ -12,6 +12,11 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 X_FRAME_OPTIONS = 'DENY'
 
+# Koyeb terminates TLS at its edge and forwards plain HTTP with this header;
+# without it, SECURE_SSL_REDIRECT causes an infinite redirect loop.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -22,19 +27,18 @@ LOGGING = {
         },
     },
     'handlers': {
-        'file': {
-            'level': 'ERROR',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'django_error.log',
-            'formatter': 'verbose',
-        },
+        # Console only — Koyeb's filesystem is ephemeral (wiped on every
+        # redeploy/restart) and captures stdout/stderr as platform logs anyway,
+        # so a file handler here would both crash on a missing `logs/` dir and
+        # provide no durability benefit.
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['file', 'console'],
+            'handlers': ['console'],
             'level': 'ERROR',
             'propagate': True,
         },
