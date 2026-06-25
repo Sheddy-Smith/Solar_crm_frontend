@@ -17,6 +17,18 @@ X_FRAME_OPTIONS = 'DENY'
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 
+# JSON-only API — DRF's browsable HTML renderer needs rest_framework static CSS;
+# with ManifestStaticFilesStorage that causes 500 on GET /api/v1/ in production.
+REST_FRAMEWORK = {
+    **REST_FRAMEWORK,
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+}
+
+# Avoid strict manifest lookups that 500 when optional app assets are absent.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
