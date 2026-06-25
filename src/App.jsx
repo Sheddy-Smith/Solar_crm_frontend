@@ -1,4 +1,5 @@
 import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, inventoryApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
   projectApi, workOrderApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
@@ -1785,6 +1786,12 @@ function isKnownSection(section) {
   return typeof section === 'string' && availableSections.has(section);
 }
 
+function formatCapacityKw(value) {
+  if (value === null || value === undefined || value === '') return '';
+  const match = String(value).match(/[\d.]+/);
+  return match ? `${match[0]}kW ` : '';
+}
+
 function App() {
   const initialPreferencesRef = useRef(readStoredPreferences());
   const initialRouteRef = useRef(resolveSectionFromPath(typeof window !== 'undefined' ? window.location.pathname : '/'));
@@ -1841,6 +1848,7 @@ function App() {
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
   const [dashboardOverdue, setDashboardOverdue] = useState(null);
   const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
+  const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
 
   const notify = (message) => {
     setToast({ id: Date.now(), message });
@@ -1926,7 +1934,7 @@ function App() {
         customer: lead.customer_name,
         mobile: lead.mobile_number,
         ivrs: lead.ivrs_number,
-        project: lead.project_name ? `${lead.estimated_capacity ? lead.estimated_capacity + 'kW ' : ''}${lead.project_type || 'On-Grid'}` : '—',
+        project: lead.project_name ? `${formatCapacityKw(lead.estimated_capacity)}${lead.project_type || 'On-Grid'}` : '—',
         type: lead.project_type || 'On-Grid',
         status: lead.status,
         priority: lead.priority || '',
@@ -2242,7 +2250,7 @@ function App() {
           className={cx(
             'fixed inset-y-2 left-2 z-50 flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] border-r-white/10 bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
             desktopSidebarCollapsed ? 'xl:w-[84px]' : 'xl:w-[236px]',
-            mobileSidebarOpen ? 'translate-x-0' : '-translate-x-[110%] xl:translate-x-0',
+            mobileSidebarOpen ? 'translate-x-0' : 'translate-x-[-110%] xl:translate-x-0',
           )}
         >
           <div
@@ -2336,7 +2344,7 @@ function App() {
                           desktopSidebarCollapsed ? 'justify-center px-0' : 'px-4',
                           isActive
                             ? 'min-h-[40px] rounded-[8px] border-[#36d95b]/75 bg-[linear-gradient(90deg,#07913a_0%,#23cf2b_100%)] text-white shadow-[0_8px_14px_rgba(3,83,55,0.22)]'
-                            : 'rounded-[3px] border-transparent bg-transparent text-white hover:border-white/10 hover:bg-white/[0.08]',
+                            : 'rounded-[3px] border-transparent bg-transparent text-white hover:border-white/10 hover:bg-white/8',
                         )}
                       >
                         <Icon className="size-[17px] shrink-0 transition group-hover:scale-105" />
@@ -2637,7 +2645,7 @@ function App() {
                     setCurrentPage('signin');
                     notify('Logged out');
                   }}
-                  className="mt-12 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/[0.09] px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]"
+                  className="mt-12 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]"
                 >
                   <LogOut className="size-[17px] shrink-0" />
                   <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">Logout</span>
@@ -2722,7 +2730,7 @@ function App() {
                       </button>
 
                       {profileMenuOpen ? (
-                        <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                        <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
                           {['My Profile', 'Logout'].map((item) => (
                             <button
                               key={`mobile-${item}`}
@@ -2820,7 +2828,7 @@ function App() {
                     </button>
 
                     {profileMenuOpen ? (
-                      <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                      <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
                         {['My Profile', 'Logout'].map((item) => (
                           <button
                             key={item}
@@ -3030,7 +3038,7 @@ function App() {
                     <FollowUpCard
                       key={`${followUp.customer}-${followUp.ivrs}`}
                       followUp={followUp}
-                      onView={() => openDashboardSection('Lead Details', `${followUp.customer} follow-up opened`, followUp, 'follow-ups')}
+                      onView={() => setFollowUpPopupLead(followUp)}
                     />
                   ))}
                 </div>
@@ -3059,9 +3067,9 @@ function App() {
                             <td className="text-right">
                               <button
                                 type="button"
-                                onClick={() => openDashboardSection('Lead Details', `${followUp.customer} follow-up opened`, followUp, 'follow-ups')}
+                                onClick={() => setFollowUpPopupLead(followUp)}
                                 className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
-                                aria-label={`View ${followUp.customer}`}
+                                aria-label={`View follow-up for ${followUp.customer}`}
                               >
                                 <Eye className="size-4" />
                               </button>
@@ -3104,7 +3112,7 @@ function App() {
                           }
                         }}
                         className={cx(
-                          'flex w-full items-center justify-between rounded-[10px] bg-gradient-to-r px-4 py-4 text-left text-white shadow-[0_12px_24px_rgba(22,65,145,0.16)] transition hover:-translate-y-0.5 hover:brightness-[1.03] sm:min-h-[92px] xl:min-h-0',
+                          'flex w-full items-center justify-between rounded-[10px] bg-linear-to-r px-4 py-4 text-left text-white shadow-[0_12px_24px_rgba(22,65,145,0.16)] transition hover:-translate-y-0.5 hover:brightness-[1.03] sm:min-h-[92px] xl:min-h-0',
                           action.bg,
                         )}
                       >
@@ -3183,7 +3191,7 @@ function App() {
                 />
 
                 <div className="m-4 divide-y divide-[#edf2f8] overflow-hidden rounded-[12px] border border-[#e5edf6] bg-[#fbfdff] px-4">
-                  {(dashboardOverdue ?? overdueFollowUps).map((item) => (
+                  {(dashboardOverdue ?? overdueFollowUps).slice(0, 4).map((item) => (
                     <div
                       key={`${item.customer}-${item.project}`}
                       className="grid grid-cols-1 gap-1 py-4 text-[13px] sm:grid-cols-[1.2fr_1fr_auto] sm:items-center sm:gap-3"
@@ -3228,6 +3236,14 @@ function App() {
         />
       ) : null}
 
+      {followUpPopupLead ? (
+        <ViewFollowUpModal
+          lead={followUpPopupLead}
+          onClose={() => setFollowUpPopupLead(null)}
+          onNotify={notify}
+        />
+      ) : null}
+
       <Toast toast={toast} />
     </div>
   );
@@ -3241,7 +3257,7 @@ function Toast({ toast }) {
   return (
     <div
       key={toast.id}
-      className="fixed bottom-5 left-4 right-4 z-[80] rounded-[12px] border border-[#dce7f5] bg-white px-4 py-3 text-center text-[13px] font-extrabold text-[#223768] shadow-[0_16px_34px_rgba(21,43,83,0.16)] sm:left-auto sm:right-5 sm:max-w-[360px] sm:text-left"
+      className="fixed bottom-5 left-4 right-4 z-80 rounded-[12px] border border-[#dce7f5] bg-white px-4 py-3 text-center text-[13px] font-extrabold text-[#223768] shadow-[0_16px_34px_rgba(21,43,83,0.16)] sm:left-auto sm:right-5 sm:max-w-[360px] sm:text-left"
       role="status"
       aria-live="polite"
     >
@@ -3260,7 +3276,7 @@ function NotificationMenu({ onOpenNotification }) {
   };
 
   return (
-    <div className="absolute right-0 top-[calc(100%+10px)] z-[80] w-[320px] overflow-hidden rounded-[14px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.18)] sm:w-[360px]">
+    <div className="absolute right-0 top-[calc(100%+10px)] z-80 w-[320px] overflow-hidden rounded-[14px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.18)] sm:w-[360px]">
       <div className="flex items-center justify-between border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3">
         <div>
           <p className="text-[14px] font-extrabold text-[#1e3261]">Recent Notifications</p>
@@ -3298,7 +3314,7 @@ function NotificationMenu({ onOpenNotification }) {
 
 function WhatsAppMessageMenu({ onOpenMessage, onOpenWhatsApp }) {
   return (
-    <div className="absolute right-0 top-[calc(100%+10px)] z-[80] w-[320px] overflow-hidden rounded-[14px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.18)] sm:w-[370px]">
+    <div className="absolute right-0 top-[calc(100%+10px)] z-80 w-[320px] overflow-hidden rounded-[14px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.18)] sm:w-[370px]">
       <div className="flex items-center justify-between border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3">
         <div>
           <p className="text-[14px] font-extrabold text-[#1e3261]">Unread WhatsApp Messages</p>
@@ -3589,6 +3605,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editLeadId, setEditLeadId] = useState(null);
   const [viewLeadId, setViewLeadId] = useState(null);
+  const [followUpsOverviewOpen, setFollowUpsOverviewOpen] = useState(false);
 
   const exportVisibleLeads = () => {
     const rows = visibleLeadRows;
@@ -3660,6 +3677,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         source: lead.source || '',
         assignedTo: { id: lead.assigned_to || null, name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+        nextFollowUpRaw: lead.next_follow_up || null,
       })));
       setActivePage(1);
     }).catch((err) => {
@@ -3764,6 +3782,15 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         <div className="flex items-center justify-between gap-3">
           <p className="font-display text-[16px] font-extrabold text-[#1e3261]">Lead Categories</p>
           <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFollowUpsOverviewOpen(true)}
+              data-action="lead-view-followups"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 text-[12px] font-extrabold text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
+            >
+              <CalendarDays className="size-3.5" />
+              View Follow-up
+            </button>
             <button
               type="button"
               onClick={exportVisibleLeads}
@@ -4154,6 +4181,18 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             const id = viewLeadId;
             setViewLeadId(null);
             setEditLeadId(id);
+          }}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {followUpsOverviewOpen ? (
+        <LeadFollowUpsOverviewModal
+          leads={apiLeads}
+          onClose={() => setFollowUpsOverviewOpen(false)}
+          onViewLead={(id) => {
+            setFollowUpsOverviewOpen(false);
+            setViewLeadId(id);
           }}
         />
       ) : null}
@@ -4819,7 +4858,7 @@ function TransactionFormModal({ transaction, accounts, onClose, onSave }) {
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[720px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{transaction ? 'Edit Transaction' : 'New Transaction'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close transaction editor"><X className="size-5" /></button></div>
         <div className="grid gap-4 p-6 sm:grid-cols-2">
@@ -5289,7 +5328,7 @@ function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, 
               <span className={cx('grid size-10 shrink-0 place-items-center rounded-[12px]', categoryTones[group.title] ?? 'bg-[#eef2f7] text-[#53647f]')}>
                 <Icon className="size-4" />
               </span>
-              <span className={cx('min-w-0 max-w-full whitespace-normal break-words text-[13px] font-extrabold leading-5', active ? 'text-[#078c3e]' : 'text-[#1e3261]')}>
+              <span className={cx('min-w-0 max-w-full whitespace-normal wrap-break-word text-[13px] font-extrabold leading-5', active ? 'text-[#078c3e]' : 'text-[#1e3261]')}>
                 {group.title}
               </span>
             </button>
@@ -8808,6 +8847,7 @@ function LiaisonApprovalStatCard({ label, value, caption, icon: Icon, tone, onCl
     amber: 'bg-[linear-gradient(135deg,#ffb224,#f38200)] text-white',
     purple: 'bg-[linear-gradient(135deg,#a855f7,#7c3aed)] text-white',
     cyan: 'bg-[linear-gradient(135deg,#22c7d6,#0ea5e9)] text-white',
+    red: 'bg-[linear-gradient(135deg,#ef4444,#dc2626)] text-white',
   }[tone] ?? 'bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-white';
 
   const captionClass = {
@@ -8816,6 +8856,7 @@ function LiaisonApprovalStatCard({ label, value, caption, icon: Icon, tone, onCl
     amber: 'text-[#16a34a]',
     purple: 'text-[#ef4444]',
     cyan: 'text-[#ef7d00]',
+    red: 'text-[#ef4444]',
   }[tone] ?? 'text-[#53647f]';
 
   return (
@@ -14169,7 +14210,7 @@ function OpsStatCard({ label, value, caption, icon: Icon, tone, onClick, valueCl
   return (
     <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[120px] items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]`}>
       <span className={cx('grid size-12 shrink-0 place-items-center rounded-full', toneClass)}><Icon className="size-6" /></span>
-      <span className="min-w-0"><span className="block text-[12px] font-bold text-[#53647f]">{label}</span><span className={cx('mt-1 block max-w-full break-words font-display text-[22px] font-extrabold leading-tight text-[#111827]', valueClassName)}>{value}</span><span className="mt-2 block text-[11px] font-bold text-[#314a79]">{caption}</span></span>
+      <span className="min-w-0"><span className="block text-[12px] font-bold text-[#53647f]">{label}</span><span className={cx('mt-1 block max-w-full wrap-break-word font-display text-[22px] font-extrabold leading-tight text-[#111827]', valueClassName)}>{value}</span><span className="mt-2 block text-[11px] font-bold text-[#314a79]">{caption}</span></span>
     </button>
   );
 }
@@ -14237,7 +14278,7 @@ function PaymentEntryModal({ isReceived, row, accountOptions, modeOptions, onClo
   });
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: field === 'amount' ? Number(value) || 0 : value }));
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Payment Entry' : 'New Payment Entry'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close payment editor"><X className="size-5" /></button></div>
         <div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label={isReceived ? 'Receipt No.' : 'Payment No.'} value={form.docNo ?? ''} onChange={(value) => updateField('docNo', value)} placeholder="Auto if blank" /><ModalTextInput label="Date" value={form.date ?? ''} onChange={(value) => updateField('date', value)} placeholder="07 May 2024" /><ModalTextInput label={isReceived ? 'Customer Name' : 'Payee Name'} value={form.partyName ?? ''} onChange={(value) => updateField('partyName', value)} placeholder="Name" /><ModalTextInput label={isReceived ? 'Project / Ref.' : 'Reference / Bill No.'} value={form.refNo ?? ''} onChange={(value) => updateField('refNo', value)} placeholder="INV-2024-0000" /><ReportSelect label="Account" value={form.account ?? accountOptions[0]} onChange={(value) => updateField('account', value)} options={accountOptions.length ? accountOptions : ['HDFC Bank (9876)']} /><ReportSelect label="Payment Mode" value={form.paymentMode ?? modeOptions[0]} onChange={(value) => updateField('paymentMode', value)} options={modeOptions.length ? modeOptions : ['NEFT']} /><ModalTextInput label="Amount" value={String(form.amount ?? 0)} onChange={(value) => updateField('amount', value)} placeholder="0" /><ReportSelect label="Status" value={form.status ?? 'Completed'} onChange={(value) => updateField('status', value)} options={['Completed', 'Pending', 'Cancelled']} /></div>
@@ -14251,7 +14292,7 @@ function ChequeModal({ row, onClose, onSave }) {
   const [form, setForm] = useState(row ?? { chequeNo: '', date: '07 May 2024', bankAccount: 'HDFC Bank - 9876', payeeName: '', amount: 0, chequeType: 'Issued', status: 'Issued', clearedDate: '-' });
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: field === 'amount' ? Number(value) || 0 : value }));
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Cheque' : 'New Cheque'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close cheque modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Cheque No." value={form.chequeNo} onChange={(value) => updateField('chequeNo', value)} placeholder="000123" /><ModalTextInput label="Date" value={form.date} onChange={(value) => updateField('date', value)} placeholder="07 May 2024" /><ReportSelect label="Bank Account" value={form.bankAccount} onChange={(value) => updateField('bankAccount', value)} options={Array.from(new Set(chequeRows.map((item) => item.bankAccount)))} /><ModalTextInput label="Payee Name" value={form.payeeName} onChange={(value) => updateField('payeeName', value)} placeholder="Payee name" /><ModalTextInput label="Amount" value={String(form.amount)} onChange={(value) => updateField('amount', value)} placeholder="0" /><ReportSelect label="Cheque Type" value={form.chequeType} onChange={(value) => updateField('chequeType', value)} options={['Issued']} /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Issued', 'Pending', 'Deposited', 'Cleared', 'Cancelled']} /><ModalTextInput label="Cleared Date" value={form.clearedDate} onChange={(value) => updateField('clearedDate', value)} placeholder="06 May 2024 / -" /></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Cheque</button></div></div></div>
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Cheque' : 'New Cheque'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close cheque modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Cheque No." value={form.chequeNo} onChange={(value) => updateField('chequeNo', value)} placeholder="000123" /><ModalTextInput label="Date" value={form.date} onChange={(value) => updateField('date', value)} placeholder="07 May 2024" /><ReportSelect label="Bank Account" value={form.bankAccount} onChange={(value) => updateField('bankAccount', value)} options={Array.from(new Set(chequeRows.map((item) => item.bankAccount)))} /><ModalTextInput label="Payee Name" value={form.payeeName} onChange={(value) => updateField('payeeName', value)} placeholder="Payee name" /><ModalTextInput label="Amount" value={String(form.amount)} onChange={(value) => updateField('amount', value)} placeholder="0" /><ReportSelect label="Cheque Type" value={form.chequeType} onChange={(value) => updateField('chequeType', value)} options={['Issued']} /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Issued', 'Pending', 'Deposited', 'Cleared', 'Cancelled']} /><ModalTextInput label="Cleared Date" value={form.clearedDate} onChange={(value) => updateField('clearedDate', value)} placeholder="06 May 2024 / -" /></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Cheque</button></div></div></div>
   );
 }
 
@@ -14290,7 +14331,7 @@ function ChartAccountModal({ row, onClose, onSave }) {
   const [form, setForm] = useState(row ?? { code: '', name: '', accountType: 'Asset', group: 'Assets', parentAccount: '-', normalBalance: 'Debit', status: 'Active' });
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Account' : 'Add Account'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close account modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Account Code" value={form.code} onChange={(value) => updateField('code', value)} placeholder="1000" /><ModalTextInput label="Account Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Account name" /><ReportSelect label="Account Type" value={form.accountType} onChange={(value) => updateField('accountType', value)} options={['Asset', 'Liability', 'Income', 'Expense']} /><ReportSelect label="Group" value={form.group} onChange={(value) => updateField('group', value)} options={['Assets', 'Current Assets', 'Fixed Assets', 'Liabilities', 'Income', 'Expenses']} /><ModalTextInput label="Parent Account" value={form.parentAccount} onChange={(value) => updateField('parentAccount', value)} placeholder="1000 - Assets" /><ReportSelect label="Normal Balance" value={form.normalBalance} onChange={(value) => updateField('normalBalance', value)} options={['Debit', 'Credit']} /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Account</button></div></div></div>
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Account' : 'Add Account'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close account modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Account Code" value={form.code} onChange={(value) => updateField('code', value)} placeholder="1000" /><ModalTextInput label="Account Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Account name" /><ReportSelect label="Account Type" value={form.accountType} onChange={(value) => updateField('accountType', value)} options={['Asset', 'Liability', 'Income', 'Expense']} /><ReportSelect label="Group" value={form.group} onChange={(value) => updateField('group', value)} options={['Assets', 'Current Assets', 'Fixed Assets', 'Liabilities', 'Income', 'Expenses']} /><ModalTextInput label="Parent Account" value={form.parentAccount} onChange={(value) => updateField('parentAccount', value)} placeholder="1000 - Assets" /><ReportSelect label="Normal Balance" value={form.normalBalance} onChange={(value) => updateField('normalBalance', value)} options={['Debit', 'Credit']} /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Account</button></div></div></div>
   );
 }
 
@@ -14298,7 +14339,7 @@ function BankAccountModal({ row, onClose, onSave }) {
   const [form, setForm] = useState(row ?? { accountName: '', bankName: 'HDFC Bank', accountNumber: '', ifsc: '', accountType: 'Current Account', branch: 'Indore Branch', balance: 0, status: 'Active' });
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: field === 'balance' ? Number(value) || 0 : value }));
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Bank Account' : 'Add Bank Account'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close bank account modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Account Name" value={form.accountName} onChange={(value) => updateField('accountName', value)} placeholder="Account name" /><ReportSelect label="Bank Name" value={form.bankName} onChange={(value) => updateField('bankName', value)} options={['HDFC Bank', 'ICICI Bank', 'Axis Bank', 'State Bank of India', 'Punjab National Bank']} /><ModalTextInput label="Account Number" value={form.accountNumber} onChange={(value) => updateField('accountNumber', value)} placeholder="Account number" /><ModalTextInput label="IFSC Code" value={form.ifsc} onChange={(value) => updateField('ifsc', value)} placeholder="IFSC" /><ReportSelect label="Account Type" value={form.accountType} onChange={(value) => updateField('accountType', value)} options={['Current Account', 'OD Account', 'Cash Credit']} /><ModalTextInput label="Branch" value={form.branch} onChange={(value) => updateField('branch', value)} placeholder="Branch name" /><ModalTextInput label="Balance" value={String(form.balance)} onChange={(value) => updateField('balance', value)} placeholder="0" /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Bank Account</button></div></div></div>
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Bank Account' : 'Add Bank Account'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close bank account modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Account Name" value={form.accountName} onChange={(value) => updateField('accountName', value)} placeholder="Account name" /><ReportSelect label="Bank Name" value={form.bankName} onChange={(value) => updateField('bankName', value)} options={['HDFC Bank', 'ICICI Bank', 'Axis Bank', 'State Bank of India', 'Punjab National Bank']} /><ModalTextInput label="Account Number" value={form.accountNumber} onChange={(value) => updateField('accountNumber', value)} placeholder="Account number" /><ModalTextInput label="IFSC Code" value={form.ifsc} onChange={(value) => updateField('ifsc', value)} placeholder="IFSC" /><ReportSelect label="Account Type" value={form.accountType} onChange={(value) => updateField('accountType', value)} options={['Current Account', 'OD Account', 'Cash Credit']} /><ModalTextInput label="Branch" value={form.branch} onChange={(value) => updateField('branch', value)} placeholder="Branch name" /><ModalTextInput label="Balance" value={String(form.balance)} onChange={(value) => updateField('balance', value)} placeholder="0" /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Bank Account</button></div></div></div>
   );
 }
 
@@ -14306,7 +14347,7 @@ function PaymentModeModal({ row, onClose, onSave }) {
   const [form, setForm] = useState(row ?? { code: '', name: '', type: 'Digital', description: '', status: 'Active' });
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Payment Mode' : 'Add Payment Mode'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close payment mode modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Code" value={form.code} onChange={(value) => updateField('code', value)} placeholder="PM-001" /><ModalTextInput label="Payment Mode Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Mode name" /><ReportSelect label="Type" value={form.type} onChange={(value) => updateField('type', value)} options={['Cash', 'Cheque', 'Bank Transfer', 'Digital', 'Others']} /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /><div className="sm:col-span-2"><ModalTextInput label="Description" value={form.description} onChange={(value) => updateField('description', value)} placeholder="Description" /></div></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Payment Mode</button></div></div></div>
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]"><div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]"><div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{row ? 'Edit Payment Mode' : 'Add Payment Mode'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close payment mode modal"><X className="size-5" /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Code" value={form.code} onChange={(value) => updateField('code', value)} placeholder="PM-001" /><ModalTextInput label="Payment Mode Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Mode name" /><ReportSelect label="Type" value={form.type} onChange={(value) => updateField('type', value)} options={['Cash', 'Cheque', 'Bank Transfer', 'Digital', 'Others']} /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /><div className="sm:col-span-2"><ModalTextInput label="Description" value={form.description} onChange={(value) => updateField('description', value)} placeholder="Description" /></div></div><div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5"><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white">Save Payment Mode</button></div></div></div>
   );
 }
 
@@ -14378,7 +14419,7 @@ function AccountsListModal({ account, onClose, onSave }) {
   const [form, setForm] = useState(account ?? { code: '', name: '', type: 'Customer', group: 'Corporate', phone: '', email: '', status: 'Active', amount: 0 });
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: field === 'amount' ? Number(value) || 0 : value }));
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[660px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{account ? 'Edit Account' : 'Add Account'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button></div>
         <div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Account Code" value={form.code} onChange={(value) => updateField('code', value)} placeholder="Auto if blank" /><ModalTextInput label="Account Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Account name" /><ReportSelect label="Account Type" value={form.type} onChange={(value) => updateField('type', value)} options={['Customer', 'Supplier']} /><ReportSelect label="Group" value={form.group} onChange={(value) => updateField('group', value)} options={['Corporate', 'Vendor', 'Retail']} /><ModalTextInput label="Phone" value={form.phone} onChange={(value) => updateField('phone', value)} placeholder="+91 ..." /><ModalTextInput label="Email" value={form.email} onChange={(value) => updateField('email', value)} placeholder="email@example.com" /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /><ModalTextInput label="Amount" value={String(form.amount)} onChange={(value) => updateField('amount', value)} placeholder="0" /></div>
@@ -14579,7 +14620,7 @@ function AccountFormModal({ mode, account, onClose, onSave }) {
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: field === 'receivables' ? Number(value) || 0 : value }));
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[700px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[20px] font-extrabold text-[#111827]"><ReceiptText className="size-5 text-[#0d9f4a]" /> {mode}</h2>
@@ -14620,7 +14661,7 @@ function AccountUtilityModal({ type, accounts, onClose, onSaveTransaction, onNot
   const isSettings = type === 'Accounts Settings';
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[20px] font-extrabold text-[#111827]"><ReceiptText className="size-5 text-[#0d9f4a]" /> {type}</h2>
@@ -15762,7 +15803,7 @@ function InventoryItemModal({ item, onClose, onSave, onNotify }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[680px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[20px] font-extrabold text-[#111827]"><Boxes className="size-5 text-[#0d9f4a]" /> Edit Inventory Item</h2>
@@ -15803,7 +15844,7 @@ function InventoryTransactionModal({ type, items, onClose, onSave, onNotify }) {
   const isSettings = type === 'Inventory Settings';
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[20px] font-extrabold text-[#111827]"><ClipboardPlus className="size-5 text-[#0d9f4a]" /> {type}</h2>
@@ -16020,7 +16061,7 @@ function InventoryProductModal({ product, onClose, onSave }) {
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: ['sellingPrice', 'stock', 'reserved'].includes(field) ? Number(value) || 0 : value }));
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="max-h-[92vh] w-full max-w-[760px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[20px] font-extrabold text-[#111827]"><Boxes className="size-5 text-[#0d9f4a]" /> {product ? 'Edit Product' : 'Add Product'}</h2>
@@ -16129,7 +16170,7 @@ function MovementRecentCard({ title, rows, onNotify }) {
 
 function InventoryImportModal({ title, onClose, onNotify }) {
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[500px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-start justify-between gap-4">
           <div><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{title}</h2><p className="mt-2 text-[13px] font-bold text-[#53647f]">CSV/XLSX import flow is ready for integration.</p></div>
@@ -16162,7 +16203,7 @@ function StockMovementOrderModal({ isInward, onClose, onSave }) {
   });
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: ['items', 'quantity', 'value'].includes(field) ? Number(value) || 0 : value }));
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[680px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">Add Stock {isInward ? 'Inward' : 'Outward'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button></div>
         <div className="grid gap-4 p-6 sm:grid-cols-2">
@@ -16234,7 +16275,7 @@ function StockTransferModal({ onClose, onSave }) {
   const [form, setForm] = useState({ transferNo: '', transferDate: 'Today', fromWarehouse: 'Indore Warehouse', toWarehouse: 'Bhopal Warehouse', items: 1, quantity: 10, value: 0, status: 'Pending' });
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: ['items', 'quantity', 'value'].includes(field) ? Number(value) || 0 : value }));
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">New Stock Transfer</h2><button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button></div>
         <div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Transfer No." value={form.transferNo} onChange={(value) => updateField('transferNo', value)} placeholder="Auto generated if blank" /><ModalTextInput label="Transfer Date" value={form.transferDate} onChange={(value) => updateField('transferDate', value)} placeholder="Today" /><ReportSelect label="From Warehouse" value={form.fromWarehouse} onChange={(value) => updateField('fromWarehouse', value)} options={['Indore Warehouse', 'Ujjain Warehouse', 'Bhopal Warehouse', 'Jabalpur Warehouse', 'Gwalior Warehouse']} /><ReportSelect label="To Warehouse" value={form.toWarehouse} onChange={(value) => updateField('toWarehouse', value)} options={['Indore Warehouse', 'Ujjain Warehouse', 'Bhopal Warehouse', 'Jabalpur Warehouse', 'Gwalior Warehouse']} /><ModalTextInput label="Items" value={String(form.items)} onChange={(value) => updateField('items', value)} placeholder="0" /><ModalTextInput label="Quantity" value={String(form.quantity)} onChange={(value) => updateField('quantity', value)} placeholder="0" /><ModalTextInput label="Total Value" value={String(form.value)} onChange={(value) => updateField('value', value)} placeholder="0" /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Completed', 'In Transit', 'Pending', 'Cancelled']} /></div>
@@ -16255,7 +16296,7 @@ function StockTransferDetailModal({ transfer, onClose, onNotify }) {
 
 function DetailModalShell({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[620px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="mb-5 flex items-start justify-between gap-4"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{title}</h2><button type="button" onClick={onClose} className="text-[#7585a2]" aria-label="Close details"><X className="size-5" /></button></div>
         {children}
@@ -16311,7 +16352,7 @@ function AdjustmentModal({ onClose, onSave }) {
   const [form, setForm] = useState({ adjustmentNo: '', date: 'Today', type: 'Stock Increase', reason: 'Stock Found', warehouse: 'Indore Warehouse', items: 1, quantity: 10, value: 0, status: 'Pending' });
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: ['items', 'quantity', 'value'].includes(field) ? Number(value) || 0 : value }));
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">New Adjustment</h2><button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button></div>
         <div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Adjustment No." value={form.adjustmentNo} onChange={(value) => updateField('adjustmentNo', value)} placeholder="Auto generated if blank" /><ModalTextInput label="Date" value={form.date} onChange={(value) => updateField('date', value)} placeholder="Today" /><ReportSelect label="Type" value={form.type} onChange={(value) => updateField('type', value)} options={['Stock Increase', 'Stock Decrease']} /><ModalTextInput label="Reason" value={form.reason} onChange={(value) => updateField('reason', value)} placeholder="Reason" /><ReportSelect label="Warehouse" value={form.warehouse} onChange={(value) => updateField('warehouse', value)} options={['Indore Warehouse', 'Bhopal Warehouse', 'Ujjain Warehouse', 'Gwalior Warehouse', 'Jabalpur Warehouse']} /><ModalTextInput label="Items" value={String(form.items)} onChange={(value) => updateField('items', value)} placeholder="0" /><ModalTextInput label="Quantity" value={String(form.quantity)} onChange={(value) => updateField('quantity', value)} placeholder="0" /><ModalTextInput label="Value" value={String(form.value)} onChange={(value) => updateField('value', value)} placeholder="0" /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Completed', 'In Review', 'Pending', 'Cancelled']} /></div>
@@ -16368,7 +16409,7 @@ function WarehouseModal({ warehouse, onClose, onSave }) {
   const [form, setForm] = useState(warehouse ?? { code: '', name: '', type: 'Branch Warehouse', location: 'Indore, MP', manager: 'Rohit Singh', capacity: 1000, utilization: 0, status: 'Active' });
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: ['capacity', 'utilization'].includes(field) ? Number(value) || 0 : value }));
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[660px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{warehouse ? 'Edit Warehouse' : 'Add Warehouse'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button></div>
         <div className="grid gap-4 p-6 sm:grid-cols-2"><ModalTextInput label="Warehouse Code" value={form.code} onChange={(value) => updateField('code', value)} placeholder="Auto if blank" /><ModalTextInput label="Warehouse Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Warehouse name" /><ReportSelect label="Type" value={form.type} onChange={(value) => updateField('type', value)} options={['Main Warehouse', 'Branch Warehouse', 'Storage Point']} /><ModalTextInput label="Location" value={form.location} onChange={(value) => updateField('location', value)} placeholder="City, State" /><ModalTextInput label="Manager" value={form.manager} onChange={(value) => updateField('manager', value)} placeholder="Manager" /><ModalTextInput label="Capacity" value={String(form.capacity)} onChange={(value) => updateField('capacity', value)} placeholder="0" /><ModalTextInput label="Utilization %" value={String(form.utilization)} onChange={(value) => updateField('utilization', value)} placeholder="0" /><ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} /></div>
@@ -21206,7 +21247,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
               <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8] bg-[linear-gradient(135deg,#f8fbff,#eef5ff)] p-4">
                 <div className="relative h-[240px] rounded-[12px] border border-[#d9e4f2] bg-[linear-gradient(135deg,#f8fafc,#eef5ff)]">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(37,99,235,0.08),transparent_28%),radial-gradient(circle_at_80%_20%,rgba(239,68,68,0.08),transparent_26%),radial-gradient(circle_at_35%_75%,rgba(22,163,74,0.08),transparent_22%)]" />
-                  <div className="absolute inset-0 [background-image:linear-gradient(to_right,rgba(148,163,184,0.16)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.16)_1px,transparent_1px)] [background-size:28px_28px]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.16)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.16)_1px,transparent_1px)] bg-size-[28px_28px]" />
                   <span className="absolute left-[46%] top-[43%] grid size-10 place-items-center rounded-full bg-[#16a34a] text-white shadow-[0_14px_24px_rgba(22,163,74,0.28)]"><MapPin className="size-5" /></span>
                 </div>
                 <div className="mt-4 flex items-start justify-between gap-3">
@@ -21236,7 +21277,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
               <div className="mt-5 grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
                 <div className="rounded-[14px] border border-[#edf2f8] bg-white p-4">
                   <div className="relative mx-auto h-[290px] w-[240px] rounded-[12px] border-2 border-[#c9d8ee] bg-[linear-gradient(135deg,#f8fbff,#eef5ff)]">
-                    <div className="absolute inset-0 [background-image:linear-gradient(to_right,rgba(96,165,250,0.18)_1px,transparent_1px),linear-gradient(to_bottom,rgba(96,165,250,0.18)_1px,transparent_1px)] [background-size:22px_22px]" />
+                    <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(96,165,250,0.18)_1px,transparent_1px),linear-gradient(to_bottom,rgba(96,165,250,0.18)_1px,transparent_1px)] bg-size-[22px_22px]" />
                     <div className="absolute left-[16px] top-[18px] h-[182px] w-[170px] rounded-[4px] border-2 border-[#2563eb] bg-[rgba(37,99,235,0.12)]" />
                     <div className="absolute left-[178px] top-[18px] h-[102px] w-[28px] rounded-[4px] border-2 border-[#2563eb] bg-white/70" />
                     <div className="absolute bottom-[18px] right-[18px] h-[42px] w-[92px] rounded-[4px] border-2 border-[#2563eb] bg-white/80" />
@@ -21357,7 +21398,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
               </div>
               <div className="mt-5 overflow-hidden rounded-[16px] border border-[#dbe7f4] bg-[linear-gradient(135deg,#f8fbff,#eef5ff)] p-4">
                 <div className="relative mx-auto h-[360px] max-w-[620px] rounded-[14px] border-2 border-[#b8cbe6] bg-white">
-                  <div className="absolute inset-0 [background-image:linear-gradient(to_right,rgba(37,99,235,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(37,99,235,0.12)_1px,transparent_1px)] [background-size:28px_28px]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(37,99,235,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(37,99,235,0.12)_1px,transparent_1px)] bg-size-[28px_28px]" />
                   <div className="absolute left-[8%] top-[10%] h-[66%] w-[68%] rounded-[6px] border-2 border-[#0b65e5] bg-[rgba(37,99,235,0.12)]" />
                   <div className="absolute left-[13%] top-[15%] grid h-[52%] w-[54%] grid-cols-4 gap-2 p-2">
                     {Array.from({ length: 16 }).map((_, index) => (
@@ -25487,8 +25528,8 @@ function ProjectCompletionGauge({ value }) {
       </div>
       <div className="mt-4">
         <div className="relative mx-auto h-[138px] w-full max-w-[280px] overflow-hidden">
-          <div className="absolute inset-x-0 bottom-0 mx-auto h-[136px] w-[272px] rounded-t-[272px] border-[20px] border-b-0 border-[#e7edf7]" />
-          <div className="absolute inset-x-0 bottom-0 mx-auto h-[136px] w-[272px] rounded-t-[272px] border-[20px] border-b-0 border-[#1bb14c]" style={{ clipPath: `inset(0 ${100 - value}% 0 0)` }} />
+          <div className="absolute inset-x-0 bottom-0 mx-auto h-[136px] w-[272px] rounded-t-[272px] border-20 border-b-0 border-[#e7edf7]" />
+          <div className="absolute inset-x-0 bottom-0 mx-auto h-[136px] w-[272px] rounded-t-[272px] border-20 border-b-0 border-[#1bb14c]" style={{ clipPath: `inset(0 ${100 - value}% 0 0)` }} />
           <div className="absolute inset-x-0 bottom-2 text-center">
             <p className="font-display text-[46px] font-extrabold text-[#111827]">{value.toFixed(2)}%</p>
             <p className="mt-1 text-[13px] font-bold text-[#53647f]">Overall Completion Rate</p>
@@ -25640,7 +25681,7 @@ function ProjectPremiumAside({ onAction }) {
 
 function PremiumLockedModal({ action, onClose, onNotify }) {
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 gap-3">
@@ -26083,7 +26124,7 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[720px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{initialUser ? 'Edit User' : 'Add New User'}</h2>
@@ -26108,7 +26149,7 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave }) {
 
 function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNotify }) {
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[640px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -26694,7 +26735,7 @@ function SettingsIpRuleModal({ initialRule = null, onClose, onSave }) {
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{initialRule ? 'Edit IP Rule' : 'Add IP Rule'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button></div>
         <div className="grid gap-4 p-6 sm:grid-cols-2">
@@ -27855,7 +27896,7 @@ function AddUserModal({ onClose, onSave, onNotify }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[20px] font-extrabold text-[#111827]"><UserPlus className="size-5 text-[#0d9f4a]" /> Add User</h2>
@@ -27895,7 +27936,7 @@ function AddUserModal({ onClose, onSave, onNotify }) {
 
 function UserDetailsModal({ user, onClose, onNotify }) {
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[620px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -27925,7 +27966,7 @@ function UserDetailsModal({ user, onClose, onNotify }) {
 function AddRoleModal({ onClose, onSave }) {
   const [roleName, setRoleName] = useState('');
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Add Role</h2>
@@ -28179,7 +28220,7 @@ function ReportDateRangePicker({ open, onToggle, onClose, dateFrom, dateTo, setD
         <ChevronRight className={cx('size-4 shrink-0 text-[#7386a3] transition', open && 'rotate-90')} />
       </button>
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-[90] w-full min-w-[280px] rounded-[14px] border border-[#dbe5f2] bg-white p-4 shadow-[0_18px_44px_rgba(24,48,87,0.18)]">
+        <div className="absolute left-0 top-[calc(100%+8px)] z-90 w-full min-w-[280px] rounded-[14px] border border-[#dbe5f2] bg-white p-4 shadow-[0_18px_44px_rgba(24,48,87,0.18)]">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
             <label className="block">
               <span className="mb-2 block text-[11px] font-extrabold uppercase text-[#8493ab]">From</span>
@@ -28558,6 +28599,29 @@ function getEmployeeOptions() {
   return employeeOptionsPromise;
 }
 
+function useIvrsCheck(excludeId) {
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const check = async (value) => {
+    const ivrs = (value || '').trim();
+    if (!ivrs) { setResult(null); return; }
+    setChecking(true);
+    try {
+      const data = await leadApi.list({ search: ivrs });
+      const rows = Array.isArray(data) ? data : (data?.results ?? []);
+      const match = rows.find((row) => row.ivrs_number === ivrs && row.id !== excludeId);
+      setResult(match || 'unique');
+    } catch {
+      setResult(null);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return { checking, result, check, reset: () => setResult(null) };
+}
+
 function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel, onDashboard, onRequestApproval, onNotify }) {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateIvrs, setDuplicateIvrs] = useState('');
@@ -28566,6 +28630,8 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [employeeOptions, setEmployeeOptions] = useState(cachedEmployeeOptions || []);
+  const [viewDuplicateLeadId, setViewDuplicateLeadId] = useState(null);
+  const ivrsCheck = useIvrsCheck();
 
   useEffect(() => {
     getEmployeeOptions().then(setEmployeeOptions);
@@ -28685,7 +28751,13 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
           <div className="grid gap-4 lg:grid-cols-3">
             <LeadInput label="Customer Name" required icon={UserRound} placeholder="Enter customer name" name="customer_name" />
             <LeadPhoneInput label="Mobile Number" required placeholder="Enter mobile number" name="mobile_number" />
-            <LeadInput label="IVRS Number" required icon={BadgeCheck} placeholder="Enter IVRS number" rightHint name="ivrs_number" />
+            <IvrsVerifyField
+              checking={ivrsCheck.checking}
+              result={ivrsCheck.result}
+              onCheck={ivrsCheck.check}
+              onReset={ivrsCheck.reset}
+              onShowDetail={setViewDuplicateLeadId}
+            />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <LeadPhoneInput label="Alternate Number" placeholder="Enter alternate number" name="alternate_number" />
@@ -28701,7 +28773,7 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
           <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." name="requirement_details" />
           <div className="grid gap-4 lg:grid-cols-2">
             <LeadSelect label="Source" placeholder="Select source" options={['Website', 'Referral', 'Walk-in', 'Campaign']} name="source" />
-            <LeadInput label="Estimated Capacity (kW)" icon={Zap} placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" />
+            <LeadInput label="Estimated Capacity (kW)" icon={Zap} type="number" placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" />
           </div>
         </LeadFormSection>
 
@@ -28746,6 +28818,15 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
           onNotify={onNotify}
         />
       ) : null}
+
+      {viewDuplicateLeadId ? (
+        <LeadViewModal
+          leadId={viewDuplicateLeadId}
+          onClose={() => setViewDuplicateLeadId(null)}
+          onEdit={() => setViewDuplicateLeadId(null)}
+          onNotify={onNotify}
+        />
+      ) : null}
     </div>
   );
 }
@@ -28764,6 +28845,8 @@ function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestAppro
   const [quotationTemplate, setQuotationTemplate] = useState('');
   const [quotationDetail, setQuotationDetail] = useState(null);
   const [showQuotationDetailModal, setShowQuotationDetailModal] = useState(false);
+  const [viewDuplicateLeadId, setViewDuplicateLeadId] = useState(null);
+  const ivrsCheck = useIvrsCheck(lead?.id);
 
   useEffect(() => {
     getEmployeeOptions().then(setEmployeeOptions);
@@ -28841,7 +28924,7 @@ function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestAppro
 
   return (
     <div
-      className="modal-overlay fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/55 p-4"
+      className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
       <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
@@ -28867,7 +28950,14 @@ function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestAppro
               <div className="grid gap-4 lg:grid-cols-3">
                 <LeadInput label="Customer Name" required icon={UserRound} placeholder="Enter customer name" name="customer_name" defaultValue={d.customer_name} />
                 <LeadPhoneInput label="Mobile Number" required placeholder="Enter mobile number" name="mobile_number" defaultValue={d.mobile_number} />
-                <LeadInput label="IVRS Number" required icon={BadgeCheck} placeholder="Enter IVRS number" rightHint name="ivrs_number" defaultValue={d.ivrs_number} />
+                <IvrsVerifyField
+                  defaultValue={d.ivrs_number}
+                  checking={ivrsCheck.checking}
+                  result={ivrsCheck.result}
+                  onCheck={ivrsCheck.check}
+                  onReset={ivrsCheck.reset}
+                  onShowDetail={setViewDuplicateLeadId}
+                />
               </div>
               <div className="grid gap-4 lg:grid-cols-2">
                 <LeadPhoneInput label="Alternate Number" placeholder="Enter alternate number" name="alternate_number" defaultValue={d.alternate_number} />
@@ -28883,7 +28973,7 @@ function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestAppro
               <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." name="requirement_details" defaultValue={d.requirement_details} />
               <div className="grid gap-4 lg:grid-cols-2">
                 <LeadSelect label="Source" placeholder="Select source" options={['Website', 'Referral', 'Walk-in', 'Campaign']} name="source" defaultValue={d.source} />
-                <LeadInput label="Estimated Capacity (kW)" icon={Zap} placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" defaultValue={d.estimated_capacity} />
+                <LeadInput label="Estimated Capacity (kW)" icon={Zap} type="number" placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" defaultValue={d.estimated_capacity} />
               </div>
             </LeadFormSection>
 
@@ -29006,13 +29096,129 @@ function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestAppro
           }}
         />
       ) : null}
+
+      {viewDuplicateLeadId ? (
+        <LeadViewModal
+          leadId={viewDuplicateLeadId}
+          onClose={() => setViewDuplicateLeadId(null)}
+          onEdit={() => setViewDuplicateLeadId(null)}
+          onNotify={onNotify}
+        />
+      ) : null}
     </div>
   );
 }
 
-function LeadViewModal({ leadId, onClose, onEdit }) {
+function localDateKey(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Lead List ke "View Follow-up" button se khulta hai — Today/Tomorrow/kisi bhi date ke
+// saare leads ke follow-ups ek jagah dekhne ke liye, bina poori list filter kiye.
+function LeadFollowUpsOverviewModal({ leads, onClose, onViewLead }) {
+  const [filterMode, setFilterMode] = useState('all');
+  const [customDate, setCustomDate] = useState('');
+
+  const todayKey = localDateKey(new Date());
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowKey = localDateKey(tomorrow);
+  const targetKey = filterMode === 'today' ? todayKey : filterMode === 'tomorrow' ? tomorrowKey : customDate;
+
+  const filteredLeads = useMemo(() => {
+    if (!leads || (filterMode === 'date' && !customDate)) return [];
+    return leads
+      .filter((lead) => lead.nextFollowUpRaw && (filterMode === 'all' || localDateKey(lead.nextFollowUpRaw) === targetKey))
+      .sort((a, b) => new Date(a.nextFollowUpRaw) - new Date(b.nextFollowUpRaw));
+  }, [leads, filterMode, customDate, targetKey]);
+
+  const tabs = [
+    { key: 'all', label: 'All Follow-ups' },
+    { key: 'today', label: 'Today' },
+    { key: 'tomorrow', label: 'Tomorrow' },
+    { key: 'date', label: 'Pick a Date' },
+  ];
+
+  return (
+    <div
+      className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/50 p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-pop-in flex max-h-[88vh] w-full max-w-[720px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-6 py-5">
+          <h2 className="flex items-center gap-3 font-display text-[18px] font-extrabold text-[#111827]"><CalendarDays className="size-5 text-[#0b65e5]" /> Follow-ups</h2>
+          <button type="button" onClick={onClose} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#edf2f8] px-6 py-4">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setFilterMode(tab.key)}
+              className={cx(
+                'rounded-[8px] px-4 py-2 text-[13px] font-extrabold transition',
+                filterMode === tab.key ? 'bg-[#0b65e5] text-white' : 'border border-[#d9e4f2] bg-white text-[#284276] hover:bg-[#f8fbff]',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+          {filterMode === 'date' ? (
+            <input
+              type="date"
+              value={customDate}
+              onChange={(event) => setCustomDate(event.target.value)}
+              className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
+          ) : null}
+          <span className="ml-auto text-[12px] font-bold text-[#7b88a2]">{filteredLeads.length} follow-up{filteredLeads.length === 1 ? '' : 's'}</span>
+        </div>
+
+        <div className="scroll-soft divide-y divide-[#edf2f8] overflow-y-auto px-6">
+          {!leads ? (
+            <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Loading...</p>
+          ) : filterMode === 'date' && !customDate ? (
+            <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Pick a date to see follow-ups.</p>
+          ) : filteredLeads.length === 0 ? (
+            <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">{filterMode === 'all' ? 'No follow-ups scheduled.' : 'No follow-ups scheduled for this day.'}</p>
+          ) : filteredLeads.map((lead) => (
+            <div key={lead.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <div className="min-w-0">
+                <p className="font-extrabold text-[#1e3261]">{lead.customer}</p>
+                <p className="mt-0.5 text-[12px] font-bold text-[#53647f]">{lead.project} • {lead.mobile}</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <AssigneeCell assignee={lead.assignedTo} compact />
+                <span className="text-[13px] font-extrabold text-[#0b65e5]">
+                  {filterMode === 'all'
+                    ? new Date(lead.nextFollowUpRaw).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                    : new Date(lead.nextFollowUpRaw).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onViewLead(lead.id)}
+                  className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
+                  aria-label={`View ${lead.customer}`}
+                >
+                  <Eye className="size-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="h-5 shrink-0" />
+      </div>
+    </div>
+  );
+}
+
+function LeadViewModal({ leadId, onClose, onEdit, onNotify }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [addFollowUpOpen, setAddFollowUpOpen] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -29021,7 +29227,7 @@ function LeadViewModal({ leadId, onClose, onEdit }) {
 
   return (
     <div
-      className="modal-overlay fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/50 p-4"
+      className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/50 p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
       <div className="modal-pop-in scroll-soft flex max-h-[90vh] w-full max-w-[640px] flex-col overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
@@ -29042,7 +29248,7 @@ function LeadViewModal({ leadId, onClose, onEdit }) {
               <InfoCell label="Email" value={detail.email || '—'} />
               <InfoCell label="Project Name" value={detail.project_name || '—'} />
               <InfoCell label="Project Type" value={detail.project_type || '—'} />
-              <InfoCell label="Estimated Capacity" value={detail.estimated_capacity ? `${detail.estimated_capacity} kW` : '—'} />
+              <InfoCell label="Estimated Capacity" value={detail.estimated_capacity ? `${formatCapacityKw(detail.estimated_capacity).trim()}` : '—'} />
               <InfoCell label="Status" valueNode={<StatusBadge status={detail.status} />} />
               <InfoCell label="Assigned To" value={detail.assigned_to_detail?.name || 'Unassigned'} />
               <InfoCell label="Next Follow-up" value={detail.next_follow_up ? new Date(detail.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
@@ -29054,13 +29260,24 @@ function LeadViewModal({ leadId, onClose, onEdit }) {
             {detail.remarks ? (
               <div className="mt-4"><InfoCell label="Remarks" value={detail.remarks} /></div>
             ) : null}
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Close</button>
-              <button type="button" onClick={onEdit} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><Pencil className="size-4" />Edit Lead</button>
+              <button type="button" onClick={() => setAddFollowUpOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><Plus className="size-4" />Add Follow-up</button>
+              <button type="button" onClick={onEdit} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]"><Pencil className="size-4" />Edit Lead</button>
             </div>
           </>
         )}
       </div>
+
+      {addFollowUpOpen && detail ? (
+        <LeadQuickActionModal
+          type="follow-up"
+          lead={{ id: leadId, customer: detail.customer_name, mobile: detail.mobile_number, ivrs: detail.ivrs_number }}
+          onClose={() => setAddFollowUpOpen(false)}
+          onSaved={() => setAddFollowUpOpen(false)}
+          onNotify={onNotify}
+        />
+      ) : null}
     </div>
   );
 }
@@ -29110,69 +29327,485 @@ async function copyQuotationRecord(quotationId) {
   if (!detail?.lead) throw new Error('Cannot copy quotation');
   const leadId = typeof detail.lead === 'object' ? detail.lead.id : detail.lead;
   const items = (detail.items ?? [])
-    .filter((item) => item.item_name?.trim())
-    .map((item) => ({
-      item_name: item.item_name.trim(),
-      quantity: item.quantity,
-      unit: item.unit || 'Nos',
-      rate: Number(item.rate) || 0,
-      amount: (Number(item.quantity) || 0) * (Number(item.rate) || 0),
-    }));
+    .filter((item) => String(item.item_name || '').trim())
+    .map((item) => {
+      const qty = Number(item.quantity) || 0;
+      const rate = Number(item.rate) || 0;
+      return {
+        item_name: String(item.item_name).trim(),
+        quantity: item.quantity ?? qty,
+        unit: item.unit || 'Nos',
+        rate,
+        amount: Number(item.amount) || qty * rate,
+      };
+    });
   const payload = buildQuotationPayload(fieldsFromQuotation(detail), leadId, items);
   payload.status = 'Draft';
-  return quotationApi.create(payload);
+  if (detail.sales_executive != null && detail.sales_executive !== '') {
+    payload.sales_executive = Number(detail.sales_executive) || null;
+  } else {
+    payload.sales_executive = null;
+  }
+  const created = await quotationApi.create(payload);
+  if (!created?.id) throw new Error('Failed to copy quotation');
+  return created;
+}
+
+const QUOTATION_PRINT_COMPANY = {
+  name: 'Malwa Solar Energy',
+  tagline: 'Solar Solution Provider',
+  address: '123, Solar Street, Industrial Area, Indore, Madhya Pradesh - 452001',
+  phone: '+91 98765 43210',
+  email: 'info@malwasolar.com',
+  gstin: '23ABCDE1234F1Z5',
+};
+
+function escapePrintHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatPrintDate(value) {
+  if (!value) return '—';
+  const raw = String(value).slice(0, 10);
+  const parts = raw.split('-');
+  if (parts.length === 3) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[Number(parts[1]) - 1];
+    if (month) return `${parts[2]}-${month}-${parts[0]}`;
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return raw || '—';
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+}
+
+function formatPrintMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return `Rs. ${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function printKvRows(pairs) {
+  return pairs
+    .filter(([, value]) => value !== null && value !== undefined && value !== '')
+    .map(([label, value]) => `<tr><td class="kv-label">${escapePrintHtml(label)}</td><td class="kv-value">${escapePrintHtml(value)}</td></tr>`)
+    .join('');
+}
+
+function printSectionBlock(title, rowsHtml) {
+  if (!rowsHtml) return '';
+  return `
+    <section class="detail-section">
+      <h3 class="section-title">${escapePrintHtml(title)}</h3>
+      <table class="detail-grid"><tbody>${rowsHtml}</tbody></table>
+    </section>
+  `;
+}
+
+function quotationPrintLogoSvg() {
+  return `
+    <svg class="brand-logo" viewBox="0 0 88 88" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="28" cy="28" r="16" fill="#d9d9d9" stroke="#111" stroke-width="1.2"/>
+      <g stroke="#555" stroke-width="1.5" stroke-linecap="round">
+        <line x1="28" y1="4" x2="28" y2="10"/><line x1="28" y1="46" x2="28" y2="52"/>
+        <line x1="4" y1="28" x2="10" y2="28"/><line x1="46" y1="28" x2="52" y2="28"/>
+        <line x1="11" y1="11" x2="15.5" y2="15.5"/><line x1="40.5" y1="40.5" x2="45" y2="45"/>
+        <line x1="45" y1="11" x2="40.5" y2="15.5"/><line x1="15.5" y1="40.5" x2="11" y2="45"/>
+      </g>
+      <rect x="50" y="22" width="34" height="44" rx="2" fill="#efefef" stroke="#111" stroke-width="1.2"/>
+      <g stroke="#666" stroke-width="0.8">
+        <line x1="50" y1="33" x2="84" y2="33"/><line x1="50" y1="44" x2="84" y2="44"/><line x1="50" y1="55" x2="84" y2="55"/>
+        <line x1="61" y1="22" x2="61" y2="66"/><line x1="72" y1="22" x2="72" y2="66"/>
+      </g>
+    </svg>
+  `;
+}
+
+function buildQuotationPrintHtml(detail) {
+  const company = QUOTATION_PRINT_COMPANY;
+  const visibility = QUOTATION_SECTION_VISIBILITY[detail.template] || {};
+  const templateLabel = QUOTATION_TEMPLATE_DISPLAY_NAMES[detail.template] || detail.template || 'Solar Quotation';
+  const customerAddress = [detail.address, detail.city, detail.state, detail.pincode].filter(Boolean).join(', ');
+  const gstin = detail.gst_number || company.gstin;
+
+  const metaRows = [
+    ['Quotation No', detail.quotation_number || `#${detail.id}`],
+    ['Date', formatPrintDate(detail.quotation_date || detail.created_at)],
+    ['Valid Till', formatPrintDate(detail.valid_till)],
+    ['Sales Executive', detail.sales_executive_name || '—'],
+    ['Lead ID', detail.lead_ivrs_number || '—'],
+  ].map(([label, value]) => `
+    <tr>
+      <td class="meta-label">${escapePrintHtml(label)}</td>
+      <td class="meta-sep">:</td>
+      <td class="meta-value">${escapePrintHtml(value)}</td>
+    </tr>
+  `).join('');
+
+  const customerMobile = detail.lead_mobile_number
+    || (typeof detail.lead === 'object' ? detail.lead.mobile_number : '')
+    || detail.alternate_number
+    || '';
+  const customerRows = printKvRows([
+    ['Customer Name', detail.lead_customer_name],
+    ['Mobile Number', customerMobile],
+    ['Alternate Number', detail.alternate_number],
+    ['Email', detail.email],
+    ['Aadhaar Number', detail.aadhaar_number],
+    ['Company Name', detail.company_name],
+    ['GST Number', detail.gst_number],
+    ['Address', customerAddress],
+    ['Project / Site', detail.project_type || detail.template],
+  ]);
+
+  const projectRows = visibility.project ? printKvRows([
+    ['Project Type', detail.project_type || detail.template],
+    ['Installation Type', detail.installation_type],
+    ['DISCOM Name', detail.discom_name],
+    ['Sanctioned Load', detail.sanctioned_load_kw ? `${detail.sanctioned_load_kw} kW` : ''],
+    ['Monthly Electricity Bill', detail.monthly_electricity_bill ? formatPrintMoney(detail.monthly_electricity_bill) : ''],
+    ['Existing Meter No.', detail.existing_meter_number],
+    ['Connection Type', detail.connection_type],
+    ['Consumer Number', detail.consumer_number],
+    ['Execution Timeline', detail.execution_timeline],
+  ]) : '';
+
+  const plantRows = visibility.plant ? printKvRows([
+    ['Plant Capacity', detail.plant_capacity_kw ? `${detail.plant_capacity_kw} kW` : ''],
+    ['Total DC Capacity', detail.total_dc_capacity ? `${detail.total_dc_capacity} kW` : ''],
+    ['Est. Annual Generation', detail.estimated_annual_generation ? `${detail.estimated_annual_generation} kWh` : ''],
+    ['Shadow Free Area', detail.shadow_free_area],
+    ['Module Orientation', detail.module_orientation],
+  ]) : '';
+
+  const panelRows = visibility.panel ? printKvRows([
+    ['Panel Brand', detail.panel_brand],
+    ['Panel Model', detail.panel_model],
+    ['Panel Type', detail.panel_type],
+    ['Panel Wattage', detail.panel_wattage ? `${detail.panel_wattage} W` : ''],
+    ['Number of Panels', detail.number_of_panels],
+  ]) : '';
+
+  const inverterRows = visibility.inverter ? printKvRows([
+    ['Inverter Brand', detail.inverter_brand],
+    ['Inverter Model', detail.inverter_model],
+    ['Inverter Type', detail.inverter_type],
+    ['Inverter Capacity', detail.inverter_capacity],
+    ['Inverter Quantity', detail.inverter_quantity],
+  ]) : '';
+
+  const structureRows = visibility.structure ? printKvRows([
+    ['Structure Type', detail.structure_type],
+    ['Structure Material', detail.structure_material],
+    ['Coating Details', detail.coating_details],
+    ['Foundation Type', detail.foundation_type],
+    ['Wind Speed Rating', detail.wind_speed_rating],
+  ]) : '';
+
+  const bosRows = visibility.bos ? printKvRows([
+    ['DC Cable', detail.dc_cable],
+    ['MC4 Connector', detail.mc4_connector],
+    ['DCDB', detail.dcdb],
+    ['AC Cable', detail.ac_cable],
+    ['ACDB', detail.acdb],
+    ['Earthing Kit', detail.earthing_kit],
+    ['Lightning Arrester', detail.lightning_arrester],
+    ['Cable Tray', detail.cable_tray],
+    ['Fasteners', detail.fasteners],
+    ['PVC Pipe', detail.pvc_pipe],
+  ]) : '';
+
+  const items = (detail.items ?? []).filter((item) => String(item.item_name || '').trim());
+  const itemsHtml = items.length
+    ? items.map((item, index) => `
+        <tr>
+          <td class="num">${index + 1}</td>
+          <td>${escapePrintHtml(item.item_name)}${item.brand ? `<br><span class="sub">${escapePrintHtml(item.brand)}</span>` : ''}${item.specification ? `<br><span class="sub">${escapePrintHtml(item.specification)}</span>` : ''}</td>
+          <td class="center">${escapePrintHtml(item.quantity ?? '—')}</td>
+          <td class="center">${escapePrintHtml(item.unit || 'Nos')}</td>
+          <td class="right">${formatPrintMoney(item.rate)}</td>
+          <td class="right">${formatPrintMoney(item.amount)}</td>
+        </tr>
+      `).join('')
+    : '';
+
+  const costRows = printKvRows([
+    ['Material Cost', formatPrintMoney(detail.material_cost)],
+    ['Structure Cost', formatPrintMoney(detail.structure_cost)],
+    ['Installation Cost', formatPrintMoney(detail.installation_cost)],
+    ['Transportation Cost', formatPrintMoney(detail.transportation_cost)],
+    ['Liaisoning Charges', formatPrintMoney(detail.liaisoning_charges)],
+    ['Net Metering Charges', formatPrintMoney(detail.net_metering_charges)],
+    ['Other Charges', formatPrintMoney(detail.other_charges)],
+  ]);
+
+  const paymentRows = visibility.payment ? printKvRows([
+    ['Advance', detail.advance_percent ? `${detail.advance_percent}%` : ''],
+    ['Material Dispatch', detail.material_dispatch_percent ? `${detail.material_dispatch_percent}%` : ''],
+    ['Installation', detail.installation_percent ? `${detail.installation_percent}%` : ''],
+    ['Commissioning', detail.commissioning_percent ? `${detail.commissioning_percent}%` : ''],
+  ]) : '';
+
+  const warrantyRows = visibility.warranty ? printKvRows([
+    ['Panel Warranty', detail.panel_warranty],
+    ['Inverter Warranty', detail.inverter_warranty],
+    ['Structure Warranty', detail.structure_warranty],
+    ['Workmanship Warranty', detail.workmanship_warranty],
+  ]) : '';
+
+  const payableAmount = detail.customer_contribution ?? detail.grand_total;
+  const amountWords = numberToWordsIndian(payableAmount);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapePrintHtml(detail.quotation_number || 'Quotation')}</title>
+  <style>
+    @page { size: A4 portrait; margin: 10mm 12mm 14mm; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #fff; color: #111; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      line-height: 1.45;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page { width: 100%; max-width: 186mm; margin: 0 auto; }
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+      padding-bottom: 8px;
+    }
+    .header-left { display: flex; gap: 10px; flex: 1; min-width: 0; }
+    .brand-logo { width: 68px; height: 68px; flex-shrink: 0; }
+    .company-name { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; color: #111; line-height: 1.1; }
+    .company-tagline { margin: 2px 0 6px; font-size: 12px; font-weight: 700; color: #444; }
+    .company-address, .company-contact { margin: 0; font-size: 10px; color: #222; }
+    .company-contact { margin-top: 4px; }
+    .header-right { width: 220px; flex-shrink: 0; text-align: right; }
+    .qtn-ribbon {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 7px 22px 7px 16px;
+      background: #111;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%);
+    }
+    .meta-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    .meta-table td { padding: 2px 0; vertical-align: top; }
+    .meta-label { font-weight: 700; text-align: left; white-space: nowrap; width: 42%; }
+    .meta-sep { width: 8px; text-align: center; font-weight: 700; }
+    .meta-value { font-weight: 600; text-align: left; }
+    .header-rule { border-top: 2px solid #111; margin: 8px 0 12px; }
+    .doc-title { margin: 0 0 10px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; }
+    .detail-section { margin-bottom: 12px; page-break-inside: avoid; }
+    .section-title {
+      margin: 0 0 6px;
+      padding: 4px 8px;
+      background: #ececec;
+      border: 1px solid #bbb;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .detail-grid { width: 100%; border-collapse: collapse; }
+    .detail-grid td { padding: 4px 6px; border: 1px solid #ccc; vertical-align: top; }
+    .kv-label { width: 34%; font-weight: 700; background: #f5f5f5; }
+    .kv-value { width: 66%; }
+    .items-wrap { margin-top: 4px; page-break-inside: auto; }
+    .data-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    .data-table th, .data-table td { border: 1px solid #999; padding: 5px 6px; vertical-align: top; }
+    .data-table th { background: #e8e8e8; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .data-table thead { display: table-header-group; }
+    .data-table tr { page-break-inside: avoid; }
+    .num { width: 28px; text-align: center; }
+    .center { text-align: center; }
+    .right { text-align: right; white-space: nowrap; }
+    .sub { font-size: 9.5px; color: #444; }
+    .summary-box {
+      margin-top: 10px;
+      margin-left: auto;
+      width: 100%;
+      max-width: 320px;
+      border: 1px solid #999;
+      border-collapse: collapse;
+      page-break-inside: avoid;
+    }
+    .summary-box td { padding: 5px 8px; border-bottom: 1px solid #ccc; }
+    .summary-box tr:last-child td { border-bottom: none; }
+    .summary-label { font-weight: 700; }
+    .summary-value { text-align: right; font-weight: 700; }
+    .summary-total td { background: #ececec; font-size: 12px; font-weight: 800; border-top: 2px solid #111; }
+    .amount-words {
+      margin-top: 8px;
+      padding: 6px 8px;
+      border: 1px dashed #888;
+      font-size: 10.5px;
+      page-break-inside: avoid;
+    }
+    .text-block {
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      white-space: pre-wrap;
+      page-break-inside: auto;
+    }
+    .text-block-title { margin: 0 0 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .signature-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: 28px;
+      page-break-inside: avoid;
+    }
+    .signature-box { flex: 1; text-align: center; }
+    .signature-line { margin-top: 42px; border-top: 1px solid #111; padding-top: 4px; font-size: 10px; font-weight: 700; }
+    .print-footer {
+      margin-top: 18px;
+      padding-top: 8px;
+      border-top: 1px solid #bbb;
+      font-size: 9px;
+      color: #444;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+    .long-section { page-break-inside: auto; }
+    @media print {
+      body { background: #fff; }
+      .page { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="doc-header">
+      <div class="header-left">
+        ${quotationPrintLogoSvg()}
+        <div>
+          <h1 class="company-name">${escapePrintHtml(company.name)}</h1>
+          <p class="company-tagline">${escapePrintHtml(company.tagline)}</p>
+          <p class="company-address">${escapePrintHtml(company.address)}</p>
+          <p class="company-contact">Phone: ${escapePrintHtml(company.phone)} | Email: ${escapePrintHtml(company.email)} | GSTIN: ${escapePrintHtml(gstin)}</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="qtn-ribbon">QUOTATION</div>
+        <table class="meta-table"><tbody>${metaRows}</tbody></table>
+      </div>
+    </header>
+    <div class="header-rule"></div>
+
+    <h2 class="doc-title">${escapePrintHtml(templateLabel)}</h2>
+
+    ${printSectionBlock('Customer Details', customerRows)}
+    ${printSectionBlock('Project Information', projectRows)}
+    ${printSectionBlock('Plant & System Details', plantRows)}
+    ${printSectionBlock('Solar Panel Details', panelRows)}
+    ${printSectionBlock('Inverter Details', inverterRows)}
+    ${printSectionBlock('Structure Details', structureRows)}
+    ${printSectionBlock('BOS / Balance of System', bosRows)}
+
+    ${itemsHtml ? `
+      <section class="detail-section items-wrap">
+        <h3 class="section-title">Line Items / Bill of Materials</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="num">#</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit</th>
+              <th class="right">Rate</th>
+              <th class="right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${itemsHtml}</tbody>
+        </table>
+      </section>
+    ` : ''}
+
+    ${printSectionBlock('Cost Breakdown', costRows)}
+
+    <table class="summary-box">
+      <tbody>
+        <tr><td class="summary-label">Subtotal</td><td class="summary-value">${formatPrintMoney(detail.subtotal)}</td></tr>
+        <tr><td class="summary-label">GST (${escapePrintHtml(detail.gst_percent ?? 0)}%)</td><td class="summary-value">${formatPrintMoney(detail.gst_amount)}</td></tr>
+        ${Number(detail.discount) ? `<tr><td class="summary-label">Discount</td><td class="summary-value">${formatPrintMoney(detail.discount)}</td></tr>` : ''}
+        <tr><td class="summary-label">Grand Total</td><td class="summary-value">${formatPrintMoney(detail.grand_total)}</td></tr>
+        ${visibility.subsidy && detail.subsidy_applicable ? `<tr><td class="summary-label">Subsidy Amount</td><td class="summary-value">${formatPrintMoney(detail.subsidy_amount)}</td></tr>` : ''}
+        <tr class="summary-total"><td>Amount Payable by Customer</td><td class="summary-value">${formatPrintMoney(payableAmount)}</td></tr>
+        ${detail.cost_per_watt ? `<tr><td class="summary-label">Cost per Watt</td><td class="summary-value">Rs. ${detail.cost_per_watt}/W</td></tr>` : ''}
+        ${detail.roi_percent ? `<tr><td class="summary-label">Estimated ROI</td><td class="summary-value">${detail.roi_percent}%</td></tr>` : ''}
+        ${detail.payback_period_years ? `<tr><td class="summary-label">Payback Period</td><td class="summary-value">${detail.payback_period_years} years</td></tr>` : ''}
+      </tbody>
+    </table>
+
+    <div class="amount-words"><strong>Amount in Words:</strong> ${escapePrintHtml(amountWords)} Rupees Only</div>
+
+    ${printSectionBlock('Payment Terms', paymentRows)}
+    ${printSectionBlock('Warranty Details', warrantyRows)}
+
+    ${detail.scope_of_work ? `<div class="text-block long-section"><p class="text-block-title">Scope of Work</p>${escapePrintHtml(detail.scope_of_work)}</div>` : ''}
+    ${detail.exclusions ? `<div class="text-block long-section"><p class="text-block-title">Exclusions</p>${escapePrintHtml(detail.exclusions)}</div>` : ''}
+    ${detail.special_instructions ? `<div class="text-block long-section"><p class="text-block-title">Special Instructions</p>${escapePrintHtml(detail.special_instructions)}</div>` : ''}
+    ${detail.notes ? `<div class="text-block long-section"><p class="text-block-title">Remarks / Notes</p>${escapePrintHtml(detail.notes)}</div>` : ''}
+
+    <div class="signature-row">
+      <div class="signature-box"><div class="signature-line">Customer Signature</div></div>
+      <div class="signature-box"><div class="signature-line">For ${escapePrintHtml(company.name)}</div></div>
+    </div>
+
+    <div class="print-footer">
+      This is a computer-generated quotation from ${escapePrintHtml(company.name)}. Subject to terms &amp; conditions mentioned above.
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 async function printQuotationRecord(quotationId) {
   const detail = await quotationApi.get(quotationId);
   if (!detail) throw new Error('Quotation not found');
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
-  if (!printWindow) throw new Error('Please allow pop-ups to print quotation');
-  const itemsHtml = (detail.items ?? []).length
-    ? (detail.items ?? []).map((item) => `
-        <tr>
-          <td>${item.item_name || '—'}</td>
-          <td>${item.quantity ?? '—'}</td>
-          <td>${item.unit || '—'}</td>
-          <td>${formatMoney(item.rate)}</td>
-          <td>${formatMoney(item.amount)}</td>
-        </tr>
-      `).join('')
-    : '<tr><td colspan="5">No line items</td></tr>';
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html><head><title>${detail.quotation_number || 'Quotation'}</title>
-    <style>
-      body { font-family: Arial, sans-serif; padding: 24px; color: #1e3261; }
-      h1 { margin: 0 0 8px; font-size: 22px; }
-      p { margin: 4px 0; font-size: 13px; }
-      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-      th, td { border: 1px solid #d9e4f2; padding: 8px; text-align: left; font-size: 12px; }
-      th { background: #f8fbff; }
-      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
-      .box { border: 1px solid #e7eef7; border-radius: 8px; padding: 12px; }
-      .label { font-size: 11px; font-weight: 700; color: #53647f; text-transform: uppercase; }
-      .value { margin-top: 4px; font-size: 14px; font-weight: 700; }
-    </style></head><body>
-      <h1>${detail.quotation_number || `Quotation #${detail.id}`}</h1>
-      <p>${detail.template || '—'} • ${detail.lead_customer_name || '—'}</p>
-      <p>Status: ${detail.status || '—'} | Date: ${detail.quotation_date || '—'} | Valid Till: ${detail.valid_till || '—'}</p>
-      <div class="grid">
-        <div class="box"><div class="label">Grand Total</div><div class="value">${formatMoney(detail.grand_total)}</div></div>
-        <div class="box"><div class="label">Customer Payable</div><div class="value">${formatMoney(detail.customer_contribution)}</div></div>
-        <div class="box"><div class="label">IVRS Number</div><div class="value">${detail.lead_ivrs_number || '—'}</div></div>
-        <div class="box"><div class="label">Sales Executive</div><div class="value">${detail.sales_executive_name || '—'}</div></div>
-      </div>
-      <table>
-        <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr></thead>
-        <tbody>${itemsHtml}</tbody>
-      </table>
-      ${detail.notes ? `<p style="margin-top:20px;"><strong>Remarks:</strong> ${detail.notes}</p>` : ''}
-    </body></html>
-  `);
-  printWindow.document.close();
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('title', `Print ${detail.quotation_number || 'Quotation'}`);
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  const printWindow = iframe.contentWindow;
+  const doc = iframe.contentDocument || printWindow?.document;
+  if (!doc || !printWindow) {
+    iframe.remove();
+    throw new Error('Unable to prepare print view');
+  }
+
+  doc.open();
+  doc.write(buildQuotationPrintHtml(detail));
+  doc.close();
+
+  await new Promise((resolve) => {
+    if (doc.readyState === 'complete') {
+      resolve();
+      return;
+    }
+    iframe.onload = () => resolve();
+    window.setTimeout(resolve, 500);
+  });
+
   printWindow.focus();
   printWindow.print();
+  window.setTimeout(() => iframe.remove(), 2000);
 }
 
 function emptyQuotationFields() {
@@ -29385,7 +30018,56 @@ function buildQuotationDetailPayload(template, form, leadId, items) {
   };
 }
 
-function QuotationDetailModal({ template, initialForm, initialItems, leadSnapshot, onClose, onTemplateChange, onSave }) {
+function buildLeadSnapshotFromLead(lead) {
+  if (!lead) return {};
+  return {
+    customer_name: lead.customer_name || lead.customer || '',
+    mobile_number: lead.mobile_number || lead.mobile || '',
+    alternate_number: lead.alternate_number || '',
+    email: lead.email || '',
+    address: lead.address || '',
+    project_name: lead.project_name || lead.project || '',
+    source: lead.source || '',
+  };
+}
+
+function emptyDetailItemRow() {
+  return { item_name: '', brand: '', specification: '', quantity: '', unit: 'Nos', rate: '' };
+}
+
+function quotationToDetailForm(quotation, lead) {
+  const template = quotation?.template || 'Residential Subsidy';
+  const base = emptyQuotationDetailForm(template);
+  const next = { ...base };
+  Object.keys(base).forEach((key) => {
+    if (quotation?.[key] === null || quotation?.[key] === undefined) return;
+    next[key] = typeof base[key] === 'boolean' ? Boolean(quotation[key]) : String(quotation[key]);
+  });
+  const snap = buildLeadSnapshotFromLead(lead);
+  return {
+    ...next,
+    customer_name: snap.customer_name || quotation?.lead_customer_name || '',
+    mobile_number: snap.mobile_number || '',
+    alternate_number: next.alternate_number || snap.alternate_number || '',
+    email: next.email || snap.email || '',
+    address: next.address || snap.address || '',
+    project_name: snap.project_name || '',
+  };
+}
+
+function quotationToDetailItems(quotation) {
+  if (!quotation?.items?.length) return [emptyDetailItemRow()];
+  return quotation.items.map((item) => ({
+    item_name: item.item_name || '',
+    brand: item.brand || '',
+    specification: item.specification || '',
+    quantity: item.quantity ?? '',
+    unit: item.unit || 'Nos',
+    rate: String(item.rate ?? ''),
+  }));
+}
+
+function QuotationDetailModal({ template, initialForm, initialItems, leadSnapshot, leadIdDisplay, onClose, onBack, onTemplateChange, onSave, saveLabel = 'Save Detail', saving = false }) {
   const [activeTemplate, setActiveTemplate] = useState(template);
   const visibility = QUOTATION_SECTION_VISIBILITY[activeTemplate] || {};
   const emptyItemRow = () => ({ item_name: '', brand: '', specification: '', quantity: '', unit: 'Nos', rate: '' });
@@ -29448,16 +30130,25 @@ function QuotationDetailModal({ template, initialForm, initialItems, leadSnapsho
       setFormError(`Payment Terms must add up to 100% (currently ${paymentTermsSum.toFixed(1)}%).`);
       return;
     }
+    if (form.subsidy_applicable && num(form.subsidy_amount) > totalAmount) {
+      setFormError('Subsidy amount cannot exceed the total amount.');
+      return;
+    }
+    const droppedRows = items.filter((row) => !row.item_name.trim() && (num(row.quantity) || num(row.rate)));
+    if (droppedRows.length) {
+      setFormError(`${droppedRows.length} item row(s) have quantity/rate but no item name and will not be saved. Add an item name or clear those rows.`);
+      return;
+    }
     setFormError('');
     onSave(activeTemplate, form, items);
   };
 
   return (
-    <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="modal-pop-in flex max-h-[94vh] w-full max-w-[980px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-start justify-between gap-3 border-b border-[#edf2f8] px-6 py-4">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={onClose} aria-label="Back to template selection" title="Back to template selection" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+            <button type="button" onClick={onBack || onClose} aria-label="Back to template selection" title="Back to template selection" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
               <ChevronLeft className="size-4" />
               Back
             </button>
@@ -29501,7 +30192,7 @@ function QuotationDetailModal({ template, initialForm, initialItems, leadSnapsho
           <LeadFormSection title="Basic Details" icon={FileText} tone="primary">
             <div className="grid gap-4 md:grid-cols-3">
               <QField label="Quotation No" value="Auto-generated on save" readOnly />
-              <QField label="Lead ID" value="Auto-generated on save" readOnly />
+              <QField label="Lead ID" value={leadIdDisplay || 'Auto-generated on save'} readOnly />
               <QField label="Customer Category" value={activeTemplate} readOnly />
               <QField label="Quotation Date" name="quotation_date" type="date" value={form.quotation_date} onChange={update} optional />
               <QField label="Valid Till" name="valid_till" type="date" value={form.valid_till} onChange={update} optional />
@@ -29729,13 +30420,251 @@ function QuotationDetailModal({ template, initialForm, initialItems, leadSnapsho
           <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
             Cancel
           </button>
-          <button type="button" onClick={handleSaveDetail} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145]">
+          <button type="button" onClick={handleSaveDetail} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60">
             <Save className="size-4" />
-            Save Detail
+            {saving ? 'Saving...' : saveLabel}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+function toIsoDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+function isQuotationExpired(quotation) {
+  if (!quotation?.valid_till || ['Approved', 'Rejected'].includes(quotation.status)) return false;
+  const validTill = new Date(`${quotation.valid_till}T23:59:59`);
+  return !Number.isNaN(validTill.getTime()) && validTill < new Date();
+}
+
+function QuotationLeadPickerModal({ onClose, onSelect, onNotify }) {
+  const [leads, setLeads] = useState([]);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    leadApi.list({ page_size: 200 })
+      .then((data) => setLeads(normalizeApiRows(data)))
+      .catch(() => {
+        setLeads([]);
+        onNotify?.('Failed to load leads');
+      })
+      .finally(() => setLoading(false));
+  }, [onNotify]);
+
+  const filteredLeads = leads.filter((lead) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return (lead.customer_name || '').toLowerCase().includes(q)
+      || (lead.mobile_number || '').includes(q)
+      || (lead.ivrs_number || '').toLowerCase().includes(q);
+  });
+
+  return (
+    <div
+      className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/50 p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-pop-in flex max-h-[85vh] w-full max-w-[640px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#edf2f8] px-6 py-4">
+          <div>
+            <h2 className="font-display text-[19px] font-extrabold text-[#111827]">New Quotation</h2>
+            <p className="mt-1 text-[13px] font-bold text-[#53647f]">Step 1 of 3 — Select a lead to continue.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="border-b border-[#edf2f8] px-6 py-4">
+          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4">
+            <Search className="size-4 text-[#7386a3]" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              type="search"
+              placeholder="Search lead by name, mobile, IVRS..."
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
+            />
+          </label>
+        </div>
+        <div className="scroll-soft max-h-[420px] overflow-y-auto p-2">
+          {loading ? (
+            <p className="py-10 text-center text-[13px] font-bold text-[#7386a3]">Loading leads...</p>
+          ) : filteredLeads.length === 0 ? (
+            <p className="py-10 text-center text-[13px] font-bold text-[#7386a3]">No leads found</p>
+          ) : filteredLeads.map((lead) => (
+            <button
+              key={lead.id}
+              type="button"
+              onClick={() => onSelect?.(lead)}
+              className="flex w-full items-center justify-between gap-3 rounded-[10px] px-4 py-3 text-left transition hover:bg-[#f8fbff]"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-[14px] font-extrabold text-[#1e3261]">{lead.customer_name || '—'}</span>
+                <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{lead.mobile_number || '—'} • IVRS {lead.ivrs_number || '—'}</span>
+              </span>
+              <span className="shrink-0 text-[12px] font-extrabold text-[#0b65e5]">Select</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuotationTemplatePickerModal({ lead, initialTemplate, onClose, onBack, onContinue }) {
+  const [selectedTemplate, setSelectedTemplate] = useState(initialTemplate || '');
+
+  return (
+    <div
+      className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/50 p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-pop-in flex max-h-[85vh] w-full max-w-[720px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#edf2f8] px-6 py-4">
+          <div className="flex items-start gap-3">
+            <button type="button" onClick={onBack} aria-label="Back to lead selection" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+              <ChevronLeft className="size-4" />
+              Back
+            </button>
+            <div>
+              <h2 className="font-display text-[19px] font-extrabold text-[#111827]">Select Template</h2>
+              <p className="mt-1 text-[13px] font-bold text-[#53647f]">Step 2 of 3 — Choose a quotation template for {lead?.customer_name || 'this lead'}.</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+
+        <div className="scroll-soft flex-1 overflow-y-auto px-6 py-5">
+          <div className="mb-4 rounded-[10px] border border-[#dce7f5] bg-[#f8fbff] px-4 py-3">
+            <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Selected Lead</p>
+            <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{lead?.customer_name || '—'}</p>
+            <p className="text-[12px] font-bold text-[#53647f]">{lead?.mobile_number || '—'} • IVRS {lead?.ivrs_number || '—'}</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {QUOTATION_TEMPLATE_OPTIONS.map((option) => {
+              const active = selectedTemplate === option;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setSelectedTemplate(option)}
+                  className={cx(
+                    'flex min-h-[72px] items-center justify-between gap-2 rounded-[10px] border px-4 py-3 text-left text-[13px] font-extrabold transition',
+                    active ? 'border-[#0b65e5] bg-[#edf5ff] text-[#0b65e5]' : 'border-[#dbe5f2] bg-white text-[#30466d] hover:bg-[#f8fbff]',
+                  )}
+                >
+                  <span>{QUOTATION_TEMPLATE_DISPLAY_NAMES[option] || option}</span>
+                  {active ? <CheckCircle2 className="size-4 shrink-0 text-[#0d9f4a]" /> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Cancel</button>
+          <button
+            type="button"
+            disabled={!selectedTemplate}
+            onClick={() => onContinue?.(selectedTemplate)}
+            className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0954c4] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <FileText className="size-4" />
+            Fill Detail
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuotationEditDetailModal({ quotationId, onClose, onSaved, onNotify }) {
+  const [loading, setLoading] = useState(true);
+  const [quotation, setQuotation] = useState(null);
+  const [lead, setLead] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError('');
+    quotationApi.get(quotationId).then(async (data) => {
+      if (cancelled) return;
+      setQuotation(data);
+      const leadId = typeof data.lead === 'object' ? data.lead.id : data.lead;
+      if (!leadId) return;
+      try {
+        const leadData = await leadApi.get(leadId);
+        if (!cancelled) setLead(leadData);
+      } catch {
+        if (!cancelled) setLead(null);
+      }
+    }).catch(() => {
+      if (!cancelled) setLoadError('Failed to load quotation');
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [quotationId]);
+
+  const handleSave = async (template, form, items) => {
+    if (!quotation || saving) return;
+    const leadId = typeof quotation.lead === 'object' ? quotation.lead.id : quotation.lead;
+    if (!leadId) {
+      onNotify?.('Lead not found for this quotation');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = buildQuotationDetailPayload(template, form, leadId, items);
+      payload.status = quotation.status || 'Draft';
+      await quotationApi.update(quotationId, payload);
+      onNotify?.('Quotation updated successfully');
+      onSaved?.();
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to update quotation');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4">
+        <div className="rounded-[12px] bg-white px-8 py-6 text-[13px] font-bold text-[#7386a3]">Loading quotation...</div>
+      </div>
+    );
+  }
+
+  if (loadError || !quotation) {
+    return (
+      <div className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+        <div className="rounded-[12px] bg-white p-6 text-center shadow-lg">
+          <p className="text-[13px] font-bold text-[#7386a3]">{loadError || 'Quotation not found.'}</p>
+          <button type="button" onClick={onClose} className="mt-4 h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <QuotationDetailModal
+      template={quotation.template || 'Residential Subsidy'}
+      initialForm={quotationToDetailForm(quotation, lead)}
+      initialItems={quotationToDetailItems(quotation)}
+      leadSnapshot={buildLeadSnapshotFromLead(lead)}
+      leadIdDisplay={lead?.ivrs_number || quotation.lead_ivrs_number || '—'}
+      onClose={onClose}
+      onSave={handleSave}
+      saveLabel="Save Changes"
+      saving={saving}
+    />
   );
 }
 
@@ -29745,36 +30674,94 @@ function QuotationListPage({ onNotify }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [templateFilter, setTemplateFilter] = useState('All');
+  const [activePage, setActivePage] = useState(1);
+  const quotationTableRef = useRef(null);
   const [viewQuotationId, setViewQuotationId] = useState(null);
+  const [editQuotationId, setEditQuotationId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
+  const [menuAnchor, setMenuAnchor] = useState(null);
   const [copyingId, setCopyingId] = useState(null);
+  const [createFlow, setCreateFlow] = useState(null);
+  const [composeSaving, setComposeSaving] = useState(false);
+  const [expiredFilter, setExpiredFilter] = useState(false);
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState(() => toIsoDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
+  const [dateTo, setDateTo] = useState(() => toIsoDate(new Date()));
   const actionMenuRef = useRef(null);
 
-  useEffect(() => {
+  const formattedRange = useMemo(() => {
+    if (!dateFrom && !dateTo) return 'All Dates';
+    if (dateFrom && dateTo) return `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+    if (dateFrom) return `From ${formatReportDate(dateFrom)}`;
+    return `Until ${formatReportDate(dateTo)}`;
+  }, [dateFrom, dateTo]);
+
+  const quotationStats = useMemo(() => {
+    const total = quotations.length;
+    const sent = quotations.filter((q) => q.status === 'Sent').length;
+    const draft = quotations.filter((q) => q.status === 'Draft').length;
+    const accepted = quotations.filter((q) => q.status === 'Approved').length;
+    const expired = quotations.filter((q) => isQuotationExpired(q)).length;
+    const pct = (count) => (total ? `${((count / total) * 100).toFixed(1)}%` : '0%');
+    return { total, sent, draft, accepted, expired, pct };
+  }, [quotations]);
+
+  const loadQuotations = useCallback(() => {
     setLoading(true);
-    quotationApi.listAll().then((data) => {
-      setQuotations(normalizeApiRows(data));
-    }).catch(() => setQuotations([])).finally(() => setLoading(false));
-  }, [refreshKey]);
+    return quotationApi.listAll({ page_size: 1000 })
+      .then((data) => setQuotations(normalizeApiRows(data)))
+      .catch(() => {
+        setQuotations([]);
+        onNotify?.('Failed to load quotations');
+      })
+      .finally(() => setLoading(false));
+  }, [onNotify]);
 
   useEffect(() => {
-    if (!openActionMenuId) return;
-    const handlePointerDown = (event) => {
-      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target)) {
-        setOpenActionMenuId(null);
-      }
+    loadQuotations();
+  }, [refreshKey, loadQuotations]);
+
+  useEffect(() => {
+    if (!openActionMenuId) return undefined;
+    const handleClick = (event) => {
+      if (actionMenuRef.current?.contains(event.target)) return;
+      if (event.target.closest('[data-quotation-menu-trigger]')) return;
+      setOpenActionMenuId(null);
+      setMenuAnchor(null);
     };
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
+    const timer = window.setTimeout(() => document.addEventListener('click', handleClick, true), 0);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('click', handleClick, true);
+    };
   }, [openActionMenuId]);
+
+  const closeActionMenu = () => {
+    setOpenActionMenuId(null);
+    setMenuAnchor(null);
+  };
+
+  const toggleActionMenu = (event, quotationId) => {
+    event.stopPropagation();
+    if (openActionMenuId === quotationId) {
+      closeActionMenu();
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setOpenActionMenuId(quotationId);
+    setMenuAnchor({
+      top: rect.bottom + 8,
+      left: Math.max(12, rect.right - 190),
+    });
+  };
 
   const deleteQuotation = async (quotation) => {
     if (!window.confirm(`Delete quotation ${quotation.quotation_number || '#' + quotation.id}? This cannot be undone.`)) return;
     try {
       await quotationApi.delete(quotation.id);
       onNotify?.('Quotation deleted');
-      setOpenActionMenuId(null);
+      closeActionMenu();
       setRefreshKey((k) => k + 1);
     } catch (err) {
       onNotify?.(err.message || 'Failed to delete quotation');
@@ -29784,8 +30771,8 @@ function QuotationListPage({ onNotify }) {
   const copyQuotation = async (quotation) => {
     setCopyingId(quotation.id);
     try {
-      await copyQuotationRecord(quotation.id);
-      onNotify?.('Quotation copied successfully');
+      const created = await copyQuotationRecord(quotation.id);
+      onNotify?.(`Quotation copied as ${created.quotation_number || `#${created.id}`}`);
       setRefreshKey((k) => k + 1);
     } catch (err) {
       onNotify?.(err.message || 'Failed to copy quotation');
@@ -29797,63 +30784,165 @@ function QuotationListPage({ onNotify }) {
   const printQuotation = async (quotation) => {
     try {
       await printQuotationRecord(quotation.id);
-      setOpenActionMenuId(null);
-      onNotify?.('Print quotation opened');
+      closeActionMenu();
     } catch (err) {
       onNotify?.(err.message || 'Failed to print quotation');
     }
   };
 
+  const openEditQuotation = (quotation) => {
+    closeActionMenu();
+    setEditQuotationId(quotation.id);
+  };
+
+  const closeCreateFlow = () => {
+    setCreateFlow(null);
+    setComposeSaving(false);
+  };
+
+  const handleCreateQuotationSave = async (template, form, items) => {
+    if (!createFlow?.lead?.id || composeSaving) return;
+    setComposeSaving(true);
+    try {
+      const payload = buildQuotationDetailPayload(template, form, createFlow.lead.id, items);
+      payload.status = 'Draft';
+      const created = await quotationApi.create(payload);
+      if (!created?.id) throw new Error('Failed to create quotation');
+      closeCreateFlow();
+      setRefreshKey((k) => k + 1);
+      onNotify?.(`Quotation ${created.quotation_number || `#${created.id}`} created`);
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to create quotation');
+    } finally {
+      setComposeSaving(false);
+    }
+  };
+
   const filteredQuotations = quotations.filter((q) => {
-    const statusMatch = statusFilter === 'All' || q.status === statusFilter;
+    const statusMatch = expiredFilter
+      ? isQuotationExpired(q)
+      : (statusFilter === 'All' || q.status === statusFilter || (statusFilter === 'Accepted' && q.status === 'Approved'));
     const templateMatch = templateFilter === 'All' || q.template === templateFilter;
     const query = searchQuery.trim().toLowerCase();
     const searchMatch = !query
       || q.quotation_number?.toLowerCase().includes(query)
       || q.lead_customer_name?.toLowerCase().includes(query)
-      || q.lead_ivrs_number?.toLowerCase().includes(query);
-    return statusMatch && templateMatch && searchMatch;
+      || q.lead_ivrs_number?.toLowerCase().includes(query)
+      || q.template?.toLowerCase().includes(query)
+      || String(q.grand_total ?? '').includes(query);
+    const quoteDate = (q.quotation_date || q.created_at || '').slice(0, 10);
+    const dateMatch = (!dateFrom || !quoteDate || quoteDate >= dateFrom) && (!dateTo || !quoteDate || quoteDate <= dateTo);
+    return statusMatch && templateMatch && searchMatch && dateMatch;
   });
 
-  return (
-    <div className="space-y-2.5">
-      <div className="flex flex-col gap-3 rounded-[14px] bg-white/60 p-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-display text-[24px] font-extrabold leading-tight text-[#111827] sm:text-[28px]">Quotation</h1>
-          <p className="mt-1 text-[13px] font-bold text-[#53647f]">All quotations raised across leads and projects.</p>
-        </div>
-      </div>
+  const QUOTATION_PAGE_SIZE = 10;
+  const totalQuotationPages = Math.max(1, Math.ceil(filteredQuotations.length / QUOTATION_PAGE_SIZE));
+  const safeQuotationPage = Math.min(activePage, totalQuotationPages);
+  const pagedQuotations = filteredQuotations.slice((safeQuotationPage - 1) * QUOTATION_PAGE_SIZE, safeQuotationPage * QUOTATION_PAGE_SIZE);
 
-      <section className={`${panelClass} p-3 sm:p-4`}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <label className="flex h-11 flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+  // Reset to first page whenever the filters/search change the result set.
+  useEffect(() => {
+    setActivePage(1);
+  }, [searchQuery, statusFilter, templateFilter, expiredFilter, dateFrom, dateTo]);
+
+  useEffect(() => {
+    if (activePage > totalQuotationPages) setActivePage(totalQuotationPages);
+  }, [activePage, totalQuotationPages]);
+
+  const selectQuotationPage = (page) => {
+    setActivePage(page);
+    quotationTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const applyStatusCardFilter = (filter) => {
+    setExpiredFilter(false);
+    if (filter === 'All') {
+      setStatusFilter('All');
+      return;
+    }
+    if (filter === 'Expired') {
+      setStatusFilter('All');
+      setExpiredFilter(true);
+      return;
+    }
+    if (filter === 'Accepted') {
+      setStatusFilter('Accepted');
+      return;
+    }
+    setStatusFilter(filter);
+  };
+
+  return (
+    <div className="space-y-4">
+      <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+        <LiaisonApprovalStatCard label="Total Quotations" value={String(quotationStats.total)} caption="All Time" icon={FileText} tone="green" onClick={() => applyStatusCardFilter('All')} />
+        <LiaisonApprovalStatCard label="Sent" value={String(quotationStats.sent)} caption={quotationStats.pct(quotationStats.sent)} icon={Mail} tone="purple" onClick={() => applyStatusCardFilter('Sent')} />
+        <LiaisonApprovalStatCard label="Draft" value={String(quotationStats.draft)} caption={quotationStats.pct(quotationStats.draft)} icon={FileText} tone="amber" onClick={() => applyStatusCardFilter('Draft')} />
+        <LiaisonApprovalStatCard label="Accepted" value={String(quotationStats.accepted)} caption={quotationStats.pct(quotationStats.accepted)} icon={BadgeCheck} tone="blue" onClick={() => applyStatusCardFilter('Accepted')} />
+        <LiaisonApprovalStatCard label="Expired" value={String(quotationStats.expired)} caption={quotationStats.pct(quotationStats.expired)} icon={CalendarDays} tone="red" onClick={() => applyStatusCardFilter('Expired')} />
+      </section>
+
+      <article className={`${panelClass} relative z-40 overflow-visible p-4 sm:p-5`}>
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_170px_150px_220px_auto] xl:items-end">
+          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+            <Search className="size-4 shrink-0 text-[#7386a3]" />
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               type="search"
-              placeholder="Search by quotation no., customer, IVRS..."
+              placeholder="Search by quotation no., customer, template, amount..."
               className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
             />
-            <Search className="size-4 text-[#7386a3]" />
           </label>
-          <select value={templateFilter} onChange={(event) => setTemplateFilter(event.target.value)} className="h-11 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-bold text-[#30466d] outline-none">
-            <option value="All">All Templates</option>
-            {QUOTATION_TEMPLATE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-bold text-[#30466d] outline-none">
-            <option value="All">All Status</option>
-            {['Draft', 'Sent', 'Approved', 'Rejected'].map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <ReportSelect
+            label="Templates"
+            value={templateFilter === 'All' ? 'All Templates' : templateFilter}
+            onChange={(value) => setTemplateFilter(value === 'All Templates' ? 'All' : value)}
+            options={['All Templates', ...QUOTATION_TEMPLATE_OPTIONS]}
+            hideLabel
+          />
+          <ReportSelect
+            label="Status"
+            value={expiredFilter ? 'Expired' : (statusFilter === 'All' ? 'All Status' : statusFilter === 'Approved' ? 'Accepted' : statusFilter)}
+            onChange={(value) => {
+              setExpiredFilter(false);
+              if (value === 'All Status') setStatusFilter('All');
+              else if (value === 'Accepted') setStatusFilter('Accepted');
+              else if (value === 'Expired') setExpiredFilter(true);
+              else setStatusFilter(value);
+            }}
+            options={['All Status', 'Draft', 'Sent', 'Accepted', 'Rejected', 'Expired']}
+            hideLabel
+          />
+          <ReportDateRangePicker
+            open={dateRangeOpen}
+            onToggle={() => setDateRangeOpen((current) => !current)}
+            onClose={() => setDateRangeOpen(false)}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            setDateFrom={setDateFrom}
+            setDateTo={setDateTo}
+            formattedRange={formattedRange}
+            hideLabel
+          />
+          <button
+            type="button"
+            onClick={() => setCreateFlow({ step: 'lead' })}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"
+          >
+            <Plus className="size-4" />
+            New Quotation
+          </button>
         </div>
-      </section>
+      </article>
 
-      <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+      <section ref={quotationTableRef} className={`${panelClass} overflow-visible p-3 sm:p-4`}>
         {loading ? (
           <div className="flex items-center justify-center gap-3 py-16 text-[14px] font-bold text-[#7386a3]">Loading quotations...</div>
         ) : filteredQuotations.length === 0 ? (
           <div className="py-16 text-center text-[14px] font-bold text-[#7386a3]">No quotations found</div>
         ) : (
-          <div className="overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white">
+          <div className="overflow-x-auto overflow-y-visible rounded-[12px] border border-[#e7eef7] bg-white">
             <table className="crm-table crm-table--fit w-full">
               <colgroup>
                 <col style={{ width: '14%' }} />
@@ -29872,7 +30961,7 @@ function QuotationListPage({ onNotify }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredQuotations.map((q) => (
+                {pagedQuotations.map((q) => (
                   <tr key={q.id}>
                     <td className="font-extrabold text-[#233a6b]"><span className="block truncate">{q.quotation_number || `#${q.id}`}</span></td>
                     <td className="font-bold text-[#233a6b]"><span className="block truncate">{q.lead_customer_name || '—'}</span></td>
@@ -29880,7 +30969,7 @@ function QuotationListPage({ onNotify }) {
                     <td><StatusBadge status={q.status} /></td>
                     <td className="font-extrabold text-[#233a6b]"><span className="block truncate">{formatMoney(q.grand_total)}</span></td>
                     <td><span className="block truncate">{q.created_at ? new Date(q.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span></td>
-                    <td>
+                    <td className="relative overflow-visible">
                       <div className="flex items-center justify-end gap-1.5">
                         <button type="button" onClick={() => setViewQuotationId(q.id)} title="View" aria-label={`View ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]">
                           <Eye className="size-4" />
@@ -29895,38 +30984,17 @@ function QuotationListPage({ onNotify }) {
                         >
                           <Copy className="size-4" />
                         </button>
-                        <div className="relative" ref={openActionMenuId === q.id ? actionMenuRef : null}>
-                          <button
-                            type="button"
-                            onClick={() => setOpenActionMenuId((current) => (current === q.id ? null : q.id))}
-                            title="More actions"
-                            aria-label={`More actions for ${q.quotation_number}`}
-                            aria-expanded={openActionMenuId === q.id}
-                            className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#53647f] transition hover:bg-[#f5f9ff]"
-                          >
-                            <MoreVertical className="size-4" />
-                          </button>
-                          {openActionMenuId === q.id ? (
-                            <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[190px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
-                              <button
-                                type="button"
-                                onClick={() => printQuotation(q)}
-                                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
-                              >
-                                <Printer className="size-4" />
-                                Print Quotation
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => deleteQuotation(q)}
-                                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12px] font-extrabold text-[#ef4444] transition hover:bg-[#fff5f5]"
-                              >
-                                <Trash2 className="size-4" />
-                                Delete
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
+                        <button
+                          type="button"
+                          data-quotation-menu-trigger
+                          onClick={(event) => toggleActionMenu(event, q.id)}
+                          title="More actions"
+                          aria-label={`More actions for ${q.quotation_number}`}
+                          aria-expanded={openActionMenuId === q.id}
+                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#53647f] transition hover:bg-[#f5f9ff]"
+                        >
+                          <MoreVertical className="size-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -29935,7 +31003,132 @@ function QuotationListPage({ onNotify }) {
             </table>
           </div>
         )}
+
+        {!loading && filteredQuotations.length > 0 && (
+          <div className="flex flex-col gap-3 px-3 py-3 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              {`Showing ${(safeQuotationPage - 1) * QUOTATION_PAGE_SIZE + 1} to ${Math.min(safeQuotationPage * QUOTATION_PAGE_SIZE, filteredQuotations.length)} of ${filteredQuotations.length} entries`}
+            </p>
+            {totalQuotationPages > 1 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => selectQuotationPage(Math.max(1, safeQuotationPage - 1))}>
+                  <ChevronLeft className="size-4" />
+                </PaginationButton>
+                {(() => {
+                  const pages = [];
+                  if (totalQuotationPages <= 5) {
+                    for (let i = 1; i <= totalQuotationPages; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (safeQuotationPage > 3) pages.push('ellipsis-start');
+                    const start = Math.max(2, safeQuotationPage - 1);
+                    const end = Math.min(totalQuotationPages - 1, safeQuotationPage + 1);
+                    for (let i = start; i <= end; i++) pages.push(i);
+                    if (safeQuotationPage < totalQuotationPages - 2) pages.push('ellipsis-end');
+                    pages.push(totalQuotationPages);
+                  }
+                  return pages.map((page) => (page === 'ellipsis-start' || page === 'ellipsis-end')
+                    ? <span key={page} className="px-2 text-[#53647f]">...</span>
+                    : <PaginationButton key={page} active={safeQuotationPage === page} onClick={() => selectQuotationPage(page)}>{page}</PaginationButton>
+                  );
+                })()}
+                <PaginationButton onClick={() => selectQuotationPage(Math.min(totalQuotationPages, safeQuotationPage + 1))}>
+                  <ChevronRight className="size-4" />
+                </PaginationButton>
+              </div>
+            )}
+          </div>
+        )}
       </section>
+
+      {createFlow?.step === 'lead' ? (
+        <QuotationLeadPickerModal
+          onClose={closeCreateFlow}
+          onSelect={(lead) => setCreateFlow({ step: 'template', lead })}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {createFlow?.step === 'template' ? (
+        <QuotationTemplatePickerModal
+          lead={createFlow.lead}
+          initialTemplate={createFlow.template}
+          onClose={closeCreateFlow}
+          onBack={() => setCreateFlow({ step: 'lead', lead: createFlow.lead, draft: createFlow.draft })}
+          onContinue={(template) => setCreateFlow((prev) => ({ ...prev, step: 'detail', template }))}
+        />
+      ) : null}
+
+      {createFlow?.step === 'detail' && createFlow.template ? (
+        <QuotationDetailModal
+          template={createFlow.template}
+          initialForm={createFlow.draft?.template === createFlow.template ? createFlow.draft.form : null}
+          initialItems={createFlow.draft?.template === createFlow.template ? createFlow.draft.items : null}
+          leadSnapshot={buildLeadSnapshotFromLead(createFlow.lead)}
+          leadIdDisplay={createFlow.lead?.ivrs_number || '—'}
+          onClose={closeCreateFlow}
+          onBack={() => setCreateFlow((prev) => ({ step: 'template', lead: prev.lead, template: prev.template, draft: prev.draft }))}
+          onTemplateChange={(template) => setCreateFlow((prev) => ({ ...prev, template }))}
+          onSave={(template, form, items) => {
+            setCreateFlow((prev) => ({ ...prev, draft: { template, form, items } }));
+            handleCreateQuotationSave(template, form, items);
+          }}
+          saveLabel="Create Quotation"
+          saving={composeSaving}
+        />
+      ) : null}
+
+      {openActionMenuId && menuAnchor && typeof document !== 'undefined' ? createPortal(
+        (() => {
+          const activeQuotation = filteredQuotations.find((row) => row.id === openActionMenuId);
+          if (!activeQuotation) return null;
+          return (
+            <div
+              ref={actionMenuRef}
+              className="fixed z-200 w-[190px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]"
+              style={{ top: menuAnchor.top, left: menuAnchor.left }}
+            >
+              <button
+                type="button"
+                onClick={() => openEditQuotation(activeQuotation)}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+              >
+                <Pencil className="size-4" />
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => printQuotation(activeQuotation)}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+              >
+                <Printer className="size-4" />
+                Print Quotation
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteQuotation(activeQuotation)}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12px] font-extrabold text-[#ef4444] transition hover:bg-[#fff5f5]"
+              >
+                <Trash2 className="size-4" />
+                Delete
+              </button>
+            </div>
+          );
+        })(),
+        document.body,
+      ) : null}
+
+      {editQuotationId ? (
+        <QuotationEditDetailModal
+          quotationId={editQuotationId}
+          onClose={() => setEditQuotationId(null)}
+          onSaved={() => {
+            setEditQuotationId(null);
+            setRefreshKey((k) => k + 1);
+          }}
+          onNotify={onNotify}
+        />
+      ) : null}
 
       {viewQuotationId ? (
         <QuotationViewModal quotationId={viewQuotationId} onClose={() => setViewQuotationId(null)} />
@@ -29957,7 +31150,7 @@ function QuotationViewModal({ quotationId, onClose }) {
 
   return (
     <div
-      className="modal-overlay fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/50 p-4"
+      className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/50 p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
       <div className="modal-pop-in scroll-soft flex max-h-[90vh] w-full max-w-[820px] flex-col overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
@@ -30133,7 +31326,7 @@ function LeadFormSection({ title, titleSuffix, icon: Icon, tone = 'primary', cla
   );
 }
 
-function LeadInput({ label, placeholder, icon: Icon, required = false, optional = false, type = 'text', rightHint = false, name, defaultValue }) {
+function LeadInput({ label, placeholder, icon: Icon, required = false, optional = false, type = 'text', rightHint = false, name, defaultValue, onBlur }) {
   return (
     <label className="block min-w-0">
       <LeadLabel label={label} required={required} optional={optional} rightHint={rightHint} />
@@ -30144,10 +31337,63 @@ function LeadInput({ label, placeholder, icon: Icon, required = false, optional 
           name={name}
           placeholder={placeholder}
           defaultValue={defaultValue ?? ''}
+          onBlur={onBlur}
           className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
         />
       </span>
     </label>
+  );
+}
+
+// IVRS field jisme "Verify IVRS No" button hai — duplicate IVRS turant pata chal jaaye,
+// submit tak wait kiye bina. result: null = unchecked, 'unique' = clear, ya matched lead object.
+function IvrsVerifyField({ defaultValue, checking, result, onCheck, onReset, onShowDetail }) {
+  const inputRef = useRef(null);
+
+  return (
+    <div className="block min-w-0">
+      <LeadLabel label="IVRS Number" required rightHint />
+      <div className="mt-2 flex items-center gap-2">
+        <span className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+          <BadgeCheck className="size-4 shrink-0 text-[#8391a8]" />
+          <input
+            ref={inputRef}
+            type="text"
+            name="ivrs_number"
+            placeholder="Enter IVRS number"
+            defaultValue={defaultValue ?? ''}
+            onChange={onReset}
+            onBlur={(event) => onCheck(event.target.value)}
+            className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+          />
+        </span>
+        <button
+          type="button"
+          onClick={() => onCheck(inputRef.current?.value)}
+          disabled={checking}
+          title="Verify IVRS No"
+          aria-label="Verify IVRS No"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5] transition hover:bg-[#f8fbff] disabled:opacity-60"
+        >
+          <ShieldCheck className={cx('size-4', checking && 'animate-pulse')} />
+        </button>
+      </div>
+      {result && result !== 'unique' ? (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-[#f6dda9] bg-[#fff8e8] px-4 py-3 text-[13px] font-bold text-[#a76200]">
+          <span className="inline-flex items-center gap-2"><AlertTriangle className="size-4" /> This IVRS Number already exists ({result.customer_name})</span>
+          <button
+            type="button"
+            onClick={() => onShowDetail(result.id)}
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] border border-[#f6dda9] bg-white px-3 text-[12px] font-extrabold text-[#a76200] transition hover:bg-[#fff3d6]"
+          >
+            <Eye className="size-3.5" />
+            Show Detail
+          </button>
+        </div>
+      ) : result === 'unique' ? (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#0d9f4a]"><CheckCircle2 className="size-3.5" /> IVRS Number is available</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -30324,11 +31570,11 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
   const [activeModal, setActiveModal] = useState(null);
   const [linkedLeads, setLinkedLeads] = useState(null);
 
-  // BUG-04 fix: hydrate lead fields from API when only id is available (e.g. after page refresh)
+  // Always hydrate from the API by id — callers (Dashboard cards, Lead List, Overdue widget, etc.)
+  // each shape the `lead` object differently for their own display needs, so only the authoritative
+  // backend record can be trusted for the full Overview tab.
   useEffect(() => {
     if (!lead?.id) return;
-    const isPartial = !lead.customer || !lead.mobile || !lead.ivrs;
-    if (!isPartial) return;
     let cancelled = false;
     leadApi.get(lead.id).then((data) => {
       if (cancelled || !data) return;
@@ -30336,10 +31582,16 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
         customer: data.customer_name || '—',
         mobile: data.mobile_number || '—',
         ivrs: data.ivrs_number || '—',
+        alternateNumber: data.alternate_number || '—',
+        email: data.email || '—',
+        address: data.address || '—',
         project: data.project_name || '—',
         type: data.project_type || '—',
+        requirementDetails: data.requirement_details || '—',
+        capacity: formatCapacityKw(data.estimated_capacity).trim() || '—',
         status: data.status || 'New',
         source: data.source || '',
+        createdOn: data.created_at_display || '—',
         nextFollowUp: data.next_follow_up
           ? new Date(data.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
           : '—',
@@ -30352,7 +31604,10 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
       });
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [lead?.id, lead?.customer, lead?.mobile, lead?.ivrs, onLeadUpdated]);
+    // onLeadUpdated's identity changes on every App render (not memoized) — keying on it
+    // would refetch in a loop. Re-running once per lead id is the intended behavior.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead?.id]);
 
   const loadFollowUps = () => {
     if (!lead?.id) { setFollowUps([]); return; }
@@ -30476,6 +31731,17 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
   };
 
   const handleSaveQuotation = async () => {
+    if (qForm.subsidy_applicable && parseNum(qForm.subsidy_amount) > computedGrandTotal) {
+      setQuotationError('Subsidy amount cannot exceed the grand total');
+      return;
+    }
+
+    const droppedRows = quoteItems.filter((row) => !row.item_name.trim() && (parseNum(row.quantity) || parseNum(row.rate)));
+    if (droppedRows.length) {
+      setQuotationError(`${droppedRows.length} item row(s) have quantity/rate but no item name and will not be saved. Add an item name or clear those rows.`);
+      return;
+    }
+
     const items = quoteItems
       .filter((row) => row.item_name.trim())
       .map((row) => ({ item_name: row.item_name.trim(), quantity: row.quantity, unit: row.unit || 'Nos', rate: parseNum(row.rate), amount: rowAmount(row) }));
@@ -30586,20 +31852,20 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
               <InfoPanel title="1. Basic Information" icon={CalendarDays} tone="success">
                 <DetailRow label="Customer Name" value={lead?.customer || '—'} />
                 <DetailRow label="Mobile Number" value={lead?.mobile || '—'} />
-                <DetailRow label="Alternate Number" value="—" />
+                <DetailRow label="Alternate Number" value={lead?.alternateNumber || '—'} />
                 <DetailRow label="IVRS Number" valueNode={<span className="inline-flex items-center gap-2">{lead?.ivrs || '—'} <StatusBadge status="Verified" /></span>} />
-                <DetailRow label="Email Address" value="—" />
-                <DetailRow label="Address" value="—" />
+                <DetailRow label="Email Address" value={lead?.email || '—'} />
+                <DetailRow label="Address" value={lead?.address || '—'} />
                 <DetailRow label="Source" value={lead?.source || '—'} />
                 <DetailRow label="Assigned To" valueNode={<AssigneeCell assignee={lead?.assignedTo ?? { name: 'Unassigned', initials: 'UN', tone: 'amber' }} compact />} />
-                <DetailRow label="Created On" value="—" />
+                <DetailRow label="Created On" value={lead?.createdOn || '—'} />
               </InfoPanel>
 
               <InfoPanel title="2. Project Information" icon={ClipboardPlus} tone="primary">
                 <DetailRow label="Project Name" value={lead?.project || '—'} />
                 <DetailRow label="Project Type" value={lead?.type || '—'} />
-                <DetailRow label="Requirement Details" value="—" />
-                <DetailRow label="Estimated Capacity" value="—" />
+                <DetailRow label="Requirement Details" value={lead?.requirementDetails || '—'} />
+                <DetailRow label="Estimated Capacity" value={lead?.capacity || '—'} />
                 <DetailRow label="Follow-up Date" value={lead?.nextFollowUp || '—'} />
                 <DetailRow label="Lead Status" valueNode={<StatusBadge status={lead?.status || 'New'} />} />
               </InfoPanel>
@@ -31339,7 +32605,7 @@ function DuplicateIvrsModal({ ivrsNumber, existingLeads = [], requestedLead, onC
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="max-h-[92vh] w-full max-w-[650px] overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="flex gap-3"><span className="grid size-10 place-items-center rounded-full bg-[#fff0dc] text-[#f59e0b]"><AlertTriangle className="size-6" /></span><div><h2 className="font-display text-[20px] font-extrabold text-[#111827]">Duplicate IVRS Detected</h2><p className="mt-1 text-[13px] font-semibold text-[#53647f]">The IVRS Number you entered already exists in our system.</p></div></div>
@@ -31418,6 +32684,9 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
     try {
       if (type === 'follow-up' || type === 'site-visit' || type === 'note') {
         const dateVal = fd.get('date');
+        if ((type === 'follow-up' || type === 'site-visit') && !dateVal) {
+          throw new Error('Select a follow-up date');
+        }
         const timeVal = fd.get('time') || '10:00';
         await followUpApi.create({
           lead: lead.id,
@@ -31514,7 +32783,7 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[18px] font-extrabold text-[#111827]"><Icon className="size-5 text-[#0b65e5]" /> {meta.title}</h2>
@@ -31535,6 +32804,72 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
         </form>
       </div>
     </div>
+  );
+}
+
+// Dashboard se lead ke follow-ups dekhne ke liye popup — full Lead Details page pe navigate kiye bina.
+function ViewFollowUpModal({ lead, onClose, onNotify }) {
+  const [followUps, setFollowUps] = useState(null);
+  const [addFollowUpOpen, setAddFollowUpOpen] = useState(false);
+
+  const loadFollowUps = () => {
+    if (!lead?.id) { setFollowUps([]); return; }
+    followUpApi.list(lead.id).then((data) => setFollowUps(Array.isArray(data) ? data : data?.results ?? [])).catch(() => setFollowUps([]));
+  };
+
+  useEffect(() => {
+    setFollowUps(null);
+    loadFollowUps();
+  }, [lead?.id]);
+
+  return (
+    <>
+      <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+        <div className="max-h-[88vh] w-full max-w-[560px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+          <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-6 py-5">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-3 font-display text-[18px] font-extrabold text-[#111827]"><Phone className="size-5 text-[#0b65e5]" /> Follow-up History</h2>
+              <p className="mt-1 truncate text-[13px] font-bold text-[#53647f]">{lead?.customer} • {lead?.mobile} • IVRS {lead?.ivrs}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button type="button" onClick={() => setAddFollowUpOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
+                <Plus className="size-4" />
+                Add Follow-up
+              </button>
+              <button type="button" onClick={onClose} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
+            </div>
+          </div>
+          <div className="space-y-5 p-6">
+            {followUps === null ? (
+              <p className="text-[13px] font-bold text-[#53647f]">Loading...</p>
+            ) : followUps.length === 0 ? (
+              <p className="text-[13px] font-bold text-[#53647f]">No follow-ups yet.</p>
+            ) : followUps.map((item) => (
+              <TimelineItem
+                key={item.id}
+                title={item.status === 'Completed' ? 'Follow-up Completed' : item.status === 'Missed' ? 'Follow-up Missed' : 'Follow-up Scheduled'}
+                text={item.notes || item.follow_up_type}
+                date={item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                tone={item.status === 'Completed' ? 'success' : item.status === 'Missed' ? 'slate' : 'primary'}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {addFollowUpOpen ? (
+        <LeadQuickActionModal
+          type="follow-up"
+          lead={lead}
+          onClose={() => setAddFollowUpOpen(false)}
+          onSaved={() => {
+            setAddFollowUpOpen(false);
+            loadFollowUps();
+          }}
+          onNotify={onNotify}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -31677,7 +33012,7 @@ function StatCard({ stat, onClick }) {
     <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[106px] w-full items-center gap-3 px-3 py-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)] sm:gap-4 sm:px-4`}>
       <div
         className={cx(
-          'flex size-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-white shadow-[0_12px_24px_rgba(24,86,190,0.18)] sm:size-[52px]',
+          'flex size-12 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-white shadow-[0_12px_24px_rgba(24,86,190,0.18)] sm:size-[52px]',
           stat.iconBg,
         )}
       >

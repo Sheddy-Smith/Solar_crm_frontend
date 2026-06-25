@@ -5,8 +5,9 @@
   "description": "Malwa Solar CRM frontend built with React, Tailwind, and Vite.",
   "scripts": {
     "dev": "vite",
+    "dev:lan": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --host 0.0.0.0 --port 5173"
   },
   "keywords": [
     "react",

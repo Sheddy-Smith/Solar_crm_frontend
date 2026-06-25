@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api/v1';
+// Dev: default `/api/v1` goes through Vite proxy → backend (works on LAN Network URL).
+// Set VITE_API_URL only when you need a fixed direct backend URL (same machine only).
+const API_BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? '/api/v1' : 'http://localhost:8000/api/v1');
 
 const TOKEN_KEY = 'malwa_access';
 const REFRESH_KEY = 'malwa_refresh';
@@ -44,7 +46,7 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
       if (rRes.ok) {
         const refreshData = await rRes.json();
         tokenStore.set(refreshData.access, refreshData.refresh || null);
-        headers['Authorization'] = `Bearer ${access}`;
+        headers['Authorization'] = `Bearer ${refreshData.access}`;
         res = await doFetch(headers);
       } else {
         tokenStore.clear();
