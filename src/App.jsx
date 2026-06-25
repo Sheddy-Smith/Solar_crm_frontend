@@ -3022,7 +3022,7 @@ function App() {
                 onNotify={notify}
               />
             ) : (
-              <>
+              <div className="space-y-1.5">
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {dashboardStats.map((stat) => (
                 <StatCard key={stat.title} stat={stat} onClick={() => openDashboardSection(stat.target, `${stat.title} opened`)} />
@@ -3214,7 +3214,7 @@ function App() {
                 <Leaf className="size-3.5 text-[#1bc35f]" />
               </p>
             </footer>
-              </>
+              </div>
             )}
           </div>
         </main>
@@ -29242,23 +29242,23 @@ function LeadViewModal({ leadId, onClose, onEdit, onNotify }) {
         ) : (
           <>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <InfoCell label="Customer Name" value={detail.customer_name} />
-              <InfoCell label="Mobile Number" value={detail.mobile_number} />
-              <InfoCell label="IVRS Number" value={detail.ivrs_number || '—'} />
-              <InfoCell label="Email" value={detail.email || '—'} />
-              <InfoCell label="Project Name" value={detail.project_name || '—'} />
-              <InfoCell label="Project Type" value={detail.project_type || '—'} />
-              <InfoCell label="Estimated Capacity" value={detail.estimated_capacity ? `${formatCapacityKw(detail.estimated_capacity).trim()}` : '—'} />
-              <InfoCell label="Status" valueNode={<StatusBadge status={detail.status} />} />
-              <InfoCell label="Assigned To" value={detail.assigned_to_detail?.name || 'Unassigned'} />
-              <InfoCell label="Next Follow-up" value={detail.next_follow_up ? new Date(detail.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
-              <InfoCell label="Source" value={detail.source || '—'} />
+              <InfoCell large label="Customer Name" value={detail.customer_name} />
+              <InfoCell large label="Mobile Number" value={detail.mobile_number} />
+              <InfoCell large label="IVRS Number" value={detail.ivrs_number || '—'} />
+              <InfoCell large label="Email" value={detail.email || '—'} />
+              <InfoCell large label="Project Name" value={detail.project_name || '—'} />
+              <InfoCell large label="Project Type" value={detail.project_type || '—'} />
+              <InfoCell large label="Estimated Capacity" value={detail.estimated_capacity ? `${formatCapacityKw(detail.estimated_capacity).trim()}` : '—'} />
+              <InfoCell large label="Status" valueNode={<StatusBadge status={detail.status} />} />
+              <InfoCell large label="Assigned To" value={detail.assigned_to_detail?.name || 'Unassigned'} />
+              <InfoCell large label="Next Follow-up" value={detail.next_follow_up ? new Date(detail.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
+              <InfoCell large label="Source" value={detail.source || '—'} />
             </div>
             {detail.address ? (
-              <div className="mt-4"><InfoCell label="Address" value={detail.address} /></div>
+              <div className="mt-4"><InfoCell large label="Address" value={detail.address} /></div>
             ) : null}
             {detail.remarks ? (
-              <div className="mt-4"><InfoCell label="Remarks" value={detail.remarks} /></div>
+              <div className="mt-4"><InfoCell large label="Remarks" value={detail.remarks} /></div>
             ) : null}
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Close</button>
@@ -33250,14 +33250,14 @@ function RecentLeadCard({ lead, onView }) {
   );
 }
 
-function InfoCell({ label, value, valueNode, valueClass }) {
+function InfoCell({ label, value, valueNode, valueClass, large = false }) {
   return (
     <div className="min-w-0">
-      <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#8a98af]">{label}</p>
+      <p className={cx('font-extrabold uppercase tracking-[0.08em] text-[#8a98af]', large ? 'text-[12.5px]' : 'text-[11px]')}>{label}</p>
       {valueNode ? (
         <div className="mt-1.5 min-w-0">{valueNode}</div>
       ) : (
-        <p className={cx('mt-1.5 truncate text-[12px] font-bold text-[#314a79]', valueClass)}>{value}</p>
+        <p className={cx('mt-1.5 truncate font-bold text-[#314a79]', large ? 'text-[14.5px]' : 'text-[12px]', valueClass)}>{value}</p>
       )}
     </div>
   );
