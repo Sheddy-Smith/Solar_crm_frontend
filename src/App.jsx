@@ -39,6 +39,7 @@ import {
   Info,
   IndianRupee,
   Leaf,
+  LayoutDashboard,
   LockKeyhole,
   LogIn,
   Mail,
@@ -87,6 +88,7 @@ const sidebarItems = [
   { label: 'Inventory', icon: Boxes, showChevron: true },
   { label: 'Reports', icon: BarChart3 },
   { label: 'AMC & Warranty', icon: ShieldCheck, showChevron: true },
+  { label: 'Summary', icon: LayoutDashboard, showChevron: true },
   { label: 'Settings', icon: Settings, showChevron: false },
 ];
 
@@ -96,9 +98,11 @@ const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Lead Edit', 'Lead Fo
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const employeeRelatedPages = [...employeeSubItems];
-const projectSubItems = ['Project Overview', 'Project KPI Analytics', 'Project List', 'Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation', 'Project Team Assignment', 'Project Material Planning', 'Project Work Orders', 'Project Expenses', 'Project Documents', 'Project Approvals', 'Project Reports'];
+const projectSubItems = ['Project List', 'Project Timeline', 'Project Site Survey', 'Project Installation', 'Project Team Assignment', 'Project Material Planning', 'Project Work Orders', 'Project Expenses', 'Project Documents', 'Project Approvals'];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
-const projectRelatedPages = ['Project Management', ...projectActionPages, ...projectSubItems];
+const projectRelatedPages = ['Project Management', ...projectActionPages, ...projectSubItems, 'Project Details'];
+const summarySubItems = ['Project Overview', 'Project KPI Analytics', 'Project Reports'];
+const summaryRelatedPages = [...summarySubItems];
 // Pages jinhe ek selected project chahiye — refresh/restore pe selectedProject null hota hai, isliye inhe Project List se replace karo
 const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation'];
 const accountsSubItems = ['Accounts List', 'Transactions List', 'Chart of Accounts', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List'];
@@ -1765,6 +1769,7 @@ const availableSections = new Set([
   ...omRelatedPages,
   ...amcRelatedPages,
   ...settingsRelatedPages,
+  ...summaryRelatedPages,
 ]);
 
 function cx(...classes) {
@@ -1831,6 +1836,7 @@ function App() {
     if (item === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(item)) return 'Liaisoning & Commissioning';
     if (omRelatedPages.includes(item)) return 'O&M';
     if (item === 'AMC & Warranty' || amcRelatedPages.includes(item)) return 'AMC & Warranty';
+    if (summaryRelatedPages.includes(item)) return 'Summary';
     if (settingsRelatedPages.includes(item)) return 'Settings';
     return null;
   });
@@ -2073,6 +2079,7 @@ function App() {
     if (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Liaisoning & Commissioning'); return; }
     if (omRelatedPages.includes(activeSidebarItem)) { setExpandedSection('O&M'); return; }
     if (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem)) { setExpandedSection('AMC & Warranty'); return; }
+    if (summaryRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Summary'); return; }
     if (settingsRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Settings'); return; }
   }, [activeSidebarItem]);
 
@@ -2305,6 +2312,7 @@ function App() {
                   const isLiaisonSection = item.label === 'Liaisoning & Commissioning';
                   const isOmSection = item.label === 'O&M';
                   const isAmcSection = item.label === 'AMC & Warranty';
+                  const isSummarySection = item.label === 'Summary';
                   const isSettingsSection = item.label === 'Settings';
                   const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
                   const isProjectHighlighted = isProjectSection && (activeSidebarItem === 'Project Management' || projectRelatedPages.includes(activeSidebarItem));
@@ -2314,6 +2322,7 @@ function App() {
                   const isLiaisonHighlighted = isLiaisonSection && (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem));
                   const isOmHighlighted = isOmSection && omRelatedPages.includes(activeSidebarItem);
                   const isAmcHighlighted = isAmcSection && (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem));
+                  const isSummaryHighlighted = isSummarySection && (activeSidebarItem === 'Summary' || summaryRelatedPages.includes(activeSidebarItem));
                   const isLeadOpen = isLeadSection && expandedSection === 'Lead';
                   const isProjectOpen = isProjectSection && expandedSection === 'Project Management';
                   const isEmployeeOpen = isEmployeeSection && expandedSection === 'Employee Management';
@@ -2322,9 +2331,10 @@ function App() {
                   const isLiaisonOpen = isLiaisonSection && expandedSection === 'Liaisoning & Commissioning';
                   const isOmOpen = isOmSection && expandedSection === 'O&M';
                   const isAmcOpen = isAmcSection && expandedSection === 'AMC & Warranty';
+                  const isSummaryOpen = isSummarySection && expandedSection === 'Summary';
                   const isSettingsActive = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
                   const isSettingsOpen = isSettingsSection && expandedSection === 'Settings';
-                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isAmcHighlighted || isSettingsActive;
+                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isAmcHighlighted || isSummaryHighlighted || isSettingsActive;
 
                   return (
                     <div key={item.label}>
@@ -2338,13 +2348,13 @@ function App() {
                             setMobileSidebarOpen(false);
                             return;
                           }
-                          const sectionKey = isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee Management' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : isSettingsSection ? 'Settings' : null;
+                          const sectionKey = isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee Management' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : isSummarySection ? 'Summary' : isSettingsSection ? 'Settings' : null;
                           if (sectionKey) {
                             if (expandedSection === sectionKey) {
                               setExpandedSection(null);
                             } else {
                               setExpandedSection(sectionKey);
-                              const nextItem = isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'O&M Overview' : isAmcSection ? 'AMC Contracts' : 'Settings';
+                              const nextItem = isProjectSection ? 'Project List' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'O&M Overview' : isAmcSection ? 'AMC Contracts' : isSummarySection ? 'Project Overview' : 'Settings';
                               setActiveSidebarItem(nextItem);
                               notify(`${nextItem} section selected`);
                             }
@@ -2375,7 +2385,7 @@ function App() {
                           {item.label}
                         </span>
                         {item.showChevron && !desktopSidebarCollapsed ? (
-                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsOpen) && '-rotate-90')} />
+                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSummaryOpen || isSettingsOpen) && '-rotate-90')} />
                         ) : null}
                         {item.disabled && !desktopSidebarCollapsed ? (
                           <span className="rounded-[6px] bg-white/16 px-2 py-1 text-[9px] font-extrabold text-white/90">
@@ -2583,6 +2593,35 @@ function App() {
                                   key={subItem}
                                   type="button"
                                   data-route={amcSubRoutes[subItem]}
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                  <span>{getModuleSubnavLabel(subItem)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                      {isSummaryOpen && !desktopSidebarCollapsed ? (
+                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                          <div className="space-y-1">
+                            {summarySubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem;
+
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  data-route={projectSubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
                                     setMobileSidebarOpen(false);
@@ -2880,9 +2919,9 @@ function App() {
               <ActivityLogsPage activeSection="Activity Logs" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Reports' ? (
               <ReportsPage onNotify={notify} />
-            ) : projectRelatedPages.includes(activeSidebarItem) ? (
+            ) : projectRelatedPages.includes(activeSidebarItem) || summaryRelatedPages.includes(activeSidebarItem) ? (
               <ProjectManagementPage
-                activeSection={projectRelatedPages.includes(activeSidebarItem) ? activeSidebarItem : 'Project Overview'}
+                activeSection={activeSidebarItem}
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
@@ -8111,6 +8150,22 @@ function ProjectSubnavTabs({ activeSection, onOpenSection }) {
       title="Project Management Subcategories"
       helperText="Project module pages ko yahan se horizontally switch karein."
       items={projectSubItems}
+      activeSection={activeSection}
+      onOpenSection={onOpenSection}
+      activeClasses="border-[#cfe8d6] bg-[#f1fff5] text-[#0b8f43] ring-2 ring-[#e3f8eb]"
+      activeDotClass="bg-[#14b84c]"
+      activeIconClass="text-[#14b84c]"
+      fullLabels
+    />
+  );
+}
+
+function SummarySubnavTabs({ activeSection, onOpenSection }) {
+  return (
+    <HorizontalModuleTabs
+      title="Summary Subcategories"
+      helperText="Summary pages ko yahan se horizontally switch karein."
+      items={summarySubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
       activeClasses="border-[#cfe8d6] bg-[#f1fff5] text-[#0b8f43] ring-2 ring-[#e3f8eb]"
@@ -16654,7 +16709,7 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
         title="Project Management"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Summary', onClick: () => onOpenSection('Project Overview') },
           { label: 'Overview' },
         ]}
         actions={(
@@ -16667,7 +16722,7 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
         )}
       />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      <SummarySubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
       <p className="text-[14px] font-bold text-[#324871]">Track end-to-end execution, project value, installation progress and upcoming milestones across all active solar projects.</p>
 
       <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-6">
@@ -16860,7 +16915,7 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
         title="Project Management - KPI Analytics"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Summary', onClick: () => onOpenSection('Project Overview') },
           { label: 'KPI Analytics' },
         ]}
         actions={(
@@ -16874,7 +16929,7 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
         )}
       />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      <SummarySubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-6">
         {heroStats.map((stat) => <ProjectMetricCard key={stat.label} stat={stat} onClick={() => openKpiMetric(stat.label)} />)}
@@ -16996,7 +17051,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         title="Project Management"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List' },
         ]}
         actions={(
@@ -17450,7 +17505,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
         title={config.title}
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: config.title },
         ]}
         actions={(
@@ -17992,7 +18047,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   if (!projectProp?.id) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Project Details' }]} />
+        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
           <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
@@ -18006,7 +18061,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   if (loading) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Project Details' }]} />
+        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
         <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>Loading project...</article>
       </div>
     );
@@ -18015,7 +18070,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   if (!data) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Project Details' }]} />
+        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
         <article className={`${panelClass} p-8 text-center`}>
           <p className="text-[13px] font-bold text-[#53647f]">{loadError || 'Project not found.'}</p>
           <button type="button" onClick={() => fetchProjectDetails()} className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
@@ -18490,7 +18545,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
         title={activeDetailTab}
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details' },
           { label: activeDetailTab },
         ]}
@@ -20374,7 +20429,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
   if (!projectProp?.id) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Timeline" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Timeline' }]} />
+        <PageHeading title="Timeline" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Timeline' }]} />
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
           <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
@@ -20388,7 +20443,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
   if (loading || !data) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Timeline" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Timeline' }]} />
+        <PageHeading title="Timeline" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Timeline' }]} />
         <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>{loading ? 'Loading timeline...' : 'Project not found.'}</article>
       </div>
     );
@@ -20538,7 +20593,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
         title="Timeline"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Timeline' },
@@ -21053,7 +21108,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
   if (!projectProp?.id) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Site Survey" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Site Survey' }]} />
+        <PageHeading title="Site Survey" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Site Survey' }]} />
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
           <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
@@ -21067,7 +21122,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
   if (loading || !data) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Site Survey" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Site Survey' }]} />
+        <PageHeading title="Site Survey" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Site Survey' }]} />
         <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>{loading ? 'Loading site survey...' : 'Project not found.'}</article>
       </div>
     );
@@ -21176,7 +21231,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
         title="Site Survey"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Site Survey' },
@@ -21752,7 +21807,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
   if (!projectProp?.id) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Installation" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Installation' }]} />
+        <PageHeading title="Installation" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Installation' }]} />
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
           <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
@@ -21766,7 +21821,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
   if (loading || !data) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Installation" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project Overview') }, { label: 'Installation' }]} />
+        <PageHeading title="Installation" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Installation' }]} />
         <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>{loading ? 'Loading installation...' : 'Project not found.'}</article>
       </div>
     );
@@ -21978,7 +22033,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
         title="Installation"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Installation' },
@@ -22607,7 +22662,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         title="Team Assignment"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Team Assignment' },
@@ -23157,7 +23212,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
         title="Material Planning"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Material Planning' },
@@ -23681,7 +23736,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
         title="Work Orders"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Work Orders' },
@@ -23993,7 +24048,7 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
         title="Expenses"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Expenses' },
@@ -24386,7 +24441,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
         title="Documents"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Documents' },
@@ -24688,7 +24743,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
         title="Approvals"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Approvals' },
@@ -25086,7 +25141,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
         title="Reports"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Summary', onClick: () => onOpenSection('Project Overview') },
           { label: 'Reports' },
         ]}
         actions={(
@@ -25098,7 +25153,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
         )}
       />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      <SummarySubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openReportStat(stat.label)} />)}
@@ -25344,7 +25399,7 @@ function ProjectModulePlaceholderPage({ activeSection, onOpenSection, onNotify }
         title="Project Management"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project Overview') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: getModuleSubnavLabel(activeSection) },
         ]}
         actions={<button type="button" onClick={() => onNotify(`${getModuleSubnavLabel(activeSection)} exported`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export Report</button>}
