@@ -2927,10 +2927,10 @@ function App() {
                   notify(`${section} opened`);
                 }}
                 selectedProject={selectedProject}
-                onSelectProject={(project) => {
+                onSelectProject={(project, target = 'Project Details') => {
                   setSelectedProject(project);
-                  setActiveSidebarItem('Project Details');
-                  notify('Project Details opened');
+                  setActiveSidebarItem(target);
+                  notify(`${target} opened`);
                 }}
                 onNotify={notify}
               />
@@ -8056,17 +8056,19 @@ function getModuleSubnavLabel(item) {
   return item;
 }
 
-function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false, fullLabels = false }) {
+function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false, fullLabels = false, hideHeading = false }) {
   return (
     <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="font-display text-[16px] font-extrabold text-[#1e3261]">{title}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">{helperText}</p>
+      {hideHeading ? null : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-display text-[16px] font-extrabold text-[#1e3261]">{title}</p>
+            <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">{helperText}</p>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="module-tab-scroll -mx-1 mt-4 overflow-x-auto px-1 pb-2">
+      <div className={cx('module-tab-scroll -mx-1 overflow-x-auto px-1 pb-2', hideHeading ? 'mt-0' : 'mt-4')}>
         <div className={cx('flex w-max min-w-full gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
           {items.map((item) => {
             const isActive = activeSection === item;
@@ -8147,8 +8149,6 @@ function EmployeeSubnavTabs({ activeSection, onOpenSection }) {
 function ProjectSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
-      title="Project Management Subcategories"
-      helperText="Project module pages ko yahan se horizontally switch karein."
       items={projectSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8156,6 +8156,7 @@ function ProjectSubnavTabs({ activeSection, onOpenSection }) {
       activeDotClass="bg-[#14b84c]"
       activeIconClass="text-[#14b84c]"
       fullLabels
+      hideHeading
     />
   );
 }
@@ -16549,7 +16550,7 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project Site Survey') {
-    return <ProjectSiteSurveyPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
+    return <ProjectSiteSurveyPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Installation') {
@@ -16958,6 +16959,7 @@ const projectManagerTones = ['amber', 'blue', 'green'];
 function projectRowFromApi(p) {
   return {
     id: p.id,
+    lead: p.lead,
     projectName: p.project_name,
     customer: p.customer_name,
     site: p.site,
@@ -16982,6 +16984,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const [activePage, setActivePage] = useState(1);
   const [projectRows, setProjectRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [editProject, setEditProject] = useState(null);
   const deferredQuery = useDeferredValue(query);
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
@@ -16997,10 +17001,14 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       .catch(() => { if (!cancelled) setProjectRows([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [refreshKey]);
 
   const handleOpenProject = (row) => {
     onSelectProject?.({ id: row.id });
+  };
+
+  const handleEditProject = (row) => {
+    setEditProject({ projectId: row.id, leadId: row.lead, status: row.status });
   };
 
   const PROJECT_PAGE_SIZE = 10;
@@ -17116,6 +17124,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                   <td>
                     <div className="flex items-center gap-2">
                       <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => handleOpenProject(row)} />
+                      <UserActionButton label={`Edit ${row.projectName}`} icon={Pencil} tone="green" onClick={() => handleEditProject(row)} />
                       <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={() => handleOpenProject(row)} />
                     </div>
                   </td>
@@ -17152,6 +17161,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
 
               <div className="mt-3 flex gap-2">
                 <button type="button" onClick={() => handleOpenProject(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
+                <button type="button" onClick={() => handleEditProject(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0d9f4a]"><Pencil className="size-4" />Edit</button>
                 <button type="button" onClick={() => handleOpenProject(row)} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
               </div>
             </article>
@@ -17174,6 +17184,17 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       </article>
 
       <DashboardFooter />
+
+      {editProject ? (
+        <LeadFormModal
+          mode="edit"
+          lead={editProject.leadId ? { id: editProject.leadId } : null}
+          projectContext={editProject}
+          onClose={() => setEditProject(null)}
+          onSaved={() => { setEditProject(null); setRefreshKey((key) => key + 1); }}
+          onNotify={onNotify}
+        />
+      ) : null}
     </div>
   );
 }
@@ -21084,7 +21105,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
   );
 }
 
-function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
+function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
   const [activeSurveyTab, setActiveSurveyTab] = useState('Overview');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21107,15 +21128,12 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
 
   if (!projectProp?.id) {
     return (
-      <div className="space-y-4">
-        <PageHeading title="Site Survey" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Site Survey' }]} />
-        <article className={`${panelClass} p-8 text-center`}>
-          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
-          <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
-          <p className="mx-auto mt-3 max-w-[480px] text-[13px] font-bold text-[#53647f]">Open a project from the Project List to view its site survey.</p>
-          <button type="button" onClick={() => onOpenSection('Project List')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white"><ArrowRight className="size-4" />Go to Project List</button>
-        </article>
-      </div>
+      <ProjectListPage
+        activeSection={activeSection}
+        onOpenSection={onOpenSection}
+        onSelectProject={(project) => onSelectProject?.(project, 'Project Site Survey')}
+        onNotify={onNotify}
+      />
     );
   }
 
@@ -28904,7 +28922,7 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
   );
 }
 
-function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestApproval, onNotify }) {
+function LeadFormModal({ mode = 'create', lead, projectContext = null, onClose, onSaved, onRequestApproval, onNotify }) {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateIvrs, setDuplicateIvrs] = useState('');
   const [duplicateLeadMatches, setDuplicateLeadMatches] = useState([]);
@@ -28926,7 +28944,7 @@ function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestAppro
   }, []);
 
   useEffect(() => {
-    if (mode !== 'edit' || !lead?.id) return;
+    if (mode !== 'edit' || !lead?.id) { setDetail({}); setLoadingDetail(false); return; }
     setLoadingDetail(true);
     leadApi.get(lead.id).then((data) => setDetail(data || {})).catch(() => setDetail({})).finally(() => setLoadingDetail(false));
   }, [mode, lead?.id]);
@@ -28962,6 +28980,13 @@ function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestAppro
     };
 
     try {
+      if (projectContext) {
+        await projectApi.update(projectContext.projectId, { status: fd.get('project_status') || projectContext.status });
+        const savedProjectLead = projectContext.leadId ? await leadApi.update(projectContext.leadId, payload) : null;
+        onNotify?.('Project details updated successfully!');
+        onSaved?.(savedProjectLead);
+        return;
+      }
       let savedLead;
       if (mode === 'edit') {
         savedLead = await leadApi.update(lead.id, payload);
@@ -29003,7 +29028,7 @@ function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestAppro
       <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
           <h2 className="font-display text-[18px] font-extrabold text-[#111827]">
-            {mode === 'edit' ? 'Edit Lead' : 'Create Lead'}
+            {projectContext ? 'Project Details Update' : mode === 'edit' ? 'Edit Lead' : 'Create Lead'}
           </h2>
           <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
         </div>
@@ -29019,6 +29044,13 @@ function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestAppro
             <div className="flex items-center justify-center gap-3 py-16 text-[14px] font-bold text-[#7386a3]">Loading lead...</div>
           ) : (
           <form id="lead-form-modal" ref={formRef} className="space-y-4" onSubmit={handleSubmit}>
+            {projectContext ? (
+              <LeadFormSection title="Project Status" icon={FolderKanban} tone="primary">
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <LeadSelect label="Status" placeholder="Select status" options={['Planning', 'Active', 'On Hold', 'Completed', 'Cancelled']} name="project_status" defaultValue={projectContext.status} />
+                </div>
+              </LeadFormSection>
+            ) : null}
             <LeadFormSection title="1. Basic Information" icon={ReceiptText} tone="success">
               <div className="grid gap-4 lg:grid-cols-3">
                 <LeadInput label="Customer Name" required icon={UserRound} placeholder="Enter customer name" name="customer_name" defaultValue={d.customer_name} />
@@ -29120,7 +29152,7 @@ function LeadFormModal({ mode = 'create', lead, onClose, onSaved, onRequestAppro
             className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60"
           >
             <Save className="size-4" />
-            {submitting ? 'Saving...' : mode === 'edit' ? 'Update Lead' : 'Save Lead'}
+            {submitting ? 'Saving...' : projectContext ? 'Update Project' : mode === 'edit' ? 'Update Lead' : 'Save Lead'}
           </button>
         </div>
       </div>

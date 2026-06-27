@@ -399,5 +399,6 @@ def create_project_for_won_lead(sender, instance, **kwargs):
         project_type=instance.project_type or 'On-Grid',
         capacity_kwp=capacity_kwp,
         manager=instance.assigned_to,
+        status='Planning',
         created_by=instance.created_by,
     )
