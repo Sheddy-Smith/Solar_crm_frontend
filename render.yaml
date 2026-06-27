@@ -21,6 +21,6 @@ services:
       - key: REDIS_URL
         sync: false
       - key: CORS_ALLOWED_ORIGINS
-        value: https://solar-crm-frontend-bay.vercel.app,http://localhost:5173
+        value: https://solar-crm-frontend-bay.vercel.app,https://solar-crm-frontend-1gv4z1tdr-sheddy-smiths-projects.vercel.app,http://localhost:5173
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://solar-crm-frontend-0vcw.onrender.com,https://solar-crm-frontend-bay.vercel.app
+        value: https://solar-crm-frontend-0vcw.onrender.com,https://solar-crm-frontend-bay.vercel.app,https://solar-crm-frontend-1gv4z1tdr-sheddy-smiths-projects.vercel.app

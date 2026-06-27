@@ -17,8 +17,10 @@ Replace `YOUR_NEON_PASSWORD` and `YOUR_UPSTASH_PASSWORD` with real values from N
 | `ALLOWED_HOSTS` | `solar-crm-frontend-0vcw.onrender.com,.onrender.com` |
 | `DATABASE_URL` | `postgresql://neondb_owner:YOUR_NEON_PASSWORD@ep-late-cloud-ah7j13zo-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require` |
 | `REDIS_URL` | `rediss://default:YOUR_UPSTASH_PASSWORD@intimate-seahorse-103953.upstash.io:6379` |
-| `CORS_ALLOWED_ORIGINS` | `https://solar-crm-frontend-bay.vercel.app,http://localhost:5173` |
-| `CSRF_TRUSTED_ORIGINS` | `https://solar-crm-frontend-0vcw.onrender.com,https://solar-crm-frontend-bay.vercel.app` |
+| `CORS_ALLOWED_ORIGINS` | `https://solar-crm-frontend-bay.vercel.app,https://solar-crm-frontend-1gv4z1tdr-sheddy-smiths-projects.vercel.app,http://localhost:5173` |
+| `CSRF_TRUSTED_ORIGINS` | `https://solar-crm-frontend-0vcw.onrender.com,https://solar-crm-frontend-bay.vercel.app,https://solar-crm-frontend-1gv4z1tdr-sheddy-smiths-projects.vercel.app` |
+
+> ⚠️ `...1gv4z1tdr-sheddy-smiths-projects.vercel.app` jaisa hash wala URL Vercel ka **per-deployment preview URL** hai — har naye deploy pe badal jata hai. Testing ke liye hamesha stable `https://solar-crm-frontend-bay.vercel.app` use karo; preview URL sirf is waqt allow kiya gaya hai taaki current deploy turant test ho sake.
 
 Generate `SECRET_KEY` (local terminal):
 
