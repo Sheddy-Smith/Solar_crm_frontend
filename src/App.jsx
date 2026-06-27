@@ -584,6 +584,13 @@ const leadCategoryToneClasses = {
   },
 };
 
+function formatRevenueShort(value) {
+  const num = Number(value) || 0;
+  if (num >= 10000000) return `Rs ${(num / 10000000).toFixed(2)}Cr`;
+  if (num >= 100000) return `Rs ${(num / 100000).toFixed(2)}L`;
+  return `Rs ${num.toLocaleString('en-IN')}`;
+}
+
 const stats = [
   {
     title: 'Total Leads',
@@ -1843,8 +1850,8 @@ function App() {
     return Number.isFinite(id) && id > 0 ? { id } : null;
   });
   const [globalSearch, setGlobalSearch] = useState('');
-  const [dashboardStats, setDashboardStats] = useState(stats);
-  const [dashboardFollowUps, setDashboardFollowUps] = useState(todayFollowUps);
+  const [dashboardStats, setDashboardStats] = useState(() => stats.map((s) => ({ ...s, value: '—', delta: '' })));
+  const [dashboardFollowUps, setDashboardFollowUps] = useState([]);
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
   const [dashboardOverdue, setDashboardOverdue] = useState(null);
   const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
@@ -1904,6 +1911,17 @@ function App() {
           if (s.title === 'Won Projects') return { ...s, value: String(data.won ?? s.value) };
           return s;
         }),
+      );
+    }).catch(() => {});
+
+    accountsModuleApi.summary().then((data) => {
+      if (!data) return;
+      setDashboardStats((prev) =>
+        prev.map((s) =>
+          s.title === 'Revenue Overview'
+            ? { ...s, value: formatRevenueShort(data.total_received) }
+            : s,
+        ),
       );
     }).catch(() => {});
 
@@ -3135,7 +3153,7 @@ function App() {
                 <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" onAction={() => openDashboardSection('Lead List', 'All recent leads opened')} />
 
                 <div className="space-y-3 p-4 lg:hidden">
-                  {(dashboardRecentLeads ?? recentLeads).map((lead, index) => (
+                  {(dashboardRecentLeads ?? []).map((lead, index) => (
                     <RecentLeadCard key={lead.id ?? `${lead.customer}-${lead.mobile}-${index}`} lead={lead} onView={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`, lead)} />
                   ))}
                 </div>
@@ -3151,7 +3169,7 @@ function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(dashboardRecentLeads ?? recentLeads).map((lead, index) => (
+                        {(dashboardRecentLeads ?? []).map((lead, index) => (
                           <tr key={lead.id ?? `${lead.customer}-${lead.mobile}-${index}`}>
                             <td className="font-bold text-[#3258aa]">{lead.customer}</td>
                             <td>{lead.mobile}</td>
@@ -3191,7 +3209,7 @@ function App() {
                 />
 
                 <div className="m-4 divide-y divide-[#edf2f8] overflow-hidden rounded-[12px] border border-[#e5edf6] bg-[#fbfdff] px-4">
-                  {(dashboardOverdue ?? overdueFollowUps).slice(0, 4).map((item) => (
+                  {(dashboardOverdue ?? []).slice(0, 4).map((item) => (
                     <div
                       key={`${item.customer}-${item.project}`}
                       className="grid grid-cols-1 gap-1 py-4 text-[13px] sm:grid-cols-[1.2fr_1fr_auto] sm:items-center sm:gap-3"
