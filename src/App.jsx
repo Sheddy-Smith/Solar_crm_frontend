@@ -1779,6 +1779,26 @@ function cx(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
+function PageLoadingState({ message = 'Loading...', compact = false, className = '' }) {
+  return (
+    <div
+      className={cx(
+        'flex items-center justify-center gap-3 text-[14px] font-bold text-[#7386a3]',
+        compact ? 'py-6' : 'py-16',
+        className,
+      )}
+      role="status"
+      aria-live="polite"
+    >
+      <svg className="size-5 animate-spin text-[#0b65e5]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+      </svg>
+      {message}
+    </div>
+  );
+}
+
 function readStoredPreferences() {
   if (typeof window === 'undefined') {
     return {};
@@ -2193,8 +2213,9 @@ function App() {
         return;
       }
 
-      const buttonText = button.innerText || '';
-      if (!buttonText.toLowerCase().includes('export')) {
+      // Only generic page-as-doc export when a button explicitly opts in.
+      // All other Export buttons use their own onClick handlers (CSV/XLS/notify).
+      if (button.dataset.exportPage !== 'true') {
         return;
       }
 
@@ -4057,13 +4078,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         ) : null}
 
         {leadsLoading ? (
-          <div className="flex items-center justify-center gap-3 py-16 text-[14px] font-bold text-[#7386a3]">
-            <svg className="size-5 animate-spin text-[#0b65e5]" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
-            Loading leads...
-          </div>
+          <PageLoadingState message="Loading leads..." />
         ) : pagedLeadRows.length === 0 ? (
           <div className="py-16 text-center text-[14px] font-bold text-[#7386a3]">
             {activeLeadCategory ? `No leads found in ${activeLeadCategory.label}` : 'No leads found'}
@@ -16769,8 +16784,10 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
                     <td>{row.targetDate}</td>
                   </tr>
                 ))}
-                {recentProjects.length === 0 ? (
-                  <tr><td colSpan={8} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">{loadingProjects ? 'Loading projects...' : 'No projects yet.'}</td></tr>
+                {loadingProjects ? (
+                  <tr><td colSpan={8}><PageLoadingState message="Loading projects..." compact /></td></tr>
+                ) : recentProjects.length === 0 ? (
+                  <tr><td colSpan={8} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects yet.</td></tr>
                 ) : null}
               </tbody>
             </table>
@@ -16797,7 +16814,12 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
             <button type="button" onClick={() => onOpenSection('Project Timeline')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Milestones</button>
           </div>
           <div className="mt-5 space-y-5">
-            {milestones.map((item) => (
+            {loadingProjects ? (
+              <PageLoadingState message="Loading milestones..." compact />
+            ) : milestones.length === 0 ? (
+              <p className="text-[13px] font-bold text-[#8a98af]">No upcoming milestones.</p>
+            ) : null}
+            {!loadingProjects && milestones.map((item) => (
               <button key={item.title} type="button" onClick={() => onOpenSection('Project Timeline')} className="flex w-full items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#f8fbff]">
                 <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#eef4ff] text-[#5e83ff]"><UserRound className="size-4" /></span>
                 <span className="min-w-0 flex-1">
@@ -16810,9 +16832,6 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
                 </span>
               </button>
             ))}
-            {milestones.length === 0 ? (
-              <p className="text-[13px] font-bold text-[#8a98af]">{loadingProjects ? 'Loading...' : 'No upcoming milestones.'}</p>
-            ) : null}
           </div>
         </article>
       </section>
@@ -17052,42 +17071,65 @@ function buildProjectListSheetHtml(rows) {
   const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmtDate = (v) => (v ? formatProjectDisplayDate(v) : '-');
   const headers = ['#', 'Project ID', 'Project Name', 'Customer', 'IVRS No.', 'Mobile', 'Site', 'Project Type', 'Capacity (KWp)', 'Status', 'Project Manager', 'Start Date', 'Target Date', 'Progress %'];
+  const colWidths = [36, 108, 190, 150, 96, 108, 150, 108, 92, 92, 128, 96, 96, 72];
   const headHtml = headers.map((h) => `<th>${esc(h)}</th>`).join('');
+  const colgroup = colWidths.map((width) => `<col width="${width}" style="width:${width}px">`).join('');
   const bodyHtml = rows.map((row, i) => {
     const cells = [
-      i + 1,
-      row.projectId || '-',
-      row.projectName,
-      row.customer,
-      row.ivrs || '-',
-      row.mobile || '-',
-      row.site || '-',
-      row.type,
-      row.capacity,
-      row.status,
-      row.manager?.name || 'Unassigned',
-      fmtDate(row.startDate),
-      fmtDate(row.targetDate),
-      `${row.progress || 0}%`,
+      { value: i + 1, className: 'p' },
+      { value: row.projectId || '-', className: 't' },
+      { value: row.projectName, className: '' },
+      { value: row.customer, className: '' },
+      { value: row.ivrs || '-', className: 't' },
+      { value: row.mobile || '-', className: 't' },
+      { value: row.site || '-', className: '' },
+      { value: row.type, className: '' },
+      { value: row.capacity, className: 'n' },
+      { value: row.status, className: '' },
+      { value: row.manager?.name || 'Unassigned', className: '' },
+      { value: fmtDate(row.startDate), className: '' },
+      { value: fmtDate(row.targetDate), className: '' },
+      { value: `${row.progress || 0}%`, className: 'p' },
     ];
-    // ID / IVRS / Mobile ko text rakho (Excel inhe number/scientific me convert na kare)
-    return '<tr>' + cells.map((c, idx) => `<td${[1, 4, 5].includes(idx) ? ' class="t"' : ''}>${esc(c)}</td>`).join('') + '</tr>';
+    return `<tr>${cells.map(({ value, className }) => `<td${className ? ` class="${className}"` : ''}>${esc(value)}</td>`).join('')}</tr>`;
   }).join('');
 
-  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">
-  <style>
-    table{border-collapse:collapse}
-    td,th{border:1px solid #c7d4e6;padding:6px 10px;font-family:Calibri,Arial,sans-serif;font-size:11pt;vertical-align:top}
-    th{background:#11a650;color:#ffffff;font-weight:bold;text-align:left}
-    .t{mso-number-format:"\\@"}
-    .title{font-size:15pt;font-weight:bold;color:#11a650}
-    .sub{font-size:10pt;color:#555555}
-  </style></head><body>
+  return `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!--[if gte mso 9]><xml>
+<x:ExcelWorkbook>
+<x:ExcelWorksheets>
+<x:ExcelWorksheet>
+<x:Name>Project List</x:Name>
+<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+</x:ExcelWorksheet>
+</x:ExcelWorksheets>
+</x:ExcelWorkbook>
+</xml><![endif]-->
+<style>
+  table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+  col { mso-width-source: userset; }
+  td, th { border: 1px solid #c7d4e6; padding: 6px 10px; font-family: Calibri, Arial, sans-serif; font-size: 11pt; vertical-align: top; }
+  th { background: #11a650; color: #ffffff; font-weight: bold; text-align: left; white-space: nowrap; }
+  .t { mso-number-format: "\\@"; }
+  .n { mso-number-format: "0.00"; }
+  .p { mso-number-format: "0"; }
+  .title { font-size: 15pt; font-weight: bold; color: #11a650; font-family: Calibri, Arial, sans-serif; margin-bottom: 4px; }
+  .sub { font-size: 10pt; color: #555555; font-family: Calibri, Arial, sans-serif; margin-bottom: 12px; }
+</style>
+</head>
+<body>
   <div class="title">Malwa Solar Energy — Project List</div>
-  <div class="sub">Generated ${esc(new Date().toLocaleString('en-IN'))} &nbsp;•&nbsp; ${rows.length} project(s)</div>
-  <br/>
-  <table><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>
-  </body></html>`;
+  <div class="sub">Generated ${esc(new Date().toLocaleString('en-IN'))} • ${rows.length} project(s)</div>
+  <table>
+    <colgroup>${colgroup}</colgroup>
+    <thead><tr>${headHtml}</tr></thead>
+    <tbody>${bodyHtml}</tbody>
+  </table>
+</body>
+</html>`;
 }
 
 function projectRowFromApi(p) {
@@ -17215,6 +17257,10 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, dateFrom, dateTo]);
 
   const exportProjects = () => {
+    if (loading) {
+      onNotify('Please wait, projects are still loading');
+      return;
+    }
     if (!filteredRows.length) {
       onNotify('No projects available to export');
       return;
@@ -17246,7 +17292,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             <div className="w-full sm:w-[280px]">
               <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
             </div>
-            <button type="button" onClick={exportProjects} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" data-custom-export="true" disabled={loading} onClick={exportProjects} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"><Download className="size-4 text-[#0b65e5]" />Export</button>
           </>
         )}
       />
@@ -17275,6 +17321,10 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       </section>
 
       <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+        {loading ? (
+          <PageLoadingState message="Loading projects..." />
+        ) : (
+        <>
         <div className="hidden overflow-x-auto rounded-[14px] border border-[#e7eef7] bg-white lg:block">
           <table className="crm-table min-w-[1420px] w-full">
             <thead>
@@ -17309,7 +17359,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                   </td>
                 </tr>
               ))}
-              {!loading && pagedProjectRows.length === 0 ? (
+              {pagedProjectRows.length === 0 ? (
                 <tr><td colSpan={11} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</td></tr>
               ) : null}
             </tbody>
@@ -17345,7 +17395,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
               </div>
             </article>
           ))}
-          {!loading && pagedProjectRows.length === 0 ? (
+          {pagedProjectRows.length === 0 ? (
             <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</p>
           ) : null}
         </div>
@@ -17360,6 +17410,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             <PaginationButton onClick={() => setActivePage((p) => Math.min(totalProjectPages, p + 1))}><ChevronRight className="size-4" /></PaginationButton>
           </div>
         </div>
+        </>
+        )}
       </article>
 
       <DashboardFooter />
@@ -18351,7 +18403,9 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     return (
       <div className="space-y-4">
         <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
-        <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>Loading project...</article>
+        <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+          <PageLoadingState message="Loading project..." />
+        </article>
       </div>
     );
   }
@@ -20733,7 +20787,9 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
     return (
       <div className="space-y-4">
         <PageHeading title="Timeline" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Timeline' }]} />
-        <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>{loading ? 'Loading timeline...' : 'Project not found.'}</article>
+        <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+          {loading ? <PageLoadingState message="Loading timeline..." /> : <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Project not found.</p>}
+        </article>
       </div>
     );
   }
@@ -21409,7 +21465,9 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
     return (
       <div className="space-y-4">
         <PageHeading title="Site Survey" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Site Survey' }]} />
-        <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>{loading ? 'Loading site survey...' : 'Project not found.'}</article>
+        <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+          {loading ? <PageLoadingState message="Loading site survey..." /> : <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Project not found.</p>}
+        </article>
       </div>
     );
   }
@@ -22108,7 +22166,9 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
     return (
       <div className="space-y-4">
         <PageHeading title="Installation" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Installation' }]} />
-        <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>{loading ? 'Loading installation...' : 'Project not found.'}</article>
+        <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+          {loading ? <PageLoadingState message="Loading installation..." /> : <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Project not found.</p>}
+        </article>
       </div>
     );
   }
@@ -25414,7 +25474,7 @@ function ProjectReportPage({ onOpenSection, project: projectProp, onNotify }) {
     return (
       <div className="space-y-4">
         <PageHeading title="Project Report" crumbs={crumbs} />
-        <div className="flex items-center justify-center gap-3 py-24 text-[14px] font-bold text-[#7386a3]">Loading project report...</div>
+        <PageLoadingState message="Loading project report..." />
       </div>
     );
   }
@@ -27734,7 +27794,7 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} className="py-6 text-center text-[13px] font-bold text-[#7585a2]">Loading users...</td></tr>
+                <tr><td colSpan={9}><PageLoadingState message="Loading users..." compact /></td></tr>
               ) : filteredUsers.map((user, index) => (
                 <tr key={user.id}>
                   <td>{index + 1}</td>
@@ -28330,7 +28390,7 @@ function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
             <div className="mt-4">
               <h3 className="mb-3 text-[14px] font-extrabold text-[#1e3261]">Module Permissions</h3>
               {loadingPermissions ? (
-                <p className="py-6 text-center text-[13px] font-bold text-[#7585a2]">Loading permissions...</p>
+                <PageLoadingState message="Loading permissions..." compact />
               ) : (
               <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
                 <table className="crm-table min-w-[920px] w-full">
@@ -29051,7 +29111,7 @@ function ReportKpiCard({ kpi, onClick }) {
 
 function ReportLineChart({ data, loading }) {
   if (loading) {
-    return <div className="flex h-[280px] items-center justify-center text-[13px] font-bold text-[#8a98af]">Loading chart...</div>;
+    return <PageLoadingState message="Loading chart..." className="h-[280px] py-0" compact />;
   }
   if (!data || data.length === 0) {
     return <div className="flex h-[280px] items-center justify-center text-[13px] font-bold text-[#8a98af]">No data available</div>;
@@ -29098,7 +29158,7 @@ const STATUS_COLORS = {
 
 function ReportDonut({ data, loading }) {
   if (loading) {
-    return <div className="flex h-[220px] items-center justify-center text-[13px] font-bold text-[#8a98af]">Loading...</div>;
+    return <PageLoadingState message="Loading chart..." className="h-[220px] py-0" compact />;
   }
   const chartData = (data || []).map(d => ({
     name: d.status,
@@ -29143,7 +29203,7 @@ function ReportDonut({ data, loading }) {
 
 function ReportBarChart({ data, dataKey, nameKey, color = '#1f7ff0', loading }) {
   if (loading) {
-    return <div className="flex h-[220px] items-center justify-center text-[13px] font-bold text-[#8a98af]">Loading...</div>;
+    return <PageLoadingState message="Loading chart..." className="h-[220px] py-0" compact />;
   }
   if (!data || data.length === 0) {
     return <div className="flex h-[220px] items-center justify-center text-[13px] font-bold text-[#8a98af]">No data</div>;
@@ -29194,7 +29254,7 @@ function ReportEmployeeCard({ data, loading, onNotify }) {
     <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
       <h2 className="font-display text-[16px] font-extrabold text-[#111827]">Top Assigned Employees</h2>
       {loading ? (
-        <div className="mt-4 flex h-[160px] items-center justify-center text-[13px] font-bold text-[#8a98af]">Loading...</div>
+        <PageLoadingState message="Loading..." className="mt-4 h-[160px] py-0" compact />
       ) : data.length > 0 ? (
         <div className="mt-4 overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
           <table className="crm-table min-w-[480px] w-full">
@@ -29707,7 +29767,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
           ) : null}
 
           {loadingDetail ? (
-            <div className="flex items-center justify-center gap-3 py-16 text-[14px] font-bold text-[#7386a3]">Loading lead...</div>
+            <PageLoadingState message="Loading lead..." />
           ) : (
           <form id="lead-form-modal" ref={formRef} className="space-y-4" onSubmit={handleSubmit}>
             {projectMode ? (
@@ -29954,7 +30014,7 @@ function LeadFollowUpsOverviewModal({ leads, onClose, onViewLead }) {
 
         <div className="scroll-soft divide-y divide-[#edf2f8] overflow-y-auto px-6">
           {!leads ? (
-            <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Loading...</p>
+            <PageLoadingState message="Loading follow-ups..." compact />
           ) : filterMode === 'date' && !customDate ? (
             <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Pick a date to see follow-ups.</p>
           ) : filteredLeads.length === 0 ? (
@@ -30011,7 +30071,7 @@ function LeadViewModal({ leadId, onClose, onEdit, onNotify }) {
           <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
         </div>
         {loading ? (
-          <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Loading...</p>
+          <PageLoadingState message="Loading lead details..." compact />
         ) : !detail ? (
           <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Lead not found.</p>
         ) : (
@@ -31267,7 +31327,7 @@ function QuotationLeadPickerModal({ onClose, onSelect, onNotify }) {
         </div>
         <div className="scroll-soft max-h-[420px] overflow-y-auto p-2">
           {loading ? (
-            <p className="py-10 text-center text-[13px] font-bold text-[#7386a3]">Loading leads...</p>
+            <PageLoadingState message="Loading leads..." compact />
           ) : filteredLeads.length === 0 ? (
             <p className="py-10 text-center text-[13px] font-bold text-[#7386a3]">No leads found</p>
           ) : filteredLeads.map((lead) => (
@@ -31412,7 +31472,9 @@ function QuotationEditDetailModal({ quotationId, onClose, onSaved, onNotify }) {
   if (loading) {
     return (
       <div className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4">
-        <div className="rounded-[12px] bg-white px-8 py-6 text-[13px] font-bold text-[#7386a3]">Loading quotation...</div>
+        <div className="w-full max-w-[320px] rounded-[12px] bg-white p-4">
+          <PageLoadingState message="Loading quotation..." compact />
+        </div>
       </div>
     );
   }
@@ -31713,7 +31775,7 @@ function QuotationListPage({ onNotify }) {
 
       <section ref={quotationTableRef} className={`${panelClass} overflow-visible p-3 sm:p-4`}>
         {loading ? (
-          <div className="flex items-center justify-center gap-3 py-16 text-[14px] font-bold text-[#7386a3]">Loading quotations...</div>
+          <PageLoadingState message="Loading quotations..." />
         ) : filteredQuotations.length === 0 ? (
           <div className="py-16 text-center text-[14px] font-bold text-[#7386a3]">No quotations found</div>
         ) : (
@@ -31938,7 +32000,7 @@ function QuotationViewModal({ quotationId, onClose }) {
         </div>
 
         {loading ? (
-          <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Loading...</p>
+          <PageLoadingState message="Loading quotation..." compact />
         ) : !detail ? (
           <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Quotation not found.</p>
         ) : (
@@ -32663,7 +32725,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
             <InfoPanel title="3. Follow-up History" icon={Phone} actionLabel="View All Follow-ups" onAction={() => setActiveTab('follow-ups')}>
               <div className="space-y-5">
                 {followUps === null ? (
-                  <p className="text-[13px] font-bold text-[#53647f]">Loading...</p>
+                  <PageLoadingState message="Loading follow-ups..." compact />
                 ) : followUps.length === 0 ? (
                   <p className="text-[13px] font-bold text-[#53647f]">No follow-ups yet.</p>
                 ) : followUps.slice(0, 3).map((item) => (
@@ -32689,7 +32751,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
             <InfoPanel title="Linked Leads (Same Mobile Number)" icon={Phone} tone="danger" actionLabel="View All Linked Leads" onAction={onBackToList}>
               <p className="mb-3 font-extrabold text-[#1e3261]">Mobile: {lead?.mobile || '—'} <span className="ml-2 rounded-[8px] bg-[#dff6e7] px-2 py-1 text-[11px] text-[#087a39]">{linkedLeads === null ? '...' : linkedLeads.length} Lead{linkedLeads?.length === 1 ? '' : 's'}</span></p>
               {linkedLeads === null ? (
-                <p className="text-[12px] font-bold text-[#53647f]">Loading...</p>
+                <PageLoadingState message="Loading linked leads..." compact className="py-2" />
               ) : linkedLeads.length === 0 ? (
                 <p className="text-[12px] font-bold text-[#53647f]">No other leads found with this mobile number.</p>
               ) : linkedLeads.map((item) => (
@@ -32713,7 +32775,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
           <InfoPanel title="Follow-up Timeline" icon={ShieldCheck}>
             <div className="space-y-8">
               {followUps === null ? (
-                <p className="text-[13px] font-bold text-[#53647f]">Loading...</p>
+                <PageLoadingState message="Loading follow-ups..." compact />
               ) : fullTimeline.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center">
                   <span className="grid size-12 place-items-center rounded-full bg-[#eef2f7] text-[#7585a2]"><Phone className="size-6" /></span>
@@ -32776,7 +32838,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
             ) : null}
 
             {quotationLoading ? (
-              <p className="text-[13px] font-bold text-[#53647f]">Loading quotation...</p>
+              <PageLoadingState message="Loading quotation..." compact />
             ) : (
               <>
                 <LeadFormSection title="A. Basic Details" icon={FileText} tone="primary">
@@ -33290,7 +33352,7 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
               <thead><tr>{['#', 'IVRS Number', 'Customer Name', 'Mobile Number', 'Project Type', 'Requested By', 'Requested On', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
               <tbody>
                 {rows === null ? (
-                  <tr><td colSpan={9} className="py-8 text-center text-[13px] font-bold text-[#53647f]">Loading...</td></tr>
+                  <tr><td colSpan={9}><PageLoadingState message="Loading approvals..." compact /></td></tr>
                 ) : filteredRows.length === 0 ? (
                   <tr><td colSpan={9} className="py-8 text-center text-[13px] font-bold text-[#53647f]">No records found</td></tr>
                 ) : filteredRows.map((row, index) => (
@@ -33630,7 +33692,7 @@ function ViewFollowUpModal({ lead, onClose, onNotify }) {
           </div>
           <div className="space-y-5 p-6">
             {followUps === null ? (
-              <p className="text-[13px] font-bold text-[#53647f]">Loading...</p>
+              <PageLoadingState message="Loading follow-ups..." compact />
             ) : followUps.length === 0 ? (
               <p className="text-[13px] font-bold text-[#53647f]">No follow-ups yet.</p>
             ) : followUps.map((item) => (
