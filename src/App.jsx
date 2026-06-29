@@ -17046,6 +17046,50 @@ function buildProjectDocumentHtml(row, detail) {
   </body></html>`;
 }
 
+// Project List ke "Export" se ek properly-formatted Excel sheet (.xls) banata hai —
+// styled header, sahi PRJ IDs, readable dates, IVRS/mobile, text-format taaki numbers na bigde.
+function buildProjectListSheetHtml(rows) {
+  const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmtDate = (v) => (v ? formatProjectDisplayDate(v) : '-');
+  const headers = ['#', 'Project ID', 'Project Name', 'Customer', 'IVRS No.', 'Mobile', 'Site', 'Project Type', 'Capacity (KWp)', 'Status', 'Project Manager', 'Start Date', 'Target Date', 'Progress %'];
+  const headHtml = headers.map((h) => `<th>${esc(h)}</th>`).join('');
+  const bodyHtml = rows.map((row, i) => {
+    const cells = [
+      i + 1,
+      row.projectId || '-',
+      row.projectName,
+      row.customer,
+      row.ivrs || '-',
+      row.mobile || '-',
+      row.site || '-',
+      row.type,
+      row.capacity,
+      row.status,
+      row.manager?.name || 'Unassigned',
+      fmtDate(row.startDate),
+      fmtDate(row.targetDate),
+      `${row.progress || 0}%`,
+    ];
+    // ID / IVRS / Mobile ko text rakho (Excel inhe number/scientific me convert na kare)
+    return '<tr>' + cells.map((c, idx) => `<td${[1, 4, 5].includes(idx) ? ' class="t"' : ''}>${esc(c)}</td>`).join('') + '</tr>';
+  }).join('');
+
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">
+  <style>
+    table{border-collapse:collapse}
+    td,th{border:1px solid #c7d4e6;padding:6px 10px;font-family:Calibri,Arial,sans-serif;font-size:11pt;vertical-align:top}
+    th{background:#11a650;color:#ffffff;font-weight:bold;text-align:left}
+    .t{mso-number-format:"\\@"}
+    .title{font-size:15pt;font-weight:bold;color:#11a650}
+    .sub{font-size:10pt;color:#555555}
+  </style></head><body>
+  <div class="title">Malwa Solar Energy — Project List</div>
+  <div class="sub">Generated ${esc(new Date().toLocaleString('en-IN'))} &nbsp;•&nbsp; ${rows.length} project(s)</div>
+  <br/>
+  <table><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>
+  </body></html>`;
+}
+
 function projectRowFromApi(p) {
   return {
     id: p.id,
@@ -17170,20 +17214,17 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
 
   useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, dateFrom, dateTo]);
 
-  const exportProjectsCsv = () => {
+  const exportProjects = () => {
     if (!filteredRows.length) {
       onNotify('No projects available to export');
       return;
     }
-    const csvRows = [
-      ['Project ID', 'Project Name', 'Customer', 'Site', 'Project Type', 'Capacity (KWp)', 'Status', 'Project Manager', 'Start Date', 'Target Date', 'Progress %'],
-      ...filteredRows.map((row) => [row.id, row.projectName, row.customer, row.site, row.type, row.capacity, row.status, row.manager.name, row.startDate, row.targetDate, row.progress]),
-    ];
-    const csv = csvRows.map((row) => row.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const html = buildProjectListSheetHtml(filteredRows);
+    // BOM + Excel MIME -> Excel/Sheets ise styled spreadsheet ki tarah kholta hai (columns sahi)
+    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'Project_List.csv';
+    link.download = `Project_List_${new Date().toISOString().slice(0, 10)}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -17205,7 +17246,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             <div className="w-full sm:w-[280px]">
               <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
             </div>
-            <button type="button" onClick={exportProjectsCsv} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={exportProjects} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
           </>
         )}
       />
