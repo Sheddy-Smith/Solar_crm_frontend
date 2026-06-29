@@ -214,6 +214,7 @@ export const projectApi = {
   create: (data) => request('/projects/', { method: 'POST', body: data }),
   get: (id) => request(`/projects/${id}/`),
   update: (id, data) => request(`/projects/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/projects/${id}/`, { method: 'DELETE' }),
   uploadImage: (id, file) => {
     const formData = new FormData();
     formData.append('project_image', file);

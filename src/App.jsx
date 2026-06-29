@@ -1,9 +1,9 @@
 import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, inventoryApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
-  projectApi, workOrderApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
-  projectTeamApi, projectMilestoneApi, projectChecklistApi, installationMaterialApi,
+  authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
+  projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
+  projectTeamApi, projectMilestoneApi, projectChecklistApi,
 } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -62,7 +62,9 @@ import {
   ShieldCheck,
   Star,
   Trash2,
+  TrendingUp,
   Trophy,
+  Wallet,
   LogOut,
   Upload,
   UserPlus,
@@ -98,13 +100,14 @@ const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Lead Edit', 'Lead Fo
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const employeeRelatedPages = [...employeeSubItems];
-const projectSubItems = ['Project List', 'Project Timeline', 'Project Site Survey', 'Project Installation', 'Project Team Assignment', 'Project Material Planning', 'Project Work Orders', 'Project Expenses', 'Project Documents', 'Project Approvals'];
+const projectSubItems = ['Project List', 'Project Site Survey', 'Project Installation', 'Project Team Assignment', 'Project Material Planning', 'Project Expenses', 'Project Documents', 'Project Approvals'];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
-const projectRelatedPages = ['Project Management', ...projectActionPages, ...projectSubItems, 'Project Details'];
+// 'Project Timeline' aur 'Project Work Orders' ab sidebar me nahi — Project List ke 3-dot action menu se khulte hain (routing yahin valid rehni chahiye)
+const projectRelatedPages = ['Project Management', ...projectActionPages, ...projectSubItems, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
 const summarySubItems = ['Project Overview', 'Project KPI Analytics', 'Project Reports'];
 const summaryRelatedPages = [...summarySubItems];
 // Pages jinhe ek selected project chahiye — refresh/restore pe selectedProject null hota hai, isliye inhe Project List se replace karo
-const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation'];
+const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation', 'Project Report View'];
 const accountsSubItems = ['Accounts List', 'Transactions List', 'Chart of Accounts', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List'];
 const accountsRelatedPages = ['Accounts Overview', ...accountsSubItems];
 const inventorySubItems = ['Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
@@ -16581,6 +16584,10 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     return <ProjectApprovalsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
+  if (activeSection === 'Project Report View') {
+    return <ProjectReportPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
+  }
+
   if (activeSection === 'Project Reports') {
     return <ProjectReportsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
@@ -16956,10 +16963,97 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
 
 const projectManagerTones = ['amber', 'blue', 'green'];
 
+// Project ke 3-dot menu se "Download Documents" pe printable HTML banata hai (browser ke
+// Save-as-PDF se PDF nikal sakte hain). row = list ka data, detail = projectApi.get() (optional).
+function buildProjectDocumentHtml(row, detail) {
+  const esc = (value) => String(value ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const d = detail || {};
+  const inr = (n) => `₹ ${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
+  const fmtDate = (v) => (v ? formatProjectDisplayDate(v) : '-');
+  const cfg = d.system_config || {};
+  const materials = Array.isArray(d.installation_materials) ? d.installation_materials : [];
+  const expenses = Array.isArray(d.expenses) ? d.expenses : [];
+  const payments = Array.isArray(d.payments) ? d.payments : [];
+
+  const infoRow = (label, value) => `<tr><td class="k">${esc(label)}</td><td class="v">${esc(value || '-')}</td></tr>`;
+  const materialsRows = materials.length
+    ? materials.map((m) => `<tr><td>${esc(m.item_name)}</td><td>${esc(m.category)}</td><td>${esc(m.required_qty)} ${esc(m.unit)}</td><td>${esc(m.status)}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">No material records</td></tr>';
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(row.projectName)} — Project Document</title>
+  <style>
+    *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;}
+    body{margin:0;padding:32px;color:#1e3261;}
+    .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #11a650;padding-bottom:14px;margin-bottom:18px;}
+    .brand{font-size:22px;font-weight:800;color:#11a650;}
+    .brand small{display:block;font-size:11px;color:#53647f;font-weight:700;letter-spacing:.08em;}
+    h1{font-size:18px;margin:0 0 2px;}
+    .muted{color:#53647f;font-size:12px;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px;}
+    section{border:1px solid #e7eef7;border-radius:10px;padding:14px 16px;}
+    h2{font-size:13px;margin:0 0 10px;color:#0b65e5;text-transform:uppercase;letter-spacing:.04em;}
+    table{width:100%;border-collapse:collapse;font-size:12px;}
+    td.k{color:#53647f;font-weight:700;padding:4px 8px 4px 0;width:46%;}
+    td.v{font-weight:800;padding:4px 0;}
+    table.list td,table.list th{border-bottom:1px solid #eef2f8;padding:6px 8px;text-align:left;font-size:12px;}
+    table.list th{color:#53647f;font-weight:800;background:#f7faff;}
+    .empty{color:#8a98af;text-align:center;}
+    .full{grid-column:1 / -1;}
+    .foot{margin-top:26px;font-size:11px;color:#8a98af;text-align:center;border-top:1px solid #e7eef7;padding-top:12px;}
+    @media print{body{padding:14px;}}
+  </style></head><body>
+  <div class="head">
+    <div><div class="brand">Malwa Solar Energy<small>CRM SYSTEM</small></div></div>
+    <div style="text-align:right"><h1>${esc(row.projectName)}</h1><div class="muted">${esc(row.projectId || d.project_id || '')} • Status: ${esc(row.status)}</div><div class="muted">Generated: ${esc(new Date().toLocaleString('en-IN'))}</div></div>
+  </div>
+  <div class="grid">
+    <section><h2>Customer & Site</h2><table>
+      ${infoRow('Customer', row.customer)}
+      ${infoRow('Mobile', row.mobile)}
+      ${infoRow('IVRS No.', row.ivrs)}
+      ${infoRow('Site', row.site || d.site_address)}
+      ${infoRow('City / State', [d.city, d.state].filter(Boolean).join(', '))}
+    </table></section>
+    <section><h2>Project</h2><table>
+      ${infoRow('Project Type', row.type)}
+      ${infoRow('Capacity (KWp)', row.capacity)}
+      ${infoRow('Manager', row.manager?.name)}
+      ${infoRow('Start Date', fmtDate(row.startDate))}
+      ${infoRow('Target Date', fmtDate(row.targetDate))}
+      ${infoRow('Progress', `${row.progress || 0}%`)}
+    </table></section>
+    <section><h2>System Configuration</h2><table>
+      ${infoRow('Panel', [cfg.panel_brand, cfg.panel_model].filter(Boolean).join(' '))}
+      ${infoRow('Panel Wattage', cfg.panel_wattage_w ? `${cfg.panel_wattage_w} W` : '')}
+      ${infoRow('Panel Count', cfg.panel_count)}
+      ${infoRow('Inverter', [cfg.inverter_brand, cfg.inverter_model].filter(Boolean).join(' '))}
+      ${infoRow('Inverter Capacity', cfg.inverter_capacity_kw ? `${cfg.inverter_capacity_kw} kW` : '')}
+    </table></section>
+    <section><h2>Financials</h2><table>
+      ${infoRow('Total Value', inr(d.total_value))}
+      ${infoRow('Total Expense', inr(d.total_expense))}
+      ${infoRow('Total Paid', inr(d.total_paid))}
+      ${infoRow('Balance', inr((Number(d.total_value) || 0) - (Number(d.total_paid) || 0)))}
+      ${infoRow('Payments Recorded', payments.length)}
+      ${infoRow('Expense Entries', expenses.length)}
+    </table></section>
+    <section class="full"><h2>Material Details</h2>
+      <table class="list"><thead><tr><th>Item</th><th>Category</th><th>Quantity</th><th>Status</th></tr></thead>
+      <tbody>${materialsRows}</tbody></table>
+    </section>
+  </div>
+  <div class="foot">This document is system-generated by Malwa Solar Energy CRM.</div>
+  </body></html>`;
+}
+
 function projectRowFromApi(p) {
   return {
     id: p.id,
     lead: p.lead,
+    leadStatus: p.lead_status || '',
+    ivrs: p.lead_ivrs_number || '',
+    mobile: p.lead_mobile_number || '',
+    projectId: p.project_id || '',
     projectName: p.project_name,
     customer: p.customer_name,
     site: p.site,
@@ -16986,6 +17080,10 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editProject, setEditProject] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [actionMenu, setActionMenu] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
@@ -16996,7 +17094,9 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       .then((data) => {
         if (cancelled) return;
         const list = Array.isArray(data) ? data : data?.results ?? [];
-        setProjectRows(list.map(projectRowFromApi));
+        // Project List sirf un projects ko dikhata hai jinka linked lead "Won" hai
+        const wonOnly = list.filter((p) => p.lead_status === 'Won');
+        setProjectRows(wonOnly.map(projectRowFromApi));
       })
       .catch(() => { if (!cancelled) setProjectRows([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -17011,13 +17111,51 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     setEditProject({ projectId: row.id, leadId: row.lead, status: row.status });
   };
 
+  const openActionMenu = (event, row) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setActionMenu({ row, x: rect.right, top: rect.bottom, anchorTop: rect.top });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await projectApi.delete(deleteTarget.id);
+      onNotify(`Project "${deleteTarget.projectName}" deleted`);
+      setDeleteTarget(null);
+      setRefreshKey((key) => key + 1);
+    } catch (err) {
+      onNotify(err?.message || 'Failed to delete project');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const downloadProjectPdf = async (row) => {
+    onNotify(`Preparing PDF for "${row.projectName}"...`);
+    let detail = null;
+    try {
+      detail = await projectApi.get(row.id);
+    } catch {
+      detail = null;
+    }
+    const win = window.open('', '_blank');
+    if (!win) { onNotify('Allow pop-ups to download the PDF'); return; }
+    win.document.write(buildProjectDocumentHtml(row, detail));
+    win.document.close();
+    win.focus();
+    win.onload = () => { win.print(); };
+    // Fallback if onload doesn't fire (already loaded)
+    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 600);
+  };
+
   const PROJECT_PAGE_SIZE = 10;
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
     return projectRows.filter((row) => {
       if (normalizedQuery) {
-        const haystack = [row.projectName, row.customer, row.site, row.manager.name].join(' ').toLowerCase();
+        const haystack = [row.projectName, row.projectId, row.customer, row.site, row.manager.name, row.ivrs, row.mobile].join(' ').toLowerCase();
         if (!haystack.includes(normalizedQuery)) return false;
       }
       if (statusFilter !== 'All' && row.status !== statusFilter) return false;
@@ -17078,7 +17216,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_124px_140px] xl:items-center">
           <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
             <Search className="size-4 text-[#7e8fab]" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search projects by name, customer, site, project manager..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by IVRS no, customer, project name, site, manager, mobile number..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
           </label>
           <label className="relative flex h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
             <Filter className="size-4 text-[#0b65e5]" />
@@ -17091,7 +17229,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
               <option value="Cancelled">Cancelled</option>
             </select>
           </label>
-          <button type="button" onClick={() => onOpenSection('Project Create')} data-route={projectSubRoutes['Project Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Project</button>
+          <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Project</button>
         </div>
       </section>
 
@@ -17125,7 +17263,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                     <div className="flex items-center gap-2">
                       <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => handleOpenProject(row)} />
                       <UserActionButton label={`Edit ${row.projectName}`} icon={Pencil} tone="green" onClick={() => handleEditProject(row)} />
-                      <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={() => handleOpenProject(row)} />
+                      <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={(event) => openActionMenu(event, row)} />
                     </div>
                   </td>
                 </tr>
@@ -17162,7 +17300,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
               <div className="mt-3 flex gap-2">
                 <button type="button" onClick={() => handleOpenProject(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
                 <button type="button" onClick={() => handleEditProject(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0d9f4a]"><Pencil className="size-4" />Edit</button>
-                <button type="button" onClick={() => handleOpenProject(row)} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
+                <button type="button" onClick={(event) => openActionMenu(event, row)} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
               </div>
             </article>
           ))}
@@ -17194,6 +17332,95 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           onSaved={() => { setEditProject(null); setRefreshKey((key) => key + 1); }}
           onNotify={onNotify}
         />
+      ) : null}
+
+      {createOpen ? (
+        <LeadFormModal
+          projectCreate
+          onClose={() => setCreateOpen(false)}
+          onSaved={() => { setCreateOpen(false); setRefreshKey((key) => key + 1); }}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {actionMenu ? (
+        <>
+          <div className="fixed inset-0 z-90" onMouseDown={() => setActionMenu(null)} />
+          <div
+            className="fixed z-95 w-[206px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white py-1 shadow-[0_18px_34px_rgba(21,43,83,0.16)]"
+            style={(() => {
+              const flipUp = actionMenu.top + 250 > window.innerHeight;
+              return {
+                left: Math.max(12, actionMenu.x - 206),
+                top: flipUp ? undefined : actionMenu.top + 6,
+                bottom: flipUp ? Math.max(12, window.innerHeight - actionMenu.anchorTop + 6) : undefined,
+              };
+            })()}
+          >
+            <button
+              type="button"
+              onClick={() => { const row = actionMenu.row; setActionMenu(null); onSelectProject?.({ id: row.id }, 'Project Work Orders'); }}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[12px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+            >
+              <Wrench className="size-4 text-[#0b65e5]" />
+              Work Orders
+            </button>
+            <button
+              type="button"
+              onClick={() => { const row = actionMenu.row; setActionMenu(null); onSelectProject?.({ id: row.id }, 'Project Report View'); }}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[12px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+            >
+              <BarChart3 className="size-4 text-[#0b65e5]" />
+              Reports
+            </button>
+            <button
+              type="button"
+              onClick={() => { const row = actionMenu.row; setActionMenu(null); onSelectProject?.({ id: row.id }, 'Project Timeline'); }}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[12px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+            >
+              <CalendarDays className="size-4 text-[#0b65e5]" />
+              Project Timeline
+            </button>
+            <button
+              type="button"
+              onClick={() => { const row = actionMenu.row; setActionMenu(null); downloadProjectPdf(row); }}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[12px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
+            >
+              <Download className="size-4 text-[#0b65e5]" />
+              Download Documents
+            </button>
+            <div className="my-1 border-t border-[#eef2f8]" />
+            <button
+              type="button"
+              onClick={() => { const row = actionMenu.row; setActionMenu(null); setDeleteTarget(row); }}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[12px] font-extrabold text-[#ef4444] transition hover:bg-[#fff5f5]"
+            >
+              <Trash2 className="size-4 text-[#ef4444]" />
+              Delete Project
+            </button>
+          </div>
+        </>
+      ) : null}
+
+      {deleteTarget ? (
+        <div className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setDeleteTarget(null); }}>
+          <div className="modal-pop-in w-full max-w-[420px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#ffeceb] text-[#ef4444]"><Trash2 className="size-5" /></span>
+              <div className="min-w-0">
+                <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Delete Project</h2>
+                <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">Are you sure you want to delete <span className="text-[#1e3261]">{deleteTarget.projectName}</span>? This action cannot be undone and removes all related records.</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" disabled={deleting} onClick={() => setDeleteTarget(null)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff] disabled:opacity-60">Cancel</button>
+              <button type="button" disabled={deleting} onClick={handleConfirmDelete} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#ef4444] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#dc2f2f] disabled:opacity-60">
+                <Trash2 className="size-4" />
+                {deleting ? 'Deleting...' : 'Delete Project'}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );
@@ -24979,6 +25206,389 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
   );
 }
 
+// ── Per-project Report (Project List → 3-dot → Reports) ──────────────────────
+const REPORT_INR = (n) => `₹ ${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
+const reportAxisTick = (v) => {
+  const n = Number(v) || 0;
+  if (n >= 100000) return `${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `${Math.round(n / 1000)}k`;
+  return `${n}`;
+};
+
+function ReportInfoRow({ label, value }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-[#f0f4fa] py-2 last:border-b-0">
+      <span className="text-[12px] font-bold text-[#53647f]">{label}</span>
+      <span className="max-w-[58%] text-right text-[12px] font-extrabold text-[#1e3261]">{value === 0 || value ? value : '-'}</span>
+    </div>
+  );
+}
+
+function ReportSectionCard({ title, icon: Icon, children, className }) {
+  return (
+    <article className={cx(panelClass, 'p-4 sm:p-5', className)}>
+      <div className="mb-3 flex items-center gap-2">
+        {Icon ? <Icon className="size-4 text-[#0b65e5]" /> : null}
+        <h2 className="font-display text-[14px] font-extrabold uppercase tracking-[0.04em] text-[#0b65e5]">{title}</h2>
+      </div>
+      <div>{children}</div>
+    </article>
+  );
+}
+
+function ReportChartCard({ title, subtitle, hasData, children }) {
+  return (
+    <article className={cx(panelClass, 'p-4 sm:p-5')}>
+      <div className="mb-2">
+        <h2 className="font-display text-[15px] font-extrabold text-[#1e3261]">{title}</h2>
+        {subtitle ? <p className="mt-0.5 text-[12px] font-bold text-[#7386a3]">{subtitle}</p> : null}
+      </div>
+      {hasData ? (
+        <div className="h-[260px] w-full">{children}</div>
+      ) : (
+        <div className="flex h-[200px] items-center justify-center rounded-[12px] border border-dashed border-[#dbe5f2] text-[13px] font-bold text-[#8a98af]">No data available</div>
+      )}
+    </article>
+  );
+}
+
+function ReportMetric({ label, value, caption, icon: Icon, tone = 'blue' }) {
+  const tones = {
+    blue: 'bg-[#e8f1ff] text-[#0b65e5]', green: 'bg-[#e8f8eb] text-[#11a650]',
+    amber: 'bg-[#fff3df] text-[#d97706]', purple: 'bg-[#f1ebff] text-[#7c3aed]',
+  };
+  return (
+    <div className="flex items-center gap-3 rounded-[12px] border border-[#e7eef7] bg-white p-3">
+      <span className={cx('grid size-11 shrink-0 place-items-center rounded-[10px]', tones[tone])}>{Icon ? <Icon className="size-5" /> : null}</span>
+      <div className="min-w-0">
+        <p className="text-[12px] font-bold text-[#7386a3]">{label}</p>
+        <p className="truncate text-[16px] font-extrabold text-[#1e3261]">{value}</p>
+        {caption ? <p className="text-[11px] font-bold text-[#8a98af]">{caption}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function ProjectReportPage({ onOpenSection, project: projectProp, onNotify }) {
+  const [data, setData] = useState(null);
+  const [lead, setLead] = useState(null);
+  const [quotation, setQuotation] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!projectProp?.id) { setLoading(false); setData(null); return undefined; }
+    setLoading(true);
+    setLoadError('');
+    projectApi.get(projectProp.id)
+      .then(async (proj) => {
+        if (cancelled) return;
+        setData(proj);
+        if (proj?.lead) {
+          const [leadRes, quoteRes] = await Promise.all([
+            leadApi.get(proj.lead).catch(() => null),
+            quotationApi.list(proj.lead).catch(() => null),
+          ]);
+          if (cancelled) return;
+          setLead(leadRes);
+          const quotes = Array.isArray(quoteRes) ? quoteRes : quoteRes?.results ?? [];
+          setQuotation(quotes[0] || null);
+        }
+      })
+      .catch((err) => { if (!cancelled) setLoadError(err?.message || 'Unable to load project report.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectProp?.id]);
+
+  const num = (n) => Number(n) || 0;
+  const cfg = data?.system_config || {};
+
+  const totalValue = num(data?.total_value);
+  const totalPaid = num(data?.total_paid);
+  const totalExpense = num(data?.total_expense);
+  const balance = Math.max(0, totalValue - totalPaid);
+
+  const costPalette = ['#2f80ff', '#16a34a', '#f59e0b', '#8b5cf6', '#14b8a6', '#ef4444', '#64748b'];
+  const costParts = quotation ? [
+    { name: 'Material', value: num(quotation.material_cost) },
+    { name: 'Structure', value: num(quotation.structure_cost) },
+    { name: 'Installation', value: num(quotation.installation_cost) },
+    { name: 'Transportation', value: num(quotation.transportation_cost) },
+    { name: 'Liaisoning', value: num(quotation.liaisoning_charges) },
+    { name: 'Net Metering', value: num(quotation.net_metering_charges) },
+    { name: 'Other', value: num(quotation.other_charges) },
+  ].filter((p) => p.value > 0).map((p, i) => ({ ...p, color: costPalette[i % costPalette.length] })) : [];
+
+  const expenseByCat = {};
+  (data?.expenses || []).forEach((e) => { expenseByCat[e.category] = (expenseByCat[e.category] || 0) + num(e.amount); });
+  const expenseData = Object.entries(expenseByCat).map(([name, value]) => ({ name, value }));
+
+  const costPieData = costParts.length ? costParts : expenseData.map((e, i) => ({ ...e, color: costPalette[i % costPalette.length] }));
+
+  const financialData = [
+    { name: 'Value', amount: totalValue },
+    { name: 'Paid', amount: totalPaid },
+    { name: 'Balance', amount: balance },
+    { name: 'Expense', amount: totalExpense },
+  ];
+  const hasFinancial = totalValue + totalPaid + totalExpense > 0;
+
+  const woPalette = { Pending: '#f59e0b', 'In Progress': '#2f80ff', Completed: '#16a34a', Overdue: '#ef4444' };
+  const woByStatus = {};
+  (data?.work_orders || []).forEach((w) => { woByStatus[w.status] = (woByStatus[w.status] || 0) + 1; });
+  const woData = Object.entries(woByStatus).map(([name, value]) => ({ name, value, color: woPalette[name] || '#64748b' }));
+
+  const sortedPayments = [...(data?.payments || [])].sort((a, b) => new Date(a.payment_date) - new Date(b.payment_date));
+  let cumulative = 0;
+  const paymentTrend = sortedPayments.map((p) => { cumulative += num(p.amount); return { date: formatProjectDisplayDate(p.payment_date), amount: cumulative }; });
+
+  const materials = Array.isArray(data?.installation_materials) ? data.installation_materials : [];
+
+  const crumbs = [
+    { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+    { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+    { label: 'Project Report' },
+  ];
+
+  const handleDownloadPdf = () => {
+    if (!data) return;
+    const rowLike = {
+      id: data.id, projectId: data.project_id, projectName: data.project_name,
+      customer: data.customer_name, mobile: lead?.mobile_number || '', ivrs: lead?.ivrs_number || '',
+      site: data.site, type: data.project_type, capacity: data.capacity_kwp, status: data.status,
+      manager: { name: data.manager_detail?.name || 'Unassigned' },
+      startDate: data.start_date || '', targetDate: data.target_date || '', progress: data.progress_percent || 0,
+    };
+    const win = window.open('', '_blank');
+    if (!win) { onNotify('Allow pop-ups to download the PDF'); return; }
+    win.document.write(buildProjectDocumentHtml(rowLike, data));
+    win.document.close();
+    win.focus();
+    win.onload = () => { win.print(); };
+    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 600);
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Project Report" crumbs={crumbs} />
+        <div className="flex items-center justify-center gap-3 py-24 text-[14px] font-bold text-[#7386a3]">Loading project report...</div>
+      </div>
+    );
+  }
+
+  if (!data || loadError) {
+    return (
+      <div className="space-y-4">
+        <PageHeading title="Project Report" crumbs={crumbs} />
+        <div className={cx(panelClass, 'flex flex-col items-center gap-3 p-12 text-center')}>
+          <p className="text-[14px] font-bold text-[#53647f]">{loadError || 'Select a project from the list to view its report.'}</p>
+          <button type="button" onClick={() => onOpenSection('Project List')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white">Back to Projects</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Project Report"
+        crumbs={crumbs}
+        actions={(
+          <>
+            <button type="button" onClick={() => onOpenSection('Project List')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />Back to Projects</button>
+            <button type="button" onClick={handleDownloadPdf} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download PDF</button>
+            <button type="button" onClick={handleDownloadPdf} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:bg-[#0e9748]"><FileText className="size-4" />Print Report</button>
+          </>
+        )}
+      />
+
+      {/* Hero */}
+      <section className={cx(panelClass, 'overflow-hidden p-4 sm:p-5')}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+          <div className="h-[150px] w-full overflow-hidden rounded-[12px] bg-gradient-to-br from-[#dceeff] to-[#eaf6ee] lg:w-[230px]">
+            {data.project_image ? (
+              <img src={data.project_image} alt={data.project_name} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-[#9bb3d4]"><FolderKanban className="size-12" /></div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="font-display text-[22px] font-extrabold text-[#11a650]">{data.project_name}</h1>
+              <ProjectPhaseBadge label={data.status} />
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <div><p className="text-[11px] font-bold uppercase tracking-wide text-[#8a98af]">Project ID</p><p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">{data.project_id || '-'}</p></div>
+              <div><p className="text-[11px] font-bold uppercase tracking-wide text-[#8a98af]">Lead / IVRS</p><p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">{lead?.ivrs_number || '-'}</p></div>
+              <div><p className="text-[11px] font-bold uppercase tracking-wide text-[#8a98af]">Capacity</p><p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">{num(data.capacity_kwp)} KWp</p></div>
+              <div><p className="text-[11px] font-bold uppercase tracking-wide text-[#8a98af]">Start Date</p><p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">{data.start_date ? formatProjectDisplayDate(data.start_date) : '-'}</p></div>
+              <div><p className="text-[11px] font-bold uppercase tracking-wide text-[#8a98af]">Target Date</p><p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">{data.target_date ? formatProjectDisplayDate(data.target_date) : '-'}</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Key metrics */}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <ReportMetric label="Total Project Value" value={REPORT_INR(totalValue)} caption={`${num(data.progress_percent)}% complete`} icon={IndianRupee} tone="green" />
+        <ReportMetric label="Amount Received" value={REPORT_INR(totalPaid)} caption={`Balance ${REPORT_INR(balance)}`} icon={Wallet} tone="blue" />
+        <ReportMetric label="Cost / Watt" value={quotation?.cost_per_watt ? `₹ ${quotation.cost_per_watt}` : '—'} caption="From quotation" icon={Zap} tone="amber" />
+        <ReportMetric label="Payback Period" value={quotation?.payback_period_years ? `${quotation.payback_period_years} yrs` : '—'} caption={quotation?.roi_percent ? `ROI ${quotation.roi_percent}%` : 'ROI —'} icon={TrendingUp} tone="purple" />
+      </section>
+
+      {/* Info cards */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <ReportSectionCard title="Customer Details" icon={UserRound}>
+          <ReportInfoRow label="Customer Name" value={data.customer_name} />
+          <ReportInfoRow label="Mobile Number" value={lead?.mobile_number} />
+          <ReportInfoRow label="Email" value={lead?.email} />
+          <ReportInfoRow label="Address" value={[data.site_address, data.city, data.state].filter(Boolean).join(', ')} />
+          <ReportInfoRow label="Source" value={lead?.source} />
+        </ReportSectionCard>
+        <ReportSectionCard title="Project Details" icon={FolderKanban}>
+          <ReportInfoRow label="Project Type" value={data.project_type} />
+          <ReportInfoRow label="Priority" value={data.priority} />
+          <ReportInfoRow label="Manager" value={data.manager_detail?.name} />
+          <ReportInfoRow label="Site Engineer" value={data.site_engineer_detail?.name} />
+          <ReportInfoRow label="PO Number" value={data.po_number} />
+        </ReportSectionCard>
+        <ReportSectionCard title="System Summary" icon={Zap}>
+          <ReportInfoRow label="Panel" value={[cfg.panel_brand, cfg.panel_model].filter(Boolean).join(' ')} />
+          <ReportInfoRow label="Panel Wattage" value={cfg.panel_wattage_w ? `${cfg.panel_wattage_w} W` : ''} />
+          <ReportInfoRow label="No. of Panels" value={cfg.panel_count} />
+          <ReportInfoRow label="Inverter" value={[cfg.inverter_brand, cfg.inverter_model].filter(Boolean).join(' ')} />
+          <ReportInfoRow label="Inverter Capacity" value={cfg.inverter_capacity_kw ? `${cfg.inverter_capacity_kw} kW` : ''} />
+        </ReportSectionCard>
+      </section>
+
+      {/* Charts */}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <ReportChartCard title="Costing Breakdown" subtitle={costParts.length ? 'From quotation' : 'From recorded expenses'} hasData={costPieData.length > 0}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={costPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={2}>
+                {costPieData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+              </Pie>
+              <Tooltip formatter={(value) => REPORT_INR(value)} />
+              <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </ReportChartCard>
+
+        <ReportChartCard title="Financial Overview" subtitle="Value, received, balance & expenses" hasData={hasFinancial}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={financialData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f8" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700, fill: '#53647f' }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={reportAxisTick} tick={{ fontSize: 11, fill: '#8a98af' }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(value) => REPORT_INR(value)} />
+              <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
+                {financialData.map((entry, i) => <Cell key={entry.name} fill={['#2f80ff', '#16a34a', '#f59e0b', '#ef4444'][i]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ReportChartCard>
+
+        <ReportChartCard title="Expenses by Category" subtitle="Distribution of recorded expenses" hasData={expenseData.length > 0}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={expenseData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f8" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700, fill: '#53647f' }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={reportAxisTick} tick={{ fontSize: 11, fill: '#8a98af' }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(value) => REPORT_INR(value)} />
+              <Bar dataKey="value" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ReportChartCard>
+
+        <ReportChartCard title="Work Order Status" subtitle="Task distribution by status" hasData={woData.length > 0}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={woData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={95} label>
+                {woData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+              </Pie>
+              <Tooltip />
+              <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </ReportChartCard>
+
+        {paymentTrend.length > 0 ? (
+          <ReportChartCard title="Payments Collected (Cumulative)" subtitle="Money received over time" hasData={paymentTrend.length > 0}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={paymentTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="payArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#11a650" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#11a650" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f8" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8a98af' }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={reportAxisTick} tick={{ fontSize: 11, fill: '#8a98af' }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(value) => REPORT_INR(value)} />
+                <Area type="monotone" dataKey="amount" stroke="#11a650" strokeWidth={2} fill="url(#payArea)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ReportChartCard>
+        ) : null}
+      </section>
+
+      {/* Material details */}
+      <ReportSectionCard title="Material Details" icon={Boxes}>
+        <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7]">
+          <table className="crm-table w-full min-w-[560px]">
+            <thead><tr>{['Item', 'Category', 'Required', 'Issued', 'Status'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+            <tbody>
+              {materials.length ? materials.map((m) => (
+                <tr key={m.id}>
+                  <td className="font-extrabold text-[#1e3261]">{m.item_name}</td>
+                  <td>{m.category || '-'}</td>
+                  <td>{num(m.required_qty)} {m.unit}</td>
+                  <td>{num(m.issued_qty)} {m.unit}</td>
+                  <td><ProjectPhaseBadge label={m.status} /></td>
+                </tr>
+              )) : <tr><td colSpan={5} className="py-6 text-center text-[13px] font-bold text-[#8a98af]">No materials recorded.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </ReportSectionCard>
+
+      {/* Quotation-driven sections */}
+      {quotation ? (
+        <section className="grid gap-4 lg:grid-cols-3">
+          <ReportSectionCard title="Costing Summary" icon={ReceiptText}>
+            <ReportInfoRow label="Material Cost" value={REPORT_INR(quotation.material_cost)} />
+            <ReportInfoRow label="Structure Cost" value={REPORT_INR(quotation.structure_cost)} />
+            <ReportInfoRow label="Installation Cost" value={REPORT_INR(quotation.installation_cost)} />
+            <ReportInfoRow label="Transportation" value={REPORT_INR(quotation.transportation_cost)} />
+            <ReportInfoRow label="Sub Total" value={REPORT_INR(quotation.subtotal)} />
+            <ReportInfoRow label="Grand Total" value={REPORT_INR(quotation.grand_total)} />
+          </ReportSectionCard>
+          <ReportSectionCard title="Subsidy & Tax" icon={IndianRupee}>
+            <ReportInfoRow label="Subsidy Applicable" value={quotation.subsidy_applicable ? 'Yes' : 'No'} />
+            <ReportInfoRow label="Subsidy Amount" value={REPORT_INR(quotation.subsidy_amount)} />
+            <ReportInfoRow label="Customer Contribution" value={REPORT_INR(quotation.customer_contribution)} />
+            <ReportInfoRow label="GST %" value={`${num(quotation.gst_percent)}%`} />
+            <ReportInfoRow label="GST Amount" value={REPORT_INR(quotation.gst_amount)} />
+          </ReportSectionCard>
+          <ReportSectionCard title="Warranty & Terms" icon={ShieldCheck}>
+            <ReportInfoRow label="Panel Warranty" value={quotation.panel_warranty} />
+            <ReportInfoRow label="Inverter Warranty" value={quotation.inverter_warranty} />
+            <ReportInfoRow label="Workmanship" value={quotation.workmanship_warranty} />
+            <ReportInfoRow label="Advance" value={quotation.advance_percent ? `${quotation.advance_percent}%` : ''} />
+            <ReportInfoRow label="On Commissioning" value={quotation.commissioning_percent ? `${quotation.commissioning_percent}%` : ''} />
+          </ReportSectionCard>
+        </section>
+      ) : null}
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
 function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
   const [activeReportTab, setActiveReportTab] = useState('All Reports');
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
@@ -28922,7 +29532,7 @@ function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel
   );
 }
 
-function LeadFormModal({ mode = 'create', lead, projectContext = null, onClose, onSaved, onRequestApproval, onNotify }) {
+function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCreate = false, onClose, onSaved, onRequestApproval, onNotify }) {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateIvrs, setDuplicateIvrs] = useState('');
   const [duplicateLeadMatches, setDuplicateLeadMatches] = useState([]);
@@ -28938,6 +29548,9 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, onClose, 
   const [showQuotationDetailModal, setShowQuotationDetailModal] = useState(false);
   const [viewDuplicateLeadId, setViewDuplicateLeadId] = useState(null);
   const ivrsCheck = useIvrsCheck(lead?.id);
+  // "Project Details Update" (edit) aur "New Project" (create) dono project popups —
+  // in dono me lead status fixed 'Won' rehta hai aur follow-up date optional hai.
+  const projectMode = Boolean(projectContext) || projectCreate;
 
   useEffect(() => {
     getEmployeeOptions().then(setEmployeeOptions);
@@ -28970,7 +29583,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, onClose, 
       estimated_capacity: fd.get('estimated_capacity') || undefined,
       next_follow_up: fd.get('next_follow_up') || undefined,
       assigned_to: fd.get('assigned_to') || undefined,
-      status: fd.get('status') || 'New',
+      status: projectMode ? 'Won' : (fd.get('status') || 'New'),
       remarks: fd.get('remarks') || undefined,
       address: fd.get('address') || undefined,
       city: fd.get('city') || undefined,
@@ -28993,7 +29606,19 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, onClose, 
         onNotify?.('Lead updated successfully!');
       } else {
         savedLead = await leadApi.create(payload);
-        onNotify?.('Lead created successfully!');
+        // New Project: 'Won' lead create karte hi backend signal apne aap Project bana deta hai
+        // (status 'Planning'). Agar user ne dusra status chuna hai to wo project pe apply kar do.
+        if (projectCreate) {
+          const chosenStatus = fd.get('project_status') || 'Planning';
+          if (chosenStatus && chosenStatus !== 'Planning') {
+            try {
+              const projs = await projectApi.list({ lead: savedLead.id });
+              const list = Array.isArray(projs) ? projs : projs?.results ?? [];
+              if (list[0]?.id) await projectApi.update(list[0].id, { status: chosenStatus });
+            } catch { /* status update non-fatal */ }
+          }
+        }
+        onNotify?.(projectCreate ? 'Project created successfully!' : 'Lead created successfully!');
       }
 
       if (quotationDetail) {
@@ -29028,7 +29653,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, onClose, 
       <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
           <h2 className="font-display text-[18px] font-extrabold text-[#111827]">
-            {projectContext ? 'Project Details Update' : mode === 'edit' ? 'Edit Lead' : 'Create Lead'}
+            {projectContext ? 'Project Details Update' : projectCreate ? 'New Project' : mode === 'edit' ? 'Edit Lead' : 'Create Lead'}
           </h2>
           <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
         </div>
@@ -29044,10 +29669,10 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, onClose, 
             <div className="flex items-center justify-center gap-3 py-16 text-[14px] font-bold text-[#7386a3]">Loading lead...</div>
           ) : (
           <form id="lead-form-modal" ref={formRef} className="space-y-4" onSubmit={handleSubmit}>
-            {projectContext ? (
+            {projectMode ? (
               <LeadFormSection title="Project Status" icon={FolderKanban} tone="primary">
                 <div className="grid gap-4 lg:grid-cols-3">
-                  <LeadSelect label="Status" placeholder="Select status" options={['Planning', 'Active', 'On Hold', 'Completed', 'Cancelled']} name="project_status" defaultValue={projectContext.status} />
+                  <LeadSelect label="Status" placeholder="Select status" options={['Planning', 'Active', 'On Hold', 'Completed', 'Cancelled']} name="project_status" defaultValue={projectContext ? projectContext.status : 'Planning'} />
                 </div>
               </LeadFormSection>
             ) : null}
@@ -29084,8 +29709,12 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, onClose, 
 
             <LeadFormSection title="3. Assignment & Follow-up" icon={UserRound} tone="purple">
               <div className="grid gap-4 lg:grid-cols-2">
-                <LeadDateInput label="Follow-up Date" required name="next_follow_up" defaultValue={followUpDateValue} />
-                <LeadSelect label="Lead Status" placeholder="New" options={['New', 'Follow-up', 'Quotation', 'Won', 'Lost']} badgeValue={mode === 'create' ? 'New' : undefined} name="status" defaultValue={d.status} />
+                <LeadDateInput label="Follow-up Date" required={!projectMode} name="next_follow_up" defaultValue={followUpDateValue} />
+                {projectMode ? (
+                  <LeadLockedField label="Lead Status" value="Won" />
+                ) : (
+                  <LeadSelect label="Lead Status" placeholder="New" options={['New', 'Follow-up', 'Quotation', 'Won', 'Lost']} badgeValue={mode === 'create' ? 'New' : undefined} name="status" defaultValue={d.status} />
+                )}
               </div>
               <LeadTextarea label="Remarks" icon={MapPin} placeholder="Enter remarks (optional)" compact name="remarks" defaultValue={d.remarks} />
             </LeadFormSection>
@@ -29152,7 +29781,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, onClose, 
             className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60"
           >
             <Save className="size-4" />
-            {submitting ? 'Saving...' : projectContext ? 'Update Project' : mode === 'edit' ? 'Update Lead' : 'Save Lead'}
+            {submitting ? 'Saving...' : projectContext ? 'Update Project' : projectCreate ? 'Create Project' : mode === 'edit' ? 'Update Lead' : 'Save Lead'}
           </button>
         </div>
       </div>
@@ -31612,6 +32241,20 @@ function LeadTextarea({ label, placeholder, icon: Icon, compact = false, optiona
           defaultValue={defaultValue ?? ''}
           className="min-h-full min-w-0 flex-1 resize-y bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
         />
+      </span>
+    </label>
+  );
+}
+
+// Project popups me Lead Status fixed 'Won' rehta hai — yahan se change nahi ho sakta.
+function LeadLockedField({ label, value }) {
+  return (
+    <label className="block min-w-0">
+      <LeadLabel label={label} />
+      <span className="mt-2 flex h-11 items-center gap-3 rounded-[8px] border border-black/15 bg-[#f6f8fc] px-3">
+        <span className="rounded-[7px] bg-[#e8f8eb] px-3 py-1 text-[12px] font-extrabold text-[#18a34a]">{value}</span>
+        <span className="text-[11px] font-bold text-[#8a98af]">Auto-set for projects</span>
+        <input type="hidden" name="status" value={value} />
       </span>
     </label>
   );

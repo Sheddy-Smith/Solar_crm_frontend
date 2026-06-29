@@ -134,10 +134,13 @@ class InstallationMaterialSerializer(serializers.ModelSerializer):
 class ProjectListSerializer(serializers.ModelSerializer):
     manager_name = serializers.CharField(source='manager.name', read_only=True)
     manager_initials = serializers.CharField(source='manager.initials', read_only=True)
+    lead_ivrs_number = serializers.CharField(source='lead.ivrs_number', read_only=True)
+    lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
+    lead_status = serializers.CharField(source='lead.status', read_only=True)
 
     class Meta:
         model = Project
-        fields = ['id', 'lead', 'project_id', 'project_name', 'customer_name', 'site', 'project_type', 'capacity_kwp', 'project_image', 'status', 'priority', 'progress_percent', 'manager', 'manager_name', 'manager_initials', 'start_date', 'target_date', 'total_value', 'created_at']
+        fields = ['id', 'lead', 'lead_ivrs_number', 'lead_mobile_number', 'lead_status', 'project_id', 'project_name', 'customer_name', 'site', 'project_type', 'capacity_kwp', 'project_image', 'status', 'priority', 'progress_percent', 'manager', 'manager_name', 'manager_initials', 'start_date', 'target_date', 'total_value', 'created_at']
 
 
 class ProjectDetailSerializer(serializers.ModelSerializer):

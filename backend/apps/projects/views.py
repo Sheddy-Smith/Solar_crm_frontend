@@ -22,8 +22,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'project_type', 'manager', 'priority']
-    search_fields = ['project_name', 'customer_name', 'site', 'project_id']
+    filterset_fields = ['status', 'project_type', 'manager', 'priority', 'lead']
+    search_fields = ['project_name', 'customer_name', 'site', 'project_id', 'lead__ivrs_number', 'lead__mobile_number']
     ordering_fields = ['created_at', 'start_date', 'target_date', 'progress_percent']
     ordering = ['-created_at']
 
