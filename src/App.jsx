@@ -108,6 +108,8 @@ const summarySubItems = ['Project Overview', 'Project KPI Analytics', 'Project R
 const summaryRelatedPages = [...summarySubItems];
 // Pages jinhe ek selected project chahiye — refresh/restore pe selectedProject null hota hai, isliye inhe Project List se replace karo
 const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation', 'Project Report View'];
+// Sidebar/subnav se in sections par jane par selectedProject clear karo (project action menu / preserveProject ke alawa)
+const projectSubnavSectionsThatClearProject = new Set([...projectSubItems, 'Project List']);
 const accountsSubItems = ['Accounts List', 'Transactions List', 'Chart of Accounts', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List'];
 const accountsRelatedPages = ['Accounts Overview', ...accountsSubItems];
 const inventorySubItems = ['Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
@@ -2429,6 +2431,7 @@ function App() {
                                   type="button"
                                   data-route={projectSubRoutes[subItem]}
                                   onClick={() => {
+                                    setSelectedProject(null);
                                     setActiveSidebarItem(subItem);
                                     setMobileSidebarOpen(false);
                                     notify(`${subItem} opened`);
@@ -2946,7 +2949,10 @@ function App() {
             ) : projectRelatedPages.includes(activeSidebarItem) || summaryRelatedPages.includes(activeSidebarItem) ? (
               <ProjectManagementPage
                 activeSection={activeSidebarItem}
-                onOpenSection={(section) => {
+                onOpenSection={(section, options) => {
+                  if (!options?.preserveProject && projectSubnavSectionsThatClearProject.has(section)) {
+                    setSelectedProject(null);
+                  }
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
                 }}
@@ -17278,15 +17284,25 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     onNotify(`${filteredRows.length} projects exported`);
   };
 
+  const isSiteSurveyPicker = activeSection === 'Project Site Survey';
+  const pageTitle = isSiteSurveyPicker ? 'Site Survey' : 'Project Management';
+  const pageCrumbs = isSiteSurveyPicker
+    ? [
+        { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+        { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+        { label: 'Site Survey' },
+      ]
+    : [
+        { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+        { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+        { label: 'Project List' },
+      ];
+
   return (
     <div className="space-y-4">
       <PageHeading
-        title="Project Management"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Project List' },
-        ]}
+        title={pageTitle}
+        crumbs={pageCrumbs}
         actions={(
           <>
             <div className="w-full sm:w-[280px]">
@@ -17924,6 +17940,7 @@ function milestoneStatusColor(status) {
 }
 
 function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
+  const openProjectSection = (section) => onOpenSection(section, { preserveProject: true });
   const [activeDetailTab, setActiveDetailTab] = useState('Overview');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18388,7 +18405,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   if (!projectProp?.id) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
+        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project List', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
           <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
@@ -18402,7 +18419,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   if (loading) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
+        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project List', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
         <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
           <PageLoadingState message="Loading project..." />
         </article>
@@ -18413,7 +18430,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   if (!data) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
+        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project List', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
         <article className={`${panelClass} p-8 text-center`}>
           <p className="text-[13px] font-bold text-[#53647f]">{loadError || 'Project not found.'}</p>
           <button type="button" onClick={() => fetchProjectDetails()} className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
@@ -18879,7 +18896,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       Activities: 'Project Activity Create',
       Notes: 'Project Note Create',
     };
-    onOpenSection(targets[activeDetailTab] ?? 'Project Details');
+    onOpenSection(targets[activeDetailTab] ?? 'Project Details', { preserveProject: true });
   };
 
   return (
@@ -18889,6 +18906,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+          { label: 'Project List', onClick: () => onOpenSection('Project List') },
           { label: 'Project Details' },
           { label: activeDetailTab },
         ]}
@@ -18900,7 +18918,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
         {activeDetailDescription}
       </p>
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={openProjectSection} />
 
       <section className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,1.65fr)] 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,2fr)] 2xl:items-center">
@@ -18909,7 +18927,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             <div className="min-w-0">
               <h2 className="font-display text-[22px] font-extrabold leading-tight text-[#06135a] sm:text-[26px]">{project.name}</h2>
               <p className="mt-2 text-[13px] font-bold leading-6 text-[#1f3360]">{project.address}<br />{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Site Survey')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View on Map</button>
+              <button type="button" onClick={() => openProjectSection('Project Site Survey')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View on Map</button>
               <label className="mt-3 inline-flex h-9 cursor-pointer items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
                 <Upload className="size-3.5 text-[#0b65e5]" />
                 {uploadingProjectImage ? 'Uploading image…' : 'Upload Project Image'}
@@ -20703,6 +20721,7 @@ function ProjectProgressLegend({ color, label }) {
 }
 
 function ProjectTimelinePage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
+  const openProjectSection = (section) => onOpenSection(section, { preserveProject: true });
   const [viewMode, setViewMode] = useState('List View');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20940,7 +20959,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Project Details', onClick: () => openProjectSection('Project Details') },
           { label: 'Timeline' },
         ]}
         actions={(
@@ -20948,7 +20967,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
         )}
       />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={openProjectSection} />
 
       <section className={`${panelClass} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
         <div className="flex items-start gap-3">
@@ -20974,7 +20993,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -21577,7 +21596,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details', { preserveProject: true }) },
           { label: 'Site Survey' },
         ]}
         actions={(
@@ -21601,7 +21620,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -22381,7 +22400,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
+          { label: 'Project Details', onClick: () => onOpenSection('Project Details', { preserveProject: true }) },
           { label: 'Installation' },
         ]}
         actions={(
@@ -22405,7 +22424,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -23009,8 +23028,6 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Team Assignment' },
         ]}
         actions={(
@@ -23035,7 +23052,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -23559,8 +23576,6 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Material Planning' },
         ]}
         actions={(
@@ -23585,7 +23600,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -24109,7 +24124,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -24395,8 +24410,6 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Expenses' },
         ]}
         actions={(
@@ -24421,7 +24434,7 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -24788,8 +24801,6 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Documents' },
         ]}
         actions={(
@@ -24814,7 +24825,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -25090,8 +25101,6 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Approvals' },
         ]}
         actions={(
@@ -25116,7 +25125,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
