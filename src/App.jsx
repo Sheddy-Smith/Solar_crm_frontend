@@ -7119,6 +7119,24 @@ function SystemSettingsExtraTab({ activeTab, onNotify }) {
   );
 }
 
+function EditModeToggle({ enabled, onToggle }) {
+  return (
+    <label className="inline-flex h-11 cursor-pointer items-center gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+      <span>Edit Mode</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        aria-label="Toggle edit mode"
+        onClick={() => onToggle(!enabled)}
+        className={cx('inline-flex h-6 w-11 items-center rounded-full p-1 transition', enabled ? 'bg-[#0d9f4a]' : 'bg-[#dbe4f1]')}
+      >
+        <span className={cx('size-4 rounded-full bg-white shadow-sm transition', enabled ? 'translate-x-5' : 'translate-x-0')} />
+      </button>
+    </label>
+  );
+}
+
 function SettingsToggleRow({ label, note, enabled, onToggle }) {
   return (
     <button type="button" onClick={onToggle} className="rounded-[12px] border border-[#e7eef7] bg-white p-4 text-left transition hover:bg-[#f8fbff]">
@@ -16548,8 +16566,31 @@ function buildProjectPolyline(values, width = 620, height = 220, paddingX = 26, 
 }
 
 function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSection, selectedProject, onSelectProject, onNotify }) {
+  if (activeSection === 'Project Document Upload') {
+    if (selectedProject?.id) {
+      return (
+        <ProjectSiteSurveyPage
+          activeSection="Project Site Survey"
+          onOpenSection={onOpenSection}
+          project={selectedProject}
+          onSelectProject={onSelectProject}
+          onNotify={onNotify}
+          initialSurveyTab="Documents"
+        />
+      );
+    }
+    return (
+      <ProjectListPage
+        activeSection="Project List"
+        onOpenSection={onOpenSection}
+        onSelectProject={(project, target = 'Project Site Survey') => onSelectProject?.(project, target)}
+        onNotify={onNotify}
+      />
+    );
+  }
+
   const actionType = projectActionPageTypes[activeSection];
-  if (actionType) {
+  if (actionType && actionType !== 'document-upload') {
     return <ProjectActionPage type={actionType} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
@@ -17071,6 +17112,170 @@ function buildProjectDocumentHtml(row, detail) {
   </body></html>`;
 }
 
+// Site Survey "View" popup ke Print button se poora survey — overview, roof/electrical,
+// system, financials, progress, team, documents, checklist, activities, notes — print karta hai.
+function buildSiteSurveyViewHtml(row, detail) {
+  const esc = (value) => String(value ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const d = detail || {};
+  const inr = (n) => `₹ ${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
+  const fmtDate = (v) => (v ? formatProjectDisplayDate(v) : '-');
+  const survey = d.site_survey || {};
+  const cfg = d.system_config || {};
+  const payments = Array.isArray(d.payments) ? d.payments : [];
+  const expenses = Array.isArray(d.expenses) ? d.expenses : [];
+  const team = Array.isArray(d.team_members) ? d.team_members : [];
+  const documents = Array.isArray(d.documents) ? d.documents : [];
+  const checklist = (Array.isArray(d.checklist_items) ? d.checklist_items : []).filter((c) => c.phase === 'Site Survey');
+  const activities = Array.isArray(d.activities) ? d.activities : [];
+  const notes = Array.isArray(d.notes) ? d.notes : [];
+  const milestones = (d.milestones || []).flatMap((m) => [m, ...(m.children || [])]);
+  const totalValue = Number(d.total_value || 0);
+  const totalPaid = Number(d.total_paid || 0);
+  const totalExpense = Number(d.total_expense || 0);
+
+  const infoRow = (label, value) => `<tr><td class="k">${esc(label)}</td><td class="v">${esc(value || '-')}</td></tr>`;
+  const kvPairs = (rows) => (Array.isArray(rows) && rows.length
+    ? rows.map(([label, value]) => infoRow(label, value)).join('')
+    : '<tr><td colspan="2" class="empty">No data recorded</td></tr>');
+  const listTable = (headers, rows) => `<table class="list"><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${
+    rows.length ? rows.join('') : `<tr><td colspan="${headers.length}" class="empty">No records</td></tr>`
+  }</tbody></table>`;
+
+  const paymentsRows = payments.map((p) => `<tr><td>${esc(fmtDate(p.payment_date))}</td><td>${esc(inr(p.amount))}</td><td>${esc(p.payment_mode)}</td><td>${esc(p.reference || '-')}</td><td>${esc(p.created_by_name || '-')}</td></tr>`);
+  const expensesRows = expenses.map((e) => `<tr><td>${esc(e.category)}</td><td>${esc(e.description)}</td><td>${esc(fmtDate(e.date))}</td><td>${esc(inr(e.amount))}</td><td>${esc(e.created_by_name || '-')}</td></tr>`);
+  const teamRows = team.map((m) => `<tr><td>${esc(m.user_name)}</td><td>${esc(m.role_title || 'Member')}</td><td>${esc(m.access_level_display || '-')}</td><td>${esc(m.user_email || '-')}</td><td>${esc(m.user_mobile || '-')}</td></tr>`);
+  const documentsRows = documents.map((doc) => `<tr><td>${esc(doc.name)}</td><td>${esc(doc.category || '-')}</td><td>${esc(doc.uploaded_by_name || '-')}</td><td>${esc(fmtDate(doc.uploaded_at?.slice(0, 10)))}</td></tr>`);
+  const checklistRows = checklist.map((c) => `<tr><td>${esc(c.category || 'General')}</td><td>${esc(c.label)}</td><td>${c.is_checked ? 'Done' : 'Pending'}</td><td>${esc(c.notes || '-')}</td></tr>`);
+  const activitiesRows = activities.map((a) => `<tr><td>${esc(a.title)}</td><td>${esc(a.activity_type)}</td><td>${esc(a.assigned_to_name || 'Unassigned')}</td><td>${esc(fmtDate(a.due_date))}</td><td>${esc(a.status)}</td></tr>`);
+  const milestonesRows = milestones.map((m) => `<tr><td>${esc(m.title)}</td><td>${esc(m.category || '-')}</td><td>${esc(fmtDate(m.start_date))}</td><td>${esc(fmtDate(m.end_date))}</td><td>${esc(m.status)}</td><td>${esc(m.progress_percent)}%</td><td>${esc(m.owner_name || 'Unassigned')}</td></tr>`);
+  const notesRows = notes.map((n) => `<tr><td>${esc(n.title || 'Untitled')}</td><td>${esc(n.content)}</td><td>${esc(n.created_by_name || '-')}</td><td>${esc(fmtDate(n.created_at?.slice(0, 10)))}</td><td>${n.is_pinned ? 'Yes' : 'No'}</td></tr>`);
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(row.projectName)} — Site Survey</title>
+  <style>
+    *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;}
+    body{margin:0;padding:28px;color:#1e3261;}
+    .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #11a650;padding-bottom:14px;margin-bottom:18px;}
+    .brand{font-size:22px;font-weight:800;color:#11a650;}
+    .brand small{display:block;font-size:11px;color:#53647f;font-weight:700;letter-spacing:.08em;}
+    h1{font-size:18px;margin:0 0 2px;}
+    .muted{color:#53647f;font-size:12px;}
+    h2.section-title{font-size:14px;margin:26px 0 10px;color:#0b65e5;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e7eef7;padding-bottom:6px;}
+    h2.section-title:first-of-type{margin-top:0;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+    section{border:1px solid #e7eef7;border-radius:10px;padding:14px 16px;}
+    table{width:100%;border-collapse:collapse;font-size:12px;}
+    td.k{color:#53647f;font-weight:700;padding:4px 8px 4px 0;width:46%;}
+    td.v{font-weight:800;padding:4px 0;}
+    table.list td,table.list th{border-bottom:1px solid #eef2f8;padding:6px 8px;text-align:left;font-size:11.5px;}
+    table.list th{color:#53647f;font-weight:800;background:#f7faff;}
+    .empty{color:#8a98af;text-align:center;}
+    .full{grid-column:1 / -1;}
+    .sub{font-size:12px;margin:0 0 8px;color:#53647f;font-weight:800;}
+    .foot{margin-top:26px;font-size:11px;color:#8a98af;text-align:center;border-top:1px solid #e7eef7;padding-top:12px;}
+    @media print{body{padding:14px;} section{break-inside:avoid;}}
+  </style></head><body>
+  <div class="head">
+    <div><div class="brand">Malwa Solar Energy<small>CRM SYSTEM — SITE SURVEY REPORT</small></div></div>
+    <div style="text-align:right"><h1>${esc(row.projectName)}</h1><div class="muted">${esc(row.projectId || d.project_id || '')} • Survey ${esc(survey.survey_id || '-')}</div><div class="muted">Generated: ${esc(new Date().toLocaleString('en-IN'))}</div></div>
+  </div>
+
+  <h2 class="section-title">Overview</h2>
+  <div class="grid">
+    <section><table>
+      ${infoRow('Customer', row.customer || d.customer_name)}
+      ${infoRow('Site', row.site || d.site)}
+      ${infoRow('Status', d.status)}
+      ${infoRow('Project Type', d.project_type)}
+      ${infoRow('Capacity (kWp)', d.capacity_kwp)}
+      ${infoRow('Progress', `${d.progress_percent || 0}%`)}
+    </table></section>
+    <section><table>
+      ${infoRow('Survey Status', survey.status)}
+      ${infoRow('Survey Date', fmtDate(survey.survey_date))}
+      ${infoRow('Surveyed By', survey.surveyed_by_name)}
+      ${infoRow('Feasibility', survey.feasibility)}
+      ${infoRow('Meter No.', d.meter_number)}
+      ${infoRow('Size', d.site_size)}
+    </table></section>
+  </div>
+
+  <h2 class="section-title">Customer &amp; Site</h2>
+  <div class="grid">
+    <section><table>
+      ${infoRow('Customer Name', d.customer_name)}
+      ${infoRow('Site', d.site)}
+      ${infoRow('Site Address', d.site_address)}
+      ${infoRow('City / State', [d.city, d.state].filter(Boolean).join(', '))}
+      ${infoRow('Meter No.', d.meter_number)}
+      ${infoRow('Size', d.site_size)}
+    </table></section>
+    <section><table>${kvPairs(survey.site_details)}</table></section>
+  </div>
+
+  <h2 class="section-title">Roof &amp; Electrical</h2>
+  <div class="grid">
+    <section><table>
+      ${infoRow('Building Type', survey.building_type)}
+      ${infoRow('Floor Count', survey.floor_count)}
+      ${infoRow('Roof Type', survey.roof_type)}
+      ${(survey.roof_stats || []).map((s) => infoRow(s.label, s.value)).join('')}
+    </table></section>
+    <section><table>${kvPairs(survey.roof_details)}</table></section>
+  </div>
+  <section class="full"><p class="sub">Electrical Details</p><table>${kvPairs(survey.electrical_details)}</table></section>
+
+  <h2 class="section-title">System Details</h2>
+  <div class="grid">
+    <section><table>
+      ${infoRow('System Type', d.system_type)}
+      ${infoRow('Inverter', [cfg.inverter_brand, cfg.inverter_model].filter(Boolean).join(' '))}
+      ${infoRow('Inverter Capacity', cfg.inverter_capacity_kw ? `${cfg.inverter_capacity_kw} kW` : '')}
+      ${infoRow('String Count', cfg.string_count)}
+    </table></section>
+    <section><table>
+      ${infoRow('Panel', [cfg.panel_brand, cfg.panel_model].filter(Boolean).join(' '))}
+      ${infoRow('Panel Wattage', cfg.panel_wattage_w ? `${cfg.panel_wattage_w} W` : '')}
+      ${infoRow('Panel Count', cfg.panel_count)}
+      ${infoRow('Total DC Capacity', cfg.panel_wattage_w && cfg.panel_count ? `${((cfg.panel_wattage_w * cfg.panel_count) / 1000).toFixed(2)} kWp` : '')}
+    </table></section>
+  </div>
+  <section class="full"><table>${infoRow('Protection Devices', cfg.protection_devices)}${infoRow('Notes', cfg.notes)}</table></section>
+
+  <h2 class="section-title">Financials</h2>
+  <div class="grid">
+    <section><table>
+      ${infoRow('Total Value', inr(totalValue))}
+      ${infoRow('Amount Received', inr(totalPaid))}
+      ${infoRow('Total Expenses', inr(totalExpense))}
+      ${infoRow('Net Balance', inr(totalValue - totalPaid))}
+    </table></section>
+    <section><table>${infoRow('Payments Recorded', payments.length)}${infoRow('Expense Entries', expenses.length)}</table></section>
+  </div>
+  <section class="full"><p class="sub">Payments</p>${listTable(['Date', 'Amount', 'Mode', 'Reference', 'By'], paymentsRows)}</section>
+  <section class="full" style="margin-top:10px;"><p class="sub">Expenses</p>${listTable(['Category', 'Description', 'Date', 'Amount', 'By'], expensesRows)}</section>
+
+  <h2 class="section-title">Progress</h2>
+  <section class="full">${listTable(['Task / Milestone', 'Category', 'Start', 'End', 'Status', 'Progress', 'Owner'], milestonesRows)}</section>
+
+  <h2 class="section-title">Team</h2>
+  <section class="full">${listTable(['Name', 'Role', 'Access Level', 'Email', 'Phone'], teamRows)}</section>
+
+  <h2 class="section-title">Documents</h2>
+  <section class="full">${listTable(['Name', 'Category', 'Uploaded By', 'Uploaded On'], documentsRows)}</section>
+
+  <h2 class="section-title">Checklist</h2>
+  <section class="full">${listTable(['Category', 'Item', 'Status', 'Notes'], checklistRows)}</section>
+
+  <h2 class="section-title">Activities</h2>
+  <section class="full">${listTable(['Title', 'Type', 'Assigned To', 'Due Date', 'Status'], activitiesRows)}</section>
+
+  <h2 class="section-title">Notes</h2>
+  <section class="full">${listTable(['Title', 'Content', 'By', 'Date', 'Pinned'], notesRows)}</section>
+
+  <div class="foot">This document is system-generated by Malwa Solar Energy CRM.</div>
+  </body></html>`;
+}
+
 // Project List ke "Export" se ek properly-formatted Excel sheet (.xls) banata hai —
 // styled header, sahi PRJ IDs, readable dates, IVRS/mobile, text-format taaki numbers na bigde.
 function buildProjectListSheetHtml(rows) {
@@ -17161,6 +17366,21 @@ function projectRowFromApi(p) {
   };
 }
 
+function buildProjectMapSearchQuery({ site_address, address, city, state } = {}) {
+  const line = (site_address || address || '').trim();
+  const locality = [city, state].filter((part) => part && part.trim() && part.trim() !== '—').join(', ');
+  return [line, locality].filter(Boolean).join(', ');
+}
+
+function openProjectAddressInMaps(parts, onNotify) {
+  const query = buildProjectMapSearchQuery(parts);
+  if (!query) {
+    onNotify?.('No site address available for map search');
+    return;
+  }
+  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
+}
+
 function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNotify }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
@@ -17172,6 +17392,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editProject, setEditProject] = useState(null);
+  const [viewSurveyRow, setViewSurveyRow] = useState(null);
+  const [editSurveyRow, setEditSurveyRow] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [actionMenu, setActionMenu] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -17195,12 +17417,31 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     return () => { cancelled = true; };
   }, [refreshKey]);
 
+  const isSiteSurveyPicker = activeSection === 'Project Site Survey';
+
   const handleOpenProject = (row) => {
     onSelectProject?.({ id: row.id });
   };
 
   const handleEditProject = (row) => {
     setEditProject({ projectId: row.id, leadId: row.lead, status: row.status });
+  };
+
+  // Site Survey list: View opens a read-only popup; Edit opens the full survey hub in a popup too.
+  const handleViewRow = (row) => {
+    if (isSiteSurveyPicker) {
+      setViewSurveyRow(row);
+      return;
+    }
+    handleOpenProject(row);
+  };
+
+  const handleEditRow = (row) => {
+    if (isSiteSurveyPicker) {
+      setEditSurveyRow(row);
+      return;
+    }
+    handleEditProject(row);
   };
 
   const openActionMenu = (event, row) => {
@@ -17284,7 +17525,6 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     onNotify(`${filteredRows.length} projects exported`);
   };
 
-  const isSiteSurveyPicker = activeSection === 'Project Site Survey';
   const pageTitle = isSiteSurveyPicker ? 'Site Survey' : 'Project Management';
   const pageCrumbs = isSiteSurveyPicker
     ? [
@@ -17368,8 +17608,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                   <td><ProjectProgressBar value={row.progress} /></td>
                   <td>
                     <div className="flex items-center gap-2">
-                      <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => handleOpenProject(row)} />
-                      <UserActionButton label={`Edit ${row.projectName}`} icon={Pencil} tone="green" onClick={() => handleEditProject(row)} />
+                      <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => handleViewRow(row)} />
+                      <UserActionButton label={`Edit ${row.projectName}`} icon={Pencil} tone="green" onClick={() => handleEditRow(row)} />
                       <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={(event) => openActionMenu(event, row)} />
                     </div>
                   </td>
@@ -17405,8 +17645,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
               </div>
 
               <div className="mt-3 flex gap-2">
-                <button type="button" onClick={() => handleOpenProject(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
-                <button type="button" onClick={() => handleEditProject(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0d9f4a]"><Pencil className="size-4" />Edit</button>
+                <button type="button" onClick={() => handleViewRow(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
+                <button type="button" onClick={() => handleEditRow(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0d9f4a]"><Pencil className="size-4" />Edit</button>
                 <button type="button" onClick={(event) => openActionMenu(event, row)} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
               </div>
             </article>
@@ -17441,6 +17681,14 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           onSaved={() => { setEditProject(null); setRefreshKey((key) => key + 1); }}
           onNotify={onNotify}
         />
+      ) : null}
+
+      {viewSurveyRow ? (
+        <SiteSurveyViewModal row={viewSurveyRow} onClose={() => setViewSurveyRow(null)} onNotify={onNotify} />
+      ) : null}
+
+      {editSurveyRow ? (
+        <SiteSurveyEditModal row={editSurveyRow} onClose={() => setEditSurveyRow(null)} onOpenSection={onOpenSection} onNotify={onNotify} />
       ) : null}
 
       {createOpen ? (
@@ -17531,6 +17779,397 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// Site Survey list ke "View" action ka read-only popup — Overview + project ki har detail
+// (Customer & Site, Roof & Electrical, System, Financials, Progress, Team, Documents, Checklist,
+// Activities, Notes) ek hi scrollable page me, Print button aur close (X) ke saath.
+function SiteSurveyViewModal({ row, onClose, onNotify }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    projectApi.get(row.id)
+      .then((data) => { if (!cancelled) setDetail(data); })
+      .catch((err) => { if (!cancelled) onNotify(err?.message || 'Failed to load site survey details'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [row.id]);
+
+  const handlePrint = () => {
+    const win = window.open('', '_blank');
+    if (!win) { onNotify('Allow pop-ups to print this document'); return; }
+    win.document.write(buildSiteSurveyViewHtml(row, detail));
+    win.document.close();
+    win.focus();
+    win.onload = () => { win.print(); };
+    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 600);
+  };
+
+  const d = detail || {};
+  const survey = d.site_survey || {};
+  const cfg = d.system_config || {};
+  const payments = d.payments || [];
+  const expenses = d.expenses || [];
+  const teamList = d.team_members || [];
+  const documents = d.documents || [];
+  const checklist = (d.checklist_items || []).filter((c) => c.phase === 'Site Survey');
+  const checklistByCategory = {};
+  checklist.forEach((c) => {
+    const key = c.category || 'General';
+    (checklistByCategory[key] = checklistByCategory[key] || []).push(c);
+  });
+  const activitiesList = d.activities || [];
+  const notesList = d.notes || [];
+  const milestones = (d.milestones || []).flatMap((m) => [m, ...(m.children || [])]);
+  const totalValue = Number(d.total_value || 0);
+  const totalPaid = Number(d.total_paid || 0);
+  const totalExpense = Number(d.total_expense || 0);
+  const feasibilityTone = survey.feasibility === 'Feasible' ? 'green' : survey.feasibility === 'Not Feasible' ? 'red' : survey.feasibility ? 'amber' : 'slate';
+
+  return (
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-[#0b1226]/55 p-4 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="flex max-h-[92vh] w-full max-w-[1040px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_36px_80px_rgba(11,18,38,0.32)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e7eef7] px-5 py-4 sm:px-6">
+          <div className="flex items-start gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#dff7e8] text-[#0d9f4a]"><ClipboardPlus className="size-5" /></span>
+            <div className="min-w-0">
+              <h2 className="font-display text-[18px] font-extrabold leading-tight text-[#06135a] sm:text-[20px]">{row.projectName}</h2>
+              <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.projectId || d.project_id} • Survey {survey.survey_id || 'Not yet created'} • {row.customer}</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-[8px] text-[#7585a2] transition hover:bg-[#f1f5fa]" aria-label="Close site survey details">
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          {loading ? (
+            <PageLoadingState message="Loading site survey details..." />
+          ) : (
+            <div className="space-y-5">
+              <ProjectInfoCard title="Overview" icon={Home} tone="blue">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoCell label="Status" valueNode={<ProjectPhaseBadge label={d.status} />} />
+                  <InfoCell label="Project Type" valueNode={<ProjectTypeBadge type={d.project_type} />} />
+                  <InfoCell label="Capacity (kWp)" value={d.capacity_kwp ?? '—'} />
+                  <InfoCell label="Progress" value={`${d.progress_percent || 0}%`} />
+                  <InfoCell label="Manager" value={d.manager_detail?.name || 'Unassigned'} />
+                  <InfoCell label="Site Engineer" value={d.site_engineer_detail?.name || 'Unassigned'} />
+                  <InfoCell label="Start Date" value={d.start_date ? formatProjectDisplayDate(d.start_date) : '—'} />
+                  <InfoCell label="Target Date" value={d.target_date ? formatProjectDisplayDate(d.target_date) : '—'} />
+                  <InfoCell label="Survey ID" value={survey.survey_id || '—'} />
+                  <InfoCell label="Survey Date" value={survey.survey_date ? formatProjectDisplayDate(survey.survey_date) : '—'} />
+                  <InfoCell label="Surveyed By" value={survey.surveyed_by_name || 'Unassigned'} />
+                  <InfoCell label="Feasibility" valueNode={<ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>} />
+                  <InfoCell label="Survey Status" value={survey.status || 'Draft'} />
+                  <InfoCell label="Total Value" value={formatCurrencyPrecise(totalValue)} />
+                  <InfoCell label="Amount Received" value={formatCurrencyPrecise(totalPaid)} />
+                  <InfoCell label="Net Balance" value={formatCurrencyPrecise(totalValue - totalPaid)} />
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Customer & Site" icon={MapPin} tone="blue">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <InfoCell label="Customer Name" value={d.customer_name || '—'} />
+                  <InfoCell label="Site" value={d.site || '—'} />
+                  <InfoCell label="Meter No." value={d.meter_number || '—'} />
+                  <InfoCell label="Size" value={d.site_size || '—'} />
+                  <InfoCell label="City" value={d.city || '—'} />
+                  <InfoCell label="State" value={d.state || '—'} />
+                </div>
+                <div className="mt-4 border-t border-[#edf2f8] pt-4">
+                  <InfoCell label="Site Address" value={d.site_address || '—'} large />
+                </div>
+                {survey.site_details?.length ? (
+                  <div className="mt-4 border-t border-[#edf2f8] pt-4">
+                    <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Site Condition Details</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {survey.site_details.map(([label, value]) => (
+                        <div key={label} className="grid gap-1 text-[13px] sm:grid-cols-[160px_1fr]">
+                          <span className="font-bold text-[#53647f]">{label}</span>
+                          <span className="font-extrabold text-[#1e3261]">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {survey.summary_notes ? (
+                  <div className="mt-4 border-t border-[#edf2f8] pt-4">
+                    <p className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Survey Summary</p>
+                    <p className="text-[13px] font-bold leading-6 text-[#314a79]">{survey.summary_notes}</p>
+                  </div>
+                ) : null}
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Roof & Electrical" icon={Zap} tone="amber">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoCell label="Building Type" value={survey.building_type || '—'} />
+                  <InfoCell label="Floor Count" value={survey.floor_count || '—'} />
+                  <InfoCell label="Roof Type" value={survey.roof_type || '—'} />
+                  {(survey.roof_stats || []).map((stat) => (
+                    <InfoCell key={stat.label} label={stat.label} value={stat.value ?? '—'} />
+                  ))}
+                </div>
+                <div className="mt-5 grid gap-4 border-t border-[#edf2f8] pt-4 sm:grid-cols-2">
+                  <div>
+                    <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Roof Measurements</p>
+                    <div className="space-y-2">
+                      {(survey.roof_details || []).length ? survey.roof_details.map(([label, value]) => (
+                        <div key={label} className="grid gap-1 text-[13px] sm:grid-cols-[150px_1fr]">
+                          <span className="font-bold text-[#53647f]">{label}</span>
+                          <span className="font-extrabold text-[#1e3261]">{value}</span>
+                        </div>
+                      )) : <p className="text-[13px] font-bold text-[#8a98af]">No roof details recorded yet.</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Electrical Details</p>
+                    <div className="space-y-2">
+                      {(survey.electrical_details || []).length ? survey.electrical_details.map(([label, value]) => (
+                        <div key={label} className="grid gap-1 text-[13px] sm:grid-cols-[150px_1fr]">
+                          <span className="font-bold text-[#53647f]">{label}</span>
+                          <span className="font-extrabold text-[#1e3261]">{value}</span>
+                        </div>
+                      )) : <p className="text-[13px] font-bold text-[#8a98af]">No electrical details recorded yet.</p>}
+                    </div>
+                  </div>
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="System Details" icon={Settings} tone="blue">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoCell label="System Type" value={d.system_type || '—'} />
+                  <InfoCell label="Inverter" value={[cfg.inverter_brand, cfg.inverter_model].filter(Boolean).join(' ') || '—'} />
+                  <InfoCell label="Inverter Capacity" value={cfg.inverter_capacity_kw ? `${cfg.inverter_capacity_kw} kW` : '—'} />
+                  <InfoCell label="String Count" value={cfg.string_count ?? '—'} />
+                  <InfoCell label="Panel" value={[cfg.panel_brand, cfg.panel_model].filter(Boolean).join(' ') || '—'} />
+                  <InfoCell label="Panel Wattage" value={cfg.panel_wattage_w ? `${cfg.panel_wattage_w} Wp` : '—'} />
+                  <InfoCell label="No. of Panels" value={cfg.panel_count ?? '—'} />
+                  <InfoCell label="Total DC Capacity" value={cfg.panel_wattage_w && cfg.panel_count ? `${((cfg.panel_wattage_w * cfg.panel_count) / 1000).toFixed(2)} kWp` : '—'} />
+                </div>
+                <div className="mt-5 grid gap-4 border-t border-[#edf2f8] pt-4 sm:grid-cols-2">
+                  <InfoCell label="Protection Devices" value={cfg.protection_devices || 'Not specified yet.'} large />
+                  <InfoCell label="Additional Notes" value={cfg.notes || '—'} large />
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Financials" icon={IndianRupee} tone="green">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoCell label="Total Project Value" value={formatCurrencyPrecise(totalValue)} />
+                  <InfoCell label="Amount Received" value={formatCurrencyPrecise(totalPaid)} />
+                  <InfoCell label="Total Expenses" value={formatCurrencyPrecise(totalExpense)} />
+                  <InfoCell label="Net Balance" value={formatCurrencyPrecise(totalValue - totalPaid)} />
+                </div>
+                <div className="mt-5 overflow-x-auto border-t border-[#edf2f8] pt-4">
+                  <p className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Payments ({payments.length})</p>
+                  <table className="crm-table min-w-[560px] w-full">
+                    <thead><tr>{['Date', 'Amount', 'Mode', 'Reference', 'By'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {payments.map((p) => (
+                        <tr key={p.id}>
+                          <td>{formatProjectDisplayDate(p.payment_date)}</td>
+                          <td className="font-extrabold text-[#0d9f4a]">{formatCurrencyPrecise(Number(p.amount))}</td>
+                          <td>{p.payment_mode}</td>
+                          <td>{p.reference || '—'}</td>
+                          <td>{p.created_by_name || '—'}</td>
+                        </tr>
+                      ))}
+                      {!payments.length ? <tr><td colSpan={5} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No payments recorded yet.</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-5 overflow-x-auto border-t border-[#edf2f8] pt-4">
+                  <p className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Expenses ({expenses.length})</p>
+                  <table className="crm-table min-w-[560px] w-full">
+                    <thead><tr>{['Category', 'Description', 'Date', 'Amount', 'By'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {expenses.map((e) => (
+                        <tr key={e.id}>
+                          <td>{e.category}</td>
+                          <td>{e.description}</td>
+                          <td>{formatProjectDisplayDate(e.date)}</td>
+                          <td className="font-extrabold text-[#ef4444]">{formatCurrencyPrecise(Number(e.amount))}</td>
+                          <td>{e.created_by_name || '—'}</td>
+                        </tr>
+                      ))}
+                      {!expenses.length ? <tr><td colSpan={5} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No expenses recorded yet.</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Progress" icon={BarChart3} tone="blue">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoCell label="Overall Progress" value={`${d.progress_percent || 0}%`} />
+                  <InfoCell label="Total Tasks" value={String(milestones.length || activitiesList.length)} />
+                  <InfoCell label="Completed" value={String(milestones.filter((m) => m.status === 'Completed').length)} />
+                  <InfoCell label="In Progress" value={String(milestones.filter((m) => m.status === 'In Progress').length)} />
+                </div>
+                <div className="mt-5 overflow-x-auto border-t border-[#edf2f8] pt-4">
+                  <table className="crm-table min-w-[680px] w-full">
+                    <thead><tr>{['Task / Milestone', 'Category', 'Start', 'End', 'Status', 'Progress', 'Owner'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {milestones.map((m) => (
+                        <tr key={m.id}>
+                          <td className="font-extrabold text-[#1e3261]">{m.title}</td>
+                          <td>{m.category || '—'}</td>
+                          <td>{m.start_date ? formatProjectDisplayDate(m.start_date) : '—'}</td>
+                          <td>{m.end_date ? formatProjectDisplayDate(m.end_date) : '—'}</td>
+                          <td>{m.status}</td>
+                          <td>{m.progress_percent}%</td>
+                          <td>{m.owner_name || 'Unassigned'}</td>
+                        </tr>
+                      ))}
+                      {!milestones.length ? <tr><td colSpan={7} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No milestones recorded yet.</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Team" icon={UsersRound} tone="purple">
+                <div className="overflow-x-auto">
+                  <table className="crm-table min-w-[640px] w-full">
+                    <thead><tr>{['Name', 'Role', 'Access Level', 'Email', 'Phone'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {teamList.map((m) => (
+                        <tr key={m.id}>
+                          <td className="font-extrabold text-[#1e3261]">{m.user_name}</td>
+                          <td>{m.role_title || 'Member'}</td>
+                          <td>{m.access_level_display || '—'}</td>
+                          <td>{m.user_email || '—'}</td>
+                          <td>{m.user_mobile || '—'}</td>
+                        </tr>
+                      ))}
+                      {!teamList.length ? <tr><td colSpan={5} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No team members yet.</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Documents" icon={FileText} tone="red">
+                <div className="overflow-x-auto">
+                  <table className="crm-table min-w-[640px] w-full">
+                    <thead><tr>{['Name', 'Category', 'Uploaded By', 'Uploaded On', ''].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {documents.map((doc) => (
+                        <tr key={doc.id}>
+                          <td className="font-extrabold text-[#1e3261]">{doc.name}</td>
+                          <td>{doc.category || '—'}</td>
+                          <td>{doc.uploaded_by_name || '—'}</td>
+                          <td>{doc.uploaded_at ? formatProjectDisplayDate(doc.uploaded_at.slice(0, 10)) : '—'}</td>
+                          <td>{doc.file ? <a href={doc.file} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#0b65e5]"><Download className="size-3.5" />Open</a> : '—'}</td>
+                        </tr>
+                      ))}
+                      {!documents.length ? <tr><td colSpan={5} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No documents uploaded yet.</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Checklist" icon={ClipboardPlus} tone="green">
+                {Object.keys(checklistByCategory).length ? (
+                  <div className="space-y-4">
+                    {Object.entries(checklistByCategory).map(([category, items]) => (
+                      <div key={category}>
+                        <p className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">{category}</p>
+                        <div className="space-y-2">
+                          {items.map((item) => (
+                            <div key={item.id} className="flex items-center justify-between gap-3 rounded-[10px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">
+                              <span className="min-w-0">{item.label}</span>
+                              {item.is_checked ? <ProjectInfoPill tone="green">Done</ProjectInfoPill> : <ProjectInfoPill tone="amber">Pending</ProjectInfoPill>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-[13px] font-bold text-[#8a98af]">No checklist items recorded yet.</p>}
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Activities" icon={CalendarDays} tone="blue">
+                <div className="overflow-x-auto">
+                  <table className="crm-table min-w-[640px] w-full">
+                    <thead><tr>{['Title', 'Type', 'Assigned To', 'Due Date', 'Status'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {activitiesList.map((a) => (
+                        <tr key={a.id}>
+                          <td className="font-extrabold text-[#1e3261]">{a.title}</td>
+                          <td>{a.activity_type}</td>
+                          <td>{a.assigned_to_name || 'Unassigned'}</td>
+                          <td>{a.due_date ? formatProjectDisplayDate(a.due_date) : '—'}</td>
+                          <td>{a.status}</td>
+                        </tr>
+                      ))}
+                      {!activitiesList.length ? <tr><td colSpan={5} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No activities yet.</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Notes" icon={MessageSquareMore} tone="purple">
+                <div className="space-y-3">
+                  {notesList.map((n) => (
+                    <div key={n.id} className="rounded-[10px] border border-[#edf2f8] bg-white p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[13px] font-extrabold text-[#1e3261]">{n.title || 'Untitled'}</span>
+                        {n.is_pinned ? <Pin className="size-3.5 text-[#7c3aed]" /> : null}
+                      </div>
+                      <p className="mt-1 text-[12px] font-bold leading-6 text-[#53647f]">{n.content}</p>
+                      <p className="mt-1 text-[11px] font-bold text-[#8a98af]">{n.created_by_name || '—'} • {n.created_at ? formatProjectDisplayDate(n.created_at.slice(0, 10)) : '—'}</p>
+                    </div>
+                  ))}
+                  {!notesList.length ? <p className="text-[13px] font-bold text-[#8a98af]">No notes yet.</p> : null}
+                </div>
+              </ProjectInfoCard>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-[#e7eef7] px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
+          <button type="button" onClick={onClose} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">Close</button>
+          <button type="button" disabled={loading} onClick={handlePrint} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#078c3e] disabled:cursor-not-allowed disabled:opacity-60">
+            <Printer className="size-4" />
+            Print
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Site Survey list ke "Edit" action ka popup — poora survey hub page (Overview, Customer & Site,
+// Roof & Electrical, System Details, Financials, Progress, Team, Documents, Checklist, Activities,
+// Notes sub-tabs sahit) ek modal ke andar khulta hai, alag page par navigate kiye bina.
+function SiteSurveyEditModal({ row, onClose, onOpenSection, onNotify }) {
+  const handleOpenSection = (section, options) => {
+    onClose();
+    onOpenSection?.(section, options);
+  };
+
+  return (
+    <div
+      className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="scroll-soft flex-1 overflow-y-auto">
+          <ProjectDetailsPage
+            activeSection="Project Site Survey"
+            onOpenSection={handleOpenSection}
+            project={{ id: row.id }}
+            onNotify={onNotify}
+            hubMode
+            initialEditMode
+            stackedSections
+            onClose={onClose}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -17939,9 +18578,21 @@ function milestoneStatusColor(status) {
   return '#8b5cf6';
 }
 
-function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
+function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp, onNotify, hubMode = false, initialHubTab = 'Overview', initialEditMode = false, stackedSections = false, onClose }) {
   const openProjectSection = (section) => onOpenSection(section, { preserveProject: true });
-  const [activeDetailTab, setActiveDetailTab] = useState('Overview');
+  const hubTabFromSurvey = (tab) => ({
+    Overview: 'Overview',
+    'Site Details': 'Customer & Site',
+    'Roof Details': 'Roof & Electrical',
+    'Electrical Details': 'Roof & Electrical',
+    Documents: 'Documents',
+    Observations: 'Checklist',
+    Checklist: 'Checklist',
+    Summary: 'Checklist',
+  }[tab] || 'Overview');
+  const [activeDetailTab, setActiveDetailTab] = useState(hubMode ? hubTabFromSurvey(initialHubTab) : 'Overview');
+  const [editMode, setEditMode] = useState(initialEditMode);
+  const canEdit = !hubMode || editMode;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -17958,17 +18609,17 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   const [editMemberId, setEditMemberId] = useState(null);
   const [editMemberForm, setEditMemberForm] = useState({ role_title: '', access_level: 'view_only' });
   const [savingEditMember, setSavingEditMember] = useState(false);
-  const [uploadDocForm, setUploadDocForm] = useState({ name: '', category: '', file: null });
-  const [savingDocument, setSavingDocument] = useState(false);
-  const [showUploadDocPanel, setShowUploadDocPanel] = useState(false);
+  const documentsFileInputRef = useRef(null);
   const [activityCategoryFilter, setActivityCategoryFilter] = useState('All Categories');
   const [activityStatusFilter, setActivityStatusFilter] = useState('All Status');
   const [activityModalOpen, setActivityModalOpen] = useState(false);
   const [newActivity, setNewActivity] = useState({ title: '', activity_type: 'Site Survey', status: 'Pending', priority: 'Medium', assigned_to: '', start_date: '', due_date: '', notes: '' });
   const [savingActivity, setSavingActivity] = useState(false);
   const [documentCategoryFilter, setDocumentCategoryFilter] = useState(null);
-  const [customerSiteForm, setCustomerSiteForm] = useState({ customer_name: '', site: '', site_address: '', city: '', state: '' });
-  const [surveyForm, setSurveyForm] = useState({ survey_date: '', building_type: '', roof_type: '', feasibility: '', status: 'Draft', summary_notes: '' });
+  const [customerSiteForm, setCustomerSiteForm] = useState({ customer_name: '', site: '', site_address: '', city: '', state: '', meter_number: '', site_size: '' });
+  const [surveyForm, setSurveyForm] = useState({ survey_date: '', building_type: '', roof_type: '', feasibility: '', status: 'Draft', summary_notes: '', surveyed_by: '', rooftop_area_sqft: '', shadow_free_area_sqft: '', available_area_sqft: '', customer_budget: '', electricity_bill_amount: '', subsidy_applicable: false, financial_remarks: '' });
+  const [projectAssignForm, setProjectAssignForm] = useState({ sales_executive: '', manager: '', total_value: '', meter_type: '', sanction_load: '', consumer_number: '', discom_name: '' });
+  const [savingAllSections, setSavingAllSections] = useState(false);
   const [savingCustomerSite, setSavingCustomerSite] = useState(false);
   const [savingSurvey, setSavingSurvey] = useState(false);
   const [systemConfigForm, setSystemConfigForm] = useState({ inverter_brand: '', inverter_model: '', inverter_capacity_kw: '', panel_brand: '', panel_model: '', panel_wattage_w: '', panel_count: '', string_count: '', protection_devices: '', notes: '' });
@@ -18019,6 +18670,11 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   }, [reloadProject, onNotify]);
 
   useEffect(() => {
+    if (!hubMode) return;
+    setActiveDetailTab(hubTabFromSurvey(initialHubTab));
+  }, [hubMode, initialHubTab, projectProp?.id]);
+
+  useEffect(() => {
     fetchProjectDetails();
   }, [fetchProjectDetails]);
 
@@ -18031,6 +18687,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       site_address: data.site_address || '',
       city: data.city || '',
       state: data.state || '',
+      meter_number: data.meter_number || '',
+      site_size: data.site_size || '',
     });
     setSurveyForm({
       survey_date: data.site_survey?.survey_date || '',
@@ -18039,6 +18697,23 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       feasibility: data.site_survey?.feasibility || '',
       status: data.site_survey?.status || 'Draft',
       summary_notes: data.site_survey?.summary_notes || '',
+      surveyed_by: data.site_survey?.surveyed_by != null ? String(data.site_survey.surveyed_by) : '',
+      rooftop_area_sqft: data.site_survey?.rooftop_area_sqft || '',
+      shadow_free_area_sqft: data.site_survey?.shadow_free_area_sqft || '',
+      available_area_sqft: data.site_survey?.available_area_sqft || '',
+      customer_budget: data.site_survey?.customer_budget != null ? String(data.site_survey.customer_budget) : '',
+      electricity_bill_amount: data.site_survey?.electricity_bill_amount != null ? String(data.site_survey.electricity_bill_amount) : '',
+      subsidy_applicable: Boolean(data.site_survey?.subsidy_applicable),
+      financial_remarks: data.site_survey?.financial_remarks || '',
+    });
+    setProjectAssignForm({
+      sales_executive: data.sales_executive != null ? String(data.sales_executive) : '',
+      manager: data.manager != null ? String(data.manager) : '',
+      total_value: data.total_value != null ? String(data.total_value) : '',
+      meter_type: data.meter_type || '',
+      sanction_load: data.sanction_load || '',
+      consumer_number: data.consumer_number || '',
+      discom_name: data.discom_name || '',
     });
     const cfg = data.system_config;
     setSystemConfigForm({
@@ -18135,37 +18810,6 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     } finally {
       setSavingEditMember(false);
     }
-  };
-
-  const handleUploadDocument = async () => {
-    if (!uploadDocForm.name.trim()) { onNotify('Enter a document name'); return; }
-    if (!uploadDocForm.file) { onNotify('Select a file to upload'); return; }
-    setSavingDocument(true);
-    try {
-      const fd = new FormData();
-      fd.append('project', projectProp.id);
-      fd.append('name', uploadDocForm.name.trim());
-      fd.append('category', uploadDocForm.category.trim());
-      fd.append('file', uploadDocForm.file);
-      await runMutationWithRefresh({
-        action: () => projectDocumentApi.create(fd),
-        successMessage: 'Document uploaded',
-        fallbackError: 'Failed to upload document',
-      });
-      setUploadDocForm({ name: '', category: '', file: null });
-      setShowUploadDocPanel(false);
-    } finally {
-      setSavingDocument(false);
-    }
-  };
-
-  const handleDeleteDocument = async (id, name) => {
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    await runMutationWithRefresh({
-      action: () => projectDocumentApi.delete(id),
-      successMessage: 'Document deleted',
-      fallbackError: 'Failed to delete document',
-    });
   };
 
   const handleDownloadDocument = async (fileUrl, name) => {
@@ -18276,6 +18920,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
           site_address: customerSiteForm.site_address.trim(),
           city: customerSiteForm.city.trim(),
           state: customerSiteForm.state.trim(),
+          meter_number: customerSiteForm.meter_number.trim(),
+          site_size: customerSiteForm.site_size.trim(),
         }),
         successMessage: 'Customer & Site info saved',
         fallbackError: 'Failed to save customer/site info',
@@ -18285,23 +18931,73 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     }
   };
 
+  const buildSiteSurveyPayload = (statusOverride) => ({
+    survey_date: surveyForm.survey_date || null,
+    building_type: surveyForm.building_type.trim(),
+    roof_type: surveyForm.roof_type.trim(),
+    feasibility: surveyForm.feasibility,
+    status: statusOverride || surveyForm.status,
+    summary_notes: surveyForm.summary_notes.trim(),
+    surveyed_by: surveyForm.surveyed_by || null,
+    rooftop_area_sqft: surveyForm.rooftop_area_sqft.trim(),
+    shadow_free_area_sqft: surveyForm.shadow_free_area_sqft.trim(),
+    available_area_sqft: surveyForm.available_area_sqft.trim(),
+    customer_budget: surveyForm.customer_budget !== '' ? Number(surveyForm.customer_budget) : null,
+    electricity_bill_amount: surveyForm.electricity_bill_amount !== '' ? Number(surveyForm.electricity_bill_amount) : null,
+    subsidy_applicable: surveyForm.subsidy_applicable,
+    financial_remarks: surveyForm.financial_remarks.trim(),
+  });
+
+  const buildProjectAssignPayload = () => ({
+    sales_executive: projectAssignForm.sales_executive || null,
+    manager: projectAssignForm.manager || null,
+    total_value: projectAssignForm.total_value !== '' ? Number(projectAssignForm.total_value) : 0,
+    meter_type: projectAssignForm.meter_type.trim(),
+    sanction_load: projectAssignForm.sanction_load.trim(),
+    consumer_number: projectAssignForm.consumer_number.trim(),
+    discom_name: projectAssignForm.discom_name.trim(),
+  });
+
   const handleSaveSurvey = async () => {
     setSavingSurvey(true);
     try {
       await runMutationWithRefresh({
-        action: () => projectApi.saveSiteSurvey(projectProp.id, {
-          survey_date: surveyForm.survey_date || null,
-          building_type: surveyForm.building_type.trim(),
-          roof_type: surveyForm.roof_type.trim(),
-          feasibility: surveyForm.feasibility,
-          status: surveyForm.status,
-          summary_notes: surveyForm.summary_notes.trim(),
-        }),
+        action: () => projectApi.saveSiteSurvey(projectProp.id, buildSiteSurveyPayload()),
         successMessage: 'Site survey details saved',
         fallbackError: 'Failed to save site survey details',
       });
     } finally {
       setSavingSurvey(false);
+    }
+  };
+
+  const handleSaveProjectAssignments = async () => {
+    setSavingAllSections(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => projectApi.update(projectProp.id, buildProjectAssignPayload()),
+        successMessage: 'Assignment & meter details saved',
+        fallbackError: 'Failed to save assignment & meter details',
+      });
+    } finally {
+      setSavingAllSections(false);
+    }
+  };
+
+  const handleSaveAllNewSections = async (targetStatus) => {
+    setSavingAllSections(true);
+    try {
+      await runMutationWithRefresh({
+        action: () => Promise.all([
+          projectApi.saveSiteSurvey(projectProp.id, buildSiteSurveyPayload(targetStatus)),
+          projectApi.update(projectProp.id, buildProjectAssignPayload()),
+        ]),
+        successMessage: targetStatus === 'Completed' ? 'Site survey submitted' : 'Draft saved',
+        fallbackError: 'Failed to save site survey',
+      });
+      if (targetStatus === 'Completed') onClose?.();
+    } finally {
+      setSavingAllSections(false);
     }
   };
 
@@ -18485,7 +19181,67 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     { label: 'Address', value: d.site_address || '—' },
     { label: 'City', value: d.city || '—' },
     { label: 'State', value: d.state || '—' },
+    { label: 'Meter No.', value: d.meter_number || '—' },
+    { label: 'Size', value: d.site_size || '—' },
     { label: 'Roof Type', value: d.site_survey?.roof_type || '—' },
+  ];
+
+  const survey = d.site_survey || {};
+  const surveyChecklist = (d.checklist_items || []).filter((c) => c.phase === 'Site Survey');
+  const surveyChecklistChecked = surveyChecklist.filter((c) => c.is_checked);
+  const surveyChecklistPending = surveyChecklist.filter((c) => !c.is_checked);
+  const surveyChecklistByCategory = {};
+  surveyChecklist.forEach((c) => {
+    const key = c.category || 'General';
+    (surveyChecklistByCategory[key] = surveyChecklistByCategory[key] || []).push(c);
+  });
+  const toggleSurveyChecklistItem = (item) => {
+    if (!canEdit) return;
+    projectChecklistApi.update(item.id, { is_checked: !item.is_checked }).then(() => reloadProject()).catch((e) => onNotify(e.message));
+  };
+  const siteDetailsRows = survey.site_details || [];
+  const roofDetailsRows = survey.roof_details || [];
+  const electricalDetailsRows = survey.electrical_details || [];
+  const roofStatsRows = survey.roof_stats || [];
+  const roofStatTones = [
+    { icon: Boxes, tone: 'blue' },
+    { icon: CheckCircle2, tone: 'green' },
+    { icon: HardDrive, tone: 'purple' },
+    { icon: AlertTriangle, tone: 'amber' },
+  ];
+  const feasibilityTone = survey.feasibility === 'Feasible' ? 'green' : survey.feasibility === 'Not Feasible' ? 'red' : survey.feasibility ? 'amber' : 'slate';
+  const roofUsableArea = (roofStatsRows || []).find((s) => /usable/i.test(s.label || ''));
+  const surveyStatCards = hubMode ? [
+    { label: 'Usable Roof Area', value: roofUsableArea?.value || '—', caption: roofUsableArea?.caption || 'From roof survey', icon: Boxes, tone: 'purple' },
+    { label: 'Recommended Capacity', value: `${d.capacity_kwp ?? '—'} kWp`, caption: d.project_type || '—', icon: FolderKanban, tone: 'blue' },
+    { label: 'Building Type', value: survey.building_type || '—', caption: survey.floor_count ? `${survey.floor_count} floor(s)` : '—', icon: Home, tone: 'cyan' },
+    { label: 'Roof Type', value: survey.roof_type || '—', caption: 'As surveyed', icon: HardDrive, tone: 'green' },
+    { label: 'Feasibility', value: survey.feasibility || 'Pending', caption: 'Survey result', icon: ClipboardPlus, tone: feasibilityTone === 'red' ? 'amber' : feasibilityTone },
+    { label: 'Survey Status', value: survey.status || 'Draft', caption: survey.survey_id || 'Not yet created', icon: CheckCircle2, tone: survey.status === 'Completed' ? 'green' : 'amber' },
+  ] : [];
+  const surveySummaryRows = [
+    ['Survey Result', survey.feasibility || 'Pending'],
+    ['Recommended System', `${d.capacity_kwp ?? '—'} kWp ${d.project_type || ''}`.trim()],
+    ['Building Type', survey.building_type || '—'],
+    ['Roof Type', survey.roof_type || '—'],
+    ['Survey Date', survey.survey_date ? formatProjectDisplayDate(survey.survey_date) : '—'],
+    ['Surveyed By', survey.surveyed_by_name || 'Unassigned'],
+    ['Meter No.', d.meter_number || '—'],
+    ['Size', d.site_size || '—'],
+    ['Pending Action', surveyChecklistPending.length ? `${surveyChecklistPending.length} checklist item(s) pending` : 'None'],
+    ['Status', survey.status || 'Draft'],
+  ];
+  const surveyChecklistCompletionPercent = surveyChecklist.length ? Math.round((surveyChecklistChecked.length / surveyChecklist.length) * 100) : 0;
+  const surveyCategoryCompletion = Object.entries(surveyChecklistByCategory).map(([category, items]) => ({
+    category,
+    done: items.filter((i) => i.is_checked).length,
+    total: items.length,
+  }));
+  const surveyChecklistStats = [
+    { label: 'Checklist Progress', value: surveyChecklist.length ? `${surveyChecklistCompletionPercent}%` : '0%', caption: `${surveyChecklistChecked.length} of ${surveyChecklist.length} done`, icon: CheckCircle2, tone: 'green' },
+    { label: 'Completed', value: String(surveyChecklistChecked.length), caption: 'Verified points', icon: BadgeCheck, tone: 'blue' },
+    { label: 'Pending', value: String(surveyChecklistPending.length), caption: surveyChecklistPending[0]?.label || 'None', icon: Hourglass, tone: 'amber' },
+    { label: 'Ready Status', value: surveyChecklistPending.length === 0 && surveyChecklist.length > 0 ? 'Good' : 'In Progress', caption: surveyChecklistPending.length === 0 && surveyChecklist.length > 0 ? 'All items verified' : 'Items pending', icon: ShieldCheck, tone: surveyChecklistPending.length === 0 && surveyChecklist.length > 0 ? 'green' : 'amber' },
   ];
 
   const additionalInfo = d.site_survey ? [
@@ -18663,7 +19419,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   const documentCategories = Object.entries(documentCategoryCounts).map(([label, count]) => ({ label, count, active: label === documentCategoryFilter }));
   const documentStats = [
     { label: 'Total Documents', value: String(documents.length), note: 'All documents', icon: FolderKanban, tone: 'blue' },
-    { label: 'Categories', value: String(documentCategories.length), note: 'In use', icon: CheckCircle2, tone: 'green' },
+    { label: 'File Names', value: String(documentCategories.length), note: 'In use', icon: CheckCircle2, tone: 'green' },
   ];
 
   const documentRows = documents.map((doc) => ({
@@ -18862,7 +19618,19 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     }).join(', ');
   })();
 
-  const detailTabs = [
+  const detailTabs = hubMode ? [
+    { label: 'Overview', icon: Home },
+    { label: 'Customer & Site', icon: MapPin },
+    { label: 'Roof & Electrical', icon: Zap },
+    { label: 'System Details', icon: Settings },
+    { label: 'Financials', icon: IndianRupee },
+    { label: 'Progress', icon: BarChart3 },
+    { label: 'Team', icon: UsersRound },
+    { label: 'Documents', icon: FileText },
+    { label: 'Checklist', icon: ClipboardPlus },
+    { label: 'Activities', icon: CalendarDays },
+    { label: 'Notes', icon: MessageSquareMore },
+  ] : [
     { label: 'Overview', icon: Home },
     { label: 'Customer & Site Info', icon: Users },
     { label: 'System Details', icon: Settings },
@@ -18873,6 +19641,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     { label: 'Activities', icon: ClipboardPlus },
     { label: 'Notes', icon: MessageSquareMore },
   ];
+  const customerSiteTab = hubMode ? 'Customer & Site' : 'Customer & Site Info';
 
   const activeDetailDescription = {
     'Customer & Site Info': 'View and manage customer details and site information associated with this project.',
@@ -18885,6 +19654,10 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     Notes: 'Create, filter and review project notes, pinned updates, categories and follow-up remarks.',
   }[activeDetailTab] ?? `View and manage ${activeDetailTab.toLowerCase()} details associated with this project.`;
   const openDetailUpdate = () => {
+    if (activeDetailTab === 'Documents') {
+      documentsFileInputRef.current?.click();
+      return;
+    }
     const targets = {
       Overview: 'Project Details',
       'Customer & Site Info': 'Project Site Survey',
@@ -18892,34 +19665,57 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       Financials: 'Project Expenses',
       Progress: 'Project Progress Update',
       Team: 'Project Team Add',
-      Documents: 'Project Document Upload',
       Activities: 'Project Activity Create',
       Notes: 'Project Note Create',
     };
     onOpenSection(targets[activeDetailTab] ?? 'Project Details', { preserveProject: true });
   };
+  const handleOpenProjectMap = () => openProjectAddressInMaps({ site_address: d.site_address, city: d.city, state: d.state }, onNotify);
+  const pageTitle = hubMode ? 'Site Survey' : activeDetailTab;
+  const pageCrumbs = hubMode
+    ? [
+        { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+        { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+        { label: 'Site Survey', onClick: () => onOpenSection('Project Site Survey') },
+        { label: project.name },
+      ]
+    : [
+        { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+        { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+        { label: 'Project List', onClick: () => onOpenSection('Project List') },
+        { label: 'Project Details' },
+        { label: activeDetailTab },
+      ];
 
   return (
-    <div className="space-y-4">
+    <div className={cx(hubMode && !stackedSections && 'site-survey-compact space-y-2', !hubMode && 'space-y-4')}>
+      {!stackedSections ? (
       <PageHeading
-        title={activeDetailTab}
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details' },
-          { label: activeDetailTab },
-        ]}
+        title={pageTitle}
+        crumbs={pageCrumbs}
         actions={(
-          <button type="button" onClick={openDetailUpdate} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Update Details</button>
+          <>
+            {hubMode ? <EditModeToggle enabled={editMode} onToggle={setEditMode} /> : null}
+            {canEdit ? (
+              <button type="button" onClick={openDetailUpdate} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Update Details</button>
+            ) : null}
+          </>
         )}
       />
+      ) : null}
+      {!hubMode ? (
       <p className="-mt-3 px-2 text-[13px] font-bold text-[#20345f] sm:text-[14px]">
         {activeDetailDescription}
       </p>
+      ) : !stackedSections ? (
+      <p className="px-2 text-[13px] font-bold text-[#53647f]">
+        {editMode ? 'Edit mode is ON — you can update project and survey details.' : 'View mode — turn on Edit Mode to make changes.'}
+      </p>
+      ) : null}
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={openProjectSection} />
+      {!stackedSections ? <ProjectSubnavTabs activeSection={activeSection} onOpenSection={openProjectSection} /> : null}
 
+      {!stackedSections ? (
       <section className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,1.65fr)] 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,2fr)] 2xl:items-center">
           <div className="grid gap-4 sm:grid-cols-[minmax(136px,170px)_minmax(0,1fr)]">
@@ -18927,12 +19723,14 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             <div className="min-w-0">
               <h2 className="font-display text-[22px] font-extrabold leading-tight text-[#06135a] sm:text-[26px]">{project.name}</h2>
               <p className="mt-2 text-[13px] font-bold leading-6 text-[#1f3360]">{project.address}<br />{project.city}</p>
-              <button type="button" onClick={() => openProjectSection('Project Site Survey')} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View on Map</button>
+              <button type="button" onClick={handleOpenProjectMap} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View on Map</button>
+              {canEdit ? (
               <label className="mt-3 inline-flex h-9 cursor-pointer items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
                 <Upload className="size-3.5 text-[#0b65e5]" />
                 {uploadingProjectImage ? 'Uploading image…' : 'Upload Project Image'}
-                <input type="file" accept="image/*" className="hidden" onChange={handleProjectImageUpload} disabled={uploadingProjectImage} />
+                <input type="file" accept="image/*" className="hidden" onChange={handleProjectImageUpload} disabled={uploadingProjectImage || !canEdit} />
               </label>
+              ) : null}
             </div>
           </div>
 
@@ -18948,8 +19746,20 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
           <ProjectHeroFact label="Target Date" valueNode={<span className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#0b65e5]" />{formatProjectDisplayDate(project.targetDate)}</span>} compact />
           <ProjectHeroFact label="Status" valueNode={<ProjectPhaseBadge label={d.status} />} compact />
         </div>
+        {hubMode ? (
+          <div className="mt-5 grid gap-4 border-t border-[#edf2f8] pt-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+            <ProjectHeroFact label="Survey ID" value={survey.survey_id || '—'} compact />
+            <ProjectHeroFact label="Survey Date" value={survey.survey_date ? formatProjectDisplayDate(survey.survey_date) : 'Not scheduled'} compact />
+            <ProjectHeroFact label="Survey By" value={survey.surveyed_by_name || 'Unassigned'} compact />
+            <ProjectHeroFact label="Meter No." value={d.meter_number || '—'} compact />
+            <ProjectHeroFact label="Size" value={d.site_size || '—'} compact />
+            <ProjectHeroFact label="Feasibility" valueNode={<ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>} compact />
+          </div>
+        ) : null}
       </section>
+      ) : null}
 
+      {!stackedSections ? (
       <section className={`${panelClass} overflow-hidden px-3 pt-3`}>
         <div className="module-tab-scroll flex gap-2 overflow-x-auto pb-0">
           {detailTabs.map((tab) => {
@@ -18972,8 +19782,10 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
           })}
         </div>
       </section>
+      ) : null}
 
-      {activeDetailTab === 'Activities' ? (
+      {(() => {
+      const activitiesSection = (
         <>
           <section className={`${panelClass} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
             <div className="flex items-start gap-3">
@@ -18985,7 +19797,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                 <p className="mt-1 text-[13px] font-bold text-[#53647f]">Track every task on this project — who is doing it, its status, and when it is due. Click <span className="text-[#0d9f4a]">Add Activity</span> to create a new task.</p>
               </div>
             </div>
-            <button type="button" onClick={() => setActivityModalOpen(true)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+            <button type="button" disabled={!canEdit} onClick={() => canEdit && setActivityModalOpen(true)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] disabled:cursor-not-allowed disabled:opacity-50">
               <Plus className="size-4" />
               Add Activity
             </button>
@@ -19008,7 +19820,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                     {activityStatusOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 </div>
-                <button type="button" onClick={() => setActivityModalOpen(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)]">
+                <button type="button" disabled={!canEdit} onClick={() => canEdit && setActivityModalOpen(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] disabled:cursor-not-allowed disabled:opacity-50">
                   <Plus className="size-4" />
                   Add Activity
                 </button>
@@ -19185,7 +19997,64 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             </div>
           ) : null}
         </>
-      ) : activeDetailTab === 'Notes' ? (
+      );
+
+      const activitiesStackedSection = (
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Add Activity</h3>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-[12px] font-extrabold text-[#53647f]">Activity Name *</label>
+              <input value={newActivity.title} onChange={(e) => setNewActivity((p) => ({ ...p, title: e.target.value }))} type="text" placeholder="e.g. Rooftop site survey" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-extrabold text-[#53647f]">Type</label>
+                <select value={newActivity.activity_type} onChange={(e) => setNewActivity((p) => ({ ...p, activity_type: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                  {['Site Survey', 'Material Delivery', 'Installation', 'Testing', 'Commissioning', 'Safety', 'Other'].map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-extrabold text-[#53647f]">Assigned To</label>
+                <select value={newActivity.assigned_to} onChange={(e) => setNewActivity((p) => ({ ...p, assigned_to: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                  <option value="">Unassigned</option>
+                  {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-extrabold text-[#53647f]">Status</label>
+                <select value={newActivity.status} onChange={(e) => setNewActivity((p) => ({ ...p, status: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                  {['Pending', 'In Progress', 'Completed'].map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-extrabold text-[#53647f]">Priority</label>
+                <select value={newActivity.priority} onChange={(e) => setNewActivity((p) => ({ ...p, priority: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                  {['Low', 'Medium', 'High'].map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-extrabold text-[#53647f]">Start Date</label>
+                <input value={newActivity.start_date} onChange={(e) => setNewActivity((p) => ({ ...p, start_date: e.target.value }))} type="date" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-extrabold text-[#53647f]">Due Date</label>
+                <input value={newActivity.due_date} onChange={(e) => setNewActivity((p) => ({ ...p, due_date: e.target.value }))} type="date" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[12px] font-extrabold text-[#53647f]">Notes</label>
+              <textarea value={newActivity.notes} onChange={(e) => setNewActivity((p) => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Optional details about this activity" className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 py-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+            </div>
+            <button type="button" disabled={savingActivity || !newActivity.title.trim()} onClick={handleAddActivity} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.2)] disabled:opacity-60 disabled:shadow-none">
+              <Plus className="size-4" />
+              {savingActivity ? 'Saving...' : 'Save Activity'}
+            </button>
+          </div>
+        </article>
+      );
+
+      const notesSection = (
         <>
           <section className={`${panelClass} flex items-start gap-3 p-4 sm:p-5`}>
             <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-[#f3edff] text-[#7c3aed]">
@@ -19289,7 +20158,27 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
           </aside>
         </section>
         </>
-      ) : activeDetailTab === 'Team' ? (
+      );
+
+      const notesStackedSection = (
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Add a New Note</h3>
+          <textarea value={newNoteContent} onChange={(e) => setNewNoteContent(e.target.value)} placeholder="Write your note here..." className="mt-4 min-h-[84px] w-full resize-y rounded-[8px] border border-[#d9e4f2] bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <label className="inline-flex h-11 items-center gap-2 text-[13px] font-bold text-[#284276]">
+              <input type="checkbox" checked={newNotePinned} onChange={(e) => setNewNotePinned(e.target.checked)} className="size-4 rounded border-[#d9e4f2]" />
+              <Pin className="size-4 text-[#284276]" />
+              Pin this note
+            </label>
+            <button type="button" disabled={savingNote} onClick={handleAddNote} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.18)] disabled:opacity-60">
+              <Save className="size-4" />
+              {savingNote ? 'Saving...' : 'Save Note'}
+            </button>
+          </div>
+        </article>
+      );
+
+      const teamSection = (
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {teamStats.map((stat) => (
@@ -19444,7 +20333,129 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             </aside>
           </section>
         </>
-      ) : activeDetailTab === 'Documents' ? (
+      );
+
+      const teamStackedSection = (
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]">
+          <article className={`${panelClass} overflow-hidden`}>
+            <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+              <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Team Members</h3>
+              <span className="inline-flex h-7 items-center rounded-full bg-[#eef2f7] px-3 text-[12px] font-extrabold text-[#53647f]">
+                {teamRows.length} {teamRows.length === 1 ? 'member' : 'members'}
+              </span>
+            </div>
+            <div className="responsive-scroll overflow-x-auto">
+              <table className="crm-table min-w-[760px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Full Name', 'Role', 'Access Level', 'Email', 'Phone', 'Action'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td>{index + 1}</td>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <ProjectTeamAvatar initials={row.initials} tone={row.avatarTone} />
+                          <span className="truncate font-extrabold text-[#1e3261]">{row.name}</span>
+                        </div>
+                      </td>
+                      <td>
+                        {editMemberId === row.id ? (
+                          <input
+                            value={editMemberForm.role_title}
+                            onChange={(e) => setEditMemberForm((prev) => ({ ...prev, role_title: e.target.value }))}
+                            className="h-8 w-full rounded-[6px] border border-[#d9e4f2] px-2 text-[12px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5]"
+                            placeholder="Role title"
+                          />
+                        ) : (
+                          <ProjectInfoPill label={row.role} tone={row.roleTone} />
+                        )}
+                      </td>
+                      <td>
+                        {editMemberId === row.id ? (
+                          <select
+                            value={editMemberForm.access_level}
+                            onChange={(e) => setEditMemberForm((prev) => ({ ...prev, access_level: e.target.value }))}
+                            className="h-8 rounded-[6px] border border-[#d9e4f2] px-2 text-[12px] font-bold text-[#1e3261] outline-none"
+                          >
+                            <option value="full_access">Full Access</option>
+                            <option value="edit_access">Edit Access</option>
+                            <option value="view_only">View Only</option>
+                          </select>
+                        ) : (
+                          <ProjectInfoPill label={row.accessLevelDisplay} tone={accessLevelTone[row.accessLevel] || 'blue'} />
+                        )}
+                      </td>
+                      <td>{row.email}</td>
+                      <td>{row.phone}</td>
+                      <td>
+                        <div className="inline-flex items-center gap-2">
+                          {editMemberId === row.id ? (
+                            <>
+                              <button type="button" disabled={savingEditMember} onClick={() => handleUpdateMember(row.id)} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] bg-[#0d9f4a] px-2 text-[11px] font-extrabold text-white disabled:opacity-60">
+                                {savingEditMember ? '…' : 'Save'}
+                              </button>
+                              <button type="button" onClick={() => setEditMemberId(null)} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white px-2 text-[11px] font-extrabold text-[#53647f]">
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button type="button" onClick={() => handleStartEditMember(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Edit ${row.name}`}>
+                                <Pencil className="size-4" />
+                              </button>
+                              <button type="button" onClick={() => handleRemoveMember(row.id, row.name)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#ef4444]" aria-label={`Remove ${row.name}`}>
+                                <Trash2 className="size-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {teamRows.length === 0 ? (
+                    <tr><td colSpan={7} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No team members yet.</td></tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </article>
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Add Team Member</h3>
+            <div className="mt-4 space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-extrabold text-[#53647f]">User</label>
+                <select value={newMember.user} onChange={(e) => setNewMember((prev) => ({ ...prev, user: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                  <option value="">Select user</option>
+                  {userOptions.filter((u) => !addedUserIds.has(u.id)).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-extrabold text-[#53647f]">Role Title</label>
+                <input value={newMember.role_title} onChange={(e) => setNewMember((prev) => ({ ...prev, role_title: e.target.value }))} type="text" placeholder="e.g. Site Engineer" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-extrabold text-[#53647f]">Access Level</label>
+                <select value={newMember.access_level} onChange={(e) => setNewMember((prev) => ({ ...prev, access_level: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
+                  <option value="full_access">Full Access</option>
+                  <option value="edit_access">Edit Access</option>
+                  <option value="view_only">View Only</option>
+                </select>
+              </div>
+              <button type="button" disabled={savingMember || !newMember.user} onClick={handleAddMember} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.2)] disabled:opacity-60 disabled:shadow-none">
+                <Plus className="size-4" />
+                {savingMember ? 'Adding...' : 'Add Member'}
+              </button>
+            </div>
+          </article>
+        </div>
+      );
+
+      const documentsSection = (
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {documentStats.map((stat) => (
@@ -19452,142 +20463,31 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             ))}
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[minmax(260px,0.48fr)_minmax(0,1.52fr)]">
-            <aside className="space-y-4">
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Document Categories</h2>
-                </div>
-                <div className="mt-5 space-y-2">
-                  {documentCategories.length === 0 ? (
-                    <p className="text-[13px] font-bold text-[#8a98af]">No categories yet. Upload a document with a category to create one.</p>
-                  ) : documentCategories.map((category) => (
-                    <ProjectDocumentCategory key={category.label} category={category} onSelect={setDocumentCategoryFilter} />
-                  ))}
-                  {documentCategoryFilter ? (
-                    <button type="button" onClick={() => setDocumentCategoryFilter(null)} className="mt-2 text-[12px] font-extrabold text-[#0b65e5] underline underline-offset-2">
-                      Clear filter
-                    </button>
-                  ) : null}
-                </div>
-              </article>
-
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Upload Document</h2>
-                  {showUploadDocPanel ? (
-                    <button type="button" onClick={() => setShowUploadDocPanel(false)} className="text-[12px] font-extrabold text-[#8a98af]">Cancel</button>
-                  ) : null}
-                </div>
-                {showUploadDocPanel ? (
-                  <div className="mt-4 space-y-3">
-                    <div>
-                      <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#53647f]">Document Name *</label>
-                      <input
-                        value={uploadDocForm.name}
-                        onChange={(e) => setUploadDocForm((prev) => ({ ...prev, name: e.target.value }))}
-                        type="text"
-                        placeholder="e.g. Site Survey Report"
-                        className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#53647f]">Category</label>
-                      <input
-                        value={uploadDocForm.category}
-                        onChange={(e) => setUploadDocForm((prev) => ({ ...prev, category: e.target.value }))}
-                        type="text"
-                        placeholder="e.g. Electrical, Survey"
-                        list="doc-categories-list"
-                        className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]"
-                      />
-                      <datalist id="doc-categories-list">
-                        {documentCategories.map((c) => <option key={c.label} value={c.label} />)}
-                      </datalist>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#53647f]">File *</label>
-                      <input
-                        type="file"
-                        onChange={(e) => setUploadDocForm((prev) => ({ ...prev, file: e.target.files[0] ?? null }))}
-                        className="w-full rounded-[8px] border border-[#d9e4f2] bg-white p-2 text-[12px] font-bold text-[#1e3261] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#e8f0fc] file:px-3 file:py-1 file:text-[11px] file:font-extrabold file:text-[#0b65e5]"
-                      />
-                    </div>
-                    <button type="button" disabled={savingDocument} onClick={handleUploadDocument} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] text-[13px] font-extrabold text-white disabled:opacity-60">
-                      <Upload className="size-4" />
-                      {savingDocument ? 'Uploading...' : 'Upload Document'}
-                    </button>
-                  </div>
-                ) : (
-                  <button type="button" onClick={() => setShowUploadDocPanel(true)} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.2)]">
-                    <Upload className="size-4" />
-                    Upload Document
-                  </button>
-                )}
-              </article>
-            </aside>
-
-            <article className={`${panelClass} overflow-hidden`}>
-              <div className="flex flex-col gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
-                <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">
-                  {documentCategoryFilter ? `Documents — ${documentCategoryFilter}` : 'All Documents'}
-                </h2>
-              </div>
-
-              <div className="responsive-scroll overflow-x-auto">
-                <table className="crm-table min-w-[1040px] w-full">
-                  <thead>
-                    <tr>
-                      {['#', 'Document Name', 'Category', 'Uploaded By', 'Uploaded On', 'Action'].map((header) => (
-                        <th key={header}>{header}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDocumentRows.map((row, index) => (
-                      <tr key={row.id}>
-                        <td>{index + 1}</td>
-                        <td className="font-extrabold text-[#1e3261]">{row.name}</td>
-                        <td>{row.category}</td>
-                        <td>{row.uploadedBy}</td>
-                        <td>{row.uploadedOn}</td>
-                        <td>
-                          <div className="inline-flex items-center gap-2">
-                            {row.file ? (
-                              <a href={row.file} target="_blank" rel="noreferrer" className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`View ${row.name}`}>
-                                <Eye className="size-4" />
-                              </a>
-                            ) : (
-                              <span className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#edf2f8] bg-[#f8fafc] text-[#c4cede]"><Eye className="size-4" /></span>
-                            )}
-                            {row.file ? (
-                              <button type="button" onClick={() => handleDownloadDocument(row.file, row.name)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${row.name}`}>
-                                <Download className="size-4" />
-                              </button>
-                            ) : (
-                              <span className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#edf2f8] bg-[#f8fafc] text-[#c4cede]"><Download className="size-4" /></span>
-                            )}
-                            <button type="button" onClick={() => handleDeleteDocument(row.id, row.name)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#ef4444]" aria-label={`Delete ${row.name}`}>
-                              <Trash2 className="size-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredDocumentRows.length === 0 ? (
-                      <tr><td colSpan={6} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No documents uploaded yet.</td></tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-4 py-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <span>Showing {filteredDocumentRows.length} of {documentRows.length} entries</span>
-              </div>
-            </article>
-          </section>
+          <ProjectDocumentsTable
+            projectId={projectProp.id}
+            documents={documentCategoryFilter ? documents.filter((doc) => doc.category === documentCategoryFilter) : documents}
+            onReload={() => fetchProjectDetails({ silent: true })}
+            onNotify={onNotify}
+            title="All Documents"
+            fileInputRef={documentsFileInputRef}
+            readOnly={!canEdit}
+          />
         </>
-      ) : activeDetailTab === 'Financials' ? (
+      );
+
+      const documentsStackedSection = (
+        <ProjectDocumentsTable
+          projectId={projectProp.id}
+          documents={documentCategoryFilter ? documents.filter((doc) => doc.category === documentCategoryFilter) : documents}
+          onReload={() => fetchProjectDetails({ silent: true })}
+          onNotify={onNotify}
+          title="All Documents"
+          fileInputRef={documentsFileInputRef}
+          readOnly={!canEdit}
+        />
+      );
+
+      const financialsSection = (
         <>
           {/* ── 4 summary stats ───────────────────────────────────────── */}
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -19752,7 +20652,42 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             </div>
           </article>
         </>
-      ) : activeDetailTab === 'Progress' ? (
+      );
+
+      const financialsStackedSection = (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Record a Payment</h3>
+            <div className="mt-4 grid gap-3">
+              <input value={newPayment.amount} onChange={(e) => setNewPayment((p) => ({ ...p, amount: e.target.value }))} type="number" min="0" step="0.01" placeholder="Amount (Rs)" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+              <select value={newPayment.payment_mode} onChange={(e) => setNewPayment((p) => ({ ...p, payment_mode: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                {['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'NEFT', 'RTGS'].map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <input value={newPayment.payment_date} onChange={(e) => setNewPayment((p) => ({ ...p, payment_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+              <input value={newPayment.reference} onChange={(e) => setNewPayment((p) => ({ ...p, reference: e.target.value }))} type="text" placeholder="Reference / UTR / Cheque No." className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+              <button type="button" disabled={savingPayment} onClick={handleAddPayment} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#0950c2]">
+                <Plus className="size-4" />{savingPayment ? 'Saving…' : 'Add Payment'}
+              </button>
+            </div>
+          </article>
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Add Expense</h3>
+            <div className="mt-4 grid gap-3">
+              <select value={newExpense.category} onChange={(e) => setNewExpense((p) => ({ ...p, category: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                {['Materials', 'Labor', 'Transport', 'Equipment', 'Miscellaneous'].map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input value={newExpense.description} onChange={(e) => setNewExpense((p) => ({ ...p, description: e.target.value }))} type="text" placeholder="Description" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#f59e0b]" />
+              <input value={newExpense.amount} onChange={(e) => setNewExpense((p) => ({ ...p, amount: e.target.value }))} type="number" min="0" placeholder="Amount (Rs)" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#f59e0b]" />
+              <input value={newExpense.date} onChange={(e) => setNewExpense((p) => ({ ...p, date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+              <button type="button" disabled={savingExpense} onClick={handleAddExpense} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#f59e0b] px-4 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#d97706]">
+                <Plus className="size-4" />{savingExpense ? 'Saving…' : 'Add Expense'}
+              </button>
+            </div>
+          </article>
+        </div>
+      );
+
+      const progressSection = (
         <>
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
             <article className={`${panelClass} p-4 sm:p-5`}>
@@ -19960,7 +20895,125 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             </div>
           </section>
         </>
-      ) : activeDetailTab === 'System Details' ? (
+      );
+
+      const progressStackedSection = (
+        <div className="space-y-4">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Overall Progress</h3>
+              <div className="inline-flex items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-3 py-1.5 text-[12px] font-bold text-[#53647f]">
+                <input
+                  value={safeProgressDraft}
+                  onChange={(e) => setProgressDraft(Number(e.target.value))}
+                  type="range"
+                  min="0"
+                  max="100"
+                  className="w-28 accent-[#0d9f4a]"
+                  disabled={updatingProgress}
+                />
+                <span className="font-extrabold text-[#0d9f4a]">{safeProgressDraft}%</span>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateProjectProgress(safeProgressDraft)}
+                  disabled={updatingProgress || safeProgressDraft === safeProjectProgress}
+                  className="inline-flex h-7 items-center justify-center rounded-[6px] bg-[#0d9f4a] px-2.5 text-[11px] font-extrabold text-white disabled:opacity-60"
+                >
+                  {updatingProgress ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </article>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Add Milestone</h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <input value={newMilestone.title} onChange={(e) => setNewMilestone((p) => ({ ...p, title: e.target.value }))} type="text" placeholder="Milestone title" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+              <input value={newMilestone.category} onChange={(e) => setNewMilestone((p) => ({ ...p, category: e.target.value }))} type="text" placeholder="Category (e.g. Installation)" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+              <select value={newMilestone.status} onChange={(e) => setNewMilestone((p) => ({ ...p, status: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                {['Pending', 'In Progress', 'Completed', 'Delayed'].map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <input value={newMilestone.progress_percent} onChange={(e) => setNewMilestone((p) => ({ ...p, progress_percent: e.target.value }))} type="number" min="0" max="100" placeholder="Progress %" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+              <input value={newMilestone.start_date} onChange={(e) => setNewMilestone((p) => ({ ...p, start_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+              <input value={newMilestone.end_date} onChange={(e) => setNewMilestone((p) => ({ ...p, end_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+              <select value={newMilestone.owner} onChange={(e) => setNewMilestone((p) => ({ ...p, owner: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] sm:col-span-2">
+                <option value="">Select owner (optional)</option>
+                {userOptions.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+              <button type="button" disabled={savingMilestone} onClick={handleAddMilestone} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white disabled:opacity-60 sm:col-span-2">
+                <Plus className="size-4" />{savingMilestone ? 'Saving…' : 'Add Milestone'}
+              </button>
+            </div>
+          </article>
+
+          <article className={`${panelClass} overflow-hidden`}>
+            <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
+              <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Task / Stage Details</h3>
+            </div>
+            <div className="responsive-scroll overflow-x-auto">
+              <table className="crm-table min-w-[900px] w-full">
+                <thead>
+                  <tr>
+                    {['#', 'Task / Stage', 'Status', 'Progress', 'Owner'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {progressRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td>{index + 1}</td>
+                      <td className="font-extrabold text-[#1e3261]">{row.stage}</td>
+                      <td>
+                        {row.editable
+                          ? (
+                            <select
+                              value={row.status}
+                              onChange={(e) => handleUpdateMilestoneInline(row.id, { status: e.target.value })}
+                              className="h-8 rounded-[7px] border border-[#d9e4f2] bg-white px-2 text-[12px] font-bold text-[#1e3261]"
+                            >
+                              {['Pending', 'In Progress', 'Completed', 'Delayed'].map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          ) : (
+                            <span className={`inline-flex rounded-[6px] px-2 py-0.5 text-[11px] font-extrabold ${row.status === 'Completed' ? 'bg-[#e8fdf0] text-[#16a34a]' : row.status === 'In Progress' ? 'bg-[#eff6ff] text-[#2563eb]' : row.status === 'Pending' ? 'bg-[#fffbeb] text-[#f59e0b]' : 'bg-[#fef2f2] text-[#ef4444]'}`}>{row.status}</span>
+                          )}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          {row.editable
+                            ? (
+                              <>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="100"
+                                  value={row.progress}
+                                  onChange={(e) => handleUpdateMilestoneInline(row.id, { progress_percent: Number(e.target.value) })}
+                                  className="w-24 accent-[#0d9f4a]"
+                                />
+                                <span className="text-[11px] font-extrabold text-[#0d9f4a]">{row.progress}%</span>
+                              </>
+                            ) : (
+                              <span className="text-[11px] font-extrabold text-[#0d9f4a]">{row.progress}%</span>
+                            )}
+                        </div>
+                      </td>
+                      <td>{row.owner}</td>
+                    </tr>
+                  ))}
+                  {progressRows.length === 0 ? (
+                    <tr><td colSpan={5} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No tasks/milestones yet.</td></tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      );
+
+      const systemDetailsSection = (
         <>
           {/* Row 1: System Overview (read-only) + Inverter + Panel forms */}
           <section className="grid gap-4 xl:grid-cols-[1fr_1.5fr]">
@@ -20056,7 +21109,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-[12px] font-bold text-[#53647f]">Project: <span className="font-extrabold text-[#1e3261]">{d.project_id}</span></p>
-                <button type="button" disabled={savingSystemConfig} onClick={handleSaveSystemConfig} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#078c3e]">
+                <button type="button" disabled={!canEdit || savingSystemConfig} onClick={handleSaveSystemConfig} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#078c3e]">
                   <Save className="size-4" />
                   {savingSystemConfig ? 'Saving…' : 'Save System Config'}
                 </button>
@@ -20099,7 +21152,183 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             </article>
           </section>
         </>
-      ) : activeDetailTab === 'Customer & Site Info' ? (
+      );
+
+      const systemDetailsStackedSection = (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Inverter Details</h3>
+              <div className="mt-4 grid gap-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Inverter Brand</label>
+                  <input value={systemConfigForm.inverter_brand} onChange={(e) => setSystemConfigForm((p) => ({ ...p, inverter_brand: e.target.value }))} type="text" placeholder="e.g. Growatt" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Inverter Model</label>
+                  <input value={systemConfigForm.inverter_model} onChange={(e) => setSystemConfigForm((p) => ({ ...p, inverter_model: e.target.value }))} type="text" placeholder="e.g. MIN 5KTL-X" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Capacity (kW)</label>
+                  <input value={systemConfigForm.inverter_capacity_kw} onChange={(e) => setSystemConfigForm((p) => ({ ...p, inverter_capacity_kw: e.target.value }))} type="number" min="0" step="0.01" placeholder="e.g. 5" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">String Count</label>
+                  <input value={systemConfigForm.string_count} onChange={(e) => setSystemConfigForm((p) => ({ ...p, string_count: e.target.value }))} type="number" min="0" step="1" placeholder="e.g. 2" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                </div>
+              </div>
+            </article>
+
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Solar Panel Details</h3>
+              <div className="mt-4 grid gap-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Panel Brand</label>
+                  <input value={systemConfigForm.panel_brand} onChange={(e) => setSystemConfigForm((p) => ({ ...p, panel_brand: e.target.value }))} type="text" placeholder="e.g. Waaree" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Panel Model</label>
+                  <input value={systemConfigForm.panel_model} onChange={(e) => setSystemConfigForm((p) => ({ ...p, panel_model: e.target.value }))} type="text" placeholder="e.g. WSMD-550" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Wattage (Wp)</label>
+                  <input value={systemConfigForm.panel_wattage_w} onChange={(e) => setSystemConfigForm((p) => ({ ...p, panel_wattage_w: e.target.value }))} type="number" min="0" step="1" placeholder="e.g. 550" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">No. of Panels</label>
+                  <input value={systemConfigForm.panel_count} onChange={(e) => setSystemConfigForm((p) => ({ ...p, panel_count: e.target.value }))} type="number" min="0" step="1" placeholder="e.g. 10" className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+                </div>
+                {systemConfigForm.panel_wattage_w && systemConfigForm.panel_count ? (
+                  <p className="text-[12px] font-extrabold text-[#0d9f4a]">
+                    Total DC Capacity: {((Number(systemConfigForm.panel_wattage_w) * Number(systemConfigForm.panel_count)) / 1000).toFixed(2)} kWp
+                  </p>
+                ) : null}
+              </div>
+            </article>
+          </div>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Electrical &amp; Protection Details</h3>
+            <div className="mt-4">
+              <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Protection Devices &amp; Notes</label>
+              <textarea value={systemConfigForm.protection_devices} onChange={(e) => setSystemConfigForm((p) => ({ ...p, protection_devices: e.target.value }))} placeholder="e.g. ACDB, DCDB, AC/DC cables, earthing kit, lightning arrestor…" className="min-h-[80px] w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+            </div>
+            <div className="mt-3">
+              <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Additional Notes</label>
+              <textarea value={systemConfigForm.notes} onChange={(e) => setSystemConfigForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Any special design notes, deviations or remarks…" className="min-h-[60px] w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button type="button" disabled={!canEdit || savingSystemConfig} onClick={handleSaveSystemConfig} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#078c3e]">
+                <Save className="size-4" />
+                {savingSystemConfig ? 'Saving…' : 'Save System Config'}
+              </button>
+            </div>
+          </article>
+        </div>
+      );
+
+      const roofElectricalSection = (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {roofStatsRows.length ? roofStatsRows.map((stat, index) => {
+              const { icon, tone } = roofStatTones[index % roofStatTones.length];
+              return <ProjectSummaryCard key={stat.label} stat={{ ...stat, icon, tone }} onClick={() => onNotify(`${stat.label} opened`)} />;
+            }) : <p className="text-[13px] font-bold text-[#53647f] sm:col-span-2 xl:col-span-4">No roof stats recorded yet.</p>}
+          </section>
+          <section className="grid gap-4 xl:grid-cols-2">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof Measurements</h2>
+              <div className="mt-5 space-y-4">
+                {roofDetailsRows.length ? roofDetailsRows.map(([label, value]) => (
+                  <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[150px_1fr]">
+                    <span className="font-bold text-[#53647f]">{label}</span>
+                    <span className="font-extrabold text-[#1e3261]">{value}</span>
+                  </div>
+                )) : <p className="text-[13px] font-bold text-[#53647f]">No roof details recorded yet.</p>}
+              </div>
+            </article>
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Electrical Details</h2>
+              <div className="mt-5 space-y-4">
+                {electricalDetailsRows.length ? electricalDetailsRows.map(([label, value]) => (
+                  <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[170px_1fr]">
+                    <span className="font-bold text-[#53647f]">{label}</span>
+                    <span className="font-extrabold text-[#1e3261]">{value}</span>
+                  </div>
+                )) : <p className="text-[13px] font-bold text-[#53647f]">No electrical details recorded yet.</p>}
+              </div>
+            </article>
+          </section>
+        </>
+      );
+      const checklistSection = (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {surveyChecklistStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+          </section>
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.55fr)]">
+            <div className="space-y-4">
+              {Object.entries(surveyChecklistByCategory).map(([category, items]) => (
+                <article key={category} className={`${panelClass} p-4 sm:p-5`}>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{category}</h2>
+                  <div className="mt-5 space-y-3">
+                    {items.map((item) => (
+                      <label key={item.id} className={cx('flex items-center gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]', !canEdit && 'opacity-90')}>
+                        <input type="checkbox" checked={item.is_checked} disabled={!canEdit} onChange={() => toggleSurveyChecklistItem(item)} className="size-4 accent-[#0d9f4a]" />
+                        <span className="min-w-0 flex-1">{item.label}</span>
+                        {item.is_checked ? <ProjectInfoPill tone="green">Done</ProjectInfoPill> : <ProjectInfoPill tone="amber">Pending</ProjectInfoPill>}
+                      </label>
+                    ))}
+                  </div>
+                </article>
+              ))}
+              {!surveyChecklist.length ? <article className={`${panelClass} p-4 sm:p-5 text-center text-[13px] font-bold text-[#53647f]`}>No checklist items recorded yet.</article> : null}
+            </div>
+            <aside className="space-y-4">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Summary</h2>
+                <ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>
+                <div className="mt-4 space-y-3">
+                  {surveySummaryRows.map(([label, value]) => (
+                    <InfoCell key={label} label={label} value={value} valueClass={label === 'Survey Result' ? 'text-[#16a34a]' : undefined} />
+                  ))}
+                </div>
+              </article>
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Pending Actions</h2>
+                <div className="mt-4 space-y-3">
+                  {surveyChecklistPending.slice(0, 6).map((item) => (
+                    <div key={item.id} className="rounded-[10px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">{item.label}</div>
+                  ))}
+                  {!surveyChecklistPending.length ? <p className="text-[13px] font-bold text-[#53647f]">All checklist items verified.</p> : null}
+                </div>
+              </article>
+            </aside>
+          </section>
+        </>
+      );
+
+      const checklistStackedSection = (
+        <div className="space-y-4">
+          {Object.entries(surveyChecklistByCategory).map(([category, items]) => (
+            <article key={category} className={`${panelClass} p-4 sm:p-5`}>
+              <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">{category}</h3>
+              <div className="mt-4 space-y-3">
+                {items.map((item) => (
+                  <label key={item.id} className={cx('flex items-center gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]', !canEdit && 'opacity-90')}>
+                    <input type="checkbox" checked={item.is_checked} disabled={!canEdit} onChange={() => toggleSurveyChecklistItem(item)} className="size-4 accent-[#0d9f4a]" />
+                    <span className="min-w-0 flex-1">{item.label}</span>
+                    {item.is_checked ? <ProjectInfoPill tone="green">Done</ProjectInfoPill> : <ProjectInfoPill tone="amber">Pending</ProjectInfoPill>}
+                  </label>
+                ))}
+              </div>
+            </article>
+          ))}
+          {!surveyChecklist.length ? <article className={`${panelClass} p-4 sm:p-5 text-center text-[13px] font-bold text-[#53647f]`}>No checklist items recorded yet.</article> : null}
+        </div>
+      );
+
+      const customerSiteSection = (
         <>
           <section className="grid gap-4 xl:grid-cols-[1.25fr_1fr]">
             <article className={`${panelClass} p-4 sm:p-5`}>
@@ -20107,22 +21336,26 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Customer & Site Details</h2>
                 <ProjectInfoPill tone="blue">API Connected</ProjectInfoPill>
               </div>
-              <p className="mt-2 text-[12px] font-bold text-[#6c7f9f]">Simple form - edit and save directly to backend/database.</p>
+              <p className="mt-2 text-[12px] font-bold text-[#6c7f9f]">{canEdit ? 'Edit and save directly to backend/database.' : 'View-only — turn on Edit Mode to update.'}</p>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <input value={customerSiteForm.customer_name} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, customer_name: e.target.value }))} type="text" placeholder="Customer Name" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
-                <input value={customerSiteForm.site} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site: e.target.value }))} type="text" placeholder="Site" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
-                <input value={customerSiteForm.city} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, city: e.target.value }))} type="text" placeholder="City" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
-                <input value={customerSiteForm.state} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, state: e.target.value }))} type="text" placeholder="State" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
-                <textarea value={customerSiteForm.site_address} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site_address: e.target.value }))} placeholder="Site Address" className="sm:col-span-2 min-h-[88px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                <input value={customerSiteForm.customer_name} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, customer_name: e.target.value }))} disabled={!canEdit} type="text" placeholder="Customer Name" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+                <input value={customerSiteForm.site} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site: e.target.value }))} disabled={!canEdit} type="text" placeholder="Site" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+                <input value={customerSiteForm.meter_number} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, meter_number: e.target.value }))} disabled={!canEdit} type="text" placeholder="Meter No." className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+                <input value={customerSiteForm.site_size} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site_size: e.target.value }))} disabled={!canEdit} type="text" placeholder="Size (e.g. 1200 sq.ft)" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+                <input value={customerSiteForm.city} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, city: e.target.value }))} disabled={!canEdit} type="text" placeholder="City" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+                <input value={customerSiteForm.state} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, state: e.target.value }))} disabled={!canEdit} type="text" placeholder="State" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+                <textarea value={customerSiteForm.site_address} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site_address: e.target.value }))} disabled={!canEdit} placeholder="Site Address" className="sm:col-span-2 min-h-[88px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
               </div>
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[12px] font-bold text-[#53647f]">Project ID: <span className="font-extrabold text-[#1e3261]">{d.project_id}</span></p>
+                <button type="button" onClick={handleOpenProjectMap} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />Open in Maps</button>
+                {canEdit ? (
                 <button type="button" disabled={savingCustomerSite} onClick={handleSaveCustomerSite} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
                   <Save className="size-4" />
                   {savingCustomerSite ? 'Saving...' : 'Save Customer & Site'}
                 </button>
+                ) : null}
               </div>
             </article>
 
@@ -20130,29 +21363,52 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Survey Snapshot</h2>
               <div className="mt-5 grid gap-3">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <input value={surveyForm.survey_date} onChange={(e) => setSurveyForm((prev) => ({ ...prev, survey_date: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
-                  <select value={surveyForm.status} onChange={(e) => setSurveyForm((prev) => ({ ...prev, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  <input value={surveyForm.survey_date} onChange={(e) => setSurveyForm((prev) => ({ ...prev, survey_date: e.target.value }))} disabled={!canEdit} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]" />
+                  <select value={surveyForm.status} onChange={(e) => setSurveyForm((prev) => ({ ...prev, status: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
                     {['Draft', 'Completed'].map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 </div>
-                <input value={surveyForm.building_type} onChange={(e) => setSurveyForm((prev) => ({ ...prev, building_type: e.target.value }))} type="text" placeholder="Building Type" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
-                <input value={surveyForm.roof_type} onChange={(e) => setSurveyForm((prev) => ({ ...prev, roof_type: e.target.value }))} type="text" placeholder="Roof Type" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
-                <select value={surveyForm.feasibility} onChange={(e) => setSurveyForm((prev) => ({ ...prev, feasibility: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                <input value={surveyForm.building_type} onChange={(e) => setSurveyForm((prev) => ({ ...prev, building_type: e.target.value }))} disabled={!canEdit} type="text" placeholder="Building Type" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+                <input value={surveyForm.roof_type} onChange={(e) => setSurveyForm((prev) => ({ ...prev, roof_type: e.target.value }))} disabled={!canEdit} type="text" placeholder="Roof Type" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+                <select value={surveyForm.feasibility} onChange={(e) => setSurveyForm((prev) => ({ ...prev, feasibility: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
                   <option value="">Feasibility</option>
                   {['Feasible', 'Feasible with Conditions', 'Not Feasible'].map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
-                <textarea value={surveyForm.summary_notes} onChange={(e) => setSurveyForm((prev) => ({ ...prev, summary_notes: e.target.value }))} placeholder="Survey summary / notes" className="min-h-[86px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" />
+                <textarea value={surveyForm.summary_notes} onChange={(e) => setSurveyForm((prev) => ({ ...prev, summary_notes: e.target.value }))} disabled={!canEdit} placeholder="Survey summary / notes" className="min-h-[86px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
               </div>
+              {canEdit ? (
               <button type="button" disabled={savingSurvey} onClick={handleSaveSurvey} className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
                 <Database className="size-4" />
                 {savingSurvey ? 'Saving...' : 'Save Survey Details'}
               </button>
+              ) : null}
             </article>
           </section>
 
+          {hubMode ? (
+            <section className="grid gap-4 xl:grid-cols-2">
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Condition Details</h2>
+                <div className="mt-5 space-y-4">
+                  {siteDetailsRows.length ? siteDetailsRows.map(([label, value]) => (
+                    <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[180px_1fr]">
+                      <span className="font-bold text-[#53647f]">{label}</span>
+                      <span className="font-extrabold text-[#1e3261]">{value}</span>
+                    </div>
+                  )) : <p className="text-[13px] font-bold text-[#53647f]">No site details recorded yet.</p>}
+                </div>
+              </article>
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Readiness</h2>
+                <ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>
+                <p className="mt-4 text-[13px] font-bold leading-6 text-[#53647f]">{survey.summary_notes || 'No summary notes recorded yet.'}</p>
+              </article>
+            </section>
+          ) : null}
+
           <ProjectInfoCard title="Quick Read Only Snapshot" icon={Info} tone="green">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {[['Customer', d.customer_name || '—'], ['Site', d.site || '—'], ['Address', d.site_address || '—'], ['Survey Status', d.site_survey?.status || 'Draft']].map(([label, value]) => (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+              {[['Customer', d.customer_name || '—'], ['Site', d.site || '—'], ['Meter No.', d.meter_number || '—'], ['Size', d.site_size || '—'], ['Address', d.site_address || '—'], ['Survey Status', d.site_survey?.status || 'Draft']].map(([label, value]) => (
                 <div key={label} className="rounded-[10px] border border-[#e7eef7] bg-white p-3">
                   <p className="text-[11px] font-extrabold uppercase tracking-[0.04em] text-[#7a8da9]">{label}</p>
                   <p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">{value}</p>
@@ -20161,8 +21417,171 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             </div>
           </ProjectInfoCard>
         </>
-      ) : activeDetailTab === 'Overview' ? (
+      );
+
+      const customerSiteStackedSection = (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Customer &amp; Site Details</h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <input value={customerSiteForm.customer_name} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, customer_name: e.target.value }))} disabled={!canEdit} type="text" placeholder="Customer Name" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+              <input value={customerSiteForm.site} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site: e.target.value }))} disabled={!canEdit} type="text" placeholder="Site" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+              <input value={customerSiteForm.meter_number} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, meter_number: e.target.value }))} disabled={!canEdit} type="text" placeholder="Meter No." className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+              <input value={customerSiteForm.site_size} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site_size: e.target.value }))} disabled={!canEdit} type="text" placeholder="Size (e.g. 1200 sq.ft)" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+              <input value={customerSiteForm.city} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, city: e.target.value }))} disabled={!canEdit} type="text" placeholder="City" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+              <input value={customerSiteForm.state} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, state: e.target.value }))} disabled={!canEdit} type="text" placeholder="State" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+              <textarea value={customerSiteForm.site_address} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site_address: e.target.value }))} disabled={!canEdit} placeholder="Site Address" className="sm:col-span-2 min-h-[88px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </div>
+            {canEdit ? (
+            <button type="button" disabled={savingCustomerSite} onClick={handleSaveCustomerSite} className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+              <Save className="size-4" />
+              {savingCustomerSite ? 'Saving...' : 'Save Customer & Site'}
+            </button>
+            ) : null}
+          </article>
+
+          <article className={`${panelClass} p-4 sm:p-5`}>
+            <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Site Survey Snapshot</h3>
+            <div className="mt-4 grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input value={surveyForm.survey_date} onChange={(e) => setSurveyForm((prev) => ({ ...prev, survey_date: e.target.value }))} disabled={!canEdit} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]" />
+                <select value={surveyForm.status} onChange={(e) => setSurveyForm((prev) => ({ ...prev, status: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
+                  {['Draft', 'Completed'].map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+              <input value={surveyForm.building_type} onChange={(e) => setSurveyForm((prev) => ({ ...prev, building_type: e.target.value }))} disabled={!canEdit} type="text" placeholder="Building Type" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+              <input value={surveyForm.roof_type} onChange={(e) => setSurveyForm((prev) => ({ ...prev, roof_type: e.target.value }))} disabled={!canEdit} type="text" placeholder="Roof Type" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+              <select value={surveyForm.feasibility} onChange={(e) => setSurveyForm((prev) => ({ ...prev, feasibility: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
+                <option value="">Feasibility</option>
+                {['Feasible', 'Feasible with Conditions', 'Not Feasible'].map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+              <textarea value={surveyForm.summary_notes} onChange={(e) => setSurveyForm((prev) => ({ ...prev, summary_notes: e.target.value }))} disabled={!canEdit} placeholder="Survey summary / notes" className="min-h-[86px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </div>
+            {canEdit ? (
+            <button type="button" disabled={savingSurvey} onClick={handleSaveSurvey} className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+              <Database className="size-4" />
+              {savingSurvey ? 'Saving...' : 'Save Survey Details'}
+            </button>
+            ) : null}
+          </article>
+        </div>
+      );
+
+      const siteSizeStackedSection = (
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Rooftop Area (Sq.ft.)
+              <input value={surveyForm.rooftop_area_sqft} onChange={(e) => setSurveyForm((prev) => ({ ...prev, rooftop_area_sqft: e.target.value }))} disabled={!canEdit} type="text" placeholder="e.g. 1200 sq.ft" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Shadow Free Area
+              <input value={surveyForm.shadow_free_area_sqft} onChange={(e) => setSurveyForm((prev) => ({ ...prev, shadow_free_area_sqft: e.target.value }))} disabled={!canEdit} type="text" placeholder="e.g. 950 sq.ft" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Available Area
+              <input value={surveyForm.available_area_sqft} onChange={(e) => setSurveyForm((prev) => ({ ...prev, available_area_sqft: e.target.value }))} disabled={!canEdit} type="text" placeholder="e.g. 800 sq.ft" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Roof Type
+              <input value={surveyForm.roof_type} onChange={(e) => setSurveyForm((prev) => ({ ...prev, roof_type: e.target.value }))} disabled={!canEdit} type="text" placeholder="e.g. RCC Flat Roof" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+          </div>
+        </article>
+      );
+
+      const financialDetailStackedSection = (
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Estimated Project Cost (₹)
+              <input value={projectAssignForm.total_value} onChange={(e) => setProjectAssignForm((prev) => ({ ...prev, total_value: e.target.value }))} disabled={!canEdit} type="number" min="0" step="0.01" placeholder="0.00" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Customer Budget (₹)
+              <input value={surveyForm.customer_budget} onChange={(e) => setSurveyForm((prev) => ({ ...prev, customer_budget: e.target.value }))} disabled={!canEdit} type="number" min="0" step="0.01" placeholder="0.00" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Electricity Bill (₹/month)
+              <input value={surveyForm.electricity_bill_amount} onChange={(e) => setSurveyForm((prev) => ({ ...prev, electricity_bill_amount: e.target.value }))} disabled={!canEdit} type="number" min="0" step="0.01" placeholder="0.00" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Subsidy Applicable
+              <select value={surveyForm.subsidy_applicable ? 'yes' : 'no'} onChange={(e) => setSurveyForm((prev) => ({ ...prev, subsidy_applicable: e.target.value === 'yes' }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f] sm:col-span-2">Remarks
+              <textarea value={surveyForm.financial_remarks} onChange={(e) => setSurveyForm((prev) => ({ ...prev, financial_remarks: e.target.value }))} disabled={!canEdit} placeholder="Financial remarks / notes" className="min-h-[80px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+          </div>
+        </article>
+      );
+
+      const teamAssignmentStackedSection = (
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Survey Engineer
+              <select value={surveyForm.surveyed_by} onChange={(e) => setSurveyForm((prev) => ({ ...prev, surveyed_by: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
+                <option value="">Unassigned</option>
+                {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Sales Executive
+              <select value={projectAssignForm.sales_executive} onChange={(e) => setProjectAssignForm((prev) => ({ ...prev, sales_executive: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
+                <option value="">Unassigned</option>
+                {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Project Manager
+              <select value={projectAssignForm.manager} onChange={(e) => setProjectAssignForm((prev) => ({ ...prev, manager: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
+                <option value="">Unassigned</option>
+                {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Survey Date
+              <input value={surveyForm.survey_date} onChange={(e) => setSurveyForm((prev) => ({ ...prev, survey_date: e.target.value }))} disabled={!canEdit} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Survey Status
+              <select value={surveyForm.status} onChange={(e) => setSurveyForm((prev) => ({ ...prev, status: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
+                {['Draft', 'Completed'].map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </label>
+          </div>
+        </article>
+      );
+
+      const meterInfoStackedSection = (
+        <article className={`${panelClass} p-4 sm:p-5`}>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Meter Number
+              <input value={customerSiteForm.meter_number} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, meter_number: e.target.value }))} disabled={!canEdit} type="text" placeholder="Meter No." className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Meter Type
+              <input value={projectAssignForm.meter_type} onChange={(e) => setProjectAssignForm((prev) => ({ ...prev, meter_type: e.target.value }))} disabled={!canEdit} type="text" placeholder="e.g. Net Meter" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Sanction Load
+              <input value={projectAssignForm.sanction_load} onChange={(e) => setProjectAssignForm((prev) => ({ ...prev, sanction_load: e.target.value }))} disabled={!canEdit} type="text" placeholder="e.g. 5 KW" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Consumer Number
+              <input value={projectAssignForm.consumer_number} onChange={(e) => setProjectAssignForm((prev) => ({ ...prev, consumer_number: e.target.value }))} disabled={!canEdit} type="text" placeholder="Consumer No." className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+            <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">DISCOM Name
+              <input value={projectAssignForm.discom_name} onChange={(e) => setProjectAssignForm((prev) => ({ ...prev, discom_name: e.target.value }))} disabled={!canEdit} type="text" placeholder="e.g. MSEDCL" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
+            </label>
+          </div>
+        </article>
+      );
+
+      const documentsUploadStackedSection = (
+        <SiteSurveyDocumentUploads
+          projectId={projectProp.id}
+          documents={documents}
+          onReload={() => fetchProjectDetails({ silent: true })}
+          onNotify={onNotify}
+        />
+      );
+
+      const overviewSection = (
         <>
+          {hubMode ? (
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+              {surveyStatCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
+            </section>
+          ) : null}
           <section className="grid gap-4 xl:grid-cols-[1.1fr_1.1fr_0.95fr]">
             <article className={`${panelClass} p-4 sm:p-5`}>
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Project Overview</h2>
@@ -20308,7 +21727,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             </article>
           </section>
         </>
-      ) : (
+      );
+      const fallbackSection = (
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
             <FolderKanban className="size-8" />
@@ -20319,9 +21739,74 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
           </p>
           <button type="button" onClick={() => setActiveDetailTab('System Details')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to System Details</button>
         </article>
-      )}
+      );
 
-      <DashboardFooter />
+      const sectionByTab = {
+        Activities: activitiesSection,
+        Notes: notesSection,
+        Team: teamSection,
+        Documents: documentsSection,
+        Financials: financialsSection,
+        Progress: progressSection,
+        'System Details': systemDetailsSection,
+        'Roof & Electrical': roofElectricalSection,
+        Checklist: checklistSection,
+        'Customer & Site Info': customerSiteSection,
+        'Customer & Site': customerSiteSection,
+        Overview: overviewSection,
+      };
+
+      if (stackedSections) {
+        const stackedSectionByTab = {
+          Size: siteSizeStackedSection,
+          Financial: financialDetailStackedSection,
+          Team: teamAssignmentStackedSection,
+          Documents: documentsUploadStackedSection,
+          'Meter Number': meterInfoStackedSection,
+        };
+        const stackedSectionMeta = {
+          Size: { icon: Home, tone: 'primary' },
+          Financial: { icon: IndianRupee, tone: 'success' },
+          Team: { icon: UsersRound, tone: 'purple' },
+          Documents: { icon: FileText, tone: 'warning' },
+          'Meter Number': { icon: Zap, tone: 'primary' },
+        };
+        const stackedTabOrder = ['Size', 'Financial', 'Team', 'Documents', 'Meter Number'];
+        return (
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="sticky top-0 z-20 flex items-center justify-between border-b border-[#edf2f8] bg-white px-6 py-4">
+              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Edit Site Survey</h2>
+              <button type="button" onClick={onClose} aria-label="Close edit survey" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="space-y-2 px-6 py-6">
+              {stackedTabOrder.map((label) => {
+                const meta = stackedSectionMeta[label];
+                return (
+                  <LeadFormSection key={label} title={label} icon={meta.icon} tone={meta.tone}>
+                    {stackedSectionByTab[label]}
+                  </LeadFormSection>
+                );
+              })}
+            </div>
+            <div className="sticky bottom-0 z-20 flex flex-col justify-end gap-3 border-t border-[#edf2f8] bg-white px-6 py-4 sm:flex-row">
+              <button type="button" disabled={savingAllSections} onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff] disabled:opacity-60">Cancel</button>
+              <button type="button" disabled={savingAllSections} onClick={() => handleSaveAllNewSections('Draft')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#0b65e5] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#eef5ff] disabled:opacity-60">
+                <Save className="size-4" />
+                {savingAllSections ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button type="button" disabled={savingAllSections} onClick={() => handleSaveAllNewSections('Completed')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60">
+                <Save className="size-4" />
+                {savingAllSections ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      return sectionByTab[activeDetailTab] ?? fallbackSection;
+      })()}
+
+      {!stackedSections ? <DashboardFooter /> : null}
     </div>
   );
 }
@@ -21448,703 +22933,327 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
   );
 }
 
-function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
-  const [activeSurveyTab, setActiveSurveyTab] = useState('Overview');
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+const SURVEY_DOCUMENT_CATEGORIES = ['Site Photos', 'Electricity Bill', 'Roof Images', 'Customer Documents', 'Other Files'];
 
-  const reloadSurvey = () => {
-    if (!projectProp?.id) return;
-    projectApi.get(projectProp.id).then(setData).catch(() => {});
+function isImageFileName(name) {
+  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(name || '');
+}
+
+function SiteSurveyDocumentUploads({ projectId, documents = [], onReload, onNotify }) {
+  const fileInputRefs = useRef({});
+  const [uploadingCategory, setUploadingCategory] = useState(null);
+
+  const handleSelectFiles = async (category, event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+    setUploadingCategory(category);
+    try {
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('project', projectId);
+        formData.append('name', file.name);
+        formData.append('category', category);
+        formData.append('file', file);
+        await projectDocumentApi.create(formData);
+      }
+      onNotify?.(`${category} uploaded`);
+      onReload?.();
+    } catch (error) {
+      onNotify?.(error?.message || `Failed to upload ${category}`);
+    } finally {
+      setUploadingCategory(null);
+    }
   };
 
-  useEffect(() => {
-    if (!projectProp?.id) { setLoading(false); return; }
-    let cancelled = false;
-    setLoading(true);
-    projectApi.get(projectProp.id)
-      .then((res) => { if (!cancelled) setData(res); })
-      .catch(() => { if (!cancelled) setData(null); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [projectProp?.id]);
+  return (
+    <article className={`${panelClass} p-4 sm:p-5`}>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {SURVEY_DOCUMENT_CATEGORIES.map((category) => {
+          const categoryDocs = documents.filter((doc) => doc.category === category);
+          return (
+            <div key={category} className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
+              <div className="flex items-center justify-between gap-1">
+                <h4 className="text-[16px] font-extrabold uppercase tracking-wide text-[#7386a3]">{category}</h4>
+                <button
+                  type="button"
+                  onClick={() => fileInputRefs.current[category]?.click()}
+                  disabled={uploadingCategory === category}
+                  className="inline-flex h-8 items-center gap-1 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 text-[14px] font-extrabold text-[#284276] disabled:opacity-60"
+                >
+                  <Upload className="size-3.5" />
+                  {uploadingCategory === category ? 'Uploading...' : 'Upload'}
+                </button>
+                <input
+                  ref={(el) => { fileInputRefs.current[category] = el; }}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleSelectFiles(category, e)}
+                />
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-1">
+                {categoryDocs.length === 0 ? (
+                  <p className="col-span-3 text-[14px] font-bold text-[#8a98af]">No files uploaded yet.</p>
+                ) : categoryDocs.map((doc) => (
+                  <a key={doc.id} href={doc.file} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-1 rounded-[8px] border border-[#e7eef7] bg-white p-2 text-center transition hover:border-[#0b65e5]">
+                    {isImageFileName(doc.name || doc.file) ? (
+                      <img src={doc.file} alt={doc.name} className="h-14 w-full rounded-[6px] object-cover" />
+                    ) : (
+                      <FileText className="size-6 text-[#7386a3]" />
+                    )}
+                    <span className="line-clamp-1 w-full text-[13px] font-bold text-[#53647f]">{doc.name}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
 
+function ProjectDocumentsTable({
+  projectId,
+  documents = [],
+  onReload,
+  onNotify,
+  title = 'Documents',
+  uploadButtonClassName = 'inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]',
+  fileInputRef: externalFileInputRef,
+  readOnly = false,
+}) {
+  const internalFileInputRef = useRef(null);
+  const fileInputRef = externalFileInputRef || internalFileInputRef;
+  const [pendingRows, setPendingRows] = useState([]);
+  const [savingIds, setSavingIds] = useState(() => new Set());
+  const [editedFileNames, setEditedFileNames] = useState({});
+  const [uploaderName, setUploaderName] = useState('');
+
+  useEffect(() => {
+    authApi.me().then((user) => setUploaderName(user?.name || 'User')).catch(() => setUploaderName('User'));
+  }, []);
+
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+
+  const openFilePicker = () => {
+    if (readOnly) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleFilesSelected = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    setPendingRows((current) => [
+      ...current,
+      ...files.map((file, index) => ({
+        id: `pending-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+        file,
+        documentName: file.name,
+        fileName: '',
+        uploadedBy: uploaderName || 'User',
+        uploadDate: todayIso(),
+      })),
+    ]);
+    event.target.value = '';
+  };
+
+  const updatePendingRow = (rowId, patch) => {
+    setPendingRows((current) => current.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
+  };
+
+  const savePendingRow = async (row) => {
+    setSavingIds((current) => new Set(current).add(row.id));
+    try {
+      const formData = new FormData();
+      formData.append('project', projectId);
+      formData.append('name', row.documentName);
+      formData.append('category', row.fileName.trim());
+      formData.append('file', row.file);
+      await projectDocumentApi.create(formData);
+      setPendingRows((current) => current.filter((item) => item.id !== row.id));
+      onNotify?.('Document saved');
+      onReload?.();
+    } catch (error) {
+      onNotify?.(error?.message || 'Failed to save document');
+    } finally {
+      setSavingIds((current) => {
+        const next = new Set(current);
+        next.delete(row.id);
+        return next;
+      });
+    }
+  };
+
+  const saveExistingRow = async (doc) => {
+    const fileName = (editedFileNames[doc.id] ?? doc.category ?? '').trim();
+    setSavingIds((current) => new Set(current).add(doc.id));
+    try {
+      await projectDocumentApi.update(doc.id, { category: fileName });
+      setEditedFileNames((current) => {
+        const next = { ...current };
+        delete next[doc.id];
+        return next;
+      });
+      onNotify?.('Document updated');
+      onReload?.();
+    } catch (error) {
+      onNotify?.(error?.message || 'Failed to update document');
+    } finally {
+      setSavingIds((current) => {
+        const next = new Set(current);
+        next.delete(doc.id);
+        return next;
+      });
+    }
+  };
+
+  const allRows = [
+    ...pendingRows.map((row, index) => ({ kind: 'pending', row, index: index + 1 })),
+    ...documents.map((doc, index) => ({ kind: 'saved', doc, index: pendingRows.length + index + 1 })),
+  ];
+
+  return (
+    <article className={`${panelClass} overflow-hidden`}>
+      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilesSelected} />
+      <div className="flex flex-col gap-3 border-b border-[#edf2f8] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{title}</h2>
+        {!readOnly ? (
+        <button type="button" onClick={openFilePicker} className={uploadButtonClassName}>
+          <Upload className="size-4 shrink-0" />
+          Upload Document
+        </button>
+        ) : null}
+      </div>
+      <div className="responsive-scroll overflow-x-auto">
+        <table className="crm-table min-w-[920px] w-full">
+          <thead>
+            <tr>
+              {['#', 'Document Name', 'File Name', 'Uploaded By', 'Date', 'Action'].map((header) => (
+                <th key={header}>{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {allRows.map(({ kind, row, doc, index }) => {
+              if (kind === 'pending') {
+                const saving = savingIds.has(row.id);
+                return (
+                  <tr key={row.id} className="bg-[#fbfdff]">
+                    <td>{index}</td>
+                    <td className="font-extrabold text-[#1e3261]">{row.documentName}</td>
+                    <td>
+                      <input
+                        value={row.fileName}
+                        onChange={(event) => updatePendingRow(row.id, { fileName: event.target.value })}
+                        disabled={readOnly}
+                        type="text"
+                        placeholder="Enter file name"
+                        className="h-9 w-full min-w-[140px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]"
+                      />
+                    </td>
+                    <td>{row.uploadedBy}</td>
+                    <td>
+                      <input
+                        value={row.uploadDate}
+                        onChange={(event) => updatePendingRow(row.id, { uploadDate: event.target.value })}
+                        type="date"
+                        className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5]"
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => savePendingRow(row)}
+                        className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0d9f4a] transition hover:bg-[#f0fdf4] disabled:opacity-60"
+                        aria-label={`Save ${row.documentName}`}
+                        title="Save document"
+                      >
+                        <Save className="size-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }
+
+              const saving = savingIds.has(doc.id);
+              const fileNameValue = editedFileNames[doc.id] ?? doc.category ?? '';
+              return (
+                <tr key={doc.id}>
+                  <td>{index}</td>
+                  <td className="font-extrabold text-[#1e3261]">{doc.name}</td>
+                  <td>
+                    <input
+                      value={fileNameValue}
+                      onChange={(event) => setEditedFileNames((current) => ({ ...current, [doc.id]: event.target.value }))}
+                      type="text"
+                      placeholder="Enter file name"
+                      className="h-9 w-full min-w-[140px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]"
+                    />
+                  </td>
+                  <td>{doc.uploaded_by_name || '—'}</td>
+                  <td>{formatProjectDisplayDate(doc.uploaded_at)}</td>
+                  <td>
+                    <div className="inline-flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => saveExistingRow(doc)}
+                        className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0d9f4a] transition hover:bg-[#f0fdf4] disabled:opacity-60"
+                        aria-label={`Save ${doc.name}`}
+                        title="Save changes"
+                      >
+                        <Save className="size-4" />
+                      </button>
+                      {doc.file ? (
+                        <a href={doc.file} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${doc.name}`}>
+                          <Download className="size-4" />
+                        </a>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {!allRows.length ? (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-[13px] font-bold text-[#53647f]">
+                  No documents uploaded yet for this project.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  );
+}
+
+function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify, initialSurveyTab = 'Overview' }) {
   if (!projectProp?.id) {
     return (
       <ProjectListPage
         activeSection={activeSection}
         onOpenSection={onOpenSection}
-        onSelectProject={(project) => onSelectProject?.(project, 'Project Site Survey')}
+        onSelectProject={(project, target = 'Project Site Survey') => onSelectProject?.(project, target)}
         onNotify={onNotify}
       />
     );
   }
 
-  if (loading || !data) {
-    return (
-      <div className="space-y-4">
-        <PageHeading title="Site Survey" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Site Survey' }]} />
-        <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
-          {loading ? <PageLoadingState message="Loading site survey..." /> : <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Project not found.</p>}
-        </article>
-      </div>
-    );
-  }
-
-  const d = data;
-  const survey = d.site_survey || {};
-  const checklist = (d.checklist_items || []).filter((c) => c.phase === 'Site Survey');
-  const checklistChecked = checklist.filter((c) => c.is_checked);
-  const checklistPending = checklist.filter((c) => !c.is_checked);
-  const checklistByCategory = {};
-  checklist.forEach((c) => {
-    const key = c.category || 'General';
-    (checklistByCategory[key] = checklistByCategory[key] || []).push(c);
-  });
-
-  const toggleChecklistItem = (item) => {
-    projectChecklistApi.update(item.id, { is_checked: !item.is_checked }).then(reloadSurvey).catch((e) => onNotify(e.message));
-  };
-
-  const project = {
-    name: d.project_name,
-    address: d.site_address || '—',
-    city: [d.city, d.state].filter(Boolean).join(', ') || '—',
-    manager: d.manager_detail ? { name: d.manager_detail.name, initials: d.manager_detail.initials, tone: 'amber' } : { name: 'Unassigned', initials: '—', tone: 'blue' },
-    customer: d.customer_name,
-    site: d.site || '—',
-    surveyBy: survey.surveyed_by_name ? { name: survey.surveyed_by_name, initials: survey.surveyed_by_name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(), tone: 'green' } : { name: 'Unassigned', initials: '—', tone: 'slate' },
-    surveyDate: survey.survey_date,
-    surveyId: survey.survey_id || '—',
-  };
-
-  const surveyTabs = [
-    { label: 'Overview', icon: Home },
-    { label: 'Site Details', icon: MapPin },
-    { label: 'Roof Details', icon: Boxes },
-    { label: 'Electrical Details', icon: Zap },
-    { label: 'Documents', icon: FileText },
-    { label: 'Observations', icon: Info },
-    { label: 'Checklist', icon: ClipboardPlus },
-    { label: 'Summary', icon: BarChart3 },
-  ];
-
-  const feasibilityTone = survey.feasibility === 'Feasible' ? 'green' : survey.feasibility === 'Not Feasible' ? 'red' : survey.feasibility ? 'amber' : 'slate';
-
-  const roofUsableArea = (survey.roof_stats || []).find((s) => /usable/i.test(s.label || ''));
-
-  const statCards = [
-    { label: 'Usable Roof Area', value: roofUsableArea?.value || '—', caption: roofUsableArea?.caption || 'From roof survey', icon: Boxes, tone: 'purple' },
-    { label: 'Recommended Capacity', value: `${d.capacity_kwp ?? '—'} kWp`, caption: d.project_type || '—', icon: FolderKanban, tone: 'blue' },
-    { label: 'Building Type', value: survey.building_type || '—', caption: survey.floor_count ? `${survey.floor_count} floor(s)` : '—', icon: Home, tone: 'cyan' },
-    { label: 'Roof Type', value: survey.roof_type || '—', caption: 'As surveyed', icon: HardDrive, tone: 'green' },
-    { label: 'Feasibility', value: survey.feasibility || 'Pending', caption: 'Survey result', icon: ClipboardPlus, tone: feasibilityTone === 'red' ? 'amber' : feasibilityTone },
-    { label: 'Survey Status', value: survey.status || 'Draft', caption: survey.survey_id || 'Not yet created', icon: CheckCircle2, tone: survey.status === 'Completed' ? 'green' : 'amber' },
-  ];
-
-  const siteDetailsRows = survey.site_details || [];
-  const roofDetailsRows = survey.roof_details || [];
-  const electricalDetailsRows = survey.electrical_details || [];
-  const roofStatsRows = survey.roof_stats || [];
-  const roofStatTones = [
-    { icon: Boxes, tone: 'blue' },
-    { icon: CheckCircle2, tone: 'green' },
-    { icon: HardDrive, tone: 'purple' },
-    { icon: AlertTriangle, tone: 'amber' },
-  ];
-
-  const documents = d.documents || [];
-  const documentCategories = new Set(documents.map((doc) => doc.category).filter(Boolean));
-  const latestDocument = documents[0];
-
-  const docStatCards = [
-    { label: 'Total Documents', value: String(documents.length), caption: 'Uploaded for this project', icon: FileText, tone: 'blue' },
-    { label: 'Categories', value: String(documentCategories.size), caption: documentCategories.size ? Array.from(documentCategories).join(', ') : 'None yet', icon: Boxes, tone: 'purple' },
-    { label: 'Latest Upload', value: latestDocument ? formatProjectDisplayDate(latestDocument.uploaded_at) : '—', caption: latestDocument?.name || 'No documents yet', icon: Upload, tone: 'green' },
-  ];
-
-  const checklistStats = [
-    { label: 'Checklist Progress', value: checklist.length ? `${Math.round((checklistChecked.length / checklist.length) * 100)}%` : '0%', caption: `${checklistChecked.length} of ${checklist.length} done`, icon: CheckCircle2, tone: 'green' },
-    { label: 'Completed', value: String(checklistChecked.length), caption: 'Verified points', icon: BadgeCheck, tone: 'blue' },
-    { label: 'Pending', value: String(checklistPending.length), caption: checklistPending[0]?.label || 'None', icon: Hourglass, tone: 'amber' },
-    { label: 'Ready Status', value: checklistPending.length === 0 && checklist.length > 0 ? 'Good' : 'In Progress', caption: checklistPending.length === 0 && checklist.length > 0 ? 'All items verified' : 'Items pending', icon: ShieldCheck, tone: checklistPending.length === 0 && checklist.length > 0 ? 'green' : 'amber' },
-  ];
-
-  const summaryRows = [
-    ['Survey Result', survey.feasibility || 'Pending'],
-    ['Recommended System', `${d.capacity_kwp ?? '—'} kWp ${d.project_type || ''}`.trim()],
-    ['Building Type', survey.building_type || '—'],
-    ['Roof Type', survey.roof_type || '—'],
-    ['Survey Date', survey.survey_date ? formatProjectDisplayDate(survey.survey_date) : '—'],
-    ['Surveyed By', survey.surveyed_by_name || 'Unassigned'],
-    ['Pending Action', checklistPending.length ? `${checklistPending.length} checklist item(s) pending` : 'None'],
-    ['Status', survey.status || 'Draft'],
-  ];
-
-  const checklistCompletionPercent = checklist.length ? Math.round((checklistChecked.length / checklist.length) * 100) : 0;
-  const categoryCompletion = Object.entries(checklistByCategory).map(([category, items]) => ({
-    category,
-    done: items.filter((i) => i.is_checked).length,
-    total: items.length,
-  }));
-
   return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Site Survey"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details', { preserveProject: true }) },
-          { label: 'Site Survey' },
-        ]}
-        actions={(
-          <>
-            <button type="button" onClick={() => onNotify('Survey report download is not available yet')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => setActiveSurveyTab('Site Details')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Survey</button>
-          </>
-        )}
-      />
-
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 xl:grid-cols-[2.2fr_repeat(5,minmax(0,1fr))] xl:items-center">
-          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
-            <img src={navBarImage} alt={project.name} loading="lazy" decoding="async" className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
-                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">{d.status}</span>
-              </div>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
-              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
-            </div>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
-            <AssigneeCell assignee={project.manager} compact />
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Customer / Site</p>
-            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.customer}</p>
-            <p className="text-[13px] font-bold text-[#53647f]">{project.site}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Survey Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{project.surveyDate ? formatProjectDisplayDate(project.surveyDate) : 'Not scheduled'}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Survey By</p>
-            <AssigneeCell assignee={project.surveyBy} compact />
-            <p className="text-[12px] font-bold text-[#53647f]">Site Engineer</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Survey ID</p>
-            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.surveyId}</p>
-          </div>
-        </div>
-      </section>
-
-      <section className={`${panelClass} p-3 sm:p-4`}>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {surveyTabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeSurveyTab === tab.label;
-            return (
-              <button
-                key={tab.label}
-                type="button"
-                onClick={() => setActiveSurveyTab(tab.label)}
-                className={cx(
-                  'inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
-                  active ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
-                )}
-              >
-                <Icon className="size-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {activeSurveyTab === 'Overview' ? (
-        <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-            {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-[1.05fr_1fr_1.45fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Location</h2>
-              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8] bg-[linear-gradient(135deg,#f8fbff,#eef5ff)] p-4">
-                <div className="relative h-[240px] rounded-[12px] border border-[#d9e4f2] bg-[linear-gradient(135deg,#f8fafc,#eef5ff)]">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(37,99,235,0.08),transparent_28%),radial-gradient(circle_at_80%_20%,rgba(239,68,68,0.08),transparent_26%),radial-gradient(circle_at_35%_75%,rgba(22,163,74,0.08),transparent_22%)]" />
-                  <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.16)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.16)_1px,transparent_1px)] bg-size-[28px_28px]" />
-                  <span className="absolute left-[46%] top-[43%] grid size-10 place-items-center rounded-full bg-[#16a34a] text-white shadow-[0_14px_24px_rgba(22,163,74,0.28)]"><MapPin className="size-5" /></span>
-                </div>
-                <div className="mt-4 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[15px] font-extrabold text-[#1e3261]">{project.address}</p>
-                    <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-                  </div>
-                  <button type="button" onClick={() => setActiveSurveyTab('Site Details')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />Open in Maps</button>
-                </div>
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Survey Details</h2>
-              <div className="mt-5 space-y-4">
-                {siteDetailsRows.length ? siteDetailsRows.map(([label, value]) => (
-                  <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[170px_1fr]">
-                    <span className="font-bold text-[#53647f]">{label}</span>
-                    <span className="font-extrabold text-[#1e3261]">{value}</span>
-                  </div>
-                )) : <p className="text-[13px] font-bold text-[#53647f]">No site details recorded yet.</p>}
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof Layout & Usable Area</h2>
-              <div className="mt-5 grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-                <div className="rounded-[14px] border border-[#edf2f8] bg-white p-4">
-                  <div className="relative mx-auto h-[290px] w-[240px] rounded-[12px] border-2 border-[#c9d8ee] bg-[linear-gradient(135deg,#f8fbff,#eef5ff)]">
-                    <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(96,165,250,0.18)_1px,transparent_1px),linear-gradient(to_bottom,rgba(96,165,250,0.18)_1px,transparent_1px)] bg-size-[22px_22px]" />
-                    <div className="absolute left-[16px] top-[18px] h-[182px] w-[170px] rounded-[4px] border-2 border-[#2563eb] bg-[rgba(37,99,235,0.12)]" />
-                    <div className="absolute left-[178px] top-[18px] h-[102px] w-[28px] rounded-[4px] border-2 border-[#2563eb] bg-white/70" />
-                    <div className="absolute bottom-[18px] right-[18px] h-[42px] w-[92px] rounded-[4px] border-2 border-[#2563eb] bg-white/80" />
-                  </div>
-                  <div className="mt-4 flex flex-wrap items-center gap-6 text-[12px] font-extrabold text-[#314a79]">
-                    <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] border border-[#2563eb] bg-[rgba(37,99,235,0.18)]" />Usable Area</span>
-                    <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] border border-[#94a3b8] bg-white" />Obstacle</span>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  {roofDetailsRows.length ? roofDetailsRows.map(([label, value]) => (
-                    <div key={label} className="grid gap-2 text-[13px] sm:grid-cols-[150px_1fr]">
-                      <span className="font-bold text-[#53647f]">{label}</span>
-                      <span className="font-extrabold text-[#1e3261]">{value}</span>
-                    </div>
-                  )) : <p className="text-[13px] font-bold text-[#53647f]">No roof details recorded yet.</p>}
-                </div>
-              </div>
-            </article>
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-[1.2fr_0.95fr]">
-            <article className={`${panelClass} overflow-hidden`}>
-              <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Documents</h2>
-                <button type="button" onClick={() => setActiveSurveyTab('Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Documents</button>
-              </div>
-              <div className="p-4 sm:p-5">
-                {documents.length ? (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {documents.slice(0, 4).map((doc) => (
-                      <div key={doc.id} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                        <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#0b65e5] text-white"><FileText className="size-4" /></span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[14px] font-extrabold text-[#1e3261]">{doc.name}</span>
-                          <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{doc.category || 'Uncategorized'} · {formatProjectDisplayDate(doc.uploaded_at)}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : <p className="text-[13px] font-bold text-[#53647f]">No documents uploaded yet for this project.</p>}
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Checklist Snapshot</h2>
-              <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-[#eef2f7]">
-                <div className="h-full rounded-full bg-[#0d9f4a]" style={{ width: `${checklistCompletionPercent}%` }} />
-              </div>
-              <p className="mt-2 text-[12px] font-bold text-[#53647f]">{checklistChecked.length} of {checklist.length} items verified</p>
-              <div className="mt-4 space-y-3">
-                {checklistPending.slice(0, 3).map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">
-                    <Hourglass className="size-4 shrink-0 text-[#f59e0b]" />
-                    {item.label}
-                  </div>
-                ))}
-                {checklistPending.length === 0 ? <p className="text-[13px] font-bold text-[#53647f]">All checklist items are verified.</p> : null}
-              </div>
-              <button type="button" onClick={() => setActiveSurveyTab('Checklist')} className="mt-4 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><ArrowRight className="size-4" />Open Checklist</button>
-            </article>
-          </section>
-        </>
-      ) : activeSurveyTab === 'Site Details' ? (
-        <section className="grid gap-4 xl:grid-cols-2">
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Address</h2>
-            <div className="mt-5 rounded-[14px] border border-[#edf2f8] bg-[#fbfdff] p-4">
-              <p className="text-[15px] font-extrabold text-[#1e3261]">{project.address}</p>
-              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => setActiveSurveyTab('Overview')} className="mt-4 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]">
-                <MapPin className="size-4" />
-                View on Map
-              </button>
-            </div>
-          </article>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Site Condition Details</h2>
-            <div className="mt-5 space-y-4">
-              {siteDetailsRows.length ? siteDetailsRows.map(([label, value]) => (
-                <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[180px_1fr]">
-                  <span className="font-bold text-[#53647f]">{label}</span>
-                  <span className="font-extrabold text-[#1e3261]">{value}</span>
-                </div>
-              )) : <p className="text-[13px] font-bold text-[#53647f]">No site details recorded yet.</p>}
-            </div>
-          </article>
-
-          <article className={`${panelClass} p-4 sm:p-5 xl:col-span-2`}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Readiness</h2>
-                <p className="mt-1 text-[13px] font-bold text-[#53647f]">Feasibility outcome and summary notes recorded during the survey.</p>
-              </div>
-              <ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>
-            </div>
-            <p className="mt-4 text-[13px] font-bold leading-6 text-[#53647f]">{survey.summary_notes || 'No summary notes recorded yet.'}</p>
-          </article>
-        </section>
-      ) : activeSurveyTab === 'Roof Details' ? (
-        <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {roofStatsRows.length ? roofStatsRows.map((stat, index) => {
-              const { icon, tone } = roofStatTones[index % roofStatTones.length];
-              return <ProjectSummaryCard key={stat.label} stat={{ ...stat, icon, tone }} onClick={() => onNotify(`${stat.label} opened`)} />;
-            }) : <p className="text-[13px] font-bold text-[#53647f] sm:col-span-2 xl:col-span-4">No roof stats recorded yet.</p>}
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof Layout Plan</h2>
-                  <p className="mt-1 text-[13px] font-bold text-[#53647f]">Illustrative panel placement layout for this rooftop.</p>
-                </div>
-                <ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>
-              </div>
-              <div className="mt-5 overflow-hidden rounded-[16px] border border-[#dbe7f4] bg-[linear-gradient(135deg,#f8fbff,#eef5ff)] p-4">
-                <div className="relative mx-auto h-[360px] max-w-[620px] rounded-[14px] border-2 border-[#b8cbe6] bg-white">
-                  <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(37,99,235,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(37,99,235,0.12)_1px,transparent_1px)] bg-size-[28px_28px]" />
-                  <div className="absolute left-[8%] top-[10%] h-[66%] w-[68%] rounded-[6px] border-2 border-[#0b65e5] bg-[rgba(37,99,235,0.12)]" />
-                  <div className="absolute left-[13%] top-[15%] grid h-[52%] w-[54%] grid-cols-4 gap-2 p-2">
-                    {Array.from({ length: 16 }).map((_, index) => (
-                      <span key={`panel-${index}`} className="rounded-[4px] border border-[#0b65e5] bg-[#dcecff]" />
-                    ))}
-                  </div>
-                  <div className="absolute right-[10%] top-[10%] h-[30%] w-[12%] rounded-[6px] border-2 border-[#94a3b8] bg-white/90" />
-                  <div className="absolute bottom-[10%] right-[9%] h-[17%] w-[28%] rounded-[6px] border-2 border-[#94a3b8] bg-white/90" />
-                  <div className="absolute bottom-[11%] left-[9%] h-[8%] w-[50%] rounded-full bg-[#dff7e8] text-center text-[11px] font-extrabold leading-7 text-[#0d9f4a]">Maintenance Path</div>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-4 text-[12px] font-extrabold text-[#314a79]">
-                  <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] border border-[#0b65e5] bg-[#dcecff]" />Panel Zone</span>
-                  <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] border border-[#94a3b8] bg-white" />Obstruction</span>
-                  <span className="inline-flex items-center gap-2"><span className="size-3 rounded-[3px] bg-[#dff7e8]" />Walkway</span>
-                </div>
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof Measurements</h2>
-              <div className="mt-5 space-y-4">
-                {roofDetailsRows.length ? roofDetailsRows.map(([label, value]) => (
-                  <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[150px_1fr]">
-                    <span className="font-bold text-[#53647f]">{label}</span>
-                    <span className="font-extrabold text-[#1e3261]">{value}</span>
-                  </div>
-                )) : <p className="text-[13px] font-bold text-[#53647f]">No roof details recorded yet.</p>}
-              </div>
-            </article>
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
-            <article className={`${panelClass} overflow-hidden`}>
-              <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Roof & Structure Checklist</h2>
-              </div>
-              <div className="responsive-scroll overflow-x-auto">
-                <table className="crm-table min-w-[680px] w-full">
-                  <thead><tr>{['#', 'Item', 'Status', 'Checked By'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
-                  <tbody>
-                    {(checklistByCategory['Roof & Structure'] || []).map((item, index) => (
-                      <tr key={item.id}>
-                        <td>{index + 1}</td>
-                        <td className="font-extrabold text-[#1e3261]">{item.label}</td>
-                        <td><ProjectActivityStatusBadge status={item.is_checked ? 'Completed' : 'Pending'} /></td>
-                        <td>{item.checked_by_name || '—'}</td>
-                      </tr>
-                    ))}
-                    {!(checklistByCategory['Roof & Structure'] || []).length ? (
-                      <tr><td colSpan={4} className="text-center text-[13px] font-bold text-[#53647f]">No roof checklist items recorded yet.</td></tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Outcome</h2>
-              <div className="mt-5 space-y-4">
-                <InfoCell label="Feasibility" value={survey.feasibility || 'Pending'} />
-                <InfoCell label="Building Type" value={survey.building_type || '—'} />
-                <InfoCell label="Roof Type" value={survey.roof_type || '—'} />
-              </div>
-            </article>
-          </section>
-        </>
-      ) : activeSurveyTab === 'Electrical Details' ? (
-        <>
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Electrical Connection Details</h2>
-              <div className="mt-5 space-y-4">
-                {electricalDetailsRows.length ? electricalDetailsRows.map(([label, value]) => (
-                  <div key={label} className="grid gap-2 border-b border-[#eef3f8] pb-3 text-[13px] last:border-b-0 last:pb-0 sm:grid-cols-[170px_1fr]">
-                    <span className="font-bold text-[#53647f]">{label}</span>
-                    <span className="font-extrabold text-[#1e3261]">{value}</span>
-                  </div>
-                )) : <p className="text-[13px] font-bold text-[#53647f]">No electrical details recorded yet.</p>}
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Single Line Diagram</h2>
-                  <p className="mt-1 text-[13px] font-bold text-[#53647f]">Proposed energy flow from solar array to grid meter.</p>
-                </div>
-                <ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>
-              </div>
-              <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center">
-                {[
-                  ['Solar Array', Boxes, `${d.capacity_kwp ?? '—'} kW DC`],
-                  ['Inverter', Zap, `${d.capacity_kwp ?? '—'} kW AC`],
-                  ['Net Meter', ReceiptText, 'Grid Connection'],
-                ].map(([label, Icon, note], index) => (
-                  <div key={label} className="contents">
-                    <div className="rounded-[14px] border border-[#dce6f3] bg-white p-4 text-center">
-                      <span className="mx-auto grid size-12 place-items-center rounded-[14px] bg-[#eef5ff] text-[#0b65e5]"><Icon className="size-5" /></span>
-                      <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{label}</p>
-                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">{note}</p>
-                    </div>
-                    {index < 2 ? <ArrowRight className="mx-auto hidden size-5 text-[#9aa8bc] sm:block" /> : null}
-                  </div>
-                ))}
-              </div>
-            </article>
-          </section>
-
-          <article className={`${panelClass} overflow-hidden`}>
-            <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Electrical Verification</h2>
-            </div>
-            <div className="responsive-scroll overflow-x-auto">
-              <table className="crm-table min-w-[760px] w-full">
-                <thead><tr>{['#', 'Check', 'Status', 'Remarks'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
-                <tbody>
-                  {(checklistByCategory['Electrical'] || []).map((item, index) => (
-                    <tr key={item.id}>
-                      <td>{index + 1}</td>
-                      <td className="font-extrabold text-[#1e3261]">{item.label}</td>
-                      <td><ProjectActivityStatusBadge status={item.is_checked ? 'Completed' : 'Pending'} /></td>
-                      <td>{item.notes || '—'}</td>
-                    </tr>
-                  ))}
-                  {!(checklistByCategory['Electrical'] || []).length ? (
-                    <tr><td colSpan={4} className="text-center text-[13px] font-bold text-[#53647f]">No electrical checklist items recorded yet.</td></tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </>
-      ) : activeSurveyTab === 'Documents' ? (
-        <>
-          <section className="grid gap-4 sm:grid-cols-3">
-            {docStatCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
-          </section>
-
-          <article className={`${panelClass} overflow-hidden`}>
-            <div className="flex flex-col gap-3 border-b border-[#edf2f8] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Documents</h2>
-              <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Upload className="size-4 text-[#0b65e5]" />Upload Document</button>
-            </div>
-            <div className="responsive-scroll overflow-x-auto">
-              <table className="crm-table min-w-[780px] w-full">
-                <thead><tr>{['#', 'Document Name', 'Category', 'Uploaded By', 'Date', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
-                <tbody>
-                  {documents.map((doc, index) => (
-                    <tr key={doc.id}>
-                      <td>{index + 1}</td>
-                      <td className="font-extrabold text-[#1e3261]">{doc.name}</td>
-                      <td>{doc.category || '—'}</td>
-                      <td>{doc.uploaded_by_name || '—'}</td>
-                      <td>{formatProjectDisplayDate(doc.uploaded_at)}</td>
-                      <td>
-                        {doc.file ? (
-                          <a href={doc.file} target="_blank" rel="noreferrer">
-                            <UserActionButton label={`Download ${doc.name}`} icon={Download} tone="blue" onClick={() => {}} />
-                          </a>
-                        ) : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                  {!documents.length ? (
-                    <tr><td colSpan={6} className="text-center text-[13px] font-bold text-[#53647f]">No documents uploaded yet for this project.</td></tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </>
-      ) : activeSurveyTab === 'Observations' ? (
-        <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Checklist Items', value: String(checklist.length), caption: 'Site survey phase', icon: Info, tone: 'blue' },
-              { label: 'Verified', value: String(checklistChecked.length), caption: 'Completed', icon: CheckCircle2, tone: 'green' },
-              { label: 'Pending Action', value: String(checklistPending.length), caption: 'Before installation', icon: AlertTriangle, tone: 'amber' },
-              { label: 'Days Since Survey', value: survey.survey_date ? String(daysBetween(survey.survey_date, new Date().toISOString().slice(0, 10))) : '—', caption: 'Since survey date', icon: CalendarDays, tone: 'cyan' },
-            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.55fr)]">
-            <article className={`${panelClass} overflow-hidden`}>
-              <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Pending Action Items</h2>
-              </div>
-              <div className="responsive-scroll overflow-x-auto">
-                <table className="crm-table min-w-[780px] w-full">
-                  <thead><tr>{['#', 'Category', 'Item', 'Status'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
-                  <tbody>
-                    {checklistPending.map((item, index) => (
-                      <tr key={item.id}>
-                        <td>{index + 1}</td>
-                        <td><ProjectActivityCategoryBadge category={item.category || 'General'} /></td>
-                        <td className="font-extrabold text-[#1e3261]">{item.label}</td>
-                        <td><ProjectActivityStatusBadge status="Pending" /></td>
-                      </tr>
-                    ))}
-                    {!checklistPending.length ? (
-                      <tr><td colSpan={4} className="text-center text-[13px] font-bold text-[#53647f]">No pending items — survey checklist fully verified.</td></tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-
-            <aside className="space-y-4">
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Survey Notes</h2>
-                <p className="mt-4 text-[13px] font-bold leading-6 text-[#53647f]">{survey.summary_notes || 'No summary notes recorded yet.'}</p>
-              </article>
-            </aside>
-          </section>
-        </>
-      ) : activeSurveyTab === 'Checklist' ? (
-        <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {checklistStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-3">
-            {Object.entries(checklistByCategory).map(([category, items]) => (
-              <article key={category} className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{category}</h2>
-                <div className="mt-5 space-y-3">
-                  {items.map((item) => (
-                    <label key={item.id} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">
-                      <input type="checkbox" checked={item.is_checked} onChange={() => toggleChecklistItem(item)} className="size-4 accent-[#0d9f4a]" />
-                      <span className="min-w-0 flex-1">{item.label}</span>
-                      {item.is_checked ? <ProjectInfoPill tone="green">Done</ProjectInfoPill> : <ProjectInfoPill tone="amber">Pending</ProjectInfoPill>}
-                    </label>
-                  ))}
-                </div>
-              </article>
-            ))}
-            {!checklist.length ? (
-              <article className={`${panelClass} p-4 sm:p-5 xl:col-span-3 text-center text-[13px] font-bold text-[#53647f]`}>No checklist items recorded yet for this survey.</article>
-            ) : null}
-          </section>
-        </>
-      ) : activeSurveyTab === 'Summary' ? (
-        <>
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="font-display text-[24px] font-extrabold text-[#06135a]">Survey Summary</h2>
-                  <p className="mt-2 max-w-[720px] text-[13px] font-bold leading-6 text-[#53647f]">{survey.summary_notes || 'No summary notes recorded yet.'}</p>
-                </div>
-                <ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>
-              </div>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                {summaryRows.map(([label, value]) => (
-                  <InfoCell key={label} label={label} value={value} valueClass={label === 'Survey Result' ? 'text-[#16a34a]' : undefined} />
-                ))}
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Checklist Completion</h2>
-              <div className="mt-6 grid place-items-center">
-                <div className="grid size-[180px] place-items-center rounded-full" style={{ background: `conic-gradient(#14b84c 0 ${checklistCompletionPercent}%, #edf2f8 ${checklistCompletionPercent}% 100%)` }}>
-                  <div className="grid size-[118px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_#edf2f8]">
-                    <span className="font-display text-[34px] font-extrabold text-[#06135a]">{checklistCompletionPercent}%</span>
-                    <span className="-mt-5 text-[12px] font-extrabold text-[#53647f]">Verified</span>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-6 space-y-3">
-                {categoryCompletion.map((c) => (
-                  <InfoCell key={c.category} label={c.category} value={`${c.done}/${c.total}`} valueClass={c.done === c.total ? 'text-[#16a34a]' : 'text-[#0b65e5]'} />
-                ))}
-                {!categoryCompletion.length ? <p className="text-[13px] font-bold text-[#53647f]">No checklist data yet.</p> : null}
-              </div>
-            </article>
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-3">
-            {[
-              survey.feasibility === 'Feasible'
-                ? { title: 'Proceed to Design', note: 'Survey marked feasible — system design can start.', icon: CheckCircle2, tone: 'green' }
-                : { title: 'Awaiting Feasibility', note: 'Survey feasibility has not been finalized yet.', icon: AlertTriangle, tone: 'amber' },
-              ...checklistPending.slice(0, 2).map((item) => ({ title: `Pending: ${item.label}`, note: `Category: ${item.category || 'General'}`, icon: Hourglass, tone: 'amber' })),
-            ].map((card) => (
-              <article key={card.title} className={`${panelClass} p-4 sm:p-5`}>
-                <span className={cx('grid size-12 place-items-center rounded-[14px]', card.tone === 'green' ? 'bg-[#effbf3] text-[#16a34a]' : 'bg-[#fff5e8] text-[#f59e0b]')}>
-                  <card.icon className="size-5" />
-                </span>
-                <h3 className="mt-4 font-display text-[16px] font-extrabold text-[#06135a]">{card.title}</h3>
-                <p className="mt-2 text-[13px] font-bold leading-6 text-[#53647f]">{card.note}</p>
-              </article>
-            ))}
-          </section>
-        </>
-      ) : (
-        <article className={`${panelClass} p-8 text-center`}>
-          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
-            <FolderKanban className="size-8" />
-          </span>
-          <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeSurveyTab}</h2>
-          <button type="button" onClick={() => setActiveSurveyTab('Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Overview</button>
-        </article>
-      )}
-
-      <DashboardFooter />
-    </div>
+    <ProjectDetailsPage
+      activeSection={activeSection}
+      onOpenSection={onOpenSection}
+      project={projectProp}
+      onNotify={onNotify}
+      hubMode
+      initialHubTab={initialSurveyTab}
+    />
   );
 }
-
 
 function ProjectInstallationPage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
   const [activeInstallationTab, setActiveInstallationTab] = useState('Overview');
@@ -22372,7 +23481,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
 
   const docStatCards = [
     { label: 'Total Documents', value: String(documents.length), caption: 'Uploaded for this project', icon: FileText, tone: 'blue' },
-    { label: 'Categories', value: String(documentCategories.size), caption: documentCategories.size ? Array.from(documentCategories).join(', ') : 'None yet', icon: Boxes, tone: 'purple' },
+    { label: 'File Names', value: String(documentCategories.size), caption: documentCategories.size ? Array.from(documentCategories).join(', ') : 'None yet', icon: Boxes, tone: 'purple' },
     { label: 'Latest Upload', value: latestDocument ? formatProjectDisplayDate(latestDocument.uploaded_at) : '—', caption: latestDocument?.name || 'No documents yet', icon: Upload, tone: 'green' },
   ];
 
@@ -22820,36 +23929,14 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
             {docStatCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} documents opened`)} />)}
           </div>
 
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Documents</h2>
-              <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
-            </div>
-            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-              <div className="min-w-[760px]">
-                <div className="grid grid-cols-[1.45fr_0.9fr_1.1fr_1fr_0.55fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Document Name</span>
-                  <span>Category</span>
-                  <span>Uploaded By</span>
-                  <span>Uploaded On</span>
-                  <span>Action</span>
-                </div>
-                {documents.length ? documents.map((doc) => (
-                  <div key={doc.id} className="grid grid-cols-[1.45fr_0.9fr_1.1fr_1fr_0.55fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{doc.name}</span>
-                    <span>{doc.category || '—'}</span>
-                    <span>{doc.uploaded_by_name || '—'}</span>
-                    <span>{formatProjectDisplayDate(doc.uploaded_at)}</span>
-                    <span>
-                      {doc.file ? <a href={doc.file} target="_blank" rel="noreferrer" className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#0b65e5]"><Download className="size-4" /></a> : '—'}
-                    </span>
-                  </div>
-                )) : (
-                  <div className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">No documents uploaded yet for this project.</div>
-                )}
-              </div>
-            </div>
-          </article>
+          <ProjectDocumentsTable
+            projectId={projectProp.id}
+            documents={documents}
+            onReload={reloadInstallation}
+            onNotify={onNotify}
+            title="Installation Documents"
+            uploadButtonClassName="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"
+          />
         </section>
       ) : activeInstallationTab === 'Summary' ? (
         <section className="space-y-4">
@@ -23399,7 +24486,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
           <article className={`${panelClass} p-4 sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Team Documents</h2>
-              <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
+              <button type="button" onClick={() => onNotify('Open a project from Project List to upload documents')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Upload className="size-4" />Upload Document</button>
             </div>
             <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
               <div className="min-w-[860px]">
@@ -24806,7 +25893,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
         actions={(
           <>
             <button type="button" onClick={() => onNotify('Project document report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onOpenSection('Project Document Upload')} data-route={projectSubRoutes['Project Document Upload']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Upload Document</button>
+            <button type="button" onClick={() => onOpenSection('Project List')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Upload className="size-4 text-[#0b65e5]" />Upload Document</button>
             <button type="button" onClick={() => onOpenSection('Project Folder Create')} data-route={projectSubRoutes['Project Folder Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Folder</button>
           </>
         )}

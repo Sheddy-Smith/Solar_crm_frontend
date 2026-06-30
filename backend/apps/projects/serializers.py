@@ -105,8 +105,10 @@ class SiteSurveySerializer(serializers.ModelSerializer):
         model = SiteSurvey
         fields = [
             'id', 'project', 'survey_id', 'survey_date', 'surveyed_by', 'surveyed_by_name',
-            'building_type', 'floor_count', 'roof_type', 'site_details', 'roof_details',
+            'building_type', 'floor_count', 'roof_type', 'rooftop_area_sqft', 'shadow_free_area_sqft',
+            'available_area_sqft', 'site_details', 'roof_details',
             'electrical_details', 'roof_stats', 'feasibility', 'summary_notes', 'status',
+            'customer_budget', 'electricity_bill_amount', 'subsidy_applicable', 'financial_remarks',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['survey_id', 'created_at', 'updated_at']
@@ -146,6 +148,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
 class ProjectDetailSerializer(serializers.ModelSerializer):
     manager_detail = UserSerializer(source='manager', read_only=True)
     site_engineer_detail = UserSerializer(source='site_engineer', read_only=True)
+    sales_executive_detail = UserSerializer(source='sales_executive', read_only=True)
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
     activities = ProjectActivitySerializer(many=True, read_only=True)
     notes = ProjectNoteSerializer(many=True, read_only=True)

@@ -32,6 +32,8 @@ class Project(models.Model):
     site_address = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)
     state = models.CharField(max_length=100, blank=True)
+    meter_number = models.CharField(max_length=50, blank=True)
+    site_size = models.CharField(max_length=100, blank=True)
 
     project_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='On-Grid')
     capacity_kwp = models.DecimalField(max_digits=8, decimal_places=2)
@@ -44,6 +46,12 @@ class Project(models.Model):
 
     manager = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_projects')
     site_engineer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='engineer_projects')
+    sales_executive = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_executive_projects')
+
+    meter_type = models.CharField(max_length=50, blank=True)
+    sanction_load = models.CharField(max_length=50, blank=True)
+    consumer_number = models.CharField(max_length=50, blank=True)
+    discom_name = models.CharField(max_length=100, blank=True)
 
     start_date = models.DateField(null=True, blank=True)
     target_date = models.DateField(null=True, blank=True)
@@ -319,6 +327,9 @@ class SiteSurvey(models.Model):
     building_type = models.CharField(max_length=100, blank=True)
     floor_count = models.CharField(max_length=20, blank=True)
     roof_type = models.CharField(max_length=100, blank=True)
+    rooftop_area_sqft = models.CharField(max_length=50, blank=True)
+    shadow_free_area_sqft = models.CharField(max_length=50, blank=True)
+    available_area_sqft = models.CharField(max_length=50, blank=True)
     site_details = models.JSONField(default=list, blank=True)
     roof_details = models.JSONField(default=list, blank=True)
     electrical_details = models.JSONField(default=list, blank=True)
@@ -326,6 +337,10 @@ class SiteSurvey(models.Model):
     feasibility = models.CharField(max_length=30, choices=FEASIBILITY_CHOICES, blank=True)
     summary_notes = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
+    customer_budget = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    electricity_bill_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    subsidy_applicable = models.BooleanField(default=False)
+    financial_remarks = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

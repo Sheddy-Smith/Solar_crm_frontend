@@ -263,6 +263,7 @@ export const projectNoteApi = {
 export const projectDocumentApi = {
   list: (projectId) => request(`/project-documents/?project=${projectId}`),
   create: (formData) => request('/project-documents/', { method: 'POST', body: formData }),
+  update: (id, data) => request(`/project-documents/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/project-documents/${id}/`, { method: 'DELETE' }),
 };
 
