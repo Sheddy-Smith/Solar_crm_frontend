@@ -182,8 +182,23 @@ class ProjectTeamMemberViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectTeamMemberSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['project', 'user']
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['project', 'user', 'status']
+    search_fields = ['user__name', 'role_title']
+
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request):
+        project_id = request.query_params.get('project')
+        qs = ProjectTeamMember.objects.all()
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return Response({
+            'total': qs.count(),
+            'active': qs.filter(status='Active').count(),
+            'on_site': qs.filter(status='On Site').count(),
+            'off_site': qs.filter(status='Off Site').count(),
+            'on_leave': qs.filter(status='On Leave').count(),
+        })
 
 
 class ProjectMilestoneViewSet(viewsets.ModelViewSet):

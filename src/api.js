@@ -286,10 +286,14 @@ export const projectPaymentApi = {
 // ─── Project Team Members ──────────────────────────────────────────────────────
 
 export const projectTeamApi = {
-  list: (projectId) => request(`/project-team-members/?project=${projectId}`),
+  list: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/project-team-members/${qs ? '?' + qs : ''}`);
+  },
   create: (data) => request('/project-team-members/', { method: 'POST', body: data }),
   update: (id, data) => request(`/project-team-members/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/project-team-members/${id}/`, { method: 'DELETE' }),
+  stats: (projectId) => request(`/project-team-members/stats/${projectId ? '?project=' + projectId : ''}`),
 };
 
 // ─── Project Milestones (Timeline) ─────────────────────────────────────────────

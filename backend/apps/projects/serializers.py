@@ -70,7 +70,7 @@ class ProjectTeamMemberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProjectTeamMember
-        fields = ['id', 'project', 'user', 'user_name', 'user_initials', 'user_email', 'user_mobile', 'role_title', 'access_level', 'access_level_display', 'added_at']
+        fields = ['id', 'project', 'user', 'user_name', 'user_initials', 'user_email', 'user_mobile', 'role_title', 'access_level', 'access_level_display', 'status', 'added_at']
         read_only_fields = ['added_at']
 
 

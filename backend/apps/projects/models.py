@@ -247,11 +247,18 @@ class ProjectTeamMember(models.Model):
         ('edit_access', 'Edit Access'),
         ('view_only', 'View Only'),
     ]
+    STATUS_CHOICES = [
+        ('Active', 'Active'),
+        ('On Site', 'On Site'),
+        ('Off Site', 'Off Site'),
+        ('On Leave', 'On Leave'),
+    ]
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='team_members')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='project_memberships')
     role_title = models.CharField(max_length=100, blank=True)
     access_level = models.CharField(max_length=20, choices=ACCESS_CHOICES, default='view_only')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active')
     added_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
