@@ -23847,6 +23847,17 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
   const [docName, setDocName] = React.useState('');
   const [docUploading, setDocUploading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState('assignment');
+  const [viewMode, setViewMode] = React.useState('project');
+  const [ewSelected, setEwSelected] = React.useState(null);
+  const [ewSummary, setEwSummary] = React.useState(null);
+  const [ewHistory, setEwHistory] = React.useState([]);
+  const [ewLoading, setEwLoading] = React.useState(false);
+  const [ewPickerOpen, setEwPickerOpen] = React.useState(false);
+  const [ewPickerSearch, setEwPickerSearch] = React.useState('');
+  const [ewProjSearch, setEwProjSearch] = React.useState('');
+  const [ewProjStatus, setEwProjStatus] = React.useState('All');
+  const [ewDetailOpen, setEwDetailOpen] = React.useState(false);
+  const [ewDetailData, setEwDetailData] = React.useState(null);
 
   const loadDashboard = React.useCallback(async () => {
     try { const d = await workforceApi.dashboard(); setDashStats(d || {}); } catch {}
@@ -23866,6 +23877,20 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
 
   React.useEffect(() => { loadDashboard(); loadEmployees(); }, [loadDashboard, loadEmployees]);
   React.useEffect(() => { if (selectedEmployee) loadDetail(selectedEmployee.id); }, [selectedEmployee, loadDetail]);
+
+  const loadEwData = React.useCallback(async (id) => {
+    setEwLoading(true);
+    try {
+      const [summary, history] = await Promise.all([
+        workforceApi.employeeSummary(id),
+        workforceApi.employeeHistory(id),
+      ]);
+      setEwSummary(summary);
+      setEwHistory(history || []);
+    } catch { onNotify('Failed to load employee history'); }
+    finally { setEwLoading(false); }
+  }, [onNotify]);
+  React.useEffect(() => { if (ewSelected) loadEwData(ewSelected.id); }, [ewSelected, loadEwData]);
 
   const handlePickerSelect = (emp) => {
     setSelectedEmployee(emp);
@@ -24012,6 +24037,20 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
+      {/* View Mode Toggle */}
+      <section className={`${panelClass} p-3`}>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setViewMode('project')} className={cx('inline-flex h-10 items-center gap-2 rounded-[10px] border px-5 text-[13px] font-extrabold transition', viewMode === 'project' ? 'border-[#0b65e5] bg-[#0b65e5] text-white' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
+            <FolderKanban className="size-4" />Project Wise
+          </button>
+          <button type="button" onClick={() => setViewMode('employee')} className={cx('inline-flex h-10 items-center gap-2 rounded-[10px] border px-5 text-[13px] font-extrabold transition', viewMode === 'employee' ? 'border-[#0b65e5] bg-[#0b65e5] text-white' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
+            <Users className="size-4" />Employee Wise
+          </button>
+        </div>
+      </section>
+
+      {viewMode === 'project' && (
+      <>
       {/* Toolbar */}
       <section className={`${panelClass} p-4 sm:p-5`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -24429,6 +24468,257 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
             </div>
           </div>
         </div>
+      )}
+
+      </>
+      )}
+
+      {viewMode === 'employee' && (
+      <>
+      {/* Employee Wise View */}
+      {!ewSelected ? (
+        <article className={`${panelClass} overflow-hidden`}>
+          <div className="flex flex-col items-center justify-center py-20">
+            <Users className="size-14 text-[#c5d2e8]" />
+            <h3 className="mt-4 font-display text-[18px] font-extrabold text-[#1e3261]">No Employee Selected</h3>
+            <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Employee</strong> to view employee work history.</p>
+            <button type="button" onClick={() => setEwPickerOpen(true)} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
+              <UserRound className="size-4" />Select Employee
+            </button>
+          </div>
+        </article>
+      ) : (
+        <div className="space-y-4">
+          {/* Selected Employee Header */}
+          <article className={`${panelClass} p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <span className="grid size-14 shrink-0 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-[20px] font-extrabold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
+                  {ewSelected.name?.slice(0, 2).toUpperCase()}
+                </span>
+                <div>
+                  <h2 className="font-display text-[22px] font-extrabold text-[#111827]">{ewSelected.name}</h2>
+                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{ewSelected.role || '—'} &bull; {ewSelected.department || '—'} &bull; {ewSelected.employee_id}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <ProjectInfoPill tone={statusTone(ewSelected.status)}>{ewSelected.status}</ProjectInfoPill>
+                <button type="button" onClick={() => { setEwPickerOpen(true); setEwPickerSearch(''); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><UserRound className="size-3.5" />Change Employee</button>
+                <button type="button" onClick={() => { setEwSelected(null); setEwSummary(null); setEwHistory([]); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><X className="size-3.5" />Close</button>
+              </div>
+            </div>
+          </article>
+
+          {ewLoading ? (
+            <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">Loading history...</p>
+          ) : (
+            <>
+              {/* Summary Cards */}
+              <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+                {[
+                  { label: 'Total Projects', value: ewSummary?.total_assigned_projects ?? 0, icon: FolderKanban, tone: 'blue' },
+                  { label: 'Active Projects', value: ewSummary?.active_projects ?? 0, icon: ClipboardPlus, tone: 'cyan' },
+                  { label: 'Completed Projects', value: ewSummary?.completed_projects ?? 0, icon: CheckCircle2, tone: 'green' },
+                  { label: 'Pending Tasks', value: ewSummary?.pending_tasks ?? 0, icon: Clock3, tone: 'amber' },
+                  { label: 'Completed Tasks', value: ewSummary?.completed_tasks ?? 0, icon: CheckCircle2, tone: 'green' },
+                  { label: 'Working Days', value: ewSummary?.total_working_days ?? 0, icon: CalendarDays, tone: 'blue' },
+                ].map((c) => <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value)} caption={c.label} icon={c.icon} tone={c.tone} onClick={() => {}} />)}
+              </section>
+
+              {/* Filters */}
+              <section className={`${panelClass} p-4`}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                  <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 180 }}>
+                    <Search className="size-4 shrink-0 text-[#7e8fab]" />
+                    <input value={ewProjSearch} onChange={(e) => setEwProjSearch(e.target.value)} type="search" placeholder="Search project name or task..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+                  </label>
+                  <select value={ewProjStatus} onChange={(e) => setEwProjStatus(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+                    <option value="All">All Task Status</option>
+                    {['Pending', 'In Progress', 'On Hold', 'Completed'].map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </section>
+
+              {/* Project History Table */}
+              <article className={`${panelClass} overflow-hidden`}>
+                <div className="border-b border-[#edf2f8] px-5 py-3">
+                  <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">Project Work History</h3>
+                </div>
+                {(() => {
+                  const filtered = ewHistory.filter((r) => {
+                    if (ewProjSearch && !r.project_name.toLowerCase().includes(ewProjSearch.toLowerCase()) && !r.task_name.toLowerCase().includes(ewProjSearch.toLowerCase())) return false;
+                    if (ewProjStatus !== 'All' && r.status !== ewProjStatus) return false;
+                    return true;
+                  });
+                  return filtered.length === 0 ? (
+                    <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No project history found.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="crm-table w-full min-w-[950px]">
+                        <thead><tr>{['#', 'Project Name', 'Customer', 'Role', 'Task', 'Assigned', 'Due Date', 'Status', 'Progress', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                        <tbody>
+                          {filtered.map((r, idx) => (
+                            <tr key={r.id}>
+                              <td>{idx + 1}</td>
+                              <td className="max-w-[160px]">
+                                <p className="font-extrabold text-[#1e3261]">{r.project_name}</p>
+                                {r.project_status && r.project_status !== '—' && <ProjectInfoPill tone={r.project_status === 'Completed' ? 'green' : r.project_status === 'Active' ? 'blue' : 'amber'}>{r.project_status}</ProjectInfoPill>}
+                              </td>
+                              <td className="font-bold text-[#314a79]">{r.customer_name}</td>
+                              <td className="font-bold text-[#314a79]">{r.role || '—'}</td>
+                              <td className="max-w-[160px] truncate font-bold text-[#314a79]">{r.task_name}</td>
+                              <td className="font-bold text-[#314a79]">{r.assigned_date || '—'}</td>
+                              <td className="font-bold text-[#314a79]">{r.expected_completion || '—'}</td>
+                              <td><ProjectInfoPill tone={taskStatusTone(r.status)}>{r.status}</ProjectInfoPill></td>
+                              <td>
+                                <div className="flex items-center gap-2">
+                                  <div className="h-2 w-16 rounded-full bg-[#e8f0fb]"><div className="h-2 rounded-full bg-[#2f80ff]" style={{ width: `${r.progress_percent}%` }} /></div>
+                                  <span className="text-[12px] font-extrabold text-[#314a79]">{r.progress_percent}%</span>
+                                </div>
+                              </td>
+                              <td>
+                                <UserActionButton label="View Details" icon={Eye} tone="blue" onClick={() => { setEwDetailData(r); setEwDetailOpen(true); }} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">Showing {filtered.length} of {ewHistory.length} records</div>
+                    </div>
+                  );
+                })()}
+              </article>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Employee Wise - Select Employee Popup */}
+      {ewPickerOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setEwPickerOpen(false); setEwPickerSearch(''); } }}>
+          <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <div>
+                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Employee</h2>
+                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose an employee to view their complete work history</p>
+              </div>
+              <button type="button" onClick={() => { setEwPickerOpen(false); setEwPickerSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="p-4 pb-2">
+              <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+                <Search className="size-4 shrink-0 text-[#7e8fab]" />
+                <input autoFocus value={ewPickerSearch} onChange={(e) => setEwPickerSearch(e.target.value)} type="search" placeholder="Search employee name or ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+              </label>
+            </div>
+            <div className="max-h-[380px] overflow-y-auto">
+              {loadingEmployees ? (
+                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading...</p>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
+                      {['Employee', 'ID', 'Department', 'Role', 'Current Status', 'Action'].map((h) => (
+                        <th key={h} className="px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allEmployees.filter((e) => !ewPickerSearch || e.name.toLowerCase().includes(ewPickerSearch.toLowerCase()) || (e.employee_id || '').toLowerCase().includes(ewPickerSearch.toLowerCase())).map((emp) => (
+                      <tr key={emp.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[11px] font-extrabold text-[#0b65e5]">{emp.name?.slice(0, 2).toUpperCase()}</span>
+                            <span className="text-[13px] font-extrabold text-[#1e3261]">{emp.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-[12px] font-bold text-[#8a98af]">{emp.employee_id}</td>
+                        <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.department || '—'}</td>
+                        <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.role || '—'}</td>
+                        <td className="px-4 py-3"><ProjectInfoPill tone={statusTone(emp.status)}>{emp.status}</ProjectInfoPill></td>
+                        <td className="px-4 py-3">
+                          <button type="button" onClick={() => { setEwSelected(emp); setEwPickerOpen(false); setEwPickerSearch(''); setEwProjSearch(''); setEwProjStatus('All'); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                            <Eye className="size-3.5" />View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Employee Wise - Project Detail Popup */}
+      {ewDetailOpen && ewDetailData && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEwDetailOpen(false); }}>
+          <div className="w-full max-w-[580px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <div>
+                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Project Details</h2>
+                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{ewDetailData.project_name}</p>
+              </div>
+              <button type="button" onClick={() => setEwDetailOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="space-y-4 p-6">
+              <div>
+                <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Project Information</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { label: 'Project Name', value: ewDetailData.project_name },
+                    { label: 'Customer Name', value: ewDetailData.customer_name },
+                    { label: 'Project Status', value: ewDetailData.project_status },
+                    { label: 'Project Progress', value: `${ewDetailData.project_progress ?? 0}%` },
+                  ].map((row) => (
+                    <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                      <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
+                      <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Assignment Details</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { label: 'Task Name', value: ewDetailData.task_name },
+                    { label: 'Role', value: ewDetailData.role },
+                    { label: 'Assigned Date', value: ewDetailData.assigned_date },
+                    { label: 'Due Date', value: ewDetailData.expected_completion },
+                    { label: 'Task Status', value: ewDetailData.status },
+                    { label: 'Progress', value: `${ewDetailData.progress_percent ?? 0}%` },
+                  ].map((row) => (
+                    <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                      <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
+                      <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
+                    </div>
+                  ))}
+                </div>
+                {ewDetailData.notes && (
+                  <div className="mt-3 rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                    <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Notes</p>
+                    <p className="mt-1 text-[13px] font-bold text-[#314a79]">{ewDetailData.notes}</p>
+                  </div>
+                )}
+                <div className="mt-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[12px] font-extrabold text-[#53647f]">Task Progress</span>
+                    <span className="text-[12px] font-extrabold text-[#1e3261]">{ewDetailData.progress_percent ?? 0}%</span>
+                  </div>
+                  <div className="h-2.5 w-full rounded-full bg-[#e8f0fb]">
+                    <div className="h-2.5 rounded-full bg-[linear-gradient(90deg,#2f80ff,#0b65e5)]" style={{ width: `${ewDetailData.progress_percent ?? 0}%` }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-[#edf2f8] px-6 py-4">
+              <button type="button" onClick={() => setEwDetailOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
       )}
 
       <DashboardFooter />

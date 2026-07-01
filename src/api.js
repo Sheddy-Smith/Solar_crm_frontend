@@ -344,6 +344,8 @@ export const workforceApi = {
   deleteAssignment: (id) => request(`/workforce/assignments/${id}/`, { method: 'DELETE' }),
   uploadDocument: (data) => request('/workforce/documents/', { method: 'POST', body: data }),
   deleteDocument: (id) => request(`/workforce/documents/${id}/`, { method: 'DELETE' }),
+  employeeSummary: (id) => request(`/workforce/employees/${id}/summary/`),
+  employeeHistory: (id) => request(`/workforce/employees/${id}/history/`),
 };
 
 // ─── Material Plans ─────────────────────────────────────────────────────────────

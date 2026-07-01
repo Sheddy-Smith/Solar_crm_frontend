@@ -44,6 +44,48 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             'completed_today': completed_today,
         })
 
+    @action(detail=True, methods=['get'], url_path='summary')
+    def summary(self, request, pk=None):
+        emp = self.get_object()
+        assignments = emp.assignments.all()
+        project_ids = assignments.exclude(project=None).values_list('project_id', flat=True)
+        unique_projects = set(project_ids)
+        active_statuses = ['Pending', 'In Progress', 'On Hold']
+        active_proj = assignments.filter(status__in=active_statuses).exclude(project=None).values_list('project_id', flat=True)
+        completed_proj = assignments.filter(status='Completed').exclude(project=None).values_list('project_id', flat=True)
+        return Response({
+            'total_assigned_projects': len(unique_projects),
+            'active_projects': len(set(active_proj)),
+            'completed_projects': len(set(completed_proj)),
+            'pending_tasks': assignments.filter(status__in=['Pending', 'On Hold']).count(),
+            'completed_tasks': assignments.filter(status='Completed').count(),
+            'total_working_days': emp.present_days,
+        })
+
+    @action(detail=True, methods=['get'], url_path='history')
+    def history(self, request, pk=None):
+        emp = self.get_object()
+        assignments = emp.assignments.select_related('project').order_by('-assigned_date')
+        data = []
+        for a in assignments:
+            proj = a.project
+            data.append({
+                'id': a.id,
+                'task_name': a.task_name,
+                'project_id': proj.id if proj else None,
+                'project_name': proj.project_name if proj else '—',
+                'customer_name': proj.customer_name if proj else '—',
+                'project_status': proj.status if proj else '—',
+                'project_progress': proj.progress_percent if proj else 0,
+                'role': emp.role,
+                'assigned_date': str(a.assigned_date) if a.assigned_date else '',
+                'expected_completion': str(a.expected_completion) if a.expected_completion else '',
+                'status': a.status,
+                'progress_percent': a.progress_percent,
+                'notes': a.notes,
+            })
+        return Response(data)
+
 
 class EmployeeAssignmentViewSet(viewsets.ModelViewSet):
     queryset = EmployeeAssignment.objects.select_related('employee', 'project').all()
