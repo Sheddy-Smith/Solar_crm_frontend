@@ -23832,6 +23832,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
   const [query, setQuery] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('All');
   const [deptFilter, setDeptFilter] = React.useState('All Departments');
+  const [roleFilter, setRoleFilter] = React.useState('All Roles');
   const [empSearch, setEmpSearch] = React.useState('');
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [empModalOpen, setEmpModalOpen] = React.useState(false);
@@ -23966,9 +23967,12 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
     return true;
   });
 
+  const uniqueRoles = ['All Roles', ...Array.from(new Set(allEmployees.map((e) => e.role).filter(Boolean))).sort()];
+
   const tableFiltered = allEmployees.filter((e) => {
     if (statusFilter !== 'All' && e.status !== statusFilter) return false;
     if (deptFilter !== 'All Departments' && e.department !== deptFilter) return false;
+    if (roleFilter !== 'All Roles' && e.role !== roleFilter) return false;
     if (query && !e.name.toLowerCase().includes(query.toLowerCase()) && !(e.employee_id || '').toLowerCase().includes(query.toLowerCase())) return false;
     return true;
   });
@@ -24021,6 +24025,9 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
           </select>
           <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
             {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+            {uniqueRoles.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
           <button type="button" onClick={() => setPickerOpen(true)} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', selectedEmployee ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
             <UserRound className="size-4" />
