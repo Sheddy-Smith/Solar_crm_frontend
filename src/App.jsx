@@ -23823,62 +23823,62 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
   const emptyEmpForm = { name: '', mobile: '', email: '', department: 'Installation', role: '', joining_date: '', status: 'Available', notes: '' };
   const emptyAssignForm = { task_name: '', project: '', assigned_date: '', expected_completion: '', priority: 'Medium', progress_percent: 0, status: 'Pending', notes: '' };
 
-  const [dashStats, setDashStats] = React.useState({ total: 0, available: 0, assigned: 0, in_progress: 0, on_leave: 0, completed_today: 0 });
-  const [allEmployees, setAllEmployees] = React.useState([]);
-  const [loadingEmployees, setLoadingEmployees] = React.useState(false);
-  const [selectedEmployee, setSelectedEmployee] = React.useState(null);
-  const [empDetail, setEmpDetail] = React.useState(null);
-  const [loadingDetail, setLoadingDetail] = React.useState(false);
-  const [query, setQuery] = React.useState('');
-  const [statusFilter, setStatusFilter] = React.useState('All');
-  const [deptFilter, setDeptFilter] = React.useState('All Departments');
-  const [roleFilter, setRoleFilter] = React.useState('All Roles');
-  const [empSearch, setEmpSearch] = React.useState('');
-  const [pickerOpen, setPickerOpen] = React.useState(false);
-  const [empModalOpen, setEmpModalOpen] = React.useState(false);
-  const [editEmpId, setEditEmpId] = React.useState(null);
-  const [empForm, setEmpForm] = React.useState(emptyEmpForm);
-  const [assignModalOpen, setAssignModalOpen] = React.useState(false);
-  const [editAssignId, setEditAssignId] = React.useState(null);
-  const [assignForm, setAssignForm] = React.useState(emptyAssignForm);
-  const [saving, setSaving] = React.useState(false);
-  const [docFile, setDocFile] = React.useState(null);
-  const [docType, setDocType] = React.useState('Other');
-  const [docName, setDocName] = React.useState('');
-  const [docUploading, setDocUploading] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState('assignment');
-  const [viewMode, setViewMode] = React.useState('project');
-  const [ewSelected, setEwSelected] = React.useState(null);
-  const [ewSummary, setEwSummary] = React.useState(null);
-  const [ewHistory, setEwHistory] = React.useState([]);
-  const [ewLoading, setEwLoading] = React.useState(false);
-  const [ewPickerOpen, setEwPickerOpen] = React.useState(false);
-  const [ewPickerSearch, setEwPickerSearch] = React.useState('');
-  const [ewProjSearch, setEwProjSearch] = React.useState('');
-  const [ewProjStatus, setEwProjStatus] = React.useState('All');
-  const [ewDetailOpen, setEwDetailOpen] = React.useState(false);
-  const [ewDetailData, setEwDetailData] = React.useState(null);
+  const [dashStats, setDashStats] = useState({ total: 0, available: 0, assigned: 0, in_progress: 0, on_leave: 0, completed_today: 0 });
+  const [allEmployees, setAllEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [empDetail, setEmpDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [deptFilter, setDeptFilter] = useState('All Departments');
+  const [roleFilter, setRoleFilter] = useState('All Roles');
+  const [empSearch, setEmpSearch] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [empModalOpen, setEmpModalOpen] = useState(false);
+  const [editEmpId, setEditEmpId] = useState(null);
+  const [empForm, setEmpForm] = useState(emptyEmpForm);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [editAssignId, setEditAssignId] = useState(null);
+  const [assignForm, setAssignForm] = useState(emptyAssignForm);
+  const [saving, setSaving] = useState(false);
+  const [docFile, setDocFile] = useState(null);
+  const [docType, setDocType] = useState('Other');
+  const [docName, setDocName] = useState('');
+  const [docUploading, setDocUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState('assignment');
+  const [viewMode, setViewMode] = useState('project');
+  const [ewSelected, setEwSelected] = useState(null);
+  const [ewSummary, setEwSummary] = useState(null);
+  const [ewHistory, setEwHistory] = useState([]);
+  const [ewLoading, setEwLoading] = useState(false);
+  const [ewPickerOpen, setEwPickerOpen] = useState(false);
+  const [ewPickerSearch, setEwPickerSearch] = useState('');
+  const [ewProjSearch, setEwProjSearch] = useState('');
+  const [ewProjStatus, setEwProjStatus] = useState('All');
+  const [ewDetailOpen, setEwDetailOpen] = useState(false);
+  const [ewDetailData, setEwDetailData] = useState(null);
 
-  const loadDashboard = React.useCallback(async () => {
+  const loadDashboard = useCallback(async () => {
     try { const d = await workforceApi.dashboard(); setDashStats(d || {}); } catch {}
   }, []);
 
-  const loadEmployees = React.useCallback(async () => {
+  const loadEmployees = useCallback(async () => {
     setLoadingEmployees(true);
     try { const d = await workforceApi.listEmployees({ page_size: 500 }); setAllEmployees(normalizeApiRows(d)); } catch {}
     finally { setLoadingEmployees(false); }
   }, []);
 
-  const loadDetail = React.useCallback(async (id) => {
+  const loadDetail = useCallback(async (id) => {
     setLoadingDetail(true);
     try { const d = await workforceApi.getEmployee(id); setEmpDetail(d); } catch { onNotify('Failed to load employee detail'); }
     finally { setLoadingDetail(false); }
   }, [onNotify]);
 
-  React.useEffect(() => { loadDashboard(); loadEmployees(); }, [loadDashboard, loadEmployees]);
-  React.useEffect(() => { if (selectedEmployee) loadDetail(selectedEmployee.id); }, [selectedEmployee, loadDetail]);
+  useEffect(() => { loadDashboard(); loadEmployees(); }, [loadDashboard, loadEmployees]);
+  useEffect(() => { if (selectedEmployee) loadDetail(selectedEmployee.id); }, [selectedEmployee, loadDetail]);
 
-  const loadEwData = React.useCallback(async (id) => {
+  const loadEwData = useCallback(async (id) => {
     setEwLoading(true);
     try {
       const [summary, history] = await Promise.all([
@@ -23890,7 +23890,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
     } catch { onNotify('Failed to load employee history'); }
     finally { setEwLoading(false); }
   }, [onNotify]);
-  React.useEffect(() => { if (ewSelected) loadEwData(ewSelected.id); }, [ewSelected, loadEwData]);
+  useEffect(() => { if (ewSelected) loadEwData(ewSelected.id); }, [ewSelected, loadEwData]);
 
   const handlePickerSelect = (emp) => {
     setSelectedEmployee(emp);
