@@ -30609,7 +30609,19 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
       estimated_capacity: fd.get('estimated_capacity') || undefined,
       next_follow_up: fd.get('next_follow_up') || undefined,
       assigned_to: fd.get('assigned_to') || undefined,
-      status: projectMode ? 'Won' : (fd.get('status') || 'New'),
+      ...(!projectMode && (() => {
+        const bucketStatusMap = {
+          new: { status: 'New', priority: '' },
+          hot: { status: 'New', priority: 'High' },
+          warm: { status: 'Follow-up', priority: '' },
+          cool: { status: 'New', priority: 'Low' },
+          lost: { status: 'Lost', priority: '' },
+          won: { status: 'Won', priority: '' },
+        };
+        const bucket = fd.get('lead_bucket') || 'new';
+        return bucketStatusMap[bucket] || { status: 'New', priority: '' };
+      })()),
+      ...(projectMode && { status: 'Won', priority: '' }),
       remarks: fd.get('remarks') || undefined,
       address: fd.get('address') || undefined,
       city: fd.get('city') || undefined,
@@ -30737,9 +30749,29 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
               <div className="grid gap-4 lg:grid-cols-2">
                 <LeadDateInput label="Follow-up Date" required={!projectMode} name="next_follow_up" defaultValue={followUpDateValue} />
                 {projectMode ? (
-                  <LeadLockedField label="Lead Status" value="Won" />
+                  <LeadLockedField label="Lead Status" value="Won leads" />
                 ) : (
-                  <LeadSelect label="Lead Status" placeholder="New" options={['New', 'Follow-up', 'Quotation', 'Won', 'Lost']} badgeValue={mode === 'create' ? 'New' : undefined} name="status" defaultValue={d.status} />
+                  <LeadSelect
+                    label="Lead Status"
+                    placeholder="Select status"
+                    options={[
+                      { value: 'new', label: 'New leads' },
+                      { value: 'hot', label: 'Hot leads' },
+                      { value: 'warm', label: 'Warm leads' },
+                      { value: 'cool', label: 'Cool leads' },
+                      { value: 'lost', label: 'Lost leads' },
+                      { value: 'won', label: 'Won leads' },
+                    ]}
+                    name="lead_bucket"
+                    defaultValue={mode === 'edit' ? (() => {
+                      if (d.status === 'Lost') return 'lost';
+                      if (d.status === 'Won') return 'won';
+                      if (d.priority === 'High') return 'hot';
+                      if (d.priority === 'Low') return 'cool';
+                      if (d.status === 'Follow-up' || d.status === 'Quotation') return 'warm';
+                      return 'new';
+                    })() : 'new'}
+                  />
                 )}
               </div>
               <LeadTextarea label="Remarks" icon={MapPin} placeholder="Enter remarks (optional)" compact name="remarks" defaultValue={d.remarks} />
