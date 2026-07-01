@@ -4049,12 +4049,9 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                 <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#0b65e5]">
                   Category View
                 </p>
-                <h2 className="mt-2 font-display text-[20px] font-extrabold text-[#1e3261]">
+                <h2 className="mt-1 font-display text-[20px] font-extrabold text-[#1e3261]">
                   {activeLeadCategory.label} List
                 </h2>
-                <p className="mt-2 max-w-[760px] text-[13px] font-semibold leading-6 text-[#53647f]">
-                  {activeLeadCategory.description}
-                </p>
               </div>
               <button
                 type="button"
