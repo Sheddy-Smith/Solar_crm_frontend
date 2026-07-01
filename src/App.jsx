@@ -24336,139 +24336,47 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
 }
 
 function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify }) {
-  const [activeMaterialTab, setActiveMaterialTab] = useState('Material Overview');
+  const MATERIAL_CATEGORIES = ['Solar Panels', 'Inverters', 'Mounting Structure', 'DC Cables', 'AC Cables', 'Connectors (MC4)', 'ACDB / DCDB', 'Earthing Material', 'Consumables', 'Safety & Others', 'Battery', 'Other'];
+  const MATERIAL_STATUS = ['Pending', 'In Progress', 'Completed'];
+  const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair'];
+  const emptyForm = { category: 'Solar Panels', items: '', uom: 'Nos', planned_qty: '', planned_value: '', status: 'Pending' };
+  const [rows, setRows] = useState([
+    { id: 1, category: 'Solar Panels', items: '2', uom: 'Nos', planned_qty: '40', planned_value: '1,20,000', status: 'In Progress' },
+    { id: 2, category: 'Inverters', items: '1', uom: 'Nos', planned_qty: '1', planned_value: '45,000', status: 'Completed' },
+    { id: 3, category: 'Mounting Structure', items: '6', uom: 'Set', planned_qty: '1', planned_value: '28,000', status: 'In Progress' },
+    { id: 4, category: 'DC Cables', items: '2', uom: 'Mtr', planned_qty: '200', planned_value: '10,800', status: 'In Progress' },
+    { id: 5, category: 'ACDB / DCDB', items: '2', uom: 'Nos', planned_qty: '1', planned_value: '6,500', status: 'Pending' },
+    { id: 6, category: 'Earthing Material', items: '4', uom: 'Nos', planned_qty: '1', planned_value: '3,500', status: 'Pending' },
+  ]);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editRow, setEditRow] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const nextId = useRef(rows.length + 1);
 
-  const project = {
-    name: '20kW On-Grid System',
-    address: '123, Scheme No. 54, Vijay Nagar',
-    city: 'Indore, Madhya Pradesh - 452010',
-    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    startDate: '2024-05-18',
-    targetDate: '2024-05-28',
-    installationId: 'INS-2024-0015',
-    progress: 65,
+  const filtered = rows.filter((r) => {
+    if (statusFilter !== 'All' && r.status !== statusFilter) return false;
+    if (query && !r.category.toLowerCase().includes(query.toLowerCase())) return false;
+    return true;
+  });
+
+  const openAdd = () => { setForm(emptyForm); setEditRow(null); setModalOpen(true); };
+  const openEdit = (row) => { setForm({ ...row }); setEditRow(row.id); setModalOpen(true); };
+  const handleDelete = (id) => { setRows((prev) => prev.filter((r) => r.id !== id)); onNotify('Material removed'); };
+  const handleSave = () => {
+    if (!form.category || !form.planned_qty) { onNotify('Category and Qty required'); return; }
+    if (editRow !== null) {
+      setRows((prev) => prev.map((r) => (r.id === editRow ? { ...form, id: editRow } : r)));
+      onNotify('Material updated');
+    } else {
+      setRows((prev) => [...prev, { ...form, id: nextId.current++ }]);
+      onNotify('Material added');
+    }
+    setModalOpen(false);
   };
 
-  const materialTabs = [
-    { label: 'Material Overview', icon: Boxes },
-    { label: 'Bill of Materials', icon: FileText },
-    { label: 'Procurement Plan', icon: ClipboardPlus },
-    { label: 'Inventory Check', icon: Database },
-    { label: 'Material Requests', icon: ReceiptText },
-    { label: 'Delivery & GRN', icon: FolderKanban },
-    { label: 'Vendor Management', icon: UsersRound },
-    { label: 'Reports', icon: BarChart3 },
-  ];
-
-  const statCards = [
-    { label: 'Total Items', value: '48', caption: 'All Materials', icon: Boxes, tone: 'blue' },
-    { label: 'Planned Value', value: 'Rs 2,48,560', caption: 'Including Taxes', icon: IndianRupee, tone: 'green' },
-    { label: 'Procured Value', value: 'Rs 1,62,300', caption: '65.30% of Planned', icon: FolderKanban, tone: 'purple' },
-    { label: 'Delivered Value', value: 'Rs 1,21,750', caption: '48.93% of Planned', icon: LogIn, tone: 'amber' },
-    { label: 'Installed Value', value: 'Rs 76,850', caption: '30.91% of Planned', icon: CheckCircle2, tone: 'cyan' },
-    { label: 'Pending Value', value: 'Rs 86,550', caption: '34.70% of Planned', icon: ClipboardPlus, tone: 'blue' },
-  ];
-
-  const materialPlanRows = [
-    { id: 1, category: 'Solar Panels', items: 2, uom: 'Nos', plannedQty: 40, procuredQty: 40, deliveredQty: 40, installedQty: 20, pendingQty: 20, plannedValue: '1,20,000', status: 'In Progress' },
-    { id: 2, category: 'Inverters', items: 1, uom: 'Nos', plannedQty: 1, procuredQty: 1, deliveredQty: 1, installedQty: 1, pendingQty: 0, plannedValue: '45,000', status: 'Completed' },
-    { id: 3, category: 'Mounting Structure', items: 6, uom: 'Set', plannedQty: 1, procuredQty: 1, deliveredQty: 1, installedQty: 0, pendingQty: 0, plannedValue: '28,000', status: 'In Progress' },
-    { id: 4, category: 'DC Cables', items: 2, uom: 'Mtr', plannedQty: 200, procuredQty: 180, deliveredQty: 150, installedQty: 80, pendingQty: 50, plannedValue: '10,800', status: 'In Progress' },
-    { id: 5, category: 'AC Cables', items: 2, uom: 'Mtr', plannedQty: 120, procuredQty: 100, deliveredQty: 80, installedQty: 40, pendingQty: 40, plannedValue: '7,200', status: 'In Progress' },
-    { id: 6, category: 'Connectors (MC4)', items: 2, uom: 'Pair', plannedQty: 20, procuredQty: 20, deliveredQty: 20, installedQty: 10, pendingQty: 10, plannedValue: '2,800', status: 'In Progress' },
-    { id: 7, category: 'ACDB / DCDB', items: 2, uom: 'Nos', plannedQty: 1, procuredQty: 1, deliveredQty: 1, installedQty: 0, pendingQty: 1, plannedValue: '6,500', status: 'Pending' },
-    { id: 8, category: 'Earthing Material', items: 4, uom: 'Nos', plannedQty: 1, procuredQty: 0, deliveredQty: 0, installedQty: 0, pendingQty: 1, plannedValue: '3,500', status: 'Pending' },
-    { id: 9, category: 'Consumables', items: 5, uom: 'Lot', plannedQty: 1, procuredQty: 0, deliveredQty: 0, installedQty: 0, pendingQty: 1, plannedValue: '2,760', status: 'Pending' },
-    { id: 10, category: 'Safety & Others', items: 4, uom: 'Lot', plannedQty: 1, procuredQty: 1, deliveredQty: 0, installedQty: 0, pendingQty: 1, plannedValue: '2,000', status: 'Pending' },
-  ];
-
-  const materialStatusData = [
-    { label: 'Completed', value: 10, color: '#16a34a' },
-    { label: 'In Progress', value: 20, color: '#2f80ff' },
-    { label: 'Pending', value: 12, color: '#f59e0b' },
-    { label: 'Not Planned', value: 6, color: '#cbd5e1' },
-  ];
-
-  const categoryValueRows = [
-    ['Solar Panels', '48.23%', '1,20,000'],
-    ['Inverters', '18.09%', '45,000'],
-    ['Mounting Structure', '11.26%', '28,000'],
-    ['DC Cables', '4.35%', '10,800'],
-    ['AC Cables', '2.90%', '7,200'],
-    ['Others', '15.17%', '37,560'],
-  ];
-
-  const upcomingRequirements = [
-    { material: 'ACDB / DCDB', requiredBy: '22 May 2024', qty: '1', uom: 'Nos', priority: 'High', status: 'To be Procured' },
-    { material: 'Earthing Material', requiredBy: '22 May 2024', qty: '1', uom: 'Nos', priority: 'High', status: 'To be Procured' },
-    { material: 'Consumables', requiredBy: '24 May 2024', qty: '1', uom: 'Lot', priority: 'Medium', status: 'To be Procured' },
-  ];
-
-  const vendors = [
-    { vendor: 'SunPower Systems', supplied: 12, delivery: '95%', rating: '4.5' },
-    { vendor: 'EnerTech Solutions', supplied: 9, delivery: '90%', rating: '4.3' },
-    { vendor: 'SolarHub India Pvt. Ltd.', supplied: 7, delivery: '92%', rating: '4.2' },
-  ];
-
-  const quickActions = [
-    { label: 'Create Purchase Order', icon: Boxes, tone: 'green' },
-    { label: 'Material Request', icon: ClipboardPlus, tone: 'blue' },
-    { label: 'GRN Entry', icon: FolderKanban, tone: 'purple' },
-    { label: 'Inventory Check', icon: Database, tone: 'amber' },
-  ];
-
-  const procurementRows = [
-    { po: 'PO-2024-0018', vendor: 'SunPower Systems', material: 'Solar Panels', qty: '40 Nos', amount: '1,20,000', expected: '18 May 2024', status: 'Completed' },
-    { po: 'PO-2024-0019', vendor: 'EnerTech Solutions', material: 'Mounting Structure', qty: '1 Set', amount: '28,000', expected: '19 May 2024', status: 'Completed' },
-    { po: 'PO-2024-0020', vendor: 'WireTech Industries', material: 'DC / AC Cables', qty: '300 Mtr', amount: '18,000', expected: '23 May 2024', status: 'In Progress' },
-    { po: 'PO-2024-0021', vendor: 'Electric House', material: 'ACDB / DCDB', qty: '2 Nos', amount: '6,500', expected: '26 May 2024', status: 'Pending' },
-  ];
-
-  const inventoryRows = [
-    { item: 'Solar Panels 550Wp', warehouse: 'Indore Warehouse', required: '40 Nos', available: '52 Nos', reserved: '40 Nos', shortage: '0', status: 'Available' },
-    { item: '20kW Inverter', warehouse: 'Indore Warehouse', required: '1 Nos', available: '2 Nos', reserved: '1 Nos', shortage: '0', status: 'Available' },
-    { item: 'DC Cable 6 sq.mm', warehouse: 'Indore Warehouse', required: '200 Mtr', available: '180 Mtr', reserved: '150 Mtr', shortage: '20 Mtr', status: 'Partial' },
-    { item: 'AC Cable 4 sq.mm', warehouse: 'Bhopal Warehouse', required: '120 Mtr', available: '80 Mtr', reserved: '80 Mtr', shortage: '40 Mtr', status: 'Shortage' },
-    { item: 'Earthing Kit', warehouse: 'Indore Warehouse', required: '1 Set', available: '0', reserved: '0', shortage: '1 Set', status: 'Shortage' },
-  ];
-
-  const requestRows = [
-    { id: 'MR-2024-0031', material: 'ACDB / DCDB', requestedBy: 'Vikram Singh', qty: '2 Nos', requiredBy: '26 May 2024', priority: 'High', status: 'Pending' },
-    { id: 'MR-2024-0032', material: 'Earthing Kit', requestedBy: 'Amit Joshi', qty: '1 Set', requiredBy: '26 May 2024', priority: 'High', status: 'Pending' },
-    { id: 'MR-2024-0033', material: 'Cable Ties & Lugs', requestedBy: 'Ramesh Yadav', qty: '1 Lot', requiredBy: '25 May 2024', priority: 'Medium', status: 'Approved' },
-    { id: 'MR-2024-0034', material: 'Safety Consumables', requestedBy: 'Sunil Patidar', qty: '1 Lot', requiredBy: '24 May 2024', priority: 'Medium', status: 'Completed' },
-  ];
-
-  const grnRows = [
-    { grn: 'GRN-2024-0024', po: 'PO-2024-0018', vendor: 'SunPower Systems', material: 'Solar Panels', received: '40 Nos', date: '18 May 2024', status: 'Accepted' },
-    { grn: 'GRN-2024-0025', po: 'PO-2024-0019', vendor: 'EnerTech Solutions', material: 'Mounting Structure', received: '1 Set', date: '19 May 2024', status: 'Accepted' },
-    { grn: 'GRN-2024-0026', po: 'PO-2024-0020', vendor: 'WireTech Industries', material: 'DC Cable', received: '150 Mtr', date: '23 May 2024', status: 'Partial' },
-    { grn: 'GRN-2024-0027', po: 'PO-2024-0021', vendor: 'Electric House', material: 'ACDB / DCDB', received: '-', date: '26 May 2024', status: 'Pending' },
-  ];
-
-  const vendorRows = [
-    { vendor: 'SunPower Systems', category: 'Solar Panels', orders: 12, delivery: '95%', rating: '4.5', payable: '0', status: 'Active' },
-    { vendor: 'EnerTech Solutions', category: 'Mounting Structure', orders: 9, delivery: '90%', rating: '4.3', payable: '28,500', status: 'Active' },
-    { vendor: 'WireTech Industries', category: 'Cables', orders: 7, delivery: '86%', rating: '4.1', payable: '12,650', status: 'Active' },
-    { vendor: 'Electric House', category: 'Electrical Accessories', orders: 5, delivery: '82%', rating: '4.0', payable: '6,500', status: 'Pending' },
-  ];
-
-  const reportRows = [
-    { name: 'Material Planning Summary', category: 'Planning', generatedOn: '25 May 2024', generatedBy: 'Rohit Singh', format: 'PDF', status: 'Completed' },
-    { name: 'BOM vs Issued Report', category: 'BOM', generatedOn: '25 May 2024', generatedBy: 'Deepak Sharma', format: 'XLSX', status: 'Completed' },
-    { name: 'Vendor Delivery Report', category: 'Vendor', generatedOn: '24 May 2024', generatedBy: 'Neha Jain', format: 'PDF', status: 'Completed' },
-    { name: 'Inventory Shortage Report', category: 'Inventory', generatedOn: '24 May 2024', generatedBy: 'Vikram Singh', format: 'PDF', status: 'Pending Review' },
-  ];
-
-  const openMaterialAction = (label) => {
-    const targets = {
-      'Create Purchase Order': 'Procurement Plan',
-      'Material Request': 'Material Requests',
-      'GRN Entry': 'Delivery & GRN',
-      'Inventory Check': 'Inventory Check',
-    };
-    setActiveMaterialTab(targets[label] ?? 'Material Overview');
-  };
+  const statusTone = (s) => s === 'Completed' ? 'green' : s === 'In Progress' ? 'blue' : 'amber';
 
   return (
     <div className="space-y-4">
@@ -24480,438 +24388,109 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
           { label: 'Material Planning' },
         ]}
         actions={(
-          <>
-            <button type="button" onClick={() => onNotify('Material report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onNotify('Material plan exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => setActiveMaterialTab('Procurement Plan')} data-route={projectSubRoutes['Project Material Planning']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Create Material Plan</button>
-          </>
+          <button type="button" onClick={openAdd} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Material</button>
         )}
       />
 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-start">
-          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
-            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
-                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
-              </div>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
-              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
-            </div>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
-            <AssigneeCell assignee={project.manager} compact />
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
-            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Progress</p>
-            <p className="text-[22px] font-extrabold text-[#1e3261]">{project.progress}%</p>
-            <ProjectProgressBar value={project.progress} color="blue" compact />
-          </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+            <Search className="size-4 shrink-0 text-[#7e8fab]" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search by material category..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+          </label>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+            <option value="All">All Status</option>
+            {MATERIAL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
         </div>
       </section>
 
-      <section className={`${panelClass} p-3 sm:p-4`}>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {materialTabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeMaterialTab === tab.label;
-            return (
-              <button
-                key={tab.label}
-                type="button"
-                onClick={() => setActiveMaterialTab(tab.label)}
-                className={cx(
-                  'inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
-                  active ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
-                )}
-              >
-                <Icon className="size-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {activeMaterialTab === 'Material Overview' ? (
-        <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-            {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
-          </section>
-
-          <section className="grid items-start gap-4 xl:grid-cols-[1.8fr_0.9fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Plan Summary</h2>
-              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-                <div className="grid min-w-[1060px] grid-cols-[0.35fr_1.3fr_0.5fr_0.5fr_0.7fr_0.75fr_0.75fr_0.75fr_0.75fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>#</span>
-                  <span>Material Category</span>
-                  <span>Items</span>
-                  <span>UOM</span>
-                  <span>Planned Quantity</span>
-                  <span>Procured Quantity</span>
-                  <span>Delivered Quantity</span>
-                  <span>Installed Quantity</span>
-                  <span>Pending Quantity</span>
-                  <span>Planned Value (Rs)</span>
-                  <span>Status</span>
-                </div>
-                {materialPlanRows.map((row) => (
-                  <div key={row.id} className="grid min-w-[1060px] grid-cols-[0.35fr_1.3fr_0.5fr_0.5fr_0.7fr_0.75fr_0.75fr_0.75fr_0.75fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{row.id}</span>
-                    <span className="font-extrabold text-[#1e3261]">{row.category}</span>
-                    <span>{row.items}</span>
-                    <span>{row.uom}</span>
-                    <span>{row.plannedQty}</span>
-                    <span>{row.procuredQty}</span>
-                    <span>{row.deliveredQty}</span>
-                    <span>{row.installedQty}</span>
-                    <span>{row.pendingQty}</span>
-                    <span>{row.plannedValue}</span>
-                    <span><ProjectPhaseBadge status={row.status} /></span>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex flex-col gap-3 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-                <span>Showing 1 to 10 of 10 entries</span>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => onNotify('Previous materials clicked')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[#284276]">Previous</button>
-                  <button type="button" onClick={() => onNotify('Current page 1')} className="rounded-[8px] bg-[#2f80ff] px-4 py-2 font-extrabold text-white">1</button>
-                  <button type="button" onClick={() => onNotify('Next materials clicked')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[#284276]">Next</button>
-                </div>
-              </div>
-            </article>
-
-            <div className="space-y-4">
-              <ProjectDonutCard title="Material Status Overview" data={materialStatusData} totalLabel="Total Items" totalValue="48" />
-
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Category-wise Planned Value</h2>
-                <div className="mt-4 space-y-3">
-                  {categoryValueRows.map(([label, percent, value]) => (
-                    <div key={label} className="grid gap-2 sm:grid-cols-[100px_minmax(0,1fr)_120px] sm:items-center">
-                      <span className="text-[13px] font-extrabold text-[#1e3261]">{label}</span>
-                      <div className="h-3 overflow-hidden rounded-full bg-[#edf3fb]">
-                        <div className="h-full rounded-full bg-[#2f80ff]" style={{ width: percent }} />
-                      </div>
-                      <span className="text-right text-[12px] font-extrabold text-[#284276]">Rs {value} ({percent})</span>
+      <article className={`${panelClass} overflow-hidden`}>
+        <div className="overflow-x-auto">
+          <table className="crm-table w-full min-w-[700px]">
+            <thead>
+              <tr>
+                {['#', 'Category', 'Items', 'UOM', 'Planned Qty', 'Value (Rs)', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={8} className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No materials found.</td></tr>
+              ) : filtered.map((row, idx) => (
+                <tr key={row.id}>
+                  <td>{idx + 1}</td>
+                  <td className="font-extrabold text-[#1e3261]">{row.category}</td>
+                  <td className="font-bold text-[#314a79]">{row.items || '—'}</td>
+                  <td className="font-bold text-[#314a79]">{row.uom}</td>
+                  <td className="font-bold text-[#314a79]">{row.planned_qty}</td>
+                  <td className="font-bold text-[#314a79]">{row.planned_value ? `₹ ${row.planned_value}` : '—'}</td>
+                  <td><ProjectInfoPill tone={statusTone(row.status)}>{row.status}</ProjectInfoPill></td>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEdit(row)} />
+                      <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDelete(row.id)} />
                     </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Quick Actions</h2>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  {quickActions.map((action) => {
-                    const Icon = action.icon;
-                    return (
-                      <button key={action.label} type="button" onClick={() => openMaterialAction(action.label)} className="rounded-[14px] border border-[#edf2f8] bg-white p-3 text-center transition hover:-translate-y-0.5 hover:bg-[#fbfdff]">
-                        <span className={cx('mx-auto grid size-10 place-items-center rounded-[12px]', action.tone === 'green' ? 'bg-[#eefbf1] text-[#16a34a]' : action.tone === 'blue' ? 'bg-[#eef4ff] text-[#2563eb]' : action.tone === 'purple' ? 'bg-[#f4ecff] text-[#8b5cf6]' : 'bg-[#fff4df] text-[#f59e0b]')}>
-                          <Icon className="size-5" />
-                        </span>
-                        <span className="mt-3 block text-[13px] font-extrabold text-[#1e3261]">{action.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </article>
-            </div>
-          </section>
-
-          <section className="grid items-start gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Upcoming Requirements</h2>
-                <button type="button" onClick={() => setActiveMaterialTab('Material Requests')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Requirements</button>
-              </div>
-              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-                <div className="grid min-w-[720px] grid-cols-[1.4fr_1fr_0.75fr_0.6fr_0.8fr_1fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Material</span>
-                  <span>Required By</span>
-                  <span>Required Qty</span>
-                  <span>UOM</span>
-                  <span>Priority</span>
-                  <span>Status</span>
-                </div>
-                {upcomingRequirements.map((row) => (
-                  <div key={row.material} className="grid min-w-[720px] grid-cols-[1.4fr_1fr_0.75fr_0.6fr_0.8fr_1fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{row.material}</span>
-                    <span>{row.requiredBy}</span>
-                    <span>{row.qty}</span>
-                    <span>{row.uom}</span>
-                    <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', row.priority === 'High' ? 'bg-[#ffeded] text-[#dc2626]' : 'bg-[#fff4df] text-[#b45309]')}>{row.priority}</span>
-                    <span>{row.status}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Top Vendors</h2>
-                <button type="button" onClick={() => setActiveMaterialTab('Vendor Management')} className="text-[12px] font-extrabold text-[#0b65e5]">View All Vendors</button>
-              </div>
-              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-                <div className="grid min-w-[560px] grid-cols-[1.5fr_0.8fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Vendor</span>
-                  <span>Supplied Items</span>
-                  <span>On-Time Delivery</span>
-                  <span>Rating</span>
-                </div>
-                {vendors.map((vendor) => (
-                  <div key={vendor.vendor} className="grid min-w-[560px] grid-cols-[1.5fr_0.8fr_0.95fr_0.6fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{vendor.vendor}</span>
-                    <span>{vendor.supplied}</span>
-                    <span>{vendor.delivery}</span>
-                    <span className="text-[#f59e0b]">★ {vendor.rating}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </section>
-        </>
-      ) : activeMaterialTab === 'Bill of Materials' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'BOM Items', value: '48', caption: '10 categories', icon: FileText, tone: 'blue' },
-              { label: 'BOM Value', value: 'Rs 2,48,560', caption: 'Approved estimate', icon: IndianRupee, tone: 'green' },
-              { label: 'Issued Qty', value: '72%', caption: 'Against required', icon: CheckCircle2, tone: 'purple' },
-              { label: 'Pending Qty', value: '28%', caption: 'To be issued', icon: Hourglass, tone: 'amber' },
-            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
-          </div>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Bill of Materials</h2>
-              <button type="button" onClick={() => onNotify('BOM exported')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5]"><Download className="size-4" />Export BOM</button>
-            </div>
-            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-              <div className="grid min-w-[1060px] grid-cols-[0.35fr_1.3fr_0.5fr_0.5fr_0.7fr_0.75fr_0.75fr_0.75fr_0.75fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                <span>#</span><span>Material Category</span><span>Items</span><span>UOM</span><span>Planned Qty</span><span>Procured Qty</span><span>Delivered Qty</span><span>Installed Qty</span><span>Pending Qty</span><span>Value (Rs)</span><span>Status</span>
-              </div>
-              {materialPlanRows.map((row) => (
-                <div key={row.id} className="grid min-w-[1060px] grid-cols-[0.35fr_1.3fr_0.5fr_0.5fr_0.7fr_0.75fr_0.75fr_0.75fr_0.75fr_0.9fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                  <span className="font-extrabold text-[#1e3261]">{row.id}</span><span className="font-extrabold text-[#1e3261]">{row.category}</span><span>{row.items}</span><span>{row.uom}</span><span>{row.plannedQty}</span><span>{row.procuredQty}</span><span>{row.deliveredQty}</span><span>{row.installedQty}</span><span>{row.pendingQty}</span><span>{row.plannedValue}</span><span><ProjectPhaseBadge status={row.status} /></span>
-                </div>
+                  </td>
+                </tr>
               ))}
-            </div>
-          </article>
-        </section>
-      ) : activeMaterialTab === 'Procurement Plan' ? (
-        <section className="grid items-start gap-4 xl:grid-cols-[1.35fr_0.75fr]">
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Procurement Plan</h2>
-              <button type="button" onClick={() => setActiveMaterialTab('Procurement Plan')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Create PO</button>
-            </div>
-            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-              <div className="min-w-[860px]">
-                <div className="grid grid-cols-[1fr_1.2fr_1.2fr_0.8fr_0.8fr_0.9fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>PO No.</span><span>Vendor</span><span>Material</span><span>Qty</span><span>Amount</span><span>Expected</span><span>Status</span>
-                </div>
-                {procurementRows.map((row) => (
-                  <div key={row.po} className="grid grid-cols-[1fr_1.2fr_1.2fr_0.8fr_0.8fr_0.9fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{row.po}</span><span>{row.vendor}</span><span>{row.material}</span><span>{row.qty}</span><span>{row.amount}</span><span>{row.expected}</span><span><ProjectPhaseBadge status={row.status} /></span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </article>
+            </tbody>
+          </table>
+        </div>
+        <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">
+          Showing {filtered.length} of {rows.length} materials
+        </div>
+      </article>
 
-          <aside className="space-y-4">
-            <ProjectDonutCard title="Procurement Status" data={[{ label: 'Completed', value: 2, color: '#16a34a' }, { label: 'In Progress', value: 1, color: '#2f80ff' }, { label: 'Pending', value: 1, color: '#f59e0b' }]} totalLabel="POs" totalValue="4" />
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Pending Follow-up</h2>
-              <div className="mt-4 space-y-3">
-                <InfoCell label="Vendor" value="Electric House" />
-                <InfoCell label="Material" value="ACDB / DCDB" />
-                <InfoCell label="Expected" value="26 May 2024" />
-              </div>
-            </article>
-          </aside>
-        </section>
-      ) : activeMaterialTab === 'Inventory Check' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Available', value: '2', caption: 'Fully stocked', icon: CheckCircle2, tone: 'green' },
-              { label: 'Partial', value: '1', caption: 'Needs balance', icon: Hourglass, tone: 'amber' },
-              { label: 'Shortage', value: '2', caption: 'Procurement needed', icon: AlertTriangle, tone: 'red' },
-              { label: 'Reserved', value: '272', caption: 'Total quantity', icon: Database, tone: 'blue' },
-            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} inventory opened`)} />)}
+      {modalOpen ? (
+        <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
+          <div className="w-full max-w-[500px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editRow !== null ? 'Edit Material' : 'Add Material'}</h2>
+              <button type="button" onClick={() => setModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="grid gap-4 p-6 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">
+                Category
+                <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  {MATERIAL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                No. of Items
+                <input value={form.items} onChange={(e) => setForm((p) => ({ ...p, items: e.target.value }))} type="number" min="1" placeholder="e.g. 2" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                UOM
+                <select value={form.uom} onChange={(e) => setForm((p) => ({ ...p, uom: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                Planned Qty *
+                <input value={form.planned_qty} onChange={(e) => setForm((p) => ({ ...p, planned_qty: e.target.value }))} type="number" min="0" placeholder="e.g. 40" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                Planned Value (Rs)
+                <input value={form.planned_value} onChange={(e) => setForm((p) => ({ ...p, planned_value: e.target.value }))} placeholder="e.g. 1,20,000" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                Status
+                <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  {MATERIAL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+              <button type="button" onClick={() => setModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+              <button type="button" onClick={handleSave} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white">
+                <Save className="size-4" />{editRow !== null ? 'Update' : 'Add'}
+              </button>
+            </div>
           </div>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Inventory Availability Check</h2>
-            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-              <div className="min-w-[900px]">
-                <div className="grid grid-cols-[1.3fr_1.1fr_0.8fr_0.8fr_0.8fr_0.8fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Item</span><span>Warehouse</span><span>Required</span><span>Available</span><span>Reserved</span><span>Shortage</span><span>Status</span>
-                </div>
-                {inventoryRows.map((row) => (
-                  <div key={row.item} className="grid grid-cols-[1.3fr_1.1fr_0.8fr_0.8fr_0.8fr_0.8fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{row.item}</span><span>{row.warehouse}</span><span>{row.required}</span><span>{row.available}</span><span>{row.reserved}</span><span>{row.shortage}</span><span><ProjectPhaseBadge status={row.status === 'Available' ? 'Completed' : row.status === 'Partial' ? 'In Progress' : 'Pending'} label={row.status} /></span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </article>
-        </section>
-      ) : activeMaterialTab === 'Material Requests' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Requests', value: '4', caption: 'This project', icon: ReceiptText, tone: 'blue' },
-              { label: 'Approved', value: '1', caption: 'Ready to issue', icon: BadgeCheck, tone: 'green' },
-              { label: 'Pending', value: '2', caption: 'Needs action', icon: Hourglass, tone: 'amber' },
-              { label: 'Completed', value: '1', caption: 'Issued', icon: CheckCircle2, tone: 'purple' },
-            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} material requests opened`)} />)}
-          </div>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Requests</h2>
-              <button type="button" onClick={() => setActiveMaterialTab('Material Requests')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />New Request</button>
-            </div>
-            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-              <div className="min-w-[840px]">
-                <div className="grid grid-cols-[1fr_1.25fr_1fr_0.7fr_0.9fr_0.8fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Request ID</span><span>Material</span><span>Requested By</span><span>Qty</span><span>Required By</span><span>Priority</span><span>Status</span>
-                </div>
-                {requestRows.map((row) => (
-                  <div key={row.id} className="grid grid-cols-[1fr_1.25fr_1fr_0.7fr_0.9fr_0.8fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{row.id}</span><span>{row.material}</span><span>{row.requestedBy}</span><span>{row.qty}</span><span>{row.requiredBy}</span><span><ProjectNotePriorityBadge priority={row.priority} /></span><span><ProjectPhaseBadge status={row.status} /></span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </article>
-        </section>
-      ) : activeMaterialTab === 'Delivery & GRN' ? (
-        <section className="grid items-start gap-4 xl:grid-cols-[1.35fr_0.75fr]">
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Delivery & GRN</h2>
-              <button type="button" onClick={() => setActiveMaterialTab('Delivery & GRN')} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Create GRN</button>
-            </div>
-            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-              <div className="min-w-[860px]">
-                <div className="grid grid-cols-[1fr_1fr_1.15fr_1.15fr_0.8fr_0.85fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>GRN No.</span><span>PO No.</span><span>Vendor</span><span>Material</span><span>Received</span><span>Date</span><span>Status</span>
-                </div>
-                {grnRows.map((row) => (
-                  <div key={row.grn} className="grid grid-cols-[1fr_1fr_1.15fr_1.15fr_0.8fr_0.85fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{row.grn}</span><span>{row.po}</span><span>{row.vendor}</span><span>{row.material}</span><span>{row.received}</span><span>{row.date}</span><span><ProjectPhaseBadge status={row.status === 'Accepted' ? 'Completed' : row.status === 'Partial' ? 'In Progress' : 'Pending'} label={row.status} /></span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </article>
-
-          <aside className="space-y-4">
-            <ProjectDonutCard title="GRN Status" data={[{ label: 'Accepted', value: 2, color: '#16a34a' }, { label: 'Partial', value: 1, color: '#2f80ff' }, { label: 'Pending', value: 1, color: '#f59e0b' }]} totalLabel="GRNs" totalValue="4" />
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Next Delivery</h2>
-              <div className="mt-4 space-y-3">
-                <InfoCell label="Material" value="ACDB / DCDB" />
-                <InfoCell label="Vendor" value="Electric House" />
-                <InfoCell label="ETA" value="26 May 2024" />
-              </div>
-            </article>
-          </aside>
-        </section>
-      ) : activeMaterialTab === 'Vendor Management' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Active Vendors', value: '3', caption: 'Supplying now', icon: UsersRound, tone: 'green' },
-              { label: 'Pending Vendor', value: '1', caption: 'Needs follow-up', icon: Hourglass, tone: 'amber' },
-              { label: 'Avg Rating', value: '4.2', caption: 'Vendor score', icon: Star, tone: 'purple' },
-              { label: 'Payables', value: 'Rs 47,650', caption: 'Open amount', icon: IndianRupee, tone: 'blue' },
-            ].map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} vendor opened`)} />)}
-          </div>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Vendor Management</h2>
-            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-              <div className="min-w-[820px]">
-                <div className="grid grid-cols-[1.35fr_1.2fr_0.65fr_0.8fr_0.6fr_0.8fr_0.75fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Vendor</span><span>Category</span><span>Orders</span><span>Delivery</span><span>Rating</span><span>Payable</span><span>Status</span>
-                </div>
-                {vendorRows.map((row) => (
-                  <div key={row.vendor} className="grid grid-cols-[1.35fr_1.2fr_0.65fr_0.8fr_0.6fr_0.8fr_0.75fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{row.vendor}</span><span>{row.category}</span><span>{row.orders}</span><span>{row.delivery}</span><span className="text-[#f59e0b]">{row.rating}</span><span>{row.payable}</span><span><ProjectPhaseBadge status={row.status} /></span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </article>
-        </section>
-      ) : activeMaterialTab === 'Reports' ? (
-        <section className="grid items-start gap-4 xl:grid-cols-[1.35fr_0.75fr]">
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Reports</h2>
-              <button type="button" onClick={() => onOpenSection('Project Report Details')} data-route={projectSubRoutes['Project Report Details']} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"><Plus className="size-4" />Generate Report</button>
-            </div>
-            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-              <div className="min-w-[820px]">
-                <div className="grid grid-cols-[1.45fr_0.8fr_0.9fr_1fr_0.6fr_0.9fr_0.45fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Report Name</span><span>Category</span><span>Generated On</span><span>Generated By</span><span>Format</span><span>Status</span><span>Action</span>
-                </div>
-                {reportRows.map((row) => (
-                  <div key={row.name} className="grid grid-cols-[1.45fr_0.8fr_0.9fr_1fr_0.6fr_0.9fr_0.45fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{row.name}</span><span>{row.category}</span><span>{row.generatedOn}</span><span>{row.generatedBy}</span><span>{row.format}</span><span><ProjectDocumentStatusBadge status={row.status} /></span><span><button type="button" onClick={() => onNotify(`${row.name} downloaded`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#0b65e5]"><Download className="size-4" /></button></span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </article>
-
-          <aside className="space-y-4">
-            <ProjectDonutCard title="Report Mix" data={[{ label: 'Planning', value: 1, color: '#2f80ff' }, { label: 'BOM', value: 1, color: '#16a34a' }, { label: 'Vendor', value: 1, color: '#8b5cf6' }, { label: 'Inventory', value: 1, color: '#f59e0b' }]} totalLabel="Reports" totalValue="4" />
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Quick Exports</h2>
-              <div className="mt-4 grid gap-3">
-                {['BOM Export', 'Inventory Shortage', 'Vendor Performance'].map((label) => (
-                  <button key={label} type="button" onClick={() => onNotify(`${label} exported`)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5]"><Download className="size-4" />{label}</button>
-                ))}
-              </div>
-            </article>
-          </aside>
-        </section>
-      ) : (
-        <article className={`${panelClass} p-8 text-center`}>
-          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
-            <FolderKanban className="size-8" />
-          </span>
-          <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeMaterialTab}</h2>
-          <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
-            Is material planning tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi main screen aur tab navigation fully working hai, aur aap Material Overview par wapas ja sakte ho.
-          </p>
-          <button type="button" onClick={() => setActiveMaterialTab('Material Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Material Overview</button>
-        </article>
-      )}
+        </div>
+      ) : null}
 
       <DashboardFooter />
     </div>
