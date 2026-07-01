@@ -100,7 +100,7 @@ const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Lead Edit', 'Lead Fo
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const employeeRelatedPages = [...employeeSubItems];
-const projectSubItems = ['Project List', 'Project Site Survey', 'Project Installation', 'Project Team Assignment', 'Project Material Planning', 'Project Expenses', 'Project Documents', 'Project Approvals'];
+const projectSubItems = ['Project List', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Sub-CD', 'Project Installation', 'Project Expenses', 'Project Documents', 'Project Approvals'];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
 // 'Project Timeline' aur 'Project Work Orders' ab sidebar me nahi — Project List ke 3-dot action menu se khulte hain (routing yahin valid rehni chahiye)
 const projectRelatedPages = ['Project Management', ...projectActionPages, ...projectSubItems, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
@@ -281,6 +281,7 @@ const projectSubRoutes = {
   'Project Installation': '/projects/installation/:projectId',
   'Project Team Assignment': '/projects/team-assignment/:projectId',
   'Project Material Planning': '/projects/material-planning/:projectId',
+  'Sub-CD': '/projects/sub-cd/:projectId',
   'Project Work Orders': '/projects/work-orders/:projectId',
   'Project Work Order Create': '/projects/work-orders/create/:projectId',
   'Project Expenses': '/projects/expenses/:projectId',
@@ -8025,6 +8026,10 @@ function getModuleSubnavLabel(item) {
 
   if (item === 'Project Material Planning') {
     return 'Material Planning';
+  }
+
+  if (item === 'Sub-CD') {
+    return 'Sub-CD';
   }
 
   if (item === 'Project Work Orders') {
@@ -16590,6 +16595,10 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     return <ProjectMaterialPlanningPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
+  if (activeSection === 'Sub-CD') {
+    return <ProjectSubCDPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
   if (activeSection === 'Project Work Orders') {
     return <ProjectWorkOrdersPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
@@ -17455,7 +17464,10 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         const haystack = [row.projectName, row.projectId, row.customer, row.site, row.manager.name, row.ivrs, row.mobile].join(' ').toLowerCase();
         if (!haystack.includes(normalizedQuery)) return false;
       }
-      if (statusFilter !== 'All' && row.status !== statusFilter) return false;
+      if (statusFilter !== 'All') {
+        const compareValue = isSiteSurveyPicker ? (row.surveyStatus || '') : row.status;
+        if (compareValue !== statusFilter) return false;
+      }
       if (dateFrom && row.startDate && row.startDate < dateFrom) return false;
       if (dateTo && row.startDate && row.startDate > dateTo) return false;
       return true;
@@ -17529,12 +17541,20 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             <Filter className="size-4 text-[#0b65e5]" />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none">
               <option value="All">All Status</option>
-              {isSiteSurveyPicker ? <option value="Site Survey">Site Survey</option> : null}
-              <option value="Planning">Planning</option>
-              <option value="Active">Active</option>
-              <option value="On Hold">On Hold</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
+              {isSiteSurveyPicker ? (
+                <>
+                  <option value="Draft">Draft</option>
+                  <option value="Completed">Completed</option>
+                </>
+              ) : (
+                <>
+                  <option value="Planning">Planning</option>
+                  <option value="Active">Active</option>
+                  <option value="On Hold">On Hold</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </>
+              )}
             </select>
           </label>
           {!isSiteSurveyPicker ? (
@@ -19502,10 +19522,6 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       <p className="-mt-3 px-2 text-[13px] font-bold text-[#20345f] sm:text-[14px]">
         {activeDetailDescription}
       </p>
-      ) : !stackedSections ? (
-      <p className="px-2 text-[13px] font-bold text-[#53647f]">
-        {editMode ? 'Edit mode is ON — you can update project and survey details.' : 'View mode — turn on Edit Mode to make changes.'}
-      </p>
       ) : null}
 
       {!stackedSections ? <ProjectSubnavTabs activeSection={activeSection} onOpenSection={openProjectSection} /> : null}
@@ -19539,7 +19555,19 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
         </div>
         <div className="mt-5 grid gap-4 border-t border-[#edf2f8] pt-5 sm:grid-cols-2 xl:max-w-[380px]">
           <ProjectHeroFact label="Target Date" valueNode={<span className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#0b65e5]" />{formatProjectDisplayDate(project.targetDate)}</span>} compact />
-          <ProjectHeroFact label="Status" valueNode={<ProjectPhaseBadge label={d.status} />} compact />
+          <ProjectHeroFact label="Survey Status" valueNode={
+            canEdit ? (
+              <select
+                value={surveyForm.status}
+                onChange={(e) => setSurveyForm((prev) => ({ ...prev, status: e.target.value }))}
+                className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]"
+              >
+                {['Draft', 'Completed'].map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            ) : (
+              <ProjectInfoPill tone={surveyForm.status === 'Completed' ? 'green' : 'amber'}>{surveyForm.status || 'Draft'}</ProjectInfoPill>
+            )
+          } compact />
         </div>
       </section>
       ) : null}
@@ -21121,8 +21149,6 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                 <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Customer & Site Details</h2>
                 <ProjectInfoPill tone="blue">API Connected</ProjectInfoPill>
               </div>
-              <p className="mt-2 text-[12px] font-bold text-[#6c7f9f]">{canEdit ? 'Edit and save directly to backend/database.' : 'View-only — turn on Edit Mode to update.'}</p>
-
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <input value={customerSiteForm.customer_name} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, customer_name: e.target.value }))} disabled={!canEdit} type="text" placeholder="Customer Name" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
                 <input value={customerSiteForm.site} onChange={(e) => setCustomerSiteForm((prev) => ({ ...prev, site: e.target.value }))} disabled={!canEdit} type="text" placeholder="Site" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] disabled:bg-[#f8fafc]" />
@@ -27034,6 +27060,120 @@ function ProjectModulePlaceholderPage({ activeSection, onOpenSection, onNotify }
           <button type="button" onClick={() => onOpenSection('Project KPI Analytics')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><BarChart3 className="size-4 text-[#0b65e5]" />Open KPI Analytics</button>
         </div>
       </article>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
+  const COMPONENT_TYPES = ['Solar Panel', 'Inverter', 'Battery', 'Structure', 'Cable', 'Other'];
+  const emptyRow = { type: 'Solar Panel', company: '', serial_number: '', capacity: '' };
+  const [rows, setRows] = useState([]);
+  const [form, setForm] = useState(emptyRow);
+  const [editIndex, setEditIndex] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const openAdd = () => { setForm(emptyRow); setEditIndex(null); setModalOpen(true); };
+  const openEdit = (index) => { setForm({ ...rows[index] }); setEditIndex(index); setModalOpen(true); };
+  const handleSave = () => {
+    if (!form.company.trim() || !form.serial_number.trim()) { onNotify('Company and Serial Number required'); return; }
+    if (editIndex !== null) {
+      setRows((prev) => prev.map((r, i) => (i === editIndex ? form : r)));
+      onNotify('Component updated');
+    } else {
+      setRows((prev) => [...prev, form]);
+      onNotify('Component added');
+    }
+    setModalOpen(false);
+  };
+  const handleDelete = (index) => { setRows((prev) => prev.filter((_, i) => i !== index)); onNotify('Component removed'); };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Sub-CD"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+          { label: 'Sub-CD' },
+        ]}
+        actions={(
+          <button type="button" onClick={openAdd} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#078c3e]">
+            <Plus className="size-4" />Add Component
+          </button>
+        )}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <article className={`${panelClass} overflow-hidden`}>
+        <div className="overflow-x-auto">
+          <table className="crm-table w-full min-w-[700px]">
+            <thead>
+              <tr>
+                {['#', 'Type', 'Company / Brand', 'Serial Number', 'Capacity', 'Action'].map((h) => <th key={h}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr><td colSpan={6} className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No components added yet. Click Add Component to start.</td></tr>
+              ) : rows.map((row, index) => (
+                <tr key={index}>
+                  <td>{index + 1}</td>
+                  <td><span className="rounded-[6px] bg-[#edf5ff] px-2 py-1 text-[12px] font-extrabold text-[#1a56db]">{row.type}</span></td>
+                  <td className="font-extrabold text-[#1e3261]">{row.company}</td>
+                  <td className="font-bold text-[#314a79]">{row.serial_number}</td>
+                  <td className="font-bold text-[#314a79]">{row.capacity || '—'}</td>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEdit(index)} />
+                      <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDelete(index)} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      {modalOpen ? (
+        <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
+          <div className="w-full max-w-[480px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editIndex !== null ? 'Edit Component' : 'Add Component'}</h2>
+              <button type="button" onClick={() => setModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="grid gap-4 p-6">
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                Component Type
+                <select value={form.type} onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  {COMPONENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                Company / Brand *
+                <input value={form.company} onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))} placeholder="e.g. Waaree, Growatt, Luminous" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                Serial Number *
+                <input value={form.serial_number} onChange={(e) => setForm((p) => ({ ...p, serial_number: e.target.value }))} placeholder="e.g. WE440-2024-00123" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                Capacity
+                <input value={form.capacity} onChange={(e) => setForm((p) => ({ ...p, capacity: e.target.value }))} placeholder="e.g. 440W, 5kW, 100Ah" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+              <button type="button" onClick={() => setModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+              <button type="button" onClick={handleSave} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white">
+                <Save className="size-4" />{editIndex !== null ? 'Update' : 'Add'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <DashboardFooter />
     </div>
