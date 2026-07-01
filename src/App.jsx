@@ -4,6 +4,7 @@ import {
   authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
   projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
   projectTeamApi, projectMilestoneApi, projectChecklistApi,
+  installationMaterialApi, materialPlanApi,
 } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -24337,23 +24338,103 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
 
 function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify }) {
   const MATERIAL_CATEGORIES = ['Solar Panels', 'Inverters', 'Mounting Structure', 'DC Cables', 'AC Cables', 'Connectors (MC4)', 'ACDB / DCDB', 'Earthing Material', 'Consumables', 'Safety & Others', 'Battery', 'Other'];
-  const MATERIAL_STATUS = ['Pending', 'In Progress', 'Completed'];
+  const MATERIAL_STATUS = ['Not Started', 'In Progress', 'Partially Completed', 'Completed', 'Delayed'];
   const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair'];
-  const emptyForm = { category: 'Solar Panels', items: '', uom: 'Nos', planned_qty: '', planned_value: '', status: 'Pending' };
-  const [rows, setRows] = useState([
-    { id: 1, category: 'Solar Panels', items: '2', uom: 'Nos', planned_qty: '40', planned_value: '1,20,000', status: 'In Progress' },
-    { id: 2, category: 'Inverters', items: '1', uom: 'Nos', planned_qty: '1', planned_value: '45,000', status: 'Completed' },
-    { id: 3, category: 'Mounting Structure', items: '6', uom: 'Set', planned_qty: '1', planned_value: '28,000', status: 'In Progress' },
-    { id: 4, category: 'DC Cables', items: '2', uom: 'Mtr', planned_qty: '200', planned_value: '10,800', status: 'In Progress' },
-    { id: 5, category: 'ACDB / DCDB', items: '2', uom: 'Nos', planned_qty: '1', planned_value: '6,500', status: 'Pending' },
-    { id: 6, category: 'Earthing Material', items: '4', uom: 'Nos', planned_qty: '1', planned_value: '3,500', status: 'Pending' },
-  ]);
+  const emptyForm = { category: 'Solar Panels', items: '', uom: 'Nos', planned_qty: '', planned_value: '', status: 'Not Started' };
+  const CHART_COLORS = ['#94a3b8', '#2f80ff', '#22c7d6', '#16a34a', '#ef4444'];
+
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [loadingRows, setLoadingRows] = useState(false);
+  const [dashStats, setDashStats] = useState({ total: 0, not_started: 0, in_progress: 0, partially_completed: 0, completed: 0, delayed: 0 });
+  const [statusOverview, setStatusOverview] = useState({ labels: [], values: [] });
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [modalOpen, setModalOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const nextId = useRef(rows.length + 1);
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [allProjects, setAllProjects] = useState([]);
+  const [projectPlanCounts, setProjectPlanCounts] = useState({});
+  const [loadingProjects, setLoadingProjects] = useState(false);
+
+  const loadProjectData = useCallback(async (proj) => {
+    if (!proj) return;
+    setLoadingRows(true);
+    try {
+      const [planData, stats, overview] = await Promise.all([
+        materialPlanApi.list({ project: proj.id }),
+        materialPlanApi.dashboard({ project: proj.id }),
+        materialPlanApi.statusOverview({ project: proj.id }),
+      ]);
+      setRows(normalizeApiRows(planData));
+      setDashStats(stats || { total: 0, not_started: 0, in_progress: 0, partially_completed: 0, completed: 0, delayed: 0 });
+      setStatusOverview(overview || { labels: [], values: [] });
+    } catch {
+      onNotify('Failed to load material plans');
+    } finally {
+      setLoadingRows(false);
+    }
+  }, [onNotify]);
+
+  useEffect(() => { if (selectedProject) loadProjectData(selectedProject); }, [selectedProject, loadProjectData]);
+
+  const openProjectPicker = async () => {
+    setProjectPickerOpen(true);
+    if (allProjects.length > 0) return;
+    setLoadingProjects(true);
+    try {
+      const [projData, planData] = await Promise.all([
+        projectApi.list({ page_size: 200 }),
+        materialPlanApi.list({ page_size: 1000 }),
+      ]);
+      setAllProjects(normalizeApiRows(projData));
+      const counts = {};
+      normalizeApiRows(planData).forEach((p) => { counts[p.project] = (counts[p.project] || 0) + 1; });
+      setProjectPlanCounts(counts);
+    } catch { onNotify('Failed to load projects'); }
+    finally { setLoadingProjects(false); }
+  };
+
+  const handleProjectSelect = (proj) => {
+    setSelectedProject(proj);
+    setProjectPickerOpen(false);
+    setProjectSearch('');
+    setRows([]);
+  };
+
+  const openAdd = () => {
+    if (!selectedProject) { onNotify('Please select a project first'); return; }
+    setForm(emptyForm); setEditRow(null); setModalOpen(true);
+  };
+  const openEditRow = (row) => { setForm({ ...row }); setEditRow(row.id); setModalOpen(true); };
+
+  const handleDelete = async (id) => {
+    try {
+      await materialPlanApi.delete(id);
+      setRows((prev) => prev.filter((r) => r.id !== id));
+      onNotify('Material removed');
+      loadProjectData(selectedProject);
+    } catch { onNotify('Delete failed'); }
+  };
+
+  const handleSave = async () => {
+    if (!form.category || !form.planned_qty) { onNotify('Category and Qty required'); return; }
+    try {
+      if (editRow !== null) {
+        const updated = await materialPlanApi.update(editRow, { ...form, project: selectedProject.id });
+        setRows((prev) => prev.map((r) => (r.id === editRow ? updated : r)));
+        onNotify('Material updated');
+      } else {
+        const created = await materialPlanApi.create({ ...form, project: selectedProject.id });
+        setRows((prev) => [...prev, created]);
+        onNotify('Material added');
+      }
+      setModalOpen(false);
+      loadProjectData(selectedProject);
+    } catch (e) { onNotify(e.message || 'Save failed'); }
+  };
 
   const filtered = rows.filter((r) => {
     if (statusFilter !== 'All' && r.status !== statusFilter) return false;
@@ -24361,61 +24442,36 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
     return true;
   });
 
-  const openAdd = () => { setForm(emptyForm); setEditRow(null); setModalOpen(true); };
-  const openEdit = (row) => { setForm({ ...row }); setEditRow(row.id); setModalOpen(true); };
-  const handleDelete = (id) => { setRows((prev) => prev.filter((r) => r.id !== id)); onNotify('Material removed'); };
-  const handleSave = () => {
-    if (!form.category || !form.planned_qty) { onNotify('Category and Qty required'); return; }
-    if (editRow !== null) {
-      setRows((prev) => prev.map((r) => (r.id === editRow ? { ...form, id: editRow } : r)));
-      onNotify('Material updated');
-    } else {
-      setRows((prev) => [...prev, { ...form, id: nextId.current++ }]);
-      onNotify('Material added');
-    }
-    setModalOpen(false);
+  const statusTone = (s) => {
+    if (s === 'Completed') return 'green';
+    if (s === 'In Progress') return 'blue';
+    if (s === 'Partially Completed') return 'cyan';
+    if (s === 'Delayed') return 'red';
+    return 'amber';
   };
 
-  const statusTone = (s) => s === 'Completed' ? 'green' : s === 'In Progress' ? 'blue' : 'amber';
+  const pieData = (statusOverview.labels || []).map((label, i) => ({
+    name: label, value: (statusOverview.values || [])[i] || 0, color: CHART_COLORS[i],
+  })).filter((d) => d.value > 0);
 
-  const ALL_PROJECTS = [
-    { id: 1, name: '20kW On-Grid System', customer: 'Rajesh Kumar', code: 'PRJ-2024-001', hasMaterials: true },
-    { id: 2, name: '5kW Rooftop Solar', customer: 'Priya Sharma', code: 'PRJ-2024-002', hasMaterials: false },
-    { id: 3, name: '10kW Hybrid System', customer: 'Amit Joshi', code: 'PRJ-2024-003', hasMaterials: true },
-    { id: 4, name: '3kW On-Grid Rau', customer: 'Sunil Patidar', code: 'PRJ-2024-004', hasMaterials: false },
-    { id: 5, name: '15kW Commercial Plant', customer: 'Deepak Verma', code: 'PRJ-2024-005', hasMaterials: false },
-  ];
-
-  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
-  const [projectSearch, setProjectSearch] = useState('');
-  const [selectedProject, setSelectedProject] = useState(null);
-
-  const filteredProjects = ALL_PROJECTS.filter((p) =>
+  const filteredPickerProjects = allProjects.filter((p) =>
     projectSearch === '' ||
-    p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
-    p.customer.toLowerCase().includes(projectSearch.toLowerCase()) ||
-    p.code.toLowerCase().includes(projectSearch.toLowerCase()),
+    (p.project_name || '').toLowerCase().includes(projectSearch.toLowerCase()) ||
+    (p.customer_name || '').toLowerCase().includes(projectSearch.toLowerCase()) ||
+    (p.project_id || '').toLowerCase().includes(projectSearch.toLowerCase()),
   );
 
-  const handleProjectSelect = (proj) => {
-    setSelectedProject(proj);
-    setProjectPickerOpen(false);
-    setProjectSearch('');
-    onNotify(proj.hasMaterials ? `Loaded: ${proj.name}` : `New plan for: ${proj.name}`);
-  };
+  const projStatusTone = (s) => s === 'Active' ? 'green' : s === 'Completed' ? 'blue' : s === 'Cancelled' ? 'red' : 'amber';
 
   return (
     <div className="space-y-4">
       <PageHeading
-        title="Material Planning"
+        title={selectedProject ? `Material Planning — ${selectedProject.project_name || selectedProject.name}` : 'Material Planning'}
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Material Planning' },
         ]}
-        actions={(
-          <button type="button" onClick={openAdd} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Material</button>
-        )}
       />
 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
@@ -24426,97 +24482,183 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
             <Search className="size-4 shrink-0 text-[#7e8fab]" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search by material category..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
           </label>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
               <option value="All">All Status</option>
               {MATERIAL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <button type="button" onClick={() => setProjectPickerOpen(true)} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5] hover:text-[#0b65e5]')}>
+            <button type="button" onClick={openProjectPicker} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5] hover:text-[#0b65e5]')}>
               <FolderKanban className="size-4" />
-              {selectedProject ? selectedProject.name : 'All Projects'}
+              {selectedProject ? (selectedProject.project_name || selectedProject.name) : 'Select Project'}
             </button>
+            {selectedProject && (
+              <button type="button" onClick={openAdd} className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#11a650] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0e9748]">
+                <Plus className="size-4" />Add Material
+              </button>
+            )}
           </div>
         </div>
       </section>
 
-      <article className={`${panelClass} overflow-hidden`}>
-        <div className="overflow-x-auto">
-          <table className="crm-table w-full min-w-[700px]">
-            <thead>
-              <tr>
-                {['#', 'Category', 'Items', 'UOM', 'Planned Qty', 'Value (Rs)', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={8} className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No materials found.</td></tr>
-              ) : filtered.map((row, idx) => (
-                <tr key={row.id}>
-                  <td>{idx + 1}</td>
-                  <td className="font-extrabold text-[#1e3261]">{row.category}</td>
-                  <td className="font-bold text-[#314a79]">{row.items || '—'}</td>
-                  <td className="font-bold text-[#314a79]">{row.uom}</td>
-                  <td className="font-bold text-[#314a79]">{row.planned_qty}</td>
-                  <td className="font-bold text-[#314a79]">{row.planned_value ? `₹ ${row.planned_value}` : '—'}</td>
-                  <td><ProjectInfoPill tone={statusTone(row.status)}>{row.status}</ProjectInfoPill></td>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEdit(row)} />
-                      <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDelete(row.id)} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">
-          Showing {filtered.length} of {rows.length} materials
-        </div>
-      </article>
+      {selectedProject && (
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          {[
+            { label: 'Total Plans', value: dashStats.total, icon: Boxes, tone: 'blue', caption: 'All materials', filter: 'All' },
+            { label: 'Not Started', value: dashStats.not_started, icon: Clock3, tone: 'amber', caption: 'Pending action', filter: 'Not Started' },
+            { label: 'In Progress', value: dashStats.in_progress, icon: ClipboardPlus, tone: 'blue', caption: 'Being procured', filter: 'In Progress' },
+            { label: 'Partial', value: dashStats.partially_completed, icon: FolderKanban, tone: 'cyan', caption: 'Partially done', filter: 'Partially Completed' },
+            { label: 'Completed', value: dashStats.completed, icon: CheckCircle2, tone: 'green', caption: 'Fully done', filter: 'Completed' },
+            { label: 'Delayed', value: dashStats.delayed, icon: CalendarDays, tone: 'red', caption: 'Needs attention', filter: 'Delayed' },
+          ].map((card) => (
+            <LiaisonApprovalStatCard key={card.label} label={card.label} value={String(card.value)} caption={card.caption} icon={card.icon} tone={card.tone} onClick={() => setStatusFilter(card.filter)} />
+          ))}
+        </section>
+      )}
 
-      {projectPickerOpen ? (
+      {!selectedProject ? (
+        <article className={`${panelClass} flex flex-col items-center justify-center py-20`}>
+          <FolderKanban className="size-14 text-[#c5d2e8]" />
+          <h3 className="mt-4 font-display text-[18px] font-extrabold text-[#1e3261]">No Project Selected</h3>
+          <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to create or manage Material Planning.</p>
+          <button type="button" onClick={openProjectPicker} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
+            <FolderKanban className="size-4" />Select Project
+          </button>
+        </article>
+      ) : (
+        <article className={`${panelClass} overflow-hidden`}>
+          <div className="overflow-x-auto">
+            <table className="crm-table w-full min-w-[700px]">
+              <thead>
+                <tr>{['#', 'Category', 'Items', 'UOM', 'Planned Qty', 'Value (Rs)', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {loadingRows ? (
+                  <tr><td colSpan={8} className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading...</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={8} className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No materials. Click <strong>Add Material</strong> to create one.</td></tr>
+                ) : filtered.map((row, idx) => (
+                  <tr key={row.id}>
+                    <td>{idx + 1}</td>
+                    <td className="font-extrabold text-[#1e3261]">{row.category}</td>
+                    <td className="font-bold text-[#314a79]">{row.items || '—'}</td>
+                    <td className="font-bold text-[#314a79]">{row.uom}</td>
+                    <td className="font-bold text-[#314a79]">{row.planned_qty}</td>
+                    <td className="font-bold text-[#314a79]">{row.planned_value ? `Rs ${row.planned_value}` : '—'}</td>
+                    <td><ProjectInfoPill tone={statusTone(row.status)}>{row.status}</ProjectInfoPill></td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEditRow(row)} />
+                        <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDelete(row.id)} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">
+            Showing {filtered.length} of {rows.length} materials
+          </div>
+        </article>
+      )}
+
+      {selectedProject && pieData.length > 0 && (
+        <article className={`${panelClass} p-5`}>
+          <h3 className="mb-4 font-display text-[15px] font-extrabold text-[#1e3261]">Material Planning Status Overview</h3>
+          <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+            <div className="h-[220px] w-full max-w-[240px] shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2}>
+                    {pieData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-1 flex-col gap-2">
+              {pieData.map((entry) => (
+                <div key={entry.name} className="flex items-center justify-between rounded-[8px] bg-[#f8fbff] px-4 py-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="inline-block size-3 shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />
+                    <span className="text-[13px] font-extrabold text-[#314a79]">{entry.name}</span>
+                  </div>
+                  <span className="font-display text-[15px] font-extrabold text-[#111827]">{entry.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </article>
+      )}
+
+      {projectPickerOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setProjectPickerOpen(false); setProjectSearch(''); } }}>
-          <div className="w-full max-w-[520px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+          <div className="w-full max-w-[760px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
               <div>
                 <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Project</h2>
-                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Click a project to view or create its material plan</p>
+                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose a project to view or create its material plan</p>
               </div>
               <button type="button" onClick={() => { setProjectPickerOpen(false); setProjectSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
             </div>
             <div className="p-4 pb-2">
               <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
                 <Search className="size-4 shrink-0 text-[#7e8fab]" />
-                <input autoFocus value={projectSearch} onChange={(e) => setProjectSearch(e.target.value)} type="search" placeholder="Search by project name, customer, ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+                <input autoFocus value={projectSearch} onChange={(e) => setProjectSearch(e.target.value)} type="search" placeholder="Search project name, customer, project ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
               </label>
             </div>
-            <div className="max-h-[340px] overflow-y-auto">
-              {filteredProjects.length === 0 ? (
-                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</p>
-              ) : filteredProjects.map((proj) => (
-                <div key={proj.id} className="flex items-center justify-between border-b border-[#f3f6fb] px-6 py-3.5 last:border-0 hover:bg-[#f8fbff]">
-                  <div>
-                    <p className="text-[14px] font-extrabold text-[#1e3261]">{proj.name}</p>
-                    <p className="mt-0.5 text-[12px] font-bold text-[#7585a2]">{proj.customer} &bull; {proj.code}</p>
-                  </div>
-                  {proj.hasMaterials ? (
-                    <button type="button" onClick={() => handleProjectSelect(proj)} title="Edit material plan" className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#caeed8] bg-[#f0fdf4] text-[#0d9f4a] transition hover:bg-[#dcfce7]">
-                      <Pencil className="size-4" />
-                    </button>
-                  ) : (
-                    <button type="button" onClick={() => handleProjectSelect(proj)} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                      <Plus className="size-3.5" />Create
-                    </button>
-                  )}
-                </div>
-              ))}
+            <div className="max-h-[420px] overflow-y-auto">
+              {loadingProjects ? (
+                <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">Loading projects...</p>
+              ) : filteredPickerProjects.length === 0 ? (
+                <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</p>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
+                      {['Project Name', 'Customer', 'Capacity', 'Status', 'Material Plan', 'Action'].map((h) => (
+                        <th key={h} className="px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPickerProjects.map((proj) => {
+                      const planCount = projectPlanCounts[proj.id] || 0;
+                      return (
+                        <tr key={proj.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
+                          <td className="px-4 py-3">
+                            <p className="text-[13px] font-extrabold text-[#1e3261]">{proj.project_name || proj.name}</p>
+                            <p className="text-[11px] font-bold text-[#8a98af]">{proj.project_id}</p>
+                          </td>
+                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{proj.customer_name || '—'}</td>
+                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{proj.capacity_kwp ? `${proj.capacity_kwp} kW` : '—'}</td>
+                          <td className="px-4 py-3"><ProjectInfoPill tone={projStatusTone(proj.status)}>{proj.status || '—'}</ProjectInfoPill></td>
+                          <td className="px-4 py-3">
+                            {planCount > 0 ? <ProjectInfoPill tone="green">{planCount} {planCount === 1 ? 'entry' : 'entries'}</ProjectInfoPill> : <ProjectInfoPill tone="amber">Not Created</ProjectInfoPill>}
+                          </td>
+                          <td className="px-4 py-3">
+                            {planCount > 0 ? (
+                              <button type="button" onClick={() => handleProjectSelect(proj)} title="Edit material plan" className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#caeed8] bg-[#f0fdf4] text-[#0d9f4a] transition hover:bg-[#dcfce7]">
+                                <Pencil className="size-4" />
+                              </button>
+                            ) : (
+                              <button type="button" onClick={() => handleProjectSelect(proj)} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                                <Plus className="size-3.5" />Create
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {modalOpen ? (
+      {modalOpen && (
         <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
           <div className="w-full max-w-[500px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
@@ -24563,7 +24705,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
       <DashboardFooter />
     </div>

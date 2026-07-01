@@ -399,3 +399,29 @@ class InstallationMaterial(models.Model):
 
     class Meta:
         ordering = ['id']
+
+
+class MaterialPlan(models.Model):
+    STATUS_CHOICES = [
+        ('Not Started', 'Not Started'),
+        ('In Progress', 'In Progress'),
+        ('Partially Completed', 'Partially Completed'),
+        ('Completed', 'Completed'),
+        ('Delayed', 'Delayed'),
+    ]
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='material_plans')
+    category = models.CharField(max_length=100)
+    items = models.CharField(max_length=50, blank=True, default='')
+    uom = models.CharField(max_length=20, default='Nos')
+    planned_qty = models.CharField(max_length=50, blank=True, default='')
+    planned_value = models.CharField(max_length=50, blank=True, default='')
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Not Started')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.project.project_id} — {self.category}'
+
+    class Meta:
+        ordering = ['id']

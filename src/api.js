@@ -318,3 +318,23 @@ export const installationMaterialApi = {
   update: (id, data) => request(`/installation-materials/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/installation-materials/${id}/`, { method: 'DELETE' }),
 };
+
+// ─── Material Plans ─────────────────────────────────────────────────────────────
+
+export const materialPlanApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/material-plans/${qs ? '?' + qs : ''}`);
+  },
+  create: (data) => request('/material-plans/', { method: 'POST', body: data }),
+  update: (id, data) => request(`/material-plans/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/material-plans/${id}/`, { method: 'DELETE' }),
+  dashboard: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/material-plans/dashboard/${qs ? '?' + qs : ''}`);
+  },
+  statusOverview: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/material-plans/status-overview/${qs ? '?' + qs : ''}`);
+  },
+};

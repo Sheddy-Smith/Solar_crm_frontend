@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
-    ProjectChecklistItem, InstallationMaterial,
+    ProjectChecklistItem, InstallationMaterial, MaterialPlan,
 )
 from apps.accounts.serializers import UserSerializer
 
@@ -131,6 +131,13 @@ class InstallationMaterialSerializer(serializers.ModelSerializer):
             'id', 'project', 'inventory_item', 'inventory_item_name', 'item_name',
             'category', 'unit', 'required_qty', 'issued_qty', 'consumed_qty', 'status',
         ]
+
+
+class MaterialPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MaterialPlan
+        fields = ['id', 'project', 'category', 'items', 'uom', 'planned_qty', 'planned_value', 'status', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
 
 
 class ProjectListSerializer(serializers.ModelSerializer):

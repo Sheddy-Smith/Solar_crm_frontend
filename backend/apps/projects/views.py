@@ -6,7 +6,7 @@ from django.utils import timezone
 from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
-    ProjectChecklistItem, InstallationMaterial,
+    ProjectChecklistItem, InstallationMaterial, MaterialPlan,
 )
 from .serializers import (
     ProjectListSerializer, ProjectDetailSerializer,
@@ -14,6 +14,7 @@ from .serializers import (
     ProjectDocumentSerializer, ProjectExpenseSerializer, ProjectPaymentSerializer, WorkOrderSerializer,
     ProjectTeamMemberSerializer, ProjectSystemConfigSerializer, ProjectMilestoneSerializer,
     SiteSurveySerializer, ProjectChecklistItemSerializer, InstallationMaterialSerializer,
+    MaterialPlanSerializer,
 )
 from apps.accounts.permissions import HasModulePermission
 
@@ -217,3 +218,47 @@ class InstallationMaterialViewSet(viewsets.ModelViewSet):
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'status']
+
+
+class MaterialPlanViewSet(viewsets.ModelViewSet):
+    queryset = MaterialPlan.objects.select_related('project').all()
+    serializer_class = MaterialPlanSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['project', 'status', 'category']
+    search_fields = ['category', 'items']
+
+    def get_queryset(self):
+        qs = MaterialPlan.objects.select_related('project').all()
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    @action(detail=False, methods=['get'], url_path='dashboard')
+    def dashboard(self, request):
+        qs = self._filtered_qs(request)
+        total = qs.count()
+        return Response({
+            'total': total,
+            'not_started': qs.filter(status='Not Started').count(),
+            'in_progress': qs.filter(status='In Progress').count(),
+            'partially_completed': qs.filter(status='Partially Completed').count(),
+            'completed': qs.filter(status='Completed').count(),
+            'delayed': qs.filter(status='Delayed').count(),
+        })
+
+    @action(detail=False, methods=['get'], url_path='status-overview')
+    def status_overview(self, request):
+        qs = self._filtered_qs(request)
+        labels = ['Not Started', 'In Progress', 'Partially Completed', 'Completed', 'Delayed']
+        values = [qs.filter(status=s).count() for s in labels]
+        return Response({'labels': labels, 'values': values})
+
+    def _filtered_qs(self, request):
+        qs = MaterialPlan.objects.all()
+        project_id = request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
