@@ -28,7 +28,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return Project.objects.select_related('manager', 'site_engineer', 'lead', 'created_by').prefetch_related(
+        return Project.objects.select_related('manager', 'site_engineer', 'lead', 'created_by', 'site_survey', 'site_survey__surveyed_by').prefetch_related(
             'activities__assigned_to',
             'notes__created_by',
             'documents__uploaded_by',

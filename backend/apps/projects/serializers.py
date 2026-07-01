@@ -139,10 +139,27 @@ class ProjectListSerializer(serializers.ModelSerializer):
     lead_ivrs_number = serializers.CharField(source='lead.ivrs_number', read_only=True)
     lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
     lead_status = serializers.CharField(source='lead.status', read_only=True)
+    survey_date = serializers.SerializerMethodField()
+    surveyed_by_name = serializers.SerializerMethodField()
+    survey_feasibility = serializers.SerializerMethodField()
+    survey_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
-        fields = ['id', 'lead', 'lead_ivrs_number', 'lead_mobile_number', 'lead_status', 'project_id', 'project_name', 'customer_name', 'site', 'project_type', 'capacity_kwp', 'project_image', 'status', 'priority', 'progress_percent', 'manager', 'manager_name', 'manager_initials', 'start_date', 'target_date', 'total_value', 'created_at']
+        fields = ['id', 'lead', 'lead_ivrs_number', 'lead_mobile_number', 'lead_status', 'project_id', 'project_name', 'customer_name', 'site', 'project_type', 'capacity_kwp', 'project_image', 'status', 'priority', 'progress_percent', 'manager', 'manager_name', 'manager_initials', 'start_date', 'target_date', 'total_value', 'created_at', 'survey_date', 'surveyed_by_name', 'survey_feasibility', 'survey_status']
+
+    def get_survey_date(self, obj):
+        return getattr(obj.site_survey, 'survey_date', None) if hasattr(obj, 'site_survey') else None
+
+    def get_surveyed_by_name(self, obj):
+        survey = getattr(obj, 'site_survey', None)
+        return survey.surveyed_by.name if survey and survey.surveyed_by else ''
+
+    def get_survey_feasibility(self, obj):
+        return getattr(obj.site_survey, 'feasibility', '') if hasattr(obj, 'site_survey') else ''
+
+    def get_survey_status(self, obj):
+        return getattr(obj.site_survey, 'status', '') if hasattr(obj, 'site_survey') else ''
 
 
 class ProjectDetailSerializer(serializers.ModelSerializer):

@@ -17363,6 +17363,10 @@ function projectRowFromApi(p) {
     startDate: p.start_date || '',
     targetDate: p.target_date || '',
     progress: p.progress_percent || 0,
+    surveyDate: p.survey_date || '',
+    surveyedBy: p.surveyed_by_name || '',
+    surveyFeasibility: p.survey_feasibility || '',
+    surveyStatus: p.survey_status || '',
   };
 }
 
@@ -17565,6 +17569,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             <Filter className="size-4 text-[#0b65e5]" />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none">
               <option value="All">All Status</option>
+              {isSiteSurveyPicker ? <option value="Site Survey">Site Survey</option> : null}
               <option value="Planning">Planning</option>
               <option value="Active">Active</option>
               <option value="On Hold">On Hold</option>
@@ -17572,7 +17577,9 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
               <option value="Cancelled">Cancelled</option>
             </select>
           </label>
-          <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Project</button>
+          {!isSiteSurveyPicker ? (
+            <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Project</button>
+          ) : null}
         </div>
       </section>
 
@@ -17582,10 +17589,13 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         ) : (
         <>
         <div className="hidden overflow-x-auto rounded-[14px] border border-[#e7eef7] bg-white lg:block">
-          <table className="crm-table min-w-[1420px] w-full">
+          <table className={cx('crm-table w-full', isSiteSurveyPicker ? 'min-w-[1180px]' : 'min-w-[1420px]')}>
             <thead>
               <tr>
-                {['#', 'Project Name', 'Customer / Site', 'Project Type', 'Capacity (KWp)', 'Status', 'Project Manager', 'Start Date', 'Target Date', 'Progress', 'Action'].map((header) => <th key={header}>{header}</th>)}
+                {(isSiteSurveyPicker
+                  ? ['#', 'Project Name', 'Customer / Site', 'Survey Status', 'Survey Date', 'Surveyed By', 'Feasibility', 'Project Manager', 'Action']
+                  : ['#', 'Project Name', 'Customer / Site', 'Project Type', 'Capacity (KWp)', 'Status', 'Project Manager', 'Start Date', 'Target Date', 'Progress', 'Action']
+                ).map((header) => <th key={header}>{header}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -17599,13 +17609,25 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                       <p className="text-[12px] font-bold text-[#667794]">{row.site}</p>
                     </div>
                   </td>
-                  <td><ProjectTypeBadge type={row.type} /></td>
-                  <td className="font-extrabold text-[#1e3261]">{row.capacity}</td>
-                  <td><ProjectPhaseBadge label={row.status} /></td>
-                  <td><AssigneeCell assignee={row.manager} compact /></td>
-                  <td><span className="inline-flex items-center gap-2 font-bold text-[#314a79]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(row.startDate)}</span></td>
-                  <td><span className="inline-flex items-center gap-2 font-bold text-[#314a79]"><CalendarDays className="size-4 text-[#7b8ca8]" />{row.targetDate ? formatProjectDisplayDate(row.targetDate) : '-'}</span></td>
-                  <td><ProjectProgressBar value={row.progress} /></td>
+                  {isSiteSurveyPicker ? (
+                    <>
+                      <td><ProjectInfoPill tone={row.surveyStatus === 'Completed' ? 'green' : 'amber'}>{row.surveyStatus || 'Not Started'}</ProjectInfoPill></td>
+                      <td className="font-extrabold text-[#1e3261]">{row.surveyDate ? formatProjectDisplayDate(row.surveyDate) : '—'}</td>
+                      <td>{row.surveyedBy || 'Unassigned'}</td>
+                      <td><ProjectInfoPill tone={row.surveyFeasibility === 'Feasible' ? 'green' : row.surveyFeasibility === 'Not Feasible' ? 'red' : row.surveyFeasibility ? 'amber' : 'slate'}>{row.surveyFeasibility || 'Pending'}</ProjectInfoPill></td>
+                      <td><AssigneeCell assignee={row.manager} compact /></td>
+                    </>
+                  ) : (
+                    <>
+                      <td><ProjectTypeBadge type={row.type} /></td>
+                      <td className="font-extrabold text-[#1e3261]">{row.capacity}</td>
+                      <td><ProjectPhaseBadge label={row.status} /></td>
+                      <td><AssigneeCell assignee={row.manager} compact /></td>
+                      <td><span className="inline-flex items-center gap-2 font-bold text-[#314a79]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(row.startDate)}</span></td>
+                      <td><span className="inline-flex items-center gap-2 font-bold text-[#314a79]"><CalendarDays className="size-4 text-[#7b8ca8]" />{row.targetDate ? formatProjectDisplayDate(row.targetDate) : '-'}</span></td>
+                      <td><ProjectProgressBar value={row.progress} /></td>
+                    </>
+                  )}
                   <td>
                     <div className="flex items-center gap-2">
                       <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => handleViewRow(row)} />
@@ -17616,7 +17638,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                 </tr>
               ))}
               {pagedProjectRows.length === 0 ? (
-                <tr><td colSpan={11} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</td></tr>
+                <tr><td colSpan={isSiteSurveyPicker ? 9 : 11} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -17630,19 +17652,33 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                   <p className="truncate text-[15px] font-extrabold text-[#1e3261]">{row.projectName}</p>
                   <p className="mt-0.5 truncate text-[12px] font-bold text-[#53647f]">{row.customer} &middot; {row.site}</p>
                 </div>
-                <ProjectPhaseBadge label={row.status} />
+                {isSiteSurveyPicker ? (
+                  <ProjectInfoPill tone={row.surveyStatus === 'Completed' ? 'green' : 'amber'}>{row.surveyStatus || 'Not Started'}</ProjectInfoPill>
+                ) : (
+                  <ProjectPhaseBadge label={row.status} />
+                )}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <ProjectTypeBadge type={row.type} />
-                <span className="text-[12px] font-extrabold text-[#314a79]">{row.capacity} KWp</span>
-                <span className="ml-1 inline-flex min-w-0"><AssigneeCell assignee={row.manager} compact /></span>
-              </div>
+              {isSiteSurveyPicker ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <ProjectInfoPill tone={row.surveyFeasibility === 'Feasible' ? 'green' : row.surveyFeasibility === 'Not Feasible' ? 'red' : row.surveyFeasibility ? 'amber' : 'slate'}>{row.surveyFeasibility || 'Pending'}</ProjectInfoPill>
+                  <span className="text-[12px] font-extrabold text-[#314a79]">{row.surveyDate ? formatProjectDisplayDate(row.surveyDate) : 'No survey date'}</span>
+                  <span className="ml-1 inline-flex min-w-0"><AssigneeCell assignee={row.manager} compact /></span>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <ProjectTypeBadge type={row.type} />
+                    <span className="text-[12px] font-extrabold text-[#314a79]">{row.capacity} KWp</span>
+                    <span className="ml-1 inline-flex min-w-0"><AssigneeCell assignee={row.manager} compact /></span>
+                  </div>
 
-              <div className="mt-3 flex items-center gap-3">
-                <div className="min-w-0 flex-1"><ProjectProgressBar value={row.progress} /></div>
-                <span className="shrink-0 text-[12px] font-bold text-[#7b8ca8]">{row.targetDate ? formatProjectDisplayDate(row.targetDate) : 'No target date'}</span>
-              </div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <div className="min-w-0 flex-1"><ProjectProgressBar value={row.progress} /></div>
+                    <span className="shrink-0 text-[12px] font-bold text-[#7b8ca8]">{row.targetDate ? formatProjectDisplayDate(row.targetDate) : 'No target date'}</span>
+                  </div>
+                </>
+              )}
 
               <div className="mt-3 flex gap-2">
                 <button type="button" onClick={() => handleViewRow(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
@@ -17684,7 +17720,12 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       ) : null}
 
       {viewSurveyRow ? (
-        <SiteSurveyViewModal row={viewSurveyRow} onClose={() => setViewSurveyRow(null)} onNotify={onNotify} />
+        <SiteSurveyViewModal
+          row={viewSurveyRow}
+          onClose={() => setViewSurveyRow(null)}
+          onNotify={onNotify}
+          onViewFullProject={() => { const id = viewSurveyRow.id; setViewSurveyRow(null); onSelectProject?.({ id }); }}
+        />
       ) : null}
 
       {editSurveyRow ? (
@@ -17783,10 +17824,12 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   );
 }
 
-// Site Survey list ke "View" action ka read-only popup — Overview + project ki har detail
-// (Customer & Site, Roof & Electrical, System, Financials, Progress, Team, Documents, Checklist,
-// Activities, Notes) ek hi scrollable page me, Print button aur close (X) ke saath.
-function SiteSurveyViewModal({ row, onClose, onNotify }) {
+// Site Survey list ke "View" action ka read-only quick-look popup — sirf survey-relevant
+// essentials (Survey Snapshot, Customer & Site, Roof & Electrical), Lead/Quotation view popup
+// jaisa compact. Pura project data (Financials/Progress/Team/Documents/Checklist/Activities/Notes)
+// "View Full Project" se full hub page par dekha ja sakta hai; Print abhi bhi poora report nikalta
+// hai (buildSiteSurveyViewHtml unchanged — record-keeping ke liye full detail).
+function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -17812,28 +17855,11 @@ function SiteSurveyViewModal({ row, onClose, onNotify }) {
 
   const d = detail || {};
   const survey = d.site_survey || {};
-  const cfg = d.system_config || {};
-  const payments = d.payments || [];
-  const expenses = d.expenses || [];
-  const teamList = d.team_members || [];
-  const documents = d.documents || [];
-  const checklist = (d.checklist_items || []).filter((c) => c.phase === 'Site Survey');
-  const checklistByCategory = {};
-  checklist.forEach((c) => {
-    const key = c.category || 'General';
-    (checklistByCategory[key] = checklistByCategory[key] || []).push(c);
-  });
-  const activitiesList = d.activities || [];
-  const notesList = d.notes || [];
-  const milestones = (d.milestones || []).flatMap((m) => [m, ...(m.children || [])]);
-  const totalValue = Number(d.total_value || 0);
-  const totalPaid = Number(d.total_paid || 0);
-  const totalExpense = Number(d.total_expense || 0);
   const feasibilityTone = survey.feasibility === 'Feasible' ? 'green' : survey.feasibility === 'Not Feasible' ? 'red' : survey.feasibility ? 'amber' : 'slate';
 
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center bg-[#0b1226]/55 p-4 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className="flex max-h-[92vh] w-full max-w-[1040px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_36px_80px_rgba(11,18,38,0.32)]">
+      <div className="flex max-h-[92vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_36px_80px_rgba(11,18,38,0.32)]">
         <div className="flex items-start justify-between gap-4 border-b border-[#e7eef7] px-5 py-4 sm:px-6">
           <div className="flex items-start gap-3">
             <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#dff7e8] text-[#0d9f4a]"><ClipboardPlus className="size-5" /></span>
@@ -17852,24 +17878,16 @@ function SiteSurveyViewModal({ row, onClose, onNotify }) {
             <PageLoadingState message="Loading site survey details..." />
           ) : (
             <div className="space-y-5">
-              <ProjectInfoCard title="Overview" icon={Home} tone="blue">
+              <ProjectInfoCard title="Survey Snapshot" icon={Home} tone="blue">
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <InfoCell label="Status" valueNode={<ProjectPhaseBadge label={d.status} />} />
-                  <InfoCell label="Project Type" valueNode={<ProjectTypeBadge type={d.project_type} />} />
-                  <InfoCell label="Capacity (kWp)" value={d.capacity_kwp ?? '—'} />
-                  <InfoCell label="Progress" value={`${d.progress_percent || 0}%`} />
-                  <InfoCell label="Manager" value={d.manager_detail?.name || 'Unassigned'} />
-                  <InfoCell label="Site Engineer" value={d.site_engineer_detail?.name || 'Unassigned'} />
-                  <InfoCell label="Start Date" value={d.start_date ? formatProjectDisplayDate(d.start_date) : '—'} />
-                  <InfoCell label="Target Date" value={d.target_date ? formatProjectDisplayDate(d.target_date) : '—'} />
+                  <InfoCell label="Project Status" valueNode={<ProjectPhaseBadge label={d.status} />} />
+                  <InfoCell label="Survey Status" value={survey.status || 'Draft'} />
                   <InfoCell label="Survey ID" value={survey.survey_id || '—'} />
                   <InfoCell label="Survey Date" value={survey.survey_date ? formatProjectDisplayDate(survey.survey_date) : '—'} />
                   <InfoCell label="Surveyed By" value={survey.surveyed_by_name || 'Unassigned'} />
                   <InfoCell label="Feasibility" valueNode={<ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>} />
-                  <InfoCell label="Survey Status" value={survey.status || 'Draft'} />
-                  <InfoCell label="Total Value" value={formatCurrencyPrecise(totalValue)} />
-                  <InfoCell label="Amount Received" value={formatCurrencyPrecise(totalPaid)} />
-                  <InfoCell label="Net Balance" value={formatCurrencyPrecise(totalValue - totalPaid)} />
+                  <InfoCell label="Manager" value={d.manager_detail?.name || 'Unassigned'} />
+                  <InfoCell label="Site Engineer" value={d.site_engineer_detail?.name || 'Unassigned'} />
                 </div>
               </ProjectInfoCard>
 
@@ -17941,197 +17959,18 @@ function SiteSurveyViewModal({ row, onClose, onNotify }) {
                 </div>
               </ProjectInfoCard>
 
-              <ProjectInfoCard title="System Details" icon={Settings} tone="blue">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <InfoCell label="System Type" value={d.system_type || '—'} />
-                  <InfoCell label="Inverter" value={[cfg.inverter_brand, cfg.inverter_model].filter(Boolean).join(' ') || '—'} />
-                  <InfoCell label="Inverter Capacity" value={cfg.inverter_capacity_kw ? `${cfg.inverter_capacity_kw} kW` : '—'} />
-                  <InfoCell label="String Count" value={cfg.string_count ?? '—'} />
-                  <InfoCell label="Panel" value={[cfg.panel_brand, cfg.panel_model].filter(Boolean).join(' ') || '—'} />
-                  <InfoCell label="Panel Wattage" value={cfg.panel_wattage_w ? `${cfg.panel_wattage_w} Wp` : '—'} />
-                  <InfoCell label="No. of Panels" value={cfg.panel_count ?? '—'} />
-                  <InfoCell label="Total DC Capacity" value={cfg.panel_wattage_w && cfg.panel_count ? `${((cfg.panel_wattage_w * cfg.panel_count) / 1000).toFixed(2)} kWp` : '—'} />
-                </div>
-                <div className="mt-5 grid gap-4 border-t border-[#edf2f8] pt-4 sm:grid-cols-2">
-                  <InfoCell label="Protection Devices" value={cfg.protection_devices || 'Not specified yet.'} large />
-                  <InfoCell label="Additional Notes" value={cfg.notes || '—'} large />
-                </div>
-              </ProjectInfoCard>
-
-              <ProjectInfoCard title="Financials" icon={IndianRupee} tone="green">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <InfoCell label="Total Project Value" value={formatCurrencyPrecise(totalValue)} />
-                  <InfoCell label="Amount Received" value={formatCurrencyPrecise(totalPaid)} />
-                  <InfoCell label="Total Expenses" value={formatCurrencyPrecise(totalExpense)} />
-                  <InfoCell label="Net Balance" value={formatCurrencyPrecise(totalValue - totalPaid)} />
-                </div>
-                <div className="mt-5 overflow-x-auto border-t border-[#edf2f8] pt-4">
-                  <p className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Payments ({payments.length})</p>
-                  <table className="crm-table min-w-[560px] w-full">
-                    <thead><tr>{['Date', 'Amount', 'Mode', 'Reference', 'By'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {payments.map((p) => (
-                        <tr key={p.id}>
-                          <td>{formatProjectDisplayDate(p.payment_date)}</td>
-                          <td className="font-extrabold text-[#0d9f4a]">{formatCurrencyPrecise(Number(p.amount))}</td>
-                          <td>{p.payment_mode}</td>
-                          <td>{p.reference || '—'}</td>
-                          <td>{p.created_by_name || '—'}</td>
-                        </tr>
-                      ))}
-                      {!payments.length ? <tr><td colSpan={5} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No payments recorded yet.</td></tr> : null}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="mt-5 overflow-x-auto border-t border-[#edf2f8] pt-4">
-                  <p className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Expenses ({expenses.length})</p>
-                  <table className="crm-table min-w-[560px] w-full">
-                    <thead><tr>{['Category', 'Description', 'Date', 'Amount', 'By'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {expenses.map((e) => (
-                        <tr key={e.id}>
-                          <td>{e.category}</td>
-                          <td>{e.description}</td>
-                          <td>{formatProjectDisplayDate(e.date)}</td>
-                          <td className="font-extrabold text-[#ef4444]">{formatCurrencyPrecise(Number(e.amount))}</td>
-                          <td>{e.created_by_name || '—'}</td>
-                        </tr>
-                      ))}
-                      {!expenses.length ? <tr><td colSpan={5} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No expenses recorded yet.</td></tr> : null}
-                    </tbody>
-                  </table>
-                </div>
-              </ProjectInfoCard>
-
-              <ProjectInfoCard title="Progress" icon={BarChart3} tone="blue">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <InfoCell label="Overall Progress" value={`${d.progress_percent || 0}%`} />
-                  <InfoCell label="Total Tasks" value={String(milestones.length || activitiesList.length)} />
-                  <InfoCell label="Completed" value={String(milestones.filter((m) => m.status === 'Completed').length)} />
-                  <InfoCell label="In Progress" value={String(milestones.filter((m) => m.status === 'In Progress').length)} />
-                </div>
-                <div className="mt-5 overflow-x-auto border-t border-[#edf2f8] pt-4">
-                  <table className="crm-table min-w-[680px] w-full">
-                    <thead><tr>{['Task / Milestone', 'Category', 'Start', 'End', 'Status', 'Progress', 'Owner'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {milestones.map((m) => (
-                        <tr key={m.id}>
-                          <td className="font-extrabold text-[#1e3261]">{m.title}</td>
-                          <td>{m.category || '—'}</td>
-                          <td>{m.start_date ? formatProjectDisplayDate(m.start_date) : '—'}</td>
-                          <td>{m.end_date ? formatProjectDisplayDate(m.end_date) : '—'}</td>
-                          <td>{m.status}</td>
-                          <td>{m.progress_percent}%</td>
-                          <td>{m.owner_name || 'Unassigned'}</td>
-                        </tr>
-                      ))}
-                      {!milestones.length ? <tr><td colSpan={7} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No milestones recorded yet.</td></tr> : null}
-                    </tbody>
-                  </table>
-                </div>
-              </ProjectInfoCard>
-
-              <ProjectInfoCard title="Team" icon={UsersRound} tone="purple">
-                <div className="overflow-x-auto">
-                  <table className="crm-table min-w-[640px] w-full">
-                    <thead><tr>{['Name', 'Role', 'Access Level', 'Email', 'Phone'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {teamList.map((m) => (
-                        <tr key={m.id}>
-                          <td className="font-extrabold text-[#1e3261]">{m.user_name}</td>
-                          <td>{m.role_title || 'Member'}</td>
-                          <td>{m.access_level_display || '—'}</td>
-                          <td>{m.user_email || '—'}</td>
-                          <td>{m.user_mobile || '—'}</td>
-                        </tr>
-                      ))}
-                      {!teamList.length ? <tr><td colSpan={5} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No team members yet.</td></tr> : null}
-                    </tbody>
-                  </table>
-                </div>
-              </ProjectInfoCard>
-
-              <ProjectInfoCard title="Documents" icon={FileText} tone="red">
-                <div className="overflow-x-auto">
-                  <table className="crm-table min-w-[640px] w-full">
-                    <thead><tr>{['Name', 'Category', 'Uploaded By', 'Uploaded On', ''].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {documents.map((doc) => (
-                        <tr key={doc.id}>
-                          <td className="font-extrabold text-[#1e3261]">{doc.name}</td>
-                          <td>{doc.category || '—'}</td>
-                          <td>{doc.uploaded_by_name || '—'}</td>
-                          <td>{doc.uploaded_at ? formatProjectDisplayDate(doc.uploaded_at.slice(0, 10)) : '—'}</td>
-                          <td>{doc.file ? <a href={doc.file} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#0b65e5]"><Download className="size-3.5" />Open</a> : '—'}</td>
-                        </tr>
-                      ))}
-                      {!documents.length ? <tr><td colSpan={5} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No documents uploaded yet.</td></tr> : null}
-                    </tbody>
-                  </table>
-                </div>
-              </ProjectInfoCard>
-
-              <ProjectInfoCard title="Checklist" icon={ClipboardPlus} tone="green">
-                {Object.keys(checklistByCategory).length ? (
-                  <div className="space-y-4">
-                    {Object.entries(checklistByCategory).map(([category, items]) => (
-                      <div key={category}>
-                        <p className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">{category}</p>
-                        <div className="space-y-2">
-                          {items.map((item) => (
-                            <div key={item.id} className="flex items-center justify-between gap-3 rounded-[10px] border border-[#edf2f8] bg-white p-3 text-[13px] font-extrabold text-[#1e3261]">
-                              <span className="min-w-0">{item.label}</span>
-                              {item.is_checked ? <ProjectInfoPill tone="green">Done</ProjectInfoPill> : <ProjectInfoPill tone="amber">Pending</ProjectInfoPill>}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : <p className="text-[13px] font-bold text-[#8a98af]">No checklist items recorded yet.</p>}
-              </ProjectInfoCard>
-
-              <ProjectInfoCard title="Activities" icon={CalendarDays} tone="blue">
-                <div className="overflow-x-auto">
-                  <table className="crm-table min-w-[640px] w-full">
-                    <thead><tr>{['Title', 'Type', 'Assigned To', 'Due Date', 'Status'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {activitiesList.map((a) => (
-                        <tr key={a.id}>
-                          <td className="font-extrabold text-[#1e3261]">{a.title}</td>
-                          <td>{a.activity_type}</td>
-                          <td>{a.assigned_to_name || 'Unassigned'}</td>
-                          <td>{a.due_date ? formatProjectDisplayDate(a.due_date) : '—'}</td>
-                          <td>{a.status}</td>
-                        </tr>
-                      ))}
-                      {!activitiesList.length ? <tr><td colSpan={5} className="py-4 text-center text-[12px] font-bold text-[#8a98af]">No activities yet.</td></tr> : null}
-                    </tbody>
-                  </table>
-                </div>
-              </ProjectInfoCard>
-
-              <ProjectInfoCard title="Notes" icon={MessageSquareMore} tone="purple">
-                <div className="space-y-3">
-                  {notesList.map((n) => (
-                    <div key={n.id} className="rounded-[10px] border border-[#edf2f8] bg-white p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[13px] font-extrabold text-[#1e3261]">{n.title || 'Untitled'}</span>
-                        {n.is_pinned ? <Pin className="size-3.5 text-[#7c3aed]" /> : null}
-                      </div>
-                      <p className="mt-1 text-[12px] font-bold leading-6 text-[#53647f]">{n.content}</p>
-                      <p className="mt-1 text-[11px] font-bold text-[#8a98af]">{n.created_by_name || '—'} • {n.created_at ? formatProjectDisplayDate(n.created_at.slice(0, 10)) : '—'}</p>
-                    </div>
-                  ))}
-                  {!notesList.length ? <p className="text-[13px] font-bold text-[#8a98af]">No notes yet.</p> : null}
-                </div>
-              </ProjectInfoCard>
             </div>
           )}
         </div>
 
         <div className="flex flex-col-reverse gap-3 border-t border-[#e7eef7] px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
           <button type="button" onClick={onClose} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">Close</button>
+          {onViewFullProject ? (
+            <button type="button" onClick={onViewFullProject} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
+              <FolderKanban className="size-4" />
+              View Full Project
+            </button>
+          ) : null}
           <button type="button" disabled={loading} onClick={handlePrint} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#078c3e] disabled:cursor-not-allowed disabled:opacity-60">
             <Printer className="size-4" />
             Print
@@ -19621,15 +19460,11 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   const detailTabs = hubMode ? [
     { label: 'Overview', icon: Home },
     { label: 'Customer & Site', icon: MapPin },
-    { label: 'Roof & Electrical', icon: Zap },
     { label: 'System Details', icon: Settings },
     { label: 'Financials', icon: IndianRupee },
     { label: 'Progress', icon: BarChart3 },
     { label: 'Team', icon: UsersRound },
     { label: 'Documents', icon: FileText },
-    { label: 'Checklist', icon: ClipboardPlus },
-    { label: 'Activities', icon: CalendarDays },
-    { label: 'Notes', icon: MessageSquareMore },
   ] : [
     { label: 'Overview', icon: Home },
     { label: 'Customer & Site Info', icon: Users },
@@ -19671,7 +19506,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     onOpenSection(targets[activeDetailTab] ?? 'Project Details', { preserveProject: true });
   };
   const handleOpenProjectMap = () => openProjectAddressInMaps({ site_address: d.site_address, city: d.city, state: d.state }, onNotify);
-  const pageTitle = hubMode ? 'Site Survey' : activeDetailTab;
+  const pageTitle = activeDetailTab;
   const pageCrumbs = hubMode
     ? [
         { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
@@ -19746,16 +19581,6 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
           <ProjectHeroFact label="Target Date" valueNode={<span className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#0b65e5]" />{formatProjectDisplayDate(project.targetDate)}</span>} compact />
           <ProjectHeroFact label="Status" valueNode={<ProjectPhaseBadge label={d.status} />} compact />
         </div>
-        {hubMode ? (
-          <div className="mt-5 grid gap-4 border-t border-[#edf2f8] pt-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-            <ProjectHeroFact label="Survey ID" value={survey.survey_id || '—'} compact />
-            <ProjectHeroFact label="Survey Date" value={survey.survey_date ? formatProjectDisplayDate(survey.survey_date) : 'Not scheduled'} compact />
-            <ProjectHeroFact label="Survey By" value={survey.surveyed_by_name || 'Unassigned'} compact />
-            <ProjectHeroFact label="Meter No." value={d.meter_number || '—'} compact />
-            <ProjectHeroFact label="Size" value={d.site_size || '—'} compact />
-            <ProjectHeroFact label="Feasibility" valueNode={<ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>} compact />
-          </div>
-        ) : null}
       </section>
       ) : null}
 
@@ -21416,6 +21241,9 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
               ))}
             </div>
           </ProjectInfoCard>
+
+          {/* Roof & Electrical merged here (was its own tab) — read-only survey detail, no separate CRUD, fits naturally under Customer & Site */}
+          {hubMode ? roofElectricalSection : null}
         </>
       );
 
@@ -21747,7 +21575,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
         Team: teamSection,
         Documents: documentsSection,
         Financials: financialsSection,
-        Progress: progressSection,
+        // Checklist tab folded into Progress (was its own tab) — checklist items are granular progress, fits naturally here
+        Progress: <>{progressSection}{hubMode ? checklistSection : null}</>,
         'System Details': systemDetailsSection,
         'Roof & Electrical': roofElectricalSection,
         Checklist: checklistSection,
