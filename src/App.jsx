@@ -8162,7 +8162,6 @@ function ProjectSubnavTabs({ activeSection, onOpenSection }) {
       activeClasses="border-[#cfe8d6] bg-[#f1fff5] text-[#0b8f43] ring-2 ring-[#e3f8eb]"
       activeDotClass="bg-[#14b84c]"
       activeIconClass="text-[#14b84c]"
-      fullLabels
       hideHeading
     />
   );
