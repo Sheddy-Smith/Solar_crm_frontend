@@ -1,10 +1,10 @@
-import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
   projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
   projectTeamApi, projectMilestoneApi, projectChecklistApi,
-  installationMaterialApi, materialPlanApi,
+  installationMaterialApi, materialPlanApi, workforceApi,
 } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -23814,325 +23814,611 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
 }
 
 function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
-  const ACCESS_OPTIONS = [
-    { value: 'full_access', label: 'Full Access' },
-    { value: 'edit_access', label: 'Edit Access' },
-    { value: 'view_only', label: 'View Only' },
-  ];
-  const STATUS_OPTIONS = ['Active', 'On Site', 'Off Site', 'On Leave'];
-  const emptyForm = { user: '', role_title: '', access_level: 'view_only', status: 'Active' };
+  const DEPARTMENTS = ['All Departments', 'Installation', 'Engineering', 'Electrical', 'Sales', 'Quality', 'Logistics', 'HSE', 'Operations', 'Administration', 'Other'];
+  const STATUS_OPTIONS = ['Available', 'Assigned', 'In Progress', 'On Leave', 'Completed'];
+  const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
+  const TASK_STATUS_OPTIONS = ['Pending', 'In Progress', 'On Hold', 'Completed'];
+  const DOC_TYPES = ['ID Proof', 'Joining Document', 'Certificate', 'Other'];
 
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [loadingMembers, setLoadingMembers] = useState(false);
-  const [stats, setStats] = useState({ total: 0, active: 0, on_site: 0, off_site: 0, on_leave: 0 });
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState(emptyForm);
-  const [savingForm, setSavingForm] = useState(false);
-  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
-  const [projectSearch, setProjectSearch] = useState('');
-  const [allProjects, setAllProjects] = useState([]);
-  const [loadingProjects, setLoadingProjects] = useState(false);
-  const [users, setUsers] = useState([]);
+  const emptyEmpForm = { name: '', mobile: '', email: '', department: 'Installation', role: '', joining_date: '', status: 'Available', notes: '' };
+  const emptyAssignForm = { task_name: '', project: '', assigned_date: '', expected_completion: '', priority: 'Medium', progress_percent: 0, status: 'Pending', notes: '' };
 
-  const loadProjectData = useCallback(async (proj) => {
-    if (!proj) return;
-    setLoadingMembers(true);
-    try {
-      const [membersData, statsData] = await Promise.all([
-        projectTeamApi.list({ project: proj.id, page_size: 200 }),
-        projectTeamApi.stats(proj.id),
-      ]);
-      setMembers(normalizeApiRows(membersData));
-      setStats(statsData || { total: 0, active: 0, on_site: 0, off_site: 0, on_leave: 0 });
-    } catch { onNotify('Failed to load team members'); }
-    finally { setLoadingMembers(false); }
+  const [dashStats, setDashStats] = React.useState({ total: 0, available: 0, assigned: 0, in_progress: 0, on_leave: 0, completed_today: 0 });
+  const [allEmployees, setAllEmployees] = React.useState([]);
+  const [loadingEmployees, setLoadingEmployees] = React.useState(false);
+  const [selectedEmployee, setSelectedEmployee] = React.useState(null);
+  const [empDetail, setEmpDetail] = React.useState(null);
+  const [loadingDetail, setLoadingDetail] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const [statusFilter, setStatusFilter] = React.useState('All');
+  const [deptFilter, setDeptFilter] = React.useState('All Departments');
+  const [empSearch, setEmpSearch] = React.useState('');
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [empModalOpen, setEmpModalOpen] = React.useState(false);
+  const [editEmpId, setEditEmpId] = React.useState(null);
+  const [empForm, setEmpForm] = React.useState(emptyEmpForm);
+  const [assignModalOpen, setAssignModalOpen] = React.useState(false);
+  const [editAssignId, setEditAssignId] = React.useState(null);
+  const [assignForm, setAssignForm] = React.useState(emptyAssignForm);
+  const [saving, setSaving] = React.useState(false);
+  const [docFile, setDocFile] = React.useState(null);
+  const [docType, setDocType] = React.useState('Other');
+  const [docName, setDocName] = React.useState('');
+  const [docUploading, setDocUploading] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState('assignment');
+
+  const loadDashboard = React.useCallback(async () => {
+    try { const d = await workforceApi.dashboard(); setDashStats(d || {}); } catch {}
+  }, []);
+
+  const loadEmployees = React.useCallback(async () => {
+    setLoadingEmployees(true);
+    try { const d = await workforceApi.listEmployees({ page_size: 500 }); setAllEmployees(normalizeApiRows(d)); } catch {}
+    finally { setLoadingEmployees(false); }
+  }, []);
+
+  const loadDetail = React.useCallback(async (id) => {
+    setLoadingDetail(true);
+    try { const d = await workforceApi.getEmployee(id); setEmpDetail(d); } catch { onNotify('Failed to load employee detail'); }
+    finally { setLoadingDetail(false); }
   }, [onNotify]);
 
-  useEffect(() => { if (selectedProject) loadProjectData(selectedProject); }, [selectedProject, loadProjectData]);
+  React.useEffect(() => { loadDashboard(); loadEmployees(); }, [loadDashboard, loadEmployees]);
+  React.useEffect(() => { if (selectedEmployee) loadDetail(selectedEmployee.id); }, [selectedEmployee, loadDetail]);
 
-  const openProjectPicker = async () => {
-    setProjectPickerOpen(true);
-    if (allProjects.length > 0) return;
-    setLoadingProjects(true);
+  const handlePickerSelect = (emp) => {
+    setSelectedEmployee(emp);
+    setPickerOpen(false);
+    setEmpSearch('');
+    setActiveTab('assignment');
+  };
+
+  const openAddEmployee = () => { setEmpForm(emptyEmpForm); setEditEmpId(null); setEmpModalOpen(true); };
+  const openEditEmployee = (emp) => {
+    setEmpForm({ name: emp.name, mobile: emp.mobile || '', email: emp.email || '', department: emp.department || 'Installation', role: emp.role || '', joining_date: emp.joining_date || '', status: emp.status || 'Available', notes: emp.notes || '' });
+    setEditEmpId(emp.id); setEmpModalOpen(true);
+  };
+
+  const handleSaveEmployee = async () => {
+    if (!empForm.name.trim()) { onNotify('Employee name required'); return; }
+    setSaving(true);
     try {
-      const data = await projectApi.list({ page_size: 200 });
-      setAllProjects(normalizeApiRows(data));
-    } catch { onNotify('Failed to load projects'); }
-    finally { setLoadingProjects(false); }
+      if (editEmpId !== null) {
+        await workforceApi.updateEmployee(editEmpId, empForm);
+        onNotify('Employee updated');
+        if (selectedEmployee?.id === editEmpId) loadDetail(editEmpId);
+      } else {
+        await workforceApi.createEmployee(empForm);
+        onNotify('Employee added');
+      }
+      setEmpModalOpen(false);
+      loadEmployees(); loadDashboard();
+    } catch (e) { onNotify(e.message || 'Save failed'); }
+    finally { setSaving(false); }
   };
 
-  const handleProjectSelect = (proj) => {
-    setSelectedProject(proj);
-    setProjectPickerOpen(false);
-    setProjectSearch('');
-    setMembers([]);
-  };
-
-  const openAdd = async () => {
-    if (!selectedProject) { onNotify('Please select a project first'); return; }
-    if (users.length === 0) {
-      try {
-        const data = await userApi.list({ page_size: 200, is_active: true });
-        setUsers(normalizeApiRows(data));
-      } catch { onNotify('Failed to load users'); return; }
-    }
-    setForm(emptyForm); setEditId(null); setModalOpen(true);
-  };
-
-  const openEdit = async (member) => {
-    if (users.length === 0) {
-      try {
-        const data = await userApi.list({ page_size: 200, is_active: true });
-        setUsers(normalizeApiRows(data));
-      } catch { onNotify('Failed to load users'); return; }
-    }
-    setForm({ user: member.user, role_title: member.role_title || '', access_level: member.access_level || 'view_only', status: member.status || 'Active' });
-    setEditId(member.id); setModalOpen(true);
-  };
-
-  const handleDelete = async (id) => {
+  const handleDeleteEmployee = async (id) => {
     try {
-      await projectTeamApi.delete(id);
-      setMembers((prev) => prev.filter((m) => m.id !== id));
-      onNotify('Member removed');
-      projectTeamApi.stats(selectedProject.id).then((s) => setStats(s)).catch(() => {});
+      await workforceApi.deleteEmployee(id);
+      onNotify('Employee removed');
+      if (selectedEmployee?.id === id) { setSelectedEmployee(null); setEmpDetail(null); }
+      loadEmployees(); loadDashboard();
     } catch { onNotify('Delete failed'); }
   };
 
-  const handleSave = async () => {
-    if (!form.user) { onNotify('Please select a team member'); return; }
-    setSavingForm(true);
-    try {
-      if (editId !== null) {
-        const updated = await projectTeamApi.update(editId, { role_title: form.role_title, access_level: form.access_level, status: form.status });
-        setMembers((prev) => prev.map((m) => (m.id === editId ? { ...m, ...updated } : m)));
-        onNotify('Member updated');
-      } else {
-        const created = await projectTeamApi.create({ project: selectedProject.id, user: Number(form.user), role_title: form.role_title, access_level: form.access_level, status: form.status });
-        setMembers((prev) => [...prev, created]);
-        onNotify('Member assigned');
-      }
-      setModalOpen(false);
-      projectTeamApi.stats(selectedProject.id).then((s) => setStats(s)).catch(() => {});
-    } catch (e) { onNotify(e.message || 'Save failed'); }
-    finally { setSavingForm(false); }
+  const openAddAssign = () => { setAssignForm(emptyAssignForm); setEditAssignId(null); setAssignModalOpen(true); };
+  const openEditAssign = (a) => {
+    setAssignForm({ task_name: a.task_name, project: a.project || '', assigned_date: a.assigned_date || '', expected_completion: a.expected_completion || '', priority: a.priority || 'Medium', progress_percent: a.progress_percent || 0, status: a.status || 'Pending', notes: a.notes || '' });
+    setEditAssignId(a.id); setAssignModalOpen(true);
   };
 
-  const filtered = members.filter((m) => {
-    if (statusFilter !== 'All' && m.status !== statusFilter) return false;
-    const q = query.toLowerCase();
-    if (q && !(m.user_name || '').toLowerCase().includes(q) && !(m.role_title || '').toLowerCase().includes(q)) return false;
+  const handleSaveAssign = async () => {
+    if (!assignForm.task_name.trim()) { onNotify('Task name required'); return; }
+    setSaving(true);
+    try {
+      const payload = { ...assignForm, employee: selectedEmployee.id, progress_percent: Number(assignForm.progress_percent) || 0, project: assignForm.project ? Number(assignForm.project) : null };
+      if (editAssignId !== null) { await workforceApi.updateAssignment(editAssignId, payload); onNotify('Assignment updated'); }
+      else { await workforceApi.createAssignment(payload); onNotify('Assignment created'); }
+      setAssignModalOpen(false);
+      loadDetail(selectedEmployee.id); loadDashboard(); loadEmployees();
+    } catch (e) { onNotify(e.message || 'Save failed'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDeleteAssign = async (id) => {
+    try { await workforceApi.deleteAssignment(id); onNotify('Assignment removed'); loadDetail(selectedEmployee.id); loadDashboard(); } catch { onNotify('Delete failed'); }
+  };
+
+  const handleDocUpload = async () => {
+    if (!docFile || !docName.trim()) { onNotify('File and name required'); return; }
+    setDocUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('employee', selectedEmployee.id);
+      fd.append('doc_type', docType);
+      fd.append('name', docName.trim());
+      fd.append('file', docFile);
+      await workforceApi.uploadDocument(fd);
+      onNotify('Document uploaded');
+      setDocFile(null); setDocName(''); setDocType('Other');
+      loadDetail(selectedEmployee.id);
+    } catch { onNotify('Upload failed'); }
+    finally { setDocUploading(false); }
+  };
+
+  const handleDeleteDoc = async (id) => {
+    try { await workforceApi.deleteDocument(id); onNotify('Document removed'); loadDetail(selectedEmployee.id); } catch { onNotify('Delete failed'); }
+  };
+
+  const statusTone = (s) => {
+    if (s === 'Available') return 'green';
+    if (s === 'Assigned') return 'blue';
+    if (s === 'In Progress') return 'blue';
+    if (s === 'On Leave') return 'amber';
+    if (s === 'Completed') return 'green';
+    return 'amber';
+  };
+  const priorityTone = (p) => p === 'High' ? 'red' : p === 'Medium' ? 'amber' : 'green';
+  const taskStatusTone = (s) => s === 'Completed' ? 'green' : s === 'In Progress' ? 'blue' : s === 'On Hold' ? 'amber' : 'amber';
+
+  const pickerFiltered = allEmployees.filter((e) => {
+    if (empSearch && !e.name.toLowerCase().includes(empSearch.toLowerCase()) && !(e.employee_id || '').toLowerCase().includes(empSearch.toLowerCase()) && !(e.department || '').toLowerCase().includes(empSearch.toLowerCase())) return false;
     return true;
   });
 
-  const statusTone = (s) => {
-    if (s === 'Active') return 'green';
-    if (s === 'On Site') return 'blue';
-    if (s === 'On Leave') return 'amber';
-    return 'amber';
-  };
+  const tableFiltered = allEmployees.filter((e) => {
+    if (statusFilter !== 'All' && e.status !== statusFilter) return false;
+    if (deptFilter !== 'All Departments' && e.department !== deptFilter) return false;
+    if (query && !e.name.toLowerCase().includes(query.toLowerCase()) && !(e.employee_id || '').toLowerCase().includes(query.toLowerCase())) return false;
+    return true;
+  });
 
-  const accessLabel = (val) => ACCESS_OPTIONS.find((o) => o.value === val)?.label || val;
+  const STAT_CARDS = [
+    { label: 'Total Employees', value: dashStats.total, icon: Users, tone: 'blue' },
+    { label: 'Available', value: dashStats.available, icon: UserRound, tone: 'green', filter: 'Available' },
+    { label: 'Assigned', value: dashStats.assigned, icon: ClipboardPlus, tone: 'blue', filter: 'Assigned' },
+    { label: 'In Progress', value: dashStats.in_progress, icon: FolderKanban, tone: 'cyan', filter: 'In Progress' },
+    { label: 'On Leave', value: dashStats.on_leave, icon: CalendarDays, tone: 'amber', filter: 'On Leave' },
+    { label: 'Completed Today', value: dashStats.completed_today, icon: CheckCircle2, tone: 'green' },
+  ];
 
-  const filteredPickerProjects = allProjects.filter((p) =>
-    projectSearch === '' ||
-    (p.project_name || '').toLowerCase().includes(projectSearch.toLowerCase()) ||
-    (p.customer_name || '').toLowerCase().includes(projectSearch.toLowerCase()) ||
-    (p.project_id || '').toLowerCase().includes(projectSearch.toLowerCase()),
-  );
+  const TABS = [
+    { key: 'assignment', label: 'Assignments' },
+    { key: 'info', label: 'Basic Info' },
+    { key: 'progress', label: 'Work Progress' },
+    { key: 'attendance', label: 'Attendance' },
+    { key: 'documents', label: 'Documents' },
+  ];
 
   return (
     <div className="space-y-4">
       <PageHeading
-        title={selectedProject ? `Team Assignment — ${selectedProject.project_name || ''}` : 'Team Assignment'}
+        title="Team Assignment"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Team Assignment' },
         ]}
+        actions={(
+          <button type="button" onClick={openAddEmployee} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]">
+            <Plus className="size-4" />Add Employee
+          </button>
+        )}
       />
 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
+      {/* Toolbar */}
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 200 }}>
             <Search className="size-4 shrink-0 text-[#7e8fab]" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search by name or role..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search employee name or ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
           </label>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
-              <option value="All">All Status</option>
-              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <button type="button" onClick={openProjectPicker} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5] hover:text-[#0b65e5]')}>
-              <FolderKanban className="size-4" />
-              {selectedProject ? (selectedProject.project_name || selectedProject.name) : 'Select Project'}
-            </button>
-            {selectedProject && (
-              <button type="button" onClick={openAdd} className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#11a650] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0e9748]">
-                <Plus className="size-4" />Assign Member
-              </button>
-            )}
-          </div>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+            <option value="All">All Status</option>
+            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+            {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <button type="button" onClick={() => setPickerOpen(true)} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', selectedEmployee ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
+            <UserRound className="size-4" />
+            {selectedEmployee ? selectedEmployee.name : 'Select Employee'}
+          </button>
         </div>
       </section>
 
-      {selectedProject && (
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-          {[
-            { label: 'Total Members', value: stats.total, icon: Users, tone: 'blue', filter: 'All' },
-            { label: 'Active', value: stats.active, icon: UserRound, tone: 'green', filter: 'Active' },
-            { label: 'On Site', value: stats.on_site, icon: MapPin, tone: 'blue', filter: 'On Site' },
-            { label: 'Off Site', value: stats.off_site, icon: LogIn, tone: 'amber', filter: 'Off Site' },
-            { label: 'On Leave', value: stats.on_leave, icon: CalendarDays, tone: 'red', filter: 'On Leave' },
-          ].map((card) => (
-            <LiaisonApprovalStatCard key={card.label} label={card.label} value={String(card.value)} caption={card.label} icon={card.icon} tone={card.tone} onClick={() => setStatusFilter(card.filter)} />
-          ))}
-        </section>
-      )}
+      {/* Stat Cards */}
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {STAT_CARDS.map((c) => (
+          <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value ?? 0)} caption={c.label} icon={c.icon} tone={c.tone} onClick={() => c.filter ? setStatusFilter(c.filter) : null} />
+        ))}
+      </section>
 
-      {!selectedProject ? (
-        <article className={`${panelClass} flex flex-col items-center justify-center py-20`}>
-          <Users className="size-14 text-[#c5d2e8]" />
-          <h3 className="mt-4 font-display text-[18px] font-extrabold text-[#1e3261]">No Project Selected</h3>
-          <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to manage team assignments.</p>
-          <button type="button" onClick={openProjectPicker} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
-            <FolderKanban className="size-4" />Select Project
-          </button>
+      {/* Main area */}
+      {!selectedEmployee ? (
+        <article className={`${panelClass} overflow-hidden`}>
+          {tableFiltered.length === 0 && !query && statusFilter === 'All' && deptFilter === 'All Departments' ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Users className="size-14 text-[#c5d2e8]" />
+              <h3 className="mt-4 font-display text-[18px] font-extrabold text-[#1e3261]">No Employee Selected</h3>
+              <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Click <strong>Select Employee</strong> to view or manage assignments.</p>
+              <button type="button" onClick={() => setPickerOpen(true)} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                <UserRound className="size-4" />Select Employee
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="crm-table w-full min-w-[750px]">
+                <thead><tr>{['#', 'Employee', 'ID', 'Department', 'Role', 'Status', 'Current Task', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {tableFiltered.map((emp, idx) => (
+                    <tr key={emp.id}>
+                      <td>{idx + 1}</td>
+                      <td>
+                        <button type="button" onClick={() => handlePickerSelect(emp)} className="flex items-center gap-2 text-left">
+                          <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[11px] font-extrabold text-[#0b65e5]">{emp.name?.slice(0, 2).toUpperCase()}</span>
+                          <span className="font-extrabold text-[#1e3261]">{emp.name}</span>
+                        </button>
+                      </td>
+                      <td className="font-bold text-[#314a79]">{emp.employee_id}</td>
+                      <td className="font-bold text-[#314a79]">{emp.department || '—'}</td>
+                      <td className="font-bold text-[#314a79]">{emp.role || '—'}</td>
+                      <td><ProjectInfoPill tone={statusTone(emp.status)}>{emp.status}</ProjectInfoPill></td>
+                      <td className="max-w-[160px] truncate font-bold text-[#314a79]">{emp.current_assignment?.task_name || '—'}</td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <UserActionButton label="View" icon={Eye} tone="blue" onClick={() => handlePickerSelect(emp)} />
+                          <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEditEmployee(emp)} />
+                          <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteEmployee(emp.id)} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">Showing {tableFiltered.length} of {allEmployees.length} employees</div>
+            </div>
+          )}
         </article>
       ) : (
-        <article className={`${panelClass} overflow-hidden`}>
-          <div className="overflow-x-auto">
-            <table className="crm-table w-full min-w-[700px]">
-              <thead>
-                <tr>{['#', 'Member', 'Role / Title', 'Access Level', 'Contact', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {loadingMembers ? (
-                  <tr><td colSpan={7} className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading...</td></tr>
-                ) : filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No team members. Click <strong>Assign Member</strong> to add one.</td></tr>
-                ) : filtered.map((m, idx) => (
-                  <tr key={m.id}>
-                    <td>{idx + 1}</td>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <AssigneeCell assignee={{ name: m.user_name, initials: m.user_initials, tone: 'blue' }} compact />
-                      </div>
-                    </td>
-                    <td className="font-bold text-[#314a79]">{m.role_title || '—'}</td>
-                    <td><ProjectInfoPill tone="blue">{accessLabel(m.access_level)}</ProjectInfoPill></td>
-                    <td className="font-bold text-[#314a79]">{m.user_mobile || m.user_email || '—'}</td>
-                    <td><ProjectInfoPill tone={statusTone(m.status)}>{m.status || 'Active'}</ProjectInfoPill></td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEdit(m)} />
-                        <UserActionButton label="Remove" icon={Trash2} tone="red" onClick={() => handleDelete(m.id)} />
-                      </div>
-                    </td>
-                  </tr>
+        <div className="space-y-4">
+          {/* Employee header card */}
+          <article className={`${panelClass} p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <span className="grid size-14 shrink-0 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-[20px] font-extrabold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
+                  {empDetail?.name?.slice(0, 2).toUpperCase() || selectedEmployee.name?.slice(0, 2).toUpperCase()}
+                </span>
+                <div>
+                  <h2 className="font-display text-[22px] font-extrabold text-[#111827]">{empDetail?.name || selectedEmployee.name}</h2>
+                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{empDetail?.role || '—'} &bull; {empDetail?.department || '—'} &bull; {empDetail?.employee_id || selectedEmployee.employee_id}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <ProjectInfoPill tone={statusTone(empDetail?.status || selectedEmployee.status)}>{empDetail?.status || selectedEmployee.status}</ProjectInfoPill>
+                <button type="button" onClick={() => openEditEmployee(empDetail || selectedEmployee)} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Pencil className="size-3.5" />Edit</button>
+                <button type="button" onClick={() => { setSelectedEmployee(null); setEmpDetail(null); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><X className="size-3.5" />Close</button>
+              </div>
+            </div>
+          </article>
+
+          {/* Tab bar */}
+          <section className={`${panelClass} p-3`}>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {TABS.map((tab) => (
+                <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)} className={cx('inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition', activeTab === tab.key ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]')}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {activeTab === 'assignment' && (
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
+                <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">Assignments</h3>
+                <button type="button" onClick={openAddAssign} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#11a650] px-4 text-[12px] font-extrabold text-white transition hover:bg-[#0e9748]"><Plus className="size-3.5" />Add Assignment</button>
+              </div>
+              {loadingDetail ? (
+                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading...</p>
+              ) : (empDetail?.assignments || []).length === 0 ? (
+                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No assignments yet. Click <strong>Add Assignment</strong>.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="crm-table w-full min-w-[700px]">
+                    <thead><tr>{['#', 'Task', 'Assigned', 'Due Date', 'Priority', 'Progress', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {(empDetail?.assignments || []).map((a, idx) => (
+                        <tr key={a.id}>
+                          <td>{idx + 1}</td>
+                          <td className="font-extrabold text-[#1e3261]">{a.task_name}</td>
+                          <td className="font-bold text-[#314a79]">{a.assigned_date || '—'}</td>
+                          <td className="font-bold text-[#314a79]">{a.expected_completion || '—'}</td>
+                          <td><ProjectInfoPill tone={priorityTone(a.priority)}>{a.priority}</ProjectInfoPill></td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-20 rounded-full bg-[#e8f0fb]"><div className="h-2 rounded-full bg-[#2f80ff]" style={{ width: `${a.progress_percent}%` }} /></div>
+                              <span className="text-[12px] font-extrabold text-[#314a79]">{a.progress_percent}%</span>
+                            </div>
+                          </td>
+                          <td><ProjectInfoPill tone={taskStatusTone(a.status)}>{a.status}</ProjectInfoPill></td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEditAssign(a)} />
+                              <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteAssign(a.id)} />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </article>
+          )}
+
+          {activeTab === 'info' && (
+            <article className={`${panelClass} p-5`}>
+              <h3 className="mb-4 font-display text-[15px] font-extrabold text-[#1e3261]">Basic Information</h3>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {[
+                  { label: 'Employee Name', value: empDetail?.name },
+                  { label: 'Employee ID', value: empDetail?.employee_id },
+                  { label: 'Mobile', value: empDetail?.mobile },
+                  { label: 'Email', value: empDetail?.email },
+                  { label: 'Department', value: empDetail?.department },
+                  { label: 'Role / Designation', value: empDetail?.role },
+                  { label: 'Joining Date', value: empDetail?.joining_date },
+                  { label: 'Status', value: empDetail?.status },
+                ].map((row) => (
+                  <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                    <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
+                    <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">
-            Showing {filtered.length} of {members.length} members
-          </div>
-        </article>
+              </div>
+              {empDetail?.notes && (
+                <div className="mt-4 rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                  <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Notes</p>
+                  <p className="mt-1 text-[13px] font-bold text-[#314a79]">{empDetail.notes}</p>
+                </div>
+              )}
+            </article>
+          )}
+
+          {activeTab === 'progress' && (
+            <article className={`${panelClass} p-5`}>
+              <h3 className="mb-4 font-display text-[15px] font-extrabold text-[#1e3261]">Work Progress</h3>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'Overall Progress', value: `${empDetail?.overall_progress ?? 0}%`, icon: FolderKanban, tone: 'blue' },
+                  { label: 'Current Status', value: empDetail?.status || '—', icon: CheckCircle2, tone: statusTone(empDetail?.status) },
+                  { label: 'Pending Tasks', value: empDetail?.pending_tasks ?? 0, icon: Clock3, tone: 'amber' },
+                  { label: 'Completed Tasks', value: empDetail?.completed_tasks ?? 0, icon: CheckCircle2, tone: 'green' },
+                ].map((c) => <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value)} caption={c.label} icon={c.icon} tone={c.tone} onClick={() => {}} />)}
+              </div>
+              {empDetail?.overall_progress !== undefined && (
+                <div className="mt-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[13px] font-extrabold text-[#53647f]">Overall Progress</span>
+                    <span className="text-[13px] font-extrabold text-[#1e3261]">{empDetail.overall_progress}%</span>
+                  </div>
+                  <div className="h-3 w-full rounded-full bg-[#e8f0fb]">
+                    <div className="h-3 rounded-full bg-[linear-gradient(90deg,#2f80ff,#0b65e5)]" style={{ width: `${empDetail.overall_progress}%` }} />
+                  </div>
+                </div>
+              )}
+            </article>
+          )}
+
+          {activeTab === 'attendance' && (
+            <article className={`${panelClass} p-5`}>
+              <h3 className="mb-4 font-display text-[15px] font-extrabold text-[#1e3261]">Attendance Summary</h3>
+              <div className="grid gap-4 sm:grid-cols-3">
+                {[
+                  { label: 'Present Days', value: empDetail?.present_days ?? 0, icon: CheckCircle2, tone: 'green' },
+                  { label: 'Absent Days', value: empDetail?.absent_days ?? 0, icon: XCircle, tone: 'red' },
+                  { label: 'Leave Balance', value: empDetail?.leave_balance ?? 0, icon: CalendarDays, tone: 'amber' },
+                ].map((c) => <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value)} caption="This month" icon={c.icon} tone={c.tone} onClick={() => {}} />)}
+              </div>
+              <div className="mt-4 rounded-[10px] border border-[#edf2f8] p-4">
+                <p className="text-[13px] font-bold text-[#7585a2]">Attendance records are tracked from the HR system. Use the Edit button to update Present Days, Absent Days, and Leave Balance for this employee.</p>
+              </div>
+            </article>
+          )}
+
+          {activeTab === 'documents' && (
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="border-b border-[#edf2f8] px-5 py-4">
+                <h3 className="mb-3 font-display text-[15px] font-extrabold text-[#1e3261]">Documents</h3>
+                <div className="grid gap-3 sm:grid-cols-[1fr_180px_180px_auto]">
+                  <input value={docName} onChange={(e) => setDocName(e.target.value)} placeholder="Document name..." className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                  <select value={docType} onChange={(e) => setDocType(e.target.value)} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                    {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-bold text-[#314a79] file:mr-3 file:h-7 file:rounded file:border-0 file:bg-[#0b65e5] file:px-3 file:text-[11px] file:font-extrabold file:text-white" />
+                  <button type="button" onClick={handleDocUpload} disabled={docUploading} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+                    <Plus className="size-4" />{docUploading ? 'Uploading...' : 'Upload'}
+                  </button>
+                </div>
+              </div>
+              {(empDetail?.documents || []).length === 0 ? (
+                <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No documents uploaded yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="crm-table w-full min-w-[500px]">
+                    <thead><tr>{['#', 'Document Name', 'Type', 'Uploaded', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {(empDetail?.documents || []).map((doc, idx) => (
+                        <tr key={doc.id}>
+                          <td>{idx + 1}</td>
+                          <td><a href={doc.file} target="_blank" rel="noreferrer" className="font-extrabold text-[#0b65e5] underline">{doc.name}</a></td>
+                          <td><ProjectInfoPill tone="blue">{doc.doc_type}</ProjectInfoPill></td>
+                          <td className="font-bold text-[#314a79]">{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-IN') : '—'}</td>
+                          <td><UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteDoc(doc.id)} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </article>
+          )}
+        </div>
       )}
 
-      {projectPickerOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setProjectPickerOpen(false); setProjectSearch(''); } }}>
-          <div className="w-full max-w-[680px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+      {/* Select Employee Popup */}
+      {pickerOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setPickerOpen(false); setEmpSearch(''); } }}>
+          <div className="w-full max-w-[820px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
               <div>
-                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Project</h2>
-                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose a project to manage its team</p>
+                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Employee</h2>
+                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose an employee to view or manage their assignments</p>
               </div>
-              <button type="button" onClick={() => { setProjectPickerOpen(false); setProjectSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
+              <button type="button" onClick={() => { setPickerOpen(false); setEmpSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
             </div>
             <div className="p-4 pb-2">
               <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
                 <Search className="size-4 shrink-0 text-[#7e8fab]" />
-                <input autoFocus value={projectSearch} onChange={(e) => setProjectSearch(e.target.value)} type="search" placeholder="Search project name, customer, project ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+                <input autoFocus value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} type="search" placeholder="Search by name, ID, department..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
               </label>
             </div>
-            <div className="max-h-[400px] overflow-y-auto">
-              {loadingProjects ? (
-                <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">Loading projects...</p>
-              ) : filteredPickerProjects.length === 0 ? (
-                <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</p>
-              ) : filteredPickerProjects.map((proj) => (
-                <div key={proj.id} className="flex items-center justify-between border-b border-[#f3f6fb] px-6 py-3.5 last:border-0 hover:bg-[#f8fbff]">
-                  <div>
-                    <p className="text-[14px] font-extrabold text-[#1e3261]">{proj.project_name || proj.name}</p>
-                    <p className="mt-0.5 text-[12px] font-bold text-[#7585a2]">{proj.customer_name || '—'} &bull; {proj.project_id}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <ProjectInfoPill tone={proj.status === 'Active' ? 'green' : proj.status === 'Completed' ? 'blue' : 'amber'}>{proj.status || '—'}</ProjectInfoPill>
-                    <button type="button" onClick={() => handleProjectSelect(proj)} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                      <Users className="size-3.5" />Select
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div className="max-h-[440px] overflow-y-auto">
+              {loadingEmployees ? (
+                <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">Loading employees...</p>
+              ) : pickerFiltered.length === 0 ? (
+                <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">No employees found.</p>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
+                      {['Employee', 'ID', 'Department', 'Role', 'Current Task', 'Status', 'Action'].map((h) => (
+                        <th key={h} className="px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pickerFiltered.map((emp) => (
+                      <tr key={emp.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[11px] font-extrabold text-[#0b65e5]">{emp.name?.slice(0, 2).toUpperCase()}</span>
+                            <span className="text-[13px] font-extrabold text-[#1e3261]">{emp.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-[12px] font-bold text-[#8a98af]">{emp.employee_id}</td>
+                        <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.department || '—'}</td>
+                        <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.role || '—'}</td>
+                        <td className="max-w-[140px] truncate px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.current_assignment?.task_name || '—'}</td>
+                        <td className="px-4 py-3"><ProjectInfoPill tone={statusTone(emp.status)}>{emp.status}</ProjectInfoPill></td>
+                        <td className="px-4 py-3">
+                          {emp.current_assignment ? (
+                            <button type="button" onClick={() => handlePickerSelect(emp)} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#caeed8] bg-[#f0fdf4] text-[#0d9f4a] transition hover:bg-[#dcfce7]">
+                              <Pencil className="size-4" />
+                            </button>
+                          ) : (
+                            <button type="button" onClick={() => handlePickerSelect(emp)} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                              <Plus className="size-3.5" />Assign
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {modalOpen && (
-        <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
-          <div className="w-full max-w-[480px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+      {/* Add/Edit Employee Modal */}
+      {empModalOpen && (
+        <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEmpModalOpen(false); }}>
+          <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editId !== null ? 'Edit Member' : 'Assign Member'}</h2>
-              <button type="button" onClick={() => setModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editEmpId !== null ? 'Edit Employee' : 'Add Employee'}</h2>
+              <button type="button" onClick={() => setEmpModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
             </div>
-            <div className="grid gap-4 p-6">
-              {editId === null && (
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                  Team Member *
-                  <select value={form.user} onChange={(e) => setForm((p) => ({ ...p, user: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                    <option value="">Select member...</option>
-                    {users.map((u) => <option key={u.id} value={u.id}>{u.name}{u.email ? ` (${u.email})` : ''}</option>)}
-                  </select>
-                </label>
-              )}
-              {editId !== null && (
-                <div className="rounded-[8px] bg-[#f8fbff] px-4 py-3">
-                  <p className="text-[12px] font-extrabold text-[#7585a2]">Member</p>
-                  <p className="mt-0.5 text-[14px] font-extrabold text-[#1e3261]">{members.find((m) => m.id === editId)?.user_name || '—'}</p>
-                </div>
-              )}
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Role / Title
-                <input value={form.role_title} onChange={(e) => setForm((p) => ({ ...p, role_title: e.target.value }))} placeholder="e.g. Site Engineer, Technician..." className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+            <div className="grid gap-4 p-6 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Name *
+                <input value={empForm.name} onChange={(e) => setEmpForm((p) => ({ ...p, name: e.target.value }))} placeholder="Full name" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
               </label>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                  Access Level
-                  <select value={form.access_level} onChange={(e) => setForm((p) => ({ ...p, access_level: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                    {ACCESS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                  Status
-                  <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                    {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </label>
-              </div>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Mobile
+                <input value={empForm.mobile} onChange={(e) => setEmpForm((p) => ({ ...p, mobile: e.target.value }))} placeholder="+91 98765 43210" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Email
+                <input value={empForm.email} onChange={(e) => setEmpForm((p) => ({ ...p, email: e.target.value }))} type="email" placeholder="email@example.com" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Department
+                <select value={empForm.department} onChange={(e) => setEmpForm((p) => ({ ...p, department: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  {DEPARTMENTS.filter((d) => d !== 'All Departments').map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Role / Designation
+                <input value={empForm.role} onChange={(e) => setEmpForm((p) => ({ ...p, role: e.target.value }))} placeholder="e.g. Site Engineer" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Joining Date
+                <input value={empForm.joining_date} onChange={(e) => setEmpForm((p) => ({ ...p, joining_date: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Status
+                <select value={empForm.status} onChange={(e) => setEmpForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Notes
+                <textarea value={empForm.notes} onChange={(e) => setEmpForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Additional notes..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
             </div>
             <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
-              <button type="button" onClick={() => setModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
-              <button type="button" onClick={handleSave} disabled={savingForm} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">
-                <Save className="size-4" />{editId !== null ? 'Update' : 'Assign'}
-              </button>
+              <button type="button" onClick={() => setEmpModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+              <button type="button" onClick={handleSaveEmployee} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{editEmpId !== null ? 'Update' : 'Add Employee'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Assignment Modal */}
+      {assignModalOpen && (
+        <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setAssignModalOpen(false); }}>
+          <div className="w-full max-w-[540px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editAssignId !== null ? 'Edit Assignment' : 'Add Assignment'}</h2>
+              <button type="button" onClick={() => setAssignModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="grid gap-4 p-6 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Task Name *
+                <input value={assignForm.task_name} onChange={(e) => setAssignForm((p) => ({ ...p, task_name: e.target.value }))} placeholder="e.g. Panel Installation at Site A" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Assigned Date
+                <input value={assignForm.assigned_date} onChange={(e) => setAssignForm((p) => ({ ...p, assigned_date: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Expected Completion
+                <input value={assignForm.expected_completion} onChange={(e) => setAssignForm((p) => ({ ...p, expected_completion: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Priority
+                <select value={assignForm.priority} onChange={(e) => setAssignForm((p) => ({ ...p, priority: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  {PRIORITY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Status
+                <select value={assignForm.status} onChange={(e) => setAssignForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                  {TASK_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Progress ({assignForm.progress_percent}%)
+                <input value={assignForm.progress_percent} onChange={(e) => setAssignForm((p) => ({ ...p, progress_percent: e.target.value }))} type="range" min="0" max="100" step="5" className="mt-1 w-full accent-[#0b65e5]" />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Notes
+                <textarea value={assignForm.notes} onChange={(e) => setAssignForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Task notes..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+              <button type="button" onClick={() => setAssignModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+              <button type="button" onClick={handleSaveAssign} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{editAssignId !== null ? 'Update' : 'Assign'}</button>
             </div>
           </div>
         </div>

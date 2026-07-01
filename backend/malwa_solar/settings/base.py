@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'apps.projects',
     'apps.inventory',
     'apps.accounts_module',
+    'apps.workforce',
 ]
 
 MIDDLEWARE = [

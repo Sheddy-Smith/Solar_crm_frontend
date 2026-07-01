@@ -323,6 +323,29 @@ export const installationMaterialApi = {
   delete: (id) => request(`/installation-materials/${id}/`, { method: 'DELETE' }),
 };
 
+// ─── Workforce (Central Employee Management) ────────────────────────────────────
+
+export const workforceApi = {
+  dashboard: () => request('/workforce/employees/dashboard/'),
+  listEmployees: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/workforce/employees/${qs ? '?' + qs : ''}`);
+  },
+  getEmployee: (id) => request(`/workforce/employees/${id}/`),
+  createEmployee: (data) => request('/workforce/employees/', { method: 'POST', body: data }),
+  updateEmployee: (id, data) => request(`/workforce/employees/${id}/`, { method: 'PATCH', body: data }),
+  deleteEmployee: (id) => request(`/workforce/employees/${id}/`, { method: 'DELETE' }),
+  listAssignments: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/workforce/assignments/${qs ? '?' + qs : ''}`);
+  },
+  createAssignment: (data) => request('/workforce/assignments/', { method: 'POST', body: data }),
+  updateAssignment: (id, data) => request(`/workforce/assignments/${id}/`, { method: 'PATCH', body: data }),
+  deleteAssignment: (id) => request(`/workforce/assignments/${id}/`, { method: 'DELETE' }),
+  uploadDocument: (data) => request('/workforce/documents/', { method: 'POST', body: data }),
+  deleteDocument: (id) => request(`/workforce/documents/${id}/`, { method: 'DELETE' }),
+};
+
 // ─── Material Plans ─────────────────────────────────────────────────────────────
 
 export const materialPlanApi = {
