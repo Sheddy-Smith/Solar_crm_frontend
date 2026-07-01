@@ -4042,43 +4042,6 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
       </section>
 
       <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 overflow-hidden p-3 sm:p-4`}>
-        {activeLeadCategory ? (
-          <div className="mb-4 rounded-[14px] border border-[#d8e6f6] bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_100%)] p-4 sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#0b65e5]">
-                  Category View
-                </p>
-                <h2 className="mt-1 font-display text-[20px] font-extrabold text-[#1e3261]">
-                  {activeLeadCategory.label} List
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveLeadCategory(null);
-                  onNotify('Category view cleared');
-                }}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"
-              >
-                <X className="size-4" />
-                Clear View
-              </button>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-[12px] font-bold text-[#53647f]">
-              <span className="rounded-full bg-white px-3 py-1.5 text-[#1e3261] shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
-                Showing {visibleLeadRows.length} leads
-              </span>
-              <span className="rounded-full bg-white px-3 py-1.5 text-[#1e3261] shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
-                Priority: {activeLeadCategory.priority}
-              </span>
-              <span className="rounded-full bg-white px-3 py-1.5 text-[#1e3261] shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
-                Next action: {activeLeadCategory.nextAction}
-              </span>
-            </div>
-          </div>
-        ) : null}
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
