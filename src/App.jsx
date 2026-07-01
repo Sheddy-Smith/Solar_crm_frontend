@@ -24378,6 +24378,32 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
 
   const statusTone = (s) => s === 'Completed' ? 'green' : s === 'In Progress' ? 'blue' : 'amber';
 
+  const ALL_PROJECTS = [
+    { id: 1, name: '20kW On-Grid System', customer: 'Rajesh Kumar', code: 'PRJ-2024-001', hasMaterials: true },
+    { id: 2, name: '5kW Rooftop Solar', customer: 'Priya Sharma', code: 'PRJ-2024-002', hasMaterials: false },
+    { id: 3, name: '10kW Hybrid System', customer: 'Amit Joshi', code: 'PRJ-2024-003', hasMaterials: true },
+    { id: 4, name: '3kW On-Grid Rau', customer: 'Sunil Patidar', code: 'PRJ-2024-004', hasMaterials: false },
+    { id: 5, name: '15kW Commercial Plant', customer: 'Deepak Verma', code: 'PRJ-2024-005', hasMaterials: false },
+  ];
+
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [selectedProject, setSelectedProject] = useState(null);
+
+  const filteredProjects = ALL_PROJECTS.filter((p) =>
+    projectSearch === '' ||
+    p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+    p.customer.toLowerCase().includes(projectSearch.toLowerCase()) ||
+    p.code.toLowerCase().includes(projectSearch.toLowerCase()),
+  );
+
+  const handleProjectSelect = (proj) => {
+    setSelectedProject(proj);
+    setProjectPickerOpen(false);
+    setProjectSearch('');
+    onNotify(proj.hasMaterials ? `Loaded: ${proj.name}` : `New plan for: ${proj.name}`);
+  };
+
   return (
     <div className="space-y-4">
       <PageHeading
@@ -24400,10 +24426,16 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
             <Search className="size-4 shrink-0 text-[#7e8fab]" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search by material category..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
           </label>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
-            <option value="All">All Status</option>
-            {MATERIAL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <div className="flex shrink-0 items-center gap-2">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+              <option value="All">All Status</option>
+              {MATERIAL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <button type="button" onClick={() => setProjectPickerOpen(true)} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5] hover:text-[#0b65e5]')}>
+              <FolderKanban className="size-4" />
+              {selectedProject ? selectedProject.name : 'All Projects'}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -24442,6 +24474,47 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
           Showing {filtered.length} of {rows.length} materials
         </div>
       </article>
+
+      {projectPickerOpen ? (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setProjectPickerOpen(false); setProjectSearch(''); } }}>
+          <div className="w-full max-w-[520px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <div>
+                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Project</h2>
+                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Click a project to view or create its material plan</p>
+              </div>
+              <button type="button" onClick={() => { setProjectPickerOpen(false); setProjectSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="p-4 pb-2">
+              <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+                <Search className="size-4 shrink-0 text-[#7e8fab]" />
+                <input autoFocus value={projectSearch} onChange={(e) => setProjectSearch(e.target.value)} type="search" placeholder="Search by project name, customer, ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+              </label>
+            </div>
+            <div className="max-h-[340px] overflow-y-auto">
+              {filteredProjects.length === 0 ? (
+                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</p>
+              ) : filteredProjects.map((proj) => (
+                <div key={proj.id} className="flex items-center justify-between border-b border-[#f3f6fb] px-6 py-3.5 last:border-0 hover:bg-[#f8fbff]">
+                  <div>
+                    <p className="text-[14px] font-extrabold text-[#1e3261]">{proj.name}</p>
+                    <p className="mt-0.5 text-[12px] font-bold text-[#7585a2]">{proj.customer} &bull; {proj.code}</p>
+                  </div>
+                  {proj.hasMaterials ? (
+                    <button type="button" onClick={() => handleProjectSelect(proj)} title="Edit material plan" className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#caeed8] bg-[#f0fdf4] text-[#0d9f4a] transition hover:bg-[#dcfce7]">
+                      <Pencil className="size-4" />
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => handleProjectSelect(proj)} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                      <Plus className="size-3.5" />Create
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {modalOpen ? (
         <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
