@@ -12,11 +12,17 @@ class EmployeeDocumentSerializer(serializers.ModelSerializer):
 class EmployeeAssignmentSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source='project.project_name', read_only=True)
     project_id_code = serializers.CharField(source='project.project_id', read_only=True)
+    employee_name = serializers.CharField(source='employee.name', read_only=True)
+    employee_emp_id = serializers.CharField(source='employee.employee_id', read_only=True)
+    employee_department = serializers.CharField(source='employee.department', read_only=True)
+    employee_role = serializers.CharField(source='employee.role', read_only=True)
+    employee_status = serializers.CharField(source='employee.status', read_only=True)
 
     class Meta:
         model = EmployeeAssignment
         fields = [
             'id', 'employee', 'project', 'project_name', 'project_id_code',
+            'employee_name', 'employee_emp_id', 'employee_department', 'employee_role', 'employee_status',
             'task_name', 'assigned_date', 'expected_completion',
             'priority', 'progress_percent', 'status', 'notes', 'created_at', 'updated_at',
         ]

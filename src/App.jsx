@@ -1,4 +1,4 @@
-﻿import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
@@ -23814,54 +23814,52 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
 }
 
 function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
-  const DEPARTMENTS = ['All Departments', 'Installation', 'Engineering', 'Electrical', 'Sales', 'Quality', 'Logistics', 'HSE', 'Operations', 'Administration', 'Other'];
-  const STATUS_OPTIONS = ['Available', 'Assigned', 'In Progress', 'On Leave', 'Completed'];
-  const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
   const TASK_STATUS_OPTIONS = ['Pending', 'In Progress', 'On Hold', 'Completed'];
-  const DOC_TYPES = ['ID Proof', 'Joining Document', 'Certificate', 'Other'];
-
+  const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
+  const DEPARTMENTS = ['Installation', 'Engineering', 'Electrical', 'Sales', 'Quality', 'Logistics', 'HSE', 'Operations', 'Administration', 'Other'];
+  const EMP_STATUS_OPTIONS = ['Available', 'Assigned', 'In Progress', 'On Leave', 'Completed'];
   const emptyEmpForm = { name: '', mobile: '', email: '', department: 'Installation', role: '', joining_date: '', status: 'Available', notes: '' };
-  const emptyAssignForm = { task_name: '', project: '', assigned_date: '', expected_completion: '', priority: 'Medium', progress_percent: 0, status: 'Pending', notes: '' };
+  const emptyAssignForm = { employee: '', task_name: '', assigned_date: '', expected_completion: '', priority: 'Medium', progress_percent: 0, status: 'Pending', notes: '' };
 
-  const [dashStats, setDashStats] = useState({ total: 0, available: 0, assigned: 0, in_progress: 0, on_leave: 0, completed_today: 0 });
-  const [allEmployees, setAllEmployees] = useState([]);
-  const [loadingEmployees, setLoadingEmployees] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [empDetail, setEmpDetail] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [deptFilter, setDeptFilter] = useState('All Departments');
-  const [roleFilter, setRoleFilter] = useState('All Roles');
-  const [empSearch, setEmpSearch] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [empModalOpen, setEmpModalOpen] = useState(false);
-  const [editEmpId, setEditEmpId] = useState(null);
-  const [empForm, setEmpForm] = useState(emptyEmpForm);
-  const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [editAssignId, setEditAssignId] = useState(null);
-  const [assignForm, setAssignForm] = useState(emptyAssignForm);
-  const [saving, setSaving] = useState(false);
-  const [docFile, setDocFile] = useState(null);
-  const [docType, setDocType] = useState('Other');
-  const [docName, setDocName] = useState('');
-  const [docUploading, setDocUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState('assignment');
   const [viewMode, setViewMode] = useState('project');
+  const [allEmployees, setAllEmployees] = useState([]);
+  const [allProjects, setAllProjects] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+
+  // Project Wise
+  const [pwProject, setPwProject] = useState(null);
+  const [pwAssignments, setPwAssignments] = useState([]);
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwPickerOpen, setPwPickerOpen] = useState(false);
+  const [pwPickerSearch, setPwPickerSearch] = useState('');
+  const [pwAssignSearch, setPwAssignSearch] = useState('');
+  const [pwAssignStatus, setPwAssignStatus] = useState('All');
+  const [pwViewOpen, setPwViewOpen] = useState(false);
+  const [pwViewData, setPwViewData] = useState(null);
+  const [pwAssignModalOpen, setPwAssignModalOpen] = useState(false);
+  const [pwEditAssignId, setPwEditAssignId] = useState(null);
+  const [pwAssignForm, setPwAssignForm] = useState(emptyAssignForm);
+
+  // Employee Wise
   const [ewSelected, setEwSelected] = useState(null);
   const [ewSummary, setEwSummary] = useState(null);
   const [ewHistory, setEwHistory] = useState([]);
   const [ewLoading, setEwLoading] = useState(false);
   const [ewPickerOpen, setEwPickerOpen] = useState(false);
   const [ewPickerSearch, setEwPickerSearch] = useState('');
-  const [ewProjSearch, setEwProjSearch] = useState('');
-  const [ewProjStatus, setEwProjStatus] = useState('All');
+  const [ewHistSearch, setEwHistSearch] = useState('');
+  const [ewHistStatus, setEwHistStatus] = useState('All');
+  const [ewHistDateFrom, setEwHistDateFrom] = useState('');
+  const [ewHistDateTo, setEwHistDateTo] = useState('');
   const [ewDetailOpen, setEwDetailOpen] = useState(false);
   const [ewDetailData, setEwDetailData] = useState(null);
 
-  const loadDashboard = useCallback(async () => {
-    try { const d = await workforceApi.dashboard(); setDashStats(d || {}); } catch {}
-  }, []);
+  // Add Employee Modal
+  const [empModalOpen, setEmpModalOpen] = useState(false);
+  const [editEmpId, setEditEmpId] = useState(null);
+  const [empForm, setEmpForm] = useState(emptyEmpForm);
 
   const loadEmployees = useCallback(async () => {
     setLoadingEmployees(true);
@@ -23869,14 +23867,21 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
     finally { setLoadingEmployees(false); }
   }, []);
 
-  const loadDetail = useCallback(async (id) => {
-    setLoadingDetail(true);
-    try { const d = await workforceApi.getEmployee(id); setEmpDetail(d); } catch { onNotify('Failed to load employee detail'); }
-    finally { setLoadingDetail(false); }
+  const loadProjects = useCallback(async () => {
+    setLoadingProjects(true);
+    try { const d = await projectApi.list({ page_size: 500 }); setAllProjects(normalizeApiRows(d)); } catch {}
+    finally { setLoadingProjects(false); }
+  }, []);
+
+  useEffect(() => { loadEmployees(); loadProjects(); }, [loadEmployees, loadProjects]);
+
+  const loadPwAssignments = useCallback(async (projId) => {
+    setPwLoading(true);
+    try { const d = await workforceApi.listAssignments({ project: projId, page_size: 500 }); setPwAssignments(normalizeApiRows(d)); } catch { onNotify('Failed to load assignments'); }
+    finally { setPwLoading(false); }
   }, [onNotify]);
 
-  useEffect(() => { loadDashboard(); loadEmployees(); }, [loadDashboard, loadEmployees]);
-  useEffect(() => { if (selectedEmployee) loadDetail(selectedEmployee.id); }, [selectedEmployee, loadDetail]);
+  useEffect(() => { if (pwProject) loadPwAssignments(pwProject.id); }, [pwProject, loadPwAssignments]);
 
   const loadEwData = useCallback(async (id) => {
     setEwLoading(true);
@@ -23890,134 +23895,66 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
     } catch { onNotify('Failed to load employee history'); }
     finally { setEwLoading(false); }
   }, [onNotify]);
+
   useEffect(() => { if (ewSelected) loadEwData(ewSelected.id); }, [ewSelected, loadEwData]);
 
-  const handlePickerSelect = (emp) => {
-    setSelectedEmployee(emp);
-    setPickerOpen(false);
-    setEmpSearch('');
-    setActiveTab('assignment');
-  };
-
-  const openAddEmployee = () => { setEmpForm(emptyEmpForm); setEditEmpId(null); setEmpModalOpen(true); };
-  const openEditEmployee = (emp) => {
-    setEmpForm({ name: emp.name, mobile: emp.mobile || '', email: emp.email || '', department: emp.department || 'Installation', role: emp.role || '', joining_date: emp.joining_date || '', status: emp.status || 'Available', notes: emp.notes || '' });
-    setEditEmpId(emp.id); setEmpModalOpen(true);
+  const handleSavePwAssign = async () => {
+    if (!pwAssignForm.employee) { onNotify('Select an employee'); return; }
+    if (!pwAssignForm.task_name.trim()) { onNotify('Task name required'); return; }
+    setSaving(true);
+    try {
+      const payload = { ...pwAssignForm, project: pwProject.id, employee: Number(pwAssignForm.employee), progress_percent: Number(pwAssignForm.progress_percent) || 0 };
+      if (pwEditAssignId !== null) { await workforceApi.updateAssignment(pwEditAssignId, payload); onNotify('Assignment updated'); }
+      else { await workforceApi.createAssignment(payload); onNotify('Assignment created'); }
+      setPwAssignModalOpen(false);
+      loadPwAssignments(pwProject.id);
+      loadEmployees();
+    } catch (e) { onNotify(e.message || 'Save failed'); }
+    finally { setSaving(false); }
   };
 
   const handleSaveEmployee = async () => {
     if (!empForm.name.trim()) { onNotify('Employee name required'); return; }
     setSaving(true);
     try {
-      if (editEmpId !== null) {
-        await workforceApi.updateEmployee(editEmpId, empForm);
-        onNotify('Employee updated');
-        if (selectedEmployee?.id === editEmpId) loadDetail(editEmpId);
-      } else {
-        await workforceApi.createEmployee(empForm);
-        onNotify('Employee added');
-      }
+      if (editEmpId !== null) { await workforceApi.updateEmployee(editEmpId, empForm); onNotify('Employee updated'); }
+      else { await workforceApi.createEmployee(empForm); onNotify('Employee added'); }
       setEmpModalOpen(false);
-      loadEmployees(); loadDashboard();
+      loadEmployees();
     } catch (e) { onNotify(e.message || 'Save failed'); }
     finally { setSaving(false); }
-  };
-
-  const handleDeleteEmployee = async (id) => {
-    try {
-      await workforceApi.deleteEmployee(id);
-      onNotify('Employee removed');
-      if (selectedEmployee?.id === id) { setSelectedEmployee(null); setEmpDetail(null); }
-      loadEmployees(); loadDashboard();
-    } catch { onNotify('Delete failed'); }
-  };
-
-  const openAddAssign = () => { setAssignForm(emptyAssignForm); setEditAssignId(null); setAssignModalOpen(true); };
-  const openEditAssign = (a) => {
-    setAssignForm({ task_name: a.task_name, project: a.project || '', assigned_date: a.assigned_date || '', expected_completion: a.expected_completion || '', priority: a.priority || 'Medium', progress_percent: a.progress_percent || 0, status: a.status || 'Pending', notes: a.notes || '' });
-    setEditAssignId(a.id); setAssignModalOpen(true);
-  };
-
-  const handleSaveAssign = async () => {
-    if (!assignForm.task_name.trim()) { onNotify('Task name required'); return; }
-    setSaving(true);
-    try {
-      const payload = { ...assignForm, employee: selectedEmployee.id, progress_percent: Number(assignForm.progress_percent) || 0, project: assignForm.project ? Number(assignForm.project) : null };
-      if (editAssignId !== null) { await workforceApi.updateAssignment(editAssignId, payload); onNotify('Assignment updated'); }
-      else { await workforceApi.createAssignment(payload); onNotify('Assignment created'); }
-      setAssignModalOpen(false);
-      loadDetail(selectedEmployee.id); loadDashboard(); loadEmployees();
-    } catch (e) { onNotify(e.message || 'Save failed'); }
-    finally { setSaving(false); }
-  };
-
-  const handleDeleteAssign = async (id) => {
-    try { await workforceApi.deleteAssignment(id); onNotify('Assignment removed'); loadDetail(selectedEmployee.id); loadDashboard(); } catch { onNotify('Delete failed'); }
-  };
-
-  const handleDocUpload = async () => {
-    if (!docFile || !docName.trim()) { onNotify('File and name required'); return; }
-    setDocUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('employee', selectedEmployee.id);
-      fd.append('doc_type', docType);
-      fd.append('name', docName.trim());
-      fd.append('file', docFile);
-      await workforceApi.uploadDocument(fd);
-      onNotify('Document uploaded');
-      setDocFile(null); setDocName(''); setDocType('Other');
-      loadDetail(selectedEmployee.id);
-    } catch { onNotify('Upload failed'); }
-    finally { setDocUploading(false); }
-  };
-
-  const handleDeleteDoc = async (id) => {
-    try { await workforceApi.deleteDocument(id); onNotify('Document removed'); loadDetail(selectedEmployee.id); } catch { onNotify('Delete failed'); }
   };
 
   const statusTone = (s) => {
     if (s === 'Available') return 'green';
-    if (s === 'Assigned') return 'blue';
-    if (s === 'In Progress') return 'blue';
-    if (s === 'On Leave') return 'amber';
+    if (s === 'Assigned' || s === 'In Progress' || s === 'Active') return 'blue';
+    if (s === 'On Leave' || s === 'On Hold' || s === 'Planning') return 'amber';
     if (s === 'Completed') return 'green';
+    if (s === 'Cancelled') return 'red';
     return 'amber';
   };
+  const taskStatusTone = (s) => s === 'Completed' ? 'green' : s === 'In Progress' ? 'blue' : 'amber';
   const priorityTone = (p) => p === 'High' ? 'red' : p === 'Medium' ? 'amber' : 'green';
-  const taskStatusTone = (s) => s === 'Completed' ? 'green' : s === 'In Progress' ? 'blue' : s === 'On Hold' ? 'amber' : 'amber';
 
-  const pickerFiltered = allEmployees.filter((e) => {
-    if (empSearch && !e.name.toLowerCase().includes(empSearch.toLowerCase()) && !(e.employee_id || '').toLowerCase().includes(empSearch.toLowerCase()) && !(e.department || '').toLowerCase().includes(empSearch.toLowerCase())) return false;
+  const pwFiltered = pwAssignments.filter((a) => {
+    if (pwAssignStatus !== 'All' && a.status !== pwAssignStatus) return false;
+    if (pwAssignSearch) {
+      const q = pwAssignSearch.toLowerCase();
+      if (!(a.employee_name || '').toLowerCase().includes(q) && !(a.employee_emp_id || '').toLowerCase().includes(q) && !(a.task_name || '').toLowerCase().includes(q)) return false;
+    }
     return true;
   });
 
-  const uniqueRoles = ['All Roles', ...Array.from(new Set(allEmployees.map((e) => e.role).filter(Boolean))).sort()];
-
-  const tableFiltered = allEmployees.filter((e) => {
-    if (statusFilter !== 'All' && e.status !== statusFilter) return false;
-    if (deptFilter !== 'All Departments' && e.department !== deptFilter) return false;
-    if (roleFilter !== 'All Roles' && e.role !== roleFilter) return false;
-    if (query && !e.name.toLowerCase().includes(query.toLowerCase()) && !(e.employee_id || '').toLowerCase().includes(query.toLowerCase())) return false;
+  const ewFiltered = ewHistory.filter((r) => {
+    if (ewHistStatus !== 'All' && r.status !== ewHistStatus) return false;
+    if (ewHistSearch) {
+      const q = ewHistSearch.toLowerCase();
+      if (!(r.project_name || '').toLowerCase().includes(q) && !(r.task_name || '').toLowerCase().includes(q)) return false;
+    }
+    if (ewHistDateFrom && r.assigned_date && r.assigned_date < ewHistDateFrom) return false;
+    if (ewHistDateTo && r.assigned_date && r.assigned_date > ewHistDateTo) return false;
     return true;
   });
-
-  const STAT_CARDS = [
-    { label: 'Total Employees', value: dashStats.total, icon: Users, tone: 'blue' },
-    { label: 'Available', value: dashStats.available, icon: UserRound, tone: 'green', filter: 'Available' },
-    { label: 'Assigned', value: dashStats.assigned, icon: ClipboardPlus, tone: 'blue', filter: 'Assigned' },
-    { label: 'In Progress', value: dashStats.in_progress, icon: FolderKanban, tone: 'cyan', filter: 'In Progress' },
-    { label: 'On Leave', value: dashStats.on_leave, icon: CalendarDays, tone: 'amber', filter: 'On Leave' },
-    { label: 'Completed Today', value: dashStats.completed_today, icon: CheckCircle2, tone: 'green' },
-  ];
-
-  const TABS = [
-    { key: 'assignment', label: 'Assignments' },
-    { key: 'info', label: 'Basic Info' },
-    { key: 'progress', label: 'Work Progress' },
-    { key: 'attendance', label: 'Attendance' },
-    { key: 'documents', label: 'Documents' },
-  ];
 
   return (
     <div className="space-y-4">
@@ -24029,7 +23966,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
           { label: 'Team Assignment' },
         ]}
         actions={(
-          <button type="button" onClick={openAddEmployee} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]">
+          <button type="button" onClick={() => { setEmpForm(emptyEmpForm); setEditEmpId(null); setEmpModalOpen(true); }} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]">
             <Plus className="size-4" />Add Employee
           </button>
         )}
@@ -24049,520 +23986,463 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         </div>
       </section>
 
+      {/* ══ PROJECT WISE ══ */}
       {viewMode === 'project' && (
-      <>
-      {/* Toolbar */}
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 200 }}>
-            <Search className="size-4 shrink-0 text-[#7e8fab]" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search employee name or ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
-          </label>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
-            <option value="All">All Status</option>
-            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
-            {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
-            {uniqueRoles.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-          <button type="button" onClick={() => setPickerOpen(true)} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', selectedEmployee ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
-            <UserRound className="size-4" />
-            {selectedEmployee ? selectedEmployee.name : 'Select Employee'}
-          </button>
-        </div>
-      </section>
+        <>
+        {/* Toolbar */}
+        <section className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 200 }}>
+              <Search className="size-4 shrink-0 text-[#7e8fab]" />
+              <input value={pwAssignSearch} onChange={(e) => setPwAssignSearch(e.target.value)} type="search" placeholder="Search employee or task..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+            </label>
+            <select value={pwAssignStatus} onChange={(e) => setPwAssignStatus(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+              <option value="All">All Status</option>
+              {TASK_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <button type="button" onClick={() => setPwPickerOpen(true)} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', pwProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
+              <FolderKanban className="size-4" />
+              {pwProject ? pwProject.project_name : 'Select Project'}
+            </button>
+            {pwProject && (
+              <button type="button" onClick={() => { setPwAssignForm(emptyAssignForm); setPwEditAssignId(null); setPwAssignModalOpen(true); }} className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                <Plus className="size-4" />Add Assignment
+              </button>
+            )}
+          </div>
+        </section>
 
-      {/* Stat Cards */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        {STAT_CARDS.map((c) => (
-          <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value ?? 0)} caption={c.label} icon={c.icon} tone={c.tone} onClick={() => c.filter ? setStatusFilter(c.filter) : null} />
-        ))}
-      </section>
-
-      {/* Main area */}
-      {!selectedEmployee ? (
-        <article className={`${panelClass} overflow-hidden`}>
-          {tableFiltered.length === 0 && !query && statusFilter === 'All' && deptFilter === 'All Departments' ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <Users className="size-14 text-[#c5d2e8]" />
-              <h3 className="mt-4 font-display text-[18px] font-extrabold text-[#1e3261]">No Employee Selected</h3>
-              <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Click <strong>Select Employee</strong> to view or manage assignments.</p>
-              <button type="button" onClick={() => setPickerOpen(true)} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                <UserRound className="size-4" />Select Employee
+        {/* Empty State / Content */}
+        {!pwProject ? (
+          <article className={`${panelClass} overflow-hidden`}>
+            <div className="flex flex-col items-center justify-center py-24">
+              <FolderKanban className="size-16 text-[#c5d2e8]" />
+              <h3 className="mt-5 font-display text-[20px] font-extrabold text-[#1e3261]">No Project Selected</h3>
+              <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to view Team Assignments.</p>
+              <button type="button" onClick={() => setPwPickerOpen(true)} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-6 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                <FolderKanban className="size-4" />Select Project
               </button>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="crm-table w-full min-w-[750px]">
-                <thead><tr>{['#', 'Employee', 'ID', 'Department', 'Role', 'Status', 'Current Task', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {tableFiltered.map((emp, idx) => (
-                    <tr key={emp.id}>
-                      <td>{idx + 1}</td>
-                      <td>
-                        <button type="button" onClick={() => handlePickerSelect(emp)} className="flex items-center gap-2 text-left">
-                          <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[11px] font-extrabold text-[#0b65e5]">{emp.name?.slice(0, 2).toUpperCase()}</span>
-                          <span className="font-extrabold text-[#1e3261]">{emp.name}</span>
-                        </button>
-                      </td>
-                      <td className="font-bold text-[#314a79]">{emp.employee_id}</td>
-                      <td className="font-bold text-[#314a79]">{emp.department || '—'}</td>
-                      <td className="font-bold text-[#314a79]">{emp.role || '—'}</td>
-                      <td><ProjectInfoPill tone={statusTone(emp.status)}>{emp.status}</ProjectInfoPill></td>
-                      <td className="max-w-[160px] truncate font-bold text-[#314a79]">{emp.current_assignment?.task_name || '—'}</td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <UserActionButton label="View" icon={Eye} tone="blue" onClick={() => handlePickerSelect(emp)} />
-                          <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEditEmployee(emp)} />
-                          <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteEmployee(emp.id)} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">Showing {tableFiltered.length} of {allEmployees.length} employees</div>
-            </div>
-          )}
-        </article>
-      ) : (
-        <div className="space-y-4">
-          {/* Employee header card */}
-          <article className={`${panelClass} p-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <span className="grid size-14 shrink-0 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-[20px] font-extrabold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
-                  {empDetail?.name?.slice(0, 2).toUpperCase() || selectedEmployee.name?.slice(0, 2).toUpperCase()}
-                </span>
-                <div>
-                  <h2 className="font-display text-[22px] font-extrabold text-[#111827]">{empDetail?.name || selectedEmployee.name}</h2>
-                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{empDetail?.role || '—'} &bull; {empDetail?.department || '—'} &bull; {empDetail?.employee_id || selectedEmployee.employee_id}</p>
+          </article>
+        ) : (
+          <div className="space-y-4">
+            {/* Project Summary Card */}
+            <article className={`${panelClass} p-5`}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <span className="grid size-14 shrink-0 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
+                    <FolderKanban className="size-7 text-white" />
+                  </span>
+                  <div>
+                    <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{pwProject.project_name}</h2>
+                    <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{pwProject.customer_name} &bull; {pwProject.project_id}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ProjectInfoPill tone={statusTone(pwProject.status)}>{pwProject.status}</ProjectInfoPill>
+                  <button type="button" onClick={() => setPwPickerOpen(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FolderKanban className="size-3.5" />Change Project</button>
+                  <button type="button" onClick={() => { setPwProject(null); setPwAssignments([]); setPwAssignSearch(''); setPwAssignStatus('All'); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><X className="size-3.5" />Close</button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <ProjectInfoPill tone={statusTone(empDetail?.status || selectedEmployee.status)}>{empDetail?.status || selectedEmployee.status}</ProjectInfoPill>
-                <button type="button" onClick={() => openEditEmployee(empDetail || selectedEmployee)} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Pencil className="size-3.5" />Edit</button>
-                <button type="button" onClick={() => { setSelectedEmployee(null); setEmpDetail(null); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><X className="size-3.5" />Close</button>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
+                {[
+                  { label: 'Capacity', value: pwProject.capacity_kwp ? `${pwProject.capacity_kwp} kWp` : '—' },
+                  { label: 'Current Status', value: pwProject.status || '—' },
+                  { label: 'Start Date', value: pwProject.start_date || '—' },
+                  { label: 'Expected Completion', value: pwProject.target_date || '—' },
+                  { label: 'Progress', value: `${pwProject.progress_percent ?? 0}%` },
+                  { label: 'Team Members', value: String(pwAssignments.length) },
+                ].map((row) => (
+                  <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                    <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
+                    <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value}</p>
+                  </div>
+                ))}
               </div>
-            </div>
-          </article>
+              {pwProject.progress_percent !== undefined && (
+                <div className="mt-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[12px] font-extrabold text-[#53647f]">Project Progress</span>
+                    <span className="text-[12px] font-extrabold text-[#1e3261]">{pwProject.progress_percent}%</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-[#e8f0fb]">
+                    <div className="h-2 rounded-full bg-[linear-gradient(90deg,#2f80ff,#0b65e5)]" style={{ width: `${pwProject.progress_percent}%` }} />
+                  </div>
+                </div>
+              )}
+            </article>
 
-          {/* Tab bar */}
-          <section className={`${panelClass} p-3`}>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {TABS.map((tab) => (
-                <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)} className={cx('inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition', activeTab === tab.key ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]')}>
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {activeTab === 'assignment' && (
+            {/* Team Assignment Table */}
             <article className={`${panelClass} overflow-hidden`}>
               <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
-                <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">Assignments</h3>
-                <button type="button" onClick={openAddAssign} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#11a650] px-4 text-[12px] font-extrabold text-white transition hover:bg-[#0e9748]"><Plus className="size-3.5" />Add Assignment</button>
+                <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">Team Assignment</h3>
+                <button type="button" onClick={() => { setPwAssignForm(emptyAssignForm); setPwEditAssignId(null); setPwAssignModalOpen(true); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]"><Plus className="size-3.5" />Add Assignment</button>
               </div>
-              {loadingDetail ? (
-                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading...</p>
-              ) : (empDetail?.assignments || []).length === 0 ? (
-                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No assignments yet. Click <strong>Add Assignment</strong>.</p>
+              {pwLoading ? (
+                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading assignments...</p>
+              ) : pwFiltered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-14">
+                  <Users className="size-12 text-[#c5d2e8]" />
+                  <p className="mt-3 text-[13px] font-bold text-[#8a98af]">No assignments found. Click <strong>Add Assignment</strong> to assign an employee to this project.</p>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="crm-table w-full min-w-[700px]">
-                    <thead><tr>{['#', 'Task', 'Assigned', 'Due Date', 'Priority', 'Progress', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                  <table className="crm-table w-full min-w-[900px]">
+                    <thead><tr>{['#', 'Employee', 'ID', 'Department', 'Role', 'Assigned Task', 'Assigned Date', 'Progress', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
                     <tbody>
-                      {(empDetail?.assignments || []).map((a, idx) => (
+                      {pwFiltered.map((a, idx) => (
                         <tr key={a.id}>
                           <td>{idx + 1}</td>
-                          <td className="font-extrabold text-[#1e3261]">{a.task_name}</td>
-                          <td className="font-bold text-[#314a79]">{a.assigned_date || '—'}</td>
-                          <td className="font-bold text-[#314a79]">{a.expected_completion || '—'}</td>
-                          <td><ProjectInfoPill tone={priorityTone(a.priority)}>{a.priority}</ProjectInfoPill></td>
                           <td>
                             <div className="flex items-center gap-2">
-                              <div className="h-2 w-20 rounded-full bg-[#e8f0fb]"><div className="h-2 rounded-full bg-[#2f80ff]" style={{ width: `${a.progress_percent}%` }} /></div>
+                              <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[11px] font-extrabold text-[#0b65e5]">{(a.employee_name || '??').slice(0, 2).toUpperCase()}</span>
+                              <span className="font-extrabold text-[#1e3261]">{a.employee_name || '—'}</span>
+                            </div>
+                          </td>
+                          <td className="font-bold text-[#314a79]">{a.employee_emp_id || '—'}</td>
+                          <td className="font-bold text-[#314a79]">{a.employee_department || '—'}</td>
+                          <td className="font-bold text-[#314a79]">{a.employee_role || '—'}</td>
+                          <td className="max-w-[160px] truncate font-bold text-[#314a79]">{a.task_name}</td>
+                          <td className="font-bold text-[#314a79]">{a.assigned_date || '—'}</td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-16 rounded-full bg-[#e8f0fb]"><div className="h-2 rounded-full bg-[#2f80ff]" style={{ width: `${a.progress_percent}%` }} /></div>
                               <span className="text-[12px] font-extrabold text-[#314a79]">{a.progress_percent}%</span>
                             </div>
                           </td>
                           <td><ProjectInfoPill tone={taskStatusTone(a.status)}>{a.status}</ProjectInfoPill></td>
                           <td>
                             <div className="flex items-center gap-2">
-                              <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEditAssign(a)} />
-                              <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteAssign(a.id)} />
+                              <UserActionButton label="View" icon={Eye} tone="blue" onClick={() => { setPwViewData(a); setPwViewOpen(true); }} />
+                              <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => { setPwAssignForm({ employee: String(a.employee), task_name: a.task_name, assigned_date: a.assigned_date || '', expected_completion: a.expected_completion || '', priority: a.priority || 'Medium', progress_percent: a.progress_percent || 0, status: a.status || 'Pending', notes: a.notes || '' }); setPwEditAssignId(a.id); setPwAssignModalOpen(true); }} />
                             </div>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">Showing {pwFiltered.length} of {pwAssignments.length} assignments</div>
                 </div>
               )}
             </article>
-          )}
+          </div>
+        )}
 
-          {activeTab === 'info' && (
-            <article className={`${panelClass} p-5`}>
-              <h3 className="mb-4 font-display text-[15px] font-extrabold text-[#1e3261]">Basic Information</h3>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {[
-                  { label: 'Employee Name', value: empDetail?.name },
-                  { label: 'Employee ID', value: empDetail?.employee_id },
-                  { label: 'Mobile', value: empDetail?.mobile },
-                  { label: 'Email', value: empDetail?.email },
-                  { label: 'Department', value: empDetail?.department },
-                  { label: 'Role / Designation', value: empDetail?.role },
-                  { label: 'Joining Date', value: empDetail?.joining_date },
-                  { label: 'Status', value: empDetail?.status },
-                ].map((row) => (
-                  <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
-                    <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
-                    <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
-                  </div>
-                ))}
-              </div>
-              {empDetail?.notes && (
-                <div className="mt-4 rounded-[10px] bg-[#f8fbff] px-4 py-3">
-                  <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Notes</p>
-                  <p className="mt-1 text-[13px] font-bold text-[#314a79]">{empDetail.notes}</p>
+        {/* Project Picker Popup */}
+        {pwPickerOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setPwPickerOpen(false); setPwPickerSearch(''); } }}>
+            <div className="w-full max-w-[820px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+                <div>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Project</h2>
+                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose a project to view its team assignments</p>
                 </div>
-              )}
-            </article>
-          )}
-
-          {activeTab === 'progress' && (
-            <article className={`${panelClass} p-5`}>
-              <h3 className="mb-4 font-display text-[15px] font-extrabold text-[#1e3261]">Work Progress</h3>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { label: 'Overall Progress', value: `${empDetail?.overall_progress ?? 0}%`, icon: FolderKanban, tone: 'blue' },
-                  { label: 'Current Status', value: empDetail?.status || '—', icon: CheckCircle2, tone: statusTone(empDetail?.status) },
-                  { label: 'Pending Tasks', value: empDetail?.pending_tasks ?? 0, icon: Clock3, tone: 'amber' },
-                  { label: 'Completed Tasks', value: empDetail?.completed_tasks ?? 0, icon: CheckCircle2, tone: 'green' },
-                ].map((c) => <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value)} caption={c.label} icon={c.icon} tone={c.tone} onClick={() => {}} />)}
+                <button type="button" onClick={() => { setPwPickerOpen(false); setPwPickerSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
-              {empDetail?.overall_progress !== undefined && (
-                <div className="mt-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[13px] font-extrabold text-[#53647f]">Overall Progress</span>
-                    <span className="text-[13px] font-extrabold text-[#1e3261]">{empDetail.overall_progress}%</span>
-                  </div>
-                  <div className="h-3 w-full rounded-full bg-[#e8f0fb]">
-                    <div className="h-3 rounded-full bg-[linear-gradient(90deg,#2f80ff,#0b65e5)]" style={{ width: `${empDetail.overall_progress}%` }} />
-                  </div>
-                </div>
-              )}
-            </article>
-          )}
-
-          {activeTab === 'attendance' && (
-            <article className={`${panelClass} p-5`}>
-              <h3 className="mb-4 font-display text-[15px] font-extrabold text-[#1e3261]">Attendance Summary</h3>
-              <div className="grid gap-4 sm:grid-cols-3">
-                {[
-                  { label: 'Present Days', value: empDetail?.present_days ?? 0, icon: CheckCircle2, tone: 'green' },
-                  { label: 'Absent Days', value: empDetail?.absent_days ?? 0, icon: XCircle, tone: 'red' },
-                  { label: 'Leave Balance', value: empDetail?.leave_balance ?? 0, icon: CalendarDays, tone: 'amber' },
-                ].map((c) => <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value)} caption="This month" icon={c.icon} tone={c.tone} onClick={() => {}} />)}
+              <div className="p-4 pb-2">
+                <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+                  <Search className="size-4 shrink-0 text-[#7e8fab]" />
+                  <input autoFocus value={pwPickerSearch} onChange={(e) => setPwPickerSearch(e.target.value)} type="search" placeholder="Search project name or customer..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+                </label>
               </div>
-              <div className="mt-4 rounded-[10px] border border-[#edf2f8] p-4">
-                <p className="text-[13px] font-bold text-[#7585a2]">Attendance records are tracked from the HR system. Use the Edit button to update Present Days, Absent Days, and Leave Balance for this employee.</p>
-              </div>
-            </article>
-          )}
-
-          {activeTab === 'documents' && (
-            <article className={`${panelClass} overflow-hidden`}>
-              <div className="border-b border-[#edf2f8] px-5 py-4">
-                <h3 className="mb-3 font-display text-[15px] font-extrabold text-[#1e3261]">Documents</h3>
-                <div className="grid gap-3 sm:grid-cols-[1fr_180px_180px_auto]">
-                  <input value={docName} onChange={(e) => setDocName(e.target.value)} placeholder="Document name..." className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-                  <select value={docType} onChange={(e) => setDocType(e.target.value)} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                    {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-bold text-[#314a79] file:mr-3 file:h-7 file:rounded file:border-0 file:bg-[#0b65e5] file:px-3 file:text-[11px] file:font-extrabold file:text-white" />
-                  <button type="button" onClick={handleDocUpload} disabled={docUploading} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
-                    <Plus className="size-4" />{docUploading ? 'Uploading...' : 'Upload'}
-                  </button>
-                </div>
-              </div>
-              {(empDetail?.documents || []).length === 0 ? (
-                <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No documents uploaded yet.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="crm-table w-full min-w-[500px]">
-                    <thead><tr>{['#', 'Document Name', 'Type', 'Uploaded', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+              <div className="max-h-[440px] overflow-y-auto">
+                {loadingProjects ? (
+                  <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">Loading projects...</p>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
+                        {['Project Name', 'Customer', 'Capacity', 'Project Status', 'Action'].map((h) => (
+                          <th key={h} className="px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
                     <tbody>
-                      {(empDetail?.documents || []).map((doc, idx) => (
-                        <tr key={doc.id}>
-                          <td>{idx + 1}</td>
-                          <td><a href={doc.file} target="_blank" rel="noreferrer" className="font-extrabold text-[#0b65e5] underline">{doc.name}</a></td>
-                          <td><ProjectInfoPill tone="blue">{doc.doc_type}</ProjectInfoPill></td>
-                          <td className="font-bold text-[#314a79]">{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-IN') : '—'}</td>
-                          <td><UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteDoc(doc.id)} /></td>
+                      {allProjects.filter((p) => {
+                        if (!pwPickerSearch) return true;
+                        const q = pwPickerSearch.toLowerCase();
+                        return (p.project_name || '').toLowerCase().includes(q) || (p.customer_name || '').toLowerCase().includes(q) || (p.project_id || '').toLowerCase().includes(q);
+                      }).map((proj) => (
+                        <tr key={proj.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
+                          <td className="px-4 py-3">
+                            <p className="font-extrabold text-[#1e3261]">{proj.project_name}</p>
+                            <p className="text-[11px] font-bold text-[#8a98af]">{proj.project_id}</p>
+                          </td>
+                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{proj.customer_name}</td>
+                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{proj.capacity_kwp ? `${proj.capacity_kwp} kWp` : '—'}</td>
+                          <td className="px-4 py-3"><ProjectInfoPill tone={statusTone(proj.status)}>{proj.status}</ProjectInfoPill></td>
+                          <td className="px-4 py-3">
+                            <button type="button" onClick={() => { setPwProject(proj); setPwPickerOpen(false); setPwPickerSearch(''); setPwAssignSearch(''); setPwAssignStatus('All'); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                              <Eye className="size-3.5" />View
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
-              )}
-            </article>
-          )}
-        </div>
-      )}
-
-      {/* Select Employee Popup */}
-      {pickerOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setPickerOpen(false); setEmpSearch(''); } }}>
-          <div className="w-full max-w-[820px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-              <div>
-                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Employee</h2>
-                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose an employee to view or manage their assignments</p>
+                )}
               </div>
-              <button type="button" onClick={() => { setPickerOpen(false); setEmpSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
             </div>
-            <div className="p-4 pb-2">
-              <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
-                <Search className="size-4 shrink-0 text-[#7e8fab]" />
-                <input autoFocus value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} type="search" placeholder="Search by name, ID, department..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
-              </label>
-            </div>
-            <div className="max-h-[440px] overflow-y-auto">
-              {loadingEmployees ? (
-                <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">Loading employees...</p>
-              ) : pickerFiltered.length === 0 ? (
-                <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">No employees found.</p>
-              ) : (
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
-                      {['Employee', 'ID', 'Department', 'Role', 'Current Task', 'Status', 'Action'].map((h) => (
-                        <th key={h} className="px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pickerFiltered.map((emp) => (
-                      <tr key={emp.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[11px] font-extrabold text-[#0b65e5]">{emp.name?.slice(0, 2).toUpperCase()}</span>
-                            <span className="text-[13px] font-extrabold text-[#1e3261]">{emp.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-[12px] font-bold text-[#8a98af]">{emp.employee_id}</td>
-                        <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.department || '—'}</td>
-                        <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.role || '—'}</td>
-                        <td className="max-w-[140px] truncate px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.current_assignment?.task_name || '—'}</td>
-                        <td className="px-4 py-3"><ProjectInfoPill tone={statusTone(emp.status)}>{emp.status}</ProjectInfoPill></td>
-                        <td className="px-4 py-3">
-                          {emp.current_assignment ? (
-                            <button type="button" onClick={() => handlePickerSelect(emp)} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#caeed8] bg-[#f0fdf4] text-[#0d9f4a] transition hover:bg-[#dcfce7]">
-                              <Pencil className="size-4" />
-                            </button>
-                          ) : (
-                            <button type="button" onClick={() => handlePickerSelect(emp)} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                              <Plus className="size-3.5" />Assign
-                            </button>
-                          )}
-                        </td>
-                      </tr>
+          </div>
+        )}
+
+        {/* View Assignment Popup */}
+        {pwViewOpen && pwViewData && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setPwViewOpen(false); }}>
+            <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+                <div>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Assignment Details</h2>
+                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{pwViewData.employee_name} — {pwProject?.project_name}</p>
+                </div>
+                <button type="button" onClick={() => setPwViewOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+              </div>
+              <div className="space-y-4 p-6">
+                <div>
+                  <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Employee Information</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                      { label: 'Employee Name', value: pwViewData.employee_name },
+                      { label: 'Employee ID', value: pwViewData.employee_emp_id },
+                      { label: 'Department', value: pwViewData.employee_department },
+                      { label: 'Role', value: pwViewData.employee_role },
+                    ].map((row) => (
+                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                        <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
+                        <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              )}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Task Details</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                      { label: 'Task Name', value: pwViewData.task_name },
+                      { label: 'Priority', value: pwViewData.priority },
+                      { label: 'Assigned Date', value: pwViewData.assigned_date },
+                      { label: 'Expected Completion', value: pwViewData.expected_completion },
+                      { label: 'Status', value: pwViewData.status },
+                      { label: 'Progress', value: `${pwViewData.progress_percent ?? 0}%` },
+                    ].map((row) => (
+                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                        <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
+                        <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-[12px] font-extrabold text-[#53647f]">Task Progress</span>
+                      <span className="text-[12px] font-extrabold text-[#1e3261]">{pwViewData.progress_percent ?? 0}%</span>
+                    </div>
+                    <div className="h-2.5 w-full rounded-full bg-[#e8f0fb]">
+                      <div className="h-2.5 rounded-full bg-[linear-gradient(90deg,#2f80ff,#0b65e5)]" style={{ width: `${pwViewData.progress_percent ?? 0}%` }} />
+                    </div>
+                  </div>
+                  {pwViewData.notes && (
+                    <div className="mt-3 rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                      <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Notes</p>
+                      <p className="mt-1 text-[13px] font-bold text-[#314a79]">{pwViewData.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end border-t border-[#edf2f8] px-6 py-4">
+                <button type="button" onClick={() => setPwViewOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Add/Edit Employee Modal */}
-      {empModalOpen && (
-        <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEmpModalOpen(false); }}>
-          <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editEmpId !== null ? 'Edit Employee' : 'Add Employee'}</h2>
-              <button type="button" onClick={() => setEmpModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
-            </div>
-            <div className="grid gap-4 p-6 sm:grid-cols-2">
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Name *
-                <input value={empForm.name} onChange={(e) => setEmpForm((p) => ({ ...p, name: e.target.value }))} placeholder="Full name" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Mobile
-                <input value={empForm.mobile} onChange={(e) => setEmpForm((p) => ({ ...p, mobile: e.target.value }))} placeholder="+91 98765 43210" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Email
-                <input value={empForm.email} onChange={(e) => setEmpForm((p) => ({ ...p, email: e.target.value }))} type="email" placeholder="email@example.com" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Department
-                <select value={empForm.department} onChange={(e) => setEmpForm((p) => ({ ...p, department: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  {DEPARTMENTS.filter((d) => d !== 'All Departments').map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Role / Designation
-                <input value={empForm.role} onChange={(e) => setEmpForm((p) => ({ ...p, role: e.target.value }))} placeholder="e.g. Site Engineer" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Joining Date
-                <input value={empForm.joining_date} onChange={(e) => setEmpForm((p) => ({ ...p, joining_date: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Status
-                <select value={empForm.status} onChange={(e) => setEmpForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Notes
-                <textarea value={empForm.notes} onChange={(e) => setEmpForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Additional notes..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-            </div>
-            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
-              <button type="button" onClick={() => setEmpModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
-              <button type="button" onClick={handleSaveEmployee} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{editEmpId !== null ? 'Update' : 'Add Employee'}</button>
+        {/* Add/Edit Assignment Modal */}
+        {pwAssignModalOpen && (
+          <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setPwAssignModalOpen(false); }}>
+            <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{pwEditAssignId !== null ? 'Edit Assignment' : 'Add Assignment'}</h2>
+                <button type="button" onClick={() => setPwAssignModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+              </div>
+              <div className="grid gap-4 p-6 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Employee *
+                  <select value={pwAssignForm.employee} onChange={(e) => setPwAssignForm((p) => ({ ...p, employee: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                    <option value="">Select Employee...</option>
+                    {allEmployees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name} — {emp.role || emp.department || '—'}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Task Name *
+                  <input value={pwAssignForm.task_name} onChange={(e) => setPwAssignForm((p) => ({ ...p, task_name: e.target.value }))} placeholder="e.g. Panel Installation at Site A" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Assigned Date
+                  <input value={pwAssignForm.assigned_date} onChange={(e) => setPwAssignForm((p) => ({ ...p, assigned_date: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Expected Completion
+                  <input value={pwAssignForm.expected_completion} onChange={(e) => setPwAssignForm((p) => ({ ...p, expected_completion: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Priority
+                  <select value={pwAssignForm.priority} onChange={(e) => setPwAssignForm((p) => ({ ...p, priority: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                    {PRIORITY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Status
+                  <select value={pwAssignForm.status} onChange={(e) => setPwAssignForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                    {TASK_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Progress ({pwAssignForm.progress_percent}%)
+                  <input value={pwAssignForm.progress_percent} onChange={(e) => setPwAssignForm((p) => ({ ...p, progress_percent: e.target.value }))} type="range" min="0" max="100" step="5" className="mt-1 w-full accent-[#0b65e5]" />
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Notes
+                  <textarea value={pwAssignForm.notes} onChange={(e) => setPwAssignForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Task notes..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+              </div>
+              <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+                <button type="button" onClick={() => setPwAssignModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+                <button type="button" onClick={handleSavePwAssign} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{pwEditAssignId !== null ? 'Update' : 'Assign'}</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Add/Edit Assignment Modal */}
-      {assignModalOpen && (
-        <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setAssignModalOpen(false); }}>
-          <div className="w-full max-w-[540px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editAssignId !== null ? 'Edit Assignment' : 'Add Assignment'}</h2>
-              <button type="button" onClick={() => setAssignModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
-            </div>
-            <div className="grid gap-4 p-6 sm:grid-cols-2">
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Task Name *
-                <input value={assignForm.task_name} onChange={(e) => setAssignForm((p) => ({ ...p, task_name: e.target.value }))} placeholder="e.g. Panel Installation at Site A" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Assigned Date
-                <input value={assignForm.assigned_date} onChange={(e) => setAssignForm((p) => ({ ...p, assigned_date: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Expected Completion
-                <input value={assignForm.expected_completion} onChange={(e) => setAssignForm((p) => ({ ...p, expected_completion: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Priority
-                <select value={assignForm.priority} onChange={(e) => setAssignForm((p) => ({ ...p, priority: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  {PRIORITY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Status
-                <select value={assignForm.status} onChange={(e) => setAssignForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  {TASK_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Progress ({assignForm.progress_percent}%)
-                <input value={assignForm.progress_percent} onChange={(e) => setAssignForm((p) => ({ ...p, progress_percent: e.target.value }))} type="range" min="0" max="100" step="5" className="mt-1 w-full accent-[#0b65e5]" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Notes
-                <textarea value={assignForm.notes} onChange={(e) => setAssignForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Task notes..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-            </div>
-            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
-              <button type="button" onClick={() => setAssignModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
-              <button type="button" onClick={handleSaveAssign} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{editAssignId !== null ? 'Update' : 'Assign'}</button>
+        {/* Add Employee Modal */}
+        {empModalOpen && (
+          <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEmpModalOpen(false); }}>
+            <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editEmpId !== null ? 'Edit Employee' : 'Add Employee'}</h2>
+                <button type="button" onClick={() => setEmpModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+              </div>
+              <div className="grid gap-4 p-6 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Name *
+                  <input value={empForm.name} onChange={(e) => setEmpForm((p) => ({ ...p, name: e.target.value }))} placeholder="Full name" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Mobile
+                  <input value={empForm.mobile} onChange={(e) => setEmpForm((p) => ({ ...p, mobile: e.target.value }))} placeholder="+91 98765 43210" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Email
+                  <input value={empForm.email} onChange={(e) => setEmpForm((p) => ({ ...p, email: e.target.value }))} type="email" placeholder="email@example.com" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Department
+                  <select value={empForm.department} onChange={(e) => setEmpForm((p) => ({ ...p, department: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                    {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Role / Designation
+                  <input value={empForm.role} onChange={(e) => setEmpForm((p) => ({ ...p, role: e.target.value }))} placeholder="e.g. Site Engineer" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Joining Date
+                  <input value={empForm.joining_date} onChange={(e) => setEmpForm((p) => ({ ...p, joining_date: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Status
+                  <select value={empForm.status} onChange={(e) => setEmpForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                    {EMP_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Notes
+                  <textarea value={empForm.notes} onChange={(e) => setEmpForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Additional notes..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+              </div>
+              <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+                <button type="button" onClick={() => setEmpModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+                <button type="button" onClick={handleSaveEmployee} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{editEmpId !== null ? 'Update' : 'Add Employee'}</button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+        </>
       )}
 
-      </>
-      )}
-
+      {/* ══ EMPLOYEE WISE ══ */}
       {viewMode === 'employee' && (
-      <>
-      {/* Employee Wise View */}
-      {!ewSelected ? (
-        <article className={`${panelClass} overflow-hidden`}>
-          <div className="flex flex-col items-center justify-center py-20">
-            <Users className="size-14 text-[#c5d2e8]" />
-            <h3 className="mt-4 font-display text-[18px] font-extrabold text-[#1e3261]">No Employee Selected</h3>
-            <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Employee</strong> to view employee work history.</p>
-            <button type="button" onClick={() => setEwPickerOpen(true)} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
-              <UserRound className="size-4" />Select Employee
+        <>
+        {/* Toolbar */}
+        <section className={`${panelClass} p-4 sm:p-5`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 180 }}>
+              <Search className="size-4 shrink-0 text-[#7e8fab]" />
+              <input value={ewHistSearch} onChange={(e) => setEwHistSearch(e.target.value)} type="search" placeholder="Search project or task..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+            </label>
+            <select value={ewHistStatus} onChange={(e) => setEwHistStatus(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+              <option value="All">All Task Status</option>
+              {TASK_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <input value={ewHistDateFrom} onChange={(e) => setEwHistDateFrom(e.target.value)} type="date" title="From Date" className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-bold text-[#284276]" />
+            <input value={ewHistDateTo} onChange={(e) => setEwHistDateTo(e.target.value)} type="date" title="To Date" className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-bold text-[#284276]" />
+            <button type="button" onClick={() => setEwPickerOpen(true)} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', ewSelected ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
+              <UserRound className="size-4" />
+              {ewSelected ? ewSelected.name : 'Select Employee'}
             </button>
           </div>
-        </article>
-      ) : (
-        <div className="space-y-4">
-          {/* Selected Employee Header */}
-          <article className={`${panelClass} p-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <span className="grid size-14 shrink-0 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-[20px] font-extrabold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
-                  {ewSelected.name?.slice(0, 2).toUpperCase()}
-                </span>
-                <div>
-                  <h2 className="font-display text-[22px] font-extrabold text-[#111827]">{ewSelected.name}</h2>
-                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{ewSelected.role || '—'} &bull; {ewSelected.department || '—'} &bull; {ewSelected.employee_id}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <ProjectInfoPill tone={statusTone(ewSelected.status)}>{ewSelected.status}</ProjectInfoPill>
-                <button type="button" onClick={() => { setEwPickerOpen(true); setEwPickerSearch(''); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><UserRound className="size-3.5" />Change Employee</button>
-                <button type="button" onClick={() => { setEwSelected(null); setEwSummary(null); setEwHistory([]); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><X className="size-3.5" />Close</button>
-              </div>
+        </section>
+
+        {/* Empty State / Content */}
+        {!ewSelected ? (
+          <article className={`${panelClass} overflow-hidden`}>
+            <div className="flex flex-col items-center justify-center py-24">
+              <Users className="size-16 text-[#c5d2e8]" />
+              <h3 className="mt-5 font-display text-[20px] font-extrabold text-[#1e3261]">No Employee Selected</h3>
+              <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Employee</strong> to view employee work history.</p>
+              <button type="button" onClick={() => setEwPickerOpen(true)} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-6 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                <UserRound className="size-4" />Select Employee
+              </button>
             </div>
           </article>
-
-          {ewLoading ? (
-            <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">Loading history...</p>
-          ) : (
-            <>
-              {/* Summary Cards */}
-              <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-                {[
-                  { label: 'Total Projects', value: ewSummary?.total_assigned_projects ?? 0, icon: FolderKanban, tone: 'blue' },
-                  { label: 'Active Projects', value: ewSummary?.active_projects ?? 0, icon: ClipboardPlus, tone: 'cyan' },
-                  { label: 'Completed Projects', value: ewSummary?.completed_projects ?? 0, icon: CheckCircle2, tone: 'green' },
-                  { label: 'Pending Tasks', value: ewSummary?.pending_tasks ?? 0, icon: Clock3, tone: 'amber' },
-                  { label: 'Completed Tasks', value: ewSummary?.completed_tasks ?? 0, icon: CheckCircle2, tone: 'green' },
-                  { label: 'Working Days', value: ewSummary?.total_working_days ?? 0, icon: CalendarDays, tone: 'blue' },
-                ].map((c) => <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value)} caption={c.label} icon={c.icon} tone={c.tone} onClick={() => {}} />)}
-              </section>
-
-              {/* Filters */}
-              <section className={`${panelClass} p-4`}>
-                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                  <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 180 }}>
-                    <Search className="size-4 shrink-0 text-[#7e8fab]" />
-                    <input value={ewProjSearch} onChange={(e) => setEwProjSearch(e.target.value)} type="search" placeholder="Search project name or task..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
-                  </label>
-                  <select value={ewProjStatus} onChange={(e) => setEwProjStatus(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
-                    <option value="All">All Task Status</option>
-                    {['Pending', 'In Progress', 'On Hold', 'Completed'].map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+        ) : (
+          <div className="space-y-4">
+            {/* Employee Header */}
+            <article className={`${panelClass} p-5`}>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <span className="grid size-14 shrink-0 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-[20px] font-extrabold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
+                    {ewSelected.name?.slice(0, 2).toUpperCase()}
+                  </span>
+                  <div>
+                    <h2 className="font-display text-[22px] font-extrabold text-[#111827]">{ewSelected.name}</h2>
+                    <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{ewSelected.role || '—'} &bull; {ewSelected.department || '—'} &bull; {ewSelected.employee_id}</p>
+                  </div>
                 </div>
-              </section>
-
-              {/* Project History Table */}
-              <article className={`${panelClass} overflow-hidden`}>
-                <div className="border-b border-[#edf2f8] px-5 py-3">
-                  <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">Project Work History</h3>
+                <div className="flex items-center gap-2">
+                  <ProjectInfoPill tone={statusTone(ewSelected.status)}>{ewSelected.status}</ProjectInfoPill>
+                  <button type="button" onClick={() => setEwPickerOpen(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><UserRound className="size-3.5" />Change Employee</button>
+                  <button type="button" onClick={() => { setEwSelected(null); setEwSummary(null); setEwHistory([]); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><X className="size-3.5" />Close</button>
                 </div>
-                {(() => {
-                  const filtered = ewHistory.filter((r) => {
-                    if (ewProjSearch && !r.project_name.toLowerCase().includes(ewProjSearch.toLowerCase()) && !r.task_name.toLowerCase().includes(ewProjSearch.toLowerCase())) return false;
-                    if (ewProjStatus !== 'All' && r.status !== ewProjStatus) return false;
-                    return true;
-                  });
-                  return filtered.length === 0 ? (
+              </div>
+            </article>
+
+            {ewLoading ? (
+              <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">Loading history...</p>
+            ) : (
+              <>
+                {/* Summary Cards */}
+                <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+                  {[
+                    { label: 'Total Projects', value: ewSummary?.total_assigned_projects ?? 0, icon: FolderKanban, tone: 'blue' },
+                    { label: 'Active Projects', value: ewSummary?.active_projects ?? 0, icon: ClipboardPlus, tone: 'cyan' },
+                    { label: 'Completed Projects', value: ewSummary?.completed_projects ?? 0, icon: CheckCircle2, tone: 'green' },
+                    { label: 'Pending Tasks', value: ewSummary?.pending_tasks ?? 0, icon: Clock3, tone: 'amber' },
+                    { label: 'Completed Tasks', value: ewSummary?.completed_tasks ?? 0, icon: CheckCircle2, tone: 'green' },
+                    { label: 'Working Days', value: ewSummary?.total_working_days ?? 0, icon: CalendarDays, tone: 'blue' },
+                  ].map((c) => <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value)} caption={c.label} icon={c.icon} tone={c.tone} onClick={() => {}} />)}
+                </section>
+
+                {/* Project Work History Table */}
+                <article className={`${panelClass} overflow-hidden`}>
+                  <div className="border-b border-[#edf2f8] px-5 py-3">
+                    <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">Project Work History</h3>
+                  </div>
+                  {ewFiltered.length === 0 ? (
                     <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No project history found.</p>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="crm-table w-full min-w-[950px]">
-                        <thead><tr>{['#', 'Project Name', 'Customer', 'Role', 'Task', 'Assigned', 'Due Date', 'Status', 'Progress', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                      <table className="crm-table w-full min-w-[1000px]">
+                        <thead><tr>{['#', 'Project Name', 'Customer', 'Employee Role', 'Assigned Task', 'Assigned Date', 'Completion Date', 'Status', 'Progress', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
                         <tbody>
-                          {filtered.map((r, idx) => (
+                          {ewFiltered.map((r, idx) => (
                             <tr key={r.id}>
                               <td>{idx + 1}</td>
                               <td className="max-w-[160px]">
                                 <p className="font-extrabold text-[#1e3261]">{r.project_name}</p>
-                                {r.project_status && r.project_status !== '—' && <ProjectInfoPill tone={r.project_status === 'Completed' ? 'green' : r.project_status === 'Active' ? 'blue' : 'amber'}>{r.project_status}</ProjectInfoPill>}
+                                {r.project_status && r.project_status !== '—' && <ProjectInfoPill tone={statusTone(r.project_status)}>{r.project_status}</ProjectInfoPill>}
                               </td>
                               <td className="font-bold text-[#314a79]">{r.customer_name}</td>
                               <td className="font-bold text-[#314a79]">{r.role || '—'}</td>
@@ -24583,142 +24463,141 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                           ))}
                         </tbody>
                       </table>
-                      <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">Showing {filtered.length} of {ewHistory.length} records</div>
+                      <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">Showing {ewFiltered.length} of {ewHistory.length} records</div>
                     </div>
-                  );
-                })()}
-              </article>
-            </>
-          )}
-        </div>
-      )}
+                  )}
+                </article>
+              </>
+            )}
+          </div>
+        )}
 
-      {/* Employee Wise - Select Employee Popup */}
-      {ewPickerOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setEwPickerOpen(false); setEwPickerSearch(''); } }}>
-          <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-              <div>
-                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Employee</h2>
-                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose an employee to view their complete work history</p>
+        {/* Select Employee Popup */}
+        {ewPickerOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setEwPickerOpen(false); setEwPickerSearch(''); } }}>
+            <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+                <div>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Employee</h2>
+                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose an employee to view their complete work history</p>
+                </div>
+                <button type="button" onClick={() => { setEwPickerOpen(false); setEwPickerSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
-              <button type="button" onClick={() => { setEwPickerOpen(false); setEwPickerSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
-            </div>
-            <div className="p-4 pb-2">
-              <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
-                <Search className="size-4 shrink-0 text-[#7e8fab]" />
-                <input autoFocus value={ewPickerSearch} onChange={(e) => setEwPickerSearch(e.target.value)} type="search" placeholder="Search employee name or ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
-              </label>
-            </div>
-            <div className="max-h-[380px] overflow-y-auto">
-              {loadingEmployees ? (
-                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading...</p>
-              ) : (
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
-                      {['Employee', 'ID', 'Department', 'Role', 'Current Status', 'Action'].map((h) => (
-                        <th key={h} className="px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allEmployees.filter((e) => !ewPickerSearch || e.name.toLowerCase().includes(ewPickerSearch.toLowerCase()) || (e.employee_id || '').toLowerCase().includes(ewPickerSearch.toLowerCase())).map((emp) => (
-                      <tr key={emp.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[11px] font-extrabold text-[#0b65e5]">{emp.name?.slice(0, 2).toUpperCase()}</span>
-                            <span className="text-[13px] font-extrabold text-[#1e3261]">{emp.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-[12px] font-bold text-[#8a98af]">{emp.employee_id}</td>
-                        <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.department || '—'}</td>
-                        <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.role || '—'}</td>
-                        <td className="px-4 py-3"><ProjectInfoPill tone={statusTone(emp.status)}>{emp.status}</ProjectInfoPill></td>
-                        <td className="px-4 py-3">
-                          <button type="button" onClick={() => { setEwSelected(emp); setEwPickerOpen(false); setEwPickerSearch(''); setEwProjSearch(''); setEwProjStatus('All'); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                            <Eye className="size-3.5" />View
-                          </button>
-                        </td>
+              <div className="p-4 pb-2">
+                <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+                  <Search className="size-4 shrink-0 text-[#7e8fab]" />
+                  <input autoFocus value={ewPickerSearch} onChange={(e) => setEwPickerSearch(e.target.value)} type="search" placeholder="Search employee name or ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+                </label>
+              </div>
+              <div className="max-h-[380px] overflow-y-auto">
+                {loadingEmployees ? (
+                  <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading...</p>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
+                        {['Employee', 'ID', 'Department', 'Role', 'Current Status', 'Action'].map((h) => (
+                          <th key={h} className="px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Employee Wise - Project Detail Popup */}
-      {ewDetailOpen && ewDetailData && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEwDetailOpen(false); }}>
-          <div className="w-full max-w-[580px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-              <div>
-                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Project Details</h2>
-                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{ewDetailData.project_name}</p>
-              </div>
-              <button type="button" onClick={() => setEwDetailOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
-            </div>
-            <div className="space-y-4 p-6">
-              <div>
-                <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Project Information</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    { label: 'Project Name', value: ewDetailData.project_name },
-                    { label: 'Customer Name', value: ewDetailData.customer_name },
-                    { label: 'Project Status', value: ewDetailData.project_status },
-                    { label: 'Project Progress', value: `${ewDetailData.project_progress ?? 0}%` },
-                  ].map((row) => (
-                    <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
-                      <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
-                      <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Assignment Details</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    { label: 'Task Name', value: ewDetailData.task_name },
-                    { label: 'Role', value: ewDetailData.role },
-                    { label: 'Assigned Date', value: ewDetailData.assigned_date },
-                    { label: 'Due Date', value: ewDetailData.expected_completion },
-                    { label: 'Task Status', value: ewDetailData.status },
-                    { label: 'Progress', value: `${ewDetailData.progress_percent ?? 0}%` },
-                  ].map((row) => (
-                    <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
-                      <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
-                      <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
-                    </div>
-                  ))}
-                </div>
-                {ewDetailData.notes && (
-                  <div className="mt-3 rounded-[10px] bg-[#f8fbff] px-4 py-3">
-                    <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Notes</p>
-                    <p className="mt-1 text-[13px] font-bold text-[#314a79]">{ewDetailData.notes}</p>
-                  </div>
+                    </thead>
+                    <tbody>
+                      {allEmployees.filter((e) => !ewPickerSearch || e.name.toLowerCase().includes(ewPickerSearch.toLowerCase()) || (e.employee_id || '').toLowerCase().includes(ewPickerSearch.toLowerCase())).map((emp) => (
+                        <tr key={emp.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[11px] font-extrabold text-[#0b65e5]">{emp.name?.slice(0, 2).toUpperCase()}</span>
+                              <span className="text-[13px] font-extrabold text-[#1e3261]">{emp.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-[12px] font-bold text-[#8a98af]">{emp.employee_id}</td>
+                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.department || '—'}</td>
+                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.role || '—'}</td>
+                          <td className="px-4 py-3"><ProjectInfoPill tone={statusTone(emp.status)}>{emp.status}</ProjectInfoPill></td>
+                          <td className="px-4 py-3">
+                            <button type="button" onClick={() => { setEwSelected(emp); setEwPickerOpen(false); setEwPickerSearch(''); setEwHistSearch(''); setEwHistStatus('All'); setEwHistDateFrom(''); setEwHistDateTo(''); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                              <Eye className="size-3.5" />View
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
-                <div className="mt-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[12px] font-extrabold text-[#53647f]">Task Progress</span>
-                    <span className="text-[12px] font-extrabold text-[#1e3261]">{ewDetailData.progress_percent ?? 0}%</span>
-                  </div>
-                  <div className="h-2.5 w-full rounded-full bg-[#e8f0fb]">
-                    <div className="h-2.5 rounded-full bg-[linear-gradient(90deg,#2f80ff,#0b65e5)]" style={{ width: `${ewDetailData.progress_percent ?? 0}%` }} />
-                  </div>
-                </div>
               </div>
             </div>
-            <div className="flex justify-end border-t border-[#edf2f8] px-6 py-4">
-              <button type="button" onClick={() => setEwDetailOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
+          </div>
+        )}
+
+        {/* Project Detail Popup */}
+        {ewDetailOpen && ewDetailData && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEwDetailOpen(false); }}>
+            <div className="w-full max-w-[580px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+                <div>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Project Details</h2>
+                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{ewDetailData.project_name}</p>
+                </div>
+                <button type="button" onClick={() => setEwDetailOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+              </div>
+              <div className="space-y-4 p-6">
+                <div>
+                  <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Project Information</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                      { label: 'Project Name', value: ewDetailData.project_name },
+                      { label: 'Customer Name', value: ewDetailData.customer_name },
+                      { label: 'Project Status', value: ewDetailData.project_status },
+                      { label: 'Project Progress', value: `${ewDetailData.project_progress ?? 0}%` },
+                    ].map((row) => (
+                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                        <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
+                        <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Assignment Details</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                      { label: 'Task Name', value: ewDetailData.task_name },
+                      { label: 'Role', value: ewDetailData.role },
+                      { label: 'Assigned Date', value: ewDetailData.assigned_date },
+                      { label: 'Completion Date', value: ewDetailData.expected_completion },
+                      { label: 'Task Status', value: ewDetailData.status },
+                      { label: 'Progress', value: `${ewDetailData.progress_percent ?? 0}%` },
+                    ].map((row) => (
+                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                        <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
+                        <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-[12px] font-extrabold text-[#53647f]">Task Progress</span>
+                      <span className="text-[12px] font-extrabold text-[#1e3261]">{ewDetailData.progress_percent ?? 0}%</span>
+                    </div>
+                    <div className="h-2.5 w-full rounded-full bg-[#e8f0fb]">
+                      <div className="h-2.5 rounded-full bg-[linear-gradient(90deg,#2f80ff,#0b65e5)]" style={{ width: `${ewDetailData.progress_percent ?? 0}%` }} />
+                    </div>
+                  </div>
+                  {ewDetailData.notes && (
+                    <div className="mt-3 rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                      <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Notes</p>
+                      <p className="mt-1 text-[13px] font-bold text-[#314a79]">{ewDetailData.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end border-t border-[#edf2f8] px-6 py-4">
+                <button type="button" onClick={() => setEwDetailOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-      </>
+        )}
+        </>
       )}
 
       <DashboardFooter />
