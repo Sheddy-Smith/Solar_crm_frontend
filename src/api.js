@@ -261,7 +261,14 @@ export const projectNoteApi = {
 // ─── Project Documents ─────────────────────────────────────────────────────────
 
 export const projectDocumentApi = {
-  list: (projectId) => request(`/project-documents/?project=${projectId}`),
+  list: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.project) qs.set('project', params.project);
+    if (params.category) qs.set('category', params.category);
+    const q = qs.toString();
+    return request(`/project-documents/${q ? '?' + q : ''}`);
+  },
+  get: (id) => request(`/project-documents/${id}/`),
   create: (formData) => request('/project-documents/', { method: 'POST', body: formData }),
   update: (id, data) => request(`/project-documents/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/project-documents/${id}/`, { method: 'DELETE' }),

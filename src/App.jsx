@@ -25860,288 +25860,338 @@ function ExpenseForm({ form, setForm, projects, CATEGORIES, PAYMENT_MODES, STATU
 
 
 function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
-  const [activeDocumentTab, setActiveDocumentTab] = useState('All Documents');
-  const [dateRangeOpen, setDateRangeOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState('2024-05-01');
-  const [dateTo, setDateTo] = useState('2024-05-31');
-  const formattedRange = formatProjectDateRange(dateFrom, dateTo);
+  const FOLDERS = ['Site Survey', 'Material Planning', 'Team Assignment', 'Subsidy', 'Installation', 'Expenses', 'Approvals', 'Others'];
 
-  const project = {
-    name: '20kW On-Grid System',
-    address: '123, Scheme No. 54, Vijay Nagar',
-    city: 'Indore, Madhya Pradesh - 452010',
-    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    installationId: 'INS-2024-0015',
-    startDate: '2024-05-18',
-    targetDate: '2024-05-28',
-    totalDocuments: '62',
+  const [search, setSearch] = useState('');
+  const [filterProject, setFilterProject] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [documents, setDocuments] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [viewDoc, setViewDoc] = useState(null);
+  const [editDoc, setEditDoc] = useState(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [showFolder, setShowFolder] = useState(false);
+  const [folderName, setFolderName] = useState('Site Survey');
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [uploadForm, setUploadForm] = useState({ project: '', category: 'Site Survey', name: '', file: null });
+  const [editForm, setEditForm] = useState({ name: '', category: '' });
+
+  useEffect(() => {
+    projectApi.list().then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+  }, []);
+
+  const loadDocs = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (filterProject) params.project = filterProject;
+    if (filterCategory) params.category = filterCategory;
+    projectDocumentApi.list(params)
+      .then((r) => { setDocuments(normalizeApiRows(r)); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [filterProject, filterCategory]);
+
+  useEffect(() => { loadDocs(); }, [loadDocs]);
+
+  const getProjectName = (id) => projects.find((p) => p.id === id)?.project_name || '—';
+
+  const filtered = documents.filter((d) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (d.name || '').toLowerCase().includes(q) || getProjectName(d.project).toLowerCase().includes(q);
+  });
+
+  function handleUpload() {
+    if (!uploadForm.project || !uploadForm.file) return;
+    setSaving(true);
+    const fd = new FormData();
+    fd.append('project', uploadForm.project);
+    fd.append('category', uploadForm.category);
+    fd.append('name', uploadForm.name || uploadForm.file.name);
+    fd.append('file', uploadForm.file);
+    projectDocumentApi.create(fd)
+      .then(() => {
+        onNotify('Document uploaded.', 'success');
+        setShowUpload(false);
+        setUploadForm({ project: '', category: 'Site Survey', name: '', file: null });
+        loadDocs();
+      })
+      .catch(() => onNotify('Upload failed.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  function handleEditSave() {
+    setSaving(true);
+    projectDocumentApi.update(editDoc.id, { name: editForm.name, category: editForm.category })
+      .then(() => { onNotify('Document updated.', 'success'); setEditDoc(null); loadDocs(); })
+      .catch(() => onNotify('Update failed.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  function openEdit(doc) {
+    setEditForm({ name: doc.name || '', category: doc.category || 'Others' });
+    setEditDoc(doc);
+  }
+
+  function confirmDeleteDoc(doc) {
+    setDeleteConfirm({
+      message: doc.name || 'this document',
+      onConfirm: () => {
+        projectDocumentApi.delete(doc.id)
+          .then(() => { onNotify('Document deleted.', 'success'); setDeleteConfirm(null); loadDocs(); })
+          .catch(() => onNotify('Delete failed.', 'error'));
+      },
+    });
+  }
+
+  const iCls = 'h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none';
+  const lCls = 'block text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6] mb-1';
+
+  const fileExt = (name) => (name || '').split('.').pop().toUpperCase();
+  const extColor = (ext) => {
+    const m = { PDF: '#ef4444', JPG: '#f59e0b', JPEG: '#f59e0b', PNG: '#3b82f6', XLSX: '#22c55e', XLS: '#22c55e', DOC: '#3b82f6', DOCX: '#3b82f6', ZIP: '#8b5cf6', RAR: '#8b5cf6' };
+    return m[ext] || '#64748b';
   };
 
-  const statCards = [
-    { label: 'Total Documents', value: '62', caption: 'All Time', icon: FolderKanban, tone: 'blue' },
-    { label: 'Folders', value: '12', caption: 'Organized', icon: FolderKanban, tone: 'green' },
-    { label: 'Files', value: '50', caption: 'Documents', icon: FileText, tone: 'purple' },
-    { label: 'Total Size', value: '1.48 GB', caption: 'Storage Used', icon: HardDrive, tone: 'amber' },
-    { label: 'Restricted Documents', value: '8', caption: 'Access Controlled', icon: LockKeyhole, tone: 'cyan' },
-  ];
-
-  const documentTabs = ['All Documents', 'Project Documents', 'Technical Documents', 'Contracts & Approvals', 'Invoices', 'Photos', 'Reports'];
-
-  const storageData = [
-    { label: 'Project Documents', value: 520, color: '#2f80ff', detail: '520 MB (35%)' },
-    { label: 'Technical Documents', value: 420, color: '#16a34a', detail: '420 MB (28%)' },
-    { label: 'Photos', value: 210, color: '#f59e0b', detail: '210 MB (14%)' },
-    { label: 'Invoices', value: 170, color: '#8b5cf6', detail: '170 MB (11%)' },
-    { label: 'Others', value: 160, color: '#94a3b8', detail: '160 MB (12%)' },
-  ];
-
-  const documents = [
-    { name: 'Site Survey Report.pdf', category: 'Project Documents', fileType: 'PDF', uploadedBy: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, date: '18 May 2024, 10:30 AM', size: '2.45 MB', access: 'Public', tone: 'red' },
-    { name: 'System Design & Layout.pdf', category: 'Technical Documents', fileType: 'PDF', uploadedBy: { name: 'Ramesh Yadav', initials: 'RY', tone: 'blue' }, date: '18 May 2024, 01:15 PM', size: '4.12 MB', access: 'Team', tone: 'red' },
-    { name: 'Equipment Datasheet.zip', category: 'Technical Documents', fileType: 'ZIP', uploadedBy: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' }, date: '19 May 2024, 11:05 AM', size: '28.6 MB', access: 'Team', tone: 'blue' },
-    { name: 'Quotation & BOQ.xlsx', category: 'Project Documents', fileType: 'XLSX', uploadedBy: { name: 'Deepak Sharma', initials: 'DS', tone: 'indigo' }, date: '19 May 2024, 03:20 PM', size: '1.35 MB', access: 'Team', tone: 'green' },
-    { name: 'Client Agreement.pdf', category: 'Contracts & Approvals', fileType: 'PDF', uploadedBy: { name: 'Neha Jain', initials: 'NJ', tone: 'purple' }, date: '20 May 2024, 09:40 AM', size: '1.89 MB', access: 'Restricted', tone: 'red' },
-    { name: 'Installation Plan.pdf', category: 'Technical Documents', fileType: 'PDF', uploadedBy: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, date: '21 May 2024, 10:00 AM', size: '3.75 MB', access: 'Team', tone: 'red' },
-    { name: 'Electrical Single Line Diagram.pdf', category: 'Technical Documents', fileType: 'PDF', uploadedBy: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' }, date: '21 May 2024, 02:30 PM', size: '2.15 MB', access: 'Team', tone: 'red' },
-    { name: 'Material Purchase Invoice - INV1002.pdf', category: 'Invoices', fileType: 'PDF', uploadedBy: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, date: '22 May 2024, 11:25 AM', size: '802 KB', access: 'Team', tone: 'red' },
-    { name: 'GRN - Equipment.pdf', category: 'Project Documents', fileType: 'PDF', uploadedBy: { name: 'Sunil Patidar', initials: 'SP', tone: 'cyan' }, date: '22 May 2024, 04:15 PM', size: '1.21 MB', access: 'Team', tone: 'red' },
-    { name: 'Site Photos - Day 1.jpg', category: 'Photos', fileType: 'JPG', uploadedBy: { name: 'Manish Gupta', initials: 'MG', tone: 'green' }, date: '23 May 2024, 09:10 AM', size: '3.25 MB', access: 'Public', tone: 'purple' },
-  ];
-
-  const recentDocuments = [
-    { name: 'Material Purchase Invoice - INV1004.pdf', meta: '24 May 2024, 11:30 AM', by: 'Pooja Mehta', tone: 'red' },
-    { name: 'Site Photos - Day 2.jpg', meta: '24 May 2024, 10:15 AM', by: 'Sunil Patidar', tone: 'purple' },
-    { name: 'Test Report - Inverter.pdf', meta: '23 May 2024, 04:45 PM', by: 'Neha Jain', tone: 'red' },
-    { name: 'Work Completion Certificate.pdf', meta: '23 May 2024, 02:20 PM', by: 'Vikram Singh', tone: 'red' },
-    { name: 'Handing Over Checklist.pdf', meta: '22 May 2024, 05:10 PM', by: 'Manish Gupta', tone: 'red' },
-  ];
-
-  const filteredDocuments = activeDocumentTab === 'All Documents'
-    ? documents
-    : documents.filter((item) => item.category === activeDocumentTab);
-
-  const totalStorage = storageData.reduce((sum, item) => sum + item.value, 0);
-  const storageGradient = `conic-gradient(${storageData.map((item, index) => {
-    const start = storageData.slice(0, index).reduce((sum, current) => sum + current.value, 0);
-    const end = start + item.value;
-    return `${item.color} ${(start / totalStorage) * 100}% ${(end / totalStorage) * 100}%`;
-  }).join(', ')})`;
-
-  const openDocumentStat = (label) => {
-    const targets = {
-      'Total Documents': 'All Documents',
-      Folders: 'All Documents',
-      Files: 'All Documents',
-      'Total Size': 'All Documents',
-      'Restricted Documents': 'Contracts & Approvals',
-    };
-    setActiveDocumentTab(targets[label] ?? 'All Documents');
-  };
+  const modalBackdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+  const modalBox = 'w-full max-w-lg rounded-[16px] bg-white p-6 shadow-2xl';
+  const modalHeader = (title, onClose) => (
+    <div className="mb-4 flex items-center justify-between">
+      <h2 className="text-[17px] font-extrabold text-[#1e2a38]">{title}</h2>
+      <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-[#f1f5f9]"><X className="size-5 text-[#7a8fa6]" /></button>
+    </div>
+  );
 
   return (
-    <div className="space-y-4">
+    <div className={cx(panelClass, 'flex flex-col gap-6 pb-10')}>
       <PageHeading
-        title="Documents"
+        title="Project Documents"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Documents' },
+          { label: 'Project Documents' },
         ]}
-        actions={(
-          <>
-            <button type="button" onClick={() => onNotify('Project document report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onOpenSection('Project List')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Upload className="size-4 text-[#0b65e5]" />Upload Document</button>
-            <button type="button" onClick={() => onOpenSection('Project Folder Create')} data-route={projectSubRoutes['Project Folder Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Folder</button>
-          </>
-        )}
+        actions={
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setShowFolder(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e2ec] bg-white px-4 text-[13px] font-extrabold text-[#1e2a38] hover:bg-[#f8fafc]">
+              <FolderKanban className="size-4" />New Folder
+            </button>
+            <button type="button" onClick={() => setShowUpload(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
+              <Upload className="size-4" />Upload Document
+            </button>
+          </div>
+        }
       />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
-          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
-            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
-                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
-              </div>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
-              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
-            </div>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
-            <AssigneeCell assignee={project.manager} compact />
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
-            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Total Documents</p>
-            <p className="text-[22px] font-extrabold text-[#1e3261]">{project.totalDocuments}</p>
-          </div>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
+          <input
+            className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none"
+            placeholder="Search documents, projects..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
+        <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+          <option value="">All Categories</option>
+          {FOLDERS.map((f) => <option key={f} value={f}>{f}</option>)}
+        </select>
+        <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterProject} onChange={(e) => setFilterProject(e.target.value)}>
+          <option value="">All Projects</option>
+          {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+        </select>
+        {(search || filterCategory || filterProject) && (
+          <button type="button" onClick={() => { setSearch(''); setFilterCategory(''); setFilterProject(''); }} className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Clear</button>
+        )}
+      </div>
+
+      {/* Documents Table */}
+      <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white shadow-sm">
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-[14px] text-[#7a8fa6]">Loading documents...</div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-20">
+            <FileText className="size-10 text-[#c7d4e0]" />
+            <p className="text-[14px] font-bold text-[#7a8fa6]">No documents found</p>
+            <button type="button" onClick={() => setShowUpload(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white">
+              <Upload className="size-3.5" />Upload First Document
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-[#e5eaf2] bg-[#f8fafc]">
+                  {['File Name', 'Category', 'Project', 'Uploaded By', 'Date', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f1f5f9]">
+                {filtered.map((doc) => {
+                  const ext = fileExt(doc.name);
+                  return (
+                    <tr key={doc.id} className="hover:bg-[#f8fafc]">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex h-7 w-10 shrink-0 items-center justify-center rounded-[6px] text-[10px] font-extrabold text-white" style={{ background: extColor(ext) }}>{ext || 'FILE'}</span>
+                          <span className="max-w-[200px] truncate font-semibold text-[#1e2a38]" title={doc.name}>{doc.name || '—'}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-bold text-[#0b65e5]">{doc.category || '—'}</span>
+                      </td>
+                      <td className="px-4 py-3 text-[#53647f]">{getProjectName(doc.project)}</td>
+                      <td className="px-4 py-3 text-[#53647f]">{doc.uploaded_by_name || '—'}</td>
+                      <td className="px-4 py-3 text-[#53647f]">{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-IN') : '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" onClick={() => setViewDoc(doc)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3" />View</button>
+                          <button type="button" onClick={() => openEdit(doc)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#7c3aed] hover:bg-[#f5f3ff]"><Pencil className="size-3" />Edit</button>
+                          <a href={doc.file} download target="_blank" rel="noreferrer" className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3" />Download</a>
+                          <button type="button" onClick={() => confirmDeleteDoc(doc)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#fecaca] bg-white px-2 text-[11px] font-bold text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3" />Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openDocumentStat(stat.label)} />)}
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.72fr_0.68fr]">
-        <article className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap gap-2 border-b border-[#edf2f8] pb-4">
-              {documentTabs.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveDocumentTab(tab)}
-                  className={cx(
-                    'rounded-[10px] border-b-2 px-3 py-2 text-[13px] font-extrabold transition',
-                    activeDocumentTab === tab ? 'border-[#17a34a] text-[#17a34a]' : 'border-transparent text-[#53647f] hover:text-[#1e3261]',
-                  )}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-3 lg:flex-row">
-              <label className="relative flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8ca8]" />
-                <input type="text" placeholder="Search documents..." className="h-12 w-full rounded-[10px] border border-[#dce6f3] bg-white pl-11 pr-4 text-[14px] font-bold text-[#1e3261] outline-none transition placeholder:text-[#8090aa] focus:border-[#0b65e5]" />
-              </label>
-              {['All Categories', 'All File Types', 'All Uploaded By'].map((label) => (
-                <button key={label} type="button" onClick={() => onNotify(`${label} filter opened`)} className="inline-flex h-12 items-center justify-between gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] lg:min-w-[170px]">
-                  <span>{label}</span>
-                  <ChevronDown className="size-4 text-[#7b8ca8]" />
-                </button>
-              ))}
-              <div className="relative lg:min-w-[220px]">
-                <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
+      {/* Upload Popup */}
+      {showUpload && createPortal(
+        <div className={modalBackdrop} onClick={() => setShowUpload(false)}>
+          <div className={modalBox} onClick={(e) => e.stopPropagation()}>
+            {modalHeader('Upload Document', () => setShowUpload(false))}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <div className="col-span-2">
+                <label className={lCls}>Select Project *</label>
+                <select className={iCls} value={uploadForm.project} onChange={(e) => setUploadForm((p) => ({ ...p, project: e.target.value }))}>
+                  <option value="">Select project...</option>
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+                </select>
               </div>
-              <button type="button" onClick={() => onNotify(`Document filters opened for ${formattedRange}`)} className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
-            </div>
-
-            <div className="overflow-hidden rounded-[14px] border border-[#edf2f8]">
-              <div className="grid grid-cols-[0.4fr_2fr_1.25fr_0.8fr_1.15fr_1.2fr_0.8fr_0.85fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                <span className="grid place-items-center"><input type="checkbox" className="size-4 rounded border-[#cbd7e7]" /></span>
-                <span>Name</span>
-                <span>Category</span>
-                <span>File Type</span>
-                <span>Uploaded By</span>
-                <span>Date</span>
-                <span>Size</span>
-                <span>Access</span>
-                <span>Actions</span>
+              <div>
+                <label className={lCls}>Category / Folder</label>
+                <select className={iCls} value={uploadForm.category} onChange={(e) => setUploadForm((p) => ({ ...p, category: e.target.value }))}>
+                  {FOLDERS.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
               </div>
-              {filteredDocuments.map((item) => (
-                <div key={item.name} className="grid grid-cols-[0.4fr_2fr_1.25fr_0.8fr_1.15fr_1.2fr_0.8fr_0.85fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                  <span className="grid place-items-center"><input type="checkbox" className="size-4 rounded border-[#cbd7e7]" /></span>
-                  <div className="flex items-center gap-3">
-                    <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px] text-white', item.tone === 'red' ? 'bg-[#ff7373]' : item.tone === 'green' ? 'bg-[#22c55e]' : item.tone === 'purple' ? 'bg-[#a855f7]' : 'bg-[#3b82f6]')}>
-                      <FileText className="size-4" />
-                    </span>
-                    <span className="font-extrabold text-[#1e3261]">{item.name}</span>
-                  </div>
-                  <span>{item.category}</span>
-                  <span className={cx('inline-flex w-fit rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', item.fileType === 'PDF' ? 'bg-[#ffefef] text-[#e44d4d]' : item.fileType === 'XLSX' ? 'bg-[#ecf9ef] text-[#16a34a]' : item.fileType === 'ZIP' ? 'bg-[#eef5ff] text-[#2563eb]' : 'bg-[#f5efff] text-[#8b5cf6]')}>{item.fileType}</span>
-                  <AssigneeCell assignee={item.uploadedBy} compact />
-                  <span>{item.date}</span>
-                  <span>{item.size}</span>
-                  <span className={cx('inline-flex w-fit rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', item.access === 'Public' ? 'bg-[#ecf9ef] text-[#16a34a]' : item.access === 'Restricted' ? 'bg-[#fff1df] text-[#d97706]' : 'bg-[#eef5ff] text-[#2563eb]')}>{item.access}</span>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => onOpenSection('Project Document Preview')} data-route={projectSubRoutes['Project Document Preview']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`Preview ${item.name}`}><Eye className="size-4" /></button>
-                    <button type="button" onClick={() => onNotify(`${item.name} downloaded`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Download className="size-4" /></button>
-                    <button type="button" onClick={() => onOpenSection('Project Document Preview')} data-route={projectSubRoutes['Project Document Preview']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`${item.name} actions`}><MoreVertical className="size-4" /></button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-[13px] font-bold text-[#53647f]">Showing 1 to {filteredDocuments.length} of 62 entries</span>
-              <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => onNotify('Previous documents page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Previous</button>
-                {[1, 2, 3, 4, 5].map((page) => (
-                  <button key={page} type="button" onClick={() => onNotify(`Documents page ${page}`)} className={cx('rounded-[8px] px-3.5 py-2 text-[12px] font-extrabold', page === 1 ? 'bg-[#2f80ff] text-white' : 'border border-[#dce6f3] text-[#284276]')}>{page}</button>
-                ))}
-                <span className="px-2 text-[12px] font-extrabold text-[#53647f]">...</span>
-                <button type="button" onClick={() => onNotify('Documents page 7')} className="rounded-[8px] border border-[#dce6f3] px-3.5 py-2 text-[12px] font-extrabold text-[#284276]">7</button>
-                <button type="button" onClick={() => onNotify('Next documents page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Next</button>
+              <div>
+                <label className={lCls}>Document Name</label>
+                <input type="text" className={iCls} placeholder="Auto from file if blank" value={uploadForm.name} onChange={(e) => setUploadForm((p) => ({ ...p, name: e.target.value }))} />
               </div>
+              <div className="col-span-2">
+                <label className={lCls}>Upload File *</label>
+                <input type="file" className="block w-full text-[13px] text-[#1e2a38] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:py-1.5 file:text-[12px] file:font-bold file:text-[#0b65e5] hover:file:bg-[#dbeafe]" onChange={(e) => setUploadForm((p) => ({ ...p, file: e.target.files[0] || null }))} />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowUpload(false)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={handleUpload} disabled={saving || !uploadForm.project || !uploadForm.file} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60">
+                {saving ? 'Uploading...' : 'Upload'}
+              </button>
             </div>
           </div>
-        </article>
+        </div>,
+        document.body
+      )}
 
-        <div className="space-y-4">
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Storage Overview</h2>
-            <div className="mt-5 grid gap-5 sm:grid-cols-[120px_minmax(0,1fr)] xl:grid-cols-1 min-[1400px]:grid-cols-[120px_minmax(0,1fr)]">
-              <div className="mx-auto grid size-[116px] place-items-center rounded-full border border-[#edf2f8]" style={{ background: storageGradient }}>
-                <div className="grid size-[54px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(238,242,248,0.9)]">
-                  <span className="text-[24px] font-extrabold text-[#1e3261]">1.48</span>
-                  <span className="-mt-1 text-[10px] font-extrabold uppercase text-[#53647f]">GB Used</span>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {storageData.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between gap-3 text-[12px] font-bold">
-                    <span className="flex items-center gap-2 text-[#1e3261]">
-                      <span className="size-3 rounded-full" style={{ backgroundColor: item.color }} />
-                      {item.label}
-                    </span>
-                    <span className="text-[#53647f]">{item.detail}</span>
-                  </div>
-                ))}
+      {/* View Popup */}
+      {viewDoc && createPortal(
+        <div className={modalBackdrop} onClick={() => setViewDoc(null)}>
+          <div className={cx(modalBox, 'max-w-xl')} onClick={(e) => e.stopPropagation()}>
+            {modalHeader('Document Details', () => setViewDoc(null))}
+            <div className="mb-4 flex items-center gap-3 rounded-[10px] border border-[#e5eaf2] bg-[#f8fafc] p-4">
+              <span className="inline-flex h-10 w-14 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-extrabold text-white" style={{ background: extColor(fileExt(viewDoc.name)) }}>{fileExt(viewDoc.name) || 'FILE'}</span>
+              <div className="min-w-0">
+                <p className="truncate font-extrabold text-[#1e2a38]">{viewDoc.name}</p>
+                <p className="text-[12px] text-[#7a8fa6]">{viewDoc.category} · {getProjectName(viewDoc.project)}</p>
               </div>
             </div>
-            <div className="mt-5">
-              <div className="h-2 rounded-full bg-[#ebf0f7]">
-                <div className="h-full w-[29.6%] rounded-full bg-[#2f80ff]" />
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-3 text-[12px] font-bold text-[#53647f]">
-                <span>1.48 GB of 5 GB Used</span>
-                <button type="button" onClick={() => setActiveDocumentTab('All Documents')} className="font-extrabold text-[#0b65e5]">View Storage Details</button>
-              </div>
-            </div>
-          </article>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Documents</h2>
-              <button type="button" onClick={() => setActiveDocumentTab('All Documents')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
-            </div>
-            <div className="mt-5 space-y-4">
-              {recentDocuments.map((item) => (
-                <div key={item.name} className="flex gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                  <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', item.tone === 'purple' ? 'bg-[#a855f7]' : 'bg-[#ff7373]')}>
-                    <FileText className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-extrabold text-[#1e3261]">{item.name}</p>
-                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">{item.meta}</p>
-                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">by {item.by}</p>
-                  </div>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px]">
+              {[
+                ['Project', getProjectName(viewDoc.project)],
+                ['Category', viewDoc.category || '—'],
+                ['Uploaded By', viewDoc.uploaded_by_name || '—'],
+                ['Date', viewDoc.uploaded_at ? new Date(viewDoc.uploaded_at).toLocaleDateString('en-IN') : '—'],
+              ].map(([label, val]) => (
+                <div key={label}>
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6]">{label}</dt>
+                  <dd className="mt-0.5 font-semibold text-[#1e2a38]">{val}</dd>
                 </div>
               ))}
+            </dl>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => { confirmDeleteDoc(viewDoc); setViewDoc(null); }} className="h-9 rounded-[8px] border border-[#fecaca] px-4 text-[13px] font-bold text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-4 inline mr-1" />Delete</button>
+              <a href={viewDoc.file} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
+              <button type="button" onClick={() => setViewDoc(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
             </div>
-            <button type="button" onClick={() => setActiveDocumentTab('All Documents')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Documents</button>
-          </article>
-        </div>
-      </section>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Edit Popup */}
+      {editDoc && createPortal(
+        <div className={modalBackdrop} onClick={() => setEditDoc(null)}>
+          <div className={modalBox} onClick={(e) => e.stopPropagation()}>
+            {modalHeader('Edit Document', () => setEditDoc(null))}
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className={lCls}>Document Name</label>
+                <input type="text" className={iCls} value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className={lCls}>Category / Folder</label>
+                <select className={iCls} value={editForm.category} onChange={(e) => setEditForm((p) => ({ ...p, category: e.target.value }))}>
+                  {FOLDERS.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setEditDoc(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={handleEditSave} disabled={saving || !editForm.name} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60">
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* New Folder Popup */}
+      {showFolder && createPortal(
+        <div className={modalBackdrop} onClick={() => setShowFolder(false)}>
+          <div className="w-full max-w-sm rounded-[16px] bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {modalHeader('Create New Folder', () => setShowFolder(false))}
+            <div>
+              <label className={lCls}>Folder Name</label>
+              <select className={iCls} value={folderName} onChange={(e) => setFolderName(e.target.value)}>
+                {FOLDERS.map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+              <p className="mt-2 text-[12px] text-[#7a8fa6]">Documents uploaded to this folder will be grouped under the selected category.</p>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowFolder(false)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={() => { setFilterCategory(folderName); setShowFolder(false); onNotify(`Folder "${folderName}" selected.`, 'success'); }} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
+                Open Folder
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
 
       <DashboardFooter />
     </div>
