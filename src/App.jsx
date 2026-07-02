@@ -4,7 +4,7 @@ import {
   authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
   projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
   projectTeamApi, projectMilestoneApi, projectChecklistApi,
-  installationMaterialApi, materialPlanApi, workforceApi, subsidyApi,
+  installationMaterialApi, materialPlanApi, workforceApi, subsidyApi, projectApprovalApi,
 } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -26460,7 +26460,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
           <div className="flex items-center justify-center py-20 text-[14px] text-[#7a8fa6]">Loading approvals...</div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20">
-            <ClipboardCheck className="size-10 text-[#c7d4e0]" />
+            <ClipboardPlus className="size-10 text-[#c7d4e0]" />
             <p className="text-[14px] font-bold text-[#7a8fa6]">No approvals found</p>
             <button type="button" onClick={() => setShowNew(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white">
               <Plus className="size-3.5" />New Approval
