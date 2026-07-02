@@ -25482,7 +25482,7 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
   const [viewExpense, setViewExpense] = useState(null);
   const [editExpense, setEditExpense] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, label: '' });
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [addForm, setAddForm] = useState({ project: '', category: 'Materials', description: '', amount: '', date: '', payment_mode: '', paid_by: '', status: 'Pending', remarks: '' });
   const [editForm, setEditForm] = useState({});
@@ -25511,15 +25511,15 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  function handleDelete() {
-    if (!deleteConfirm.id) return;
-    projectExpenseApi.delete(deleteConfirm.id)
-      .then(() => {
-        onNotify('Expense deleted.', 'success');
-        setDeleteConfirm({ open: false, id: null, label: '' });
-        loadData();
-      })
-      .catch(() => onNotify('Delete failed.', 'error'));
+  function confirmDelete(exp) {
+    setDeleteConfirm({
+      message: `${exp.category} expense — ₹${Number(exp.amount).toLocaleString('en-IN')} (${exp.project_name || 'Unknown Project'})`,
+      onConfirm: () => {
+        projectExpenseApi.delete(exp.id)
+          .then(() => { onNotify('Expense deleted.', 'success'); setDeleteConfirm(null); loadData(); })
+          .catch(() => onNotify('Delete failed.', 'error'));
+      },
+    });
   }
 
   function openEdit(exp) {
@@ -25676,7 +25676,7 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
                       <div className="flex items-center gap-2">
                         <button type="button" onClick={() => setViewExpense(exp)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3" />View</button>
                         <button type="button" onClick={() => openEdit(exp)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#7c3aed] hover:bg-[#f5f3ff]"><Pencil className="size-3" />Edit</button>
-                        <button type="button" onClick={() => setDeleteConfirm({ open: true, id: exp.id, label: `${exp.category} expense (${fmt(exp.amount)})` })} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#fecaca] bg-white px-2 text-[11px] font-bold text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3" />Delete</button>
+                        <button type="button" onClick={() => confirmDelete(exp)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#fecaca] bg-white px-2 text-[11px] font-bold text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3" />Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -25706,7 +25706,7 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
       )}
 
       {/* View Popup */}
-      {viewExpense && (
+      {viewExpense && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setViewExpense(null)}>
           <div className="w-full max-w-lg rounded-[16px] bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
@@ -25747,11 +25747,12 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
               <button type="button" onClick={() => setViewExpense(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f] hover:bg-[#f8fafc]">Close</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Edit Popup */}
-      {editExpense && (
+      {editExpense && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditExpense(null)}>
           <div className="w-full max-w-lg rounded-[16px] bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
@@ -25766,11 +25767,12 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add Expense Popup */}
-      {showAddModal && (
+      {showAddModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowAddModal(false)}>
           <div className="w-full max-w-lg rounded-[16px] bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
@@ -25785,15 +25787,13 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      <ConfirmDeleteModal
-        open={deleteConfirm.open}
-        label={deleteConfirm.label}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteConfirm({ open: false, id: null, label: '' })}
-      />
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
 
       <DashboardFooter />
     </div>
@@ -30288,7 +30288,7 @@ function UserMobileCard({ user, onView, onDelete, onNotify }) {
 }
 
 function ConfirmDeleteModal({ message, onConfirm, onCancel, loading = false }) {
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
       <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-2xl">
         <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-[#fdecec]">
@@ -30309,7 +30309,8 @@ function ConfirmDeleteModal({ message, onConfirm, onCancel, loading = false }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
