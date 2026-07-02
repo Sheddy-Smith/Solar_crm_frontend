@@ -8,6 +8,7 @@ from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
+    ProjectExpenseDocument,
 )
 from .serializers import (
     ProjectListSerializer, ProjectDetailSerializer,
@@ -16,6 +17,7 @@ from .serializers import (
     ProjectTeamMemberSerializer, ProjectSystemConfigSerializer, ProjectMilestoneSerializer,
     SiteSurveySerializer, ProjectChecklistItemSerializer, InstallationMaterialSerializer,
     MaterialPlanSerializer, SubsidyApplicationSerializer, SubsidyDocumentSerializer,
+    ProjectExpenseDocumentSerializer,
 )
 from apps.accounts.permissions import HasModulePermission
 
@@ -139,16 +141,63 @@ class ProjectDocumentViewSet(viewsets.ModelViewSet):
 
 
 class ProjectExpenseViewSet(viewsets.ModelViewSet):
-    queryset = ProjectExpense.objects.select_related('project', 'created_by').all()
     serializer_class = ProjectExpenseSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['project', 'category']
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['project', 'category', 'status']
+    search_fields = ['description', 'paid_by', 'project__project_name', 'project__customer_name']
     ordering = ['-date']
+
+    def get_queryset(self):
+        qs = ProjectExpense.objects.select_related('project', 'created_by').prefetch_related('expense_documents').all()
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        if date_from:
+            qs = qs.filter(date__gte=date_from)
+        if date_to:
+            qs = qs.filter(date__lte=date_to)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        from django.db.models import Sum, Count
+        from decimal import Decimal
+        qs = self.get_queryset()
+        total_expenses = qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        material = qs.filter(category='Materials').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        labour = qs.filter(category='Labor').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        transport = qs.filter(category='Transport').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        equipment = qs.filter(category='Equipment').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        misc = qs.filter(category='Miscellaneous').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        other = total_expenses - material - labour
+        project_ids = qs.values('project').distinct().count()
+        from .models import Project
+        total_budget = Project.objects.aggregate(b=Sum('total_value'))['b'] or Decimal('0')
+        return Response({
+            'total_projects': project_ids,
+            'total_budget': float(total_budget),
+            'total_expenses': float(total_expenses),
+            'material_cost': float(material),
+            'labour_cost': float(labour),
+            'transport_cost': float(transport),
+            'equipment_cost': float(equipment),
+            'misc_cost': float(misc),
+            'other_expenses': float(other),
+        })
+
+
+class ProjectExpenseDocumentViewSet(viewsets.ModelViewSet):
+    queryset = ProjectExpenseDocument.objects.select_related('expense').all()
+    serializer_class = ProjectExpenseDocumentSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['expense', 'doc_type']
 
 
 class ProjectPaymentViewSet(viewsets.ModelViewSet):

@@ -160,12 +160,29 @@ class ProjectExpense(models.Model):
         ('Equipment', 'Equipment'),
         ('Miscellaneous', 'Miscellaneous'),
     ]
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Paid', 'Paid'),
+        ('Partial', 'Partial'),
+    ]
+    PAYMENT_MODE_CHOICES = [
+        ('Cash', 'Cash'),
+        ('Bank Transfer', 'Bank Transfer'),
+        ('UPI', 'UPI'),
+        ('Cheque', 'Cheque'),
+        ('NEFT', 'NEFT'),
+        ('RTGS', 'RTGS'),
+    ]
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='expenses')
     category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
     description = models.CharField(max_length=200)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     date = models.DateField()
+    payment_mode = models.CharField(max_length=30, choices=PAYMENT_MODE_CHOICES, blank=True, default='')
+    paid_by = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    remarks = models.TextField(blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='project_expenses')
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -174,6 +191,24 @@ class ProjectExpense(models.Model):
 
     class Meta:
         ordering = ['-date']
+
+
+class ProjectExpenseDocument(models.Model):
+    DOC_TYPE_CHOICES = [
+        ('Bill', 'Bill'),
+        ('Invoice', 'Invoice'),
+        ('Image', 'Image'),
+        ('Other', 'Other'),
+    ]
+
+    expense = models.ForeignKey(ProjectExpense, on_delete=models.CASCADE, related_name='expense_documents')
+    doc_type = models.CharField(max_length=20, choices=DOC_TYPE_CHOICES, default='Other')
+    name = models.CharField(max_length=200)
+    file = models.FileField(upload_to='expense_docs/%Y/%m/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.expense} — {self.name}'
 
 
 class ProjectPayment(models.Model):

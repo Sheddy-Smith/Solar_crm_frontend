@@ -1,4 +1,4 @@
-﻿import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
@@ -25465,439 +25465,396 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
 }
 
 function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
-  const [activeExpenseTab, setActiveExpenseTab] = useState('Expense Overview');
-  const [dateRangeOpen, setDateRangeOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState('2024-05-01');
-  const [dateTo, setDateTo] = useState('2024-05-31');
-  const formattedRange = formatProjectDateRange(dateFrom, dateTo);
+  const CATEGORIES = ['Materials', 'Labor', 'Transport', 'Equipment', 'Miscellaneous', 'Other'];
+  const PAYMENT_MODES = ['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'NEFT', 'RTGS'];
+  const STATUSES = ['Pending', 'Paid', 'Partial'];
 
-  const project = {
-    name: '20kW On-Grid System',
-    address: '123, Scheme No. 54, Vijay Nagar',
-    city: 'Indore, Madhya Pradesh - 452010',
-    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    installationId: 'INS-2024-0015',
-    startDate: '2024-05-18',
-    targetDate: '2024-05-28',
-    totalBudget: 'Rs 2,48,560',
+  const [search, setSearch] = useState('');
+  const [filterProject, setFilterProject] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [expenses, setExpenses] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [viewExpense, setViewExpense] = useState(null);
+  const [editExpense, setEditExpense] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, label: '' });
+  const [saving, setSaving] = useState(false);
+  const [addForm, setAddForm] = useState({ project: '', category: 'Materials', description: '', amount: '', date: '', payment_mode: '', paid_by: '', status: 'Pending', remarks: '' });
+  const [editForm, setEditForm] = useState({});
+
+  useEffect(() => {
+    projectApi.list().then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+  }, []);
+
+  const loadData = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (search) params.search = search;
+    if (filterProject) params.project = filterProject;
+    if (filterCategory) params.category = filterCategory;
+    if (filterStatus) params.status = filterStatus;
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    Promise.all([projectExpenseApi.list(params), projectExpenseApi.summary(params)])
+      .then(([expRes, sumRes]) => {
+        setExpenses(normalizeApiRows(expRes));
+        setSummary(sumRes && !Array.isArray(sumRes) && typeof sumRes === 'object' ? sumRes : null);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [search, filterProject, filterCategory, filterStatus, dateFrom, dateTo]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  function handleDelete() {
+    if (!deleteConfirm.id) return;
+    projectExpenseApi.delete(deleteConfirm.id)
+      .then(() => {
+        onNotify('Expense deleted.', 'success');
+        setDeleteConfirm({ open: false, id: null, label: '' });
+        loadData();
+      })
+      .catch(() => onNotify('Delete failed.', 'error'));
+  }
+
+  function openEdit(exp) {
+    setEditForm({
+      project: exp.project, category: exp.category, description: exp.description || '',
+      amount: exp.amount, date: exp.date || '', payment_mode: exp.payment_mode || '',
+      paid_by: exp.paid_by || '', status: exp.status || 'Pending', remarks: exp.remarks || '',
+    });
+    setEditExpense(exp);
+  }
+
+  function handleEditSave() {
+    setSaving(true);
+    projectExpenseApi.update(editExpense.id, editForm)
+      .then(() => { onNotify('Expense updated.', 'success'); setEditExpense(null); loadData(); })
+      .catch(() => onNotify('Update failed.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  function handleAddSave() {
+    setSaving(true);
+    projectExpenseApi.create(addForm)
+      .then(() => {
+        onNotify('Expense added.', 'success');
+        setShowAddModal(false);
+        setAddForm({ project: '', category: 'Materials', description: '', amount: '', date: '', payment_mode: '', paid_by: '', status: 'Pending', remarks: '' });
+        loadData();
+      })
+      .catch(() => onNotify('Add failed.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  const fmt = (n) => n != null ? `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹0';
+
+  const statusBadge = (s) => {
+    const map = { Paid: 'bg-[#dcfce7] text-[#15803d]', Pending: 'bg-[#fef9c3] text-[#854d0e]', Partial: 'bg-[#dbeafe] text-[#1d4ed8]' };
+    return <span className={cx('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold', map[s] || 'bg-[#f1f5f9] text-[#64748b]')}>{s || 'Pending'}</span>;
   };
 
-  const expenseTabs = [
-    { label: 'Expense Overview', icon: IndianRupee },
-    { label: 'Category Breakdown', icon: Boxes },
-    { label: 'Payment Status', icon: CheckCircle2 },
-    { label: 'Vendor Wise', icon: UsersRound },
-    { label: 'Expense Reports', icon: BarChart3 },
-  ];
+  const catColor = { Materials: '#3b82f6', Labor: '#22c55e', Transport: '#f59e0b', Equipment: '#a855f7', Miscellaneous: '#ef4444', Other: '#64748b' };
+  const chartBars = summary ? [
+    { label: 'Materials', value: summary.material_cost || 0, color: catColor.Materials },
+    { label: 'Labour', value: summary.labour_cost || 0, color: catColor.Labor },
+    { label: 'Transport', value: summary.transport_cost || 0, color: catColor.Transport },
+    { label: 'Equipment', value: summary.equipment_cost || 0, color: catColor.Equipment },
+    { label: 'Misc', value: summary.misc_cost || 0, color: catColor.Miscellaneous },
+  ] : [];
+  const chartMax = chartBars.reduce((m, b) => Math.max(m, b.value), 1);
 
-  const statCards = [
-    { label: 'Total Expenses', value: 'Rs 1,62,300', caption: '65.30% of Budget', icon: IndianRupee, tone: 'blue' },
-    { label: 'Total Budget', value: 'Rs 2,48,560', caption: '100%', icon: ClipboardPlus, tone: 'green' },
-    { label: 'Paid Expenses', value: 'Rs 1,21,850', caption: '50.00% of Budget', icon: CheckCircle2, tone: 'purple' },
-    { label: 'Pending Payments', value: 'Rs 40,450', caption: '16.30% of Budget', icon: Clock3, tone: 'amber' },
-    { label: 'Remaining Budget', value: 'Rs 86,260', caption: '34.70% of Budget', icon: Database, tone: 'cyan' },
-  ];
-
-  const expenseTrendSeries = [
-    { label: 'Actual Expenses', color: '#2f80ff', values: [8000, 8000, 9000, 15000, 21000, 22000, 30000, 31000, 33000, 36000, 45000, 46000] },
-    { label: 'Planned Expenses', color: '#22c55e', values: [8000, 8000, 9000, 12000, 15000, 14000, 17000, 23000, 26000, 30000, 31000, 31000] },
-    { label: 'Budget', color: '#c0cad9', values: [45000, 45000, 45000, 45000, 47000, 47000, 47000, 47000, 47000, 47000, 47000, 47000] },
-  ];
-
-  const expenseCategoryData = [
-    { label: 'Equipment', value: 64800, color: '#2f80ff' },
-    { label: 'Installation', value: 36250, color: '#16a34a' },
-    { label: 'Electrical', value: 22150, color: '#f59e0b' },
-    { label: 'Civil Work', value: 16600, color: '#8b5cf6' },
-    { label: 'Transportation', value: 9200, color: '#22c55e' },
-    { label: 'Others', value: 13300, color: '#94a3b8' },
-  ];
-
-  const paymentStatusData = [
-    { label: 'Paid', value: 121850, color: '#16a34a' },
-    { label: 'Pending', value: 40450, color: '#f59e0b' },
-  ];
-
-  const expenses = [
-    { id: 'EXP-2024-0001', date: '18 May 2024', category: 'Equipment', description: 'Solar Panels (10kW)', vendor: 'SunPower Systems', amount: '64,800', paymentStatus: 'Paid', paymentMode: 'Bank Transfer', invoice: 'INV-1001.pdf' },
-    { id: 'EXP-2024-0002', date: '19 May 2024', category: 'Installation', description: 'Mounting Structure', vendor: 'EnerTech Solutions', amount: '28,500', paymentStatus: 'Paid', paymentMode: 'Bank Transfer', invoice: 'INV-1002.pdf' },
-    { id: 'EXP-2024-0003', date: '20 May 2024', category: 'Electrical', description: 'DC Cables & Connectors', vendor: 'WireTech Industries', amount: '12,650', paymentStatus: 'Paid', paymentMode: 'UPI', invoice: 'INV-1003.pdf' },
-    { id: 'EXP-2024-0004', date: '21 May 2024', category: 'Equipment', description: 'Inverter (20kW)', vendor: 'Sungrow India Pvt. Ltd.', amount: '36,250', paymentStatus: 'Pending', paymentMode: '-', invoice: 'INV-1004.pdf' },
-    { id: 'EXP-2024-0005', date: '22 May 2024', category: 'Civil Work', description: 'RCC Foundation', vendor: 'BuildWell Contractors', amount: '12,300', paymentStatus: 'Pending', paymentMode: '-', invoice: 'INV-1005.pdf' },
-    { id: 'EXP-2024-0006', date: '23 May 2024', category: 'Transportation', description: 'Material Transportation', vendor: 'Rapid Logistics', amount: '6,800', paymentStatus: 'Paid', paymentMode: 'Cash', invoice: 'INV-1006.pdf' },
-    { id: 'EXP-2024-0007', date: '24 May 2024', category: 'Electrical', description: 'ACDB & Accessories', vendor: 'Electric House', amount: '9,500', paymentStatus: 'Pending', paymentMode: '-', invoice: 'INV-1007.pdf' },
-    { id: 'EXP-2024-0008', date: '25 May 2024', category: 'Others', description: 'Safety Items', vendor: 'SafeTech Solutions', amount: '8,300', paymentStatus: 'Paid', paymentMode: 'UPI', invoice: 'INV-1008.pdf' },
-  ];
-
-  const topVendors = [
-    ['SunPower Systems', '64,800 (39.9%)'],
-    ['EnerTech Solutions', '28,500 (17.5%)'],
-    ['Sungrow India Pvt. Ltd.', '36,250 (22.3%)'],
-    ['WireTech Industries', '12,650 (7.8%)'],
-    ['Others', '19,100 (11.7%)'],
-  ];
-
-  const recentExpenses = [
-    { id: 'EXP-2024-0008', title: 'Safety Items', amount: 'Rs 8,300', status: 'Paid', date: '25 May 2024' },
-    { id: 'EXP-2024-0007', title: 'ACDB & Accessories', amount: 'Rs 9,500', status: 'Pending', date: '24 May 2024' },
-    { id: 'EXP-2024-0006', title: 'Material Transportation', amount: 'Rs 6,800', status: 'Paid', date: '23 May 2024' },
-  ];
-
-  const categoryBreakdownRows = [
-    { category: 'Equipment', budget: 'Rs 1,10,000', actual: 'Rs 1,01,050', variance: 'Rs 8,950 under', share: '62.3%', status: 'On Track' },
-    { category: 'Installation', budget: 'Rs 45,000', actual: 'Rs 28,500', variance: 'Rs 16,500 under', share: '17.6%', status: 'On Track' },
-    { category: 'Electrical', budget: 'Rs 32,000', actual: 'Rs 22,150', variance: 'Rs 9,850 under', share: '13.6%', status: 'Review' },
-    { category: 'Civil Work', budget: 'Rs 24,000', actual: 'Rs 12,300', variance: 'Rs 11,700 under', share: '7.6%', status: 'On Track' },
-    { category: 'Transportation', budget: 'Rs 12,500', actual: 'Rs 6,800', variance: 'Rs 5,700 under', share: '4.2%', status: 'On Track' },
-    { category: 'Others', budget: 'Rs 25,060', actual: 'Rs 8,300', variance: 'Rs 16,760 under', share: '5.1%', status: 'Review' },
-  ];
-
-  const paymentRows = [
-    { id: 'PAY-001', vendor: 'SunPower Systems', invoice: 'INV-1001.pdf', dueDate: '18 May 2024', amount: 'Rs 64,800', status: 'Paid', mode: 'Bank Transfer', approvedBy: 'Rohit Singh' },
-    { id: 'PAY-002', vendor: 'EnerTech Solutions', invoice: 'INV-1002.pdf', dueDate: '19 May 2024', amount: 'Rs 28,500', status: 'Paid', mode: 'Bank Transfer', approvedBy: 'Rohit Singh' },
-    { id: 'PAY-003', vendor: 'Sungrow India Pvt. Ltd.', invoice: 'INV-1004.pdf', dueDate: '27 May 2024', amount: 'Rs 36,250', status: 'Pending', mode: '-', approvedBy: 'Neha Jain' },
-    { id: 'PAY-004', vendor: 'BuildWell Contractors', invoice: 'INV-1005.pdf', dueDate: '28 May 2024', amount: 'Rs 12,300', status: 'Pending', mode: '-', approvedBy: 'Amit Joshi' },
-    { id: 'PAY-005', vendor: 'Electric House', invoice: 'INV-1007.pdf', dueDate: '29 May 2024', amount: 'Rs 9,500', status: 'Pending', mode: '-', approvedBy: 'Rohit Singh' },
-  ];
-
-  const vendorExpenseRows = [
-    { vendor: 'SunPower Systems', category: 'Equipment', invoices: 1, paid: 'Rs 64,800', pending: 'Rs 0', total: 'Rs 64,800', rating: 'A' },
-    { vendor: 'Sungrow India Pvt. Ltd.', category: 'Equipment', invoices: 1, paid: 'Rs 0', pending: 'Rs 36,250', total: 'Rs 36,250', rating: 'A' },
-    { vendor: 'EnerTech Solutions', category: 'Installation', invoices: 1, paid: 'Rs 28,500', pending: 'Rs 0', total: 'Rs 28,500', rating: 'B+' },
-    { vendor: 'WireTech Industries', category: 'Electrical', invoices: 1, paid: 'Rs 12,650', pending: 'Rs 0', total: 'Rs 12,650', rating: 'A' },
-    { vendor: 'BuildWell Contractors', category: 'Civil Work', invoices: 1, paid: 'Rs 0', pending: 'Rs 12,300', total: 'Rs 12,300', rating: 'B' },
-    { vendor: 'Electric House', category: 'Electrical', invoices: 1, paid: 'Rs 0', pending: 'Rs 9,500', total: 'Rs 9,500', rating: 'B+' },
-  ];
-
-  const expenseReportRows = [
-    { report: 'Monthly Expense Summary', type: 'PDF', range: '01 May - 31 May 2024', owner: 'Neha Jain', status: 'Ready' },
-    { report: 'Vendor Payment Report', type: 'XLSX', range: '01 May - 31 May 2024', owner: 'Rohit Singh', status: 'Ready' },
-    { report: 'Category Variance Report', type: 'PDF', range: 'Project to Date', owner: 'Amit Joshi', status: 'Draft' },
-    { report: 'Pending Payment Ageing', type: 'XLSX', range: 'As of 31 May 2024', owner: 'Neha Jain', status: 'Ready' },
-  ];
-
-  const openExpenseStat = (label) => {
-    const targets = {
-      'Total Expenses': 'Expense Overview',
-      'Total Budget': 'Category Breakdown',
-      'Paid Expenses': 'Payment Status',
-      'Pending Payments': 'Payment Status',
-      'Remaining Budget': 'Category Breakdown',
-    };
-    setActiveExpenseTab(targets[label] ?? 'Expense Overview');
-  };
+  const inputClass = 'h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none';
 
   return (
-    <div className="space-y-4">
+    <div className={cx(panelClass, 'flex flex-col gap-6 pb-10')}>
       <PageHeading
-        title="Expenses"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Expenses' },
-        ]}
-        actions={(
-          <>
-            <button type="button" onClick={() => onNotify('Expense report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onNotify('Expense export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => onOpenSection('Project Expense Create')} data-route={projectSubRoutes['Project Expense Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Expense</button>
-          </>
-        )}
+        icon={<Wallet className="size-6" />}
+        title="Project Expenses"
+        subtitle="Track and manage all project expenses across all projects."
+        actions={
+          <button type="button" onClick={() => setShowAddModal(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
+            <Plus className="size-4" />Add Expense
+          </button>
+        }
       />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
-          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
-            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
-                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
-              </div>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
-              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+      {/* Dashboard Cards */}
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {[
+          { label: 'Projects with Expenses', value: summary ? summary.total_projects : '—', icon: <FolderKanban className="size-5" />, color: '#0b65e5' },
+          { label: 'Total Budget', value: summary ? fmt(summary.total_budget) : '—', icon: <CreditCard className="size-5" />, color: '#7c3aed' },
+          { label: 'Total Expenses', value: summary ? fmt(summary.total_expenses) : '—', icon: <Wallet className="size-5" />, color: '#0d9f4a' },
+          { label: 'Material Cost', value: summary ? fmt(summary.material_cost) : '—', icon: <Boxes className="size-5" />, color: '#3b82f6' },
+          { label: 'Labour Cost', value: summary ? fmt(summary.labour_cost) : '—', icon: <Users className="size-5" />, color: '#22c55e' },
+          { label: 'Other Expenses', value: summary ? fmt(summary.other_expenses) : '—', icon: <ReceiptText className="size-5" />, color: '#f59e0b' },
+        ].map((c) => (
+          <article key={c.label} className="flex flex-col gap-2 rounded-[12px] border border-[#e5eaf2] bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6]">{c.label}</span>
+              <span style={{ color: c.color }}>{c.icon}</span>
             </div>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
-            <AssigneeCell assignee={project.manager} compact />
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
-            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Total Budget</p>
-            <p className="text-[22px] font-extrabold text-[#1e3261]">{project.totalBudget}</p>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openExpenseStat(stat.label)} />)}
-      </section>
-
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap gap-2">
-            {expenseTabs.map((tab) => (
-              <button
-                key={tab.label}
-                type="button"
-                onClick={() => setActiveExpenseTab(tab.label)}
-                className={cx(
-                  'inline-flex items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
-                  activeExpenseTab === tab.label ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
-                )}
-              >
-                <tab.icon className="size-4" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button type="button" onClick={() => onNotify(`Expense filters opened for ${formattedRange}`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
-            <div className="relative">
-              <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
-            </div>
-          </div>
-        </div>
-
-        {activeExpenseTab === 'Expense Overview' ? (
-          <>
-            <section className="mt-5 grid gap-4 xl:grid-cols-[1.25fr_0.95fr_0.95fr]">
-              <ProjectLineChartCard title="Expense Trend" series={expenseTrendSeries} height={240} onNotify={onNotify} />
-              <ProjectDonutCard title="Expense by Category" data={expenseCategoryData} totalLabel="Total" totalValue="Rs 1,62,300" onNotify={onNotify} />
-              <ProjectDonutCard title="Payment Status" data={paymentStatusData} totalLabel="Total" totalValue="Rs 1,62,300" onNotify={onNotify} />
-            </section>
-
-            <section className="mt-4 grid gap-4 xl:grid-cols-[1.7fr_0.75fr]">
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Expense List</h2>
-                <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-                  <div className="grid grid-cols-[0.45fr_1.1fr_0.85fr_0.9fr_1.2fr_1.15fr_0.8fr_0.95fr_0.95fr_0.9fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                    <span>#</span>
-                    <span>Expense ID</span>
-                    <span>Date</span>
-                    <span>Category</span>
-                    <span>Description</span>
-                    <span>Vendor / Supplier</span>
-                    <span>Amount (Rs)</span>
-                    <span>Payment Status</span>
-                    <span>Payment Mode</span>
-                    <span>Invoice / Bill</span>
-                    <span>Actions</span>
-                  </div>
-                  {expenses.map((item, index) => (
-                    <div key={item.id} className="grid grid-cols-[0.45fr_1.1fr_0.85fr_0.9fr_1.2fr_1.15fr_0.8fr_0.95fr_0.95fr_0.9fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                      <span className="font-extrabold text-[#1e3261]">{index + 1}</span>
-                      <span className="font-extrabold text-[#1e3261]">{item.id}</span>
-                      <span>{item.date}</span>
-                      <span>{item.category}</span>
-                      <span>{item.description}</span>
-                      <span>{item.vendor}</span>
-                      <span>{item.amount}</span>
-                      <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.paymentStatus === 'Paid' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.paymentStatus}</span>
-                      <span>{item.paymentMode}</span>
-                      <button type="button" onClick={() => onOpenSection('Project Expense Details')} data-route={projectSubRoutes['Project Expense Details']} className="text-left font-extrabold text-[#2563eb]">{item.invoice}</button>
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => onOpenSection('Project Expense Details')} data-route={projectSubRoutes['Project Expense Details']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`View ${item.id}`}><Eye className="size-4" /></button>
-                        <button type="button" onClick={() => onNotify(`Download ${item.invoice}`)} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]"><Download className="size-4" /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="text-[13px] font-bold text-[#53647f]">Showing 1 to 8 of 24 entries</span>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => onNotify('Previous expenses page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Previous</button>
-                    {[1, 2, 3].map((page) => (
-                      <button key={page} type="button" onClick={() => onNotify(`Expenses page ${page}`)} className={cx('rounded-[8px] px-4 py-2 text-[12px] font-extrabold', page === 1 ? 'bg-[#2f80ff] text-white' : 'border border-[#dce6f3] text-[#284276]')}>{page}</button>
-                    ))}
-                    <button type="button" onClick={() => onNotify('Next expenses page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Next</button>
-                  </div>
-                </div>
-              </article>
-
-              <div className="space-y-4">
-                <article className={`${panelClass} p-4 sm:p-5`}>
-                  <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Top Vendors by Expense</h2>
-                  <div className="mt-5 space-y-3">
-                    {topVendors.map(([vendor, amount]) => (
-                      <div key={vendor} className="flex items-center justify-between gap-3 text-[13px] font-bold">
-                        <span className="text-[#1e3261]">{vendor}</span>
-                        <span className="text-[#284276]">{amount}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <button type="button" onClick={() => setActiveExpenseTab('Vendor Wise')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Vendors</button>
-                </article>
-
-                <article className={`${panelClass} p-4 sm:p-5`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Expenses</h2>
-                    <button type="button" onClick={() => setActiveExpenseTab('Expense Overview')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
-                  </div>
-                  <div className="mt-5 space-y-4">
-                    {recentExpenses.map((item) => (
-                      <div key={item.id} className="flex items-start justify-between gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-extrabold text-[#1e3261]">{item.id}</p>
-                          <p className="mt-1 text-[13px] font-bold text-[#1e3261]">{item.title}</p>
-                          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{item.date}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[13px] font-extrabold text-[#1e3261]">{item.amount}</p>
-                          <span className={cx('mt-2 inline-flex rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.status === 'Paid' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.status}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              </div>
-            </section>
-          </>
-        ) : activeExpenseTab === 'Category Breakdown' ? (
-          <section className="mt-5 grid gap-4 xl:grid-cols-[0.8fr_1.4fr]">
-            <ProjectDonutCard title="Expense by Category" data={expenseCategoryData} totalLabel="Total" totalValue="Rs 1,62,300" onNotify={onNotify} />
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Category Breakdown</h2>
-                <button type="button" onClick={() => onNotify('Category breakdown exported')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[12px] font-extrabold text-[#284276]"><Download className="size-4" />Export</button>
-              </div>
-              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-                <div className="grid grid-cols-[1.15fr_1fr_1fr_1fr_0.75fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Category</span><span>Budget</span><span>Actual</span><span>Variance</span><span>Share</span><span>Status</span>
-                </div>
-                {categoryBreakdownRows.map((item) => (
-                  <div key={item.category} className="grid grid-cols-[1.15fr_1fr_1fr_1fr_0.75fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{item.category}</span>
-                    <span>{item.budget}</span>
-                    <span>{item.actual}</span>
-                    <span className="text-[#15803d]">{item.variance}</span>
-                    <span>{item.share}</span>
-                    <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.status === 'On Track' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.status}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </section>
-        ) : activeExpenseTab === 'Payment Status' ? (
-          <section className="mt-5 grid gap-4 xl:grid-cols-[0.75fr_1.45fr]">
-            <ProjectDonutCard title="Payment Status" data={paymentStatusData} totalLabel="Total" totalValue="Rs 1,62,300" onNotify={onNotify} />
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Payment Status</h2>
-              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-                <div className="grid grid-cols-[0.85fr_1.25fr_1fr_0.95fr_0.9fr_0.75fr_0.95fr_0.95fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Payment ID</span><span>Vendor</span><span>Invoice</span><span>Due Date</span><span>Amount</span><span>Status</span><span>Mode</span><span>Approved By</span>
-                </div>
-                {paymentRows.map((item) => (
-                  <div key={item.id} className="grid grid-cols-[0.85fr_1.25fr_1fr_0.95fr_0.9fr_0.75fr_0.95fr_0.95fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{item.id}</span>
-                    <span>{item.vendor}</span>
-                    <button type="button" onClick={() => onOpenSection('Project Expense Details')} data-route={projectSubRoutes['Project Expense Details']} className="text-left font-extrabold text-[#2563eb]">{item.invoice}</button>
-                    <span>{item.dueDate}</span>
-                    <span className="font-extrabold text-[#1e3261]">{item.amount}</span>
-                    <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.status === 'Paid' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#fff4df] text-[#b45309]')}>{item.status}</span>
-                    <span>{item.mode}</span>
-                    <span>{item.approvedBy}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </section>
-        ) : activeExpenseTab === 'Vendor Wise' ? (
-          <section className="mt-5 grid gap-4 xl:grid-cols-[1.35fr_0.75fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Vendor Wise Expense</h2>
-              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-                <div className="grid grid-cols-[1.25fr_0.95fr_0.7fr_0.95fr_0.95fr_0.95fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Vendor</span><span>Category</span><span>Invoices</span><span>Paid</span><span>Pending</span><span>Total</span><span>Rating</span>
-                </div>
-                {vendorExpenseRows.map((item) => (
-                  <div key={item.vendor} className="grid grid-cols-[1.25fr_0.95fr_0.7fr_0.95fr_0.95fr_0.95fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{item.vendor}</span>
-                    <span>{item.category}</span>
-                    <span>{item.invoices}</span>
-                    <span className="text-[#15803d]">{item.paid}</span>
-                    <span className="text-[#b45309]">{item.pending}</span>
-                    <span className="font-extrabold text-[#1e3261]">{item.total}</span>
-                    <span className="inline-flex w-fit rounded-[8px] bg-[#eef4ff] px-2.5 py-1 text-[11px] font-extrabold text-[#0b65e5]">{item.rating}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-            <div className="space-y-4">
-              <ProjectDonutCard title="Vendor Share" data={[{ label: 'SunPower', value: 64800, color: '#2f80ff' }, { label: 'Sungrow', value: 36250, color: '#16a34a' }, { label: 'EnerTech', value: 28500, color: '#f59e0b' }, { label: 'Others', value: 32750, color: '#8b5cf6' }]} totalLabel="Vendors" totalValue="8" onNotify={onNotify} />
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Vendor Actions</h2>
-                <div className="mt-4 grid gap-2">
-                  {['Send Payment Reminder', 'Download Vendor Ledger', 'Compare Vendor Quotes'].map((action) => (
-                    <button key={action} type="button" onClick={() => action === 'Download Vendor Ledger' ? onOpenSection('Project Expense Details') : onNotify(`${action} opened`)} data-route={action === 'Download Vendor Ledger' ? projectSubRoutes['Project Expense Details'] : undefined} className="inline-flex h-10 items-center justify-between rounded-[8px] border border-[#dce6f3] px-3 text-left text-[12px] font-extrabold text-[#284276]">
-                      {action}<ArrowUpRight className="size-4 text-[#0b65e5]" />
-                    </button>
-                  ))}
-                </div>
-              </article>
-            </div>
-          </section>
-        ) : activeExpenseTab === 'Expense Reports' ? (
-          <section className="mt-5 grid gap-4 xl:grid-cols-[1.35fr_0.75fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Expense Reports</h2>
-                <button type="button" onClick={() => onOpenSection('Project Custom Report Create')} data-route={projectSubRoutes['Project Custom Report Create']} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-4 text-[12px] font-extrabold text-white"><Plus className="size-4" />New Report</button>
-              </div>
-              <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-                <div className="grid grid-cols-[1.4fr_0.65fr_1fr_0.8fr_0.65fr_0.8fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Report</span><span>Type</span><span>Range</span><span>Owner</span><span>Status</span><span>Action</span>
-                </div>
-                {expenseReportRows.map((item) => (
-                  <div key={item.report} className="grid grid-cols-[1.4fr_0.65fr_1fr_0.8fr_0.65fr_0.8fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{item.report}</span>
-                    <span>{item.type}</span>
-                    <span>{item.range}</span>
-                    <span>{item.owner}</span>
-                    <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.status === 'Ready' ? 'bg-[#eefbf1] text-[#15803d]' : 'bg-[#eef4ff] text-[#0b65e5]')}>{item.status}</span>
-                    <button type="button" onClick={() => onNotify(`${item.report} downloaded`)} className="inline-flex w-fit items-center gap-2 font-extrabold text-[#2563eb]"><Download className="size-4" />Download</button>
-                  </div>
-                ))}
-              </div>
-            </article>
-            <div className="space-y-4">
-              <ProjectLineChartCard title="Monthly Expense Trend" series={expenseTrendSeries} height={220} onNotify={onNotify} />
-              <ProjectDonutCard title="Report Mix" data={[{ label: 'Summary', value: 1, color: '#2f80ff' }, { label: 'Vendor', value: 1, color: '#16a34a' }, { label: 'Variance', value: 1, color: '#f59e0b' }, { label: 'Ageing', value: 1, color: '#8b5cf6' }]} totalLabel="Reports" totalValue="4" onNotify={onNotify} />
-            </div>
-          </section>
-        ) : (
-          <article className="mt-5 rounded-[18px] border border-[#dce6f3] bg-white p-8 text-center shadow-[0_18px_40px_rgba(18,48,87,0.06)]">
-            <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
-              <FolderKanban className="size-8" />
+            <span className="text-[20px] font-extrabold text-[#111827]">
+              {loading ? <span className="text-[14px] text-[#94a3b8]">Loading…</span> : c.value}
             </span>
-            <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeExpenseTab}</h2>
-            <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
-              Is expense tab ka dedicated detail section next pass me aur deep build kiya ja sakta hai. Abhi main overview screen aur tab navigation fully working hai.
-            </p>
-            <button type="button" onClick={() => setActiveExpenseTab('Expense Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Expense Overview</button>
           </article>
+        ))}
+      </section>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
+          <input
+            className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none"
+            placeholder="Search expenses, projects…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterProject} onChange={(e) => setFilterProject(e.target.value)}>
+          <option value="">All Projects</option>
+          {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+        </select>
+        <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+          <option value="">All Categories</option>
+          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <option value="">All Status</option>
+          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <input type="date" className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="Date From" />
+        <input type="date" className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="Date To" />
+        {(search || filterProject || filterCategory || filterStatus || dateFrom || dateTo) && (
+          <button type="button" className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-bold text-[#ef4444] hover:bg-[#fef2f2]" onClick={() => { setSearch(''); setFilterProject(''); setFilterCategory(''); setFilterStatus(''); setDateFrom(''); setDateTo(''); }}>
+            Clear Filters
+          </button>
+        )}
+      </div>
+
+      {/* Expenses Table */}
+      <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white shadow-sm">
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-[14px] text-[#7a8fa6]">Loading expenses…</div>
+        ) : expenses.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-20">
+            <Wallet className="size-10 text-[#c7d4e0]" />
+            <p className="text-[14px] font-bold text-[#7a8fa6]">No expenses found</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-[#e5eaf2] bg-[#f8fafc]">
+                  {['Project Name', 'Customer Name', 'Expense Date', 'Category', 'Description', 'Amount', 'Status', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f1f5f9]">
+                {expenses.map((exp) => (
+                  <tr key={exp.id} className="hover:bg-[#f8fafc]">
+                    <td className="px-4 py-3 font-semibold text-[#1e2a38]">{exp.project_name || '—'}</td>
+                    <td className="px-4 py-3 text-[#53647f]">{exp.customer_name || '—'}</td>
+                    <td className="px-4 py-3 text-[#53647f]">{exp.date ? new Date(exp.date).toLocaleDateString('en-IN') : '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: (catColor[exp.category] || '#64748b') + '20', color: catColor[exp.category] || '#64748b' }}>{exp.category || '—'}</span>
+                    </td>
+                    <td className="max-w-[200px] truncate px-4 py-3 text-[#53647f]" title={exp.description}>{exp.description || '—'}</td>
+                    <td className="px-4 py-3 font-bold text-[#1e2a38]">{fmt(exp.amount)}</td>
+                    <td className="px-4 py-3">{statusBadge(exp.status)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => setViewExpense(exp)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3" />View</button>
+                        <button type="button" onClick={() => openEdit(exp)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#7c3aed] hover:bg-[#f5f3ff]"><Pencil className="size-3" />Edit</button>
+                        <button type="button" onClick={() => setDeleteConfirm({ open: true, id: exp.id, label: `${exp.category} expense (${fmt(exp.amount)})` })} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#fecaca] bg-white px-2 text-[11px] font-bold text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3" />Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
+
+      {/* Expense Distribution Chart */}
+      {summary && (
+        <section className="rounded-[12px] border border-[#e5eaf2] bg-white p-6 shadow-sm">
+          <h3 className="mb-5 text-[15px] font-extrabold text-[#1e2a38]">Expense Distribution by Category</h3>
+          <div className="flex flex-col gap-4">
+            {chartBars.map((bar) => (
+              <div key={bar.label} className="flex items-center gap-4">
+                <span className="w-20 shrink-0 text-right text-[12px] font-bold text-[#53647f]">{bar.label}</span>
+                <div className="relative h-5 flex-1 overflow-hidden rounded-full bg-[#f1f5f9]">
+                  <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-500" style={{ width: `${chartMax > 0 ? (bar.value / chartMax) * 100 : 0}%`, background: bar.color }} />
+                </div>
+                <span className="w-28 shrink-0 text-[12px] font-bold text-[#1e2a38]">{fmt(bar.value)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* View Popup */}
+      {viewExpense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setViewExpense(null)}>
+          <div className="w-full max-w-lg rounded-[16px] bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-[17px] font-extrabold text-[#1e2a38]">Expense Details</h2>
+              <button type="button" onClick={() => setViewExpense(null)} className="rounded-full p-1 hover:bg-[#f1f5f9]"><X className="size-5 text-[#7a8fa6]" /></button>
+            </div>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-[13px]">
+              {[
+                ['Project', viewExpense.project_name],
+                ['Customer', viewExpense.customer_name],
+                ['Category', viewExpense.category],
+                ['Amount', fmt(viewExpense.amount)],
+                ['Date', viewExpense.date ? new Date(viewExpense.date).toLocaleDateString('en-IN') : '—'],
+                ['Status', null],
+                ['Payment Mode', viewExpense.payment_mode || '—'],
+                ['Paid By', viewExpense.paid_by || '—'],
+                ['Added By', viewExpense.created_by_name || '—'],
+              ].map(([label, val]) => (
+                <div key={label}>
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6]">{label}</dt>
+                  <dd className="mt-0.5 font-semibold text-[#1e2a38]">{label === 'Status' ? statusBadge(viewExpense.status) : (val || '—')}</dd>
+                </div>
+              ))}
+              {viewExpense.description && (
+                <div className="col-span-2">
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6]">Description</dt>
+                  <dd className="mt-0.5 text-[#53647f]">{viewExpense.description}</dd>
+                </div>
+              )}
+              {viewExpense.remarks && (
+                <div className="col-span-2">
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6]">Remarks</dt>
+                  <dd className="mt-0.5 text-[#53647f]">{viewExpense.remarks}</dd>
+                </div>
+              )}
+            </dl>
+            <div className="mt-6 flex justify-end">
+              <button type="button" onClick={() => setViewExpense(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f] hover:bg-[#f8fafc]">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Popup */}
+      {editExpense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditExpense(null)}>
+          <div className="w-full max-w-lg rounded-[16px] bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-[17px] font-extrabold text-[#1e2a38]">Edit Expense</h2>
+              <button type="button" onClick={() => setEditExpense(null)} className="rounded-full p-1 hover:bg-[#f1f5f9]"><X className="size-5 text-[#7a8fa6]" /></button>
+            </div>
+            <ExpenseForm form={editForm} setForm={setEditForm} projects={projects} CATEGORIES={CATEGORIES} PAYMENT_MODES={PAYMENT_MODES} STATUSES={STATUSES} hideProject />
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setEditExpense(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={handleEditSave} disabled={saving} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60">
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Expense Popup */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowAddModal(false)}>
+          <div className="w-full max-w-lg rounded-[16px] bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-[17px] font-extrabold text-[#1e2a38]">Add Expense</h2>
+              <button type="button" onClick={() => setShowAddModal(false)} className="rounded-full p-1 hover:bg-[#f1f5f9]"><X className="size-5 text-[#7a8fa6]" /></button>
+            </div>
+            <ExpenseForm form={addForm} setForm={setAddForm} projects={projects} CATEGORIES={CATEGORIES} PAYMENT_MODES={PAYMENT_MODES} STATUSES={STATUSES} />
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowAddModal(false)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={handleAddSave} disabled={saving || !addForm.project || !addForm.amount || !addForm.date} className="h-9 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white hover:bg-[#078c3e] disabled:opacity-60">
+                {saving ? 'Saving…' : 'Add Expense'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDeleteModal
+        open={deleteConfirm.open}
+        label={deleteConfirm.label}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm({ open: false, id: null, label: '' })}
+      />
 
       <DashboardFooter />
     </div>
   );
 }
+
+function ExpenseForm({ form, setForm, projects, CATEGORIES, PAYMENT_MODES, STATUSES, hideProject }) {
+  const f = (k) => (e) => setForm((prev) => ({ ...prev, [k]: e.target.value }));
+  const iCls = 'h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none';
+  const lCls = 'block text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6] mb-1';
+  return (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+      {!hideProject && (
+        <div className="col-span-2">
+          <label className={lCls}>Project *</label>
+          <select className={iCls} value={form.project} onChange={f('project')}>
+            <option value="">Select project…</option>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <label className={lCls}>Category</label>
+        <select className={iCls} value={form.category} onChange={f('category')}>
+          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className={lCls}>Amount (&#8377;) *</label>
+        <input type="number" min="0" step="0.01" className={iCls} placeholder="0.00" value={form.amount} onChange={f('amount')} />
+      </div>
+      <div>
+        <label className={lCls}>Expense Date *</label>
+        <input type="date" className={iCls} value={form.date} onChange={f('date')} />
+      </div>
+      <div>
+        <label className={lCls}>Status</label>
+        <select className={iCls} value={form.status} onChange={f('status')}>
+          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className={lCls}>Payment Mode</label>
+        <select className={iCls} value={form.payment_mode} onChange={f('payment_mode')}>
+          <option value="">Select…</option>
+          {PAYMENT_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className={lCls}>Paid By</label>
+        <input type="text" className={iCls} placeholder="Name / Department" value={form.paid_by} onChange={f('paid_by')} />
+      </div>
+      <div className="col-span-2">
+        <label className={lCls}>Description</label>
+        <input type="text" className={iCls} placeholder="Brief description…" value={form.description} onChange={f('description')} />
+      </div>
+      <div className="col-span-2">
+        <label className={lCls}>Remarks</label>
+        <textarea rows={2} className="w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 py-2 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none resize-none" placeholder="Optional remarks…" value={form.remarks} onChange={f('remarks')} />
+      </div>
+    </div>
+  );
+}
+
 
 function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
   const [activeDocumentTab, setActiveDocumentTab] = useState('All Documents');

@@ -2,7 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     ProjectViewSet, ProjectActivityViewSet, ProjectNoteViewSet,
-    ProjectDocumentViewSet, ProjectExpenseViewSet, ProjectPaymentViewSet, WorkOrderViewSet,
+    ProjectDocumentViewSet, ProjectExpenseViewSet, ProjectExpenseDocumentViewSet,
+    ProjectPaymentViewSet, WorkOrderViewSet,
     ProjectTeamMemberViewSet, ProjectMilestoneViewSet,
     ProjectChecklistItemViewSet, InstallationMaterialViewSet, MaterialPlanViewSet,
     SubsidyApplicationViewSet, SubsidyDocumentViewSet,
@@ -23,6 +24,7 @@ router.register('installation-materials', InstallationMaterialViewSet)
 router.register('material-plans', MaterialPlanViewSet, basename='material-plan')
 router.register('subsidy', SubsidyApplicationViewSet, basename='subsidy')
 router.register('subsidy-docs', SubsidyDocumentViewSet, basename='subsidy-docs')
+router.register('expense-docs', ProjectExpenseDocumentViewSet, basename='expense-docs')
 
 urlpatterns = [
     path('', include(router.urls)),

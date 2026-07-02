@@ -270,9 +270,33 @@ export const projectDocumentApi = {
 // ─── Project Expenses ───────────────────────────────────────────────────────────
 
 export const projectExpenseApi = {
-  list: (projectId) => request(`/project-expenses/?project=${projectId}`),
+  list: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.project) qs.set('project', params.project);
+    if (params.category) qs.set('category', params.category);
+    if (params.status) qs.set('status', params.status);
+    if (params.search) qs.set('search', params.search);
+    if (params.date_from) qs.set('date_from', params.date_from);
+    if (params.date_to) qs.set('date_to', params.date_to);
+    const q = qs.toString();
+    return request(`/project-expenses/${q ? '?' + q : ''}`);
+  },
+  get: (id) => request(`/project-expenses/${id}/`),
   create: (data) => request('/project-expenses/', { method: 'POST', body: data }),
+  update: (id, data) => request(`/project-expenses/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/project-expenses/${id}/`, { method: 'DELETE' }),
+  summary: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.project) qs.set('project', params.project);
+    if (params.category) qs.set('category', params.category);
+    if (params.status) qs.set('status', params.status);
+    if (params.date_from) qs.set('date_from', params.date_from);
+    if (params.date_to) qs.set('date_to', params.date_to);
+    const q = qs.toString();
+    return request(`/project-expenses/summary/${q ? '?' + q : ''}`);
+  },
+  uploadDoc: (data) => request('/expense-docs/', { method: 'POST', body: data }),
+  deleteDoc: (id) => request(`/expense-docs/${id}/`, { method: 'DELETE' }),
 };
 
 // ─── Project Payments ───────────────────────────────────────────────────────────

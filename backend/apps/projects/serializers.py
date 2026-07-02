@@ -3,6 +3,7 @@ from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
+    ProjectExpenseDocument,
 )
 from apps.accounts.serializers import UserSerializer
 
@@ -34,12 +35,29 @@ class ProjectDocumentSerializer(serializers.ModelSerializer):
         read_only_fields = ['uploaded_by', 'uploaded_at']
 
 
+class ProjectExpenseDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectExpenseDocument
+        fields = ['id', 'expense', 'doc_type', 'name', 'file', 'uploaded_at']
+        read_only_fields = ['uploaded_at']
+
+
 class ProjectExpenseSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source='project.project_name', read_only=True)
+    customer_name = serializers.CharField(source='project.customer_name', read_only=True)
+    project_capacity = serializers.CharField(source='project.capacity_kwp', read_only=True)
+    project_status = serializers.CharField(source='project.status', read_only=True)
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    expense_documents = ProjectExpenseDocumentSerializer(many=True, read_only=True)
 
     class Meta:
         model = ProjectExpense
-        fields = ['id', 'project', 'category', 'description', 'amount', 'date', 'created_by', 'created_by_name', 'created_at']
+        fields = [
+            'id', 'project', 'project_name', 'customer_name', 'project_capacity', 'project_status',
+            'category', 'description', 'amount', 'date',
+            'payment_mode', 'paid_by', 'status', 'remarks',
+            'created_by', 'created_by_name', 'created_at', 'expense_documents',
+        ]
         read_only_fields = ['created_by', 'created_at']
 
 
