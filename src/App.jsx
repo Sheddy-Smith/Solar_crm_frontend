@@ -23957,7 +23957,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <PageHeading
         title="Team Assignment"
         crumbs={[
@@ -23966,33 +23966,29 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
           { label: 'Team Assignment' },
         ]}
         actions={(
-          <button type="button" onClick={() => { setEmpForm(emptyEmpForm); setEditEmpId(null); setEmpModalOpen(true); }} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]">
-            <Plus className="size-4" />Add Employee
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setViewMode('project')} className={cx('inline-flex h-11 items-center gap-2 rounded-[8px] border px-4 text-[13px] font-extrabold transition', viewMode === 'project' ? 'border-[#0b65e5] bg-[#0b65e5] text-white' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
+              <FolderKanban className="size-4" />Project Wise
+            </button>
+            <button type="button" onClick={() => setViewMode('employee')} className={cx('inline-flex h-11 items-center gap-2 rounded-[8px] border px-4 text-[13px] font-extrabold transition', viewMode === 'employee' ? 'border-[#0b65e5] bg-[#0b65e5] text-white' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
+              <Users className="size-4" />Employee Wise
+            </button>
+            <button type="button" onClick={() => { setEmpForm(emptyEmpForm); setEditEmpId(null); setEmpModalOpen(true); }} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]">
+              <Plus className="size-4" />Add Employee
+            </button>
+          </div>
         )}
       />
 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
-      {/* View Mode Toggle */}
-      <section className={`${panelClass} p-3`}>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setViewMode('project')} className={cx('inline-flex h-10 items-center gap-2 rounded-[10px] border px-5 text-[13px] font-extrabold transition', viewMode === 'project' ? 'border-[#0b65e5] bg-[#0b65e5] text-white' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
-            <FolderKanban className="size-4" />Project Wise
-          </button>
-          <button type="button" onClick={() => setViewMode('employee')} className={cx('inline-flex h-10 items-center gap-2 rounded-[10px] border px-5 text-[13px] font-extrabold transition', viewMode === 'employee' ? 'border-[#0b65e5] bg-[#0b65e5] text-white' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
-            <Users className="size-4" />Employee Wise
-          </button>
-        </div>
-      </section>
 
       {/* ══ PROJECT WISE ══ */}
       {viewMode === 'project' && (
         <>
         {/* Toolbar */}
         <section className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 200 }}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <label className="flex h-11 flex-1 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 200 }}>
               <Search className="size-4 shrink-0 text-[#7e8fab]" />
               <input value={pwAssignSearch} onChange={(e) => setPwAssignSearch(e.target.value)} type="search" placeholder="Search employee or task..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
             </label>
@@ -24015,9 +24011,9 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         {/* Empty State / Content */}
         {!pwProject ? (
           <article className={`${panelClass} overflow-hidden`}>
-            <div className="flex flex-col items-center justify-center py-24">
-              <FolderKanban className="size-16 text-[#c5d2e8]" />
-              <h3 className="mt-5 font-display text-[20px] font-extrabold text-[#1e3261]">No Project Selected</h3>
+            <div className="flex flex-col items-center justify-center py-6">
+              <FolderKanban className="size-10 text-[#c5d2e8]" />
+              <h3 className="mt-5 font-display text-[16px] font-extrabold text-[#1e3261]">No Project Selected</h3>
               <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to view Team Assignments.</p>
               <button type="button" onClick={() => setPwPickerOpen(true)} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-6 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
                 <FolderKanban className="size-4" />Select Project
@@ -24025,16 +24021,16 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
             </div>
           </article>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {/* Project Summary Card */}
             <article className={`${panelClass} p-5`}>
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
                   <span className="grid size-14 shrink-0 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
-                    <FolderKanban className="size-7 text-white" />
+                    <FolderKanban className="size-5 text-white" />
                   </span>
                   <div>
-                    <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{pwProject.project_name}</h2>
+                    <h2 className="font-display text-[17px] font-extrabold text-[#111827]">{pwProject.project_name}</h2>
                     <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{pwProject.customer_name} &bull; {pwProject.project_id}</p>
                   </div>
                 </div>
@@ -24044,7 +24040,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                   <button type="button" onClick={() => { setPwProject(null); setPwAssignments([]); setPwAssignSearch(''); setPwAssignStatus('All'); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><X className="size-3.5" />Close</button>
                 </div>
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
+              <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
                 {[
                   { label: 'Capacity', value: pwProject.capacity_kwp ? `${pwProject.capacity_kwp} kWp` : '—' },
                   { label: 'Current Status', value: pwProject.status || '—' },
@@ -24053,7 +24049,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                   { label: 'Progress', value: `${pwProject.progress_percent ?? 0}%` },
                   { label: 'Team Members', value: String(pwAssignments.length) },
                 ].map((row) => (
-                  <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                  <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-3 py-2">
                     <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
                     <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value}</p>
                   </div>
@@ -24074,15 +24070,15 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
 
             {/* Team Assignment Table */}
             <article className={`${panelClass} overflow-hidden`}>
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-4 py-2">
                 <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">Team Assignment</h3>
                 <button type="button" onClick={() => { setPwAssignForm(emptyAssignForm); setPwEditAssignId(null); setPwAssignModalOpen(true); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]"><Plus className="size-3.5" />Add Assignment</button>
               </div>
               {pwLoading ? (
                 <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading assignments...</p>
               ) : pwFiltered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-14">
-                  <Users className="size-12 text-[#c5d2e8]" />
+                <div className="flex flex-col items-center justify-center py-7">
+                  <Users className="size-8 text-[#c5d2e8]" />
                   <p className="mt-3 text-[13px] font-bold text-[#8a98af]">No assignments found. Click <strong>Add Assignment</strong> to assign an employee to this project.</p>
                 </div>
               ) : (
@@ -24132,7 +24128,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         {pwPickerOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setPwPickerOpen(false); setPwPickerSearch(''); } }}>
             <div className="w-full max-w-[820px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
                 <div>
                   <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Project</h2>
                   <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose a project to view its team assignments</p>
@@ -24140,7 +24136,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                 <button type="button" onClick={() => { setPwPickerOpen(false); setPwPickerSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
               <div className="p-4 pb-2">
-                <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+                <label className="flex h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
                   <Search className="size-4 shrink-0 text-[#7e8fab]" />
                   <input autoFocus value={pwPickerSearch} onChange={(e) => setPwPickerSearch(e.target.value)} type="search" placeholder="Search project name or customer..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
                 </label>
@@ -24190,24 +24186,24 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         {pwViewOpen && pwViewData && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setPwViewOpen(false); }}>
             <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
                 <div>
                   <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Assignment Details</h2>
                   <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{pwViewData.employee_name} — {pwProject?.project_name}</p>
                 </div>
                 <button type="button" onClick={() => setPwViewOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
-              <div className="space-y-4 p-6">
+              <div className="space-y-4 p-4">
                 <div>
                   <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Employee Information</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {[
                       { label: 'Employee Name', value: pwViewData.employee_name },
                       { label: 'Employee ID', value: pwViewData.employee_emp_id },
                       { label: 'Department', value: pwViewData.employee_department },
                       { label: 'Role', value: pwViewData.employee_role },
                     ].map((row) => (
-                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-3 py-2">
                         <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
                         <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
                       </div>
@@ -24216,7 +24212,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                 </div>
                 <div>
                   <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Task Details</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {[
                       { label: 'Task Name', value: pwViewData.task_name },
                       { label: 'Priority', value: pwViewData.priority },
@@ -24225,7 +24221,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                       { label: 'Status', value: pwViewData.status },
                       { label: 'Progress', value: `${pwViewData.progress_percent ?? 0}%` },
                     ].map((row) => (
-                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-3 py-2">
                         <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
                         <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
                       </div>
@@ -24241,14 +24237,14 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                     </div>
                   </div>
                   {pwViewData.notes && (
-                    <div className="mt-3 rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                    <div className="mt-3 rounded-[10px] bg-[#f8fbff] px-3 py-2">
                       <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Notes</p>
                       <p className="mt-1 text-[13px] font-bold text-[#314a79]">{pwViewData.notes}</p>
                     </div>
                   )}
                 </div>
               </div>
-              <div className="flex justify-end border-t border-[#edf2f8] px-6 py-4">
+              <div className="flex justify-end border-t border-[#edf2f8] px-5 py-3">
                 <button type="button" onClick={() => setPwViewOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
               </div>
             </div>
@@ -24259,11 +24255,11 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         {pwAssignModalOpen && (
           <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setPwAssignModalOpen(false); }}>
             <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{pwEditAssignId !== null ? 'Edit Assignment' : 'Add Assignment'}</h2>
                 <button type="button" onClick={() => setPwAssignModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
-              <div className="grid gap-4 p-6 sm:grid-cols-2">
+              <div className="grid gap-2 p-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Employee *
                   <select value={pwAssignForm.employee} onChange={(e) => setPwAssignForm((p) => ({ ...p, employee: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
                     <option value="">Select Employee...</option>
@@ -24296,7 +24292,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                   <textarea value={pwAssignForm.notes} onChange={(e) => setPwAssignForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Task notes..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
                 </label>
               </div>
-              <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+              <div className="flex justify-end gap-2 border-t border-[#edf2f8] px-5 py-3">
                 <button type="button" onClick={() => setPwAssignModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
                 <button type="button" onClick={handleSavePwAssign} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{pwEditAssignId !== null ? 'Update' : 'Assign'}</button>
               </div>
@@ -24308,11 +24304,11 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         {empModalOpen && (
           <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEmpModalOpen(false); }}>
             <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
                 <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editEmpId !== null ? 'Edit Employee' : 'Add Employee'}</h2>
                 <button type="button" onClick={() => setEmpModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
-              <div className="grid gap-4 p-6 sm:grid-cols-2">
+              <div className="grid gap-2 p-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Name *
                   <input value={empForm.name} onChange={(e) => setEmpForm((p) => ({ ...p, name: e.target.value }))} placeholder="Full name" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
                 </label>
@@ -24342,7 +24338,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                   <textarea value={empForm.notes} onChange={(e) => setEmpForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Additional notes..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
                 </label>
               </div>
-              <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+              <div className="flex justify-end gap-2 border-t border-[#edf2f8] px-5 py-3">
                 <button type="button" onClick={() => setEmpModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
                 <button type="button" onClick={handleSaveEmployee} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{editEmpId !== null ? 'Update' : 'Add Employee'}</button>
               </div>
@@ -24357,8 +24353,8 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         <>
         {/* Toolbar */}
         <section className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 180 }}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <label className="flex h-11 flex-1 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 180 }}>
               <Search className="size-4 shrink-0 text-[#7e8fab]" />
               <input value={ewHistSearch} onChange={(e) => setEwHistSearch(e.target.value)} type="search" placeholder="Search project or task..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
             </label>
@@ -24378,9 +24374,9 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         {/* Empty State / Content */}
         {!ewSelected ? (
           <article className={`${panelClass} overflow-hidden`}>
-            <div className="flex flex-col items-center justify-center py-24">
-              <Users className="size-16 text-[#c5d2e8]" />
-              <h3 className="mt-5 font-display text-[20px] font-extrabold text-[#1e3261]">No Employee Selected</h3>
+            <div className="flex flex-col items-center justify-center py-6">
+              <Users className="size-10 text-[#c5d2e8]" />
+              <h3 className="mt-5 font-display text-[16px] font-extrabold text-[#1e3261]">No Employee Selected</h3>
               <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Employee</strong> to view employee work history.</p>
               <button type="button" onClick={() => setEwPickerOpen(true)} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-6 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
                 <UserRound className="size-4" />Select Employee
@@ -24388,16 +24384,16 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
             </div>
           </article>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {/* Employee Header */}
             <article className={`${panelClass} p-5`}>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
                   <span className="grid size-14 shrink-0 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-[20px] font-extrabold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
                     {ewSelected.name?.slice(0, 2).toUpperCase()}
                   </span>
                   <div>
-                    <h2 className="font-display text-[22px] font-extrabold text-[#111827]">{ewSelected.name}</h2>
+                    <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{ewSelected.name}</h2>
                     <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{ewSelected.role || '—'} &bull; {ewSelected.department || '—'} &bull; {ewSelected.employee_id}</p>
                   </div>
                 </div>
@@ -24414,7 +24410,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
             ) : (
               <>
                 {/* Summary Cards */}
-                <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+                <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                   {[
                     { label: 'Total Projects', value: ewSummary?.total_assigned_projects ?? 0, icon: FolderKanban, tone: 'blue' },
                     { label: 'Active Projects', value: ewSummary?.active_projects ?? 0, icon: ClipboardPlus, tone: 'cyan' },
@@ -24427,7 +24423,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
 
                 {/* Project Work History Table */}
                 <article className={`${panelClass} overflow-hidden`}>
-                  <div className="border-b border-[#edf2f8] px-5 py-3">
+                  <div className="border-b border-[#edf2f8] px-4 py-2">
                     <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">Project Work History</h3>
                   </div>
                   {ewFiltered.length === 0 ? (
@@ -24476,7 +24472,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         {ewPickerOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setEwPickerOpen(false); setEwPickerSearch(''); } }}>
             <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
                 <div>
                   <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Employee</h2>
                   <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose an employee to view their complete work history</p>
@@ -24484,7 +24480,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                 <button type="button" onClick={() => { setEwPickerOpen(false); setEwPickerSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
               <div className="p-4 pb-2">
-                <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+                <label className="flex h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
                   <Search className="size-4 shrink-0 text-[#7e8fab]" />
                   <input autoFocus value={ewPickerSearch} onChange={(e) => setEwPickerSearch(e.target.value)} type="search" placeholder="Search employee name or ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
                 </label>
@@ -24533,24 +24529,24 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
         {ewDetailOpen && ewDetailData && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEwDetailOpen(false); }}>
             <div className="w-full max-w-[580px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
                 <div>
                   <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Project Details</h2>
                   <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{ewDetailData.project_name}</p>
                 </div>
                 <button type="button" onClick={() => setEwDetailOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
-              <div className="space-y-4 p-6">
+              <div className="space-y-4 p-4">
                 <div>
                   <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Project Information</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {[
                       { label: 'Project Name', value: ewDetailData.project_name },
                       { label: 'Customer Name', value: ewDetailData.customer_name },
                       { label: 'Project Status', value: ewDetailData.project_status },
                       { label: 'Project Progress', value: `${ewDetailData.project_progress ?? 0}%` },
                     ].map((row) => (
-                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-3 py-2">
                         <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
                         <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
                       </div>
@@ -24559,7 +24555,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                 </div>
                 <div>
                   <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Assignment Details</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {[
                       { label: 'Task Name', value: ewDetailData.task_name },
                       { label: 'Role', value: ewDetailData.role },
@@ -24568,7 +24564,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                       { label: 'Task Status', value: ewDetailData.status },
                       { label: 'Progress', value: `${ewDetailData.progress_percent ?? 0}%` },
                     ].map((row) => (
-                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-3 py-2">
                         <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
                         <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
                       </div>
@@ -24584,14 +24580,14 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
                     </div>
                   </div>
                   {ewDetailData.notes && (
-                    <div className="mt-3 rounded-[10px] bg-[#f8fbff] px-4 py-3">
+                    <div className="mt-3 rounded-[10px] bg-[#f8fbff] px-3 py-2">
                       <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Notes</p>
                       <p className="mt-1 text-[13px] font-bold text-[#314a79]">{ewDetailData.notes}</p>
                     </div>
                   )}
                 </div>
               </div>
-              <div className="flex justify-end border-t border-[#edf2f8] px-6 py-4">
+              <div className="flex justify-end border-t border-[#edf2f8] px-5 py-3">
                 <button type="button" onClick={() => setEwDetailOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
               </div>
             </div>
