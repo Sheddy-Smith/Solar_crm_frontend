@@ -25500,13 +25500,13 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
     if (filterStatus) params.status = filterStatus;
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
-    Promise.all([projectExpenseApi.list(params), projectExpenseApi.summary(params)])
-      .then(([expRes, sumRes]) => {
-        setExpenses(normalizeApiRows(expRes));
-        setSummary(sumRes && !Array.isArray(sumRes) && typeof sumRes === 'object' ? sumRes : null);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    projectExpenseApi.list(params)
+      .then((expRes) => setExpenses(normalizeApiRows(expRes)))
+      .catch(() => setExpenses([]))
+      .finally(() => setLoading(false));
+    projectExpenseApi.summary(params)
+      .then((sumRes) => setSummary(sumRes && !Array.isArray(sumRes) ? sumRes : null))
+      .catch(() => setSummary(null));
   }, [search, filterProject, filterCategory, filterStatus, dateFrom, dateTo]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -25574,9 +25574,12 @@ function ProjectExpensesPage({ activeSection, onOpenSection, onNotify }) {
   return (
     <div className={cx(panelClass, 'flex flex-col gap-6 pb-10')}>
       <PageHeading
-        icon={<Wallet className="size-6" />}
         title="Project Expenses"
-        subtitle="Track and manage all project expenses across all projects."
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+          { label: 'Project Expenses' },
+        ]}
         actions={
           <button type="button" onClick={() => setShowAddModal(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
             <Plus className="size-4" />Add Expense
