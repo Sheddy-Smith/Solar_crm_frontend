@@ -3,7 +3,7 @@ from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
-    ProjectExpenseDocument,
+    ProjectExpenseDocument, ProjectApproval, ProjectApprovalDocument,
 )
 from apps.accounts.serializers import UserSerializer
 
@@ -249,3 +249,48 @@ class SubsidyApplicationSerializer(serializers.ModelSerializer):
             'documents', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+
+class ProjectApprovalDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectApprovalDocument
+        fields = ['id', 'approval', 'name', 'file', 'uploaded_at']
+        read_only_fields = ['uploaded_at']
+
+
+class ProjectApprovalSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source='project.project_name', read_only=True)
+    assigned_to_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    documents = ProjectApprovalDocumentSerializer(many=True, read_only=True)
+    approval_id = serializers.SerializerMethodField()
+
+    def get_approval_id(self, obj):
+        return f"APR-{obj.created_at.year}-{obj.id:04d}"
+
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            return obj.assigned_to.get_full_name() or obj.assigned_to.username
+        return ''
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username
+        return ''
+
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return obj.approved_by.get_full_name() or obj.approved_by.username
+        return ''
+
+    class Meta:
+        model = ProjectApproval
+        fields = [
+            'id', 'approval_id', 'project', 'project_name', 'approval_type', 'subject',
+            'description', 'requested_by', 'assigned_to', 'assigned_to_name', 'priority',
+            'remarks', 'status', 'created_by', 'created_by_name', 'approved_by',
+            'approved_by_name', 'approved_at', 'rejection_reason', 'documents',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_by', 'approved_by', 'approved_at', 'created_at', 'updated_at']

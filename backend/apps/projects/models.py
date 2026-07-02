@@ -513,3 +513,60 @@ class SubsidyDocument(models.Model):
 
     def __str__(self):
         return f'{self.subsidy} — {self.name}'
+
+
+class ProjectApproval(models.Model):
+    APPROVAL_TYPES = [
+        ('Budget Approval', 'Budget Approval'),
+        ('Material Purchase', 'Material Purchase'),
+        ('Vendor Payment', 'Vendor Payment'),
+        ('Technical Clearance', 'Technical Clearance'),
+        ('Site Survey', 'Site Survey'),
+        ('Installation Plan', 'Installation Plan'),
+        ('Subsidy Application', 'Subsidy Application'),
+        ('Commission Report', 'Commission Report'),
+        ('Other', 'Other'),
+    ]
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    ]
+    PRIORITY_CHOICES = [
+        ('Low', 'Low'),
+        ('Medium', 'Medium'),
+        ('High', 'High'),
+        ('Urgent', 'Urgent'),
+    ]
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='approvals')
+    approval_type = models.CharField(max_length=50, choices=APPROVAL_TYPES, default='Other')
+    subject = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    requested_by = models.CharField(max_length=200, blank=True)
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_approvals')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='Medium')
+    remarks = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_approvals')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='actioned_approvals')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'APR-{self.created_at.year}-{self.id:04d} — {self.subject}'
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class ProjectApprovalDocument(models.Model):
+    approval = models.ForeignKey(ProjectApproval, on_delete=models.CASCADE, related_name='documents')
+    name = models.CharField(max_length=200)
+    file = models.FileField(upload_to='approval_docs/%Y/%m/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.approval} — {self.name}'

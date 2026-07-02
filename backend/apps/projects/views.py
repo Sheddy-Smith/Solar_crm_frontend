@@ -8,7 +8,7 @@ from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
-    ProjectExpenseDocument,
+    ProjectExpenseDocument, ProjectApproval, ProjectApprovalDocument,
 )
 from .serializers import (
     ProjectListSerializer, ProjectDetailSerializer,
@@ -17,7 +17,7 @@ from .serializers import (
     ProjectTeamMemberSerializer, ProjectSystemConfigSerializer, ProjectMilestoneSerializer,
     SiteSurveySerializer, ProjectChecklistItemSerializer, InstallationMaterialSerializer,
     MaterialPlanSerializer, SubsidyApplicationSerializer, SubsidyDocumentSerializer,
-    ProjectExpenseDocumentSerializer,
+    ProjectExpenseDocumentSerializer, ProjectApprovalSerializer, ProjectApprovalDocumentSerializer,
 )
 from apps.accounts.permissions import HasModulePermission
 
@@ -369,3 +369,51 @@ class SubsidyDocumentViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['subsidy', 'doc_type']
+
+
+class ProjectApprovalViewSet(viewsets.ModelViewSet):
+    serializer_class = ProjectApprovalSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['project', 'status', 'approval_type', 'priority']
+    search_fields = ['subject', 'requested_by', 'project__project_name']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return ProjectApproval.objects.select_related(
+            'project', 'created_by', 'assigned_to', 'approved_by'
+        ).prefetch_related('documents').all()
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        approval = self.get_object()
+        approval.status = 'Approved'
+        approval.approved_by = request.user
+        approval.approved_at = timezone.now()
+        approval.rejection_reason = ''
+        approval.save()
+        return Response(self.get_serializer(approval).data)
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        approval = self.get_object()
+        approval.status = 'Rejected'
+        approval.approved_by = request.user
+        approval.approved_at = timezone.now()
+        approval.rejection_reason = request.data.get('reason', '')
+        approval.save()
+        return Response(self.get_serializer(approval).data)
+
+
+class ProjectApprovalDocumentViewSet(viewsets.ModelViewSet):
+    queryset = ProjectApprovalDocument.objects.select_related('approval').all()
+    serializer_class = ProjectApprovalDocumentSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['approval']

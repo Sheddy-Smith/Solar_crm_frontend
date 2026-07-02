@@ -7,6 +7,7 @@ from .views import (
     ProjectTeamMemberViewSet, ProjectMilestoneViewSet,
     ProjectChecklistItemViewSet, InstallationMaterialViewSet, MaterialPlanViewSet,
     SubsidyApplicationViewSet, SubsidyDocumentViewSet,
+    ProjectApprovalViewSet, ProjectApprovalDocumentViewSet,
 )
 
 router = DefaultRouter()
@@ -25,6 +26,8 @@ router.register('material-plans', MaterialPlanViewSet, basename='material-plan')
 router.register('subsidy', SubsidyApplicationViewSet, basename='subsidy')
 router.register('subsidy-docs', SubsidyDocumentViewSet, basename='subsidy-docs')
 router.register('expense-docs', ProjectExpenseDocumentViewSet, basename='expense-docs')
+router.register('project-approvals', ProjectApprovalViewSet, basename='project-approval')
+router.register('approval-docs', ProjectApprovalDocumentViewSet, basename='approval-docs')
 
 urlpatterns = [
     path('', include(router.urls)),
