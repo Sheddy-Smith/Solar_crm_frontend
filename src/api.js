@@ -306,6 +306,28 @@ export const projectExpenseApi = {
   deleteDoc: (id) => request(`/expense-docs/${id}/`, { method: 'DELETE' }),
 };
 
+// ─── Project Approvals ──────────────────────────────────────────────────────────
+
+export const projectApprovalApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.project) qs.set('project', params.project);
+    if (params.status) qs.set('status', params.status);
+    if (params.approval_type) qs.set('approval_type', params.approval_type);
+    if (params.search) qs.set('search', params.search);
+    const q = qs.toString();
+    return request(`/project-approvals/${q ? '?' + q : ''}`);
+  },
+  get: (id) => request(`/project-approvals/${id}/`),
+  create: (data) => request('/project-approvals/', { method: 'POST', body: data }),
+  update: (id, data) => request(`/project-approvals/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/project-approvals/${id}/`, { method: 'DELETE' }),
+  approve: (id) => request(`/project-approvals/${id}/approve/`, { method: 'POST' }),
+  reject: (id, reason = '') => request(`/project-approvals/${id}/reject/`, { method: 'POST', body: { reason } }),
+  uploadDoc: (data) => request('/approval-docs/', { method: 'POST', body: data }),
+  deleteDoc: (id) => request(`/approval-docs/${id}/`, { method: 'DELETE' }),
+};
+
 // ─── Project Payments ───────────────────────────────────────────────────────────
 
 export const projectPaymentApi = {
