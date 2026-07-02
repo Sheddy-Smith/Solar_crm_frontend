@@ -108,7 +108,7 @@ const projectRelatedPages = ['Project Management', ...projectActionPages, ...pro
 const summarySubItems = ['Project Overview', 'Project KPI Analytics', 'Project Reports'];
 const summaryRelatedPages = [...summarySubItems];
 // Pages jinhe ek selected project chahiye — refresh/restore pe selectedProject null hota hai, isliye inhe Project List se replace karo
-const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Installation', 'Project Report View'];
+const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Report View'];
 // Sidebar/subnav se in sections par jane par selectedProject clear karo (project action menu / preserveProject ke alawa)
 const projectSubnavSectionsThatClearProject = new Set([...projectSubItems, 'Project List']);
 const accountsSubItems = ['Accounts List', 'Transactions List', 'Chart of Accounts', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List'];
@@ -279,7 +279,7 @@ const projectSubRoutes = {
   'Project Progress Update': '/projects/progress/update/:projectId',
   'Project Timeline': '/projects/timeline/:projectId',
   'Project Site Survey': '/projects/site-survey/:projectId',
-  'Project Installation': '/projects/installation/:projectId',
+  'Project Installation': '/projects/installation',
   'Project Team Assignment': '/projects/team-assignment/:projectId',
   'Project Material Planning': '/projects/material-planning/:projectId',
   'Subsidy': '/projects/Subsidy/:projectId',
@@ -474,7 +474,7 @@ function buildPathForSection(section, { selectedLead, selectedProject } = {}) {
   });
 
   if (path.includes(':')) {
-    if (section === 'Project Details' || section === 'Project Timeline' || section === 'Project Site Survey' || section === 'Project Installation') {
+    if (section === 'Project Details' || section === 'Project Timeline' || section === 'Project Site Survey') {
       return '/projects/list';
     }
     if (section.startsWith('Lead ')) {
@@ -16596,7 +16596,7 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project Installation') {
-    return <ProjectInstallationPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
+    return <ProjectInstallationPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Team Assignment') {
@@ -23107,251 +23107,262 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
   );
 }
 
-function ProjectInstallationPage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
-  const [activeInstallationTab, setActiveInstallationTab] = useState('Overview');
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
+  const TASK_STATUSES = ['Pending', 'In Progress', 'Completed', 'Delayed'];
+  const MAT_UNITS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Roll', 'Pair'];
+  const MAT_STATUS = ['Pending', 'In Progress', 'Completed'];
+  const INSTALL_TABS = ['Overview', 'Installation Tasks', 'Materials', 'QA & Safety', 'Documents', 'Summary'];
+  const emptyTaskForm = { title: '', owner: '', status: 'Pending', progress_percent: 0, start_date: '', end_date: '' };
+  const emptyMatForm = { item_name: '', category: '', unit: 'Nos', required_qty: '', issued_qty: '', consumed_qty: '', status: 'Pending' };
+  const emptyQaForm = { label: '', category: 'QA', is_checked: false, notes: '' };
 
-  const reloadInstallation = () => {
-    if (!projectProp?.id) return;
-    projectApi.get(projectProp.id).then(setData).catch(() => {});
-  };
+  // â”€â”€ Project selection â”€â”€
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [allProjects, setAllProjects] = useState([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+
+  // â”€â”€ Tab â”€â”€
+  const [activeTab, setActiveTab] = useState('Overview');
+
+  // â”€â”€ Core data â”€â”€
+  const [projectData, setProjectData] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [checklist, setChecklist] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [userOptions, setUserOptions] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // â”€â”€ Task modal â”€â”€
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [editTask, setEditTask] = useState(null);
+  const [taskForm, setTaskForm] = useState(emptyTaskForm);
+  const [savingTask, setSavingTask] = useState(false);
+  const [viewTask, setViewTask] = useState(null);
+
+  // â”€â”€ Material modal â”€â”€
+  const [matModalOpen, setMatModalOpen] = useState(false);
+  const [editMat, setEditMat] = useState(null);
+  const [matForm, setMatForm] = useState(emptyMatForm);
+  const [savingMat, setSavingMat] = useState(false);
+
+  // â”€â”€ QA modal â”€â”€
+  const [qaModalOpen, setQaModalOpen] = useState(false);
+  const [editQa, setEditQa] = useState(null);
+  const [qaForm, setQaForm] = useState(emptyQaForm);
+  const [savingQa, setSavingQa] = useState(false);
+
+  // â”€â”€ Doc modal â”€â”€
+  const [docModalOpen, setDocModalOpen] = useState(false);
+  const [docFile, setDocFile] = useState(null);
+  const [docName, setDocName] = useState('');
+  const [docCategory, setDocCategory] = useState('Installation');
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  // â”€â”€ Delete confirm â”€â”€
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  // â”€â”€ Computed â”€â”€
+  const tasksDone = tasks.filter((t) => t.status === 'Completed').length;
+  const tasksPending = tasks.filter((t) => t.status === 'Pending' || t.status === 'Delayed').length;
+  const safetyItems = checklist.filter((c) => (c.category || '').toLowerCase() === 'safety');
+  const qaItems = checklist.filter((c) => (c.category || '').toLowerCase() !== 'safety');
+  const safetyDone = safetyItems.filter((c) => c.is_checked).length;
+  const safetyScore = safetyItems.length ? Math.round((safetyDone / safetyItems.length) * 100) : 0;
+  const avgProgress = tasks.length ? Math.round(tasks.reduce((s, t) => s + Number(t.progress_percent || 0), 0) / tasks.length) : 0;
+  const workforce = projectData?.team_members?.length ?? 0;
+
+  // â”€â”€ Load projects for picker â”€â”€
+  const loadProjects = useCallback(async () => {
+    if (allProjects.length > 0) return;
+    setLoadingProjects(true);
+    try {
+      const d = await projectApi.list({ page_size: 200 });
+      setAllProjects(normalizeApiRows(d));
+    } catch {}
+    finally { setLoadingProjects(false); }
+  }, [allProjects.length]);
+
+  // â”€â”€ Load all installation data â”€â”€
+  const loadData = useCallback(async (proj) => {
+    if (!proj) return;
+    setLoading(true);
+    try {
+      const [fullProject, mils, mats, chk, docs] = await Promise.all([
+        projectApi.get(proj.id),
+        projectMilestoneApi.list(proj.id),
+        installationMaterialApi.list(proj.id),
+        projectChecklistApi.list(proj.id, 'Installation'),
+        projectDocumentApi.list(proj.id),
+      ]);
+      setProjectData(fullProject);
+      setTasks(normalizeApiRows(mils));
+      setMaterials(normalizeApiRows(mats));
+      setChecklist(normalizeApiRows(chk));
+      setDocuments(normalizeApiRows(docs));
+    } catch {}
+    finally { setLoading(false); }
+  }, []);
 
   useEffect(() => {
-    if (!projectProp?.id) { setLoading(false); return; }
-    let cancelled = false;
-    setLoading(true);
-    projectApi.get(projectProp.id)
-      .then((res) => { if (!cancelled) setData(res); })
-      .catch(() => { if (!cancelled) setData(null); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [projectProp?.id]);
+    userApi.list({ is_active: true }).then((res) => {
+      setUserOptions(Array.isArray(res) ? res : res?.results ?? []);
+    }).catch(() => {});
+  }, []);
 
-  if (!projectProp?.id) {
-    return (
-      <div className="space-y-4">
-        <PageHeading title="Installation" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Installation' }]} />
-        <article className={`${panelClass} p-8 text-center`}>
-          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
-          <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
-          <p className="mx-auto mt-3 max-w-[480px] text-[13px] font-bold text-[#53647f]">Open a project from the Project List to view its installation.</p>
-          <button type="button" onClick={() => onOpenSection('Project List')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white"><ArrowRight className="size-4" />Go to Project List</button>
-        </article>
-      </div>
-    );
-  }
+  // â”€â”€ Project selection â”€â”€
+  const handleSelectProject = (proj) => {
+    setSelectedProject(proj);
+    setPickerOpen(false);
+    setPickerSearch('');
+    setActiveTab('Overview');
+    loadData(proj);
+  };
 
-  if (loading || !data) {
-    return (
-      <div className="space-y-4">
-        <PageHeading title="Installation" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Installation' }]} />
-        <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
-          {loading ? <PageLoadingState message="Loading installation..." /> : <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Project not found.</p>}
-        </article>
-      </div>
-    );
-  }
+  const openPicker = () => { loadProjects(); setPickerOpen(true); };
 
-  const d = data;
-  const config = d.system_config || {};
-  const materials = d.installation_materials || [];
-  const checklist = (d.checklist_items || []).filter((c) => c.phase === 'Installation');
-  const safetyChecklist = checklist.filter((c) => c.category === 'Safety');
-  const qaChecklist = checklist.filter((c) => c.category !== 'Safety');
-  const qaByCategory = {};
-  qaChecklist.forEach((c) => {
-    const key = c.category || 'General';
-    (qaByCategory[key] = qaByCategory[key] || []).push(c);
+  // â”€â”€ Task handlers â”€â”€
+  const openAddTask = () => { setEditTask(null); setTaskForm(emptyTaskForm); setTaskModalOpen(true); };
+  const openEditTask = (row) => { setEditTask(row); setTaskForm({ title: row.title, owner: row.owner ?? '', status: row.status, progress_percent: row.progress_percent ?? 0, start_date: row.start_date ?? '', end_date: row.end_date ?? '' }); setTaskModalOpen(true); };
+  const openViewTask = (row) => setViewTask(row);
+
+  const handleSaveTask = async () => {
+    if (!taskForm.title.trim()) { onNotify('Task name is required'); return; }
+    setSavingTask(true);
+    try {
+      const payload = { ...taskForm, project: selectedProject.id, owner: taskForm.owner || null, progress_percent: Number(taskForm.progress_percent) || 0 };
+      if (editTask) { await projectMilestoneApi.update(editTask.id, payload); onNotify('Task updated'); }
+      else { await projectMilestoneApi.create(payload); onNotify('Task added'); }
+      setTaskModalOpen(false);
+      loadData(selectedProject);
+    } catch (e) { onNotify(e.message || 'Save failed'); }
+    finally { setSavingTask(false); }
+  };
+
+  const handleDeleteTask = (row) => {
+    setDeleteConfirm({
+      message: `"${row.title}"`,
+      onConfirm: async () => {
+        try { await projectMilestoneApi.delete(row.id); setDeleteConfirm(null); onNotify('Task deleted'); loadData(selectedProject); }
+        catch { setDeleteConfirm(null); onNotify('Delete failed'); }
+      },
+    });
+  };
+
+  // â”€â”€ Material handlers â”€â”€
+  const openAddMat = () => { setEditMat(null); setMatForm(emptyMatForm); setMatModalOpen(true); };
+  const openEditMat = (row) => { setEditMat(row); setMatForm({ item_name: row.item_name, category: row.category ?? '', unit: row.unit ?? 'Nos', required_qty: row.required_qty ?? '', issued_qty: row.issued_qty ?? '', consumed_qty: row.consumed_qty ?? '', status: row.status ?? 'Pending' }); setMatModalOpen(true); };
+
+  const handleSaveMat = async () => {
+    if (!matForm.item_name.trim()) { onNotify('Material name is required'); return; }
+    setSavingMat(true);
+    try {
+      const payload = { ...matForm, project: selectedProject.id };
+      if (editMat) { await installationMaterialApi.update(editMat.id, payload); onNotify('Material updated'); }
+      else { await installationMaterialApi.create(payload); onNotify('Material added'); }
+      setMatModalOpen(false);
+      loadData(selectedProject);
+    } catch (e) { onNotify(e.message || 'Save failed'); }
+    finally { setSavingMat(false); }
+  };
+
+  const handleDeleteMat = (row) => {
+    setDeleteConfirm({
+      message: `"${row.item_name}"`,
+      onConfirm: async () => {
+        try { await installationMaterialApi.delete(row.id); setDeleteConfirm(null); onNotify('Material deleted'); loadData(selectedProject); }
+        catch { setDeleteConfirm(null); onNotify('Delete failed'); }
+      },
+    });
+  };
+
+  // â”€â”€ QA / Checklist handlers â”€â”€
+  const openAddQa = () => { setEditQa(null); setQaForm(emptyQaForm); setQaModalOpen(true); };
+  const openUpdateQa = (row) => { setEditQa(row); setQaForm({ label: row.label, category: row.category ?? 'QA', is_checked: !!row.is_checked, notes: row.notes ?? '' }); setQaModalOpen(true); };
+
+  const handleSaveQa = async () => {
+    if (!qaForm.label.trim()) { onNotify('Checklist item label is required'); return; }
+    setSavingQa(true);
+    try {
+      const payload = { ...qaForm, project: selectedProject.id, phase: 'Installation' };
+      if (editQa) { await projectChecklistApi.update(editQa.id, payload); onNotify('Checklist item updated'); }
+      else { await projectChecklistApi.create(payload); onNotify('Checklist item added'); }
+      setQaModalOpen(false);
+      loadData(selectedProject);
+    } catch (e) { onNotify(e.message || 'Save failed'); }
+    finally { setSavingQa(false); }
+  };
+
+  const handleDeleteQa = (row) => {
+    setDeleteConfirm({
+      message: `"${row.label}"`,
+      onConfirm: async () => {
+        try { await projectChecklistApi.delete(row.id); setDeleteConfirm(null); onNotify('Item deleted'); loadData(selectedProject); }
+        catch { setDeleteConfirm(null); onNotify('Delete failed'); }
+      },
+    });
+  };
+
+  // â”€â”€ Document handlers â”€â”€
+  const handleUploadDoc = async () => {
+    if (!docFile || !docName.trim()) { onNotify('File and name are required'); return; }
+    setUploadingDoc(true);
+    try {
+      const fd = new FormData();
+      fd.append('project', selectedProject.id);
+      fd.append('name', docName.trim());
+      fd.append('category', docCategory);
+      fd.append('file', docFile);
+      await projectDocumentApi.create(fd);
+      onNotify('Document uploaded');
+      setDocModalOpen(false);
+      setDocFile(null); setDocName(''); setDocCategory('Installation');
+      loadData(selectedProject);
+    } catch { onNotify('Upload failed'); }
+    finally { setUploadingDoc(false); }
+  };
+
+  const handleDeleteDoc = (row) => {
+    setDeleteConfirm({
+      message: `"${row.name}"`,
+      onConfirm: async () => {
+        try { await projectDocumentApi.delete(row.id); setDeleteConfirm(null); onNotify('Document deleted'); loadData(selectedProject); }
+        catch { setDeleteConfirm(null); onNotify('Delete failed'); }
+      },
+    });
+  };
+
+  // â”€â”€ Helpers â”€â”€
+  const taskStatusTone = (s) => s === 'Completed' ? 'green' : s === 'In Progress' ? 'blue' : s === 'Delayed' ? 'red' : 'amber';
+  const matStatusTone = (s) => s === 'Completed' ? 'green' : s === 'In Progress' ? 'blue' : 'amber';
+  const projStatusTone = (s) => s === 'Active' ? 'blue' : s === 'Completed' ? 'green' : s === 'On Hold' ? 'amber' : s === 'Cancelled' ? 'red' : 'cyan';
+
+  const filteredProjects = allProjects.filter((p) => {
+    const q = pickerSearch.toLowerCase();
+    return !q || (p.project_name || '').toLowerCase().includes(q) || (p.customer_name || '').toLowerCase().includes(q);
   });
 
-  const toggleChecklistItem = (item) => {
-    projectChecklistApi.update(item.id, { is_checked: !item.is_checked }).then(reloadInstallation).catch((e) => onNotify(e.message));
-  };
-
-  const installationMilestone = (d.milestones || []).find((m) => m.title === 'Installation') || null;
-  const tasks = (installationMilestone?.children || []);
-  const tasksCompleted = tasks.filter((t) => t.status === 'Completed');
-  const tasksInProgress = tasks.filter((t) => t.status === 'In Progress');
-  const tasksPending = tasks.filter((t) => t.status === 'Pending' || t.status === 'Delayed');
-  const overallProgress = installationMilestone?.progress_percent ?? 0;
-
-  const findMaterial = (re) => materials.find((m) => re.test(m.category || '') || re.test(m.item_name || ''));
-  const panelMaterial = findMaterial(/panel|module/i);
-  const inverterMaterial = findMaterial(/inverter/i);
-
-  const project = {
-    name: d.project_name,
-    address: d.site_address || '—',
-    city: [d.city, d.state].filter(Boolean).join(', ') || '—',
-    manager: d.manager_detail ? { name: d.manager_detail.name, initials: d.manager_detail.initials, tone: 'amber' } : { name: 'Unassigned', initials: '—', tone: 'blue' },
-    installationLead: d.site_engineer_detail ? { name: d.site_engineer_detail.name, initials: d.site_engineer_detail.initials, tone: 'green' } : { name: 'Unassigned', initials: '—', tone: 'slate' },
-    startDate: d.start_date,
-    targetDate: d.target_date,
-    installationId: d.project_id,
-  };
-
-  const installationTabs = [
-    { label: 'Overview', icon: Home },
-    { label: 'System Configuration', icon: Boxes },
-    { label: 'Material & Equipment', icon: FolderKanban },
-    { label: 'Work Progress', icon: BarChart3 },
-    { label: 'Quality Checklist', icon: CheckCircle2 },
-    { label: 'Safety', icon: ShieldCheck },
-    { label: 'Documents', icon: FileText },
-    { label: 'Summary', icon: ClipboardPlus },
-  ];
-
   const statCards = [
-    { label: 'Total Capacity', value: `${d.capacity_kwp ?? '—'} kWp`, caption: d.project_type || '—', icon: FolderKanban, tone: 'blue' },
-    { label: 'Installation Progress', value: `${overallProgress}%`, caption: `${tasksCompleted.length} of ${tasks.length} tasks completed`, icon: CheckCircle2, tone: 'green' },
-    { label: 'Panels Installed', value: panelMaterial ? `${panelMaterial.consumed_qty} / ${panelMaterial.required_qty}` : '—', caption: panelMaterial ? `${Math.round((Number(panelMaterial.consumed_qty) / Number(panelMaterial.required_qty || 1)) * 100)}% completed` : 'No data yet', icon: Boxes, tone: 'purple' },
-    { label: 'Inverters Installed', value: inverterMaterial ? `${inverterMaterial.consumed_qty} / ${inverterMaterial.required_qty}` : '—', caption: inverterMaterial?.status || 'No data yet', icon: Zap, tone: 'amber' },
-    { label: 'Safety Compliance', value: safetyChecklist.length ? `${Math.round((safetyChecklist.filter((c) => c.is_checked).length / safetyChecklist.length) * 100)}%` : '—', caption: `${safetyChecklist.filter((c) => c.is_checked).length} of ${safetyChecklist.length} verified`, icon: ShieldCheck, tone: 'cyan' },
-    { label: 'Workforce On Site', value: String((d.team_members || []).length), caption: 'Assigned team members', icon: Users, tone: 'blue' },
+    { label: 'Total Tasks', value: String(tasks.length), caption: 'All milestones', icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Completed', value: String(tasksDone), caption: 'Tasks finished', icon: CheckCircle2, tone: 'green' },
+    { label: 'Pending', value: String(tasksPending), caption: 'Remaining tasks', icon: Hourglass, tone: 'amber' },
+    { label: 'Workforce', value: String(workforce), caption: 'Team members', icon: Users, tone: 'cyan' },
+    { label: 'Progress', value: `${avgProgress}%`, caption: 'Average task progress', icon: BarChart3, tone: 'purple' },
+    { label: 'Safety Score', value: safetyItems.length ? `${safetyScore}%` : 'â€”', caption: `${safetyDone}/${safetyItems.length} items`, icon: ShieldCheck, tone: 'green' },
   ];
 
-  const installationDetails = [
-    ['Installation Type', d.project_type || '—'],
-    ['System Type', d.system_type || '—'],
-    ['Capacity (kWp)', d.capacity_kwp ?? '—'],
-    ['No. of Panels', config.panel_count ?? '—'],
-    ['Panel Rating', config.panel_wattage_w ? `${config.panel_wattage_w} Wp Each` : '—'],
-    ['Inverter', config.inverter_brand ? `${config.inverter_brand} ${config.inverter_model || ''}`.trim() : '—'],
-    ['Protection Devices', config.protection_devices || '—'],
-    ['Installation Start Date', project.startDate],
-    ['Target Completion Date', project.targetDate],
-    ['Installation Status', installationMilestone?.status || 'Not Started'],
-    ['Remarks', config.notes || 'No remarks added yet.'],
-  ];
+  // â”€â”€ Summary computed â”€â”€
+  const matTotalRequired = materials.reduce((s, m) => s + Number(m.required_qty || 0), 0);
+  const matTotalIssued = materials.reduce((s, m) => s + Number(m.issued_qty || 0), 0);
+  const matTotalInstalled = materials.reduce((s, m) => s + Number(m.consumed_qty || 0), 0);
+  const qaDone = qaItems.filter((c) => c.is_checked).length;
+  const teamMembers = (projectData?.team_members || []);
 
-  const progressRows = tasks.map((t) => ({
-    task: t.title,
-    status: t.status,
-    progress: t.progress_percent,
-    start: t.start_date,
-    end: t.end_date,
-  }));
-
-  const qaCategoryCompletion = Object.entries(qaByCategory).map(([category, items]) => ({
-    category,
-    done: items.filter((i) => i.is_checked).length,
-    total: items.length,
-  }));
-
-  const teamMembers = (d.team_members || []).map((m, index) => ({
-    name: m.user_name,
-    role: m.role_title || 'Team Member',
-    initials: m.user_initials,
-    tone: ['green', 'cyan', 'purple', 'pink'][index % 4],
-  }));
-
-  const upcomingActivities = tasks
-    .filter((t) => t.status !== 'Completed')
-    .slice(0, 3)
-    .map((t) => ({
-      title: t.title,
-      date: t.end_date ? formatProjectDisplayDate(t.end_date) : 'Not scheduled',
-      status: t.status,
-      tone: t.status === 'In Progress' ? 'blue' : 'amber',
-    }));
-
-  const systemConfigStats = [
-    { label: 'System Type', value: d.system_type || '—', caption: d.project_type || '—', icon: FolderKanban, tone: 'blue' },
-    { label: 'Panel Count', value: config.panel_count != null ? String(config.panel_count) : '—', caption: config.panel_wattage_w ? `${config.panel_wattage_w} Wp each` : '—', icon: Boxes, tone: 'green' },
-    { label: 'Inverter Capacity', value: config.inverter_capacity_kw != null ? `${config.inverter_capacity_kw} kW` : '—', caption: config.inverter_brand || '—', icon: Zap, tone: 'amber' },
-    { label: 'String Count', value: config.string_count != null ? String(config.string_count) : '—', caption: config.panel_count && config.string_count ? `${Math.round(config.panel_count / config.string_count)} panels each` : '—', icon: Database, tone: 'purple' },
-  ];
-
-  const systemConfigRows = [
-    ['System Configuration', d.project_type || '—'],
-    ['Module Brand / Model', [config.panel_brand, config.panel_model].filter(Boolean).join(' ') || '—'],
-    ['Module Rating', config.panel_wattage_w ? `${config.panel_wattage_w} Wp` : '—'],
-    ['No. of Modules', config.panel_count ?? '—'],
-    ['Inverter Brand / Model', [config.inverter_brand, config.inverter_model].filter(Boolean).join(' ') || '—'],
-    ['Inverter Capacity', config.inverter_capacity_kw != null ? `${config.inverter_capacity_kw} kW` : '—'],
-    ['Protection Devices', config.protection_devices || '—'],
-    ['Notes', config.notes || '—'],
-  ];
-
-  const systemLayoutChips = [
-    [config.panel_count != null ? `${config.panel_count} Panels` : 'Panels —', config.panel_wattage_w && config.panel_count ? `${((config.panel_count * config.panel_wattage_w) / 1000).toFixed(2)} kWp DC` : '—', Boxes, 'bg-[#eef5ff] text-[#0b65e5]'],
-    [config.string_count != null ? `${config.string_count} Strings` : 'Strings —', config.panel_count && config.string_count ? `${Math.round(config.panel_count / config.string_count)} panels per string` : '—', Database, 'bg-[#effbf3] text-[#14b84c]'],
-    [config.inverter_capacity_kw != null ? `${config.inverter_capacity_kw}kW Inverter` : 'Inverter —', [config.inverter_brand, config.inverter_model].filter(Boolean).join(' ') || '—', Zap, 'bg-[#fff5e8] text-[#f59e0b]'],
-  ];
-
-  const materialStats = [
-    { label: 'Total Items', value: String(materials.length), caption: 'Installation BOM', icon: Boxes, tone: 'blue' },
-    { label: 'Fully Issued', value: String(materials.filter((m) => Number(m.issued_qty) >= Number(m.required_qty)).length), caption: 'Items at full issue', icon: CheckCircle2, tone: 'green' },
-    { label: 'Pending', value: String(materials.filter((m) => m.status === 'Pending').length), caption: 'To be issued', icon: Hourglass, tone: 'amber' },
-    { label: 'Completed', value: String(materials.filter((m) => m.status === 'Completed').length), caption: 'Fully consumed', icon: ClipboardPlus, tone: 'purple' },
-  ];
-
-  const materialRows = materials.map((m) => ({
-    item: m.item_name,
-    category: m.category || '—',
-    required: `${m.required_qty} ${m.unit || ''}`.trim(),
-    issued: `${m.issued_qty} ${m.unit || ''}`.trim(),
-    consumed: `${m.consumed_qty} ${m.unit || ''}`.trim(),
-    status: m.status,
-  }));
-
-  const totalRequired = materials.reduce((sum, m) => sum + Number(m.required_qty || 0), 0);
-  const totalIssued = materials.reduce((sum, m) => sum + Number(m.issued_qty || 0), 0);
-  const totalConsumed = materials.reduce((sum, m) => sum + Number(m.consumed_qty || 0), 0);
-  const issuedPercent = totalRequired ? Math.round((totalIssued / totalRequired) * 100) : 0;
-  const consumedPercent = totalRequired ? Math.round((totalConsumed / totalRequired) * 100) : 0;
-
-  const workProgressStats = [
-    { label: 'Overall Progress', value: `${overallProgress}%`, caption: `${tasksCompleted.length} of ${tasks.length} tasks`, icon: BarChart3, tone: 'green' },
-    { label: 'Completed Tasks', value: String(tasksCompleted.length), caption: 'Milestones done', icon: CheckCircle2, tone: 'blue' },
-    { label: 'In Progress', value: String(tasksInProgress.length), caption: 'Active work', icon: Clock3, tone: 'amber' },
-    { label: 'Pending', value: String(tasksPending.length), caption: 'Upcoming work', icon: Hourglass, tone: 'purple' },
-  ];
-
-  const qaCompleted = qaChecklist.filter((c) => c.is_checked);
-  const qaPending = qaChecklist.filter((c) => !c.is_checked);
-  const qualityStats = [
-    { label: 'QA Progress', value: qaChecklist.length ? `${Math.round((qaCompleted.length / qaChecklist.length) * 100)}%` : '0%', caption: `${qaCompleted.length} of ${qaChecklist.length} checks`, icon: CheckCircle2, tone: 'green' },
-    { label: 'Passed', value: String(qaCompleted.length), caption: 'Quality checks', icon: BadgeCheck, tone: 'blue' },
-    { label: 'Pending', value: String(qaPending.length), caption: 'Before handover', icon: Hourglass, tone: 'amber' },
-    { label: 'Categories', value: String(Object.keys(qaByCategory).length), caption: Object.keys(qaByCategory).join(', ') || 'None yet', icon: Boxes, tone: 'purple' },
-  ];
-
-  const safetyCompleted = safetyChecklist.filter((c) => c.is_checked);
-  const safetyPending = safetyChecklist.filter((c) => !c.is_checked);
-  const safetyStats = [
-    { label: 'Safety Score', value: safetyChecklist.length ? `${Math.round((safetyCompleted.length / safetyChecklist.length) * 100)}%` : '—', caption: 'Checklist verified', icon: ShieldCheck, tone: 'green' },
-    { label: 'Verified Items', value: String(safetyCompleted.length), caption: 'Confirmed safe', icon: CheckCircle2, tone: 'blue' },
-    { label: 'Pending Items', value: String(safetyPending.length), caption: 'Needs verification', icon: Hourglass, tone: 'amber' },
-    { label: 'Total Checks', value: String(safetyChecklist.length), caption: 'Safety checklist', icon: ClipboardPlus, tone: 'purple' },
-  ];
-
-  const documents = d.documents || [];
-  const documentCategories = new Set(documents.map((doc) => doc.category).filter(Boolean));
-  const latestDocument = documents[0];
-
-  const docStatCards = [
-    { label: 'Total Documents', value: String(documents.length), caption: 'Uploaded for this project', icon: FileText, tone: 'blue' },
-    { label: 'File Names', value: String(documentCategories.size), caption: documentCategories.size ? Array.from(documentCategories).join(', ') : 'None yet', icon: Boxes, tone: 'purple' },
-    { label: 'Latest Upload', value: latestDocument ? formatProjectDisplayDate(latestDocument.uploaded_at) : '—', caption: latestDocument?.name || 'No documents yet', icon: Upload, tone: 'green' },
-  ];
-
-  const installationSummaryRows = [
-    ['Installation Status', installationMilestone?.status || 'Not Started'],
-    ['Overall Progress', `${overallProgress}%`],
-    ['Installed Modules', panelMaterial ? `${panelMaterial.consumed_qty} of ${panelMaterial.required_qty}` : '—'],
-    ['Inverter Status', inverterMaterial?.status || '—'],
-    ['Quality Checklist', qaChecklist.length ? `${qaCompleted.length} of ${qaChecklist.length} done` : 'No items yet'],
-    ['Safety Checklist', safetyChecklist.length ? `${safetyCompleted.length} of ${safetyChecklist.length} done` : 'No items yet'],
-    ['Pending Tasks', tasksPending.length ? tasksPending.map((t) => t.title).join(', ') : 'None'],
-    ['Target Completion', project.targetDate ? formatProjectDisplayDate(project.targetDate) : '—'],
-  ];
-
-  const nextActions = [
-    ...tasksPending.slice(0, 2).map((t) => ({ title: t.title, date: t.end_date ? formatProjectDisplayDate(t.end_date) : 'Not scheduled', status: 'Pending' })),
-    ...tasksInProgress.slice(0, 1).map((t) => ({ title: t.title, date: t.end_date ? formatProjectDisplayDate(t.end_date) : 'Not scheduled', status: 'In Progress' })),
-  ];
+  // â”€â”€ Shared field style â”€â”€
+  const inputCls = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100';
+  const labelCls = 'block text-[12px] font-extrabold text-[#53647f] mb-1';
 
   return (
     <div className="space-y-4">
@@ -23360,496 +23371,658 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details', { preserveProject: true }) },
           { label: 'Installation' },
         ]}
-        actions={(
-          <>
-            <button type="button" onClick={() => onNotify('Installation report download is not available yet')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => setActiveInstallationTab('System Configuration')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Edit Installation</button>
-          </>
-        )}
+        actions={
+          <button
+            type="button"
+            onClick={openPicker}
+            className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0e9145]"
+          >
+            <FolderKanban className="size-4" />
+            {selectedProject ? 'Change Project' : 'Select Project'}
+          </button>
+        }
       />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 xl:grid-cols-[2.2fr_repeat(5,minmax(0,1fr))] xl:items-center">
-          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
-            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
-                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">{installationMilestone?.status || d.status}</span>
-              </div>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
-              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
-            </div>
+      {/* â”€â”€ Empty State â”€â”€ */}
+      {!selectedProject ? (
+        <article className={`${panelClass} flex flex-col items-center justify-center gap-4 p-14 text-center`}>
+          <span className="grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
+            <FolderKanban className="size-8" />
+          </span>
+          <div>
+            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">No Project Selected</h2>
+            <p className="mt-2 text-[13px] font-bold text-[#53647f]">Please click "Select Project" to manage Installation.</p>
           </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
-            <AssigneeCell assignee={project.manager} compact />
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation Lead</p>
-            <AssigneeCell assignee={project.installationLead} compact />
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{project.startDate ? formatProjectDisplayDate(project.startDate) : '—'}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{project.targetDate ? formatProjectDisplayDate(project.targetDate) : '—'}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project ID</p>
-            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
-          </div>
-        </div>
-      </section>
-
-      <section className={`${panelClass} p-3 sm:p-4`}>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {installationTabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeInstallationTab === tab.label;
-            return (
-              <button
-                key={tab.label}
-                type="button"
-                onClick={() => setActiveInstallationTab(tab.label)}
-                className={cx(
-                  'inline-flex shrink-0 items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
-                  active ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
-                )}
-              >
-                <Icon className="size-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {activeInstallationTab === 'Overview' ? (
+          <button
+            type="button"
+            onClick={openPicker}
+            className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white transition hover:bg-[#0e9145]"
+          >
+            <FolderKanban className="size-4" />
+            Select Project
+          </button>
+        </article>
+      ) : loading ? (
+        <article className={`${panelClass} p-8`}>
+          <PageLoadingState message="Loading installation data..." />
+        </article>
+      ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-            {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
-          </section>
-
-          <section className="grid items-start gap-4 xl:grid-cols-[0.95fr_1.45fr_0.95fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Details</h2>
-              <div className="mt-5 space-y-4">
-                {installationDetails.map(([label, value]) => (
-                  <div key={label} className="grid gap-2 text-[13px] sm:grid-cols-[170px_1fr]">
-                    <span className="font-bold text-[#53647f]">{label}</span>
-                    <span className={cx('font-extrabold text-[#1e3261]', label === 'Installation Status' && 'inline-flex w-fit rounded-[8px] bg-[#f4ecff] px-2.5 py-1 text-[12px] text-[#8b5cf6]')}>{value}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Progress</h2>
-              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-                <div className="grid grid-cols-[1.45fr_0.8fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Task / Milestone</span>
-                  <span>Status</span>
-                  <span>Progress</span>
-                  <span>Start Date</span>
-                  <span>End Date</span>
-                </div>
-                {progressRows.length ? progressRows.map((row) => (
-                  <div key={row.task} className="grid grid-cols-[1.45fr_0.8fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                    <span className="font-extrabold text-[#1e3261]">{row.task}</span>
-                    <span><ProjectPhaseBadge status={row.status} /></span>
-                    <span className="space-y-1">
-                      <ProjectProgressBar value={row.progress} color={row.progress === 100 ? 'green' : row.progress > 0 ? 'blue' : 'amber'} />
-                      <span className="block text-[11px] font-extrabold text-[#53647f]">{row.progress}%</span>
-                    </span>
-                    <span>{row.start ? formatProjectDisplayDate(row.start) : '—'}</span>
-                    <span>{row.end ? formatProjectDisplayDate(row.end) : '—'}</span>
-                  </div>
-                )) : (
-                  <div className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">No installation tasks recorded yet.</div>
-                )}
-              </div>
-              <div className="mt-5 text-center">
-                <button type="button" onClick={() => setActiveInstallationTab('Work Progress')} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><ArrowRight className="size-4" />View Detailed Work Progress</button>
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Checklist Snapshot</h2>
-              <div className="mt-4 space-y-3">
-                {qaCategoryCompletion.length ? qaCategoryCompletion.map((c) => (
-                  <div key={c.category} className="rounded-[12px] border border-[#edf2f8] p-3">
-                    <div className="flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
-                      <span>{c.category}</span>
-                      <span>{c.done}/{c.total}</span>
-                    </div>
-                    <div className="mt-2"><ProjectProgressBar value={c.total ? Math.round((c.done / c.total) * 100) : 0} color={c.done === c.total ? 'green' : 'blue'} compact /></div>
-                  </div>
-                )) : (
-                  <p className="text-[13px] font-bold text-[#53647f]">No quality checklist items recorded yet.</p>
-                )}
-                <div className="rounded-[12px] border border-[#edf2f8] p-3">
-                  <div className="flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
-                    <span>Safety</span>
-                    <span>{safetyCompleted.length}/{safetyChecklist.length}</span>
-                  </div>
-                  <div className="mt-2"><ProjectProgressBar value={safetyChecklist.length ? Math.round((safetyCompleted.length / safetyChecklist.length) * 100) : 0} color={safetyCompleted.length === safetyChecklist.length ? 'green' : 'amber'} compact /></div>
-                </div>
-              </div>
-            </article>
-          </section>
-
-          <section className="grid items-start gap-4 xl:grid-cols-[1fr_1fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Team on Site</h2>
-                <button type="button" onClick={() => onOpenSection('Project Team Assignment')} className="text-[12px] font-extrabold text-[#0b65e5]">View Team</button>
-              </div>
-              <div className="mt-4 space-y-3">
-                {teamMembers.length ? teamMembers.map((member) => (
-                  <div key={member.name} className="flex items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                    <div className={cx('grid size-11 place-items-center rounded-full text-[13px] font-extrabold text-white', member.tone === 'green' ? 'bg-[#16a34a]' : member.tone === 'cyan' ? 'bg-[#14b8a6]' : member.tone === 'purple' ? 'bg-[#8b5cf6]' : 'bg-[#d946ef]')}>
-                      {member.initials}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14px] font-extrabold text-[#1e3261]">{member.name}</p>
-                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">{member.role}</p>
-                    </div>
-                  </div>
-                )) : (
-                  <p className="text-[13px] font-bold text-[#53647f]">No team members assigned yet.</p>
-                )}
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Upcoming Activity</h2>
-              <div className="mt-4 space-y-3">
-                {upcomingActivities.length ? upcomingActivities.map((activity) => (
-                  <div key={activity.title} className="flex items-start gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                    <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', activity.tone === 'blue' ? 'bg-[#2f80ff]' : 'bg-[#f59e0b]')}>
-                      <CalendarDays className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[14px] font-extrabold text-[#1e3261]">{activity.title}</p>
-                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">{activity.date}</p>
-                    </div>
-                    <span className={cx('shrink-0 rounded-[999px] px-2.5 py-1 text-[11px] font-extrabold', activity.tone === 'amber' ? 'bg-[#fff4df] text-[#b45309]' : 'bg-[#eef4ff] text-[#2563eb]')}>
-                      {activity.status}
-                    </span>
-                  </div>
-                )) : (
-                  <p className="text-[13px] font-bold text-[#53647f]">No pending activities — installation tasks are all completed.</p>
-                )}
-              </div>
-              <div className="mt-5 text-center">
-                <button type="button" onClick={() => onOpenSection('Project Timeline')} data-route={projectSubRoutes['Project Timeline']} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><ArrowRight className="size-4" />View All Activities</button>
-              </div>
-            </article>
-          </section>
-        </>
-      ) : activeInstallationTab === 'System Configuration' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {systemConfigStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} configuration opened`)} />)}
-          </div>
-
-          <div className="grid items-start gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">System Configuration Details</h2>
-              </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {systemConfigRows.map(([label, value]) => (
-                  <InfoCell key={label} label={label} value={value} />
-                ))}
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">System Layout</h2>
-              </div>
-              <div className="mt-5 grid gap-3 md:grid-cols-3">
-                {systemLayoutChips.map(([title, note, Icon, tone], index) => (
-                  <div key={title} className="relative rounded-[14px] border border-[#edf2f8] bg-[#fbfdff] p-4 text-center">
-                    <span className={cx('mx-auto grid size-12 place-items-center rounded-full', tone)}><Icon className="size-5" /></span>
-                    <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">{title}</p>
-                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">{note}</p>
-                    {index < 2 ? <span className="pointer-events-none absolute right-[-18px] top-1/2 hidden h-px w-8 bg-[#d9e4f2] md:block" /> : null}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-4 rounded-[12px] bg-[#f8fbff] p-3 text-[13px] font-bold leading-6 text-[#53647f]">
-                {config.protection_devices ? `Protection devices installed: ${config.protection_devices}.` : 'No protection device details recorded yet.'}
-              </p>
-            </article>
-          </div>
-        </section>
-      ) : activeInstallationTab === 'Material & Equipment' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {materialStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} material status opened`)} />)}
-          </div>
-
-          <div className="grid items-start gap-4 xl:grid-cols-[1.45fr_0.75fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material & Equipment List</h2>
-              </div>
-              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-                <div className="min-w-[850px]">
-                  <div className="grid grid-cols-[1.4fr_0.85fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                    <span>Item</span>
-                    <span>Category</span>
-                    <span>Required</span>
-                    <span>Issued</span>
-                    <span>Consumed</span>
-                    <span>Status</span>
-                  </div>
-                  {materialRows.length ? materialRows.map((row) => (
-                    <div key={row.item} className="grid grid-cols-[1.4fr_0.85fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                      <span className="font-extrabold text-[#1e3261]">{row.item}</span>
-                      <span><ProjectActivityCategoryBadge category={row.category} /></span>
-                      <span>{row.required}</span>
-                      <span>{row.issued}</span>
-                      <span>{row.consumed}</span>
-                      <span><ProjectActivityStatusBadge status={row.status} /></span>
-                    </div>
-                  )) : (
-                    <div className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">No materials recorded for this project yet.</div>
-                  )}
-                </div>
-              </div>
-            </article>
-
-            <aside className="space-y-4">
-              <article className={`${panelClass} p-4 sm:p-5`}>
-                <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Material Status</h2>
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
-                      <span>Issued vs Required</span>
-                      <span>{issuedPercent}%</span>
-                    </div>
-                    <ProjectProgressBar value={issuedPercent} color="green" compact />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between text-[12px] font-extrabold text-[#314a79]">
-                      <span>Consumed on Site</span>
-                      <span>{consumedPercent}%</span>
-                    </div>
-                    <ProjectProgressBar value={consumedPercent} color="blue" compact />
-                  </div>
-                </div>
-              </article>
-            </aside>
-          </div>
-        </section>
-      ) : activeInstallationTab === 'Work Progress' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {workProgressStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} progress opened`)} />)}
-          </div>
-
-          <div className="grid items-start gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Work Progress Overview</h2>
-              <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-                <div className="min-w-[760px]">
-                  <div className="grid grid-cols-[1.45fr_0.8fr_1fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                    <span>Milestone</span>
-                    <span>Status</span>
-                    <span>Progress</span>
-                    <span>Start</span>
-                    <span>End</span>
-                  </div>
-                  {progressRows.length ? progressRows.map((row) => (
-                    <div key={row.task} className="grid grid-cols-[1.45fr_0.8fr_1fr_0.9fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[13px] font-bold text-[#53647f] last:border-b-0">
-                      <span className="font-extrabold text-[#1e3261]">{row.task}</span>
-                      <span><ProjectActivityStatusBadge status={row.status} /></span>
-                      <ProjectProgressInline value={row.progress} status={row.status} tone="blue" />
-                      <span>{row.start ? formatProjectDisplayDate(row.start) : '—'}</span>
-                      <span>{row.end ? formatProjectDisplayDate(row.end) : '—'}</span>
-                    </div>
-                  )) : (
-                    <div className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">No installation tasks recorded yet.</div>
-                  )}
-                </div>
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Milestone Progress</h2>
-              <div className="mt-5 space-y-4">
-                {progressRows.length ? progressRows.map((row, index) => (
-                  <div key={row.task} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3">
-                    <span className={cx('grid size-9 place-items-center rounded-full text-[12px] font-extrabold text-white', row.status === 'Completed' ? 'bg-[#14b84c]' : row.status === 'In Progress' ? 'bg-[#2f80ff]' : 'bg-[#9aa8bc]')}>{index + 1}</span>
-                    <div className="min-w-0 rounded-[12px] border border-[#edf2f8] p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-extrabold text-[#1e3261]">{row.task}</p>
-                        <ProjectPhaseBadge status={row.status} />
-                      </div>
-                      <div className="mt-3">
-                        <ProjectProgressBar value={row.progress} color={row.status === 'Completed' ? 'green' : row.status === 'In Progress' ? 'blue' : 'amber'} compact />
-                      </div>
-                    </div>
-                  </div>
-                )) : (
-                  <p className="text-[13px] font-bold text-[#53647f]">No installation tasks recorded yet.</p>
-                )}
-              </div>
-            </article>
-          </div>
-        </section>
-      ) : activeInstallationTab === 'Quality Checklist' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {qualityStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} quality opened`)} />)}
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-3">
-            {Object.entries(qaByCategory).length ? Object.entries(qaByCategory).map(([category, items]) => {
-              const completed = items.filter((i) => i.is_checked).length;
-              return (
-                <article key={category} className={`${panelClass} p-4 sm:p-5`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">{category}</h2>
-                    <span className="rounded-[999px] bg-[#eef5ff] px-3 py-1 text-[12px] font-extrabold text-[#0b65e5]">{completed}/{items.length}</span>
-                  </div>
-                  <div className="mt-4 space-y-3">
-                    {items.map((item) => (
-                      <button key={item.id} type="button" onClick={() => toggleChecklistItem(item)} className="flex w-full items-center gap-3 rounded-[12px] border border-[#edf2f8] p-3 text-left transition hover:bg-[#fbfdff]">
-                        <span className={cx('grid size-8 shrink-0 place-items-center rounded-full', item.is_checked ? 'bg-[#effbf3] text-[#14b84c]' : 'bg-[#fff5e8] text-[#f59e0b]')}>
-                          {item.is_checked ? <CheckCircle2 className="size-4" /> : <Hourglass className="size-4" />}
-                        </span>
-                        <span className="min-w-0 flex-1 text-[13px] font-extrabold text-[#1e3261]">{item.label}</span>
-                        <ProjectPhaseBadge status={item.is_checked ? 'Completed' : 'Pending'} />
-                      </button>
-                    ))}
-                  </div>
-                </article>
-              );
-            }) : (
-              <article className={`${panelClass} p-8 text-center text-[13px] font-bold text-[#53647f]`}>No quality checklist items recorded for this project yet.</article>
-            )}
-          </div>
-        </section>
-      ) : activeInstallationTab === 'Safety' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {safetyStats.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} safety opened`)} />)}
-          </div>
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
+          {/* â”€â”€ Project Summary Card â”€â”€ */}
+          <article className={`${panelClass} p-4`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Safety Checklist</h2>
-              <ProjectPhaseBadge status={safetyPending.length === 0 && safetyChecklist.length > 0 ? 'Completed' : 'Pending'} label={safetyPending.length === 0 && safetyChecklist.length > 0 ? 'All Verified' : `${safetyPending.length} Pending`} />
-            </div>
-            <div className="mt-4 overflow-x-auto rounded-[14px] border border-[#edf2f8]">
-              <div className="min-w-[640px]">
-                <div className="grid grid-cols-[1.6fr_1fr_0.9fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-                  <span>Safety Item</span>
-                  <span>Checked By</span>
-                  <span>Status</span>
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#eef4ff] text-[#0b65e5]">
+                  <FolderKanban className="size-5" />
+                </span>
+                <div>
+                  <p className="font-display text-[15px] font-extrabold text-[#111827]">{selectedProject.project_name}</p>
+                  <p className="text-[12px] font-bold text-[#53647f]">{selectedProject.customer_name} Â· {selectedProject.project_id || selectedProject.id}</p>
                 </div>
-                {safetyChecklist.length ? safetyChecklist.map((item) => (
-                  <button key={item.id} type="button" onClick={() => toggleChecklistItem(item)} className="grid w-full grid-cols-[1.6fr_1fr_0.9fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-left text-[13px] font-bold text-[#53647f] transition last:border-b-0 hover:bg-[#fbfdff]">
-                    <span className="font-extrabold text-[#1e3261]">{item.label}</span>
-                    <span>{item.checked_by_name || '—'}</span>
-                    <span><ProjectActivityStatusBadge status={item.is_checked ? 'Completed' : 'Pending'} /></span>
-                  </button>
-                )) : (
-                  <div className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">No safety checklist items recorded for this project yet.</div>
-                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {selectedProject.capacity_kwp ? (
+                  <span className="rounded-full bg-[#eef5ff] px-3 py-1 text-[12px] font-extrabold text-[#0b65e5]">{selectedProject.capacity_kwp} kWp</span>
+                ) : null}
+                <ProjectInfoPill tone={projStatusTone(selectedProject.status)} label={selectedProject.status || 'â€”'} />
+                <span className="text-[12px] font-bold text-[#53647f]">Progress: <span className="font-extrabold text-[#111827]">{selectedProject.progress_percent ?? 0}%</span></span>
               </div>
             </div>
           </article>
-        </section>
-      ) : activeInstallationTab === 'Documents' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {docStatCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} documents opened`)} />)}
+
+          {/* â”€â”€ Tabs â”€â”€ */}
+          <div className="flex gap-1 overflow-x-auto rounded-[10px] border border-[#edf2f8] bg-white p-1">
+            {INSTALL_TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={cx(
+                  'whitespace-nowrap rounded-[8px] px-4 py-2 text-[13px] font-extrabold transition',
+                  activeTab === tab ? 'bg-[#0d9f4a] text-white' : 'text-[#53647f] hover:bg-[#f1f5fb]',
+                )}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
 
-          <ProjectDocumentsTable
-            projectId={projectProp.id}
-            documents={documents}
-            onReload={reloadInstallation}
-            onNotify={onNotify}
-            title="Installation Documents"
-            uploadButtonClassName="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-3 text-[12px] font-extrabold text-white"
-          />
-        </section>
-      ) : activeInstallationTab === 'Summary' ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr_0.8fr]">
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Completion Score</h2>
-              <div className="mt-5 flex flex-col items-center text-center">
-                <div className="grid size-[150px] place-items-center rounded-full" style={{ background: `conic-gradient(#14b84c 0 ${overallProgress}%, #e7eef7 ${overallProgress}% 100%)` }}>
-                  <div className="grid size-[102px] place-items-center rounded-full bg-white shadow-[inset_0_0_0_1px_#edf2f8]">
-                    <span>
-                      <span className="block font-display text-[34px] font-extrabold leading-none text-[#06135a]">{overallProgress}%</span>
-                      <span className="mt-1 block text-[11px] font-bold text-[#53647f]">Complete</span>
-                    </span>
-                  </div>
-                </div>
-                <p className="mt-4 text-[13px] font-bold leading-6 text-[#53647f]">{tasksPending.length ? `${tasksPending.length} task(s) pending: ${tasksPending.map((t) => t.title).join(', ')}.` : 'All installation tasks are completed.'}</p>
-              </div>
-            </article>
-
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Installation Summary</h2>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {installationSummaryRows.map(([label, value]) => (
-                  <InfoCell key={label} label={label} value={value} />
+          {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ OVERVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {activeTab === 'Overview' && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {statCards.map((s) => (
+                  <LiaisonApprovalStatCard key={s.label} label={s.label} value={s.value} caption={s.caption} icon={s.icon} tone={s.tone} />
                 ))}
               </div>
-            </article>
 
-            <article className={`${panelClass} p-4 sm:p-5`}>
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Next Actions</h2>
-              <div className="mt-4 space-y-3">
-                {nextActions.length ? nextActions.map((action) => (
-                  <div key={action.title} className="rounded-[12px] border border-[#edf2f8] p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-[13px] font-extrabold text-[#1e3261]">{action.title}</p>
-                      <ProjectPhaseBadge status={action.status} />
-                    </div>
-                    <p className="mt-2 text-[12px] font-bold text-[#53647f]">{action.date}</p>
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+                {/* Upcoming Tasks */}
+                <article className={`${panelClass} overflow-hidden`}>
+                  <div className="flex items-center gap-2 border-b border-[#edf2f8] px-4 py-3">
+                    <Clock3 className="size-4 text-[#0b65e5]" />
+                    <h3 className="text-[13px] font-extrabold text-[#111827]">Upcoming Tasks</h3>
                   </div>
-                )) : (
-                  <p className="text-[13px] font-bold text-[#53647f]">No pending actions — installation is complete.</p>
-                )}
+                  <div className="divide-y divide-[#f1f5fb]">
+                    {tasks.filter((t) => t.status !== 'Completed').slice(0, 5).map((t) => (
+                      <div key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-extrabold text-[#111827]">{t.title}</p>
+                          <p className="text-[12px] font-bold text-[#53647f]">{t.end_date ? `Due: ${t.end_date}` : 'No due date'}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-[12px] font-bold text-[#53647f]">{t.progress_percent ?? 0}%</span>
+                          <ProjectInfoPill tone={taskStatusTone(t.status)} label={t.status} />
+                        </div>
+                      </div>
+                    ))}
+                    {tasks.filter((t) => t.status !== 'Completed').length === 0 && (
+                      <p className="px-4 py-6 text-center text-[13px] font-bold text-[#53647f]">All tasks completed</p>
+                    )}
+                  </div>
+                </article>
+
+                {/* Team & Status */}
+                <div className="space-y-4">
+                  <article className={`${panelClass} overflow-hidden`}>
+                    <div className="flex items-center gap-2 border-b border-[#edf2f8] px-4 py-3">
+                      <Users className="size-4 text-[#0b65e5]" />
+                      <h3 className="text-[13px] font-extrabold text-[#111827]">Assigned Team</h3>
+                    </div>
+                    <div className="divide-y divide-[#f1f5fb]">
+                      {teamMembers.slice(0, 5).map((m, i) => (
+                        <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                          <span className={cx('grid size-8 shrink-0 place-items-center rounded-full text-[12px] font-extrabold text-white', ['bg-[#0b65e5]', 'bg-[#16a34a]', 'bg-[#9333ea]', 'bg-[#f59e0b]'][i % 4])}>
+                            {(m.user_initials || (m.user_name || 'U').slice(0, 2)).toUpperCase()}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-extrabold text-[#111827]">{m.user_name || 'â€”'}</p>
+                            <p className="truncate text-[11px] font-bold text-[#53647f]">{m.role_title || 'Team Member'}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {teamMembers.length === 0 && <p className="px-4 py-4 text-center text-[12px] font-bold text-[#53647f]">No team assigned</p>}
+                    </div>
+                  </article>
+
+                  <article className={`${panelClass} p-4`}>
+                    <p className="text-[12px] font-extrabold text-[#53647f]">Current Status</p>
+                    <p className="mt-1 text-[15px] font-extrabold text-[#111827]">{projectData?.status || 'â€”'}</p>
+                    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[#edf2f8]">
+                      <div className="h-full rounded-full bg-[#0d9f4a] transition-all" style={{ width: `${avgProgress}%` }} />
+                    </div>
+                    <p className="mt-1 text-right text-[11px] font-bold text-[#53647f]">{avgProgress}% avg task progress</p>
+                  </article>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ INSTALLATION TASKS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {activeTab === 'Installation Tasks' && (
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3">
+                <h3 className="text-[14px] font-extrabold text-[#111827]">Installation Tasks</h3>
+                <button type="button" onClick={openAddTask} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0e9145]">
+                  <Plus className="size-3.5" />
+                  Add Task
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="crm-table min-w-[780px] w-full">
+                  <thead>
+                    <tr>{['Task', 'Assigned Employee', 'Planned Date', 'Completed Date', 'Status', 'Progress', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {tasks.length === 0 ? (
+                      <tr><td colSpan={7} className="py-8 text-center text-[13px] font-bold text-[#53647f]">No tasks added yet</td></tr>
+                    ) : tasks.map((t) => (
+                      <tr key={t.id}>
+                        <td className="font-extrabold text-[#111827]">{t.title}</td>
+                        <td>{t.owner_name || 'â€”'}</td>
+                        <td>{t.start_date || 'â€”'}</td>
+                        <td>{t.end_date || 'â€”'}</td>
+                        <td><ProjectInfoPill tone={taskStatusTone(t.status)} label={t.status} /></td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[#edf2f8]">
+                              <div className="h-full rounded-full bg-[#0d9f4a]" style={{ width: `${t.progress_percent || 0}%` }} />
+                            </div>
+                            <span className="text-[12px] font-bold text-[#53647f]">{t.progress_percent || 0}%</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1">
+                            <UserActionButton label="View" icon={Eye} tone="blue" onClick={() => openViewTask(t)} />
+                            <UserActionButton label="Edit" icon={Pencil} tone="blue" onClick={() => openEditTask(t)} />
+                            <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteTask(t)} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </article>
-          </div>
-        </section>
-      ) : (
-        <article className={`${panelClass} p-8 text-center`}>
-          <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
-            <FolderKanban className="size-8" />
-          </span>
-          <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{activeInstallationTab}</h2>
-          <button type="button" onClick={() => setActiveInstallationTab('Overview')} className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Back to Overview</button>
-        </article>
+          )}
+
+          {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ MATERIALS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {activeTab === 'Materials' && (
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3">
+                <h3 className="text-[14px] font-extrabold text-[#111827]">Material & Equipment</h3>
+                <button type="button" onClick={openAddMat} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0e9145]">
+                  <Plus className="size-3.5" />
+                  Add Material
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="crm-table min-w-[740px] w-full">
+                  <thead>
+                    <tr>{['Material', 'Required Qty', 'Issued Qty', 'Installed Qty', 'Balance Qty', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {materials.length === 0 ? (
+                      <tr><td colSpan={7} className="py-8 text-center text-[13px] font-bold text-[#53647f]">No materials added yet</td></tr>
+                    ) : materials.map((m) => {
+                      const balance = Number(m.required_qty || 0) - Number(m.issued_qty || 0);
+                      return (
+                        <tr key={m.id}>
+                          <td className="font-extrabold text-[#111827]">{m.item_name}</td>
+                          <td>{m.required_qty ?? 'â€”'} {m.unit}</td>
+                          <td>{m.issued_qty ?? 'â€”'} {m.unit}</td>
+                          <td>{m.consumed_qty ?? 'â€”'} {m.unit}</td>
+                          <td className={cx('font-extrabold', balance > 0 ? 'text-[#c0392b]' : 'text-[#0d9f4a]')}>{balance} {m.unit}</td>
+                          <td><ProjectInfoPill tone={matStatusTone(m.status)} label={m.status} /></td>
+                          <td>
+                            <div className="flex items-center gap-1">
+                              <UserActionButton label="Edit" icon={Pencil} tone="blue" onClick={() => openEditMat(m)} />
+                              <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteMat(m)} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          )}
+
+          {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ QA & SAFETY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {activeTab === 'QA & Safety' && (
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3">
+                <h3 className="text-[14px] font-extrabold text-[#111827]">QA & Safety Checklist</h3>
+                <button type="button" onClick={openAddQa} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0e9145]">
+                  <Plus className="size-3.5" />
+                  Add Item
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="crm-table min-w-[620px] w-full">
+                  <thead>
+                    <tr>{['Checklist Item', 'Category', 'Status', 'Remarks', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {checklist.length === 0 ? (
+                      <tr><td colSpan={5} className="py-8 text-center text-[13px] font-bold text-[#53647f]">No checklist items yet</td></tr>
+                    ) : checklist.map((c) => (
+                      <tr key={c.id}>
+                        <td className="font-extrabold text-[#111827]">{c.label}</td>
+                        <td>{c.category || 'â€”'}</td>
+                        <td>
+                          {c.is_checked
+                            ? <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f8eb] px-2.5 py-0.5 text-[11px] font-extrabold text-[#0d9f4a]"><CheckCircle2 className="size-3" />Done</span>
+                            : <span className="inline-flex items-center gap-1 rounded-full bg-[#fff5e8] px-2.5 py-0.5 text-[11px] font-extrabold text-[#f59e0b]"><Clock3 className="size-3" />Pending</span>
+                          }
+                        </td>
+                        <td className="max-w-[180px] truncate text-[12px] text-[#53647f]">{c.notes || 'â€”'}</td>
+                        <td>
+                          <div className="flex items-center gap-1">
+                            <UserActionButton label="Update" icon={Pencil} tone="blue" onClick={() => openUpdateQa(c)} />
+                            <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteQa(c)} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          )}
+
+          {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ DOCUMENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {activeTab === 'Documents' && (
+            <article className={`${panelClass} overflow-hidden`}>
+              <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3">
+                <h3 className="text-[14px] font-extrabold text-[#111827]">Documents</h3>
+                <button type="button" onClick={() => setDocModalOpen(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0e9145]">
+                  <Upload className="size-3.5" />
+                  Upload
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="crm-table min-w-[620px] w-full">
+                  <thead>
+                    <tr>{['Document', 'Category', 'Uploaded By', 'Date', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {documents.length === 0 ? (
+                      <tr><td colSpan={5} className="py-8 text-center text-[13px] font-bold text-[#53647f]">No documents uploaded yet</td></tr>
+                    ) : documents.map((doc) => (
+                      <tr key={doc.id}>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <FileText className="size-4 shrink-0 text-[#7585a2]" />
+                            <span className="font-extrabold text-[#111827]">{doc.name}</span>
+                          </div>
+                        </td>
+                        <td>{doc.category || 'â€”'}</td>
+                        <td>{doc.uploaded_by_name || doc.uploaded_by || 'â€”'}</td>
+                        <td>{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'â€”'}</td>
+                        <td>
+                          <div className="flex items-center gap-1">
+                            {doc.file ? (
+                              <a href={doc.file} target="_blank" rel="noopener noreferrer" className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5] transition hover:-translate-y-0.5" aria-label="View document">
+                                <Eye className="size-4" />
+                              </a>
+                            ) : null}
+                            <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteDoc(doc)} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          )}
+
+          {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ SUMMARY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {activeTab === 'Summary' && (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Installation Progress */}
+                <article className={`${panelClass} p-4`}>
+                  <h4 className="mb-3 flex items-center gap-2 text-[13px] font-extrabold text-[#111827]"><BarChart3 className="size-4 text-[#0b65e5]" />Installation Progress</h4>
+                  <div className="space-y-2">
+                    {[['Overall Progress', `${avgProgress}%`], ['Total Tasks', String(tasks.length)], ['Completed Tasks', String(tasksDone)], ['Pending Tasks', String(tasksPending)], ['In Progress', String(tasks.filter((t) => t.status === 'In Progress').length)]].map(([l, v]) => (
+                      <div key={l} className="flex items-center justify-between text-[13px]">
+                        <span className="font-bold text-[#53647f]">{l}</span>
+                        <span className="font-extrabold text-[#111827]">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+
+                {/* Material Summary */}
+                <article className={`${panelClass} p-4`}>
+                  <h4 className="mb-3 flex items-center gap-2 text-[13px] font-extrabold text-[#111827]"><Boxes className="size-4 text-[#9333ea]" />Material Summary</h4>
+                  <div className="space-y-2">
+                    {[['Total Items', String(materials.length)], ['Total Required', `${matTotalRequired}`], ['Total Issued', `${matTotalIssued}`], ['Total Installed', `${matTotalInstalled}`], ['Pending Items', String(materials.filter((m) => m.status === 'Pending').length)]].map(([l, v]) => (
+                      <div key={l} className="flex items-center justify-between text-[13px]">
+                        <span className="font-bold text-[#53647f]">{l}</span>
+                        <span className="font-extrabold text-[#111827]">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+
+                {/* QA Summary */}
+                <article className={`${panelClass} p-4`}>
+                  <h4 className="mb-3 flex items-center gap-2 text-[13px] font-extrabold text-[#111827]"><CheckCircle2 className="size-4 text-[#0d9f4a]" />QA Summary</h4>
+                  <div className="space-y-2">
+                    {[['Total QA Items', String(qaItems.length)], ['Completed', String(qaDone)], ['Pending', String(qaItems.filter((c) => !c.is_checked).length)], ['Safety Items', String(safetyItems.length)], ['Safety Score', safetyItems.length ? `${safetyScore}%` : 'â€”']].map(([l, v]) => (
+                      <div key={l} className="flex items-center justify-between text-[13px]">
+                        <span className="font-bold text-[#53647f]">{l}</span>
+                        <span className="font-extrabold text-[#111827]">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+
+                {/* Team & Docs */}
+                <article className={`${panelClass} p-4`}>
+                  <h4 className="mb-3 flex items-center gap-2 text-[13px] font-extrabold text-[#111827]"><Users className="size-4 text-[#f59e0b]" />Team & Documents</h4>
+                  <div className="space-y-2">
+                    {[['Team Members', String(workforce)], ['Documents', String(documents.length)], ['Project Status', projectData?.status || 'â€”'], ['Project Type', projectData?.project_type || 'â€”'], ['Capacity', projectData?.capacity_kwp ? `${projectData.capacity_kwp} kWp` : 'â€”']].map(([l, v]) => (
+                      <div key={l} className="flex items-center justify-between text-[13px]">
+                        <span className="font-bold text-[#53647f]">{l}</span>
+                        <span className="font-extrabold text-[#111827]">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      <DashboardFooter />
+      {/* â”€â”€ Project Picker Popup â”€â”€ */}
+      {pickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16" onMouseDown={(e) => { if (e.target === e.currentTarget) setPickerOpen(false); }}>
+          <div className="w-full max-w-3xl rounded-[14px] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <h2 className="font-display text-[16px] font-extrabold text-[#111827]">Select Project</h2>
+              <button type="button" onClick={() => setPickerOpen(false)} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
+            </div>
+            <div className="p-4">
+              <label className="flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-3 focus-within:border-[#0b65e5]">
+                <Search className="size-4 shrink-0 text-[#7585a2]" />
+                <input value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} placeholder="Search by project or customer name..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold outline-none" autoFocus />
+              </label>
+            </div>
+            <div className="max-h-[400px] overflow-y-auto">
+              {loadingProjects ? (
+                <PageLoadingState message="Loading projects..." compact />
+              ) : filteredProjects.length === 0 ? (
+                <p className="py-6 text-center text-[13px] font-bold text-[#53647f]">No projects found</p>
+              ) : (
+                <table className="crm-table w-full">
+                  <thead><tr>{['Project Name', 'Customer', 'Capacity', 'Status', 'Progress', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {filteredProjects.map((p) => (
+                      <tr key={p.id}>
+                        <td className="font-extrabold text-[#111827]">{p.project_name}</td>
+                        <td>{p.customer_name || 'â€”'}</td>
+                        <td>{p.capacity_kwp ? `${p.capacity_kwp} kWp` : 'â€”'}</td>
+                        <td><ProjectInfoPill tone={projStatusTone(p.status)} label={p.status || 'â€”'} /></td>
+                        <td>{p.progress_percent ?? 0}%</td>
+                        <td>
+                          <button type="button" onClick={() => handleSelectProject(p)} className="rounded-[7px] bg-[#0d9f4a] px-3 py-1.5 text-[11px] font-extrabold text-white transition hover:bg-[#0e9145]">Select</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* â”€â”€ Task Add/Edit Modal â”€â”€ */}
+      {taskModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setTaskModalOpen(false); }}>
+          <div className="w-full max-w-lg rounded-[14px] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <h2 className="font-display text-[15px] font-extrabold text-[#111827]">{editTask ? 'Edit Task' : 'Add Task'}</h2>
+              <button type="button" onClick={() => setTaskModalOpen(false)} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div>
+                <label className={labelCls}>Task Name <span className="text-red-500">*</span></label>
+                <input value={taskForm.title} onChange={(e) => setTaskForm((p) => ({ ...p, title: e.target.value }))} className={inputCls} placeholder="e.g. Panel Installation" />
+              </div>
+              <div>
+                <label className={labelCls}>Assigned Employee</label>
+                <select value={taskForm.owner} onChange={(e) => setTaskForm((p) => ({ ...p, owner: e.target.value }))} className={inputCls}>
+                  <option value="">-- Unassigned --</option>
+                  {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Status</label>
+                  <select value={taskForm.status} onChange={(e) => setTaskForm((p) => ({ ...p, status: e.target.value }))} className={inputCls}>
+                    {TASK_STATUSES.map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Progress %</label>
+                  <input type="number" min="0" max="100" value={taskForm.progress_percent} onChange={(e) => setTaskForm((p) => ({ ...p, progress_percent: e.target.value }))} className={inputCls} placeholder="0â€“100" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Planned Date</label>
+                  <input type="date" value={taskForm.start_date} onChange={(e) => setTaskForm((p) => ({ ...p, start_date: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Completed Date</label>
+                  <input type="date" value={taskForm.end_date} onChange={(e) => setTaskForm((p) => ({ ...p, end_date: e.target.value }))} className={inputCls} />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
+              <button type="button" onClick={() => setTaskModalOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276]">Cancel</button>
+              <button type="button" onClick={handleSaveTask} disabled={savingTask} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">{savingTask ? 'Saving...' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* â”€â”€ Task View Popup â”€â”€ */}
+      {viewTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setViewTask(null); }}>
+          <div className="w-full max-w-md rounded-[14px] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <h2 className="font-display text-[15px] font-extrabold text-[#111827]">Task Details</h2>
+              <button type="button" onClick={() => setViewTask(null)} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
+            </div>
+            <div className="divide-y divide-[#f1f5fb] p-5">
+              {[['Task Name', viewTask.title], ['Assigned Employee', viewTask.owner_name || 'â€”'], ['Status', viewTask.status], ['Progress', `${viewTask.progress_percent ?? 0}%`], ['Planned Date', viewTask.start_date || 'â€”'], ['Completed Date', viewTask.end_date || 'â€”']].map(([l, v]) => (
+                <div key={l} className="flex items-center justify-between py-2.5 text-[13px]">
+                  <span className="font-bold text-[#53647f]">{l}</span>
+                  <span className="font-extrabold text-[#111827]">{v}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
+              <button type="button" onClick={() => { setViewTask(null); openEditTask(viewTask); }} className="h-10 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white">Edit</button>
+              <button type="button" onClick={() => setViewTask(null)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276]">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* â”€â”€ Material Add/Edit Modal â”€â”€ */}
+      {matModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setMatModalOpen(false); }}>
+          <div className="w-full max-w-lg rounded-[14px] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <h2 className="font-display text-[15px] font-extrabold text-[#111827]">{editMat ? 'Edit Material' : 'Add Material'}</h2>
+              <button type="button" onClick={() => setMatModalOpen(false)} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div>
+                <label className={labelCls}>Material Name <span className="text-red-500">*</span></label>
+                <input value={matForm.item_name} onChange={(e) => setMatForm((p) => ({ ...p, item_name: e.target.value }))} className={inputCls} placeholder="e.g. Solar Panel 540W" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Category</label>
+                  <input value={matForm.category} onChange={(e) => setMatForm((p) => ({ ...p, category: e.target.value }))} className={inputCls} placeholder="e.g. Panels" />
+                </div>
+                <div>
+                  <label className={labelCls}>Unit</label>
+                  <select value={matForm.unit} onChange={(e) => setMatForm((p) => ({ ...p, unit: e.target.value }))} className={inputCls}>
+                    {MAT_UNITS.map((u) => <option key={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={labelCls}>Required Qty</label>
+                  <input type="number" min="0" value={matForm.required_qty} onChange={(e) => setMatForm((p) => ({ ...p, required_qty: e.target.value }))} className={inputCls} placeholder="0" />
+                </div>
+                <div>
+                  <label className={labelCls}>Issued Qty</label>
+                  <input type="number" min="0" value={matForm.issued_qty} onChange={(e) => setMatForm((p) => ({ ...p, issued_qty: e.target.value }))} className={inputCls} placeholder="0" />
+                </div>
+                <div>
+                  <label className={labelCls}>Installed Qty</label>
+                  <input type="number" min="0" value={matForm.consumed_qty} onChange={(e) => setMatForm((p) => ({ ...p, consumed_qty: e.target.value }))} className={inputCls} placeholder="0" />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Status</label>
+                <select value={matForm.status} onChange={(e) => setMatForm((p) => ({ ...p, status: e.target.value }))} className={inputCls}>
+                  {MAT_STATUS.map((s) => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="rounded-[8px] bg-[#f8fbff] px-3 py-2 text-[12px] font-bold text-[#53647f]">
+                Balance Qty: <span className="font-extrabold text-[#111827]">{Number(matForm.required_qty || 0) - Number(matForm.issued_qty || 0)}</span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
+              <button type="button" onClick={() => setMatModalOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276]">Cancel</button>
+              <button type="button" onClick={handleSaveMat} disabled={savingMat} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">{savingMat ? 'Saving...' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* â”€â”€ QA & Safety Update Modal â”€â”€ */}
+      {qaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setQaModalOpen(false); }}>
+          <div className="w-full max-w-md rounded-[14px] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <h2 className="font-display text-[15px] font-extrabold text-[#111827]">{editQa ? 'Update Checklist Item' : 'Add Checklist Item'}</h2>
+              <button type="button" onClick={() => setQaModalOpen(false)} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div>
+                <label className={labelCls}>Checklist Item <span className="text-red-500">*</span></label>
+                <input value={qaForm.label} onChange={(e) => setQaForm((p) => ({ ...p, label: e.target.value }))} className={inputCls} placeholder="e.g. Earthing verified" />
+              </div>
+              <div>
+                <label className={labelCls}>Category</label>
+                <input value={qaForm.category} onChange={(e) => setQaForm((p) => ({ ...p, category: e.target.value }))} className={inputCls} placeholder="QA / Safety / Electrical..." />
+              </div>
+              <div className="flex items-center gap-3 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-4 py-3">
+                <input
+                  id="qa-completed"
+                  type="checkbox"
+                  checked={qaForm.is_checked}
+                  onChange={(e) => setQaForm((p) => ({ ...p, is_checked: e.target.checked }))}
+                  className="size-4 rounded accent-[#0d9f4a]"
+                />
+                <label htmlFor="qa-completed" className="cursor-pointer text-[13px] font-extrabold text-[#111827]">Mark as Completed</label>
+              </div>
+              <div>
+                <label className={labelCls}>Remarks</label>
+                <textarea value={qaForm.notes} onChange={(e) => setQaForm((p) => ({ ...p, notes: e.target.value }))} rows={3} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100 resize-none" placeholder="Add remarks..." />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
+              <button type="button" onClick={() => setQaModalOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276]">Cancel</button>
+              <button type="button" onClick={handleSaveQa} disabled={savingQa} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">{savingQa ? 'Saving...' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* â”€â”€ Document Upload Modal â”€â”€ */}
+      {docModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setDocModalOpen(false); setDocFile(null); setDocName(''); setDocCategory('Installation'); } }}>
+          <div className="w-full max-w-md rounded-[14px] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <h2 className="font-display text-[15px] font-extrabold text-[#111827]">Upload Document</h2>
+              <button type="button" onClick={() => { setDocModalOpen(false); setDocFile(null); setDocName(''); }} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div>
+                <label className={labelCls}>Document Name <span className="text-red-500">*</span></label>
+                <input value={docName} onChange={(e) => setDocName(e.target.value)} className={inputCls} placeholder="e.g. Installation Photo â€“ Day 1" />
+              </div>
+              <div>
+                <label className={labelCls}>Category</label>
+                <select value={docCategory} onChange={(e) => setDocCategory(e.target.value)} className={inputCls}>
+                  {['Installation', 'Installation Photo', 'Electrical', 'Completion Certificate', 'QA Report', 'Safety Report', 'Other'].map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>File <span className="text-red-500">*</span></label>
+                <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-[8px] border-2 border-dashed border-[#d9e4f2] bg-[#f8fbff] p-6 text-center transition hover:border-[#0b65e5]">
+                  <Upload className="size-6 text-[#7585a2]" />
+                  {docFile ? (
+                    <span className="text-[13px] font-extrabold text-[#0d9f4a]">{docFile.name}</span>
+                  ) : (
+                    <span className="text-[13px] font-bold text-[#53647f]">Click to select file (PDF, Image, etc.)</span>
+                  )}
+                  <input type="file" className="sr-only" onChange={(e) => { if (e.target.files?.[0]) { setDocFile(e.target.files[0]); if (!docName) setDocName(e.target.files[0].name.replace(/\.[^/.]+$/, '')); } }} />
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
+              <button type="button" onClick={() => { setDocModalOpen(false); setDocFile(null); setDocName(''); }} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276]">Cancel</button>
+              <button type="button" onClick={handleUploadDoc} disabled={uploadingDoc} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">{uploadingDoc ? 'Uploading...' : 'Upload'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
     </div>
   );
 }
-
 function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
   const TASK_STATUS_OPTIONS = ['Pending', 'In Progress', 'On Hold', 'Completed'];
   const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
