@@ -7,7 +7,7 @@ from django.utils import timezone
 from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
-    ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubCDApplication, SubCDDocument,
+    ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
 )
 from .serializers import (
     ProjectListSerializer, ProjectDetailSerializer,
@@ -15,7 +15,7 @@ from .serializers import (
     ProjectDocumentSerializer, ProjectExpenseSerializer, ProjectPaymentSerializer, WorkOrderSerializer,
     ProjectTeamMemberSerializer, ProjectSystemConfigSerializer, ProjectMilestoneSerializer,
     SiteSurveySerializer, ProjectChecklistItemSerializer, InstallationMaterialSerializer,
-    MaterialPlanSerializer, SubCDApplicationSerializer, SubCDDocumentSerializer,
+    MaterialPlanSerializer, SubsidyApplicationSerializer, SubsidyDocumentSerializer,
 )
 from apps.accounts.permissions import HasModulePermission
 
@@ -280,9 +280,9 @@ class MaterialPlanViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class SubCDApplicationViewSet(viewsets.ModelViewSet):
-    queryset = SubCDApplication.objects.select_related('project').prefetch_related('documents').all()
-    serializer_class = SubCDApplicationSerializer
+class SubsidyApplicationViewSet(viewsets.ModelViewSet):
+    queryset = SubsidyApplication.objects.select_related('project').prefetch_related('documents').all()
+    serializer_class = SubsidyApplicationSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -290,7 +290,7 @@ class SubCDApplicationViewSet(viewsets.ModelViewSet):
     search_fields = ['application_number', 'assigned_employee', 'discom']
 
     def get_queryset(self):
-        qs = SubCDApplication.objects.select_related('project').prefetch_related('documents').all()
+        qs = SubsidyApplication.objects.select_related('project').prefetch_related('documents').all()
         project_id = self.request.query_params.get('project')
         if project_id:
             qs = qs.filter(project_id=project_id)
@@ -299,7 +299,7 @@ class SubCDApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard(self, request):
         project_id = request.query_params.get('project')
-        qs = SubCDApplication.objects.all()
+        qs = SubsidyApplication.objects.all()
         if project_id:
             qs = qs.filter(project_id=project_id)
         return Response({
@@ -312,11 +312,11 @@ class SubCDApplicationViewSet(viewsets.ModelViewSet):
         })
 
 
-class SubCDDocumentViewSet(viewsets.ModelViewSet):
-    queryset = SubCDDocument.objects.select_related('sub_cd').all()
-    serializer_class = SubCDDocumentSerializer
+class SubsidyDocumentViewSet(viewsets.ModelViewSet):
+    queryset = SubsidyDocument.objects.select_related('subsidy').all()
+    serializer_class = SubsidyDocumentSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['sub_cd', 'doc_type']
+    filterset_fields = ['subsidy', 'doc_type']

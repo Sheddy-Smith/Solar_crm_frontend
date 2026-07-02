@@ -434,7 +434,7 @@ class MaterialPlan(models.Model):
         ordering = ['id']
 
 
-class SubCDApplication(models.Model):
+class SubsidyApplication(models.Model):
     STATUS_CHOICES = [
         ('Draft', 'Draft'),
         ('Submitted', 'Submitted'),
@@ -444,7 +444,7 @@ class SubCDApplication(models.Model):
         ('Completed', 'Completed'),
     ]
 
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='sub_cd_applications')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='subsidy_applications')
     application_number = models.CharField(max_length=100, blank=True)
     application_date = models.DateField(null=True, blank=True)
     discom = models.CharField(max_length=200, blank=True)
@@ -461,7 +461,7 @@ class SubCDApplication(models.Model):
         ordering = ['-created_at']
 
 
-class SubCDDocument(models.Model):
+class SubsidyDocument(models.Model):
     DOC_TYPE_CHOICES = [
         ('Electricity Bill', 'Electricity Bill'),
         ('Aadhaar', 'Aadhaar'),
@@ -470,11 +470,11 @@ class SubCDDocument(models.Model):
         ('Other', 'Other'),
     ]
 
-    sub_cd = models.ForeignKey(SubCDApplication, on_delete=models.CASCADE, related_name='documents')
+    subsidy = models.ForeignKey(SubsidyApplication, on_delete=models.CASCADE, related_name='documents')
     doc_type = models.CharField(max_length=50, choices=DOC_TYPE_CHOICES, default='Other')
     name = models.CharField(max_length=200)
-    file = models.FileField(upload_to='sub_cd_docs/%Y/%m/')
+    file = models.FileField(upload_to='subsidy_docs/%Y/%m/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f'{self.sub_cd} — {self.name}'
+        return f'{self.subsidy} — {self.name}'

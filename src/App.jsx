@@ -1,10 +1,10 @@
-import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
   projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
   projectTeamApi, projectMilestoneApi, projectChecklistApi,
-  installationMaterialApi, materialPlanApi, workforceApi, subCdApi,
+  installationMaterialApi, materialPlanApi, workforceApi, subsidyApi,
 } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -101,7 +101,7 @@ const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Lead Edit', 'Lead Fo
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const employeeRelatedPages = [...employeeSubItems];
-const projectSubItems = ['Project List', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Sub-CD', 'Project Installation', 'Project Expenses', 'Project Documents', 'Project Approvals'];
+const projectSubItems = ['Project List', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Subsidy', 'Project Installation', 'Project Expenses', 'Project Documents', 'Project Approvals'];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
 // 'Project Timeline' aur 'Project Work Orders' ab sidebar me nahi — Project List ke 3-dot action menu se khulte hain (routing yahin valid rehni chahiye)
 const projectRelatedPages = ['Project Management', ...projectActionPages, ...projectSubItems, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
@@ -282,7 +282,7 @@ const projectSubRoutes = {
   'Project Installation': '/projects/installation/:projectId',
   'Project Team Assignment': '/projects/team-assignment/:projectId',
   'Project Material Planning': '/projects/material-planning/:projectId',
-  'Sub-CD': '/projects/sub-cd/:projectId',
+  'Subsidy': '/projects/Subsidy/:projectId',
   'Project Work Orders': '/projects/work-orders/:projectId',
   'Project Work Order Create': '/projects/work-orders/create/:projectId',
   'Project Expenses': '/projects/expenses/:projectId',
@@ -8029,8 +8029,8 @@ function getModuleSubnavLabel(item) {
     return 'Material Planning';
   }
 
-  if (item === 'Sub-CD') {
-    return 'Sub-CD';
+  if (item === 'Subsidy') {
+    return 'Subsidy';
   }
 
   if (item === 'Project Work Orders') {
@@ -16595,8 +16595,8 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     return <ProjectMaterialPlanningPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
-  if (activeSection === 'Sub-CD') {
-    return <ProjectSubCDPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (activeSection === 'Subsidy') {
+    return <ProjectSubsidyPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Work Orders') {
@@ -27124,7 +27124,7 @@ function ProjectModulePlaceholderPage({ activeSection, onOpenSection, onNotify }
   );
 }
 
-function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
+function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
   const STATUS_OPTIONS = ['Draft', 'Submitted', 'Under Process', 'Approved', 'Rejected', 'Completed'];
   const DOC_TYPES = ['Electricity Bill', 'Aadhaar', 'PAN', 'Approval Letter', 'Other'];
   const emptyForm = { application_number: '', application_date: '', discom: '', status: 'Draft', assigned_employee: '', remarks: '' };
@@ -27136,7 +27136,7 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [projectSearch, setProjectSearch] = useState('');
 
-  // Sub-CD data
+  // Subsidy data
   const [rows, setRows] = useState([]);
   const [loadingRows, setLoadingRows] = useState(false);
   const [dashStats, setDashStats] = useState({ total: 0, submitted: 0, under_process: 0, approved: 0, rejected: 0, completed: 0 });
@@ -27172,14 +27172,14 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
-  // ── Load Sub-CD data when project selected ──
+  // ── Load Subsidy data when project selected ──
   const loadData = useCallback(async (proj) => {
     if (!proj) return;
     setLoadingRows(true);
     try {
       const [listData, stats] = await Promise.all([
-        subCdApi.list({ project: proj.id, page_size: 500 }),
-        subCdApi.dashboard({ project: proj.id }),
+        subsidyApi.list({ project: proj.id, page_size: 500 }),
+        subsidyApi.dashboard({ project: proj.id }),
       ]);
       setRows(normalizeApiRows(listData));
       setDashStats(stats || { total: 0, submitted: 0, under_process: 0, approved: 0, rejected: 0, completed: 0 });
@@ -27198,8 +27198,8 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
     setSaving(true);
     try {
       const payload = { ...form, project: selectedProject.id };
-      if (editRow) { await subCdApi.update(editRow.id, payload); onNotify('Sub-CD updated'); }
-      else { await subCdApi.create(payload); onNotify('Sub-CD created'); }
+      if (editRow) { await subsidyApi.update(editRow.id, payload); onNotify('Subsidy updated'); }
+      else { await subsidyApi.create(payload); onNotify('Subsidy created'); }
       setModalOpen(false);
       loadData(selectedProject);
     } catch (e) { onNotify(e.message || 'Save failed'); }
@@ -27207,19 +27207,19 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
   };
 
   const handleDelete = async (id) => {
-    try { await subCdApi.delete(id); onNotify('Record deleted'); loadData(selectedProject); } catch { onNotify('Delete failed'); }
+    try { await subsidyApi.delete(id); onNotify('Record deleted'); loadData(selectedProject); } catch { onNotify('Delete failed'); }
   };
 
-  const handleDocUpload = async (subCdId) => {
+  const handleDocUpload = async (SubsidyId) => {
     if (!docFile || !docName.trim()) { onNotify('File and name required'); return; }
     setDocUploading(true);
     try {
       const fd = new FormData();
-      fd.append('sub_cd', subCdId);
+      fd.append('sub_cd', SubsidyId);
       fd.append('doc_type', docType);
       fd.append('name', docName.trim());
       fd.append('file', docFile);
-      await subCdApi.uploadDoc(fd);
+      await subsidyApi.uploadDoc(fd);
       onNotify('Document uploaded');
       setDocFile(null); setDocName(''); setDocType('Other');
       loadData(selectedProject);
@@ -27228,7 +27228,7 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
   };
 
   const handleDeleteDoc = async (docId) => {
-    try { await subCdApi.deleteDoc(docId); onNotify('Document removed'); loadData(selectedProject); } catch { onNotify('Delete failed'); }
+    try { await subsidyApi.deleteDoc(docId); onNotify('Document removed'); loadData(selectedProject); } catch { onNotify('Delete failed'); }
   };
 
   // ── Helpers ──
@@ -27261,11 +27261,11 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
   return (
     <div className="space-y-2">
       <PageHeading
-        title="Sub-CD"
+        title="Subsidy"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Sub-CD' },
+          { label: 'Subsidy' },
         ]}
       />
 
@@ -27287,7 +27287,7 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
           </button>
           {selectedProject && (
             <button type="button" onClick={openAdd} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
-              <Plus className="size-4" />Add Sub-CD
+              <Plus className="size-4" />Add Subsidy
             </button>
           )}
         </div>
@@ -27299,7 +27299,7 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
           <div className="flex flex-col items-center justify-center py-16">
             <FolderKanban className="size-12 text-[#c5d2e8]" />
             <h3 className="mt-3 font-display text-[17px] font-extrabold text-[#1e3261]">No Project Selected</h3>
-            <p className="mt-1 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to manage Sub-CD.</p>
+            <p className="mt-1 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to manage Subsidy.</p>
             <button type="button" onClick={() => setProjectPickerOpen(true)} className="mt-4 inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
               <FolderKanban className="size-4" />Select Project
             </button>
@@ -27337,15 +27337,15 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
           {/* Table */}
           <article className={`${panelClass} overflow-hidden`}>
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-4 py-2.5">
-              <h3 className="font-display text-[14px] font-extrabold text-[#1e3261]">Sub-CD Applications</h3>
-              <button type="button" onClick={openAdd} className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]"><Plus className="size-3.5" />Add Sub-CD</button>
+              <h3 className="font-display text-[14px] font-extrabold text-[#1e3261]">Subsidy Applications</h3>
+              <button type="button" onClick={openAdd} className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]"><Plus className="size-3.5" />Add Subsidy</button>
             </div>
             {loadingRows ? (
               <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">Loading...</p>
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10">
                 <ClipboardPlus className="size-10 text-[#c5d2e8]" />
-                <p className="mt-2 text-[13px] font-bold text-[#8a98af]">No Sub-CD records. Click <strong>Add Sub-CD</strong> to create one.</p>
+                <p className="mt-2 text-[13px] font-bold text-[#8a98af]">No Subsidy records. Click <strong>Add Subsidy</strong> to create one.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -27385,7 +27385,7 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
               <div>
                 <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Select Project</h2>
-                <p className="text-[12px] font-bold text-[#7585a2]">Choose a project to manage Sub-CD applications</p>
+                <p className="text-[12px] font-bold text-[#7585a2]">Choose a project to manage Subsidy applications</p>
               </div>
               <button type="button" onClick={() => { setProjectPickerOpen(false); setProjectSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
             </div>
@@ -27441,7 +27441,7 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
         <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
           <div className="w-full max-w-[580px] max-h-[90vh] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#edf2f8] bg-white px-5 py-3">
-              <h2 className="font-display text-[17px] font-extrabold text-[#111827]">{editRow ? 'Edit Sub-CD' : 'Add Sub-CD'}</h2>
+              <h2 className="font-display text-[17px] font-extrabold text-[#111827]">{editRow ? 'Edit Subsidy' : 'Add Subsidy'}</h2>
               <button type="button" onClick={() => setModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
             </div>
 
@@ -27520,7 +27520,7 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
           <div className="w-full max-w-[580px] max-h-[90vh] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#edf2f8] bg-white px-5 py-3">
               <div>
-                <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Sub-CD Details</h2>
+                <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Subsidy Details</h2>
                 <p className="text-[12px] font-bold text-[#7585a2]">{viewData.application_number || 'Draft Application'}</p>
               </div>
               <div className="flex items-center gap-2">
