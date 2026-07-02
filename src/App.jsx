@@ -27183,9 +27183,9 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
       ]);
       setRows(normalizeApiRows(listData));
       setDashStats(stats || { total: 0, submitted: 0, under_process: 0, approved: 0, rejected: 0, completed: 0 });
-    } catch { onNotify('Failed to load Sub-CD data'); }
+    } catch { /* silent — backend not yet available shows empty state */ }
     finally { setLoadingRows(false); }
-  }, [onNotify]);
+  }, []);
 
   useEffect(() => { if (selectedProject) loadData(selectedProject); }, [selectedProject, loadData]);
 
