@@ -3693,6 +3693,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   const [refreshKey, setRefreshKey] = useState(0);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editLeadId, setEditLeadId] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [viewLeadId, setViewLeadId] = useState(null);
   const [followUpsOverviewOpen, setFollowUpsOverviewOpen] = useState(false);
 
@@ -3721,11 +3722,19 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   };
 
   const deleteLead = (lead) => {
-    if (!window.confirm(`Delete "${lead.customer}"? This cannot be undone.`)) return;
-    leadApi.delete(lead.id).then(() => {
-      onNotify(`${lead.customer} deleted`);
-      setRefreshKey((key) => key + 1);
-    }).catch((error) => onNotify(error.message || `Failed to delete ${lead.customer}`));
+    setDeleteConfirm({
+      message: `"${lead.customer}"`,
+      onConfirm: () => {
+        leadApi.delete(lead.id).then(() => {
+          setDeleteConfirm(null);
+          onNotify(`${lead.customer} deleted`);
+          setRefreshKey((key) => key + 1);
+        }).catch((error) => {
+          setDeleteConfirm(null);
+          onNotify(error.message || `Failed to delete ${lead.customer}`);
+        });
+      },
+    });
   };
 
   useEffect(() => {
@@ -4238,6 +4247,9 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             setViewLeadId(id);
           }}
         />
+      ) : null}
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
     </div>
   );
@@ -18448,6 +18460,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   const [updatingProgress, setUpdatingProgress] = useState(false);
   const [uploadingProjectImage, setUploadingProjectImage] = useState(false);
   const [progressDraft, setProgressDraft] = useState(0);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     userApi.list({ is_active: true }).then((res) => {
@@ -18603,12 +18616,17 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     }
   };
 
-  const handleRemoveMember = async (id, name) => {
-    if (!window.confirm(`Remove "${name}" from this project?`)) return;
-    await runMutationWithRefresh({
-      action: () => projectTeamApi.delete(id),
-      successMessage: 'Team member removed',
-      fallbackError: 'Failed to remove team member',
+  const handleRemoveMember = (id, name) => {
+    setDeleteConfirm({
+      message: `"${name}" from this project`,
+      onConfirm: async () => {
+        await runMutationWithRefresh({
+          action: () => projectTeamApi.delete(id),
+          successMessage: 'Team member removed',
+          fallbackError: 'Failed to remove team member',
+        });
+        setDeleteConfirm(null);
+      },
     });
   };
 
@@ -18683,12 +18701,17 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     }
   };
 
-  const handleDeleteActivity = async (id, name) => {
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    await runMutationWithRefresh({
-      action: () => projectActivityApi.delete(id),
-      successMessage: 'Activity deleted',
-      fallbackError: 'Failed to delete activity',
+  const handleDeleteActivity = (id, name) => {
+    setDeleteConfirm({
+      message: `"${name}"`,
+      onConfirm: async () => {
+        await runMutationWithRefresh({
+          action: () => projectActivityApi.delete(id),
+          successMessage: 'Activity deleted',
+          fallbackError: 'Failed to delete activity',
+        });
+        setDeleteConfirm(null);
+      },
     });
   };
 
@@ -18716,12 +18739,17 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     });
   };
 
-  const handleDeleteNote = async (id) => {
-    if (!window.confirm('Delete this note? This cannot be undone.')) return;
-    await runMutationWithRefresh({
-      action: () => projectNoteApi.delete(id),
-      successMessage: 'Note deleted',
-      fallbackError: 'Failed to delete note',
+  const handleDeleteNote = (id) => {
+    setDeleteConfirm({
+      message: 'this note',
+      onConfirm: async () => {
+        await runMutationWithRefresh({
+          action: () => projectNoteApi.delete(id),
+          successMessage: 'Note deleted',
+          fallbackError: 'Failed to delete note',
+        });
+        setDeleteConfirm(null);
+      },
     });
   };
 
@@ -21622,6 +21650,9 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       })()}
 
       {!stackedSections ? <DashboardFooter /> : null}
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
     </div>
   );
 }
@@ -22077,15 +22108,21 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
     }
   };
 
-  const handleDeleteMilestone = async (id, name) => {
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    try {
-      await projectMilestoneApi.delete(id);
-      onNotify('Task deleted');
-      reloadTimeline();
-    } catch {
-      onNotify('Failed to delete task');
-    }
+  const handleDeleteMilestone = (id, name) => {
+    setDeleteConfirm({
+      message: `"${name}"`,
+      onConfirm: async () => {
+        try {
+          await projectMilestoneApi.delete(id);
+          setDeleteConfirm(null);
+          onNotify('Task deleted');
+          reloadTimeline();
+        } catch {
+          setDeleteConfirm(null);
+          onNotify('Failed to delete task');
+        }
+      },
+    });
   };
 
   if (!projectProp?.id) {
@@ -23860,6 +23897,7 @@ function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
   const [empModalOpen, setEmpModalOpen] = useState(false);
   const [editEmpId, setEditEmpId] = useState(null);
   const [empForm, setEmpForm] = useState(emptyEmpForm);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const loadEmployees = useCallback(async () => {
     setLoadingEmployees(true);
@@ -24623,6 +24661,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
   const [allProjects, setAllProjects] = useState([]);
   const [projectPlanCounts, setProjectPlanCounts] = useState({});
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const loadProjectData = useCallback(async (proj) => {
     if (!proj) return;
@@ -24675,13 +24714,22 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
   };
   const openEditRow = (row) => { setForm({ ...row }); setEditRow(row.id); setModalOpen(true); };
 
-  const handleDelete = async (id) => {
-    try {
-      await materialPlanApi.delete(id);
-      setRows((prev) => prev.filter((r) => r.id !== id));
-      onNotify('Material removed');
-      loadProjectData(selectedProject);
-    } catch { onNotify('Delete failed'); }
+  const handleDelete = (id) => {
+    setDeleteConfirm({
+      message: 'this material plan entry',
+      onConfirm: async () => {
+        try {
+          await materialPlanApi.delete(id);
+          setDeleteConfirm(null);
+          setRows((prev) => prev.filter((r) => r.id !== id));
+          onNotify('Material removed');
+          loadProjectData(selectedProject);
+        } catch {
+          setDeleteConfirm(null);
+          onNotify('Delete failed');
+        }
+      },
+    });
   };
 
   const handleSave = async () => {
@@ -24973,6 +25021,9 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
       )}
 
       <DashboardFooter />
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
     </div>
   );
 }
@@ -27162,6 +27213,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
   const [docUploading, setDocUploading] = useState(false);
   // docs for view popup (fetched fresh)
   const [viewDocs, setViewDocs] = useState([]);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   // ── Load projects on mount ──
   const loadProjects = useCallback(async () => {
@@ -27206,8 +27258,14 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
     finally { setSaving(false); }
   };
 
-  const handleDelete = async (id) => {
-    try { await subsidyApi.delete(id); onNotify('Record deleted'); loadData(selectedProject); } catch { onNotify('Delete failed'); }
+  const handleDelete = (id) => {
+    setDeleteConfirm({
+      message: 'this subsidy application',
+      onConfirm: async () => {
+        try { await subsidyApi.delete(id); setDeleteConfirm(null); onNotify('Record deleted'); loadData(selectedProject); }
+        catch { setDeleteConfirm(null); onNotify('Delete failed'); }
+      },
+    });
   };
 
   const handleDocUpload = async (SubsidyId) => {
@@ -27227,8 +27285,14 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
     finally { setDocUploading(false); }
   };
 
-  const handleDeleteDoc = async (docId) => {
-    try { await subsidyApi.deleteDoc(docId); onNotify('Document removed'); loadData(selectedProject); } catch { onNotify('Delete failed'); }
+  const handleDeleteDoc = (docId) => {
+    setDeleteConfirm({
+      message: 'this document',
+      onConfirm: async () => {
+        try { await subsidyApi.deleteDoc(docId); setDeleteConfirm(null); onNotify('Document removed'); loadData(selectedProject); }
+        catch { setDeleteConfirm(null); onNotify('Delete failed'); }
+      },
+    });
   };
 
   // ── Helpers ──
@@ -27591,6 +27655,9 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
       )}
 
       <DashboardFooter />
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
     </div>
   );
 }
@@ -29074,6 +29141,7 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
   const [branch, setBranch] = useState('All');
   const [selectedUser, setSelectedUser] = useState(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -29121,13 +29189,20 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
   };
 
   const deleteUser = (user) => {
-    userApi.delete(user.id).then(() => {
-      setUsers((current) => current.filter((item) => item.id !== user.id));
-      if (selectedUser?.id === user.id) {
-        setSelectedUser(null);
-      }
-      onNotify(`${user.name} deleted`);
-    }).catch((error) => onNotify(error.message || `Failed to delete ${user.name}`));
+    setDeleteConfirm({
+      message: `"${user.name}"`,
+      onConfirm: () => {
+        userApi.delete(user.id).then(() => {
+          setDeleteConfirm(null);
+          setUsers((current) => current.filter((item) => item.id !== user.id));
+          if (selectedUser?.id === user.id) setSelectedUser(null);
+          onNotify(`${user.name} deleted`);
+        }).catch((error) => {
+          setDeleteConfirm(null);
+          onNotify(error.message || `Failed to delete ${user.name}`);
+        });
+      },
+    });
   };
 
   const updateUser = (updatedUser) => {
@@ -29282,6 +29357,9 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
             onNotify(`${newUser.name} added`);
           }}
         />
+      ) : null}
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
     </div>
   );
@@ -30073,6 +30151,32 @@ function UserMobileCard({ user, onView, onDelete, onNotify }) {
         </button>
       </div>
     </article>
+  );
+}
+
+function ConfirmDeleteModal({ message, onConfirm, onCancel, loading = false }) {
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-2xl">
+        <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-[#fdecec]">
+          <Trash2 className="size-6 text-[#c0392b]" />
+        </div>
+        <h2 className="text-center font-display text-[18px] font-extrabold text-[#111827]">Delete Confirmation</h2>
+        <p className="mt-2 text-center text-[13px] font-bold text-[#53647f]">
+          Are you sure you want to delete<br />
+          <span className="text-[#111827]">{message}</span>?<br />
+          This action cannot be undone.
+        </p>
+        <div className="mt-6 flex gap-3">
+          <button type="button" onClick={onCancel} disabled={loading} className="flex-1 h-10 rounded-[8px] border border-[#d9e4f2] bg-white text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f1f5fb] disabled:opacity-60">
+            Cancel
+          </button>
+          <button type="button" onClick={onConfirm} disabled={loading} className="flex-1 h-10 rounded-[8px] bg-[#c0392b] text-[13px] font-extrabold text-white transition hover:bg-[#a93226] disabled:opacity-60">
+            {loading ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -32992,6 +33096,7 @@ function QuotationListPage({ onNotify }) {
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [copyingId, setCopyingId] = useState(null);
   const [createFlow, setCreateFlow] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [composeSaving, setComposeSaving] = useState(false);
   const [expiredFilter, setExpiredFilter] = useState(false);
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
@@ -33065,16 +33170,22 @@ function QuotationListPage({ onNotify }) {
     });
   };
 
-  const deleteQuotation = async (quotation) => {
-    if (!window.confirm(`Delete quotation ${quotation.quotation_number || '#' + quotation.id}? This cannot be undone.`)) return;
-    try {
-      await quotationApi.delete(quotation.id);
-      onNotify?.('Quotation deleted');
-      closeActionMenu();
-      setRefreshKey((k) => k + 1);
-    } catch (err) {
-      onNotify?.(err.message || 'Failed to delete quotation');
-    }
+  const deleteQuotation = (quotation) => {
+    setDeleteConfirm({
+      message: `quotation ${quotation.quotation_number || '#' + quotation.id}`,
+      onConfirm: async () => {
+        try {
+          await quotationApi.delete(quotation.id);
+          setDeleteConfirm(null);
+          onNotify?.('Quotation deleted');
+          closeActionMenu();
+          setRefreshKey((k) => k + 1);
+        } catch (err) {
+          setDeleteConfirm(null);
+          onNotify?.(err.message || 'Failed to delete quotation');
+        }
+      },
+    });
   };
 
   const copyQuotation = async (quotation) => {
@@ -33441,6 +33552,9 @@ function QuotationListPage({ onNotify }) {
 
       {viewQuotationId ? (
         <QuotationViewModal quotationId={viewQuotationId} onClose={() => setViewQuotationId(null)} />
+      ) : null}
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
     </div>
   );
@@ -33958,7 +34072,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
   const [qForm, setQForm] = useState(emptyQuotationFields());
   const [quotationSaving, setQuotationSaving] = useState(false);
   const [quotationError, setQuotationError] = useState('');
-  const [confirmingQuotationDelete, setConfirmingQuotationDelete] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [employeeOptions, setEmployeeOptions] = useState(cachedEmployeeOptions || []);
 
   useEffect(() => {
@@ -34085,21 +34199,27 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
     }
   };
 
-  const handleDeleteQuotation = async () => {
+  const handleDeleteQuotation = () => {
     if (!savedQuotation?.id) return;
-    setQuotationSaving(true);
-    try {
-      await quotationApi.delete(savedQuotation.id);
-      setSavedQuotation(null);
-      setQForm(emptyQuotationFields());
-      setQuoteItems([emptyQuoteRow()]);
-      setConfirmingQuotationDelete(false);
-      onNotify('Quotation deleted');
-    } catch (err) {
-      setQuotationError(err.message || 'Failed to delete quotation');
-    } finally {
-      setQuotationSaving(false);
-    }
+    setDeleteConfirm({
+      message: 'this quotation',
+      onConfirm: async () => {
+        setQuotationSaving(true);
+        try {
+          await quotationApi.delete(savedQuotation.id);
+          setSavedQuotation(null);
+          setQForm(emptyQuotationFields());
+          setQuoteItems([emptyQuoteRow()]);
+          setDeleteConfirm(null);
+          onNotify('Quotation deleted');
+        } catch (err) {
+          setDeleteConfirm(null);
+          setQuotationError(err.message || 'Failed to delete quotation');
+        } finally {
+          setQuotationSaving(false);
+        }
+      },
+    });
   };
 
   const handleRequestApproval = async () => {
@@ -34502,23 +34622,10 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
 
             {savedQuotation ? (
               <div className={`${panelClass} p-4`}>
-                {!confirmingQuotationDelete ? (
-                  <button type="button" onClick={() => setConfirmingQuotationDelete(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#f5c6c6] bg-white px-4 text-[13px] font-extrabold text-[#c0392b] transition hover:bg-[#fdecec]">
-                    <Trash2 className="size-4" />
-                    Delete Quotation
-                  </button>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-3 rounded-[10px] bg-[#fdecec] p-3">
-                    <span className="text-[12px] font-extrabold text-[#c0392b]">Are you sure you want to delete this? This cannot be undone.</span>
-                    <button type="button" onClick={handleDeleteQuotation} disabled={quotationSaving} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#c0392b] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#a93226] disabled:opacity-60">
-                      <Trash2 className="size-3.5" />
-                      Yes, Delete
-                    </button>
-                    <button type="button" onClick={() => setConfirmingQuotationDelete(false)} className="inline-flex h-9 items-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
-                      Cancel
-                    </button>
-                  </div>
-                )}
+                <button type="button" onClick={handleDeleteQuotation} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#f5c6c6] bg-white px-4 text-[13px] font-extrabold text-[#c0392b] transition hover:bg-[#fdecec]">
+                  <Trash2 className="size-4" />
+                  Delete Quotation
+                </button>
               </div>
             ) : null}
           </div>
@@ -34572,6 +34679,9 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
           onLeadUpdated={onLeadUpdated}
           onNotify={onNotify}
         />
+      ) : null}
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
     </div>
   );
@@ -34680,7 +34790,7 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [actingId, setActingId] = useState(null);
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [actionError, setActionError] = useState('');
   const [loadingLead, setLoadingLead] = useState(false);
 
@@ -34748,19 +34858,25 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
     }
   };
 
-  const handleDelete = async (row) => {
-    setActingId(row.id);
-    setActionError('');
-    try {
-      await approvalApi.delete(row.id);
-      setConfirmingDeleteId(null);
-      onNotify('Approval request deleted');
-      loadApprovals();
-    } catch (err) {
-      setActionError(err.message || 'Failed to delete request');
-    } finally {
-      setActingId(null);
-    }
+  const handleDelete = (row) => {
+    setDeleteConfirm({
+      message: `IVRS request "${row.ivrs_number}"`,
+      onConfirm: async () => {
+        setActingId(row.id);
+        setActionError('');
+        try {
+          await approvalApi.delete(row.id);
+          setDeleteConfirm(null);
+          onNotify('Approval request deleted');
+          loadApprovals();
+        } catch (err) {
+          setDeleteConfirm(null);
+          setActionError(err.message || 'Failed to delete request');
+        } finally {
+          setActingId(null);
+        }
+      },
+    });
   };
 
   const handleViewLead = async (row) => {
@@ -34838,22 +34954,15 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
                     <td>{new Date(row.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}<br />{new Date(row.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
                     <td><StatusBadge status={row.status} /></td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      {confirmingDeleteId === row.id ? (
-                        <div className="flex items-center gap-1.5">
-                          <button type="button" onClick={() => handleDelete(row)} disabled={actingId === row.id} className="rounded-[7px] bg-[#c0392b] px-2 py-1 text-[11px] font-extrabold text-white disabled:opacity-60">Confirm</button>
-                          <button type="button" onClick={() => setConfirmingDeleteId(null)} className="rounded-[7px] border border-[#d9e4f2] px-2 py-1 text-[11px] font-extrabold text-[#284276]">Cancel</button>
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {row.status === 'Pending' ? (
-                            <>
-                              <button type="button" onClick={() => handleApprove(row)} disabled={actingId === row.id} className="rounded-[7px] bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#087a39] disabled:opacity-60">Approve</button>
-                              <button type="button" onClick={() => handleReject(row)} disabled={actingId === row.id} className="rounded-[7px] bg-[#ffe9e6] px-2.5 py-1 text-[11px] font-extrabold text-[#e3342f] disabled:opacity-60">Reject</button>
-                            </>
-                          ) : <span className="text-[12px] font-bold text-[#53647f]">{row.status}</span>}
-                          <button type="button" onClick={() => setConfirmingDeleteId(row.id)} disabled={actingId === row.id} aria-label="Delete request" className="grid size-6 place-items-center rounded-[7px] text-[#7585a2] hover:bg-[#f1f5fb] disabled:opacity-60"><Trash2 className="size-3.5" /></button>
-                        </div>
-                      )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {row.status === 'Pending' ? (
+                          <>
+                            <button type="button" onClick={() => handleApprove(row)} disabled={actingId === row.id} className="rounded-[7px] bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#087a39] disabled:opacity-60">Approve</button>
+                            <button type="button" onClick={() => handleReject(row)} disabled={actingId === row.id} className="rounded-[7px] bg-[#ffe9e6] px-2.5 py-1 text-[11px] font-extrabold text-[#e3342f] disabled:opacity-60">Reject</button>
+                          </>
+                        ) : <span className="text-[12px] font-bold text-[#53647f]">{row.status}</span>}
+                        <button type="button" onClick={() => handleDelete(row)} disabled={actingId === row.id} aria-label="Delete request" className="grid size-6 place-items-center rounded-[7px] text-[#7585a2] hover:bg-[#f1f5fb] disabled:opacity-60"><Trash2 className="size-3.5" /></button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -34893,6 +35002,9 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
         </div>
       </section>
       <DashboardFooter />
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
     </div>
   );
 }
