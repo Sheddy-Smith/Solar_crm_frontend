@@ -26199,311 +26199,481 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
 }
 
 function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
-  const [activeApprovalTab, setActiveApprovalTab] = useState('All Approvals');
-
-  const project = {
-    name: '20kW On-Grid System',
-    address: '123, Scheme No. 54, Vijay Nagar',
-    city: 'Indore, Madhya Pradesh - 452010',
-    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    installationId: 'INS-2024-0015',
-    startDate: '2024-05-18',
-    targetDate: '2024-05-28',
-  };
-
-  const statCards = [
-    { label: 'Total Approvals', value: '28', caption: 'All Time', icon: ClipboardPlus, tone: 'blue' },
-    { label: 'Approved', value: '16', caption: '57.14%', icon: CheckCircle2, tone: 'green' },
-    { label: 'Pending', value: '8', caption: '28.57%', icon: Clock3, tone: 'amber' },
-    { label: 'Rejected', value: '2', caption: '7.14%', icon: XCircle, tone: 'purple' },
-    { label: 'Cancelled', value: '2', caption: '7.14%', icon: ShieldCheck, tone: 'cyan' },
+  const APPROVAL_TYPES = [
+    'Budget Approval', 'Material Purchase', 'Vendor Payment', 'Technical Clearance',
+    'Site Survey', 'Installation Plan', 'Subsidy Application', 'Commission Report', 'Other',
   ];
+  const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
+  const STATUSES = ['Pending', 'Approved', 'Rejected'];
 
-  const approvalTabs = ['All Approvals', 'Pending', 'Approved', 'Rejected', 'Cancelled', 'My Approvals'];
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterProject, setFilterProject] = useState('');
+  const [approvals, setApprovals] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [viewItem, setViewItem] = useState(null);
+  const [editItem, setEditItem] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [rejectConfirm, setRejectConfirm] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const emptyForm = { project: '', approval_type: 'Other', subject: '', description: '', requested_by: '', assigned_to: '', priority: 'Medium', remarks: '', file: null };
+  const [form, setForm] = useState(emptyForm);
+  const [editForm, setEditForm] = useState({});
 
-  const approvalRows = [
-    { id: 'APR-2024-0028', title: 'Material Purchase - Inverter', category: 'Procurement', requestedBy: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, requestedOn: '24 May 2024, 10:30 AM', amount: '36,250', status: 'Pending', approver: { name: 'Ramesh Yadav', initials: 'RY', tone: 'green' } },
-    { id: 'APR-2024-0027', title: 'Site Survey Report', category: 'Technical', requestedBy: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, requestedOn: '24 May 2024, 09:15 AM', amount: '-', status: 'Approved', approver: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' } },
-    { id: 'APR-2024-0026', title: 'DC Cable Purchase', category: 'Procurement', requestedBy: { name: 'Sunil Patidar', initials: 'SP', tone: 'cyan' }, requestedOn: '23 May 2024, 04:20 PM', amount: '12,650', status: 'Pending', approver: { name: 'Manish Gupta', initials: 'MG', tone: 'green' } },
-    { id: 'APR-2024-0025', title: 'Installation Plan', category: 'Technical', requestedBy: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' }, requestedOn: '23 May 2024, 11:05 AM', amount: '-', status: 'Approved', approver: { name: 'Vikram Singh', initials: 'VS', tone: 'green' } },
-    { id: 'APR-2024-0024', title: 'Equipment Datasheet', category: 'Technical', requestedBy: { name: 'Ramesh Yadav', initials: 'RY', tone: 'green' }, requestedOn: '22 May 2024, 03:40 PM', amount: '-', status: 'Approved', approver: { name: 'Deepak Sharma', initials: 'DS', tone: 'indigo' } },
-    { id: 'APR-2024-0023', title: 'Subcontractor Hiring', category: 'HR / Vendor', requestedBy: { name: 'Neha Jain', initials: 'NJ', tone: 'purple' }, requestedOn: '22 May 2024, 02:10 PM', amount: '18,000', status: 'Rejected', approver: { name: 'Ramesh Yadav', initials: 'RY', tone: 'green' } },
-    { id: 'APR-2024-0022', title: 'Advance Payment Request', category: 'Finance', requestedBy: { name: 'Manish Gupta', initials: 'MG', tone: 'green' }, requestedOn: '21 May 2024, 12:25 PM', amount: '45,000', status: 'Pending', approver: { name: 'Vikram Singh', initials: 'VS', tone: 'green' } },
-    { id: 'APR-2024-0021', title: 'Safety Plan & Checklist', category: 'Compliance', requestedBy: { name: 'Sunil Patidar', initials: 'SP', tone: 'cyan' }, requestedOn: '21 May 2024, 09:40 AM', amount: '-', status: 'Approved', approver: { name: 'Neha Jain', initials: 'NJ', tone: 'purple' } },
-    { id: 'APR-2024-0020', title: 'Logistics & Transport', category: 'Operations', requestedBy: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, requestedOn: '20 May 2024, 04:05 PM', amount: '6,800', status: 'Cancelled', approver: { name: 'Amit Joshi', initials: 'AJ', tone: 'amber' } },
-    { id: 'APR-2024-0019', title: 'Project Budget Revision', category: 'Finance', requestedBy: { name: 'Deepak Sharma', initials: 'DS', tone: 'indigo' }, requestedOn: '20 May 2024, 11:20 AM', amount: '12,000', status: 'Pending', approver: { name: 'Ramesh Yadav', initials: 'RY', tone: 'green' } },
-  ];
+  useEffect(() => {
+    projectApi.list().then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+    userApi.list().then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
+  }, []);
 
-  const filteredApprovals = activeApprovalTab === 'All Approvals'
-    ? approvalRows
-    : activeApprovalTab === 'My Approvals'
-      ? approvalRows.filter((row) => row.approver.name === 'Rohit Singh' || row.approver.name === 'Ramesh Yadav')
-      : approvalRows.filter((row) => row.status === activeApprovalTab);
+  const loadApprovals = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (filterStatus) params.status = filterStatus;
+    if (filterProject) params.project = filterProject;
+    projectApprovalApi.list(params)
+      .then((r) => { setApprovals(normalizeApiRows(r)); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [filterStatus, filterProject]);
 
-  const approvalStatusData = [
-    { label: 'Approved', value: 16, color: '#16a34a' },
-    { label: 'Pending', value: 8, color: '#f59e0b' },
-    { label: 'Rejected', value: 2, color: '#ef4444' },
-    { label: 'Cancelled', value: 2, color: '#94a3b8' },
-  ];
+  useEffect(() => { loadApprovals(); }, [loadApprovals]);
 
-  const pendingApprovals = [
-    { title: 'Material Purchase - Inverter', code: 'APR-2024-0028', requester: 'Pooja Mehta', amount: '36,250', due: '25 May 2024', priority: 'High Priority' },
-    { title: 'DC Cable Purchase', code: 'APR-2024-0026', requester: 'Sunil Patidar', amount: '12,650', due: '26 May 2024', priority: 'Medium Priority' },
-    { title: 'Advance Payment Request', code: 'APR-2024-0022', requester: 'Manish Gupta', amount: '45,000', due: '24 May 2024', priority: 'High Priority' },
-    { title: 'Project Budget Revision', code: 'APR-2024-0019', requester: 'Deepak Sharma', amount: '12,000', due: '27 May 2024', priority: 'Medium Priority' },
-  ];
+  const getProjectName = (id) => projects.find((p) => p.id === id || p.id === Number(id))?.project_name || '—';
 
-  const workflowSteps = [
-    ['Request Created', 'By Requester', 'green'],
-    ['Submitted', 'To Approver', 'blue'],
-    ['Under Review', 'By Approver', 'amber'],
-    ['Decision', 'Approve / Reject', 'slate'],
-    ['Completed', 'Notification Sent', 'slate'],
-  ];
+  const filtered = approvals.filter((a) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (a.subject || '').toLowerCase().includes(q)
+      || (a.approval_id || '').toLowerCase().includes(q)
+      || (a.project_name || '').toLowerCase().includes(q)
+      || (a.requested_by || '').toLowerCase().includes(q);
+  });
 
-  const approvalMatrix = [
-    ['Procurement', 'Team Lead', 'Project Manager', 'Finance Manager'],
-    ['Technical', 'Project Engineer', 'Project Manager', 'Technical Head'],
-    ['Finance', 'Requester + TL', 'Finance Manager', 'Director'],
-    ['HR / Vendor', 'HR Executive', 'HR Manager', 'Director'],
-    ['Operations', 'Team Lead', 'Project Manager', 'Operations Head'],
-  ];
-
-  const recentActivity = [
-    { title: 'Approval APR-2024-0027 has been approved', actor: 'Amit Joshi', time: '24 May 2024, 09:45 AM', tone: 'green' },
-    { title: 'Approval APR-2024-0028 is pending for your review', actor: 'Ramesh Yadav', time: '24 May 2024, 10:30 AM', tone: 'amber' },
-    { title: 'Approval APR-2024-0023 has been rejected', actor: 'Ramesh Yadav', time: '22 May 2024, 02:35 PM', tone: 'red' },
-    { title: 'Approval APR-2024-0024 has been approved', actor: 'Deepak Sharma', time: '22 May 2024, 03:55 PM', tone: 'green' },
-  ];
-
-  const openApprovalStat = (label) => {
-    const targets = {
-      'Total Approvals': 'All Approvals',
-      Approved: 'Approved',
-      Pending: 'Pending',
-      Rejected: 'Rejected',
-      Cancelled: 'Cancelled',
+  function handleCreate() {
+    if (!form.project || !form.subject) return;
+    setSaving(true);
+    const body = {
+      project: form.project,
+      approval_type: form.approval_type,
+      subject: form.subject,
+      description: form.description,
+      requested_by: form.requested_by,
+      assigned_to: form.assigned_to || null,
+      priority: form.priority,
+      remarks: form.remarks,
     };
-    setActiveApprovalTab(targets[label] ?? 'All Approvals');
+    projectApprovalApi.create(body)
+      .then(async (created) => {
+        if (form.file && created?.id) {
+          const fd = new FormData();
+          fd.append('approval', created.id);
+          fd.append('name', form.file.name);
+          fd.append('file', form.file);
+          await projectApprovalApi.uploadDoc(fd).catch(() => {});
+        }
+        onNotify('Approval request created.', 'success');
+        setShowNew(false);
+        setForm(emptyForm);
+        loadApprovals();
+      })
+      .catch(() => onNotify('Failed to create approval.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  function openEdit(item) {
+    setEditForm({
+      approval_type: item.approval_type || 'Other',
+      subject: item.subject || '',
+      description: item.description || '',
+      requested_by: item.requested_by || '',
+      assigned_to: item.assigned_to || '',
+      priority: item.priority || 'Medium',
+      remarks: item.remarks || '',
+    });
+    setEditItem(item);
+  }
+
+  function handleEditSave() {
+    setSaving(true);
+    projectApprovalApi.update(editItem.id, editForm)
+      .then(() => { onNotify('Approval updated.', 'success'); setEditItem(null); loadApprovals(); })
+      .catch(() => onNotify('Update failed.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  function handleApprove(item) {
+    projectApprovalApi.approve(item.id)
+      .then(() => {
+        onNotify(`Approval ${item.approval_id} approved.`, 'success');
+        if (viewItem?.id === item.id) setViewItem(null);
+        loadApprovals();
+      })
+      .catch(() => onNotify('Approve action failed.', 'error'));
+  }
+
+  function openReject(item) {
+    setRejectReason('');
+    setRejectConfirm(item);
+  }
+
+  function handleReject() {
+    projectApprovalApi.reject(rejectConfirm.id, rejectReason)
+      .then(() => {
+        onNotify(`Approval ${rejectConfirm.approval_id} rejected.`, 'success');
+        if (viewItem?.id === rejectConfirm.id) setViewItem(null);
+        setRejectConfirm(null);
+        loadApprovals();
+      })
+      .catch(() => onNotify('Reject action failed.', 'error'));
+  }
+
+  function confirmDeleteApproval(item) {
+    setDeleteConfirm({
+      message: item.subject || 'this approval',
+      onConfirm: () => {
+        projectApprovalApi.delete(item.id)
+          .then(() => { onNotify('Approval deleted.', 'success'); setDeleteConfirm(null); loadApprovals(); })
+          .catch(() => onNotify('Delete failed.', 'error'));
+      },
+    });
+  }
+
+  const statusBadge = (s) => {
+    const cfg = {
+      Pending: 'bg-[#fff4df] text-[#d97706]',
+      Approved: 'bg-[#dcfce7] text-[#16a34a]',
+      Rejected: 'bg-[#fee2e2] text-[#dc2626]',
+    };
+    return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-extrabold ${cfg[s] || 'bg-[#f1f5f9] text-[#64748b]'}`}>{s || '—'}</span>;
   };
+
+  const priorityBadge = (p) => {
+    const cfg = { Low: 'bg-[#f1f5f9] text-[#64748b]', Medium: 'bg-[#eef4ff] text-[#3b82f6]', High: 'bg-[#fff4df] text-[#d97706]', Urgent: 'bg-[#fee2e2] text-[#dc2626]' };
+    return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-extrabold ${cfg[p] || 'bg-[#f1f5f9] text-[#64748b]'}`}>{p || '—'}</span>;
+  };
+
+  const iCls = 'h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none';
+  const taCls = 'w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 py-2 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none resize-none';
+  const lCls = 'block text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6] mb-1';
+  const modalBackdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+  const modalBox = 'w-full max-w-lg rounded-[16px] bg-white shadow-2xl flex flex-col max-h-[90vh]';
+  const modalHeader = (title, onClose) => (
+    <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#f1f5f9] shrink-0">
+      <h2 className="text-[17px] font-extrabold text-[#1e2a38]">{title}</h2>
+      <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-[#f1f5f9]"><X className="size-5 text-[#7a8fa6]" /></button>
+    </div>
+  );
+
+  const formBody = (fields, setter) => (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+      <div className="col-span-2">
+        <label className={lCls}>Select Project *</label>
+        <select className={iCls} value={fields.project ?? ''} onChange={(e) => setter((p) => ({ ...p, project: e.target.value }))}>
+          <option value="">Select project...</option>
+          {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className={lCls}>Approval Type</label>
+        <select className={iCls} value={fields.approval_type} onChange={(e) => setter((p) => ({ ...p, approval_type: e.target.value }))}>
+          {APPROVAL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className={lCls}>Priority</label>
+        <select className={iCls} value={fields.priority} onChange={(e) => setter((p) => ({ ...p, priority: e.target.value }))}>
+          {PRIORITIES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+      <div className="col-span-2">
+        <label className={lCls}>Subject *</label>
+        <input type="text" className={iCls} placeholder="Approval subject..." value={fields.subject} onChange={(e) => setter((p) => ({ ...p, subject: e.target.value }))} />
+      </div>
+      <div className="col-span-2">
+        <label className={lCls}>Description</label>
+        <textarea rows={3} className={taCls} placeholder="Describe the approval request..." value={fields.description} onChange={(e) => setter((p) => ({ ...p, description: e.target.value }))} />
+      </div>
+      <div>
+        <label className={lCls}>Requested By</label>
+        <input type="text" className={iCls} placeholder="Name..." value={fields.requested_by} onChange={(e) => setter((p) => ({ ...p, requested_by: e.target.value }))} />
+      </div>
+      <div>
+        <label className={lCls}>Assigned To</label>
+        <select className={iCls} value={fields.assigned_to ?? ''} onChange={(e) => setter((p) => ({ ...p, assigned_to: e.target.value }))}>
+          <option value="">Select user...</option>
+          {users.map((u) => <option key={u.id} value={u.id}>{u.name || u.username}</option>)}
+        </select>
+      </div>
+      <div className="col-span-2">
+        <label className={lCls}>Remarks</label>
+        <textarea rows={2} className={taCls} placeholder="Additional remarks..." value={fields.remarks} onChange={(e) => setter((p) => ({ ...p, remarks: e.target.value }))} />
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-4">
+    <div className={cx(panelClass, 'flex flex-col gap-6 pb-10')}>
       <PageHeading
-        title="Approvals"
+        title="Project Approvals"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Approvals' },
+          { label: 'Project Approvals' },
         ]}
-        actions={(
-          <>
-            <button type="button" onClick={() => onNotify('Approvals report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onNotify('Approvals exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => onOpenSection('Project Approval Create')} data-route={projectSubRoutes['Project Approval Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />New Approval</button>
-          </>
-        )}
+        actions={
+          <button type="button" onClick={() => setShowNew(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
+            <Plus className="size-4" />New Approval
+          </button>
+        }
       />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
-          <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
-            <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
-                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
-              </div>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
-              <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
-            </div>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
-            <AssigneeCell assignee={project.manager} compact />
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
-            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.startDate)}</p>
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Target Date</p>
-            <p className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#1e3261]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(project.targetDate)}</p>
-          </div>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
+          <input
+            className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none"
+            placeholder="Search approvals, projects..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-      </section>
+        <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <option value="">All Statuses</option>
+          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterProject} onChange={(e) => setFilterProject(e.target.value)}>
+          <option value="">All Projects</option>
+          {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+        </select>
+        {(search || filterStatus || filterProject) && (
+          <button type="button" onClick={() => { setSearch(''); setFilterStatus(''); setFilterProject(''); }} className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Clear</button>
+        )}
+      </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openApprovalStat(stat.label)} />)}
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.7fr_0.68fr]">
-        <article className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2 border-b border-[#edf2f8] pb-4 lg:border-b-0 lg:pb-0">
-              {approvalTabs.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveApprovalTab(tab)}
-                  className={cx(
-                    'rounded-[10px] border-b-2 px-3 py-2 text-[13px] font-extrabold transition',
-                    activeApprovalTab === tab ? 'border-[#17a34a] text-[#17a34a]' : 'border-transparent text-[#53647f] hover:text-[#1e3261]',
-                  )}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button type="button" onClick={() => onNotify('Approval filters opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
-              <label className="relative min-w-[260px]">
-                <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8ca8]" />
-                <input type="text" placeholder="Search approvals..." className="h-11 w-full rounded-[10px] border border-[#dce6f3] bg-white pl-11 pr-4 text-[14px] font-bold text-[#1e3261] outline-none placeholder:text-[#8090aa]" />
-              </label>
-            </div>
+      {/* Approvals Table */}
+      <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white shadow-sm">
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-[14px] text-[#7a8fa6]">Loading approvals...</div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-20">
+            <ClipboardCheck className="size-10 text-[#c7d4e0]" />
+            <p className="text-[14px] font-bold text-[#7a8fa6]">No approvals found</p>
+            <button type="button" onClick={() => setShowNew(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white">
+              <Plus className="size-3.5" />New Approval
+            </button>
           </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-[#e5eaf2] bg-[#f8fafc]">
+                  {['Approval ID', 'Project Name', 'Approval Type', 'Requested By', 'Date', 'Status', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f1f5f9]">
+                {filtered.map((item) => (
+                  <tr key={item.id} className="hover:bg-[#f8fafc]">
+                    <td className="px-4 py-3 font-extrabold text-[#0b65e5]">{item.approval_id}</td>
+                    <td className="px-4 py-3 font-semibold text-[#1e2a38]">{item.project_name || getProjectName(item.project)}</td>
+                    <td className="px-4 py-3 text-[#53647f]">{item.approval_type}</td>
+                    <td className="px-4 py-3 text-[#53647f]">{item.requested_by || '—'}</td>
+                    <td className="px-4 py-3 text-[#53647f]">{item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN') : '—'}</td>
+                    <td className="px-4 py-3">{statusBadge(item.status)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button type="button" onClick={() => setViewItem(item)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3" />View</button>
+                        <button type="button" onClick={() => openEdit(item)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#7c3aed] hover:bg-[#f5f3ff]"><Pencil className="size-3" />Edit</button>
+                        {item.status === 'Pending' && (
+                          <>
+                            <button type="button" onClick={() => handleApprove(item)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#bbf7d0] bg-white px-2 text-[11px] font-bold text-[#16a34a] hover:bg-[#f0fdf4]"><CheckCircle2 className="size-3" />Approve</button>
+                            <button type="button" onClick={() => openReject(item)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#fecaca] bg-white px-2 text-[11px] font-bold text-[#dc2626] hover:bg-[#fef2f2]"><XCircle className="size-3" />Reject</button>
+                          </>
+                        )}
+                        <button type="button" onClick={() => confirmDeleteApproval(item)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#fecaca] bg-white px-2 text-[11px] font-bold text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3" />Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
-          <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-            <div className="grid grid-cols-[0.45fr_1.15fr_1.45fr_0.9fr_1fr_1.15fr_0.85fr_0.9fr_1.05fr_0.65fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-              <span>#</span>
-              <span>Approval ID</span>
-              <span>Title</span>
-              <span>Category</span>
-              <span>Requested By</span>
-              <span>Requested On</span>
-              <span>Amount (Rs)</span>
-              <span>Status</span>
-              <span>Current Approver</span>
-              <span>Actions</span>
-            </div>
-            {filteredApprovals.map((row, index) => (
-              <div key={row.id} className="grid grid-cols-[0.45fr_1.15fr_1.45fr_0.9fr_1fr_1.15fr_0.85fr_0.9fr_1.05fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                <span className="font-extrabold text-[#1e3261]">{index + 1}</span>
-                <span className="font-extrabold text-[#1e3261]">{row.id}</span>
-                <span>{row.title}</span>
-                <span>{row.category}</span>
-                <AssigneeCell assignee={row.requestedBy} compact />
-                <span>{row.requestedOn}</span>
-                <span>{row.amount}</span>
-                <ProjectPhaseBadge label={row.status} />
-                <AssigneeCell assignee={row.approver} compact />
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => onOpenSection('Project Approval Details')} data-route={projectSubRoutes['Project Approval Details']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`Open ${row.id}`}><Eye className="size-4" /></button>
-                  <button type="button" onClick={() => onOpenSection('Project Approval Details')} data-route={projectSubRoutes['Project Approval Details']} className="grid size-8 place-items-center rounded-[8px] border border-[#dce6f3] text-[#284276]" aria-label={`${row.id} actions`}><MoreVertical className="size-4" /></button>
-                </div>
+      {/* New Approval Popup */}
+      {showNew && createPortal(
+        <div className={modalBackdrop} onClick={() => setShowNew(false)}>
+          <div className={modalBox} onClick={(e) => e.stopPropagation()}>
+            {modalHeader('New Approval Request', () => setShowNew(false))}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {formBody(form, setForm)}
+              <div className="mt-3">
+                <label className={lCls}>Upload Document</label>
+                <input type="file" className="block w-full text-[13px] text-[#1e2a38] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:py-1.5 file:text-[12px] file:font-bold file:text-[#0b65e5] hover:file:bg-[#dbeafe]" onChange={(e) => setForm((p) => ({ ...p, file: e.target.files[0] || null }))} />
               </div>
-            ))}
-          </div>
-
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-[13px] font-bold text-[#53647f]">Showing 1 to {filteredApprovals.length} of 28 entries</span>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => onNotify('Previous approvals page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Previous</button>
-              {[1, 2, 3].map((page) => (
-                <button key={page} type="button" onClick={() => onNotify(`Approvals page ${page}`)} className={cx('rounded-[8px] px-4 py-2 text-[12px] font-extrabold', page === 1 ? 'bg-[#2f80ff] text-white' : 'border border-[#dce6f3] text-[#284276]')}>{page}</button>
-              ))}
-              <button type="button" onClick={() => onNotify('Next approvals page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Next</button>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-[#f1f5f9] shrink-0">
+              <button type="button" onClick={() => setShowNew(false)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={handleCreate} disabled={saving || !form.project || !form.subject} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60">
+                {saving ? 'Saving...' : 'Save'}
+              </button>
             </div>
           </div>
-        </article>
+        </div>,
+        document.body
+      )}
 
-        <div className="space-y-4">
-          <ProjectDonutCard title="Approvals by Status" data={approvalStatusData} totalLabel="Total" totalValue="28" onNotify={onNotify} />
-
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Pending Approvals</h2>
-              <button type="button" onClick={() => setActiveApprovalTab('Pending')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
-            </div>
-            <div className="mt-5 space-y-4">
-              {pendingApprovals.map((item) => (
-                <div key={item.code} className="rounded-[12px] border border-[#edf2f8] p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-extrabold text-[#1e3261]">{item.title}</p>
-                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">{item.code} - Requested by {item.requester}</p>
-                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">Amount: Rs {item.amount}</p>
+      {/* View Popup */}
+      {viewItem && createPortal(
+        <div className={modalBackdrop} onClick={() => setViewItem(null)}>
+          <div className={cx(modalBox, 'max-w-xl')} onClick={(e) => e.stopPropagation()}>
+            {modalHeader(`${viewItem.approval_id} — Details`, () => setViewItem(null))}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+              {/* Project Details */}
+              <div>
+                <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">Project Details</h3>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
+                  <div><dt className={lCls}>Project</dt><dd className="font-semibold text-[#1e2a38]">{viewItem.project_name || getProjectName(viewItem.project)}</dd></div>
+                  <div><dt className={lCls}>Date</dt><dd className="font-semibold text-[#1e2a38]">{viewItem.created_at ? new Date(viewItem.created_at).toLocaleDateString('en-IN') : '—'}</dd></div>
+                </dl>
+              </div>
+              {/* Approval Details */}
+              <div>
+                <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">Approval Details</h3>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
+                  {[
+                    ['Type', viewItem.approval_type],
+                    ['Priority', priorityBadge(viewItem.priority)],
+                    ['Status', statusBadge(viewItem.status)],
+                    ['Requested By', viewItem.requested_by || '—'],
+                    ['Assigned To', viewItem.assigned_to_name || '—'],
+                    ['Created By', viewItem.created_by_name || '—'],
+                  ].map(([label, val]) => (
+                    <div key={label}>
+                      <dt className={lCls}>{label}</dt>
+                      <dd className="font-semibold text-[#1e2a38]">{val}</dd>
                     </div>
-                    <span className={cx('rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', item.priority === 'High Priority' ? 'bg-[#fff1f1] text-[#dc2626]' : 'bg-[#fff4df] text-[#d97706]')}>{item.priority}</span>
+                  ))}
+                  <div className="col-span-2">
+                    <dt className={lCls}>Subject</dt>
+                    <dd className="font-semibold text-[#1e2a38]">{viewItem.subject}</dd>
                   </div>
-                  <div className="mt-2 flex items-center justify-between gap-3 text-[12px] font-bold text-[#53647f]">
-                    <span>Due: {item.due}</span>
+                  {viewItem.description && (
+                    <div className="col-span-2">
+                      <dt className={lCls}>Description</dt>
+                      <dd className="text-[#53647f] whitespace-pre-wrap">{viewItem.description}</dd>
+                    </div>
+                  )}
+                  {viewItem.remarks && (
+                    <div className="col-span-2">
+                      <dt className={lCls}>Remarks</dt>
+                      <dd className="text-[#53647f]">{viewItem.remarks}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+              {/* Timeline */}
+              {(viewItem.approved_at || viewItem.rejection_reason) && (
+                <div>
+                  <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">Timeline</h3>
+                  <div className="space-y-2 text-[13px]">
+                    {viewItem.approved_at && (
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex size-6 items-center justify-center rounded-full bg-[#dcfce7]">
+                          {viewItem.status === 'Approved' ? <CheckCircle2 className="size-3.5 text-[#16a34a]" /> : <XCircle className="size-3.5 text-[#dc2626]" />}
+                        </span>
+                        <span className="text-[#53647f]">{viewItem.status} by <strong className="text-[#1e2a38]">{viewItem.approved_by_name || '—'}</strong> on {new Date(viewItem.approved_at).toLocaleDateString('en-IN')}</span>
+                      </div>
+                    )}
+                    {viewItem.rejection_reason && (
+                      <p className="ml-8 rounded-[8px] bg-[#fef2f2] px-3 py-2 text-[12px] text-[#dc2626]">Reason: {viewItem.rejection_reason}</p>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-            <button type="button" onClick={() => setActiveApprovalTab('Pending')} className="mt-5 text-[12px] font-extrabold text-[#0b65e5]">View All Pending Approvals</button>
-          </article>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.05fr_1.2fr_0.9fr]">
-        <article className={`${panelClass} p-4 sm:p-5`}>
-          <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Approval Workflow</h2>
-          <div className="mt-6 flex items-start justify-between gap-3">
-            {workflowSteps.map(([title, note, tone], index) => (
-              <div key={title} className="flex-1 text-center">
-                <div className="flex items-center justify-center">
-                  <span className={cx('grid size-9 place-items-center rounded-full border-2 text-[13px] font-extrabold', tone === 'green' ? 'border-[#16a34a] bg-[#effbf3] text-[#16a34a]' : tone === 'blue' ? 'border-[#2f80ff] bg-[#eef5ff] text-[#2f80ff]' : tone === 'amber' ? 'border-[#f59e0b] bg-[#fff4df] text-[#f59e0b]' : 'border-[#cfd8e6] bg-white text-[#7b8ca8]')}>{index + 1}</span>
-                  {index < workflowSteps.length - 1 && <span className="h-0.5 flex-1 bg-[#d8e3f1]" />}
+              )}
+              {/* Documents */}
+              {viewItem.documents?.length > 0 && (
+                <div>
+                  <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">Documents</h3>
+                  <div className="space-y-1.5">
+                    {viewItem.documents.map((doc) => (
+                      <a key={doc.id} href={doc.file} download target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px] text-[#0b65e5] hover:bg-[#f8fafc]">
+                        <FileText className="size-4 shrink-0 text-[#7a8fa6]" />
+                        <span className="flex-1 truncate">{doc.name}</span>
+                        <Download className="size-3.5 shrink-0" />
+                      </a>
+                    ))}
+                  </div>
                 </div>
-                <p className="mt-3 text-[13px] font-extrabold text-[#1e3261]">{title}</p>
-                <p className="mt-1 text-[11px] font-bold text-[#53647f]">{note}</p>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className={`${panelClass} p-4 sm:p-5`}>
-          <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Approval Matrix</h2>
-          <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-            <div className="grid grid-cols-[1.1fr_1fr_1fr_1fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-              <span>Category</span>
-              <span>Level 1</span>
-              <span>Level 2</span>
-              <span>Level 3</span>
+              )}
             </div>
-            {approvalMatrix.map((row) => (
-              <div key={row[0]} className="grid grid-cols-[1.1fr_1fr_1fr_1fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                <span className="font-extrabold text-[#1e3261]">{row[0]}</span>
-                <span>{row[1]}</span>
-                <span>{row[2]}</span>
-                <span>{row[3]}</span>
-              </div>
-            ))}
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-[#f1f5f9] shrink-0 flex-wrap">
+              {viewItem.status === 'Pending' && (
+                <>
+                  <button type="button" onClick={() => handleApprove(viewItem)} className="h-9 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white hover:bg-[#15803d]"><CheckCircle2 className="size-4 inline mr-1" />Approve</button>
+                  <button type="button" onClick={() => { openReject(viewItem); setViewItem(null); }} className="h-9 rounded-[8px] border border-[#fecaca] px-4 text-[13px] font-bold text-[#dc2626] hover:bg-[#fef2f2]"><XCircle className="size-4 inline mr-1" />Reject</button>
+                </>
+              )}
+              <button type="button" onClick={() => setViewItem(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
+            </div>
           </div>
-        </article>
+        </div>,
+        document.body
+      )}
 
-        <article className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Activity</h2>
-            <button type="button" onClick={() => onOpenSection('Project Approval Details')} data-route={projectSubRoutes['Project Approval Details']} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
+      {/* Edit Popup */}
+      {editItem && createPortal(
+        <div className={modalBackdrop} onClick={() => setEditItem(null)}>
+          <div className={modalBox} onClick={(e) => e.stopPropagation()}>
+            {modalHeader(`Edit — ${editItem.approval_id}`, () => setEditItem(null))}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {formBody({ ...editForm, project: editItem.project }, (updater) => {
+                setEditForm((prev) => {
+                  const next = typeof updater === 'function' ? updater(prev) : updater;
+                  return next;
+                });
+              })}
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-[#f1f5f9] shrink-0">
+              <button type="button" onClick={() => setEditItem(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={handleEditSave} disabled={saving || !editForm.subject} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60">
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
-          <div className="mt-5 space-y-4">
-            {recentActivity.map((item) => (
-              <div key={item.title} className="flex gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', item.tone === 'green' ? 'bg-[#16a34a]' : item.tone === 'red' ? 'bg-[#ef4444]' : 'bg-[#f59e0b]')}>
-                  {item.tone === 'green' ? <CheckCircle2 className="size-4" /> : item.tone === 'red' ? <XCircle className="size-4" /> : <Clock3 className="size-4" />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-extrabold text-[#1e3261]">{item.title}</p>
-                  <p className="mt-1 text-[12px] font-bold text-[#53647f]">by {item.actor}</p>
-                </div>
-                <span className="shrink-0 text-[11px] font-extrabold text-[#53647f]">{item.time}</span>
-              </div>
-            ))}
+        </div>,
+        document.body
+      )}
+
+      {/* Reject Reason Popup */}
+      {rejectConfirm && createPortal(
+        <div className={modalBackdrop} onClick={() => setRejectConfirm(null)}>
+          <div className="w-full max-w-sm rounded-[16px] bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-[17px] font-extrabold text-[#1e2a38]">Reject Approval</h2>
+              <button type="button" onClick={() => setRejectConfirm(null)} className="rounded-full p-1 hover:bg-[#f1f5f9]"><X className="size-5 text-[#7a8fa6]" /></button>
+            </div>
+            <p className="mb-3 text-[13px] text-[#53647f]">Rejecting: <strong className="text-[#1e2a38]">{rejectConfirm.subject}</strong></p>
+            <label className={lCls}>Reason (optional)</label>
+            <textarea rows={3} className={taCls} placeholder="Enter reason for rejection..." value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setRejectConfirm(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={handleReject} className="h-9 rounded-[8px] bg-[#dc2626] px-5 text-[13px] font-extrabold text-white hover:bg-[#b91c1c]">Reject</button>
+            </div>
           </div>
-        </article>
-      </section>
+        </div>,
+        document.body
+      )}
+
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
 
       <DashboardFooter />
     </div>
