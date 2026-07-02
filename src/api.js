@@ -348,6 +348,25 @@ export const workforceApi = {
   employeeHistory: (id) => request(`/workforce/employees/${id}/history/`),
 };
 
+// ─── Sub-CD ──────────────────────────────────────────────────────────────────
+
+export const subCdApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/sub-cd/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/sub-cd/${id}/`),
+  create: (data) => request('/sub-cd/', { method: 'POST', body: data }),
+  update: (id, data) => request(`/sub-cd/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/sub-cd/${id}/`, { method: 'DELETE' }),
+  dashboard: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/sub-cd/dashboard/${qs ? '?' + qs : ''}`);
+  },
+  uploadDoc: (data) => request('/sub-cd-docs/', { method: 'POST', body: data }),
+  deleteDoc: (id) => request(`/sub-cd-docs/${id}/`, { method: 'DELETE' }),
+};
+
 // ─── Material Plans ─────────────────────────────────────────────────────────────
 
 export const materialPlanApi = {

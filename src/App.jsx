@@ -4,7 +4,7 @@ import {
   authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
   projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
   projectTeamApi, projectMilestoneApi, projectChecklistApi,
-  installationMaterialApi, materialPlanApi, workforceApi,
+  installationMaterialApi, materialPlanApi, workforceApi, subCdApi,
 } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -27125,30 +27125,141 @@ function ProjectModulePlaceholderPage({ activeSection, onOpenSection, onNotify }
 }
 
 function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
-  const COMPONENT_TYPES = ['Solar Panel', 'Inverter', 'Battery', 'Structure', 'Cable', 'Other'];
-  const emptyRow = { type: 'Solar Panel', company: '', serial_number: '', capacity: '' };
-  const [rows, setRows] = useState([]);
-  const [form, setForm] = useState(emptyRow);
-  const [editIndex, setEditIndex] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const STATUS_OPTIONS = ['Draft', 'Submitted', 'Under Process', 'Approved', 'Rejected', 'Completed'];
+  const DOC_TYPES = ['Electricity Bill', 'Aadhaar', 'PAN', 'Approval Letter', 'Other'];
+  const emptyForm = { application_number: '', application_date: '', discom: '', status: 'Draft', assigned_employee: '', remarks: '' };
 
-  const openAdd = () => { setForm(emptyRow); setEditIndex(null); setModalOpen(true); };
-  const openEdit = (index) => { setForm({ ...rows[index] }); setEditIndex(index); setModalOpen(true); };
-  const handleSave = () => {
-    if (!form.company.trim() || !form.serial_number.trim()) { onNotify('Company and Serial Number required'); return; }
-    if (editIndex !== null) {
-      setRows((prev) => prev.map((r, i) => (i === editIndex ? form : r)));
-      onNotify('Component updated');
-    } else {
-      setRows((prev) => [...prev, form]);
-      onNotify('Component added');
-    }
-    setModalOpen(false);
+  // Project selection
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [allProjects, setAllProjects] = useState([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
+
+  // Sub-CD data
+  const [rows, setRows] = useState([]);
+  const [loadingRows, setLoadingRows] = useState(false);
+  const [dashStats, setDashStats] = useState({ total: 0, submitted: 0, under_process: 0, approved: 0, rejected: 0, completed: 0 });
+
+  // Filters
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+
+  // Add/Edit modal
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editRow, setEditRow] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+
+  // View modal
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewData, setViewData] = useState(null);
+
+  // Documents (inside add/edit modal)
+  const [docFile, setDocFile] = useState(null);
+  const [docType, setDocType] = useState('Other');
+  const [docName, setDocName] = useState('');
+  const [docUploading, setDocUploading] = useState(false);
+  // docs for view popup (fetched fresh)
+  const [viewDocs, setViewDocs] = useState([]);
+
+  // ── Load projects on mount ──
+  const loadProjects = useCallback(async () => {
+    setLoadingProjects(true);
+    try { const d = await projectApi.list({ page_size: 500 }); setAllProjects(normalizeApiRows(d)); } catch {}
+    finally { setLoadingProjects(false); }
+  }, []);
+
+  useEffect(() => { loadProjects(); }, [loadProjects]);
+
+  // ── Load Sub-CD data when project selected ──
+  const loadData = useCallback(async (proj) => {
+    if (!proj) return;
+    setLoadingRows(true);
+    try {
+      const [listData, stats] = await Promise.all([
+        subCdApi.list({ project: proj.id, page_size: 500 }),
+        subCdApi.dashboard({ project: proj.id }),
+      ]);
+      setRows(normalizeApiRows(listData));
+      setDashStats(stats || { total: 0, submitted: 0, under_process: 0, approved: 0, rejected: 0, completed: 0 });
+    } catch { onNotify('Failed to load Sub-CD data'); }
+    finally { setLoadingRows(false); }
+  }, [onNotify]);
+
+  useEffect(() => { if (selectedProject) loadData(selectedProject); }, [selectedProject, loadData]);
+
+  // ── CRUD ──
+  const openAdd = () => { setForm(emptyForm); setEditRow(null); setDocFile(null); setDocName(''); setDocType('Other'); setModalOpen(true); };
+  const openEdit = (row) => { setForm({ application_number: row.application_number || '', application_date: row.application_date || '', discom: row.discom || '', status: row.status || 'Draft', assigned_employee: row.assigned_employee || '', remarks: row.remarks || '' }); setEditRow(row); setDocFile(null); setDocName(''); setDocType('Other'); setModalOpen(true); };
+  const openView = async (row) => { setViewData(row); setViewDocs(row.documents || []); setViewOpen(true); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = { ...form, project: selectedProject.id };
+      if (editRow) { await subCdApi.update(editRow.id, payload); onNotify('Sub-CD updated'); }
+      else { await subCdApi.create(payload); onNotify('Sub-CD created'); }
+      setModalOpen(false);
+      loadData(selectedProject);
+    } catch (e) { onNotify(e.message || 'Save failed'); }
+    finally { setSaving(false); }
   };
-  const handleDelete = (index) => { setRows((prev) => prev.filter((_, i) => i !== index)); onNotify('Component removed'); };
+
+  const handleDelete = async (id) => {
+    try { await subCdApi.delete(id); onNotify('Record deleted'); loadData(selectedProject); } catch { onNotify('Delete failed'); }
+  };
+
+  const handleDocUpload = async (subCdId) => {
+    if (!docFile || !docName.trim()) { onNotify('File and name required'); return; }
+    setDocUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('sub_cd', subCdId);
+      fd.append('doc_type', docType);
+      fd.append('name', docName.trim());
+      fd.append('file', docFile);
+      await subCdApi.uploadDoc(fd);
+      onNotify('Document uploaded');
+      setDocFile(null); setDocName(''); setDocType('Other');
+      loadData(selectedProject);
+    } catch { onNotify('Upload failed'); }
+    finally { setDocUploading(false); }
+  };
+
+  const handleDeleteDoc = async (docId) => {
+    try { await subCdApi.deleteDoc(docId); onNotify('Document removed'); loadData(selectedProject); } catch { onNotify('Delete failed'); }
+  };
+
+  // ── Helpers ──
+  const statusTone = (s) => {
+    if (s === 'Approved' || s === 'Completed') return 'green';
+    if (s === 'Submitted' || s === 'Under Process') return 'blue';
+    if (s === 'Rejected') return 'red';
+    return 'amber';
+  };
+  const projStatusTone = (s) => s === 'Active' ? 'blue' : s === 'Completed' ? 'green' : s === 'On Hold' ? 'amber' : s === 'Cancelled' ? 'red' : 'cyan';
+
+  const filtered = rows.filter((r) => {
+    if (statusFilter !== 'All' && r.status !== statusFilter) return false;
+    if (query) {
+      const q = query.toLowerCase();
+      if (!(r.application_number || '').toLowerCase().includes(q) && !(r.assigned_employee || '').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const STAT_CARDS = [
+    { label: 'Total', value: dashStats.total, icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Submitted', value: dashStats.submitted, icon: Clock3, tone: 'cyan', filter: 'Submitted' },
+    { label: 'Under Process', value: dashStats.under_process, icon: Clock3, tone: 'blue', filter: 'Under Process' },
+    { label: 'Approved', value: dashStats.approved, icon: CheckCircle2, tone: 'green', filter: 'Approved' },
+    { label: 'Rejected', value: dashStats.rejected, icon: XCircle, tone: 'red', filter: 'Rejected' },
+    { label: 'Completed', value: dashStats.completed, icon: CheckCircle2, tone: 'green', filter: 'Completed' },
+  ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <PageHeading
         title="Sub-CD"
         crumbs={[
@@ -27156,82 +27267,328 @@ function ProjectSubCDPage({ activeSection, onOpenSection, onNotify }) {
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Sub-CD' },
         ]}
-        actions={(
-          <button type="button" onClick={openAdd} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#078c3e]">
-            <Plus className="size-4" />Add Component
-          </button>
-        )}
       />
 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
-      <article className={`${panelClass} overflow-hidden`}>
-        <div className="overflow-x-auto">
-          <table className="crm-table w-full min-w-[700px]">
-            <thead>
-              <tr>
-                {['#', 'Type', 'Company / Brand', 'Serial Number', 'Capacity', 'Action'].map((h) => <th key={h}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr><td colSpan={6} className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No components added yet. Click Add Component to start.</td></tr>
-              ) : rows.map((row, index) => (
-                <tr key={index}>
-                  <td>{index + 1}</td>
-                  <td><span className="rounded-[6px] bg-[#edf5ff] px-2 py-1 text-[12px] font-extrabold text-[#1a56db]">{row.type}</span></td>
-                  <td className="font-extrabold text-[#1e3261]">{row.company}</td>
-                  <td className="font-bold text-[#314a79]">{row.serial_number}</td>
-                  <td className="font-bold text-[#314a79]">{row.capacity || '—'}</td>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEdit(index)} />
-                      <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDelete(index)} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Toolbar */}
+      <section className={`${panelClass} p-3`}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="flex h-10 flex-1 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-3 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 180 }}>
+            <Search className="size-4 shrink-0 text-[#7e8fab]" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search application no. or employee..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+          </label>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-10 rounded-[10px] border border-[#dce6f3] bg-white px-3 text-[13px] font-extrabold text-[#284276]">
+            <option value="All">All Status</option>
+            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <button type="button" onClick={() => setProjectPickerOpen(true)} className={cx('inline-flex h-10 items-center gap-2 rounded-[10px] border px-3 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
+            <FolderKanban className="size-4" />{selectedProject ? selectedProject.project_name : 'Select Project'}
+          </button>
+          {selectedProject && (
+            <button type="button" onClick={openAdd} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
+              <Plus className="size-4" />Add Sub-CD
+            </button>
+          )}
         </div>
-      </article>
+      </section>
 
-      {modalOpen ? (
-        <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
-          <div className="w-full max-w-[480px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editIndex !== null ? 'Edit Component' : 'Add Component'}</h2>
-              <button type="button" onClick={() => setModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+      {/* Empty state or content */}
+      {!selectedProject ? (
+        <article className={`${panelClass} overflow-hidden`}>
+          <div className="flex flex-col items-center justify-center py-16">
+            <FolderKanban className="size-12 text-[#c5d2e8]" />
+            <h3 className="mt-3 font-display text-[17px] font-extrabold text-[#1e3261]">No Project Selected</h3>
+            <p className="mt-1 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to manage Sub-CD.</p>
+            <button type="button" onClick={() => setProjectPickerOpen(true)} className="mt-4 inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
+              <FolderKanban className="size-4" />Select Project
+            </button>
+          </div>
+        </article>
+      ) : (
+        <div className="space-y-2">
+          {/* Project Summary Card */}
+          <article className={`${panelClass} p-3`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] shadow-[0_8px_18px_rgba(37,99,235,0.2)]">
+                  <FolderKanban className="size-5 text-white" />
+                </span>
+                <div>
+                  <h2 className="font-display text-[16px] font-extrabold text-[#111827]">{selectedProject.project_name}</h2>
+                  <p className="text-[12px] font-bold text-[#7585a2]">{selectedProject.customer_name} &bull; {selectedProject.capacity_kwp ? `${selectedProject.capacity_kwp} kWp` : '—'} &bull; {selectedProject.discom_name || '—'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <ProjectInfoPill tone={projStatusTone(selectedProject.status)}>{selectedProject.status}</ProjectInfoPill>
+                <button type="button" onClick={() => setProjectPickerOpen(true)} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FolderKanban className="size-3.5" />Change</button>
+                <button type="button" onClick={() => { setSelectedProject(null); setRows([]); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><X className="size-3.5" />Close</button>
+              </div>
             </div>
-            <div className="grid gap-4 p-6">
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Component Type
-                <select value={form.type} onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  {COMPONENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Company / Brand *
-                <input value={form.company} onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))} placeholder="e.g. Waaree, Growatt, Luminous" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Serial Number *
-                <input value={form.serial_number} onChange={(e) => setForm((p) => ({ ...p, serial_number: e.target.value }))} placeholder="e.g. WE440-2024-00123" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Capacity
-                <input value={form.capacity} onChange={(e) => setForm((p) => ({ ...p, capacity: e.target.value }))} placeholder="e.g. 440W, 5kW, 100Ah" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+          </article>
+
+          {/* Stat Cards */}
+          <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+            {STAT_CARDS.map((c) => (
+              <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value ?? 0)} caption={c.label} icon={c.icon} tone={c.tone} onClick={() => c.filter ? setStatusFilter(c.filter) : setStatusFilter('All')} />
+            ))}
+          </section>
+
+          {/* Table */}
+          <article className={`${panelClass} overflow-hidden`}>
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-4 py-2.5">
+              <h3 className="font-display text-[14px] font-extrabold text-[#1e3261]">Sub-CD Applications</h3>
+              <button type="button" onClick={openAdd} className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]"><Plus className="size-3.5" />Add Sub-CD</button>
+            </div>
+            {loadingRows ? (
+              <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">Loading...</p>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10">
+                <ClipboardPlus className="size-10 text-[#c5d2e8]" />
+                <p className="mt-2 text-[13px] font-bold text-[#8a98af]">No Sub-CD records. Click <strong>Add Sub-CD</strong> to create one.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="crm-table w-full min-w-[700px]">
+                  <thead><tr>{['#', 'Application No.', 'Application Date', 'Status', 'Assigned Employee', 'Last Updated', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {filtered.map((row, idx) => (
+                      <tr key={row.id}>
+                        <td>{idx + 1}</td>
+                        <td className="font-extrabold text-[#1e3261]">{row.application_number || '—'}</td>
+                        <td className="font-bold text-[#314a79]">{row.application_date || '—'}</td>
+                        <td><ProjectInfoPill tone={statusTone(row.status)}>{row.status}</ProjectInfoPill></td>
+                        <td className="font-bold text-[#314a79]">{row.assigned_employee || '—'}</td>
+                        <td className="font-bold text-[#314a79]">{row.updated_at ? new Date(row.updated_at).toLocaleDateString('en-IN') : '—'}</td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <UserActionButton label="View" icon={Eye} tone="blue" onClick={() => openView(row)} />
+                            <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEdit(row)} />
+                            <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDelete(row.id)} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="border-t border-[#edf2f8] px-4 py-2 text-[12px] font-bold text-[#7386a3]">Showing {filtered.length} of {rows.length} records</div>
+              </div>
+            )}
+          </article>
+        </div>
+      )}
+
+      {/* ── Project Picker Popup ── */}
+      {projectPickerOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setProjectPickerOpen(false); setProjectSearch(''); } }}>
+          <div className="w-full max-w-[800px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
+              <div>
+                <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Select Project</h2>
+                <p className="text-[12px] font-bold text-[#7585a2]">Choose a project to manage Sub-CD applications</p>
+              </div>
+              <button type="button" onClick={() => { setProjectPickerOpen(false); setProjectSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="p-3 pb-2">
+              <label className="flex h-10 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-3 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+                <Search className="size-4 shrink-0 text-[#7e8fab]" />
+                <input autoFocus value={projectSearch} onChange={(e) => setProjectSearch(e.target.value)} type="search" placeholder="Search project name or customer..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
               </label>
             </div>
-            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
-              <button type="button" onClick={() => setModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
-              <button type="button" onClick={handleSave} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white">
-                <Save className="size-4" />{editIndex !== null ? 'Update' : 'Add'}
-              </button>
+            <div className="max-h-[420px] overflow-y-auto">
+              {loadingProjects ? (
+                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading projects...</p>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
+                      {['Project Name', 'Customer', 'Capacity', 'Status', 'Action'].map((h) => (
+                        <th key={h} className="px-4 py-2 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allProjects.filter((p) => {
+                      if (!projectSearch) return true;
+                      const q = projectSearch.toLowerCase();
+                      return (p.project_name || '').toLowerCase().includes(q) || (p.customer_name || '').toLowerCase().includes(q) || (p.project_id || '').toLowerCase().includes(q);
+                    }).map((proj) => (
+                      <tr key={proj.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
+                        <td className="px-4 py-2.5">
+                          <p className="font-extrabold text-[#1e3261]">{proj.project_name}</p>
+                          <p className="text-[11px] font-bold text-[#8a98af]">{proj.project_id}</p>
+                        </td>
+                        <td className="px-4 py-2.5 text-[13px] font-bold text-[#314a79]">{proj.customer_name}</td>
+                        <td className="px-4 py-2.5 text-[13px] font-bold text-[#314a79]">{proj.capacity_kwp ? `${proj.capacity_kwp} kWp` : '—'}</td>
+                        <td className="px-4 py-2.5"><ProjectInfoPill tone={projStatusTone(proj.status)}>{proj.status}</ProjectInfoPill></td>
+                        <td className="px-4 py-2.5">
+                          <button type="button" onClick={() => { setSelectedProject(proj); setProjectPickerOpen(false); setProjectSearch(''); setQuery(''); setStatusFilter('All'); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
+                            <Eye className="size-3.5" />View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
-      ) : null}
+      )}
+
+      {/* ── Add/Edit Modal ── */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
+          <div className="w-full max-w-[580px] max-h-[90vh] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#edf2f8] bg-white px-5 py-3">
+              <h2 className="font-display text-[17px] font-extrabold text-[#111827]">{editRow ? 'Edit Sub-CD' : 'Add Sub-CD'}</h2>
+              <button type="button" onClick={() => setModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+
+            {/* Basic Information */}
+            <div className="p-4">
+              <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Basic Information</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1 text-[12px] font-extrabold text-[#53647f]">Application Number
+                  <input value={form.application_number} onChange={(e) => setForm((p) => ({ ...p, application_number: e.target.value }))} placeholder="e.g. APP-2024-001" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+                <label className="grid gap-1 text-[12px] font-extrabold text-[#53647f]">Application Date
+                  <input value={form.application_date} onChange={(e) => setForm((p) => ({ ...p, application_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
+                </label>
+                <label className="grid gap-1 text-[12px] font-extrabold text-[#53647f]">DISCOM
+                  <input value={form.discom} onChange={(e) => setForm((p) => ({ ...p, discom: e.target.value }))} placeholder="e.g. MPPKVVCL, UPPCL" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+                <label className="grid gap-1 text-[12px] font-extrabold text-[#53647f]">Current Status
+                  <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
+                    {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-[12px] font-extrabold text-[#53647f] sm:col-span-2">Assigned Employee
+                  <input value={form.assigned_employee} onChange={(e) => setForm((p) => ({ ...p, assigned_employee: e.target.value }))} placeholder="Employee name" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+                <label className="grid gap-1 text-[12px] font-extrabold text-[#53647f] sm:col-span-2">Remarks
+                  <textarea value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} rows={2} placeholder="Any notes or remarks..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                </label>
+              </div>
+            </div>
+
+            {/* Documents section (only for edit) */}
+            {editRow && (
+              <div className="border-t border-[#edf2f8] p-4">
+                <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Documents</p>
+                <div className="grid gap-2 sm:grid-cols-[1fr_140px_120px_auto]">
+                  <input value={docName} onChange={(e) => setDocName(e.target.value)} placeholder="Document name..." className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                  <select value={docType} onChange={(e) => setDocType(e.target.value)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-bold text-[#1e3261]">
+                    {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-2 text-[11px] font-bold text-[#314a79] file:mr-2 file:h-6 file:rounded file:border-0 file:bg-[#0b65e5] file:px-2 file:text-[11px] file:font-extrabold file:text-white" />
+                  <button type="button" onClick={() => handleDocUpload(editRow.id)} disabled={docUploading} className="inline-flex h-10 items-center gap-1 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white disabled:opacity-60">
+                    <Plus className="size-3.5" />{docUploading ? '...' : 'Upload'}
+                  </button>
+                </div>
+                {(editRow.documents || []).length > 0 && (
+                  <div className="mt-2 overflow-x-auto rounded-[8px] border border-[#edf2f8]">
+                    <table className="w-full min-w-[400px]">
+                      <thead><tr className="bg-[#f8fbff]">{['Name', 'Type', 'Uploaded', ''].map((h) => <th key={h} className="px-3 py-2 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>)}</tr></thead>
+                      <tbody>
+                        {(editRow.documents || []).map((doc) => (
+                          <tr key={doc.id} className="border-t border-[#f3f6fb]">
+                            <td className="px-3 py-2"><a href={doc.file} target="_blank" rel="noreferrer" className="text-[12px] font-extrabold text-[#0b65e5] underline">{doc.name}</a></td>
+                            <td className="px-3 py-2"><ProjectInfoPill tone="blue">{doc.doc_type}</ProjectInfoPill></td>
+                            <td className="px-3 py-2 text-[11px] font-bold text-[#8a98af]">{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-IN') : '—'}</td>
+                            <td className="px-3 py-2"><UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteDoc(doc.id)} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#edf2f8] bg-white px-5 py-3">
+              <button type="button" onClick={() => setModalOpen(false)} className="h-10 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+              <button type="button" onClick={handleSave} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{saving ? 'Saving...' : editRow ? 'Update' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── View Popup ── */}
+      {viewOpen && viewData && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setViewOpen(false); }}>
+          <div className="w-full max-w-[580px] max-h-[90vh] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#edf2f8] bg-white px-5 py-3">
+              <div>
+                <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Sub-CD Details</h2>
+                <p className="text-[12px] font-bold text-[#7585a2]">{viewData.application_number || 'Draft Application'}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => { setViewOpen(false); openEdit(viewData); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Pencil className="size-3.5" />Edit</button>
+                <button type="button" onClick={() => setViewOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4">
+              {/* Application Info */}
+              <div>
+                <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Application Information</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    { label: 'Application No.', value: viewData.application_number },
+                    { label: 'Application Date', value: viewData.application_date },
+                    { label: 'DISCOM', value: viewData.discom },
+                    { label: 'Status', value: viewData.status },
+                    { label: 'Assigned Employee', value: viewData.assigned_employee },
+                    { label: 'Last Updated', value: viewData.updated_at ? new Date(viewData.updated_at).toLocaleDateString('en-IN') : null },
+                  ].map((row) => (
+                    <div key={row.label} className="rounded-[8px] bg-[#f8fbff] px-3 py-2">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
+                      <p className="mt-0.5 text-[13px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
+                    </div>
+                  ))}
+                </div>
+                {viewData.remarks && (
+                  <div className="mt-2 rounded-[8px] bg-[#f8fbff] px-3 py-2">
+                    <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#7585a2]">Remarks</p>
+                    <p className="mt-0.5 text-[13px] font-bold text-[#314a79]">{viewData.remarks}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Documents */}
+              <div>
+                <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Documents</p>
+                {(viewDocs.length === 0) ? (
+                  <p className="rounded-[8px] bg-[#f8fbff] px-3 py-4 text-center text-[12px] font-bold text-[#8a98af]">No documents uploaded.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-[8px] border border-[#edf2f8]">
+                    <table className="w-full min-w-[360px]">
+                      <thead><tr className="bg-[#f8fbff]">{['Document', 'Type', 'Date', 'Action'].map((h) => <th key={h} className="px-3 py-2 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>)}</tr></thead>
+                      <tbody>
+                        {viewDocs.map((doc) => (
+                          <tr key={doc.id} className="border-t border-[#f3f6fb]">
+                            <td className="px-3 py-2"><a href={doc.file} target="_blank" rel="noreferrer" className="text-[12px] font-extrabold text-[#0b65e5] underline">{doc.name}</a></td>
+                            <td className="px-3 py-2"><ProjectInfoPill tone="blue">{doc.doc_type}</ProjectInfoPill></td>
+                            <td className="px-3 py-2 text-[11px] font-bold text-[#8a98af]">{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-IN') : '—'}</td>
+                            <td className="px-3 py-2">
+                              <a href={doc.file} target="_blank" rel="noreferrer" className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] border border-[#dce6f3] bg-white text-[#0b65e5] transition hover:bg-[#eff6ff]"><Eye className="size-3.5" /></a>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 flex justify-end border-t border-[#edf2f8] bg-white px-5 py-3">
+              <button type="button" onClick={() => setViewOpen(false)} className="h-10 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <DashboardFooter />
     </div>

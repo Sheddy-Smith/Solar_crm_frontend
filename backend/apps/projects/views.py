@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status, filters
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -6,7 +7,7 @@ from django.utils import timezone
 from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
-    ProjectChecklistItem, InstallationMaterial, MaterialPlan,
+    ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubCDApplication, SubCDDocument,
 )
 from .serializers import (
     ProjectListSerializer, ProjectDetailSerializer,
@@ -14,7 +15,7 @@ from .serializers import (
     ProjectDocumentSerializer, ProjectExpenseSerializer, ProjectPaymentSerializer, WorkOrderSerializer,
     ProjectTeamMemberSerializer, ProjectSystemConfigSerializer, ProjectMilestoneSerializer,
     SiteSurveySerializer, ProjectChecklistItemSerializer, InstallationMaterialSerializer,
-    MaterialPlanSerializer,
+    MaterialPlanSerializer, SubCDApplicationSerializer, SubCDDocumentSerializer,
 )
 from apps.accounts.permissions import HasModulePermission
 
@@ -277,3 +278,45 @@ class MaterialPlanViewSet(viewsets.ModelViewSet):
         if project_id:
             qs = qs.filter(project_id=project_id)
         return qs
+
+
+class SubCDApplicationViewSet(viewsets.ModelViewSet):
+    queryset = SubCDApplication.objects.select_related('project').prefetch_related('documents').all()
+    serializer_class = SubCDApplicationSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['project', 'status']
+    search_fields = ['application_number', 'assigned_employee', 'discom']
+
+    def get_queryset(self):
+        qs = SubCDApplication.objects.select_related('project').prefetch_related('documents').all()
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    @action(detail=False, methods=['get'], url_path='dashboard')
+    def dashboard(self, request):
+        project_id = request.query_params.get('project')
+        qs = SubCDApplication.objects.all()
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return Response({
+            'total': qs.count(),
+            'submitted': qs.filter(status='Submitted').count(),
+            'under_process': qs.filter(status='Under Process').count(),
+            'approved': qs.filter(status='Approved').count(),
+            'rejected': qs.filter(status='Rejected').count(),
+            'completed': qs.filter(status='Completed').count(),
+        })
+
+
+class SubCDDocumentViewSet(viewsets.ModelViewSet):
+    queryset = SubCDDocument.objects.select_related('sub_cd').all()
+    serializer_class = SubCDDocumentSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['sub_cd', 'doc_type']

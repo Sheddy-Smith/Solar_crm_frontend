@@ -5,6 +5,7 @@ from .views import (
     ProjectDocumentViewSet, ProjectExpenseViewSet, ProjectPaymentViewSet, WorkOrderViewSet,
     ProjectTeamMemberViewSet, ProjectMilestoneViewSet,
     ProjectChecklistItemViewSet, InstallationMaterialViewSet, MaterialPlanViewSet,
+    SubCDApplicationViewSet, SubCDDocumentViewSet,
 )
 
 router = DefaultRouter()
@@ -20,6 +21,8 @@ router.register('project-milestones', ProjectMilestoneViewSet)
 router.register('project-checklist-items', ProjectChecklistItemViewSet)
 router.register('installation-materials', InstallationMaterialViewSet)
 router.register('material-plans', MaterialPlanViewSet, basename='material-plan')
+router.register('sub-cd', SubCDApplicationViewSet, basename='sub-cd')
+router.register('sub-cd-docs', SubCDDocumentViewSet, basename='sub-cd-docs')
 
 urlpatterns = [
     path('', include(router.urls)),

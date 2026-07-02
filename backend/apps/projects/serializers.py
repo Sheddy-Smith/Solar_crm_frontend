@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
-    ProjectChecklistItem, InstallationMaterial, MaterialPlan,
+    ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubCDApplication, SubCDDocument,
 )
 from apps.accounts.serializers import UserSerializer
 
@@ -211,3 +211,23 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     def get_milestones(self, obj):
         top_level = obj.milestones.filter(parent__isnull=True).order_by('sequence', 'start_date')
         return ProjectMilestoneSerializer(top_level, many=True).data
+
+
+class SubCDDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubCDDocument
+        fields = ['id', 'sub_cd', 'doc_type', 'name', 'file', 'uploaded_at']
+        read_only_fields = ['uploaded_at']
+
+
+class SubCDApplicationSerializer(serializers.ModelSerializer):
+    documents = SubCDDocumentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SubCDApplication
+        fields = [
+            'id', 'project', 'application_number', 'application_date',
+            'discom', 'status', 'assigned_employee', 'remarks',
+            'documents', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
