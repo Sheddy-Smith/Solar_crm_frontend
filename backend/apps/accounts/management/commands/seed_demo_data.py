@@ -16,6 +16,12 @@ class Command(BaseCommand):
         self._create_warehouses()
         self._create_inventory()
         self._create_projects()
+        self._create_accounts_module()
+        self._create_stock_movements()
+        self._create_project_payments()
+        self._create_om_data()
+        self._create_amc_data()
+        self._create_crm_settings()
         self.stdout.write(self.style.SUCCESS('Demo data seeded successfully!'))
 
     # ─── Roles & Branches ────────────────────────────────────────────────────
@@ -60,6 +66,8 @@ class Command(BaseCommand):
                 'IVRS Management': {'can_view': True},
                 'Liaisoning & Commissioning': {'can_view': True},
                 'O&M': {'can_view': True},
+                'Inventory': {'can_view': True, 'can_add': True, 'can_edit': True},
+                'AMC & Warranty': {'can_view': True, 'can_add': True, 'can_edit': True},
             },
             'Team Leader': {
                 'Leads': {'can_view': True, 'can_add': True, 'can_edit': True},
@@ -68,11 +76,16 @@ class Command(BaseCommand):
                 'Project Management': {'can_view': True, 'can_edit': True},
                 'Dashboard': {'can_view': True},
                 'Reports': {'can_view': True},
+                'Inventory': {'can_view': True},
+                'AMC & Warranty': {'can_view': True},
             },
             'Sales Executive': {
                 'Leads': {'can_view': True, 'can_add': True, 'can_edit': True},
                 'Follow-ups': {'can_view': True, 'can_add': True, 'can_edit': True},
                 'Dashboard': {'can_view': True},
+                'Reports': {'can_view': True},
+                'Inventory': {'can_view': True},
+                'AMC & Warranty': {'can_view': True},
             },
             'Viewer': {
                 'Leads': {'can_view': True}, 'Follow-ups': {'can_view': True},
@@ -260,3 +273,336 @@ class Command(BaseCommand):
             Project.objects.create(**pd, created_by=admin)
             count += 1
         self.stdout.write(f'  Projects: {count} created')
+
+    # ─── Accounts Module ─────────────────────────────────────────────────────
+
+    def _create_accounts_module(self):
+        from decimal import Decimal
+        from apps.accounts.models import User
+        from apps.accounts_module.models import Account, BankAccount, ChartOfAccount, Payment
+        from apps.accounts_module.services import after_payment_saved, _default_accounts
+        from apps.projects.models import Project
+
+        admin = User.objects.filter(is_superuser=True).first()
+        _default_accounts()
+
+        parties = [
+            ('Amit Sharma', 'Customer', 'Indore', '9876543210'),
+            ('Sunil Patidar', 'Customer', 'Ujjain', '9123456780'),
+            ('Malwa Industries Pvt. Ltd.', 'Customer', 'Ludhiana', '9876500001'),
+            ('Sharma Textiles', 'Customer', 'Sangrur', '9876500002'),
+            ('Tata Power Solar', 'Vendor', 'Mumbai', '9876500003'),
+            ('Luminous Power', 'Vendor', 'Delhi', '9876500004'),
+        ]
+        party_objs = {}
+        for name, ptype, city, phone in parties:
+            obj, _ = Account.objects.get_or_create(
+                name=name,
+                defaults={
+                    'account_type': ptype, 'city': city, 'phone': phone,
+                    'opening_balance': Decimal('0'), 'balance': Decimal('0'), 'status': 'Active',
+                },
+            )
+            party_objs[name] = obj
+
+        banks = [
+            ('Malwa Current A/C', 'HDFC Bank', '50200012345678', 'HDFC0001234', Decimal('250000')),
+            ('Malwa Collection A/C', 'ICICI Bank', '123456789012', 'ICIC0000456', Decimal('180000')),
+            ('Petty Cash', 'Cash in Hand', 'CASH-001', '', Decimal('15000')),
+        ]
+        bank_objs = []
+        for acct_name, bank_name, acct_no, ifsc, opening in banks:
+            obj, created = BankAccount.objects.get_or_create(
+                account_number=acct_no,
+                defaults={
+                    'account_name': acct_name, 'bank_name': bank_name, 'ifsc': ifsc,
+                    'opening_balance': opening, 'balance': opening, 'status': 'Active',
+                },
+            )
+            bank_objs.append(obj)
+
+        projects = list(Project.objects.all()[:5])
+        payments_data = [
+            ('Received', party_objs.get('Amit Sharma'), bank_objs[0], projects[0] if projects else None, Decimal('85000'), 'NEFT', 'Completed'),
+            ('Received', party_objs.get('Sunil Patidar'), bank_objs[1], projects[1] if len(projects) > 1 else None, Decimal('120000'), 'UPI', 'Completed'),
+            ('Received', party_objs.get('Malwa Industries Pvt. Ltd.'), bank_objs[0], projects[2] if len(projects) > 2 else None, Decimal('250000'), 'Cheque', 'Completed'),
+            ('Made', party_objs.get('Tata Power Solar'), bank_objs[0], None, Decimal('450000'), 'NEFT', 'Completed'),
+            ('Made', party_objs.get('Luminous Power'), bank_objs[1], None, Decimal('98000'), 'RTGS', 'Completed'),
+            ('Received', party_objs.get('Sharma Textiles'), bank_objs[1], projects[3] if len(projects) > 3 else None, Decimal('65000'), 'Cash', 'Pending'),
+        ]
+        pay_count = 0
+        today = date.today()
+        for direction, party, bank, project, amount, mode, status in payments_data:
+            if not party:
+                continue
+            ref = f'SEED-{direction[:3]}-{pay_count + 1:03d}'
+            if Payment.objects.filter(reference_no=ref).exists():
+                continue
+            payment = Payment.objects.create(
+                direction=direction, party=party, bank_account=bank, project=project,
+                party_name=party.name, payment_date=today - timedelta(days=pay_count * 3),
+                amount=amount, payment_mode=mode, reference_no=ref,
+                status=status, description=f'Demo {direction.lower()} payment',
+                created_by=admin,
+            )
+            after_payment_saved(payment)
+            pay_count += 1
+        self.stdout.write(f'  Accounts: {len(party_objs)} parties, {len(bank_objs)} banks, {pay_count} payments')
+
+    # ─── Stock Movements ───────────────────────────────────────────────────────
+
+    def _create_stock_movements(self):
+        from apps.accounts.models import User
+        from apps.inventory.models import InventoryItem, StockMovement, Warehouse
+
+        admin = User.objects.filter(is_superuser=True).first()
+        indore = Warehouse.objects.filter(name='Indore Warehouse').first()
+        bhopal = Warehouse.objects.filter(name='Bhopal Warehouse').first()
+        if not indore:
+            return
+
+        panel = InventoryItem.objects.filter(name='Solar Panel 550W').first()
+        inverter = InventoryItem.objects.filter(name='Solar Inverter 5kW').first()
+        if not panel:
+            return
+
+        movements = [
+            (panel, 'Inward', 50, indore, None, 'PO-SEED-001'),
+            (inverter, 'Inward', 10, indore, None, 'PO-SEED-002') if inverter else None,
+            (panel, 'Outward', 5, None, indore, 'PRJ-OUT-001'),
+        ]
+        count = 0
+        for row in movements:
+            if not row:
+                continue
+            item, mtype, qty, to_wh, from_wh, ref = row
+            if StockMovement.objects.filter(reference=ref).exists():
+                continue
+            StockMovement.objects.create(
+                item=item, movement_type=mtype, quantity=qty,
+                to_warehouse=to_wh, from_warehouse=from_wh,
+                reference=ref, notes='Demo stock movement', created_by=admin,
+            )
+            count += 1
+        self.stdout.write(f'  Stock movements: {count} created')
+
+    # ─── Project Payments ────────────────────────────────────────────────────
+
+    def _create_project_payments(self):
+        from apps.accounts.models import User
+        from apps.projects.models import Project, ProjectPayment
+        from apps.accounts_module.services import sync_project_payment_to_accounts
+
+        admin = User.objects.filter(is_superuser=True).first()
+        projects = Project.objects.exclude(status='Cancelled')[:4]
+        count = 0
+        for i, project in enumerate(projects):
+            ref = f'PP-SEED-{project.id:03d}'
+            if ProjectPayment.objects.filter(reference=ref).exists():
+                continue
+            pp = ProjectPayment.objects.create(
+                project=project,
+                amount=50000 + (i * 25000),
+                payment_mode='Bank Transfer' if i % 2 == 0 else 'UPI',
+                payment_date=date.today() - timedelta(days=10 - i),
+                reference=ref,
+                notes=f'Demo project payment — {project.project_name}',
+                created_by=admin,
+            )
+            sync_project_payment_to_accounts(pp, admin)
+            count += 1
+        self.stdout.write(f'  Project payments: {count} created')
+
+    # ─── O&M ─────────────────────────────────────────────────────────────────
+
+    def _create_om_data(self):
+        from apps.accounts.models import User
+        from apps.om.models import OmAsset, OmBreakdownTicket, OmMaintenanceTask, OmSiteVisit, OmSparePart
+        from apps.projects.models import Project
+
+        admin = User.objects.filter(is_superuser=True).first()
+        projects = list(Project.objects.filter(status='Active')[:3])
+        if not projects:
+            return
+
+        asset_count = 0
+        for project in projects:
+            if OmAsset.objects.filter(project=project, name=f'Inverter — {project.project_name}').exists():
+                continue
+            OmAsset.objects.create(
+                name=f'Inverter — {project.project_name}',
+                asset_type='Inverter', project=project, site=project.site or '',
+                manufacturer='Growatt', status='Operational',
+                installed_on=date.today() - timedelta(days=90),
+                created_by=admin,
+            )
+            asset_count += 1
+
+        tasks = [
+            (projects[0], 'Quarterly Panel Cleaning', 'Preventive', 'Pending'),
+            (projects[1], 'Inverter Firmware Update', 'Corrective', 'In Progress'),
+            (projects[2] if len(projects) > 2 else projects[0], 'Annual Maintenance', 'Preventive', 'Completed'),
+        ]
+        task_count = 0
+        for project, title, ttype, status in tasks:
+            if OmMaintenanceTask.objects.filter(project=project, title=title).exists():
+                continue
+            OmMaintenanceTask.objects.create(
+                title=title, project=project, site=project.site or '',
+                task_type=ttype, priority='Medium', status=status,
+                due_date=date.today() + timedelta(days=7), engineer='Amit Verma',
+                created_by=admin,
+            )
+            task_count += 1
+
+        ticket_count = 0
+        asset = OmAsset.objects.first()
+        if asset and not OmBreakdownTicket.objects.filter(subject='Low generation alert').exists():
+            OmBreakdownTicket.objects.create(
+                subject='Low generation alert', project=asset.project, asset=asset,
+                site=asset.site, priority='High', status='Open',
+                issue_description='Generation dropped 20% vs last month',
+                created_by=admin,
+            )
+            ticket_count += 1
+
+        visit_count = 0
+        if not OmSiteVisit.objects.filter(project=projects[0], purpose='Preventive check').exists():
+            OmSiteVisit.objects.create(
+                project=projects[0], site=projects[0].site or '',
+                purpose='Preventive check', engineer='Rohit Sharma',
+                date=date.today() + timedelta(days=3), status='Scheduled',
+                created_by=admin,
+            )
+            visit_count += 1
+
+        spare_count = 0
+        if not OmSparePart.objects.filter(name='MC4 Connector Pair').exists():
+            OmSparePart.objects.create(
+                name='MC4 Connector Pair', category='Electrical',
+                stock_qty=50, min_stock=20, supplier='Local Vendor',
+                created_by=admin,
+            )
+            spare_count += 1
+
+        self.stdout.write(f'  O&M: {asset_count} assets, {task_count} tasks, {ticket_count} tickets, {visit_count} visits, {spare_count} spare parts')
+
+    # ─── AMC & Warranty ──────────────────────────────────────────────────────
+
+    def _create_amc_data(self):
+        from decimal import Decimal
+        from apps.accounts.models import User
+        from apps.amc.models import (
+            AmcClaim, AmcContract, AmcRenewal, AmcServiceRequest, AmcVisit, AmcWarranty,
+        )
+        from apps.projects.models import Project
+
+        admin = User.objects.filter(is_superuser=True).first()
+        projects = list(Project.objects.filter(status__in=['Active', 'Completed'])[:5])
+        if not projects:
+            return
+
+        contracts = []
+        for i, project in enumerate(projects[:4]):
+            customer = project.customer_name
+            if AmcContract.objects.filter(project=project, customer_name=customer).exists():
+                contracts.append(AmcContract.objects.get(project=project, customer_name=customer))
+                continue
+            c = AmcContract.objects.create(
+                project=project, customer_name=customer,
+                site=project.site or '', contract_type='Comprehensive' if i % 2 == 0 else 'Non-Comprehensive',
+                start_date=date.today() - timedelta(days=120),
+                end_date=date.today() + timedelta(days=245),
+                annual_value=Decimal('15000') + Decimal(i * 5000),
+                status='Active' if i < 3 else 'Expiring Soon',
+                next_renewal_date=date.today() + timedelta(days=245),
+                created_by=admin,
+            )
+            contracts.append(c)
+
+        war_count = 0
+        for project in projects[:3]:
+            if AmcWarranty.objects.filter(project=project, asset_type='Solar Inverter').exists():
+                continue
+            AmcWarranty.objects.create(
+                project=project, asset_type='Solar Inverter',
+                manufacturer='Growatt', serial_number=f'GRW-{project.id:04d}',
+                warranty_start=date.today() - timedelta(days=365),
+                warranty_end=date.today() + timedelta(days=730),
+                status='Active', coverage_details='5-year inverter warranty',
+                created_by=admin,
+            )
+            war_count += 1
+
+        sr_count = 0
+        if contracts and not AmcServiceRequest.objects.filter(subject='Annual maintenance due').exists():
+            AmcServiceRequest.objects.create(
+                project=contracts[0].project, contract=contracts[0],
+                subject='Annual maintenance due', priority='Medium', status='Open',
+                requested_date=date.today(), assigned_engineer='Amit Verma',
+                description='Schedule preventive maintenance visit',
+                created_by=admin,
+            )
+            sr_count += 1
+
+        visit_count = 0
+        if contracts and not AmcVisit.objects.filter(project=contracts[0].project, visit_type='Preventive').exists():
+            AmcVisit.objects.create(
+                project=contracts[0].project, visit_date=date.today() + timedelta(days=5),
+                engineer='Rohit Sharma', visit_type='Preventive', status='Scheduled',
+                findings='', created_by=admin,
+            )
+            visit_count += 1
+
+        renewal_count = 0
+        if contracts and not AmcRenewal.objects.filter(contract=contracts[0]).exists():
+            AmcRenewal.objects.create(
+                contract=contracts[0], renewal_date=date.today() + timedelta(days=30),
+                new_end_date=date.today() + timedelta(days=395),
+                amount=Decimal('18000'), status='Pending', created_by=admin,
+            )
+            renewal_count += 1
+
+        claim_count = 0
+        warranty = AmcWarranty.objects.first()
+        if warranty and not AmcClaim.objects.filter(warranty=warranty).exists():
+            AmcClaim.objects.create(
+                project=warranty.project, warranty=warranty,
+                claim_date=date.today() - timedelta(days=5),
+                claim_amount=Decimal('12000'), status='Under Review',
+                description='Inverter replacement under warranty',
+                created_by=admin,
+            )
+            claim_count += 1
+
+        self.stdout.write(
+            f'  AMC: {len(contracts)} contracts, {war_count} warranties, {sr_count} requests, '
+            f'{visit_count} visits, {renewal_count} renewals, {claim_count} claims'
+        )
+
+    def _create_crm_settings(self):
+        from apps.crm_settings.services import seed_setting_defaults
+        from apps.crm_settings.models import CompanyProfile, PaymentMode
+
+        profile = CompanyProfile.get_solo()
+        if not profile.data:
+            profile.data = {
+                'companyName': 'Malwa Solar Energy Pvt. Ltd.',
+                'companyType': 'Private Limited',
+                'gstNumber': '23AAGCM1234A1Z5',
+                'panNumber': 'AAGCM1234A',
+                'phone': '+91 98765 43210',
+                'email': 'info@malwasolar.com',
+                'website': 'https://www.malwasolar.com',
+                'city': 'Indore',
+                'state': 'Madhya Pradesh',
+                'country': 'India',
+                'currency': 'INR (Rs)',
+                'timezone': '(GMT +05:30) Asia/Kolkata',
+            }
+            profile.save()
+
+        seed_setting_defaults()
+        pm_count = PaymentMode.objects.count()
+        self.stdout.write(f'  CRM Settings: seeded categories, {pm_count} payment modes, masters, FY, IP rules')
+

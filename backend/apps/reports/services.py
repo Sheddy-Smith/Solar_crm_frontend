@@ -1,6 +1,4 @@
-from datetime import datetime
-
-from django.db.models import Count, F, Sum
+from django.db.models import F, Sum
 
 
 def reports_dashboard(date_from=None, date_to=None):
@@ -21,7 +19,7 @@ def reports_dashboard(date_from=None, date_to=None):
     new_leads = lead_qs.filter(status='New').count()
     won_leads = lead_qs.filter(status='Won').count()
     follow_up_done = lead_qs.filter(status='Follow-up').count()
-    site_visits = lead_qs.filter(status='Site Visit').count()
+    quotations = lead_qs.filter(status='Quotation').count()
 
     payment_qs = Payment.objects.filter(status='Completed', direction='Received')
     if date_from:
@@ -33,12 +31,16 @@ def reports_dashboard(date_from=None, date_to=None):
     inv = InventoryItem.objects.filter(is_active=True)
     inventory_value = inv.aggregate(val=Sum(F('current_stock') * F('rate')))['val'] or 0
 
+    from apps.accounts_module.services import accounts_dashboard_summary
+
+    accounts = accounts_dashboard_summary()
+
     return {
         'kpis': [
             {'title': 'Total Leads', 'value': str(total_leads), 'tone': 'blue'},
             {'title': 'New Leads', 'value': str(new_leads), 'tone': 'green'},
             {'title': 'Follow-ups', 'value': str(follow_up_done), 'tone': 'amber'},
-            {'title': 'Site Visits', 'value': str(site_visits), 'tone': 'purple'},
+            {'title': 'Quotations', 'value': str(quotations), 'tone': 'purple'},
             {'title': 'Leads Won', 'value': str(won_leads), 'tone': 'sky'},
         ],
         'projects': {
@@ -59,4 +61,5 @@ def reports_dashboard(date_from=None, date_to=None):
             'active_amc': AmcContract.objects.filter(status='Active').count(),
             'open_amc_requests': AmcServiceRequest.objects.filter(status__in=['Open', 'In Progress']).count(),
         },
+        'accounts': accounts,
     }

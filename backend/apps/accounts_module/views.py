@@ -49,6 +49,9 @@ class BankAccountViewSet(AccountsBaseViewSet):
     filterset_fields = ['status', 'account_type']
     search_fields = ['account_name', 'bank_name', 'account_number', 'ifsc', 'branch']
 
+    def get_queryset(self):
+        return BankAccount.objects.select_related('created_by').all()
+
     def perform_create(self, serializer):
         opening = serializer.validated_data.get('opening_balance', 0)
         serializer.save(created_by=self.request.user, balance=opening)

@@ -11,6 +11,14 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
+# Local dev: in-memory cache (no Redis required). SQL logs suppressed — use INFO to debug queries.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'malwa-dev',
+    }
+}
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -19,12 +27,17 @@ LOGGING = {
     },
     'root': {
         'handlers': ['console'],
-        'level': 'DEBUG',
+        'level': 'INFO',
     },
     'loggers': {
         'django.db.backends': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.server': {
+            'handlers': ['console'],
+            'level': 'INFO',
             'propagate': False,
         },
     },

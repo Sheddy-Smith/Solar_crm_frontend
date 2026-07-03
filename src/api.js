@@ -18,7 +18,38 @@ export const tokenStore = {
   },
 };
 
-async function request(path, { method = 'GET', body, auth = true } = {}) {
+let refreshPromise = null;
+
+async function refreshAccessToken() {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = tokenStore.getRefresh();
+    if (!refreshToken) return null;
+
+    const rRes = await fetch(`${API_BASE}/auth/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+
+    if (!rRes.ok) {
+      tokenStore.clear();
+      window.dispatchEvent(new Event('auth:logout'));
+      return null;
+    }
+
+    const refreshData = await rRes.json();
+    tokenStore.set(refreshData.access, refreshData.refresh || null);
+    return refreshData.access;
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
+}
+
+async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20000 } = {}) {
   const isFormData = body instanceof FormData;
   const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (auth) {
@@ -26,50 +57,45 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
   const doFetch = (hdrs) =>
     fetch(`${API_BASE}${path}`, {
       method,
       headers: hdrs,
       body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
+      signal: controller.signal,
     });
 
-  let res = await doFetch(headers);
+  try {
+    let res = await doFetch(headers);
 
-  if (res.status === 401 && auth) {
-    const refreshToken = tokenStore.getRefresh();
-    if (refreshToken) {
-      const rRes = await fetch(`${API_BASE}/auth/refresh/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh: refreshToken }),
-      });
-      if (rRes.ok) {
-        const refreshData = await rRes.json();
-        tokenStore.set(refreshData.access, refreshData.refresh || null);
-        headers['Authorization'] = `Bearer ${refreshData.access}`;
-        res = await doFetch(headers);
-      } else {
-        tokenStore.clear();
-        window.dispatchEvent(new Event('auth:logout'));
-        return null;
-      }
-    } else {
-      tokenStore.clear();
-      window.dispatchEvent(new Event('auth:logout'));
-      return null;
+    if (res.status === 401 && auth) {
+      const newAccess = await refreshAccessToken();
+      if (!newAccess) return null;
+      headers['Authorization'] = `Bearer ${newAccess}`;
+      res = await doFetch(headers);
     }
+
+    if (res.status === 204) return null;
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const msg = data.detail || data.message || Object.values(data).flat().join(' ') || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
+    return data;
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-
-  if (res.status === 204) return null;
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const msg = data.detail || data.message || Object.values(data).flat().join(' ') || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-
-  return data;
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -113,6 +139,9 @@ export const roleApi = {
 
 export const branchApi = {
   list: () => request('/branches/'),
+  create: (data) => request('/branches/', { method: 'POST', body: data }),
+  update: (id, data) => request(`/branches/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/branches/${id}/`, { method: 'DELETE' }),
 };
 
 // ─── Leads ───────────────────────────────────────────────────────────────────
@@ -290,6 +319,7 @@ export const workOrderApi = {
   },
   create: (data) => request('/work-orders/', { method: 'POST', body: data }),
   update: (id, data) => request(`/work-orders/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/work-orders/${id}/`, { method: 'DELETE' }),
 };
 
 // ─── Project Activities ───────────────────────────────────────────────────────
@@ -540,3 +570,58 @@ export const omVisitApi = omCrud('site-visits');
 export const omSparePartApi = omCrud('spare-parts');
 export const omReportApi = omCrud('reports');
 export const omDocumentApi = omCrud('documents');
+
+// ─── CRM Settings ─────────────────────────────────────────────────────────────
+
+const settingsCrud = (base) => ({
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/settings/${base}/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/settings/${base}/${id}/`),
+  create: (data) => request(`/settings/${base}/`, { method: 'POST', body: data }),
+  update: (id, data) => request(`/settings/${base}/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/settings/${base}/${id}/`, { method: 'DELETE' }),
+});
+
+export const settingsApi = {
+  dashboard: () => request('/settings/dashboard/'),
+  categories: () => request('/settings/categories/'),
+  company: {
+    get: () => request('/settings/company/'),
+    update: (data) => request('/settings/company/', { method: 'PATCH', body: data }),
+  },
+  category: (name) => ({
+    get: () => request(`/settings/category/${name}/`),
+    update: (data) => request(`/settings/category/${name}/`, { method: 'PATCH', body: data }),
+  }),
+  system: {
+    get: () => request('/settings/system/'),
+    update: (data) => request('/settings/system/', { method: 'PATCH', body: data }),
+  },
+  payment: {
+    get: () => request('/settings/payment/'),
+    update: (data) => request('/settings/payment/', { method: 'PATCH', body: data }),
+  },
+  accountsSummary: {
+    get: () => request('/settings/accounts-summary/'),
+    update: (data) => request('/settings/accounts-summary/', { method: 'PATCH', body: data }),
+  },
+  maintenance: (action) => request('/settings/maintenance/', { method: 'POST', body: { action } }),
+  backups: {
+    list: () => request('/settings/backups/'),
+    create: (backupType = 'Full') => request('/settings/backups/', { method: 'POST', body: { backup_type: backupType } }),
+  },
+  paymentModes: settingsCrud('payment-modes'),
+  masters: settingsCrud('masters'),
+  financialYears: {
+    ...settingsCrud('financial-years'),
+    setCurrent: (id) => request(`/settings/financial-years/${id}/set_current/`, { method: 'POST' }),
+  },
+  activityLogs: settingsCrud('activity-logs'),
+  ipRules: settingsCrud('ip-rules'),
+  ipBlockedAttempts: settingsCrud('ip-blocked-attempts'),
+  documentSeries: settingsCrud('document-series'),
+};

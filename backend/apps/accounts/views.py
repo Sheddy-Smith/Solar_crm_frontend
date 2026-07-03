@@ -10,13 +10,35 @@ from .serializers import (
     UserCreateSerializer, ChangePasswordSerializer,
     CustomTokenObtainPairSerializer, RolePermissionSerializer,
 )
-from .permissions import IsSuperAdmin, is_super_admin
+from .permissions import IsAdminOrSuperAdmin, IsSuperAdmin, is_super_admin
 
 User = get_user_model()
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            try:
+                from apps.crm_settings.services import log_user_activity
+                log_user_activity(request, 'Login', 'Authentication', 'User logged in successfully')
+            except Exception:
+                pass
+        else:
+            try:
+                from apps.crm_settings.services import log_user_activity
+                log_user_activity(
+                    request,
+                    'Login Failed',
+                    'Authentication',
+                    'Failed login attempt',
+                    status='Failed',
+                )
+            except Exception:
+                pass
+        return response
 
 
 class BranchViewSet(viewsets.ModelViewSet):
@@ -26,6 +48,11 @@ class BranchViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'city']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAdminOrSuperAdmin()]
+        return [IsSuperAdmin()]
 
 
 class RoleViewSet(viewsets.ModelViewSet):

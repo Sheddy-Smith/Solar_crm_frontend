@@ -5,9 +5,10 @@ import {
   projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
   projectTeamApi, projectMilestoneApi, projectChecklistApi,
   installationMaterialApi, materialPlanApi, workforceApi, subsidyApi, projectApprovalApi,
+  workOrderApi,
   lcApplicationApi, lcApprovalApi, lcInspectionApi, lcCommissioningApi, lcComplianceApi, lcDocumentApi,
   omAssetApi, omMaintenanceApi, omTicketApi, omVisitApi, omSparePartApi, omReportApi, omDocumentApi,
-  inventoryApi, amcModuleApi, reportsApi,
+  inventoryApi, amcModuleApi, reportsApi, settingsApi,
 } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -107,23 +108,30 @@ const employeeRelatedPages = [...employeeSubItems];
 const projectSubItems = ['Project List', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Subsidy', 'Project Installation', 'Project Expenses', 'Project Documents', 'Project Approvals'];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
 // 'Project Timeline' aur 'Project Work Orders' ab sidebar me nahi — Project List ke 3-dot action menu se khulte hain (routing yahin valid rehni chahiye)
-const projectRelatedPages = ['Project Management', ...projectActionPages, ...projectSubItems, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
-const summarySubItems = ['Project Overview', 'Project KPI Analytics', 'Project Reports'];
+const projectRelatedPages = ['Project Management', 'Project Overview', 'Project KPI Analytics', 'Project Reports', ...projectActionPages, ...projectSubItems, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
+const summarySubItems = ['Executive Summary', 'Sales Pipeline', 'Projects & Delivery', 'Finance & Operations'];
+
+const summarySubRoutes = {
+  'Executive Summary': '/summary/executive',
+  'Sales Pipeline': '/summary/sales',
+  'Projects & Delivery': '/summary/projects',
+  'Finance & Operations': '/summary/finance',
+};
 const summaryRelatedPages = [...summarySubItems];
 // Pages jinhe ek selected project chahiye — refresh/restore pe selectedProject null hota hai, isliye inhe Project List se replace karo
 const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Report View'];
 // Sidebar/subnav se in sections par jane par selectedProject clear karo (project action menu / preserveProject ke alawa)
 const projectSubnavSectionsThatClearProject = new Set([...projectSubItems, 'Project List']);
-const accountsSubItems = ['Overview', 'Accounts List', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List', 'Chart of Accounts'];
+const accountsSubItems = ['Accounts Overview', 'Accounts List', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List', 'Chart of Accounts'];
 const accountsRelatedPages = ['Accounts Overview', ...accountsSubItems];
-const inventorySubItems = ['Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
-const inventoryRelatedPages = [...inventorySubItems];
+const inventorySubItems = ['Inventory Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
+const inventoryRelatedPages = ['Inventory', ...inventorySubItems];
 const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents'];
 const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
 const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems];
 const omSubItems = ['Maintenance Tasks', 'Breakdown Tickets', 'Site Visits', 'Asset Management', 'Spare Parts', 'O&M Reports'];
 const omRelatedPages = ['O&M', 'O&M Overview', 'Energy Performance', ...omSubItems];
-const amcSubItems = ['Overview', 'AMC Contracts', 'Warranties', 'Service Requests', 'Visits / Maintenance', 'Renewals', 'Claims', 'AMC Documents'];
+const amcSubItems = ['AMC Overview', 'AMC Contracts', 'Warranties', 'Service Requests', 'Visits / Maintenance', 'Renewals', 'Claims', 'AMC Documents'];
 const amcRelatedPages = [...amcSubItems];
 const organizationSettingsPages = ['Company Profile', 'Business Information', 'Branches', 'Financial Year'];
 const settingsCardGroups = [
@@ -271,7 +279,6 @@ const employeeSubRoutes = {
 };
 
 const projectSubRoutes = {
-  'Project Overview': '/projects/overview',
   'Project Create': '/projects/create',
   'Project KPI Analytics': '/projects/kpi-analytics',
   'Project List': '/projects/list',
@@ -325,7 +332,6 @@ const projectActionPageTypes = {
 
 const accountsSubRoutes = {
   'Accounts Overview': '/accounts/overview',
-  Overview: '/accounts/overview',
   'Accounts List': '/accounts/list',
   'Chart of Accounts': '/accounts/chart-of-accounts',
   'Payment Received': '/accounts/payment-received',
@@ -335,7 +341,7 @@ const accountsSubRoutes = {
 };
 
 const inventorySubRoutes = {
-  Overview: '/inventory/overview',
+  'Inventory Overview': '/inventory/overview',
   Products: '/inventory/products',
   'Stock Inward': '/inventory/stock-inward',
   'Stock Outward': '/inventory/stock-outward',
@@ -393,7 +399,6 @@ const omSubRoutes = {
 
 const amcSubRoutes = {
   'AMC Overview': '/amc/overview',
-  Overview: '/amc/overview',
   'AMC Contracts': '/amc/contracts',
   Warranties: '/amc/warranties',
   'Service Requests': '/amc/service-requests',
@@ -406,14 +411,16 @@ const amcSubRoutes = {
 const sectionRoutes = {
   Dashboard: '/dashboard',
   Lead: '/lead/list',
-  'Project Management': '/projects/overview',
+  'Project Management': '/projects/list',
   'Project List': '/projects/list',
   'Project Details': '/projects/details/:projectId',
   'Accounts': '/accounts/overview',
   Inventory: '/inventory/overview',
   'Liaisoning & Commissioning': '/liaisoning/applications',
   'AMC & Warranty': '/amc/overview',
+  Summary: '/summary/executive',
   Settings: '/settings',
+  Quotation: '/quotation',
   'O&M': '/om/overview',
   Reports: '/reports',
   ...leadSubRoutes,
@@ -424,6 +431,7 @@ const sectionRoutes = {
   ...liaisonSubRoutes,
   ...omSubRoutes,
   ...amcSubRoutes,
+  ...summarySubRoutes,
 };
 
 function normalizePathname(pathname) {
@@ -1717,7 +1725,6 @@ function App() {
     if (omRelatedPages.includes(item)) return 'O&M';
     if (item === 'AMC & Warranty' || amcRelatedPages.includes(item)) return 'AMC & Warranty';
     if (summaryRelatedPages.includes(item)) return 'Summary';
-    if (settingsRelatedPages.includes(item)) return 'Settings';
     return null;
   });
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -1743,8 +1750,8 @@ function App() {
   const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
   const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
 
-  const notify = (message) => {
-    setToast({ id: Date.now(), message });
+  const notify = (message, type = 'info') => {
+    setToast({ id: Date.now(), message, type });
   };
 
   const handleProfileAction = (action) => {
@@ -1781,7 +1788,9 @@ function App() {
     if (currentPage !== 'dashboard') return;
     authApi.me().then((data) => {
       if (data) setLoggedInUser(data);
-    }).catch(() => {});
+    }).catch(() => {
+      notify('Could not load profile — session may have expired', 'error');
+    });
   }, [currentPage]);
 
   // Fetch dashboard stats from API
@@ -1960,7 +1969,6 @@ function App() {
     if (omRelatedPages.includes(activeSidebarItem)) { setExpandedSection('O&M'); return; }
     if (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem)) { setExpandedSection('AMC & Warranty'); return; }
     if (summaryRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Summary'); return; }
-    if (settingsRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Settings'); return; }
   }, [activeSidebarItem]);
 
   useEffect(() => {
@@ -2229,13 +2237,20 @@ function App() {
                             setMobileSidebarOpen(false);
                             return;
                           }
-                          const sectionKey = isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee Management' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : isSummarySection ? 'Summary' : isSettingsSection ? 'Settings' : null;
+                          if (isSettingsSection) {
+                            setExpandedSection(null);
+                            setActiveSidebarItem('Settings');
+                            notify('Settings opened');
+                            setMobileSidebarOpen(false);
+                            return;
+                          }
+                          const sectionKey = isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee Management' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : isSummarySection ? 'Summary' : null;
                           if (sectionKey) {
                             if (expandedSection === sectionKey) {
                               setExpandedSection(null);
                             } else {
                               setExpandedSection(sectionKey);
-                              const nextItem = isProjectSection ? 'Project List' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts List' : isInventorySection ? 'Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isAmcSection ? 'AMC Contracts' : isSummarySection ? 'Project Overview' : 'Settings';
+                              const nextItem = isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isAmcSection ? 'AMC Overview' : 'Executive Summary';
                               setActiveSidebarItem(nextItem);
                               notify(`${nextItem} section selected`);
                             }
@@ -2503,7 +2518,7 @@ function App() {
                                 <button
                                   key={subItem}
                                   type="button"
-                                  data-route={projectSubRoutes[subItem]}
+                                  data-route={summarySubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
                                     setMobileSidebarOpen(false);
@@ -2522,56 +2537,7 @@ function App() {
                           </div>
                         </div>
                       ) : null}
-                      {isSettingsOpen && !desktopSidebarCollapsed ? (
-                        <div className="my-2 rounded-[10px] bg-white px-3 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
-                          <div className="space-y-3">
-                            {settingsSidebarGroups.map((group) => (
-                              <div key={group.title} className="border-b border-[#edf2f8] pb-3 last:border-b-0 last:pb-0">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const firstItem = group.items[0];
-                                    if (!firstItem) {
-                                      return;
-                                    }
-                                    setActiveSidebarItem(firstItem.key);
-                                    setMobileSidebarOpen(false);
-                                    notify(`${group.title} opened`);
-                                  }}
-                                  className="flex w-full items-center justify-between gap-3 px-2 py-1 text-left"
-                                >
-                                  <span className="text-[12px] font-extrabold text-[#30466d]">{group.title}</span>
-                                  <ChevronRight className="size-4 text-[#91a0b7]" />
-                                </button>
-                                <div className="mt-2 space-y-1">
-                                  {group.items.map((item) => {
-                                    const isSubActive = activeSidebarItem === item.key;
-
-                                    return (
-                                      <button
-                                        key={item.key}
-                                        type="button"
-                                        onClick={() => {
-                                          setActiveSidebarItem(item.key);
-                                          setMobileSidebarOpen(false);
-                                          notify(`${item.label} opened`);
-                                        }}
-                                        className={cx(
-                                          'flex w-full items-center gap-3 rounded-[8px] px-2 py-2 text-left text-[12px] font-bold transition',
-                                          isSubActive ? 'bg-[#eefbf1] text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
-                                        )}
-                                      >
-                                        <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
-                                        <span>{item.label}</span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
+                      {null /* Settings subcategories shown on page only */}
                     </div>
                   );
                 })}
@@ -2800,8 +2766,17 @@ function App() {
             ) : activeSidebarItem === 'Activity Logs' ? (
               <ActivityLogsPage activeSection="Activity Logs" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Reports' ? (
-              <ReportsPage onNotify={notify} />
-            ) : projectRelatedPages.includes(activeSidebarItem) || summaryRelatedPages.includes(activeSidebarItem) ? (
+              <ReportsPage onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+            ) : summaryRelatedPages.includes(activeSidebarItem) ? (
+              <SummaryPage
+                activeSection={activeSidebarItem}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : projectRelatedPages.includes(activeSidebarItem) ? (
               <ProjectManagementPage
                 activeSection={activeSidebarItem}
                 onOpenSection={(section, options) => {
@@ -3196,10 +3171,17 @@ function Toast({ toast }) {
     return null;
   }
 
+  const isError = toast.type === 'error';
+
   return (
     <div
       key={toast.id}
-      className="fixed bottom-5 left-4 right-4 z-80 rounded-[12px] border border-[#dce7f5] bg-white px-4 py-3 text-center text-[13px] font-extrabold text-[#223768] shadow-[0_16px_34px_rgba(21,43,83,0.16)] sm:left-auto sm:right-5 sm:max-w-[360px] sm:text-left"
+      className={cx(
+        'fixed bottom-5 left-4 right-4 z-80 rounded-[12px] border px-4 py-3 text-center text-[13px] font-extrabold shadow-[0_16px_34px_rgba(21,43,83,0.16)] sm:left-auto sm:right-5 sm:max-w-[360px] sm:text-left',
+        isError
+          ? 'border-[#fecaca] bg-[#fff1f1] text-[#b91c1c]'
+          : 'border-[#dce7f5] bg-white text-[#223768]',
+      )}
       role="status"
       aria-live="polite"
     >
@@ -3419,7 +3401,7 @@ function SignInPage({ onLogin, onNotify }) {
               onSubmit={handleLogin}
             >
               <label className="block">
-                <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Email / Mobile Number</span>
+                <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Email Address</span>
                 <span className="mt-3 flex h-14 items-center gap-3 rounded-[9px] border border-black/20 bg-white px-4 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:mt-4 sm:h-[62px] sm:gap-5 sm:px-5">
                   <UserRound className="size-6 text-[#7a8494]" />
                   <input
@@ -3533,6 +3515,7 @@ function LoginFeature({ feature }) {
 
 function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead, onOpenLead, onNotify }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [projectTypeFilter, setProjectTypeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [assignedToFilter, setAssignedToFilter] = useState('All');
@@ -3609,10 +3592,15 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   }, [filtersOpen]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
     setLeadsLoading(true);
     const params = { page_size: 1000 };
     if (statusFilter !== 'All') params.status = statusFilter;
-    if (searchQuery.trim()) params.search = searchQuery.trim();
+    if (debouncedSearch) params.search = debouncedSearch;
     leadApi.list(params).then((data) => {
       if (!data) return;
       const rows = Array.isArray(data) ? data : (data.results ?? []);
@@ -3634,7 +3622,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
     }).catch((err) => {
       onNotify?.((err && err.message) ? `Failed to load leads: ${err.message}` : 'Failed to load leads. Please try again.');
     }).finally(() => setLeadsLoading(false));
-  }, [statusFilter, searchQuery, refreshKey]);
+  }, [statusFilter, debouncedSearch, refreshKey]);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
   const headers = [
@@ -3704,7 +3692,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
       const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
       const statusMatch = statusFilter === 'All' || lead.status === statusFilter;
       const assignedMatch = assignedToFilter === 'All' || lead.assignedTo.name === assignedToFilter;
-      const followUpMatch = !followUpDate || lead.nextFollowUp === formatReportDate(followUpDate);
+      const followUpMatch = !followUpDate || (lead.nextFollowUpRaw && lead.nextFollowUpRaw.slice(0, 10) === followUpDate);
       return queryMatch && projectTypeMatch && statusMatch && assignedMatch && followUpMatch;
     });
   }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, followUpDate]);
@@ -4104,6 +4092,53 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
       {deleteConfirm ? (
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
+    </div>
+  );
+}
+
+
+function PaymentModeListPage({ onOpenSection, onNotify }) {
+  const config = {
+    moduleTitle: 'Settings',
+    title: 'Payment Mode',
+    recordLabel: 'Payment Mode',
+    newLabel: 'Add Payment Mode',
+    api: settingsApi.paymentModes,
+    searchKeys: ['name', 'code'],
+    columns: [
+      { label: 'Code', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.code}</span> },
+      { label: 'Name', render: (r) => r.name },
+      { label: 'Description', render: (r) => r.description || '—' },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.is_active ? 'Active' : 'Inactive'} /> },
+    ],
+    fields: [
+      { name: 'code', label: 'Code', type: 'text', required: true },
+      { name: 'name', label: 'Name', type: 'text', required: true },
+      { name: 'description', label: 'Description', type: 'textarea' },
+      { name: 'sort_order', label: 'Sort Order', type: 'number' },
+      { name: 'is_active', label: 'Status', type: 'activeFlag' },
+    ],
+    defaults: { code: '', name: '', description: '', sort_order: '0', is_active: 'Active' },
+    detailRows: [
+      ['Code', (r) => r.code],
+      ['Name', (r) => r.name],
+      ['Description', (r) => r.description || '—', true],
+      ['Sort Order', (r) => String(r.sort_order ?? 0)],
+    ],
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Payment Mode"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Settings', onClick: () => onOpenSection('Settings') },
+          { label: 'Payment Mode' },
+        ]}
+      />
+      <LiaisonCrudPage config={config} activeSection="Payment Mode" onOpenSection={onOpenSection} onNotify={onNotify} />
+      <DashboardFooter />
     </div>
   );
 }
@@ -4793,6 +4828,37 @@ function PaymentSettingsContent({ onOpenSection, onNotify }) {
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   const toggleBankDetail = (field) => setBankDetails((current) => ({ ...current, [field]: !current[field] }));
 
+  useEffect(() => {
+    settingsApi.payment.get()
+      .then((data) => {
+        if (!data) return;
+        if (data.lateFeeEnabled !== undefined) setLateFeeEnabled(Boolean(data.lateFeeEnabled));
+        if (data.remindersEnabled !== undefined) setRemindersEnabled(Boolean(data.remindersEnabled));
+        if (data.allowPartial !== undefined) setAllowPartial(Boolean(data.allowPartial));
+        if (data.autoPaid !== undefined) setAutoPaid(Boolean(data.autoPaid));
+        const { bankDetails: bank, ...rest } = data;
+        setForm((c) => ({ ...c, ...rest }));
+        if (bank) setBankDetails((c) => ({ ...c, ...bank }));
+      })
+      .catch(() => {});
+  }, []);
+
+  const savePaymentSettings = async () => {
+    try {
+      await settingsApi.payment.update({
+        ...form,
+        lateFeeEnabled,
+        remindersEnabled,
+        allowPartial,
+        autoPaid,
+        bankDetails,
+      });
+      onNotify('Payment settings saved');
+    } catch {
+      onNotify('Could not save payment settings.', 'error');
+    }
+  };
+
   return (
     <section className={`${panelClass} p-4 sm:p-5`}>
       <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -4802,7 +4868,7 @@ function PaymentSettingsContent({ onOpenSection, onNotify }) {
         </div>
         <div className="grid w-full grid-cols-1 gap-3 min-[460px]:w-auto min-[460px]:grid-cols-2 lg:flex lg:flex-wrap">
           <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff] min-[460px]:w-auto"><X className="size-4" />Cancel</button>
-          <button type="button" onClick={() => onNotify('Payment settings saved')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
+          <button type="button" onClick={savePaymentSettings} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
         </div>
       </div>
 
@@ -4927,7 +4993,7 @@ function PaymentSettingsPage({ activeSection, onOpenSection, onNotify }) {
           </div>
           <div className="grid w-full grid-cols-1 gap-3 min-[460px]:w-auto min-[460px]:grid-cols-2 lg:flex lg:flex-wrap">
             <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff] min-[460px]:w-auto"><X className="size-4" />Cancel</button>
-            <button type="button" onClick={() => onNotify('Payment settings saved')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
+            <button type="button" onClick={savePaymentSettings} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
           </div>
         </div>
 
@@ -5219,7 +5285,7 @@ function SettingsOpeningBalanceContent({ onOpenSection, onNotify }) {
   );
 }
 
-function SettingsContentHeader({ title, note, onCancel, onSave }) {
+function SettingsContentHeader({ title, note, onCancel, onSave, saving = false }) {
   return (
     <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div>
@@ -5228,49 +5294,368 @@ function SettingsContentHeader({ title, note, onCancel, onSave }) {
       </div>
       <div className="grid w-full grid-cols-1 gap-3 min-[460px]:w-auto min-[460px]:grid-cols-2 lg:flex lg:flex-wrap">
         <button type="button" onClick={onCancel} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff] min-[460px]:w-auto"><X className="size-4" />Cancel</button>
-        <button type="button" onClick={onSave} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
+        <button type="button" disabled={saving} onClick={onSave} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] disabled:opacity-60 min-[460px]:w-auto"><Save className="size-4" />{saving ? 'Saving...' : 'Save Changes'}</button>
       </div>
     </div>
   );
 }
 
-function SettingsProductCategoriesContent({ onOpenSection, onNotify }) {
-  const rows = [
-    { name: 'Solar Panels', code: 'CAT-SP', parent: 'Main Inventory', items: '48', tax: '12%', status: 'Active' },
-    { name: 'Inverters', code: 'CAT-INV', parent: 'Main Inventory', items: '18', tax: '18%', status: 'Active' },
-    { name: 'Mounting Structure', code: 'CAT-MS', parent: 'Installation Material', items: '32', tax: '18%', status: 'Active' },
-    { name: 'DC Cables', code: 'CAT-DC', parent: 'Electrical', items: '24', tax: '18%', status: 'Active' },
-    { name: 'AC Cables', code: 'CAT-AC', parent: 'Electrical', items: '20', tax: '18%', status: 'Active' },
-    { name: 'Safety Items', code: 'CAT-SAFE', parent: 'Tools & Safety', items: '12', tax: '18%', status: 'Inactive' },
+
+function useSettingsCategory(category, defaults, onNotify) {
+  const [form, setForm] = useState(defaults);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    settingsApi.category(category).get()
+      .then((res) => {
+        if (res && typeof res === 'object') setForm((current) => ({ ...current, ...res }));
+      })
+      .catch(() => onNotify?.(`Could not load ${category} settings.`, 'error'))
+      .finally(() => setLoading(false));
+  }, [category]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const save = async () => {
+    setSaving(true);
+    try {
+      await settingsApi.category(category).update(form);
+      onNotify(`${category} settings saved`);
+    } catch {
+      onNotify(`Could not save ${category} settings.`, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return { form, loading, saving, save, updateField, setForm };
+}
+
+function SettingsMasterFormModal({ title, initial = null, onClose, onSave }) {
+  const [form, setForm] = useState(() => initial ?? { name: '', code: '', status: 'Active' });
+  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  return (
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
+          <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{initial ? `Edit ${title}` : `Add ${title}`}</h2>
+          <button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="grid gap-4 p-6 sm:grid-cols-2">
+          <div className="sm:col-span-2"><ModalTextInput label="Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Enter name" /></div>
+          <ModalTextInput label="Code" value={form.code} onChange={(value) => updateField('code', value)} placeholder="CODE" />
+          <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} />
+        </div>
+        <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-5 sm:flex-row">
+          <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+          <button type="button" onClick={() => onSave({ ...form, name: form.name.trim() || title })} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white"><Save className="size-4" />Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsMastersCrudPanel({
+  masterType,
+  title,
+  note,
+  columns,
+  mapRow,
+  stats,
+  sideTitle,
+  sideRows,
+  addLabel,
+  onOpenSection,
+  onNotify,
+  embedded = false,
+}) {
+  const { rows, loading, setRows } = useSettingsMasters(masterType, onNotify);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const activeCount = rows.filter((row) => row.is_active).length;
+
+  const reload = () => settingsApi.masters.list({ master_type: masterType })
+    .then((res) => {
+      const list = Array.isArray(res) ? res : (res?.results ?? []);
+      setRows(list);
+    });
+
+  const saveMaster = async (payload) => {
+    const body = {
+      master_type: masterType,
+      name: payload.name,
+      code: payload.code || payload.name.toUpperCase().replace(/\s+/g, '-').slice(0, 20),
+      is_active: payload.status !== 'Inactive',
+      metadata: editing?.metadata || {},
+    };
+    try {
+      if (editing?.id) {
+        await settingsApi.masters.update(editing.id, body);
+        onNotify(`${payload.name} updated`);
+      } else {
+        await settingsApi.masters.create(body);
+        onNotify(`${payload.name} added`);
+      }
+      setModalOpen(false);
+      setEditing(null);
+      await reload();
+    } catch {
+      onNotify('Could not save record.', 'error');
+    }
+  };
+
+  const deleteMaster = async (row) => {
+    try {
+      await settingsApi.masters.delete(row.id);
+      onNotify(`${row.name} deleted`);
+      await reload();
+    } catch {
+      onNotify('Could not delete record.', 'error');
+    }
+  };
+
+  const tableRows = rows.map((row) => {
+    const cells = mapRow(row);
+    return [
+      ...cells.slice(0, -1),
+      <div key={`${row.id}-actions`} className="flex items-center justify-end gap-2">
+        <UserActionButton label={`Edit ${row.name}`} icon={FileText} tone="blue" onClick={() => { setEditing({ ...row, status: row.is_active ? 'Active' : 'Inactive' }); setModalOpen(true); }} />
+        <UserActionButton label={`Delete ${row.name}`} icon={Trash2} tone="blue" onClick={() => deleteMaster(row)} />
+      </div>,
+    ];
+  });
+
+  const resolvedStats = stats || [
+    ['Total', String(rows.length), Database, 'green'],
+    ['Active', String(activeCount), CheckCircle2, 'blue'],
+    ['Inactive', String(rows.length - activeCount), Minus, 'amber'],
+    ['Type', masterType.replace(/_/g, ' '), Wrench, 'purple'],
   ];
+
+  const tableBlock = loading ? <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Loading...</p> : (
+    <SettingsInventoryTable
+      title={`${title} List`}
+      searchPlaceholder={`Search ${title.toLowerCase()}...`}
+      addLabel={addLabel}
+      onNotify={onNotify}
+      onAdd={() => { setEditing(null); setModalOpen(true); }}
+      columns={[...columns.slice(0, -1), 'Action']}
+      rows={tableRows}
+      sideTitle={sideTitle}
+      sideRows={sideRows}
+    />
+  );
+
+  const modalBlock = modalOpen ? (
+    <SettingsMasterFormModal
+      title={addLabel.replace(/^Add\s+/i, '')}
+      initial={editing ? { name: editing.name, code: editing.code || '', status: editing.status || (editing.is_active ? 'Active' : 'Inactive') } : null}
+      onClose={() => { setModalOpen(false); setEditing(null); }}
+      onSave={saveMaster}
+    />
+  ) : null;
+
+  if (embedded) {
+    return (
+      <>
+        {tableBlock}
+        {modalBlock}
+      </>
+    );
+  }
 
   return (
     <section className={`${panelClass} p-4 sm:p-5`}>
-      <SettingsContentHeader title="Product Categories" note="Manage inventory product categories, parent groups and default tax rules." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Product categories saved')} />
-      <SettingsInventoryStats stats={[['Total Categories', '24', Boxes, 'green'], ['Active Categories', '21', CheckCircle2, 'blue'], ['Mapped Products', '154', Database, 'purple'], ['Inactive', '03', Minus, 'amber']]} />
-      <SettingsInventoryTable
-        title="Category List"
-        searchPlaceholder="Search product categories..."
-        addLabel="Add Category"
+      <SettingsContentHeader title={title} note={note} onCancel={() => onOpenSection('Settings')} onSave={() => onNotify(`${title} saved`)} />
+      <SettingsInventoryStats stats={resolvedStats} />
+      {tableBlock}
+      {modalBlock}
+    </section>
+  );
+}
+
+function SettingsCategoryIntegrationPage({
+  category,
+  title,
+  note,
+  configTitle,
+  renderConfigFields,
+  masterType,
+  templateColumns,
+  mapTemplateRow,
+  stats,
+  sideTitle,
+  sideRows,
+  addLabel,
+  onOpenSection,
+  onNotify,
+}) {
+  const { form, loading, saving, save, updateField } = useSettingsCategory(category, {}, onNotify);
+  const { rows, loading: mastersLoading, setRows } = useSettingsMasters(masterType, onNotify);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const reloadMasters = () => settingsApi.masters.list({ master_type: masterType })
+    .then((res) => {
+      const list = Array.isArray(res) ? res : (res?.results ?? []);
+      setRows(list);
+    });
+
+  const saveMaster = async (payload) => {
+    const body = {
+      master_type: masterType,
+      name: payload.name,
+      code: payload.code || payload.name.toUpperCase().replace(/\s+/g, '-').slice(0, 20),
+      is_active: payload.status !== 'Inactive',
+      metadata: { ...(editing?.metadata || {}), channel: category },
+    };
+    try {
+      if (editing?.id) await settingsApi.masters.update(editing.id, body);
+      else await settingsApi.masters.create(body);
+      setModalOpen(false);
+      setEditing(null);
+      await reloadMasters();
+      onNotify(`${payload.name} saved`);
+    } catch {
+      onNotify('Could not save template.', 'error');
+    }
+  };
+
+  const templateRows = rows.map((row) => {
+    const cells = mapTemplateRow(row);
+    return [
+      ...cells.slice(0, -1),
+      <div key={`${row.id}-tpl-actions`} className="flex items-center justify-end gap-2">
+        <UserActionButton label={`Edit ${row.name}`} icon={FileText} tone="blue" onClick={() => { setEditing({ ...row, status: row.is_active ? 'Active' : 'Inactive' }); setModalOpen(true); }} />
+        <UserActionButton label={`Delete ${row.name}`} icon={Trash2} tone="blue" onClick={() => settingsApi.masters.delete(row.id).then(reloadMasters).then(() => onNotify(`${row.name} deleted`)).catch(() => onNotify('Delete failed', 'error'))} />
+      </div>,
+    ];
+  });
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title={title} note={note} onCancel={() => onOpenSection('Settings')} onSave={save} saving={saving} />
+      <SettingsInventoryStats stats={stats} />
+      <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+        <div className="space-y-4">
+          <SettingsSectionCard title={configTitle} className="shadow-none">
+            {loading ? <p className="text-[13px] font-bold text-[#53647f]">Loading configuration...</p> : (
+              <div className="grid gap-4 md:grid-cols-2">{renderConfigFields(form, updateField, onNotify)}</div>
+            )}
+          </SettingsSectionCard>
+          {mastersLoading ? <p className="text-[13px] font-bold text-[#53647f]">Loading templates...</p> : (
+            <SettingsInventoryTable
+              title={`${title} Templates`}
+              searchPlaceholder={`Search ${title.toLowerCase()}...`}
+              addLabel={addLabel}
+              onNotify={onNotify}
+              onAdd={() => { setEditing(null); setModalOpen(true); }}
+              columns={[...templateColumns.slice(0, -1), 'Action']}
+              rows={templateRows}
+              sideTitle="Summary"
+              sideRows={[['Total Templates', String(rows.length)], ['Active', String(rows.filter((row) => row.is_active).length)], ['Channel', category], ['Last Update', 'Live']]}
+            />
+          )}
+        </div>
+        <div className="space-y-4">
+          <SettingsSidebarInfoCard title={sideTitle} icon={Info}>
+            <div className="space-y-3">{sideRows.map(([label, value]) => <SettingsPreviewRow key={label} label={label} value={value} />)}</div>
+          </SettingsSidebarInfoCard>
+        </div>
+      </section>
+      {modalOpen ? (
+        <SettingsMasterFormModal
+          title="Template"
+          initial={editing ? { name: editing.name, code: editing.code || '', status: editing.status || (editing.is_active ? 'Active' : 'Inactive') } : null}
+          onClose={() => { setModalOpen(false); setEditing(null); }}
+          onSave={saveMaster}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function SettingsInventoryCategoryPage({ category, title, note, renderConfigFields, masterType, masterTitle, masterColumns, mapMasterRow, sideRows, onOpenSection, onNotify }) {
+  const { form, loading, saving, save, updateField } = useSettingsCategory(category, {}, onNotify);
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5 space-y-4`}>
+      <SettingsContentHeader title={title} note={note} onCancel={() => onOpenSection('Settings')} onSave={save} saving={saving} />
+      <SettingsSectionCard title="Configuration" className="shadow-none">
+        {loading ? <p className="text-[13px] font-bold text-[#53647f]">Loading...</p> : (
+          <div className="grid gap-4 md:grid-cols-2">{renderConfigFields(form, updateField)}</div>
+        )}
+      </SettingsSectionCard>
+      <SettingsMastersCrudPanel
+        embedded
+        masterType={masterType}
+        title={masterTitle}
+        note={`Manage ${masterTitle.toLowerCase()} records.`}
+        columns={masterColumns}
+        mapRow={mapMasterRow}
+        sideTitle="Policy"
+        sideRows={sideRows}
+        addLabel={`Add ${masterTitle.replace(/s$/, '')}`}
+        onOpenSection={onOpenSection}
         onNotify={onNotify}
-        columns={['Category Name', 'Code', 'Parent Category', 'Products', 'Default Tax', 'Status', 'Action']}
-        rows={rows.map((row) => [
-          row.name,
-          row.code,
-          row.parent,
-          row.items,
-          row.tax,
-          <SettingsStatusBadge label={row.status} tone={row.status === 'Inactive' ? 'amber' : 'green'} />,
-          <UserActionButton label={`Open ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.name} category opened`)} />,
-        ])}
-        sideTitle="Category Rules"
-        sideRows={[['Default Valuation', 'FIFO'], ['Negative Stock', 'Blocked'], ['Auto SKU', 'Enabled'], ['Tax Mapping', 'Required']]}
       />
     </section>
   );
 }
 
+function SettingsProductCategoriesContent({ onOpenSection, onNotify }) {
+  return (
+    <SettingsMastersCrudPanel
+      masterType="product_category"
+      title="Product Categories"
+      note="Manage inventory product categories, parent groups and default tax rules."
+      columns={['Category Name', 'Code', 'Parent Category', 'Default Tax', 'Status', 'Action']}
+      mapRow={(row) => [
+        row.name,
+        row.code || '—',
+        row.metadata?.parent || '—',
+        row.metadata?.tax ?? '—',
+        <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} tone={row.is_active ? 'green' : 'amber'} />,
+        null,
+      ]}
+      sideTitle="Category Rules"
+      sideRows={[['Default Valuation', 'FIFO'], ['Negative Stock', 'Blocked'], ['Auto SKU', 'Enabled'], ['Tax Mapping', 'Required']]}
+      addLabel="Add Category"
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+    />
+  );
+}
+
+
 function SettingsUnitsMeasurementContent({ onOpenSection, onNotify }) {
+  return (
+    <SettingsMastersCrudPanel
+      masterType="unit"
+      title="Units of Measurement"
+      note="Configure inventory units, decimal precision and conversion behavior."
+      columns={['Unit', 'Code', 'Type', 'Precision', 'Base Unit', 'Status', 'Action']}
+      mapRow={(row) => [
+        row.name,
+        row.code || '—',
+        row.metadata?.type || '—',
+        row.metadata?.precision ?? '—',
+        row.metadata?.base ? 'Yes' : 'No',
+        <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />,
+        null,
+      ]}
+      sideTitle="Conversion Defaults"
+      sideRows={[['Decimal Mode', 'Item wise'], ['Rounding', 'Nearest'], ['Purchase UOM', 'Enabled'], ['Sales UOM', 'Enabled']]}
+      addLabel="Add Unit"
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+    />
+  );
+}
+
+function SettingsUnitsMeasurementContent_OLD({ onOpenSection, onNotify }) {
   const rows = [
     { unit: 'Nos', name: 'Numbers', type: 'Quantity', precision: '0', base: 'Yes', status: 'Active' },
     { unit: 'kW', name: 'Kilowatt', type: 'Power', precision: '2', base: 'Yes', status: 'Active' },
@@ -5306,7 +5691,33 @@ function SettingsUnitsMeasurementContent({ onOpenSection, onNotify }) {
   );
 }
 
+
 function SettingsTaxSettingsContent({ onOpenSection, onNotify }) {
+  return (
+    <SettingsMastersCrudPanel
+      masterType="tax"
+      title="Tax Settings"
+      note="Manage GST slabs, tax codes and item-wise tax mapping for inventory."
+      columns={['Tax Name', 'Code', 'Rate', 'Type', 'Applies To', 'Status', 'Action']}
+      mapRow={(row) => [
+        row.name,
+        row.code || '—',
+        row.metadata?.rate ?? '—',
+        row.metadata?.type || 'GST',
+        row.metadata?.applies || '—',
+        <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />,
+        null,
+      ]}
+      sideTitle="Tax Configuration"
+      sideRows={[['Default Sale Tax', 'GST 18%'], ['Default Purchase Tax', 'GST 18%'], ['HSN Required', 'Yes'], ['Round Off', 'Nearest Rupee']]}
+      addLabel="Add Tax"
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+    />
+  );
+}
+
+function SettingsTaxSettingsContent_OLD({ onOpenSection, onNotify }) {
   const rows = [
     { tax: 'GST 0%', code: 'GST0', rate: '0%', type: 'GST', applies: 'Exempt Items', status: 'Active' },
     { tax: 'GST 5%', code: 'GST5', rate: '5%', type: 'GST', applies: 'Selected Goods', status: 'Active' },
@@ -5342,6 +5753,42 @@ function SettingsTaxSettingsContent({ onOpenSection, onNotify }) {
 }
 
 function SettingsStockSettingsContent({ onOpenSection, onNotify }) {
+  return (
+    <SettingsInventoryCategoryPage
+      category="inventory"
+      title="Stock Settings"
+      note="Configure inventory control, alerts, valuation and stock movement rules."
+      renderConfigFields={(form, updateField) => (
+        <>
+          <SettingsSelectField label="Negative Stock" value={form.negativeStock || 'Blocked'} onChange={(v) => updateField('negativeStock', v)} options={['Blocked', 'Allowed', 'Warning Only']} />
+          <SettingsSelectField label="Low Stock Alert" value={form.lowStockAlert || 'Enabled'} onChange={(v) => updateField('lowStockAlert', v)} options={['Enabled', 'Disabled']} />
+          <SettingsSelectField label="Reorder Level" value={form.reorderLevel || 'Item Wise'} onChange={(v) => updateField('reorderLevel', v)} options={['Item Wise', 'Category Wise', 'Warehouse Wise']} />
+          <SettingsSelectField label="Stock Valuation" value={form.stockValuation || 'FIFO'} onChange={(v) => updateField('stockValuation', v)} options={['FIFO', 'LIFO', 'Weighted Average']} />
+          <SettingsSelectField label="Batch Tracking" value={form.batchTracking || 'Optional'} onChange={(v) => updateField('batchTracking', v)} options={['Optional', 'Required', 'Disabled']} />
+          <SettingsSelectField label="Serial Tracking" value={form.serialTracking || 'Enabled'} onChange={(v) => updateField('serialTracking', v)} options={['Enabled', 'Disabled']} />
+          <SettingsInputField label="Primary Warehouse" value={form.primaryWarehouse || ''} onChange={(v) => updateField('primaryWarehouse', v)} />
+          <SettingsSelectField label="Stock Audit" value={form.stockAudit || 'Monthly'} onChange={(v) => updateField('stockAudit', v)} options={['Weekly', 'Monthly', 'Quarterly']} />
+        </>
+      )}
+      masterType="stock_rule"
+      masterTitle="Stock Control Rules"
+      masterColumns={['Rule', 'Code', 'Value', 'Module', 'Status', 'Action']}
+      mapMasterRow={(row) => [
+        row.name,
+        row.code || '—',
+        row.metadata?.value ?? '—',
+        row.metadata?.module || '—',
+        <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />,
+        null,
+      ]}
+      sideRows={[['Primary Warehouse', 'Indore Main'], ['Approval Required', 'Stock Outward'], ['Auto GRN', 'Enabled'], ['Stock Audit', 'Monthly']]}
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+    />
+  );
+}
+
+function SettingsStockSettingsContent_OLD({ onOpenSection, onNotify }) {
   const rows = [
     { rule: 'Negative Stock', value: 'Blocked', module: 'All Warehouses', status: 'Active' },
     { rule: 'Low Stock Alert', value: 'Enabled', module: 'Inventory', status: 'Active' },
@@ -5385,7 +5832,7 @@ function SettingsInventoryStats({ stats }) {
   );
 }
 
-function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, rows, sideTitle, sideRows, onNotify }) {
+function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, rows, sideTitle, sideRows, onNotify, onAdd }) {
   const [query, setQuery] = useState('');
   const filteredRows = rows.filter((row) => row.some((cell) => typeof cell === 'string' && cell.toLowerCase().includes(query.toLowerCase())));
 
@@ -5397,7 +5844,7 @@ function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, r
             <h3 className="font-display text-[18px] font-extrabold text-[#111827]">{title}</h3>
             <p className="mt-1 text-[13px] font-bold text-[#53647f]">Showing configured inventory masters and rules.</p>
           </div>
-          <button type="button" onClick={() => onNotify(`${addLabel} opened`)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white md:w-auto"><Plus className="size-4" />{addLabel}</button>
+          <button type="button" onClick={() => (onAdd ? onAdd() : onNotify(`${addLabel} opened`))} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white md:w-auto"><Plus className="size-4" />{addLabel}</button>
         </div>
         <label className="mt-4 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
           <Search className="size-4 text-[#7386a3]" />
@@ -5455,133 +5902,69 @@ function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, r
 }
 
 function SettingsProjectStatusContent({ onOpenSection, onNotify }) {
-  const rows = [
-    { name: 'Planning', color: 'Blue', order: '1', stage: 'Pre Installation', progress: '10%', status: 'Active' },
-    { name: 'Site Survey', color: 'Amber', order: '2', stage: 'Pre Installation', progress: '20%', status: 'Active' },
-    { name: 'Material Planning', color: 'Purple', order: '3', stage: 'Procurement', progress: '35%', status: 'Active' },
-    { name: 'Installation', color: 'Green', order: '4', stage: 'Execution', progress: '65%', status: 'Active' },
-    { name: 'Testing & Commissioning', color: 'Cyan', order: '5', stage: 'Closure', progress: '90%', status: 'Active' },
-    { name: 'Completed', color: 'Green', order: '6', stage: 'Closure', progress: '100%', status: 'Active' },
-    { name: 'On Hold', color: 'Slate', order: '7', stage: 'Exception', progress: '0%', status: 'Active' },
-  ];
-
   return (
-    <SettingsProjectMasterPage
+    <SettingsMastersCrudPanel
+      masterType="project_status"
       title="Project Status"
       note="Manage project workflow statuses, stage order and progress mapping."
+      columns={['Status Name', 'Code', 'Color', 'Stage', 'Status', 'Action']}
+      mapRow={(row) => [row.name, row.code || '—', row.metadata?.color || '—', row.metadata?.stage || '—', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      sideTitle="Rules"
+      sideRows={[['Auto Sync', 'Enabled'], ['Audit Trail', 'Enabled'], ['Last Update', 'Live'], ['Records', 'API']]}
+      addLabel="Add Status"
       onOpenSection={onOpenSection}
       onNotify={onNotify}
-      stats={[['Total Statuses', '07', FolderKanban, 'green'], ['Active', '07', CheckCircle2, 'blue'], ['Workflow Stages', '05', BarChart3, 'purple'], ['Exceptions', '01', AlertTriangle, 'amber']]}
-      columns={['Status Name', 'Color', 'Order', 'Stage', 'Progress', 'State', 'Action']}
-      rows={rows.map((row) => [
-        row.name,
-        row.color,
-        row.order,
-        row.stage,
-        row.progress,
-        <SettingsStatusBadge label={row.status} />,
-        <UserActionButton label={`Open ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.name} status opened`)} />,
-      ])}
-      addLabel="Add Status"
-      sideTitle="Workflow Rules"
-      sideRows={[['Default Status', 'Planning'], ['Completion Status', 'Completed'], ['Delay Tracking', 'Enabled'], ['Progress Auto Update', 'Enabled']]}
     />
   );
 }
 
 function SettingsProjectTypesContent({ onOpenSection, onNotify }) {
-  const rows = [
-    { type: 'On-Grid', code: 'PRJ-ON', capacity: '1 kW - 1 MW', subsidy: 'Eligible', status: 'Active' },
-    { type: 'Off-Grid', code: 'PRJ-OFF', capacity: '1 kW - 250 kW', subsidy: 'Limited', status: 'Active' },
-    { type: 'Hybrid', code: 'PRJ-HYB', capacity: '3 kW - 500 kW', subsidy: 'Eligible', status: 'Active' },
-    { type: 'Commercial', code: 'PRJ-COM', capacity: '10 kW - 2 MW', subsidy: 'No', status: 'Active' },
-    { type: 'Industrial', code: 'PRJ-IND', capacity: '50 kW - 5 MW', subsidy: 'No', status: 'Active' },
-  ];
-
   return (
-    <SettingsProjectMasterPage
+    <SettingsMastersCrudPanel
+      masterType="project_type"
       title="Project Types"
-      note="Configure project types, code prefixes, capacity range and subsidy behavior."
+      note="Configure project type master for residential, commercial and industrial jobs."
+      columns={['Type', 'Code', 'Capacity', 'Subsidy', 'Status', 'Action']}
+      mapRow={(row) => [row.name, row.code || '—', row.metadata?.capacity || '—', row.metadata?.subsidy || '—', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      sideTitle="Rules"
+      sideRows={[['Auto Sync', 'Enabled'], ['Audit Trail', 'Enabled'], ['Last Update', 'Live'], ['Records', 'API']]}
+      addLabel="Add Type"
       onOpenSection={onOpenSection}
       onNotify={onNotify}
-      stats={[['Project Types', '05', FolderKanban, 'green'], ['Subsidy Eligible', '03', BadgeCheck, 'blue'], ['Commercial Types', '02', BuildingIconFallback, 'purple'], ['Inactive', '00', Minus, 'amber']]}
-      columns={['Project Type', 'Code Prefix', 'Capacity Range', 'Subsidy', 'Status', 'Action']}
-      rows={rows.map((row) => [
-        row.type,
-        row.code,
-        row.capacity,
-        row.subsidy,
-        <SettingsStatusBadge label={row.status} />,
-        <UserActionButton label={`Open ${row.type}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.type} project type opened`)} />,
-      ])}
-      addLabel="Add Type"
-      sideTitle="Type Defaults"
-      sideRows={[['Default Type', 'On-Grid'], ['Auto Prefix', 'Enabled'], ['Capacity Unit', 'kW'], ['Subsidy Check', 'Enabled']]}
     />
   );
 }
 
 function SettingsTaskPrioritiesContent({ onOpenSection, onNotify }) {
-  const rows = [
-    { priority: 'Critical', color: 'Red', sla: '4 Hours', escalation: 'Immediate', status: 'Active' },
-    { priority: 'High', color: 'Orange', sla: '1 Day', escalation: 'Manager', status: 'Active' },
-    { priority: 'Medium', color: 'Amber', sla: '3 Days', escalation: 'Team Lead', status: 'Active' },
-    { priority: 'Low', color: 'Blue', sla: '7 Days', escalation: 'None', status: 'Active' },
-    { priority: 'Backlog', color: 'Slate', sla: 'No SLA', escalation: 'None', status: 'Active' },
-  ];
-
   return (
-    <SettingsProjectMasterPage
+    <SettingsMastersCrudPanel
+      masterType="task_priority"
       title="Task Priorities"
-      note="Set project task priority levels, SLA windows and escalation behavior."
+      note="Manage task priority levels, SLA and escalation mapping."
+      columns={['Priority', 'Code', 'SLA', 'Escalation', 'Status', 'Action']}
+      mapRow={(row) => [row.name, row.code || '—', row.metadata?.sla || '—', row.metadata?.escalation || '—', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      sideTitle="Rules"
+      sideRows={[['Auto Sync', 'Enabled'], ['Audit Trail', 'Enabled'], ['Last Update', 'Live'], ['Records', 'API']]}
+      addLabel="Add Priority"
       onOpenSection={onOpenSection}
       onNotify={onNotify}
-      stats={[['Priority Levels', '05', Flag, 'green'], ['With SLA', '04', Clock3, 'blue'], ['Escalations', '03', AlertTriangle, 'purple'], ['Default', 'Medium', CheckCircle2, 'amber']]}
-      columns={['Priority', 'Color', 'SLA', 'Escalation', 'Status', 'Action']}
-      rows={rows.map((row) => [
-        row.priority,
-        row.color,
-        row.sla,
-        row.escalation,
-        <SettingsStatusBadge label={row.status} />,
-        <UserActionButton label={`Open ${row.priority}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.priority} priority opened`)} />,
-      ])}
-      addLabel="Add Priority"
-      sideTitle="Priority Rules"
-      sideRows={[['Default Priority', 'Medium'], ['SLA Tracking', 'Enabled'], ['Auto Escalation', 'Enabled'], ['Overdue Alerts', 'Daily']]}
     />
   );
 }
 
 function SettingsMilestoneContent({ onOpenSection, onNotify }) {
-  const rows = [
-    { milestone: 'Project Created', phase: 'Planning', weight: '5%', required: 'Yes', status: 'Active' },
-    { milestone: 'Site Survey Completed', phase: 'Survey', weight: '15%', required: 'Yes', status: 'Active' },
-    { milestone: 'Material Delivered', phase: 'Procurement', weight: '25%', required: 'Yes', status: 'Active' },
-    { milestone: 'Installation Completed', phase: 'Installation', weight: '35%', required: 'Yes', status: 'Active' },
-    { milestone: 'Testing Completed', phase: 'Commissioning', weight: '15%', required: 'Yes', status: 'Active' },
-    { milestone: 'Handover Done', phase: 'Closure', weight: '5%', required: 'Yes', status: 'Active' },
-  ];
-
   return (
-    <SettingsProjectMasterPage
+    <SettingsMastersCrudPanel
+      masterType="milestone"
       title="Milestone Settings"
       note="Configure project milestones, progress weightage and mandatory completion rules."
+      columns={['Milestone', 'Code', 'Phase', 'Weightage', 'Status', 'Action']}
+      mapRow={(row) => [row.name, row.code || '—', row.metadata?.phase || '—', row.metadata?.weight || '—', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      sideTitle="Rules"
+      sideRows={[['Auto Sync', 'Enabled'], ['Audit Trail', 'Enabled'], ['Last Update', 'Live'], ['Records', 'API']]}
+      addLabel="Add Milestone"
       onOpenSection={onOpenSection}
       onNotify={onNotify}
-      stats={[['Milestones', '06', Trophy, 'green'], ['Mandatory', '06', ShieldCheck, 'blue'], ['Total Weight', '100%', BarChart3, 'purple'], ['Optional', '00', Minus, 'amber']]}
-      columns={['Milestone', 'Phase', 'Weightage', 'Required', 'Status', 'Action']}
-      rows={rows.map((row) => [
-        row.milestone,
-        row.phase,
-        row.weight,
-        row.required,
-        <SettingsStatusBadge label={row.status} />,
-        <UserActionButton label={`Open ${row.milestone}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.milestone} milestone opened`)} />,
-      ])}
-      addLabel="Add Milestone"
-      sideTitle="Milestone Rules"
-      sideRows={[['Progress Source', 'Milestone Weight'], ['Completion Lock', 'Enabled'], ['Document Required', 'At Handover'], ['Auto Notify', 'Enabled']]}
     />
   );
 }
@@ -5591,19 +5974,230 @@ function BuildingIconFallback(props) {
 }
 
 function SettingsDocumentSettingsContent({ onOpenSection, onNotify }) {
-  return <SettingsOtherMasterPage title="Document Settings" note="Configure document numbering, file rules, templates and storage preferences." onOpenSection={onOpenSection} onNotify={onNotify} stats={[['Document Types', '14', FileText, 'green'], ['Templates', '32', ReceiptText, 'blue'], ['Storage Used', '2.45 GB', HardDrive, 'purple'], ['Pending Review', '03', Hourglass, 'amber']]} configTitle="Document Configuration" configFields={<><SettingsSelectField label="Default Numbering" value="Auto Prefix + Year" onChange={() => {}} options={['Auto Prefix + Year', 'Manual', 'Module Wise']} /><SettingsInputField label="Document Prefix" value="DOC" onChange={() => {}} /><SettingsSelectField label="Allowed File Types" value="PDF, JPG, PNG, DOCX" onChange={() => {}} options={['PDF Only', 'PDF, JPG, PNG', 'PDF, JPG, PNG, DOCX']} /><SettingsInputField label="Max File Size" value="10 MB" onChange={() => {}} /><SettingsToggleRow label="Require Document Approval" note="Send uploaded documents for approval before final use." enabled onToggle={() => onNotify('Document approval toggled')} /><SettingsToggleRow label="Enable Version History" note="Keep older file versions for audit." enabled onToggle={() => onNotify('Document version history toggled')} /></>} rows={[['Quotation', 'QUO-{YYYY}-{0001}', 'PDF', 'Active'], ['Invoice', 'INV-{YYYY}-{0001}', 'PDF', 'Active'], ['Project Handover', 'HND-{YYYY}-{0001}', 'PDF', 'Active'], ['AMC Contract', 'AMC-{YYYY}-{0001}', 'PDF', 'Active'], ['Warranty Card', 'WAR-{YYYY}-{0001}', 'PDF', 'Inactive']]} sideTitle="Storage Policy" sideRows={[['Storage Provider', 'Cloud'], ['Retention', '5 Years'], ['Compression', 'Enabled'], ['Watermark', 'Enabled']]} addLabel="Add Document Type" />;
+  const [series, setSeries] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    settingsApi.documentSeries.list()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setSeries(list);
+      })
+      .catch(() => onNotify('Could not load document series.', 'error'))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const rows = series.map((item) => [
+    item.document_type,
+    `${item.prefix}${String(item.next_number).padStart(item.padding || 4, '0')}`,
+    item.preview || 'PDF',
+    item.is_active ? 'Active' : 'Inactive',
+  ]);
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title="Document Settings" note="Configure document numbering, file rules, templates and storage preferences." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Document settings saved')} />
+      <SettingsInventoryStats stats={[
+        ['Document Types', String(series.length), FileText, 'green'],
+        ['Active Series', String(series.filter((s) => s.is_active).length), ReceiptText, 'blue'],
+        ['Auto Numbering', 'Enabled', Database, 'purple'],
+        ['Inactive', String(series.filter((s) => !s.is_active).length), Hourglass, 'amber'],
+      ]} />
+      {loading ? <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Loading document series...</p> : (
+        <SettingsInventoryTable
+          title="Document Number Series"
+          searchPlaceholder="Search document types..."
+          addLabel="Add Document Type"
+          onNotify={onNotify}
+          columns={['Document Type', 'Number Format', 'Format', 'Status', 'Action']}
+          rows={rows.map(([name, format, fmt, status]) => [
+            name,
+            format,
+            fmt,
+            <SettingsStatusBadge label={status} tone={status === 'Inactive' ? 'amber' : 'green'} />,
+            <UserActionButton label={`Open ${name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${name} series opened`)} />,
+          ])}
+          sideTitle="Storage Policy"
+          sideRows={[['Storage Provider', 'Cloud'], ['Retention', '5 Years'], ['Compression', 'Enabled'], ['Watermark', 'Enabled']]}
+        />
+      )}
+    </section>
+  );
 }
 
 function SettingsApprovalSettingsContent({ onOpenSection, onNotify }) {
-  return <SettingsOtherMasterPage title="Approval Settings" note="Manage approval workflows, levels, escalation rules and approval authority." onOpenSection={onOpenSection} onNotify={onNotify} stats={[['Workflows', '09', ShieldCheck, 'green'], ['Active Rules', '08', CheckCircle2, 'blue'], ['Pending', '17', Hourglass, 'purple'], ['Escalations', '04', AlertTriangle, 'amber']]} configTitle="Approval Workflow Defaults" configFields={<><SettingsSelectField label="Default Approval Mode" value="Sequential" onChange={() => {}} options={['Sequential', 'Parallel', 'Any One Approver']} /><SettingsSelectField label="Escalation Time" value="24 Hours" onChange={() => {}} options={['12 Hours', '24 Hours', '48 Hours', 'Never']} /><SettingsSelectField label="Final Approval Authority" value="Admin" onChange={() => {}} options={['Admin', 'Department Head', 'Project Manager']} /><SettingsInputField label="Approval Reminder Frequency" value="Every 6 Hours" onChange={() => {}} /><SettingsToggleRow label="Allow Approval Delegation" note="Approvers can delegate approval during absence." enabled onToggle={() => onNotify('Approval delegation toggled')} /><SettingsToggleRow label="Require Remarks on Rejection" note="Rejected requests must include clear remarks." enabled onToggle={() => onNotify('Rejection remarks toggled')} /></>} rows={[['Lead Approval', 'Sales Manager', '1 Level', 'Active'], ['Quotation Approval', 'Admin', '2 Levels', 'Active'], ['Purchase Order', 'Accounts Head', '2 Levels', 'Active'], ['Expense Approval', 'Project Manager', '1 Level', 'Active'], ['Stock Adjustment', 'Inventory Head', '2 Levels', 'Active']]} sideTitle="Approval Controls" sideRows={[['Auto Reminders', 'Enabled'], ['Escalation', 'Enabled'], ['Audit Trail', 'Required'], ['Bulk Approval', 'Disabled']]} addLabel="Add Workflow" />;
+  return (
+    <SettingsInventoryCategoryPage
+      category="approval"
+      title="Approval Settings"
+      note="Manage approval workflows, levels, escalation rules and approval authority."
+      renderConfigFields={(form, updateField) => (
+        <>
+          <SettingsToggleRow label="Lead Approval Required" note="Require approval before lead conversion." enabled={Boolean(form.leadApprovalRequired)} onToggle={() => updateField('leadApprovalRequired', !form.leadApprovalRequired)} />
+          <SettingsToggleRow label="Quotation Approval Required" note="Require approval before sharing quotation." enabled={Boolean(form.quotationApprovalRequired)} onToggle={() => updateField('quotationApprovalRequired', !form.quotationApprovalRequired)} />
+          <SettingsToggleRow label="Expense Approval Required" note="Require approval for expense entries." enabled={Boolean(form.expenseApprovalRequired)} onToggle={() => updateField('expenseApprovalRequired', !form.expenseApprovalRequired)} />
+          <SettingsToggleRow label="Purchase Approval Required" note="Require approval for purchase orders." enabled={Boolean(form.purchaseApprovalRequired)} onToggle={() => updateField('purchaseApprovalRequired', !form.purchaseApprovalRequired)} />
+          <SettingsSelectField label="Default Approver Role" value={form.defaultApproverRole || 'Admin'} onChange={(v) => updateField('defaultApproverRole', v)} options={['Admin', 'Manager', 'Accounts Head']} />
+        </>
+      )}
+      masterType="approval_workflow"
+      masterTitle="Approval Workflows"
+      masterColumns={['Workflow', 'Code', 'Approver', 'Levels', 'Status', 'Action']}
+      mapMasterRow={(row) => [
+        row.name,
+        row.code || '—',
+        row.metadata?.approver || '—',
+        row.metadata?.levels || '1 Level',
+        <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />,
+        null,
+      ]}
+      sideRows={[['Auto Reminders', 'Enabled'], ['Escalation', 'Enabled'], ['Audit Trail', 'Required'], ['Bulk Approval', 'Disabled']]}
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+    />
+  );
 }
 
 function SettingsBackupRestoreContent({ onOpenSection, onNotify }) {
-  return <SettingsOtherMasterPage title="Backup & Restore" note="Configure scheduled backups, restore points, encryption and retention policy." onOpenSection={onOpenSection} onNotify={onNotify} stats={[['Last Backup', 'Today', Cloud, 'green'], ['Backup Size', '2.45 GB', HardDrive, 'blue'], ['Restore Points', '18', RefreshCw, 'purple'], ['Failed Jobs', '00', AlertTriangle, 'amber']]} configTitle="Backup Policy" configFields={<><SettingsToggleRow label="Automatic Backup" note="Run backups on a fixed schedule." enabled onToggle={() => onNotify('Automatic backup toggled')} /><SettingsToggleRow label="Backup Encryption" note="Encrypt backup archives before storage." enabled onToggle={() => onNotify('Backup encryption toggled')} /><SettingsSelectField label="Backup Frequency" value="Daily" onChange={() => {}} options={['Daily', 'Weekly', 'Monthly']} /><SettingsInputField label="Backup Time" value="02:00 AM" onChange={() => {}} /><SettingsSelectField label="Retention Period" value="30 Days" onChange={() => {}} options={['7 Days', '30 Days', '90 Days', '1 Year']} /><SettingsSelectField label="Storage Location" value="Cloud + Local" onChange={() => {}} options={['Cloud', 'Local', 'Cloud + Local']} /></>} rows={[['Daily Auto Backup', '20 May 2024 02:00 AM', '2.45 GB', 'Completed'], ['Manual Backup', '19 May 2024 05:40 PM', '2.42 GB', 'Completed'], ['Weekly Backup', '18 May 2024 02:00 AM', '2.39 GB', 'Completed'], ['Pre Update Backup', '15 May 2024 11:20 AM', '2.31 GB', 'Completed'], ['Old Backup Cleanup', '14 May 2024 03:00 AM', '-', 'Completed']]} sideTitle="Restore Safety" sideRows={[['Restore Lock', 'Admin Only'], ['Pre-restore Backup', 'Required'], ['Data Validation', 'Enabled'], ['Download Latest', 'Available']]} addLabel="Run Backup" />;
+  const [backups, setBackups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+
+  const reload = () => settingsApi.backups.list()
+    .then((res) => {
+      const list = Array.isArray(res) ? res : (res?.results ?? []);
+      setBackups(list);
+    })
+    .catch(() => onNotify('Could not load backups.', 'error'))
+    .finally(() => setLoading(false));
+
+  useEffect(() => { reload(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const runBackup = async () => {
+    setRunning(true);
+    try {
+      await settingsApi.backups.create('Full');
+      onNotify('Backup started successfully');
+      await reload();
+    } catch {
+      onNotify('Backup failed.', 'error');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const rows = backups.map((item) => [
+    item.filename,
+    item.created_at ? new Date(item.created_at).toLocaleString('en-IN') : '—',
+    item.file_size || '—',
+    item.status || 'Completed',
+  ]);
+
+  const last = backups[0];
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title="Backup & Restore" note="Configure scheduled backups, restore points, encryption and retention policy." onCancel={() => onOpenSection('Settings')} onSave={runBackup} saving={running} />
+      <SettingsInventoryStats stats={[
+        ['Last Backup', last ? 'Recent' : 'None', Cloud, 'green'],
+        ['Backup Size', last?.file_size || '—', HardDrive, 'blue'],
+        ['Restore Points', String(backups.length), RefreshCw, 'purple'],
+        ['Failed Jobs', String(backups.filter((b) => b.status === 'Failed').length), AlertTriangle, 'amber'],
+      ]} />
+      {loading ? <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">Loading backups...</p> : (
+        <SettingsInventoryTable
+          title="Backup History"
+          searchPlaceholder="Search backups..."
+          addLabel="Run Backup"
+          onNotify={onNotify}
+          onAdd={runBackup}
+          columns={['Filename', 'Created On', 'Size', 'Status', 'Action']}
+          rows={rows.map(([name, created, size, status]) => [
+            name,
+            created,
+            size,
+            <SettingsStatusBadge label={status} tone={status === 'Failed' ? 'amber' : 'green'} />,
+            <UserActionButton label={`Open ${name}`} icon={Download} tone="blue" onClick={() => onNotify(`${name} download opened`)} />,
+          ])}
+          sideTitle="Restore Safety"
+          sideRows={[['Restore Lock', 'Admin Only'], ['Pre-restore Backup', 'Required'], ['Data Validation', 'Enabled'], ['Download Latest', last ? 'Available' : 'None']]}
+        />
+      )}
+    </section>
+  );
 }
 
 function SettingsSystemMaintenanceContent({ onOpenSection, onNotify }) {
-  return <SettingsOtherMasterPage title="System Maintenance" note="Manage cache cleanup, database optimization, logs and maintenance mode." onOpenSection={onOpenSection} onNotify={onNotify} stats={[['System Health', 'Good', CheckCircle2, 'green'], ['Cache Size', '128 MB', Database, 'blue'], ['Log Size', '420 MB', FileText, 'purple'], ['Warnings', '02', AlertTriangle, 'amber']]} configTitle="Maintenance Controls" configFields={<><SettingsToggleRow label="Maintenance Mode" note="Temporarily restrict user access during updates." enabled={false} onToggle={() => onNotify('Maintenance mode toggled')} /><SettingsToggleRow label="Auto Cleanup" note="Automatically clear stale sessions and temporary files." enabled onToggle={() => onNotify('Auto cleanup toggled')} /><SettingsSelectField label="Cleanup Schedule" value="Weekly" onChange={() => {}} options={['Daily', 'Weekly', 'Monthly']} /><SettingsInputField label="Log Retention" value="90 Days" onChange={() => {}} /><SettingsSelectField label="Database Optimization" value="Weekly" onChange={() => {}} options={['Daily', 'Weekly', 'Monthly', 'Manual']} /><SettingsSelectField label="Health Check" value="Every 6 Hours" onChange={() => {}} options={['Hourly', 'Every 6 Hours', 'Daily']} /></>} rows={[['Clear Cache', 'Utility', 'Last run today', 'Ready'], ['Optimize Database', 'Database', 'Last run yesterday', 'Ready'], ['Clear Old Logs', 'Logs', '420 MB found', 'Ready'], ['Check Broken Links', 'Documents', '2 warnings', 'Ready'], ['Rebuild Search Index', 'Search', 'Last run 18 May', 'Ready']]} sideTitle="Maintenance Status" sideRows={[['Maintenance Mode', 'Off'], ['Background Jobs', 'Running'], ['Database', 'Healthy'], ['Search Index', 'Updated']]} addLabel="Run Task" />;
+  const { form, loading, saving, save, updateField } = useSettingsCategory('maintenance', {}, onNotify);
+  const [running, setRunning] = useState(null);
+
+  const runTask = async (action, label) => {
+    setRunning(action);
+    try {
+      const result = await settingsApi.maintenance(action);
+      onNotify(result?.details?.join(' ') || `${label} completed`);
+    } catch {
+      onNotify(`${label} failed.`, 'error');
+    } finally {
+      setRunning(null);
+    }
+  };
+
+  const tasks = [
+    ['Clear Cache', 'clear_cache', 'Utility'],
+    ['Health Check', 'health_check', 'System'],
+    ['Clear Old Logs', 'cleanup_logs', 'Logs'],
+  ];
+
+  return (
+    <section className={`${panelClass} p-4 sm:p-5`}>
+      <SettingsContentHeader title="System Maintenance" note="Manage cache cleanup, database optimization, logs and maintenance mode." onCancel={() => onOpenSection('Settings')} onSave={save} saving={saving} />
+      <SettingsInventoryStats stats={[
+        ['System Health', 'Good', CheckCircle2, 'green'],
+        ['Log Retention', `${form.logRetentionDays || '90'} Days`, FileText, 'blue'],
+        ['Auto Cleanup', form.autoCleanupLogs ? 'On' : 'Off', Database, 'purple'],
+        ['Health Check', form.healthCheckEnabled ? 'On' : 'Off', AlertTriangle, 'amber'],
+      ]} />
+      <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+        <div className="space-y-4">
+          <SettingsSectionCard title="Maintenance Controls" className="shadow-none">
+            {loading ? <p className="text-[13px] font-bold text-[#53647f]">Loading...</p> : (
+              <div className="grid gap-4 md:grid-cols-2">
+                <SettingsToggleRow label="Auto Cleanup" note="Automatically clear stale sessions and temporary files." enabled={Boolean(form.autoCleanupLogs)} onToggle={() => updateField('autoCleanupLogs', !form.autoCleanupLogs)} />
+                <SettingsToggleRow label="Cache Cleanup" note="Allow scheduled cache cleanup." enabled={Boolean(form.cacheCleanupEnabled)} onToggle={() => updateField('cacheCleanupEnabled', !form.cacheCleanupEnabled)} />
+                <SettingsToggleRow label="Health Check" note="Run periodic health checks." enabled={Boolean(form.healthCheckEnabled)} onToggle={() => updateField('healthCheckEnabled', !form.healthCheckEnabled)} />
+                <SettingsInputField label="Log Retention (Days)" value={String(form.logRetentionDays || '90')} onChange={(v) => updateField('logRetentionDays', v)} />
+              </div>
+            )}
+          </SettingsSectionCard>
+          <SettingsInventoryTable
+            title="Maintenance Tasks"
+            searchPlaceholder="Search tasks..."
+            addLabel="Run Task"
+            onNotify={onNotify}
+            columns={['Task', 'Module', 'Detail', 'Status', 'Action']}
+            rows={tasks.map(([label, action, module]) => [
+              label,
+              module,
+              running === action ? 'Running...' : 'Ready',
+              <SettingsStatusBadge label={running === action ? 'Running' : 'Ready'} tone={running === action ? 'amber' : 'green'} />,
+              <UserActionButton label={`Run ${label}`} icon={RefreshCw} tone="blue" onClick={() => runTask(action, label)} />,
+            ])}
+            sideTitle="Summary"
+            sideRows={[['Tasks', String(tasks.length)], ['Auto Cleanup', form.autoCleanupLogs ? 'Enabled' : 'Disabled'], ['Health Check', form.healthCheckEnabled ? 'Enabled' : 'Disabled'], ['Last Update', 'Live']]}
+          />
+        </div>
+        <SettingsSidebarInfoCard title="Maintenance Status" icon={Info}>
+          <div className="space-y-3">
+            <SettingsPreviewRow label="Maintenance Mode" value="Off" />
+            <SettingsPreviewRow label="Background Jobs" value="Running" />
+            <SettingsPreviewRow label="Database" value="Healthy" />
+            <SettingsPreviewRow label="Search Index" value="Updated" />
+          </div>
+        </SettingsSidebarInfoCard>
+      </section>
+    </section>
+  );
 }
 
 function SettingsOtherMasterPage({ title, note, stats, configTitle, configFields, rows, sideTitle, sideRows, addLabel, onOpenSection, onNotify }) {
@@ -5627,72 +6221,118 @@ function SettingsOtherMasterPage({ title, note, stats, configTitle, configFields
 
 function SettingsEmailSettingsContent({ onOpenSection, onNotify }) {
   return (
-    <SettingsCommunicationPage
+    <SettingsCategoryIntegrationPage
+      category="email"
       title="Email Settings"
       note="Configure SMTP, sender identity, email templates and delivery controls."
+      configTitle="SMTP Configuration"
+      renderConfigFields={(form, updateField) => (
+        <>
+          <SettingsInputField label="SMTP Host" value={form.smtpHost || ''} onChange={(v) => updateField('smtpHost', v)} />
+          <SettingsInputField label="SMTP Port" value={form.smtpPort || ''} onChange={(v) => updateField('smtpPort', v)} />
+          <SettingsSelectField label="Encryption" value={form.smtpSecurity || 'TLS'} onChange={(v) => updateField('smtpSecurity', v)} options={['TLS', 'SSL', 'None']} />
+          <SettingsInputField label="SMTP Username" value={form.smtpUser || ''} onChange={(v) => updateField('smtpUser', v)} />
+          <SettingsInputField label="From Name" value={form.fromName || ''} onChange={(v) => updateField('fromName', v)} />
+          <SettingsInputField label="From Email" value={form.fromEmail || ''} onChange={(v) => updateField('fromEmail', v)} />
+          <SettingsToggleRow label="Enable Email" note="Turn email delivery on or off." enabled={Boolean(form.enabled)} onToggle={() => updateField('enabled', !form.enabled)} />
+        </>
+      )}
+      masterType="document"
+      templateColumns={['Template Name', 'Code', 'Channel', 'Status', 'Action']}
+      mapTemplateRow={(row) => [row.name, row.code || '—', row.metadata?.channel || 'Email', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      stats={[['SMTP Status', 'Live', Mail, 'green'], ['Templates', '—', FileText, 'blue'], ['Channel', 'Email', CheckCircle2, 'purple'], ['API', 'Connected', Database, 'amber']]}
+      sideTitle="Email Health"
+      sideRows={[['Delivery', 'Configured'], ['Queue', 'Ready'], ['From', 'CRM'], ['Save', 'Enabled']]}
+      addLabel="Add Template"
       onOpenSection={onOpenSection}
       onNotify={onNotify}
-      stats={[['SMTP Status', 'Active', Mail, 'green'], ['Templates', '18', FileText, 'blue'], ['Sent Today', '148', CheckCircle2, 'purple'], ['Failed', '01', AlertTriangle, 'amber']]}
-      configTitle="SMTP Configuration"
-      configFields={<><SettingsInputField label="SMTP Host" value="smtp.malwasolar.com" onChange={() => {}} /><SettingsInputField label="SMTP Port" value="587" onChange={() => {}} /><SettingsSelectField label="Encryption" value="TLS" onChange={() => {}} options={['TLS', 'SSL', 'None']} /><SettingsInputField label="SMTP Username" value="noreply@malwasolar.com" onChange={() => {}} /><SettingsInputField label="From Name" value="Malwa Solar CRM" onChange={() => {}} /><SettingsInputField label="From Email" value="noreply@malwasolar.com" onChange={() => {}} /><SettingsToggleRow label="Enable Email Queue" note="Queue and retry failed emails automatically." enabled onToggle={() => onNotify('Email queue toggled')} /><SettingsToggleRow label="Send Admin Copy" note="Send critical emails copy to admin inbox." enabled={false} onToggle={() => onNotify('Admin copy toggled')} /></>}
-      rows={[['Lead Assigned', 'New lead assignment', 'Email', 'Active'], ['Quotation Sent', 'Quotation shared', 'Email', 'Active'], ['Payment Reminder', 'Invoice due reminder', 'Email', 'Active'], ['Project Update', 'Project status changed', 'Email', 'Active'], ['AMC Renewal', 'AMC expiry upcoming', 'Email', 'Inactive']]}
-      sideTitle="Email Health"
-      sideRows={[['Queue Pending', '06'], ['Bounce Rate', '0.8%'], ['Daily Limit', '5,000'], ['Last Test', 'Success']]}
-      addLabel="Add Template"
     />
   );
 }
 
 function SettingsSmsSettingsContent({ onOpenSection, onNotify }) {
   return (
-    <SettingsCommunicationPage
+    <SettingsCategoryIntegrationPage
+      category="sms"
       title="SMS Settings"
       note="Configure SMS gateway, sender ID, DLT templates and delivery preferences."
+      configTitle="SMS Gateway"
+      renderConfigFields={(form, updateField) => (
+        <>
+          <SettingsSelectField label="Gateway Provider" value={form.provider || 'MSG91'} onChange={(v) => updateField('provider', v)} options={['MSG91', 'TextLocal', 'Twilio', 'Custom API']} />
+          <SettingsInputField label="Sender ID" value={form.senderId || ''} onChange={(v) => updateField('senderId', v)} />
+          <SettingsInputField label="API Key" value={form.apiKey || ''} onChange={(v) => updateField('apiKey', v)} />
+          <SettingsToggleRow label="Enable SMS" note="Turn SMS delivery on or off." enabled={Boolean(form.enabled)} onToggle={() => updateField('enabled', !form.enabled)} />
+        </>
+      )}
+      masterType="document"
+      templateColumns={['Template Name', 'Code', 'Channel', 'Status', 'Action']}
+      mapTemplateRow={(row) => [row.name, row.code || '—', 'SMS', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      stats={[['Gateway', 'Live', MessageSquareMore, 'green'], ['Templates', '—', FileText, 'blue'], ['Channel', 'SMS', CheckCircle2, 'purple'], ['API', 'Connected', Database, 'amber']]}
+      sideTitle="SMS Balance"
+      sideRows={[['Provider', 'Configured'], ['Sender ID', 'Set'], ['Delivery', 'Ready'], ['Retry', 'Enabled']]}
+      addLabel="Add SMS Template"
       onOpenSection={onOpenSection}
       onNotify={onNotify}
-      stats={[['Gateway', 'Active', MessageSquareMore, 'green'], ['DLT Templates', '12', FileText, 'blue'], ['SMS Today', '324', CheckCircle2, 'purple'], ['Failed', '05', AlertTriangle, 'amber']]}
-      configTitle="SMS Gateway"
-      configFields={<><SettingsSelectField label="Gateway Provider" value="TextLocal" onChange={() => {}} options={['TextLocal', 'MSG91', 'Twilio', 'Custom API']} /><SettingsInputField label="Sender ID" value="MLWSLR" onChange={() => {}} /><SettingsInputField label="API Key" value="sms_live_xxxxxxx123" onChange={() => {}} /><SettingsInputField label="DLT Entity ID" value="1201167890123456789" onChange={() => {}} /><SettingsInputField label="Route" value="Transactional" onChange={() => {}} /><SettingsSelectField label="Unicode SMS" value="Disabled" onChange={() => {}} options={['Enabled', 'Disabled']} /><SettingsToggleRow label="Low Balance Alert" note="Notify admin when SMS balance is low." enabled onToggle={() => onNotify('SMS balance alert toggled')} /><SettingsToggleRow label="Retry Failed SMS" note="Retry failed SMS for temporary gateway errors." enabled onToggle={() => onNotify('SMS retry toggled')} /></>}
-      rows={[['Lead OTP', 'Customer verification', 'SMS', 'Active'], ['Follow-up Reminder', 'Follow-up due', 'SMS', 'Active'], ['Payment Alert', 'Payment received', 'SMS', 'Active'], ['Installation Visit', 'Visit scheduled', 'SMS', 'Active'], ['Service Ticket', 'Ticket created', 'SMS', 'Inactive']]}
-      sideTitle="SMS Balance"
-      sideRows={[['Available Credits', '12,480'], ['Daily Limit', '2,000'], ['Delivery Rate', '96.4%'], ['Last Sync', 'Today 11:45 AM']]}
-      addLabel="Add SMS Template"
     />
   );
 }
 
 function SettingsWhatsAppSettingsContent({ onOpenSection, onNotify }) {
   return (
-    <SettingsCommunicationPage
+    <SettingsCategoryIntegrationPage
+      category="whatsapp"
       title="WhatsApp Settings"
       note="Configure WhatsApp Business API, approved templates and automation rules."
+      configTitle="WhatsApp Business API"
+      renderConfigFields={(form, updateField) => (
+        <>
+          <SettingsInputField label="Phone Number ID" value={form.phoneNumberId || ''} onChange={(v) => updateField('phoneNumberId', v)} />
+          <SettingsInputField label="Access Token" value={form.accessToken || ''} onChange={(v) => updateField('accessToken', v)} />
+          <SettingsSelectField label="Provider" value={form.provider || 'WhatsApp Business API'} onChange={(v) => updateField('provider', v)} options={['WhatsApp Business API', 'Custom API']} />
+          <SettingsToggleRow label="Enable WhatsApp" note="Turn WhatsApp delivery on or off." enabled={Boolean(form.enabled)} onToggle={() => updateField('enabled', !form.enabled)} />
+        </>
+      )}
+      masterType="document"
+      templateColumns={['Template Name', 'Code', 'Channel', 'Status', 'Action']}
+      mapTemplateRow={(row) => [row.name, row.code || '—', 'WhatsApp', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      stats={[['API Status', 'Live', Phone, 'green'], ['Templates', '—', MessageSquareMore, 'blue'], ['Channel', 'WhatsApp', CheckCircle2, 'purple'], ['Webhook', 'Ready', Database, 'amber']]}
+      sideTitle="WhatsApp Health"
+      sideRows={[['Provider', 'Configured'], ['Token', 'Set'], ['Delivery', 'Ready'], ['Media', 'Enabled']]}
+      addLabel="Add WA Template"
       onOpenSection={onOpenSection}
       onNotify={onNotify}
-      stats={[['API Status', 'Active', Phone, 'green'], ['Templates', '15', MessageSquareMore, 'blue'], ['Sent Today', '286', CheckCircle2, 'purple'], ['Pending Approval', '01', Hourglass, 'amber']]}
-      configTitle="WhatsApp Business API"
-      configFields={<><SettingsInputField label="Business Phone Number" value="+91 98765 43210" onChange={() => {}} /><SettingsInputField label="Phone Number ID" value="103948576201" onChange={() => {}} /><SettingsInputField label="Business Account ID" value="987654321001234" onChange={() => {}} /><SettingsInputField label="Access Token" value="wa_live_xxxxxxxxx123" onChange={() => {}} /><SettingsInputField label="Webhook URL" value="https://malwasolarcrm.com/webhooks/whatsapp" onChange={() => {}} /><SettingsSelectField label="Default Language" value="English" onChange={() => {}} options={['English', 'Hindi', 'Punjabi']} /><SettingsToggleRow label="Auto Reply" note="Send configured reply outside business hours." enabled onToggle={() => onNotify('WhatsApp auto reply toggled')} /><SettingsToggleRow label="Media Attachments" note="Allow PDF quotation and project images." enabled onToggle={() => onNotify('WhatsApp media toggled')} /></>}
-      rows={[['Lead Welcome', 'Lead created', 'WhatsApp', 'Active'], ['Quotation Link', 'Quotation approved', 'WhatsApp', 'Active'], ['Payment Reminder', 'Payment due', 'WhatsApp', 'Active'], ['Project Photos', 'Installation update', 'WhatsApp', 'Active'], ['AMC Renewal', 'AMC renewal due', 'WhatsApp', 'Pending']]}
-      sideTitle="WhatsApp Health"
-      sideRows={[['Webhook', 'Verified'], ['Quality Rating', 'High'], ['Daily Limit', '1,000'], ['Last Message', '2 min ago']]}
-      addLabel="Add WA Template"
     />
   );
 }
 
 function SettingsNotificationSettingsContent({ onOpenSection, onNotify }) {
   return (
-    <SettingsCommunicationPage
+    <SettingsCategoryIntegrationPage
+      category="notification"
       title="Notification Settings"
       note="Manage notification events, delivery channels, digest rules and escalation behavior."
+      configTitle="Notification Rules"
+      renderConfigFields={(form, updateField) => (
+        <>
+          <SettingsToggleRow label="Email Alerts" note="Send email notifications for key events." enabled={Boolean(form.emailAlerts)} onToggle={() => updateField('emailAlerts', !form.emailAlerts)} />
+          <SettingsToggleRow label="SMS Alerts" note="Send SMS notifications for urgent events." enabled={Boolean(form.smsAlerts)} onToggle={() => updateField('smsAlerts', !form.smsAlerts)} />
+          <SettingsToggleRow label="Push Alerts" note="Show in-app/browser notifications." enabled={Boolean(form.pushAlerts)} onToggle={() => updateField('pushAlerts', !form.pushAlerts)} />
+          <SettingsToggleRow label="Lead Assignment" note="Notify when a lead is assigned." enabled={Boolean(form.leadAssignment)} onToggle={() => updateField('leadAssignment', !form.leadAssignment)} />
+          <SettingsToggleRow label="Payment Received" note="Notify when payment is recorded." enabled={Boolean(form.paymentReceived)} onToggle={() => updateField('paymentReceived', !form.paymentReceived)} />
+          <SettingsToggleRow label="Project Updates" note="Notify on project status changes." enabled={Boolean(form.projectUpdates)} onToggle={() => updateField('projectUpdates', !form.projectUpdates)} />
+          <SettingsToggleRow label="AMC Reminders" note="Notify before AMC expiry." enabled={Boolean(form.amcReminders)} onToggle={() => updateField('amcReminders', !form.amcReminders)} />
+        </>
+      )}
+      masterType="approval_workflow"
+      templateColumns={['Rule Name', 'Code', 'Detail', 'Status', 'Action']}
+      mapTemplateRow={(row) => [row.name, row.code || '—', row.metadata?.approver || '—', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      stats={[['Events', 'Live', Bell, 'green'], ['Channels', '4', MessageSquareMore, 'blue'], ['Rules', '—', CheckCircle2, 'purple'], ['Escalations', 'On', AlertTriangle, 'amber']]}
+      sideTitle="Channel Status"
+      sideRows={[['In-app', 'Active'], ['Email', 'Active'], ['SMS', 'Optional'], ['WhatsApp', 'Optional']]}
+      addLabel="Add Rule"
       onOpenSection={onOpenSection}
       onNotify={onNotify}
-      stats={[['Events', '22', Bell, 'green'], ['Active Rules', '19', CheckCircle2, 'blue'], ['Channels', '04', MessageSquareMore, 'purple'], ['Escalations', '06', AlertTriangle, 'amber']]}
-      configTitle="Notification Rules"
-      configFields={<><SettingsSelectField label="Default Delivery" value="In-app + Email" onChange={() => {}} options={['In-app', 'In-app + Email', 'Email + SMS', 'All Channels']} /><SettingsSelectField label="Digest Frequency" value="Daily Summary" onChange={() => {}} options={['Instant', 'Hourly Summary', 'Daily Summary']} /><SettingsInputField label="Quiet Hours Start" value="09:00 PM" onChange={() => {}} /><SettingsInputField label="Quiet Hours End" value="08:00 AM" onChange={() => {}} /><SettingsToggleRow label="Browser Notifications" note="Show alerts inside browser workspace." enabled onToggle={() => onNotify('Browser notifications toggled')} /><SettingsToggleRow label="Mobile Push" note="Send push notifications to mobile users." enabled onToggle={() => onNotify('Mobile push toggled')} /><SettingsToggleRow label="Escalation Alerts" note="Notify managers for overdue critical actions." enabled onToggle={() => onNotify('Escalation alerts toggled')} /><SettingsToggleRow label="Daily Digest" note="Send daily summary to selected users." enabled onToggle={() => onNotify('Daily digest toggled')} /></>}
-      rows={[['New Lead Assigned', 'Lead assignment', 'In-app + Email', 'Active'], ['Follow-up Due', 'Due today', 'In-app + SMS', 'Active'], ['Project Delayed', 'Target date crossed', 'In-app + Email', 'Active'], ['Low Stock Alert', 'Below reorder level', 'In-app', 'Active'], ['Payment Overdue', 'Invoice overdue', 'Email + WhatsApp', 'Active']]}
-      sideTitle="Channel Status"
-      sideRows={[['In-app', 'Active'], ['Email', 'Active'], ['SMS', 'Active'], ['WhatsApp', 'Active']]}
-      addLabel="Add Rule"
     />
   );
 }
@@ -5861,6 +6501,29 @@ function SettingsStatusBadge({ label, tone = 'green' }) {
   return <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[11px] font-extrabold', toneClass)}>{label}</span>;
 }
 
+function AccountStatusBadge({ status }) {
+  const cls = {
+    Active: 'bg-[#dff7e8] text-[#0d9f4a]',
+    Inactive: 'bg-[#eef2f7] text-[#64748b]',
+    Pending: 'bg-[#fff4df] text-[#d98200]',
+    Suspended: 'bg-[#ffecef] text-[#ef4444]',
+  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
+  return <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[11px] font-extrabold', cls)}>{status || 'Unknown'}</span>;
+}
+
+function InventoryPagination({ text, onNotify, prefix = '' }) {
+  return (
+    <div className="mt-4 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-[13px] font-bold text-[#53647f]">{text}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <PaginationButton onClick={() => onNotify?.(`${prefix} previous page`)}><ChevronLeft className="size-4" /></PaginationButton>
+        <PaginationButton active onClick={() => {}}> 1 </PaginationButton>
+        <PaginationButton onClick={() => onNotify?.(`${prefix} next page`)}><ChevronRight className="size-4" /></PaginationButton>
+      </div>
+    </div>
+  );
+}
+
 function SettingsPreviewRow({ label, value, valueClass = 'text-[#1e3261]' }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-[#edf2f8] py-3 last:border-b-0 last:pb-0">
@@ -5969,14 +6632,39 @@ function getLanguagePreviewRows(defaultLanguage) {
 
 function SystemSettingsPage({ onOpenSection, onNotify }) {
   const [activeTab, setActiveTab] = useState('General');
-  const [form, setForm] = useState({
+  const defaultSystemForm = {
     systemName: 'Malwa Solar Energy CRM',
     companyEmail: 'info@malwasolar.com',
     companyPhone: '+91 98765 43210',
     defaultTimeZone: '(GMT +05:30) Asia/Kolkata',
     itemsPerPage: '25',
     defaultLanguage: 'English',
-  });
+  };
+
+  const [form, setForm] = useState(defaultSystemForm);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    settingsApi.system.get()
+      .then((res) => {
+        if (res && typeof res === 'object') {
+          setForm((current) => ({ ...current, ...res }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveSystemSettings = async () => {
+    setSaving(true);
+    try {
+      await settingsApi.system.update(form);
+      onNotify('System settings saved');
+    } catch {
+      onNotify('Could not save system settings.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const tabs = ['General', 'Security', 'Email', 'Notifications', 'Backup', 'API Settings', 'Other'];
@@ -6303,6 +6991,38 @@ function DateTimeFormatSettingsPage({ onOpenSection, onNotify }) {
     timeSeparator: ': (Colon)',
     firstDay: 'Monday',
   });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    settingsApi.category('datetime').get()
+      .then((res) => {
+        if (res && typeof res === 'object') {
+          setForm((current) => ({
+            ...current,
+            dateFormat: res.dateFormat || current.dateFormat,
+            timeFormat: res.timeFormat || current.timeFormat,
+            firstDay: res.weekStart || current.firstDay,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveDateTimeSettings = async () => {
+    setSaving(true);
+    try {
+      await settingsApi.category('datetime').update({
+        dateFormat: form.dateFormat,
+        timeFormat: form.timeFormat,
+        weekStart: form.firstDay,
+      });
+      onNotify('Date & time settings saved');
+    } catch {
+      onNotify('Could not save date & time settings.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const dateSeparator = getSettingsDateSeparator(form.dateSeparator);
@@ -6312,7 +7032,7 @@ function DateTimeFormatSettingsPage({ onOpenSection, onNotify }) {
   const longTimePreview = buildSettingsTimePreview(form.timeFormat, timeSeparator, true);
 
   return (
-    <GeneralSettingsDetailShell title="Date & Time Format" onOpenSection={onOpenSection} onNotify={onNotify}>
+    <GeneralSettingsDetailShell title="Date & Time Format" onOpenSection={onOpenSection} onNotify={onNotify} actions={<button type="button" disabled={saving} onClick={saveDateTimeSettings} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] disabled:opacity-60"><Save className="size-4" />{saving ? 'Saving...' : 'Save Changes'}</button>}>
       <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.3fr)_360px]">
         <SettingsSectionCard title="Date Format Settings">
           <div className="space-y-4">
@@ -6364,6 +7084,38 @@ function CurrencySettingsPage({ onOpenSection, onNotify }) {
     thousandSeparator: ', (Comma)',
     decimalSeparator: '. (Dot)',
   });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    settingsApi.category('currency').get()
+      .then((res) => {
+        if (res && typeof res === 'object') {
+          setForm((current) => ({
+            ...current,
+            defaultCurrency: res.baseCurrency || current.defaultCurrency,
+            currencySymbol: res.symbol || current.currencySymbol,
+            decimalPlaces: res.decimalPlaces || current.decimalPlaces,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveCurrencySettings = async () => {
+    setSaving(true);
+    try {
+      await settingsApi.category('currency').update({
+        baseCurrency: form.defaultCurrency,
+        symbol: form.currencySymbol,
+        decimalPlaces: form.decimalPlaces,
+      });
+      onNotify('Currency settings saved');
+    } catch {
+      onNotify('Could not save currency settings.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const previewRows = [
@@ -6374,7 +7126,7 @@ function CurrencySettingsPage({ onOpenSection, onNotify }) {
   ];
 
   return (
-    <GeneralSettingsDetailShell title="Currency Settings" onOpenSection={onOpenSection} onNotify={onNotify}>
+    <GeneralSettingsDetailShell title="Currency Settings" onOpenSection={onOpenSection} onNotify={onNotify} actions={<button type="button" disabled={saving} onClick={saveCurrencySettings} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] disabled:opacity-60"><Save className="size-4" />{saving ? 'Saving...' : 'Save Changes'}</button>}>
       <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.3fr)_330px]">
         <SettingsSectionCard title="Currency Configuration">
           <div className="space-y-4">
@@ -6425,6 +7177,7 @@ function CurrencySettingsPage({ onOpenSection, onNotify }) {
 
 function LanguageSettingsPage({ onOpenSection, onNotify }) {
   const [defaultLanguage, setDefaultLanguage] = useState('English');
+  const [saving, setSaving] = useState(false);
   const languages = [
     { name: 'English', code: 'en', status: 'Default', tone: 'blue' },
     { name: 'Hindi (हिंदी)', code: 'hi', status: 'Active', tone: 'green' },
@@ -6433,8 +7186,28 @@ function LanguageSettingsPage({ onOpenSection, onNotify }) {
   ];
   const previewRows = getLanguagePreviewRows(defaultLanguage);
 
+  useEffect(() => {
+    settingsApi.category('language').get()
+      .then((res) => {
+        if (res?.defaultLanguage) setDefaultLanguage(res.defaultLanguage);
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveLanguageSettings = async () => {
+    setSaving(true);
+    try {
+      await settingsApi.category('language').update({ defaultLanguage });
+      onNotify('Language settings saved');
+    } catch {
+      onNotify('Could not save language settings.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <GeneralSettingsDetailShell title="Language Settings" onOpenSection={onOpenSection} onNotify={onNotify}>
+    <GeneralSettingsDetailShell title="Language Settings" onOpenSection={onOpenSection} onNotify={onNotify} actions={<button type="button" disabled={saving} onClick={saveLanguageSettings} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] disabled:opacity-60"><Save className="size-4" />{saving ? 'Saving...' : 'Save Changes'}</button>}>
       <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.35fr)_330px]">
         <SettingsSectionCard title="Default Language">
           <div className="space-y-5">
@@ -6535,7 +7308,7 @@ function OrganizationSettingsPlaceholderPage({ activeSection, onOpenSection, onN
 }
 
 function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
-  const [form, setForm] = useState({
+  const defaultBusinessForm = {
     businessName: 'Malwa Solar Energy Pvt. Ltd.',
     phone: '+91 98765 43210',
     tagline: 'Powering a Sustainable Future',
@@ -6563,7 +7336,27 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
     workingDays: 'Monday - Saturday',
     currency: 'INR (Rs)',
     timezone: '(GMT +05:30) Asia/Kolkata',
-  });
+  };
+  const [form, setForm] = useState(defaultBusinessForm);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    settingsApi.category('business').get()
+      .then((data) => { if (data) setForm((c) => ({ ...c, ...data })); })
+      .catch(() => onNotify('Could not load business information.', 'error'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveBusiness = async () => {
+    setSaving(true);
+    try {
+      await settingsApi.category('business').update(form);
+      onNotify('Business information saved');
+    } catch {
+      onNotify('Could not save business information.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
@@ -6580,7 +7373,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
         actions={
           <>
             <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />Back to Settings</button>
-            <button type="button" onClick={() => onNotify('Business information saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>
+            <button type="button" onClick={saveBusiness} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] disabled:opacity-60"><Save className="size-4" />Save Changes</button>
           </>
         }
       />
@@ -6689,7 +7482,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
 }
 
 function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
-  const [form, setForm] = useState({
+  const defaultCompanyForm = {
     companyName: 'Malwa Solar Energy Pvt. Ltd.',
     companyType: 'Private Limited',
     gstNumber: '03AAGCM1234A1Z5',
@@ -6720,7 +7513,32 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
     contactPhone: '+91 98765 43210',
     contactEmail: 'amanpreet@malwasolar.com',
     notes: 'Company notes...',
-  });
+  };
+
+  const [form, setForm] = useState(defaultCompanyForm);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    settingsApi.company.get()
+      .then((res) => {
+        if (res?.data && Object.keys(res.data).length) {
+          setForm((current) => ({ ...current, ...res.data }));
+        }
+      })
+      .catch(() => onNotify('Could not load company profile.', 'error'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveProfile = async () => {
+    setSaving(true);
+    try {
+      await settingsApi.company.update({ data: form });
+      onNotify('Company profile saved');
+    } catch {
+      onNotify('Could not save company profile.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const summaryItems = [
@@ -6743,7 +7561,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
         actions={
           <>
             <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff] min-[460px]:w-auto"><X className="size-4" />Cancel</button>
-            <button type="button" onClick={() => onNotify('Company profile saved')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
+            <button type="button" onClick={saveProfile} disabled={saving} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] disabled:opacity-60 min-[460px]:w-auto"><Save className="size-4" />{saving ? 'Saving...' : 'Save Changes'}</button>
           </>
         }
       />
@@ -6758,7 +7576,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
           </div>
           <div className="grid w-full grid-cols-1 gap-3 min-[460px]:w-auto min-[460px]:grid-cols-2 lg:flex lg:flex-wrap">
             <button type="button" onClick={() => onOpenSection('Settings')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff] min-[460px]:w-auto"><X className="size-4" />Cancel</button>
-            <button type="button" onClick={() => onNotify('Company profile saved')} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto"><Save className="size-4" />Save Changes</button>
+            <button type="button" onClick={saveProfile} disabled={saving} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] disabled:opacity-60 min-[460px]:w-auto"><Save className="size-4" />{saving ? 'Saving...' : 'Save Changes'}</button>
           </div>
         </div>
 
@@ -6889,20 +7707,29 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
 
 function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
   const [query, setQuery] = useState('');
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const rows = [
-    { id: 1, year: '2024-25', startDate: '01 Apr 2024', endDate: '31 Mar 2025', period: 'FY 2024-25', status: 'Active', current: true },
-    { id: 2, year: '2023-24', startDate: '01 Apr 2023', endDate: '31 Mar 2024', period: 'FY 2023-24', status: 'Active', current: false },
-    { id: 3, year: '2022-23', startDate: '01 Apr 2022', endDate: '31 Mar 2023', period: 'FY 2022-23', status: 'Active', current: false },
-    { id: 4, year: '2021-22', startDate: '01 Apr 2021', endDate: '31 Mar 2022', period: 'FY 2021-22', status: 'Active', current: false },
-    { id: 5, year: '2020-21', startDate: '01 Apr 2020', endDate: '31 Mar 2021', period: 'FY 2020-21', status: 'Active', current: false },
-    { id: 6, year: '2019-20', startDate: '01 Apr 2019', endDate: '31 Mar 2020', period: 'FY 2019-20', status: 'Active', current: false },
-    { id: 7, year: '2018-19', startDate: '01 Apr 2018', endDate: '31 Mar 2019', period: 'FY 2018-19', status: 'Closed', current: false },
-    { id: 8, year: '2017-18', startDate: '01 Apr 2017', endDate: '31 Mar 2018', period: 'FY 2017-18', status: 'Closed', current: false },
-  ];
+  useEffect(() => {
+    settingsApi.financialYears.list()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setRows(list.map((fy) => ({
+          id: fy.id,
+          year: fy.label,
+          startDate: fy.start_date,
+          endDate: fy.end_date,
+          period: `FY ${fy.label}`,
+          status: fy.status,
+          current: fy.is_current,
+        })));
+      })
+      .catch(() => onNotify('Could not load financial years.', 'error'))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filteredRows = rows.filter((row) => [row.year, row.period, row.startDate, row.endDate].some((value) => value.toLowerCase().includes(query.toLowerCase())));
-  const currentYear = rows[0];
+  const filteredRows = rows.filter((row) => [row.year, row.period, row.startDate, row.endDate].some((value) => String(value).toLowerCase().includes(query.toLowerCase())));
+  const currentYear = rows.find((row) => row.current) || rows[0] || { year: '—', startDate: '—', endDate: '—', status: '—' };
 
   return (
     <div className="space-y-4">
@@ -7019,20 +7846,29 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
 function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('All Status');
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const rows = [
-    { id: 1, name: 'Head Office', code: 'HO-001', location: 'Ludhiana, Punjab', contact: '+91 98765 43210', email: 'info@malwasolar.com', status: 'Active' },
-    { id: 2, name: 'Delhi Branch', code: 'DL-002', location: 'New Delhi, Delhi', contact: '+91 98765 43211', email: 'delhi@malwasolar.com', status: 'Active' },
-    { id: 3, name: 'Chandigarh Branch', code: 'CH-003', location: 'Chandigarh, Punjab', contact: '+91 98765 43212', email: 'chandigarh@malwasolar.com', status: 'Active' },
-    { id: 4, name: 'Jaipur Branch', code: 'RJ-004', location: 'Jaipur, Rajasthan', contact: '+91 98765 43213', email: 'jaipur@malwasolar.com', status: 'Active' },
-    { id: 5, name: 'Indore Branch', code: 'MP-005', location: 'Indore, Madhya Pradesh', contact: '+91 98765 43214', email: 'indore@malwasolar.com', status: 'Active' },
-    { id: 6, name: 'Bangalore Branch', code: 'KA-006', location: 'Bangalore, Karnataka', contact: '+91 98765 43215', email: 'bangalore@malwasolar.com', status: 'Active' },
-    { id: 7, name: 'Ahmedabad Branch', code: 'GJ-007', location: 'Ahmedabad, Gujarat', contact: '+91 98765 43216', email: 'ahmedabad@malwasolar.com', status: 'Inactive' },
-    { id: 8, name: 'Lucknow Branch', code: 'UP-008', location: 'Lucknow, Uttar Pradesh', contact: '+91 98765 43217', email: 'lucknow@malwasolar.com', status: 'Active' },
-  ];
+  useEffect(() => {
+    branchApi.list()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setRows(list.map((row) => ({
+          id: row.id,
+          name: row.name,
+          code: `BR-${String(row.id).padStart(3, '0')}`,
+          location: [row.city, row.address].filter(Boolean).join(', ') || row.city || '—',
+          contact: '—',
+          email: '—',
+          status: row.is_active ? 'Active' : 'Inactive',
+        })));
+      })
+      .catch(() => onNotify('Could not load branches.', 'error'))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRows = rows.filter((row) => {
-    const queryMatch = [row.name, row.code, row.location, row.email].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const queryMatch = [row.name, row.code, row.location, row.email].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
     const statusMatch = status === 'All Status' || row.status === status;
     return queryMatch && statusMatch;
   });
@@ -7150,11 +7986,15 @@ function ModuleSubnavCard({ title, items, activeSection, onOpenSection, icon: Ic
 }
 
 function getModuleSubnavLabel(item) {
+  if (item === 'Executive Summary') {
+    return 'Overview';
+  }
+
   if (item === 'O&M Overview') {
     return 'Overview';
   }
 
-  if (item === 'Project Overview') {
+  if (item === 'Project Overview' || item === 'Inventory Overview' || item === 'Accounts Overview' || item === 'AMC Overview') {
     return 'Overview';
   }
 
@@ -9341,9 +10181,35 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
 const ACC_PAYMENT_MODES = ['Cash', 'Cheque', 'NEFT', 'RTGS', 'UPI', 'IMPS', 'Transfer', 'Other'];
 const fmtAccRs = (v) => (v != null && v !== '' ? `Rs ${Number(v).toLocaleString('en-IN')}` : '—');
 
+function OpsStatCard({ label, value, caption, tone, icon: Icon, onClick }) {
+  const toneMap = {
+    green: { bg: 'bg-[#effbf3]', text: 'text-[#0d9f4a]', border: 'border-[#c8f0d6]' },
+    red: { bg: 'bg-[#fff0f0]', text: 'text-[#ef4444]', border: 'border-[#ffd9d9]' },
+    blue: { bg: 'bg-[#eef5ff]', text: 'text-[#0b65e5]', border: 'border-[#d0e4ff]' },
+    purple: { bg: 'bg-[#f5f0ff]', text: 'text-[#8b35f6]', border: 'border-[#e0d0ff]' },
+    amber: { bg: 'bg-[#fff8ec]', text: 'text-[#d98200]', border: 'border-[#ffe5b0]' },
+    cyan: { bg: 'bg-[#eefafb]', text: 'text-[#0891b2]', border: 'border-[#bbeef5]' },
+  }[tone] ?? { bg: 'bg-[#eef5ff]', text: 'text-[#0b65e5]', border: 'border-[#d0e4ff]' };
+
+  return (
+    <button type="button" onClick={onClick} className={cx(`${panelClass} flex min-h-[110px] flex-col items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]`, toneMap.border)}>
+      {Icon && (
+        <span className={cx('grid size-10 place-items-center rounded-[10px]', toneMap.bg, toneMap.text)}>
+          <Icon className="size-5" />
+        </span>
+      )}
+      <div className="min-w-0">
+        <p className="text-[12px] font-extrabold text-[#30466d]">{label}</p>
+        <p className="mt-1 font-display text-[22px] font-extrabold text-[#111827]">{value}</p>
+        {caption ? <p className="mt-1 text-[11px] font-bold text-[#7b8ca8]">{caption}</p> : null}
+      </div>
+    </button>
+  );
+}
+
 function AccountsPage({ activeSection, onOpenSection, onNotify }) {
-  if (activeSection === 'Overview' || activeSection === 'Accounts Overview') {
-    return <AccountsOverviewPage activeSection="Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (activeSection === 'Accounts Overview' || activeSection === 'Overview') {
+    return <AccountsOverviewPage activeSection="Accounts Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
   if (activeSection === 'Accounts List') {
     return <AccountsPartiesPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
@@ -9363,7 +10229,7 @@ function AccountsPage({ activeSection, onOpenSection, onNotify }) {
   if (activeSection === 'Cheques List') {
     return <AccountsChequesPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
-  return <AccountsOverviewPage activeSection="Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
+  return <AccountsOverviewPage activeSection="Accounts Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
 function AccountsOverviewPage({ activeSection, onOpenSection, onNotify }) {
@@ -9804,8 +10670,8 @@ const fmtAmcRs = (v) => (v != null && v !== '' ? `Rs ${Number(v).toLocaleString(
 const fmtInvRs = fmtAmcRs;
 
 function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
-  if (activeSection === 'Overview' || activeSection === 'AMC Overview') {
-    return <AmcOverviewPage activeSection="Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (activeSection === 'AMC Overview' || activeSection === 'Overview') {
+    return <AmcOverviewPage activeSection="AMC Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
   if (activeSection === 'AMC Contracts') {
     return <AmcContractsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
@@ -9828,7 +10694,7 @@ function AmcWarrantyPage({ activeSection, onOpenSection, onNotify }) {
   if (activeSection === 'AMC Documents') {
     return <AmcDocumentsCrudPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
-  return <AmcOverviewPage activeSection="Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
+  return <AmcOverviewPage activeSection="AMC Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
 function AmcOverviewPage({ activeSection, onOpenSection, onNotify }) {
@@ -10139,7 +11005,7 @@ const INV_CATEGORIES = ['Solar Panel', 'Inverter', 'Battery', 'Structure', 'Cabl
 const INV_UNITS = ['Nos', 'Meter', 'Kg', 'Roll', 'Set'];
 
 function InventoryManagementPage({ activeSection, onOpenSection, onNotify }) {
-  if (activeSection === 'Overview') {
+  if (activeSection === 'Inventory Overview' || activeSection === 'Inventory' || activeSection === 'Overview') {
     return <InventoryOverviewPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
   if (activeSection === 'Products') {
@@ -10332,6 +11198,260 @@ function InventoryWarehousesCrudPage({ activeSection, onOpenSection, onNotify })
   return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
+// ── Executive Summary (cross-module dashboard) ────────────────────────────────
+
+function SummaryPage({ activeSection, onOpenSection, onNotify }) {
+  if (activeSection === 'Sales Pipeline') {
+    return <SummarySalesPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  if (activeSection === 'Projects & Delivery') {
+    return <SummaryProjectsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  if (activeSection === 'Finance & Operations') {
+    return <SummaryFinancePage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  return <SummaryExecutivePage activeSection={activeSection || 'Executive Summary'} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function useSummaryData(onNotify) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      reportsApi.dashboard(),
+      projectApi.summary(),
+      accountsModuleApi.summary(),
+      inventoryApi.summary(),
+      amcModuleApi.summary(),
+    ])
+      .then(([dashboard, projects, accounts, inventory, amc]) => {
+        setData({ dashboard, projects, accounts, inventory, amc });
+      })
+      .catch(() => onNotify('Could not load summary data.', 'error'))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { data, loading };
+}
+
+function SummaryMetricCard({ label, value, caption, tone = 'blue', icon: Icon, onClick }) {
+  return (
+    <button type="button" onClick={onClick} className={cx(panelClass, 'p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg')}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-bold text-[#7a8fa6]">{label}</p>
+          <p className="mt-2 text-[22px] font-extrabold text-[#1e3261]">{value}</p>
+          {caption ? <p className="mt-1 text-[11px] font-bold text-[#53647f]">{caption}</p> : null}
+        </div>
+        {Icon ? (
+          <span className={cx('grid size-10 place-items-center rounded-[10px]', reportKpiToneClasses[tone] || reportKpiToneClasses.blue)}>
+            <Icon className="size-5" />
+          </span>
+        ) : null}
+      </div>
+    </button>
+  );
+}
+
+function SummaryExecutivePage({ activeSection, onOpenSection, onNotify }) {
+  const { data, loading } = useSummaryData(onNotify);
+  const dash = data?.dashboard;
+  const accounts = data?.accounts;
+  const projects = data?.projects;
+  const inventory = data?.inventory;
+  const amc = data?.amc;
+
+  const heroCards = [
+    { label: 'Total Leads', value: dash?.kpis?.[0]?.value ?? '—', caption: 'All time pipeline', tone: 'blue', icon: Users, onClick: () => onOpenSection('Lead List') },
+    { label: 'Active Projects', value: projects?.active ?? '—', caption: `${projects?.total ?? 0} total projects`, tone: 'green', icon: FolderKanban, onClick: () => onOpenSection('Project List') },
+    { label: 'Cash Received', value: accounts ? fmtAccRs(accounts.total_received) : '—', caption: 'Completed receipts', tone: 'cyan', icon: IndianRupee, onClick: () => onOpenSection('Payment Received') },
+    { label: 'Bank Balance', value: accounts ? fmtAccRs(accounts.bank_balance) : '—', caption: `${accounts?.bank_count ?? 0} bank accounts`, tone: 'purple', icon: CreditCard, onClick: () => onOpenSection('Bank Accounts') },
+    { label: 'Stock Value', value: inventory ? fmtAccRs(inventory.total_value) : '—', caption: `${inventory?.total_items ?? 0} products`, tone: 'amber', icon: Boxes, onClick: () => onOpenSection('Products') },
+    { label: 'Active AMC', value: amc?.active_contracts ?? '—', caption: `${amc?.open_service_requests ?? 0} open requests`, tone: 'sky', icon: ShieldCheck, onClick: () => onOpenSection('AMC Contracts') },
+  ];
+
+  const ops = dash?.operations ?? {};
+  const quickLinks = [
+    { label: 'New Lead', section: 'Create Lead', icon: UserPlus, tone: 'green' },
+    { label: 'Record Payment', section: 'Payment Received', icon: ReceiptText, tone: 'blue' },
+    { label: 'Stock Inward', section: 'Stock Inward', icon: Download, tone: 'amber' },
+    { label: 'O&M Tickets', section: 'Breakdown Tickets', icon: Wrench, tone: 'red' },
+    { label: 'Full Reports', section: 'Reports', icon: BarChart3, tone: 'purple' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="Executive Summary"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Summary' },
+          { label: 'Executive Summary' },
+        ]}
+      />
+      <SummarySubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      {loading ? (
+        <div className={cx(panelClass, 'flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]')}>Loading executive summary...</div>
+      ) : (
+        <>
+          <p className="text-[14px] font-bold text-[#324871]">
+            Malwa Solar CRM ka live business snapshot — sales, projects, finance, inventory aur AMC ek jagah.
+          </p>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            {heroCards.map((card) => <SummaryMetricCard key={card.label} {...card} />)}
+          </section>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Open O&M Tickets', value: ops.open_tickets ?? 0 },
+              { label: 'Pending Tasks', value: ops.pending_tasks ?? 0 },
+              { label: 'Low Stock Items', value: inventory?.low_stock ?? 0 },
+              { label: 'Expiring AMC', value: amc?.expiring_contracts ?? 0 },
+            ].map((item) => (
+              <article key={item.label} className={`${panelClass} p-4`}>
+                <p className="text-[12px] font-bold text-[#7a8fa6]">{item.label}</p>
+                <p className="mt-2 text-[22px] font-extrabold text-[#1e3261]">{item.value}</p>
+              </article>
+            ))}
+          </section>
+
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {quickLinks.map((link) => (
+              <button key={link.label} type="button" onClick={() => onOpenSection(link.section)} className={cx(panelClass, 'flex items-center gap-3 p-4 text-left transition hover:bg-[#f8fbff]')}>
+                <span className={cx('grid size-10 place-items-center rounded-[10px]', reportKpiToneClasses[link.tone])}><link.icon className="size-5" /></span>
+                <span className="text-[14px] font-extrabold text-[#1e3261]">{link.label}</span>
+              </button>
+            ))}
+          </section>
+        </>
+      )}
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function SummarySalesPage({ activeSection, onOpenSection, onNotify }) {
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    analyticsApi.leads()
+      .then((data) => { if (data) setAnalytics(data); })
+      .catch(() => onNotify('Could not load lead analytics.', 'error'))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const cards = analytics ? [
+    { label: 'Total Leads', value: String(analytics.total ?? 0), tone: 'blue', icon: Users },
+    { label: 'Won', value: String(analytics.won ?? 0), tone: 'green', icon: Trophy },
+    { label: 'Lost', value: String(analytics.lost ?? 0), tone: 'red', icon: XCircle },
+    { label: 'Conversion', value: `${analytics.conversion_rate ?? 0}%`, tone: 'purple', icon: TrendingUp },
+    { label: 'Overdue Follow-ups', value: String(analytics.overdue ?? 0), tone: 'amber', icon: Hourglass },
+  ] : [];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading title="Sales Pipeline" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Summary' }, { label: 'Sales Pipeline' }]} />
+      <SummarySubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      {loading ? (
+        <div className={cx(panelClass, 'py-16 text-center text-[14px] text-[#7a8fa6]')}>Loading...</div>
+      ) : (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {cards.map((c) => <SummaryMetricCard key={c.label} {...c} onClick={() => onOpenSection('Lead List')} />)}
+          </section>
+          <section className="grid gap-4 xl:grid-cols-2">
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Leads Trend</h2>
+              <ReportLineChart data={analytics?.monthly_trend ?? []} loading={false} />
+            </article>
+            <article className={`${panelClass} p-4 sm:p-5`}>
+              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Leads by Status</h2>
+              <ReportDonut data={analytics?.status_distribution ?? []} loading={false} />
+            </article>
+          </section>
+        </>
+      )}
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function SummaryProjectsPage({ activeSection, onOpenSection, onNotify }) {
+  const [projects, setProjects] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    projectApi.summary()
+      .then((data) => { if (data) setProjects(data); })
+      .catch(() => onNotify('Could not load project summary.', 'error'))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const cards = projects ? [
+    { label: 'Total Projects', value: String(projects.total ?? 0), tone: 'blue', icon: FolderKanban },
+    { label: 'Active', value: String(projects.active ?? 0), tone: 'green', icon: Zap },
+    { label: 'Planning', value: String(projects.planning ?? 0), tone: 'amber', icon: ClipboardPlus },
+    { label: 'On Hold', value: String(projects.on_hold ?? 0), tone: 'red', icon: PauseCircle },
+    { label: 'Completed', value: String(projects.completed ?? 0), tone: 'purple', icon: CheckCircle2 },
+  ] : [];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading title="Projects & Delivery" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Summary' }, { label: 'Projects & Delivery' }]} />
+      <SummarySubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      {loading ? (
+        <div className={cx(panelClass, 'py-16 text-center text-[14px] text-[#7a8fa6]')}>Loading...</div>
+      ) : (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {cards.map((c) => <SummaryMetricCard key={c.label} {...c} onClick={() => onOpenSection('Project List')} />)}
+          </section>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => onOpenSection('Project List')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><FolderKanban className="size-4" />View All Projects</button>
+            <button type="button" onClick={() => onOpenSection('Project KPI Analytics')} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><BarChart3 className="size-4" />KPI Analytics</button>
+          </div>
+        </>
+      )}
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function SummaryFinancePage({ activeSection, onOpenSection, onNotify }) {
+  const { data, loading } = useSummaryData(onNotify);
+  const accounts = data?.accounts;
+  const inventory = data?.inventory;
+  const amc = data?.amc;
+
+  const cards = [
+    { label: 'Total Received', value: accounts ? fmtAccRs(accounts.total_received) : '—', tone: 'green', icon: TrendingUp, onClick: () => onOpenSection('Payment Received') },
+    { label: 'Total Paid Out', value: accounts ? fmtAccRs(accounts.total_made) : '—', tone: 'red', icon: ReceiptText, onClick: () => onOpenSection('Payment Made') },
+    { label: 'Net Cash Flow', value: accounts ? fmtAccRs(accounts.net_balance) : '—', tone: 'blue', icon: IndianRupee, onClick: () => onOpenSection('Accounts Overview') },
+    { label: 'Inventory Value', value: inventory ? fmtAccRs(inventory.total_value) : '—', tone: 'amber', icon: Boxes, onClick: () => onOpenSection('Products') },
+    { label: 'AMC Contract Value', value: amc ? fmtAccRs(amc.contract_value) : '—', tone: 'purple', icon: ShieldCheck, onClick: () => onOpenSection('AMC Contracts') },
+    { label: 'Pending Cheques', value: accounts ? String(accounts.pending_cheques ?? 0) : '—', tone: 'cyan', icon: FileText, onClick: () => onOpenSection('Cheques List') },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeading title="Finance & Operations" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Summary' }, { label: 'Finance & Operations' }]} />
+      <SummarySubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      {loading ? (
+        <div className={cx(panelClass, 'py-16 text-center text-[14px] text-[#7a8fa6]')}>Loading...</div>
+      ) : (
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map((c) => <SummaryMetricCard key={c.label} {...c} />)}
+        </section>
+      )}
+      <DashboardFooter />
+    </div>
+  );
+}
+
 function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSection, selectedProject, onSelectProject, onNotify }) {
   if (activeSection === 'Project Document Upload') {
     if (selectedProject?.id) {
@@ -10361,8 +11481,8 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     return <ProjectActionPage type={actionType} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
-  if (activeSection === 'Project Overview') {
-    return <ProjectOverviewPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (activeSection === 'Project Management' || activeSection === 'Project Overview') {
+    return <ProjectListPage activeSection="Project List" onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project KPI Analytics') {
@@ -10402,7 +11522,7 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project Work Orders') {
-    return <ProjectWorkOrdersPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return <ProjectWorkOrdersPage activeSection={activeSection} onOpenSection={onOpenSection} selectedProject={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Expenses') {
@@ -12174,6 +13294,25 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       <DashboardFooter />
     </div>
   );
+}
+
+function formatProjectDisplayDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatProjectDateRange(dateFrom, dateTo) {
+  const fmt = (s) => {
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return s;
+    return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+  };
+  if (!dateFrom && !dateTo) return 'All Time';
+  if (!dateTo) return `From ${fmt(dateFrom)}`;
+  if (!dateFrom) return `Until ${fmt(dateTo)}`;
+  return `${fmt(dateFrom)} – ${fmt(dateTo)}`;
 }
 
 function projectDaysLeft(targetDate) {
@@ -15850,6 +16989,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
   const [milestoneModalOpen, setMilestoneModalOpen] = useState(false);
   const [newMilestone, setNewMilestone] = useState({ title: '', category: '', status: 'Pending', owner: '', start_date: '', end_date: '', progress_percent: 0 });
   const [savingMilestone, setSavingMilestone] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const reloadTimeline = () => {
     if (!projectProp?.id) return;
@@ -16116,7 +17256,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
-                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+                <ProjectPhaseBadge label={d.status} />
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
@@ -16564,6 +17704,27 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
               <button type="button" disabled={savingMilestone || !newMilestone.title.trim()} onClick={handleAddMilestone} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.2)] disabled:opacity-60 disabled:shadow-none">
                 <Plus className="size-4" />
                 {savingMilestone ? 'Saving...' : 'Save Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteConfirm ? (
+        <div className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setDeleteConfirm(null); }}>
+          <div className="modal-pop-in w-full max-w-[420px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#ffeceb] text-[#ef4444]"><Trash2 className="size-5" /></span>
+              <div className="min-w-0">
+                <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Delete Task</h2>
+                <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">Are you sure you want to delete {deleteConfirm.message}? This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setDeleteConfirm(null)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Cancel</button>
+              <button type="button" onClick={deleteConfirm.onConfirm} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#ef4444] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#dc2f2f]">
+                <Trash2 className="size-4" />
+                Delete
               </button>
             </div>
           </div>
@@ -18991,68 +20152,108 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
   );
 }
 
-function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
+function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: selectedProjectProp, onSelectProject, onNotify }) {
   const [activeOrderTab, setActiveOrderTab] = useState('All Work Orders');
   const [searchTerm, setSearchTerm] = useState('');
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [projectData, setProjectData] = useState(null);
+  const [allProjects, setAllProjects] = useState([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ task: '', category: '', assignee: '', status: 'Pending', start_date: '', due_date: '', notes: '' });
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [userOptions, setUserOptions] = useState([]);
 
-  const project = {
-    name: '20kW On-Grid System',
-    address: '123, Scheme No. 54, Vijay Nagar',
-    city: 'Indore, Madhya Pradesh - 452010',
-    manager: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    installationId: 'INS-2024-0015',
-    startDate: '2024-05-18',
-    targetDate: '2024-05-28',
-    progress: 65,
+  // Use project from prop (when navigated via project list) or internal picker
+  const [internalProject, setInternalProject] = useState(null);
+  const activeProject = selectedProjectProp || internalProject;
+
+  const loadProjects = useCallback(async () => {
+    if (allProjects.length > 0) return;
+    setLoadingProjects(true);
+    try {
+      const d = await projectApi.list({ page_size: 200 });
+      setAllProjects(normalizeApiRows(d));
+    } catch { /* ignore */ }
+    finally { setLoadingProjects(false); }
+  }, [allProjects.length]);
+
+  const loadData = useCallback(async (proj) => {
+    if (!proj?.id) return;
+    setLoading(true);
+    try {
+      const [fullProject, woData] = await Promise.all([
+        projectApi.get(proj.id),
+        workOrderApi.list({ project: proj.id }),
+      ]);
+      setProjectData(fullProject);
+      setOrders(normalizeApiRows(woData));
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    userApi.list({ is_active: true }).then((res) => {
+      setUserOptions(Array.isArray(res) ? res : res?.results ?? []);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (activeProject?.id) loadData(activeProject);
+  }, [activeProject?.id, loadData]);
+
+  const handleSelectProject = (proj) => {
+    setInternalProject(proj);
+    setPickerOpen(false);
+    setPickerSearch('');
   };
 
+  const openPicker = () => { loadProjects(); setPickerOpen(true); };
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      if (activeOrderTab === 'Pending Approval' && order.status !== 'Pending') return false;
+      if (activeOrderTab === 'Overdue' && (order.status !== 'Overdue' && !(order.status !== 'Completed' && order.due_date && order.due_date < todayIso))) return false;
+      if (searchTerm.trim()) {
+        const haystack = `${order.order_id || ''} ${order.task || ''} ${order.category || ''} ${order.assignee_name || ''}`.toLowerCase();
+        if (!haystack.includes(searchTerm.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [orders, activeOrderTab, searchTerm, todayIso]);
+
+  const statusCounts = useMemo(() => ({
+    Total: orders.length,
+    Completed: orders.filter((o) => o.status === 'Completed').length,
+    'In Progress': orders.filter((o) => o.status === 'In Progress').length,
+    Pending: orders.filter((o) => o.status === 'Pending').length,
+    Overdue: orders.filter((o) => o.status === 'Overdue' || (o.status !== 'Completed' && o.due_date && o.due_date < todayIso)).length,
+  }), [orders, todayIso]);
+
+  const pct = (n) => orders.length > 0 ? `${((n / orders.length) * 100).toFixed(2)}%` : '0%';
+
   const statCards = [
-    { label: 'Total Work Orders', value: '24', caption: 'All Time', icon: ClipboardPlus, tone: 'blue' },
-    { label: 'Completed', value: '12', caption: '50.00%', icon: CheckCircle2, tone: 'green' },
-    { label: 'In Progress', value: '7', caption: '29.17%', icon: FolderKanban, tone: 'blue' },
-    { label: 'Pending', value: '4', caption: '16.67%', icon: ClipboardPlus, tone: 'amber' },
-    { label: 'Overdue', value: '1', caption: '4.16%', icon: AlertTriangle, tone: 'red' },
+    { label: 'Total Work Orders', value: String(statusCounts.Total), caption: 'All Time', icon: ClipboardPlus, tone: 'blue' },
+    { label: 'Completed', value: String(statusCounts.Completed), caption: pct(statusCounts.Completed), icon: CheckCircle2, tone: 'green' },
+    { label: 'In Progress', value: String(statusCounts['In Progress']), caption: pct(statusCounts['In Progress']), icon: FolderKanban, tone: 'blue' },
+    { label: 'Pending', value: String(statusCounts.Pending), caption: pct(statusCounts.Pending), icon: ClipboardPlus, tone: 'amber' },
+    { label: 'Overdue', value: String(statusCounts.Overdue), caption: pct(statusCounts.Overdue), icon: AlertTriangle, tone: 'red' },
   ];
-
-  const orders = [
-    { id: 'WO-2026-0001', task: 'Material Delivery', category: 'Procurement', assignee: { name: 'Deepak Sharma', initials: 'DS', tone: 'slate' }, priority: 'Medium', status: 'Completed', startDate: '16 Mar 2026', dueDate: '18 Mar 2026', progress: 100 },
-    { id: 'WO-2026-0002', task: 'Mounting Structure Installation', category: 'Installation', assignee: { name: 'Ramesh Yadav', initials: 'RY', tone: 'cyan' }, priority: 'High', status: 'Completed', startDate: '01 May 2026', dueDate: '10 May 2026', progress: 100 },
-    { id: 'WO-2026-0003', task: 'Panel Installation', category: 'Installation', assignee: { name: 'Ramesh Yadav', initials: 'RY', tone: 'cyan' }, priority: 'High', status: 'In Progress', startDate: '15 May 2026', dueDate: '05 Jun 2026', progress: 70 },
-    { id: 'WO-2026-0004', task: 'DC Wiring', category: 'Electrical', assignee: { name: 'Amit Joshi', initials: 'AJ', tone: 'blue' }, priority: 'High', status: 'In Progress', startDate: '20 May 2026', dueDate: '10 Jun 2026', progress: 60 },
-    { id: 'WO-2026-0005', task: 'Inverter Installation', category: 'Electrical', assignee: { name: 'Vikram Singh', initials: 'VS', tone: 'green' }, priority: 'Medium', status: 'Completed', startDate: '01 Apr 2026', dueDate: '05 Apr 2026', progress: 100 },
-    { id: 'WO-2026-0006', task: 'ACDB & AC Wiring', category: 'Electrical', assignee: { name: 'Amit Joshi', initials: 'AJ', tone: 'blue' }, priority: 'Medium', status: 'Pending', startDate: '20 Jun 2026', dueDate: '30 Jun 2026', progress: 0 },
-    { id: 'WO-2026-0007', task: 'Earthing & Bonding', category: 'Electrical', assignee: { name: 'Sunil Patidar', initials: 'SP', tone: 'amber' }, priority: 'Medium', status: 'Pending', startDate: '20 Jun 2026', dueDate: '30 Jun 2026', progress: 0 },
-    { id: 'WO-2026-0008', task: 'System Testing', category: 'QA & Testing', assignee: { name: 'Neha Jain', initials: 'NJ', tone: 'blue' }, priority: 'High', status: 'Pending', startDate: '01 Jul 2026', dueDate: '15 Jul 2026', progress: 0 },
-    { id: 'WO-2026-0009', task: 'Cleaning & Site Handover', category: 'Handover', assignee: { name: 'Pooja Mehta', initials: 'PM', tone: 'pink' }, priority: 'Low', status: 'Pending', startDate: '25 Jul 2026', dueDate: '28 Jul 2026', progress: 0 },
-    { id: 'WO-2026-0010', task: 'Documentation & Handover', category: 'Handover', assignee: { name: 'Manish Gupta', initials: 'MG', tone: 'violet' }, priority: 'Low', status: 'Overdue', startDate: '05 Jun 2026', dueDate: '10 Jun 2026', progress: 0 },
-  ];
-
-  const filteredOrders = orders.filter((order) => {
-    if (activeOrderTab === 'Pending Approval') { if (order.status !== 'Pending') return false; }
-    else if (activeOrderTab === 'Overdue') { if (order.status !== 'Overdue') return false; }
-    if (searchTerm.trim()) {
-      const haystack = `${order.id} ${order.task} ${order.category} ${order.assignee.name}`.toLowerCase();
-      if (!haystack.includes(searchTerm.toLowerCase())) return false;
-    }
-    return true;
-  });
 
   const statusData = [
-    { label: 'Completed', value: 12, color: '#16a34a' },
-    { label: 'In Progress', value: 7, color: '#2f80ff' },
-    { label: 'Pending', value: 4, color: '#f59e0b' },
-    { label: 'Overdue', value: 1, color: '#ef4444' },
-  ];
+    { label: 'Completed', value: statusCounts.Completed, color: '#16a34a' },
+    { label: 'In Progress', value: statusCounts['In Progress'], color: '#2f80ff' },
+    { label: 'Pending', value: statusCounts.Pending, color: '#f59e0b' },
+    { label: 'Overdue', value: statusCounts.Overdue, color: '#ef4444' },
+  ].filter((s) => s.value > 0);
 
-  const overdueOrders = [
-    { id: 'WO-2024-0010', task: 'Documentation & Handover', dueDate: '24 May 2024', days: '2 Days' },
-  ];
-
-  const recentActivity = [
-    { title: 'Work Order WO-2026-0002 marked as Completed', actor: 'Ramesh Yadav', time: '10 May 2026, 11:30 AM', tone: 'green' },
-    { title: 'Work Order WO-2026-0003 status changed to In Progress', actor: 'Ramesh Yadav', time: '15 May 2026, 10:15 AM', tone: 'blue' },
-    { title: 'Work Order WO-2026-0001 marked as Completed', actor: 'Deepak Sharma', time: '18 Mar 2026, 05:45 PM', tone: 'green' },
-  ];
+  const overdueOrders = orders.filter((o) => o.status === 'Overdue' || (o.status !== 'Completed' && o.due_date && o.due_date < todayIso)).slice(0, 5);
 
   const openOrderStat = (label) => {
     const targets = {
@@ -19065,6 +20266,66 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
     setActiveOrderTab(targets[label] ?? 'All Work Orders');
   };
 
+  const handleAddOrder = async () => {
+    if (!addForm.task.trim()) { onNotify('Task name is required'); return; }
+    if (!activeProject?.id) { onNotify('Select a project first'); return; }
+    setSavingOrder(true);
+    try {
+      await workOrderApi.create({
+        project: activeProject.id,
+        task: addForm.task.trim(),
+        category: addForm.category.trim(),
+        assignee: addForm.assignee || null,
+        status: addForm.status,
+        start_date: addForm.start_date || null,
+        due_date: addForm.due_date || null,
+        notes: addForm.notes.trim(),
+      });
+      onNotify('Work order created');
+      setAddModalOpen(false);
+      setAddForm({ task: '', category: '', assignee: '', status: 'Pending', start_date: '', due_date: '', notes: '' });
+      loadData(activeProject);
+    } catch (err) {
+      onNotify(err?.message || 'Failed to create work order');
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  const handleDeleteOrder = (order) => {
+    setDeleteConfirm({
+      message: `"${order.task}" (${order.order_id || 'Work Order'})`,
+      onConfirm: async () => {
+        try {
+          await workOrderApi.delete(order.id);
+          setDeleteConfirm(null);
+          onNotify('Work order deleted');
+          loadData(activeProject);
+        } catch {
+          setDeleteConfirm(null);
+          onNotify('Failed to delete work order');
+        }
+      },
+    });
+  };
+
+  const project = projectData ? {
+    name: projectData.project_name,
+    address: projectData.site_address || '—',
+    city: [projectData.city, projectData.state].filter(Boolean).join(', ') || '—',
+    manager: projectData.manager_detail ? { name: projectData.manager_detail.name, initials: projectData.manager_detail.initials || '—', tone: 'amber' } : { name: 'Unassigned', initials: '—', tone: 'blue' },
+    projectId: projectData.project_id || '—',
+    startDate: projectData.start_date || '',
+    targetDate: projectData.target_date || '',
+    progress: projectData.progress_percent || 0,
+    status: projectData.status,
+  } : null;
+
+  const filteredProjects = allProjects.filter((p) => {
+    const q = pickerSearch.toLowerCase();
+    return !q || (p.project_name || '').toLowerCase().includes(q) || (p.customer_name || '').toLowerCase().includes(q);
+  });
+
   return (
     <div className="space-y-4">
       <PageHeading
@@ -19072,29 +20333,45 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => onOpenSection('Project Details') },
           { label: 'Work Orders' },
         ]}
         actions={(
           <>
-            <button type="button" onClick={() => onNotify('Work order report downloaded')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Download Report</button>
-            <button type="button" onClick={() => onNotify('Work order export opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ArrowUpRight className="size-4 text-[#0b65e5]" />Export</button>
-            <button type="button" onClick={() => onOpenSection('Project Work Order Create')} data-route={projectSubRoutes['Project Work Order Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Create Work Order</button>
+            {!selectedProjectProp && (
+              <button type="button" onClick={openPicker} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+                <FolderKanban className="size-4 text-[#0b65e5]" />
+                {activeProject ? 'Change Project' : 'Select Project'}
+              </button>
+            )}
+            <button type="button" disabled={!activeProject} onClick={() => setAddModalOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748] disabled:cursor-not-allowed disabled:opacity-60"><Plus className="size-4" />Create Work Order</button>
           </>
         )}
       />
 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
+      {!activeProject ? (
+        <article className={`${panelClass} flex flex-col items-center justify-center gap-4 p-14 text-center`}>
+          <span className="grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
+          <div>
+            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">No Project Selected</h2>
+            <p className="mt-2 text-[13px] font-bold text-[#53647f]">Select a project from the list to view and manage its work orders.</p>
+          </div>
+          <button type="button" onClick={openPicker} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white transition hover:bg-[#0e9145]"><FolderKanban className="size-4" />Select Project</button>
+        </article>
+      ) : loading ? (
+        <article className={`${panelClass} p-8`}><PageLoadingState message="Loading work orders..." /></article>
+      ) : (
+      <>
+      {project && (
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] xl:items-center">
+        <div className="grid gap-4 xl:grid-cols-[2.4fr_repeat(4,minmax(0,1fr))] xl:items-center">
           <div className="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] xl:col-span-2">
             <img src={navBarImage} alt={project.name} className="h-[96px] w-full rounded-[14px] object-cover sm:w-[120px]" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="font-display text-[30px] font-extrabold text-[#111827]">{project.name}</h2>
-                <span className="inline-flex rounded-[8px] bg-[#f4ecff] px-3 py-1 text-[12px] font-extrabold text-[#8b5cf6]">In Progress</span>
+                <ProjectPhaseBadge label={project.status} />
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
@@ -19104,10 +20381,6 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <p className="text-[12px] font-extrabold text-[#5b6d8a]">Project Manager</p>
             <AssigneeCell assignee={project.manager} compact />
-          </div>
-          <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <p className="text-[12px] font-extrabold text-[#5b6d8a]">Installation ID</p>
-            <p className="text-[15px] font-extrabold text-[#1e3261]">{project.installationId}</p>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <p className="text-[12px] font-extrabold text-[#5b6d8a]">Start Date</p>
@@ -19124,6 +20397,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
           </div>
         </div>
       </section>
+      )}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => openOrderStat(stat.label)} />)}
@@ -19133,123 +20407,179 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, onNotify }) {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             {['All Work Orders', 'Pending Approval', 'Overdue'].map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveOrderTab(tab)}
-                className={cx(
-                  'inline-flex items-center rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition',
-                  activeOrderTab === tab ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]',
-                )}
-              >
-                {tab}
-              </button>
+              <button key={tab} type="button" onClick={() => setActiveOrderTab(tab)} className={cx('inline-flex items-center rounded-[10px] border px-4 py-2.5 text-[13px] font-extrabold transition', activeOrderTab === tab ? 'border-[#caeed8] bg-[#effbf3] text-[#0d9f4a]' : 'border-transparent bg-white text-[#53647f] hover:border-[#e2eaf4] hover:bg-[#f8fbff]')}>{tab}</button>
             ))}
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <button type="button" onClick={() => onNotify('Work order filters opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"><Filter className="size-4 text-[#0b65e5]" />Filters</button>
             <label className="flex h-11 min-w-[280px] items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4">
               <Search className="size-4 text-[#7b8ca8]" />
               <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search work orders..." className="w-full border-none bg-transparent text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8aa0bf]" />
             </label>
-            <button type="button" onClick={() => { setSearchTerm(''); onNotify('Work order filters reset'); }} className="grid size-11 place-items-center rounded-[10px] border border-[#d9e4f2] bg-white text-[#284276]"><RefreshCw className="size-4 text-[#0b65e5]" /></button>
+            <button type="button" onClick={() => { setSearchTerm(''); setActiveOrderTab('All Work Orders'); }} className="grid size-11 place-items-center rounded-[10px] border border-[#d9e4f2] bg-white text-[#284276]"><RefreshCw className="size-4 text-[#0b65e5]" /></button>
           </div>
         </div>
 
         <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-          <div className="grid grid-cols-[0.45fr_1.15fr_1.5fr_1fr_1.05fr_0.8fr_0.95fr_0.95fr_0.95fr_0.95fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-            <span>#</span>
-            <span>Work Order ID</span>
-            <span>Task / Activity</span>
-            <span>Category</span>
-            <span>Assigned To</span>
-            <span>Priority</span>
-            <span>Status</span>
-            <span>Start Date</span>
-            <span>Due Date</span>
-            <span>Progress</span>
+          <div className="hidden overflow-x-auto lg:block">
+            <table className="crm-table min-w-[900px] w-full">
+              <thead>
+                <tr>{['#', 'Work Order ID', 'Task / Activity', 'Category', 'Assigned To', 'Status', 'Start Date', 'Due Date', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map((order, index) => (
+                  <tr key={order.id}>
+                    <td>{index + 1}</td>
+                    <td className="font-extrabold text-[#1e3261]">{order.order_id || '—'}</td>
+                    <td>{order.task}</td>
+                    <td>{order.category || '—'}</td>
+                    <td>{order.assignee_name || 'Unassigned'}</td>
+                    <td><ProjectPhaseBadge label={order.status} /></td>
+                    <td>{order.start_date ? formatProjectDisplayDate(order.start_date) : '—'}</td>
+                    <td className={cx(order.status !== 'Completed' && order.due_date && order.due_date < todayIso ? 'font-extrabold text-[#dc2626]' : '')}>{order.due_date ? formatProjectDisplayDate(order.due_date) : '—'}</td>
+                    <td>
+                      <button type="button" onClick={() => handleDeleteOrder(order)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#ef4444]" aria-label={`Delete ${order.task}`}>
+                        <Trash2 className="size-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredOrders.length === 0 && (
+                  <tr><td colSpan={9} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No work orders found.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
-          {filteredOrders.map((order, index) => (
-            <div key={order.id} className="grid grid-cols-[0.45fr_1.15fr_1.5fr_1fr_1.05fr_0.8fr_0.95fr_0.95fr_0.95fr_0.95fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-              <span className="font-extrabold text-[#1e3261]">{index + 1}</span>
-              <span className="font-extrabold text-[#1e3261]">{order.id}</span>
-              <span>{order.task}</span>
-              <span>{order.category}</span>
-              <span><AssigneeCell assignee={order.assignee} compact /></span>
-              <span className={cx('inline-flex w-fit rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', order.priority === 'High' ? 'bg-[#ffeded] text-[#dc2626]' : order.priority === 'Medium' ? 'bg-[#fff4df] text-[#b45309]' : 'bg-[#eefbf1] text-[#15803d]')}>{order.priority}</span>
-              <span><ProjectPhaseBadge status={order.status} /></span>
-              <span>{order.startDate}</span>
-              <span className={cx(order.status === 'Overdue' && 'font-extrabold text-[#dc2626]')}>{order.dueDate}</span>
-              <span className="space-y-1">
-                <span className="block text-[11px] font-extrabold text-[#53647f]">{order.progress}%</span>
-                <ProjectProgressBar value={order.progress} color={order.status === 'Completed' ? 'green' : order.status === 'In Progress' ? 'blue' : order.status === 'Overdue' ? 'amber' : 'amber'} />
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-[13px] font-bold text-[#53647f]">Showing 1 to {filteredOrders.length} of 24 entries</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => onNotify('Previous work order page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Previous</button>
-            {[1, 2, 3].map((page) => (
-              <button key={page} type="button" onClick={() => onNotify(`Work order page ${page}`)} className={cx('rounded-[8px] px-4 py-2 text-[12px] font-extrabold', page === 1 ? 'bg-[#2f80ff] text-white' : 'border border-[#dce6f3] text-[#284276]')}>{page}</button>
+          <div className="space-y-3 p-3 lg:hidden">
+            {filteredOrders.map((order) => (
+              <article key={order.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-extrabold text-[#1e3261]">{order.task}</p>
+                    <p className="mt-0.5 text-[12px] font-bold text-[#53647f]">{order.order_id} · {order.category || '—'}</p>
+                  </div>
+                  <ProjectPhaseBadge label={order.status} />
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2 text-[12px] font-bold text-[#53647f]">
+                  <span>{order.assignee_name || 'Unassigned'}</span>
+                  <span className={cx(order.status !== 'Completed' && order.due_date && order.due_date < todayIso ? 'font-extrabold text-[#dc2626]' : '')}>Due: {order.due_date ? formatProjectDisplayDate(order.due_date) : '—'}</span>
+                </div>
+              </article>
             ))}
-            <button type="button" onClick={() => onNotify('Next work order page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Next</button>
-            <button type="button" onClick={() => onNotify('Page size chooser opened')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">10 / page</button>
+            {filteredOrders.length === 0 && (
+              <p className="py-6 text-center text-[13px] font-bold text-[#8a98af]">No work orders found.</p>
+            )}
           </div>
         </div>
+        <p className="mt-3 text-[13px] font-bold text-[#53647f]">Showing {filteredOrders.length} of {orders.length} entries</p>
       </article>
 
-      <section className="grid gap-4 xl:grid-cols-[0.95fr_1.15fr_0.95fr]">
-        <ProjectDonutCard title="Work Order Status" data={statusData} totalLabel="Total" totalValue="24" />
-
+      <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <ProjectDonutCard title="Work Order Status" data={statusData.length ? statusData : [{ label: 'No Orders', value: 1, color: '#e7eef7' }]} totalLabel="Total" totalValue={String(statusCounts.Total)} />
         <article className={`${panelClass} p-4 sm:p-5`}>
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Overdue Work Orders</h2>
             <button type="button" onClick={() => setActiveOrderTab('Overdue')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
           </div>
-          <div className="mt-5 overflow-hidden rounded-[14px] border border-[#edf2f8]">
-            <div className="grid grid-cols-[1.1fr_1.45fr_0.95fr_0.85fr] gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 text-[12px] font-extrabold text-[#33466f]">
-              <span>Work Order ID</span>
-              <span>Task / Activity</span>
-              <span>Due Date</span>
-              <span>Days Overdue</span>
-            </div>
-            {overdueOrders.map((item) => (
-              <div key={item.id} className="grid grid-cols-[1.1fr_1.45fr_0.95fr_0.85fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                <span className="font-extrabold text-[#1e3261]">{item.id}</span>
-                <span>{item.task}</span>
-                <span className="font-extrabold text-[#dc2626]">{item.dueDate}</span>
-                <span className="font-extrabold text-[#dc2626]">{item.days}</span>
-              </div>
-            ))}
+          {overdueOrders.length === 0 ? (
+            <p className="mt-5 text-[13px] font-bold text-[#8a98af]">No overdue work orders.</p>
+          ) : (
+          <div className="mt-4 overflow-hidden rounded-[14px] border border-[#edf2f8]">
+            <table className="crm-table w-full">
+              <thead><tr>{['Order ID', 'Task', 'Due Date'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+              <tbody>
+                {overdueOrders.map((item) => (
+                  <tr key={item.id}>
+                    <td className="font-extrabold text-[#1e3261]">{item.order_id || '—'}</td>
+                    <td>{item.task}</td>
+                    <td className="font-extrabold text-[#dc2626]">{item.due_date ? formatProjectDisplayDate(item.due_date) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </article>
-
-        <article className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-[18px] font-extrabold text-[#06135a]">Recent Activity</h2>
-            <button type="button" onClick={() => onOpenSection('Project Timeline')} data-route={projectSubRoutes['Project Timeline']} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
-          </div>
-          <div className="mt-5 space-y-4">
-            {recentActivity.map((item) => (
-              <div key={item.title} className="flex gap-3 rounded-[12px] border border-[#edf2f8] p-3">
-                <span className={cx('grid size-10 shrink-0 place-items-center rounded-[10px] text-white', item.tone === 'green' ? 'bg-[#16a34a]' : 'bg-[#2f80ff]')}>
-                  <CheckCircle2 className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-extrabold text-[#1e3261]">{item.title}</p>
-                  <p className="mt-1 text-[12px] font-bold text-[#53647f]">by {item.actor}</p>
-                </div>
-                <span className="shrink-0 text-[11px] font-extrabold text-[#53647f]">{item.time}</span>
-              </div>
-            ))}
-          </div>
+          )}
         </article>
       </section>
 
       <DashboardFooter />
+      </>
+      )}
+
+      {/* Project picker modal */}
+      {pickerOpen ? (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-[#0b1226]/55 p-4" onClick={() => setPickerOpen(false)}>
+          <div className="flex max-h-[80vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_36px_80px_rgba(11,18,38,0.32)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 border-b border-[#e7eef7] px-5 py-4">
+              <h2 className="font-display text-[17px] font-extrabold text-[#06135a]">Select Project</h2>
+              <button type="button" onClick={() => setPickerOpen(false)} className="grid size-8 place-items-center rounded-[8px] text-[#7585a2] hover:bg-[#f1f5fa]"><X className="size-5" /></button>
+            </div>
+            <div className="border-b border-[#e7eef7] px-5 py-3">
+              <label className="flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3">
+                <Search className="size-4 text-[#7b8ca8]" />
+                <input value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} placeholder="Search projects..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]" autoFocus />
+              </label>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3">
+              {loadingProjects ? <PageLoadingState message="Loading projects..." compact /> : filteredProjects.length === 0 ? (
+                <p className="py-6 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</p>
+              ) : filteredProjects.map((p) => (
+                <button key={p.id} type="button" onClick={() => handleSelectProject(p)} className="flex w-full items-center gap-3 rounded-[10px] p-3 text-left transition hover:bg-[#f5f9ff]">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-4" /></span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{p.project_name}</span>
+                    <span className="block truncate text-[12px] font-bold text-[#53647f]">{p.customer_name} · {p.project_id}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Add Work Order modal */}
+      {addModalOpen ? (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-[#0b1226]/55 p-4" onClick={() => setAddModalOpen(false)}>
+          <div className="w-full max-w-[520px] rounded-[16px] bg-white p-5 shadow-[0_24px_60px_rgba(11,31,74,0.28)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-[17px] font-extrabold text-[#06135a]">Create Work Order</h2>
+              <button type="button" onClick={() => setAddModalOpen(false)} className="grid size-8 place-items-center rounded-[8px] text-[#8a98af] hover:bg-[#f1f5fa]"><X className="size-5" /></button>
+            </div>
+            <div className="mt-4 space-y-3">
+              <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Task Name *</label><input value={addForm.task} onChange={(e) => setAddForm((p) => ({ ...p, task: e.target.value }))} type="text" placeholder="e.g. Panel Installation" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5]" /></div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Category</label><input value={addForm.category} onChange={(e) => setAddForm((p) => ({ ...p, category: e.target.value }))} type="text" placeholder="e.g. Installation" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5]" /></div>
+                <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Assigned To</label><select value={addForm.assignee} onChange={(e) => setAddForm((p) => ({ ...p, assignee: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]"><option value="">Unassigned</option>{userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+                <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Status</label><select value={addForm.status} onChange={(e) => setAddForm((p) => ({ ...p, status: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">{['Pending', 'In Progress', 'Completed', 'Overdue'].map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+                <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Start Date</label><input value={addForm.start_date} onChange={(e) => setAddForm((p) => ({ ...p, start_date: e.target.value }))} type="date" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]" /></div>
+                <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Due Date</label><input value={addForm.due_date} onChange={(e) => setAddForm((p) => ({ ...p, due_date: e.target.value }))} type="date" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]" /></div>
+              </div>
+              <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Notes</label><textarea value={addForm.notes} onChange={(e) => setAddForm((p) => ({ ...p, notes: e.target.value }))} rows={3} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 py-3 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5]" /></div>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setAddModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+              <button type="button" disabled={savingOrder || !addForm.task.trim()} onClick={handleAddOrder} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Plus className="size-4" />{savingOrder ? 'Saving...' : 'Create'}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteConfirm ? (
+        <div className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setDeleteConfirm(null); }}>
+          <div className="modal-pop-in w-full max-w-[420px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#ffeceb] text-[#ef4444]"><Trash2 className="size-5" /></span>
+              <div>
+                <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Delete Work Order</h2>
+                <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">Delete {deleteConfirm.message}? This cannot be undone.</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setDeleteConfirm(null)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+              <button type="button" onClick={deleteConfirm.onConfirm} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#ef4444] px-5 text-[13px] font-extrabold text-white"><Trash2 className="size-4" />Delete</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -21906,6 +23236,19 @@ function ProjectDonutCard({ title, data, totalLabel, totalValue, onNotify = () =
   );
 }
 
+function buildProjectPolyline(values, width = 620, height = 240, padLeft = 26, padRight = 26, padTop = 22, padBottom = 34) {
+  if (!values || values.length === 0) return '';
+  const count = values.length;
+  const max = Math.max(...values, 1);
+  const drawW = width - padLeft - padRight;
+  const drawH = height - padTop - padBottom;
+  return values.map((val, i) => {
+    const x = padLeft + (drawW / Math.max(count - 1, 1)) * i;
+    const y = padTop + drawH - (val / max) * drawH;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+}
+
 function ProjectLineChartCard({ title, series, height = 240, onNotify, labels: labelsProp }) {
   const labels = labelsProp ?? ['Apr\n2024', 'May\n2024', 'Jun\n2024', 'Jul\n2024', 'Aug\n2024', 'Sep\n2024', 'Oct\n2024', 'Nov\n2024', 'Dec\n2024', 'Jan\n2025', 'Feb\n2025', 'Mar\n2025'];
   const max = Math.max(...series.flatMap((item) => item.values), 1);
@@ -22382,8 +23725,93 @@ function createSettingsRolePermissions(roleName) {
   });
 }
 
+
+function mapApiUserToSettingsRow(apiUser) {
+  const name = apiUser.name || 'Unnamed User';
+  const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NU';
+  return {
+    id: apiUser.id,
+    name,
+    email: apiUser.email,
+    phone: apiUser.mobile || '—',
+    role: apiUser.role_name || 'Unassigned',
+    branch: apiUser.branch_name || 'Unassigned',
+    status: apiUser.is_active ? 'Active' : 'Inactive',
+    lastLogin: '—',
+    joinedOn: apiUser.created_at ? new Date(apiUser.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+    assignee: { name, initials, tone: 'emerald' },
+    roleId: apiUser.role,
+    branchId: apiUser.branch,
+  };
+}
+
+function mapActivityLogFromApi(log) {
+  const userName = log.user_name || 'System';
+  const initials = userName.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SY';
+  return {
+    id: log.id,
+    time: log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : '—',
+    user: {
+      name: userName,
+      assignee: { name: userName, initials, tone: 'emerald' },
+    },
+    action: log.action,
+    module: log.module,
+    description: log.description || '',
+    ip: log.ip_address || '—',
+    status: log.status || 'Success',
+  };
+}
+
+function mapApiRoleToSettingsRow(apiRole) {
+  return {
+    id: apiRole.id,
+    name: apiRole.name,
+    type: apiRole.role_type === 'system' ? 'System Role' : 'Custom Role',
+    users: apiRole.user_count ?? 0,
+    status: apiRole.is_active ? 'Active' : 'Inactive',
+    tone: apiRole.is_active ? 'green' : 'amber',
+  };
+}
+
+function mapApiPermissionsToSettingsRows(apiPermissions) {
+  const permLabels = {
+    can_view: 'View',
+    can_add: 'Add',
+    can_edit: 'Edit',
+    can_delete: 'Delete',
+    can_export: 'Export',
+  };
+  return apiPermissions.map((row) => ({
+    module: row.module,
+    description: `${row.module} module access`,
+    permissions: Object.fromEntries(
+      Object.entries(permLabels).map(([apiKey, uiKey]) => [uiKey, Boolean(row[apiKey])]),
+    ),
+  }));
+}
+
+function useSettingsMasters(masterType, onNotify) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    settingsApi.masters.list({ master_type: masterType })
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setRows(list);
+      })
+      .catch(() => onNotify?.('Could not load master records.', 'error'))
+      .finally(() => setLoading(false));
+  }, [masterType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { rows, loading, setRows };
+}
+
 function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, onNotify }) {
-  const [users, setUsers] = useState(settingsUsersSeed);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [role, setRole] = useState('All Roles');
   const [status, setStatus] = useState('All Status');
@@ -22391,6 +23819,17 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
   const [selectedUser, setSelectedUser] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    userApi.list()
+      .then((data) => {
+        const list = data?.results ?? data ?? [];
+        setUsers(list.map(mapApiUserToSettingsRow));
+      })
+      .catch((error) => onNotify?.(error.message || 'Failed to load users', 'error'))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredUsers = users.filter((user) => {
     const queryMatch = [user.name, user.email, user.phone, user.branch].some((value) => value.toLowerCase().includes(query.toLowerCase()));
@@ -22406,21 +23845,39 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
 
   const saveUser = (payload) => {
     if (editingUser) {
-      setUsers((current) => current.map((item) => (item.id === payload.id ? payload : item)));
-      setEditingUser(null);
-      onNotify(`${payload.name} updated`);
+      userApi.update(payload.id, {
+        name: payload.name,
+        email: payload.email,
+        mobile: payload.phone,
+        is_active: payload.status === 'Active',
+      }).then((updated) => {
+        const mapped = mapApiUserToSettingsRow(updated);
+        setUsers((current) => current.map((item) => (item.id === mapped.id ? mapped : item)));
+        setEditingUser(null);
+        onNotify(`${mapped.name} updated`);
+      }).catch((error) => onNotify(error.message || 'Failed to update user', 'error'));
       return;
     }
 
-    setUsers((current) => [payload, ...current]);
-    setAddUserOpen(false);
-    onNotify(`${payload.name} added`);
+    userApi.create({
+      name: payload.name,
+      email: payload.email,
+      mobile: payload.phone,
+      password: 'ChangeMe123',
+    }).then((created) => {
+      const mapped = mapApiUserToSettingsRow(created);
+      setUsers((current) => [mapped, ...current]);
+      setAddUserOpen(false);
+      onNotify(`${mapped.name} added`);
+    }).catch((error) => onNotify(error.message || 'Failed to add user', 'error'));
   };
 
   const toggleUserStatus = (user) => {
-    const nextStatus = user.status === 'Active' ? 'Inactive' : 'Active';
-    setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, status: nextStatus } : item)));
-    onNotify(`${user.name} marked ${nextStatus}`);
+    userApi.toggleActive(user.id).then((result) => {
+      const nextStatus = result?.is_active ? 'Active' : 'Inactive';
+      setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, status: nextStatus } : item)));
+      onNotify(`${user.name} marked ${nextStatus}`);
+    }).catch((error) => onNotify(error.message || 'Failed to update status', 'error'));
   };
 
   return (
@@ -22461,8 +23918,9 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       </section>
 
       <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+        {loading ? <p className="px-3 py-8 text-center text-[13px] font-bold text-[#53647f]">Loading users...</p> : null}
         <div className="space-y-3 lg:hidden">
-          {filteredUsers.map((user, index) => (
+          {!loading ? filteredUsers.map((user, index) => (
             <article key={user.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -22487,7 +23945,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
                 <button type="button" onClick={() => toggleUserStatus(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#284276]"><RefreshCw className="size-4" />Status</button>
               </div>
             </article>
-          ))}
+          )) : null}
         </div>
 
         <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
@@ -22496,7 +23954,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
               <tr>{['#', 'User Name', 'Email', 'Phone Number', 'Role', 'Branch / Location', 'Status', 'Last Login', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr>
             </thead>
             <tbody>
-              {filteredUsers.map((user, index) => (
+              {!loading ? filteredUsers.map((user, index) => (
                 <tr key={user.id}>
                   <td>{index + 1}</td>
                   <td>
@@ -22519,22 +23977,13 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
                     </div>
                   </td>
                 </tr>
-              ))}
+              )) : null}
             </tbody>
           </table>
         </div>
 
         <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
           <p>Showing 1 to {filteredUsers.length} of {users.length} entries</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <PaginationButton onClick={() => onNotify('Previous users page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-            <PaginationButton active onClick={() => onNotify('Users page 1 selected')}>1</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Users page 2 selected')}>2</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Users page 3 selected')}>3</PaginationButton>
-            <span className="px-2 text-[#53647f]">...</span>
-            <PaginationButton onClick={() => onNotify('Users page 6 selected')}>6</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Next users page selected')}><ChevronRight className="size-4" /></PaginationButton>
-          </div>
         </div>
       </section>
 
@@ -22629,20 +24078,48 @@ function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNot
 }
 
 function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permissions', onOpenSection, onNotify }) {
-  const [roles, setRoles] = useState(settingsRolesSeed);
-  const [selectedRoleName, setSelectedRoleName] = useState('Manager');
+  const [roles, setRoles] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [selectedRoleName, setSelectedRoleName] = useState('');
   const [activeTab, setActiveTab] = useState('Permissions');
   const [query, setQuery] = useState('');
-  const [permissionRows, setPermissionRows] = useState(() => createSettingsRolePermissions('Manager'));
+  const [permissionRows, setPermissionRows] = useState([]);
   const [addRoleOpen, setAddRoleOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([roleApi.list(), userApi.list()])
+      .then(([rolesRes, usersRes]) => {
+        const roleList = (Array.isArray(rolesRes) ? rolesRes : (rolesRes?.results ?? [])).map(mapApiRoleToSettingsRow);
+        const userList = (Array.isArray(usersRes) ? usersRes : (usersRes?.results ?? [])).map(mapApiUserToSettingsRow);
+        setRoles(roleList);
+        setUsers(userList);
+        if (roleList.length) {
+          setSelectedRoleName(roleList[0].name);
+          roleApi.getPermissions(roleList[0].id)
+            .then((perms) => setPermissionRows(mapApiPermissionsToSettingsRows(perms)))
+            .catch(() => setPermissionRows(createSettingsRolePermissions(roleList[0].name)));
+        }
+      })
+      .catch((error) => onNotify?.(error.message || 'Failed to load roles', 'error'))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRoles = roles.filter((role) => role.name.toLowerCase().includes(query.toLowerCase()));
   const selectedRole = roles.find((role) => role.name === selectedRoleName) ?? roles[0];
-  const selectedRoleUsers = settingsUsersSeed.filter((user) => user.role === selectedRole.name);
+  const selectedRoleUsers = selectedRole ? users.filter((user) => user.role === selectedRole.name) : [];
 
   const switchRole = (roleName) => {
+    const role = roles.find((item) => item.name === roleName);
     setSelectedRoleName(roleName);
-    setPermissionRows(createSettingsRolePermissions(roleName));
+    if (role?.id) {
+      roleApi.getPermissions(role.id)
+        .then((perms) => setPermissionRows(mapApiPermissionsToSettingsRows(perms)))
+        .catch(() => setPermissionRows(createSettingsRolePermissions(roleName)));
+    } else {
+      setPermissionRows(createSettingsRolePermissions(roleName));
+    }
     onNotify(`${roleName} role selected`);
   };
 
@@ -22842,6 +24319,8 @@ function ActivityIcon(props) {
 }
 
 function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity Log', onOpenSection, onNotify }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [user, setUser] = useState('All Users');
   const [action, setAction] = useState('All Actions');
@@ -22850,14 +24329,33 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
   const [dateFrom, setDateFrom] = useState('2024-04-01');
   const [dateTo, setDateTo] = useState('2025-03-31');
 
-  const filteredLogs = settingsActivitySeed.filter((log) => {
-    const queryMatch = [log.user.name, log.action, log.module, log.ip, log.description].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+  useEffect(() => {
+    setLoading(true);
+    settingsApi.activityLogs.list()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setLogs(list.map(mapActivityLogFromApi));
+      })
+      .catch(() => onNotify?.('Could not load activity logs.', 'error'))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filteredLogs = logs.filter((log) => {
+    const queryMatch = [log.user.name, log.action, log.module, log.ip, log.description].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
     const userMatch = user === 'All Users' || log.user.name === user;
     const actionMatch = action === 'All Actions' || log.action === action;
     const moduleMatch = moduleName === 'All Modules' || log.module === moduleName;
     const statusMatch = status === 'All Status' || log.status === status;
     return queryMatch && userMatch && actionMatch && moduleMatch && statusMatch;
   });
+
+  const uniqueUsers = [...new Set(logs.map((log) => log.user.name))];
+  const uniqueActions = [...new Set(logs.map((log) => log.action))];
+  const uniqueModules = [...new Set(logs.map((log) => log.module))];
+  const todayLabel = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const todayCount = logs.filter((log) => log.time.startsWith(todayLabel.split(',')[0]) || log.time.includes(todayLabel)).length;
+  const securityCount = logs.filter((log) => ['Authentication', 'Settings', 'User Management'].includes(log.module)).length;
+  const failedCount = logs.filter((log) => log.status === 'Failed').length;
 
   return (
     <div className="space-y-4">
@@ -22875,11 +24373,11 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
       <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <SettingsMetricCard title="Total Activities" value="2,458" subtitle="All Time" icon={ActivityIcon} tone="green" />
-        <SettingsMetricCard title="Today's Activities" value="156" subtitle="20 May 2024" icon={CalendarDays} tone="blue" />
-        <SettingsMetricCard title="Active Users Today" value="28" subtitle="20 May 2024" icon={Users} tone="amber" />
-        <SettingsMetricCard title="Security Events" value="12" subtitle="Last 7 Days" icon={ShieldCheck} tone="purple" />
-        <SettingsMetricCard title="Failed Login Attempts" value="18" subtitle="Last 7 Days" icon={ClipboardPlus} tone="cyan" />
+        <SettingsMetricCard title="Total Activities" value={String(logs.length)} subtitle="All Time" icon={ActivityIcon} tone="green" />
+        <SettingsMetricCard title="Today's Activities" value={String(todayCount)} subtitle={todayLabel} icon={CalendarDays} tone="blue" />
+        <SettingsMetricCard title="Filtered Results" value={String(filteredLogs.length)} subtitle="Current view" icon={Users} tone="amber" />
+        <SettingsMetricCard title="Security Events" value={String(securityCount)} subtitle="Auth & access" icon={ShieldCheck} tone="purple" />
+        <SettingsMetricCard title="Failed Attempts" value={String(failedCount)} subtitle="All time" icon={ClipboardPlus} tone="cyan" />
       </section>
 
       <section className={`${panelClass} p-4 sm:p-5`}>
@@ -22888,9 +24386,9 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
             <Search className="size-4 text-[#7386a3]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by user, action, module, ip..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
           </label>
-          <ReportSelect label="User" value={user} onChange={setUser} options={['All Users', ...new Set(settingsActivitySeed.map((log) => log.user.name))]} hideLabel />
-          <ReportSelect label="Action" value={action} onChange={setAction} options={['All Actions', ...new Set(settingsActivitySeed.map((log) => log.action))]} hideLabel />
-          <ReportSelect label="Module" value={moduleName} onChange={setModuleName} options={['All Modules', ...new Set(settingsActivitySeed.map((log) => log.module))]} hideLabel />
+          <ReportSelect label="User" value={user} onChange={setUser} options={['All Users', ...uniqueUsers]} hideLabel />
+          <ReportSelect label="Action" value={action} onChange={setAction} options={['All Actions', ...uniqueActions]} hideLabel />
+          <ReportSelect label="Module" value={moduleName} onChange={setModuleName} options={['All Modules', ...uniqueModules]} hideLabel />
           <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Success', 'Failed']} hideLabel />
           <label className="block"><input type="text" readOnly value={`${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`} className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]" /></label>
           <button type="button" onClick={() => { setQuery(''); setUser('All Users'); setAction('All Actions'); setModuleName('All Modules'); setStatus('All Status'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('Activity log filters reset'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
@@ -22898,8 +24396,10 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
       </section>
 
       <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+        {loading ? <p className="px-3 py-8 text-center text-[13px] font-bold text-[#53647f]">Loading activity logs...</p> : null}
+        {!loading && filteredLogs.length === 0 ? <p className="px-3 py-8 text-center text-[13px] font-bold text-[#53647f]">No activity logs found.</p> : null}
         <div className="space-y-3 lg:hidden">
-          {filteredLogs.map((log, index) => (
+          {!loading ? filteredLogs.map((log, index) => (
             <article key={log.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
               <div className="flex items-start justify-between gap-3">
                 <div><p className="text-[12px] font-extrabold text-[#8a98af]">#{index + 1}</p><p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{log.time}</p></div>
@@ -22914,14 +24414,14 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
               </div>
               <button type="button" onClick={() => onNotify(`Activity log ${log.id} opened`)} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View Details</button>
             </article>
-          ))}
+          )) : null}
         </div>
 
         <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
           <table className="crm-table min-w-[1380px] w-full">
             <thead><tr>{['#', 'Date & Time', 'User', 'Action', 'Module', 'Description', 'IP Address', 'Status', 'Details'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
             <tbody>
-              {filteredLogs.map((log, index) => (
+              {!loading ? filteredLogs.map((log, index) => (
                 <tr key={log.id}>
                   <td>{index + 1}</td>
                   <td className="font-extrabold text-[#1e3261]">{log.time}</td>
@@ -22933,22 +24433,13 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
                   <td><SettingsResultBadge status={log.status} /></td>
                   <td><UserActionButton label={`Open log ${log.id}`} icon={Eye} tone="blue" onClick={() => onNotify(`Activity log ${log.id} opened`)} /></td>
                 </tr>
-              ))}
+              )) : null}
             </tbody>
           </table>
         </div>
 
         <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-          <p>Showing 1 to {filteredLogs.length} of 2,458 entries</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <PaginationButton onClick={() => onNotify('Previous activity page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-            <PaginationButton active onClick={() => onNotify('Activity page 1 selected')}>1</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Activity page 2 selected')}>2</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Activity page 3 selected')}>3</PaginationButton>
-            <span className="px-2 text-[#53647f]">...</span>
-            <PaginationButton onClick={() => onNotify('Activity page 246 selected')}>246</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Next activity page selected')}><ChevronRight className="size-4" /></PaginationButton>
-          </div>
+          <p>Showing {filteredLogs.length} of {logs.length} entries</p>
         </div>
       </section>
 
@@ -22958,7 +24449,8 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
 }
 
 function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions', onOpenSection, onNotify }) {
-  const [rules, setRules] = useState(settingsIpRulesSeed);
+  const [rules, setRules] = useState([]);
+  const [blockedAttempts, setBlockedAttempts] = useState([]);
   const [activeTab, setActiveTab] = useState('IP Access Rules');
   const [ruleFilter, setRuleFilter] = useState('All Rules');
   const [query, setQuery] = useState('');
@@ -22971,27 +24463,81 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
     syncDelay: true,
   });
 
+  const mapRuleFromApi = (rule) => ({
+    id: rule.id,
+    name: rule.name,
+    ipRange: rule.ip_range,
+    type: rule.rule_type,
+    description: rule.description,
+    status: rule.is_active ? 'Active' : 'Inactive',
+    createdOn: rule.created_at ? new Date(rule.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+    priority: '1',
+  });
+
+  useEffect(() => {
+    Promise.all([settingsApi.ipRules.list(), settingsApi.ipBlockedAttempts.list(), settingsApi.category('ip_security').get()])
+      .then(([rulesRes, blockedRes, securityRes]) => {
+        const ruleList = Array.isArray(rulesRes) ? rulesRes : (rulesRes?.results ?? []);
+        setRules(ruleList.map(mapRuleFromApi));
+        const blockedList = Array.isArray(blockedRes) ? blockedRes : (blockedRes?.results ?? []);
+        setBlockedAttempts(blockedList.map((item) => ({
+          id: item.id,
+          ip: item.ip_address,
+          username: item.username,
+          reason: item.reason,
+          attemptedAt: item.attempted_at ? new Date(item.attempted_at).toLocaleString('en-IN') : '—',
+          source: item.username || 'Unknown',
+          action: 'Blocked',
+        })));
+        if (securityRes) setSecurityConfig((current) => ({ ...current, ...securityRes }));
+      })
+      .catch(() => onNotify('Could not load IP settings.', 'error'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const filteredRules = rules.filter((rule) => {
-    const queryMatch = [rule.name, rule.ipRange, rule.description].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const queryMatch = [rule.name, rule.ipRange, rule.description].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
     const filterMatch = ruleFilter === 'All Rules' || rule.type === ruleFilter.replace(' Rules', '');
     return queryMatch && filterMatch;
   });
 
   const allowCount = rules.filter((rule) => rule.type === 'Allow').length;
   const blockCount = rules.filter((rule) => rule.type === 'Block').length;
-  const lastBlocked = settingsBlockedAttemptsSeed[0];
+  const lastBlocked = blockedAttempts[0] ?? { attemptedAt: '—', ip: '—' };
 
-  const saveRule = (payload) => {
-    if (editingRule) {
-      setRules((current) => current.map((item) => (item.id === payload.id ? payload : item)));
-      setEditingRule(null);
-      onNotify(`${payload.name} updated`);
-      return;
+  const saveRule = async (payload) => {
+    const body = {
+      name: payload.name,
+      ip_range: payload.ipRange,
+      rule_type: payload.type,
+      description: payload.description,
+      is_active: payload.status !== 'Inactive',
+    };
+    try {
+      if (editingRule && Number.isFinite(payload.id)) {
+        const updated = await settingsApi.ipRules.update(payload.id, body);
+        const mapped = mapRuleFromApi(updated);
+        setRules((current) => current.map((item) => (item.id === mapped.id ? mapped : item)));
+        setEditingRule(null);
+        onNotify(`${mapped.name} updated`);
+        return;
+      }
+      const created = await settingsApi.ipRules.create(body);
+      const mapped = mapRuleFromApi(created);
+      setRules((current) => [mapped, ...current]);
+      setAddRuleOpen(false);
+      onNotify(`${mapped.name} added`);
+    } catch {
+      onNotify('Could not save IP rule.', 'error');
     }
+  };
 
-    setRules((current) => [payload, ...current]);
-    setAddRuleOpen(false);
-    onNotify(`${payload.name} added`);
+  const saveSecuritySettings = async () => {
+    try {
+      await settingsApi.category('ip_security').update(securityConfig);
+      onNotify('Security settings saved');
+    } catch {
+      onNotify('Could not save security settings.', 'error');
+    }
   };
 
   return (
@@ -23091,12 +24637,13 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
                   </div>
                 </button>
               ))}
-              <div className="md:col-span-2"><button type="button" onClick={() => onNotify('Security settings saved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]">Save Security Settings</button></div>
+              <div className="md:col-span-2"><button type="button" onClick={saveSecuritySettings} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]">Save Security Settings</button></div>
             </div>
           ) : activeTab === 'Blocked Attempts' ? (
             <div className="mt-5 grid gap-3">
-              {settingsBlockedAttemptsSeed.map((attempt) => (
-                <article key={attempt.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+              {blockedAttempts.length === 0 ? <p className="text-[13px] font-bold text-[#53647f]">No blocked attempts recorded.</p> : null}
+              {blockedAttempts.map((attempt) => (
+                <article key={attempt.id ?? attempt.ip} className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div><p className="text-[14px] font-extrabold text-[#1e3261]">{attempt.ip}</p><p className="mt-1 text-[12px] font-bold text-[#53647f]">{attempt.attemptedAt} • {attempt.source}</p></div>
                     <SettingsResultBadge status={attempt.action} />
@@ -23126,7 +24673,7 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
           )}
 
           <div className="mt-5 flex flex-col gap-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-            <p>Showing 1 to {activeTab === 'IP Access Rules' ? filteredRules.length : activeTab === 'Blocked Attempts' ? settingsBlockedAttemptsSeed.length : settingsIpAuditSeed.length} of {activeTab === 'IP Access Rules' ? rules.length : activeTab === 'Blocked Attempts' ? settingsBlockedAttemptsSeed.length : settingsIpAuditSeed.length} entries</p>
+            <p>Showing {activeTab === 'IP Access Rules' ? filteredRules.length : activeTab === 'Blocked Attempts' ? blockedAttempts.length : settingsIpAuditSeed.length} entries</p>
             <div className="flex flex-wrap items-center gap-2">
               <PaginationButton onClick={() => onNotify('Previous security page selected')}><ChevronLeft className="size-4" /></PaginationButton>
               <PaginationButton active onClick={() => onNotify('Security page 1 selected')}>1</PaginationButton>
@@ -24141,8 +25688,8 @@ function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
 
 function ActivityLogsPage({ onNotify }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState('2024-05-01');
-  const [dateTo, setDateTo] = useState('2024-05-20');
+  const [dateFrom, setDateFrom] = useState('2026-07-01');
+  const [dateTo, setDateTo] = useState('2026-07-03');
   const [user, setUser] = useState('All Users');
   const [moduleName, setModuleName] = useState('All Modules');
   const [action, setAction] = useState('All Actions');
@@ -24158,8 +25705,8 @@ function ActivityLogsPage({ onNotify }) {
     setUser('All Users');
     setModuleName('All Modules');
     setAction('All Actions');
-    setDateFrom('2024-05-01');
-    setDateTo('2024-05-20');
+    setDateFrom('2026-07-01');
+    setDateTo('2026-07-03');
     onNotify('Activity log filters reset');
   };
 
@@ -24539,7 +26086,7 @@ function getRoleToneClass(tone) {
   }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
 }
 
-function ReportsPage({ onNotify }) {
+function ReportsPage({ onOpenSection, onNotify }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('2024-05-01');
   const [dateTo, setDateTo] = useState('2024-05-20');

@@ -49,7 +49,7 @@ def get_or_create_party_for_project(project):
     if created and project.lead_id:
         lead = project.lead
         if lead:
-            party.phone = lead.mobile or party.phone
+            party.phone = lead.mobile_number or party.phone
             party.email = lead.email or party.email
             party.city = party.city or lead.city or ''
             party.save(update_fields=['phone', 'email', 'city'])
