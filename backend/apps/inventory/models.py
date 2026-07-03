@@ -84,11 +84,18 @@ class StockMovement(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     @staticmethod
-    def _stock_delta(movement_type, quantity):
+    def _stock_delta(movement_type, quantity, to_warehouse_id=None, from_warehouse_id=None):
         if movement_type == 'Inward':
             return quantity
         if movement_type == 'Outward':
             return -quantity
+        if movement_type == 'Transfer':
+            return 0
+        if movement_type == 'Adjustment':
+            if to_warehouse_id:
+                return quantity
+            if from_warehouse_id:
+                return -quantity
         return 0
 
     def save(self, *args, **kwargs):
@@ -102,8 +109,14 @@ class StockMovement(models.Model):
                 previous = StockMovement.objects.select_for_update().get(pk=self.pk)
 
             item = InventoryItem.objects.select_for_update().get(pk=self.item_id)
-            previous_delta = 0 if previous is None else self._stock_delta(previous.movement_type, previous.quantity)
-            new_delta = self._stock_delta(self.movement_type, self.quantity)
+            previous_delta = 0 if previous is None else self._stock_delta(
+                previous.movement_type, previous.quantity,
+                previous.to_warehouse_id, previous.from_warehouse_id,
+            )
+            new_delta = self._stock_delta(
+                self.movement_type, self.quantity,
+                self.to_warehouse_id, self.from_warehouse_id,
+            )
             updated_stock = item.current_stock - previous_delta + new_delta
 
             if updated_stock < 0:
@@ -116,7 +129,10 @@ class StockMovement(models.Model):
     def delete(self, *args, **kwargs):
         with transaction.atomic():
             item = InventoryItem.objects.select_for_update().get(pk=self.item_id)
-            delta = self._stock_delta(self.movement_type, self.quantity)
+            delta = self._stock_delta(
+                self.movement_type, self.quantity,
+                self.to_warehouse_id, self.from_warehouse_id,
+            )
             updated_stock = item.current_stock - delta
             if updated_stock < 0:
                 raise ValidationError({'quantity': 'Deleting this movement would result in negative stock.'})

@@ -40,6 +40,8 @@ class RolePermission(models.Model):
         ('Liaisoning & Commissioning', 'Liaisoning & Commissioning'),
         ('O&M', 'O&M'),
         ('Accounts', 'Accounts'),
+        ('Inventory', 'Inventory'),
+        ('AMC & Warranty', 'AMC & Warranty'),
         ('Reports', 'Reports'),
         ('User Management', 'User Management'),
         ('Settings', 'Settings'),

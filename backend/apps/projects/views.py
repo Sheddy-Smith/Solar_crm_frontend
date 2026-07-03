@@ -210,7 +210,19 @@ class ProjectPaymentViewSet(viewsets.ModelViewSet):
     ordering = ['-payment_date']
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        project_payment = serializer.save(created_by=self.request.user)
+        from apps.accounts_module.services import sync_project_payment_to_accounts
+        sync_project_payment_to_accounts(project_payment, self.request.user)
+
+    def perform_update(self, serializer):
+        project_payment = serializer.save()
+        from apps.accounts_module.services import sync_project_payment_to_accounts
+        sync_project_payment_to_accounts(project_payment, self.request.user)
+
+    def perform_destroy(self, instance):
+        from apps.accounts_module.services import remove_accounts_payment_for_project_payment
+        remove_accounts_payment_for_project_payment(instance)
+        instance.delete()
 
 
 class WorkOrderViewSet(viewsets.ModelViewSet):

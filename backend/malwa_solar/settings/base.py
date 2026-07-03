@@ -31,6 +31,9 @@ INSTALLED_APPS = [
     'apps.accounts_module',
     'apps.workforce',
     'apps.liaisoning',
+    'apps.om',
+    'apps.amc',
+    'apps.reports',
 ]
 
 MIDDLEWARE = [

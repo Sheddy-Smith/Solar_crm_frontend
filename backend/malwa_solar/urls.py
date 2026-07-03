@@ -13,6 +13,9 @@ urlpatterns = [
         path('accounts/', include('apps.accounts_module.urls')),
         path('workforce/', include('apps.workforce.urls')),
         path('liaison/', include('apps.liaisoning.urls')),
+        path('om/', include('apps.om.urls')),
+        path('amc/', include('apps.amc.urls')),
+        path('reports/', include('apps.reports.urls')),
     ])),
 ]
 

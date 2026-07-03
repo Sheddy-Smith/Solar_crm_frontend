@@ -143,27 +143,79 @@ export const analyticsApi = {
   },
 };
 
-export const inventoryApi = {
+const inventoryCrud = (base) => ({
   list: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return request(`/inventory/items/${qs ? '?' + qs : ''}`);
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/inventory/${base}/${qs ? '?' + qs : ''}`);
   },
-  create: (data) => request('/inventory/items/', { method: 'POST', body: data }),
+  get: (id) => request(`/inventory/${base}/${id}/`),
+  create: (data) => request(`/inventory/${base}/`, { method: 'POST', body: data }),
+  update: (id, data) => request(`/inventory/${base}/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/inventory/${base}/${id}/`, { method: 'DELETE' }),
+});
+
+export const inventoryApi = {
+  items: inventoryCrud('items'),
+  movements: inventoryCrud('movements'),
+  warehouses: inventoryCrud('warehouses'),
   summary: () => request('/inventory/items/summary/'),
-  movements: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return request(`/inventory/movements/${qs ? '?' + qs : ''}`);
-  },
-  createMovement: (data) => request('/inventory/movements/', { method: 'POST', body: data }),
-  warehouses: () => request('/inventory/warehouses/'),
 };
 
-export const accountsModuleApi = {
-  chartOfAccounts: () => request('/accounts/chart-of-accounts/'),
-  transactions: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return request(`/accounts/transactions/${qs ? '?' + qs : ''}`);
+const amcCrud = (base) => ({
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/amc/${base}/${qs ? '?' + qs : ''}`);
   },
+  get: (id) => request(`/amc/${base}/${id}/`),
+  create: (data) => request(`/amc/${base}/`, { method: 'POST', body: data }),
+  update: (id, data) => request(`/amc/${base}/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/amc/${base}/${id}/`, { method: 'DELETE' }),
+});
+
+export const amcModuleApi = {
+  contracts: amcCrud('contracts'),
+  warranties: amcCrud('warranties'),
+  serviceRequests: amcCrud('service-requests'),
+  visits: amcCrud('visits'),
+  renewals: amcCrud('renewals'),
+  claims: amcCrud('claims'),
+  documents: amcCrud('documents'),
+  summary: () => request('/amc/contracts/summary/'),
+};
+
+export const reportsApi = {
+  dashboard: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/reports/dashboard/${qs ? '?' + qs : ''}`);
+  },
+};
+
+const accountsCrud = (base) => ({
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/accounts/${base}/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/accounts/${base}/${id}/`),
+  create: (data) => request(`/accounts/${base}/`, { method: 'POST', body: data }),
+  update: (id, data) => request(`/accounts/${base}/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/accounts/${base}/${id}/`, { method: 'DELETE' }),
+});
+
+export const accountsModuleApi = {
+  chartOfAccounts: accountsCrud('chart-of-accounts'),
+  parties: accountsCrud('parties'),
+  bankAccounts: accountsCrud('bank-accounts'),
+  payments: accountsCrud('payments'),
+  cheques: accountsCrud('cheques'),
+  transactions: accountsCrud('transactions'),
   summary: () => request('/accounts/transactions/summary/'),
 };
 
@@ -465,3 +517,26 @@ export const lcInspectionApi = lcCrud('inspections');
 export const lcCommissioningApi = lcCrud('commissionings');
 export const lcComplianceApi = lcCrud('compliances');
 export const lcDocumentApi = lcCrud('documents');
+
+// ─── O&M (Operations & Maintenance) ─────────────────────────────────────────────
+
+const omCrud = (base) => ({
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/om/${base}/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/om/${base}/${id}/`),
+  create: (data) => request(`/om/${base}/`, { method: 'POST', body: data }),
+  update: (id, data) => request(`/om/${base}/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/om/${base}/${id}/`, { method: 'DELETE' }),
+});
+
+export const omAssetApi = omCrud('assets');
+export const omMaintenanceApi = omCrud('maintenance-tasks');
+export const omTicketApi = omCrud('tickets');
+export const omVisitApi = omCrud('site-visits');
+export const omSparePartApi = omCrud('spare-parts');
+export const omReportApi = omCrud('reports');
+export const omDocumentApi = omCrud('documents');
