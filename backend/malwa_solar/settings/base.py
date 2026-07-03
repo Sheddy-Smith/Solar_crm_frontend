@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'apps.inventory',
     'apps.accounts_module',
     'apps.workforce',
+    'apps.liaisoning',
 ]
 
 MIDDLEWARE = [

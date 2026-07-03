@@ -12,6 +12,7 @@ urlpatterns = [
         path('inventory/', include('apps.inventory.urls')),
         path('accounts/', include('apps.accounts_module.urls')),
         path('workforce/', include('apps.workforce.urls')),
+        path('liaison/', include('apps.liaisoning.urls')),
     ])),
 ]
 

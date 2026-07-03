@@ -439,3 +439,29 @@ export const materialPlanApi = {
     return request(`/material-plans/status-overview/${qs ? '?' + qs : ''}`);
   },
 };
+
+// ─── Liaisoning & Commissioning ─────────────────────────────────────────────────
+
+const lcCrud = (base) => ({
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/liaison/${base}/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/liaison/${base}/${id}/`),
+  create: (data) => request(`/liaison/${base}/`, { method: 'POST', body: data }),
+  update: (id, data) => request(`/liaison/${base}/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/liaison/${base}/${id}/`, { method: 'DELETE' }),
+});
+
+export const lcApplicationApi = lcCrud('applications');
+export const lcApprovalApi = {
+  ...lcCrud('approvals'),
+  approve: (id) => request(`/liaison/approvals/${id}/approve/`, { method: 'POST' }),
+  reject: (id, reason = '') => request(`/liaison/approvals/${id}/reject/`, { method: 'POST', body: { reason } }),
+};
+export const lcInspectionApi = lcCrud('inspections');
+export const lcCommissioningApi = lcCrud('commissionings');
+export const lcComplianceApi = lcCrud('compliances');
+export const lcDocumentApi = lcCrud('documents');

@@ -5,6 +5,7 @@ import {
   projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
   projectTeamApi, projectMilestoneApi, projectChecklistApi,
   installationMaterialApi, materialPlanApi, workforceApi, subsidyApi, projectApprovalApi,
+  lcApplicationApi, lcApprovalApi, lcInspectionApi, lcCommissioningApi, lcComplianceApi, lcDocumentApi,
 } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -8626,30 +8627,292 @@ function LiaisonActionPage({ type, onOpenSection, onNotify }) {
   );
 }
 
-function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('All Status');
-  const [applicationType, setApplicationType] = useState('All Application Type');
-  const [branch, setBranch] = useState('All Branch');
+// ── Liaisoning & Commissioning (simplified popup-based module) ────────────────
 
-  const rows = [
-    { id: 1, code: 'LC-2024-0001', company: 'Malwa Industrial Pvt. Ltd.', type: 'Net Metering', capacity: '100.00', location: 'Ludhiana, Punjab', stage: 'Approval', stageTone: 'amber', status: 'Pending', statusTone: 'amber', submittedOn: '20 Apr 2024' },
-    { id: 2, code: 'LC-2024-0002', company: 'Sharma Textiles', type: 'Net Metering', capacity: '50.00', location: 'Sangrur, Punjab', stage: 'Inspection', stageTone: 'blue', status: 'In Progress', statusTone: 'blue', submittedOn: '18 Apr 2024' },
-    { id: 3, code: 'LC-2024-0003', company: 'ABC Motors', type: 'Captive Consumption', capacity: '250.00', location: 'Chandigarh', stage: 'Inspection', stageTone: 'blue', status: 'In Progress', statusTone: 'blue', submittedOn: '15 Apr 2024' },
-    { id: 4, code: 'LC-2024-0004', company: 'Green Field School', type: 'Net Metering', capacity: '30.00', location: 'Ludhiana, Punjab', stage: 'Documentation', stageTone: 'purple', status: 'Pending', statusTone: 'amber', submittedOn: '12 Apr 2024' },
-    { id: 5, code: 'LC-2024-0005', company: 'XYZ Cold Storage', type: 'Captive Consumption', capacity: '150.00', location: 'Patiala, Punjab', stage: 'Approval', stageTone: 'amber', status: 'Pending', statusTone: 'amber', submittedOn: '10 Apr 2024' },
-    { id: 6, code: 'LC-2024-0006', company: 'Future Electronics', type: 'Net Metering', capacity: '75.00', location: 'Mohali, Punjab', stage: 'Commissioning', stageTone: 'green', status: 'In Progress', statusTone: 'blue', submittedOn: '05 Apr 2024' },
-    { id: 7, code: 'LC-2024-0007', company: 'Happy Farms', type: 'Net Metering', capacity: '25.00', location: 'Barnala, Punjab', stage: 'Commissioned', stageTone: 'green', status: 'Completed', statusTone: 'green', submittedOn: '28 Mar 2024' },
-    { id: 8, code: 'LC-2024-0008', company: 'Sunrise Hospital', type: 'Captive Consumption', capacity: '200.00', location: 'Jalandhar, Punjab', stage: 'Commissioned', stageTone: 'green', status: 'Completed', statusTone: 'green', submittedOn: '22 Mar 2024' },
-  ];
+const lcInputCls = 'h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none';
+const lcTextareaCls = 'w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 py-2 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none resize-none';
+const lcLabelCls = 'block text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6] mb-1';
+const lcModalBackdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+const lcModalBox = 'w-full max-w-lg rounded-[16px] bg-white shadow-2xl flex flex-col max-h-[90vh]';
 
-  const filteredRows = rows.filter((row) => {
-    const queryMatch = [row.code, row.company, row.location].some((value) => value.toLowerCase().includes(query.toLowerCase()));
-    const statusMatch = status === 'All Status' || row.status === status;
-    const typeMatch = applicationType === 'All Application Type' || row.type === applicationType;
-    const branchMatch = branch === 'All Branch' || row.location.includes(branch);
-    return queryMatch && statusMatch && typeMatch && branchMatch;
+const lcFormatDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN') : '—');
+
+function LcStatusBadge({ status }) {
+  const cfg = {
+    Pending: 'bg-[#fff4df] text-[#d97706]',
+    Approved: 'bg-[#dcfce7] text-[#16a34a]',
+    Rejected: 'bg-[#fee2e2] text-[#dc2626]',
+    Draft: 'bg-[#f1f5f9] text-[#64748b]',
+    Submitted: 'bg-[#eef4ff] text-[#0b65e5]',
+    'Under Review': 'bg-[#eef4ff] text-[#0b65e5]',
+    Completed: 'bg-[#dcfce7] text-[#16a34a]',
+    Scheduled: 'bg-[#eef4ff] text-[#0b65e5]',
+    'In Progress': 'bg-[#fff4df] text-[#d97706]',
+    Cancelled: 'bg-[#f1f5f9] text-[#64748b]',
+    Overdue: 'bg-[#fee2e2] text-[#dc2626]',
+  }[status] ?? 'bg-[#f1f5f9] text-[#64748b]';
+  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-extrabold ${cfg}`}>{status || '—'}</span>;
+}
+
+function LcModalShell({ title, onClose, children, footer, wide }) {
+  return createPortal(
+    <div className={lcModalBackdrop} onClick={onClose}>
+      <div className={cx(lcModalBox, wide && 'max-w-xl')} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#f1f5f9] shrink-0">
+          <h2 className="text-[17px] font-extrabold text-[#1e2a38]">{title}</h2>
+          <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-[#f1f5f9]"><X className="size-5 text-[#7a8fa6]" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+        {footer ? <div className="flex flex-wrap justify-end gap-2 px-6 py-4 border-t border-[#f1f5f9] shrink-0">{footer}</div> : null}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function LcDocumentsSection({ moduleName, relatedId, projectId, onNotify }) {
+  const [docs, setDocs] = useState([]);
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [fileKey, setFileKey] = useState(0);
+
+  const loadDocs = useCallback(() => {
+    lcDocumentApi.list({ module: moduleName, related_id: relatedId })
+      .then((r) => setDocs(normalizeApiRows(r)))
+      .catch(() => {});
+  }, [moduleName, relatedId]);
+
+  useEffect(() => { loadDocs(); }, [loadDocs]);
+
+  function handleUpload() {
+    if (!file) return;
+    setUploading(true);
+    const fd = new FormData();
+    fd.append('module', moduleName);
+    fd.append('related_id', relatedId);
+    if (projectId) fd.append('project', projectId);
+    fd.append('name', file.name);
+    fd.append('file', file);
+    lcDocumentApi.create(fd)
+      .then(() => { setFile(null); setFileKey((k) => k + 1); loadDocs(); onNotify('Document uploaded.', 'success'); })
+      .catch(() => onNotify('Upload failed.', 'error'))
+      .finally(() => setUploading(false));
+  }
+
+  return (
+    <div>
+      <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">Documents</h3>
+      {docs.length > 0 && (
+        <div className="mb-3 space-y-1.5">
+          {docs.map((doc) => (
+            <div key={doc.id} className="flex items-center gap-2 rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px]">
+              <FileText className="size-4 shrink-0 text-[#7a8fa6]" />
+              <a href={doc.file} download target="_blank" rel="noreferrer" className="flex-1 truncate text-[#0b65e5] hover:underline">{doc.name}</a>
+              <button
+                type="button"
+                onClick={() => lcDocumentApi.delete(doc.id).then(() => { loadDocs(); onNotify('Document deleted.', 'success'); }).catch(() => onNotify('Delete failed.', 'error'))}
+                className="rounded p-1 text-[#ef4444] hover:bg-[#fef2f2]"
+              ><Trash2 className="size-3.5" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <input key={fileKey} type="file" className="block flex-1 text-[12px] text-[#1e2a38] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:py-1.5 file:text-[12px] file:font-bold file:text-[#0b65e5]" onChange={(e) => setFile(e.target.files[0] || null)} />
+        <button type="button" onClick={handleUpload} disabled={!file || uploading} className="h-8 shrink-0 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white disabled:opacity-50">
+          {uploading ? 'Uploading...' : 'Upload'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LcChecklistSection({ record, api, onNotify, onSaved }) {
+  const [items, setItems] = useState(record.checklist || []);
+
+  function toggle(index) {
+    const next = items.map((it, i) => (i === index ? { ...it, done: !it.done } : it));
+    setItems(next);
+    api.update(record.id, { checklist: next })
+      .then(() => { if (onSaved) onSaved(next); })
+      .catch(() => onNotify('Failed to save checklist.', 'error'));
+  }
+
+  if (!items.length) return null;
+  const doneCount = items.filter((it) => it.done).length;
+
+  return (
+    <div>
+      <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">Checklist ({doneCount}/{items.length})</h3>
+      <div className="space-y-1.5">
+        {items.map((it, i) => (
+          <label key={i} className="flex cursor-pointer items-center gap-2 rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px] hover:bg-[#f8fafc]">
+            <input type="checkbox" checked={!!it.done} onChange={() => toggle(i)} className="size-4 accent-[#0b65e5]" />
+            <span className={it.done ? 'text-[#7a8fa6] line-through' : 'text-[#1e2a38]'}>{it.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
+  const PAGE_SIZE = 10;
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [rows, setRows] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [viewItem, setViewItem] = useState(null);
+  const [editItem, setEditItem] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [rejectItem, setRejectItem] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(config.defaults);
+
+  const needsUsers = config.fields.some((f) => f.type === 'user');
+
+  useEffect(() => {
+    projectApi.list().then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+    if (needsUsers) userApi.list().then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
+  }, [needsUsers]);
+
+  const loadRows = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (filterStatus) params.status = filterStatus;
+    config.api.list(params)
+      .then((r) => { setRows(normalizeApiRows(r)); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [filterStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { loadRows(); }, [loadRows]);
+  useEffect(() => { setPage(1); }, [search, filterStatus]);
+
+  const filtered = rows.filter((r) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return [r.record_no, r.project_name, r.customer_name, ...config.searchKeys.map((k) => r[k])]
+      .some((v) => (v || '').toString().toLowerCase().includes(q));
   });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  function buildBody(f) {
+    const body = {};
+    config.fields.forEach(({ name, type }) => {
+      let v = f[name];
+      if (type === 'user') v = v || null;
+      if (type === 'number' && v === '') v = null;
+      if (type === 'date' && v === '') v = null;
+      body[name] = v;
+    });
+    if (config.checklistItems && !f.id) {
+      body.checklist = config.checklistItems.map((label) => ({ label, done: false }));
+    }
+    return body;
+  }
+
+  function handleCreate() {
+    if (!form.project) return;
+    setSaving(true);
+    config.api.create(buildBody(form))
+      .then(() => { onNotify(`${config.recordLabel} created.`, 'success'); setShowNew(false); setForm(config.defaults); loadRows(); })
+      .catch((e) => onNotify(e.message || 'Save failed.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  function openEdit(item) {
+    const f = { id: item.id };
+    config.fields.forEach(({ name }) => { f[name] = item[name] ?? ''; });
+    setForm(f);
+    setEditItem(item);
+  }
+
+  function handleEditSave() {
+    setSaving(true);
+    config.api.update(editItem.id, buildBody(form))
+      .then(() => { onNotify(`${config.recordLabel} updated.`, 'success'); setEditItem(null); setForm(config.defaults); loadRows(); })
+      .catch((e) => onNotify(e.message || 'Update failed.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  function confirmDeleteRow(item) {
+    setDeleteConfirm({
+      message: `${item.record_no} (${item.project_name || ''})`,
+      onConfirm: () => {
+        config.api.delete(item.id)
+          .then(() => { onNotify(`${config.recordLabel} deleted.`, 'success'); setDeleteConfirm(null); loadRows(); })
+          .catch(() => onNotify('Delete failed.', 'error'));
+      },
+    });
+  }
+
+  function handleApprove(item) {
+    config.api.approve(item.id)
+      .then(() => { onNotify(`${item.record_no} approved.`, 'success'); if (viewItem?.id === item.id) setViewItem(null); loadRows(); })
+      .catch(() => onNotify('Approve failed.', 'error'));
+  }
+
+  function handleReject() {
+    config.api.reject(rejectItem.id, rejectReason)
+      .then(() => { onNotify(`${rejectItem.record_no} rejected.`, 'success'); if (viewItem?.id === rejectItem.id) setViewItem(null); setRejectItem(null); loadRows(); })
+      .catch(() => onNotify('Reject failed.', 'error'));
+  }
+
+  function handleComplete(item) {
+    config.api.update(item.id, { status: 'Completed' })
+      .then(() => { onNotify(`${item.record_no} marked completed.`, 'success'); if (viewItem?.id === item.id) setViewItem(null); loadRows(); })
+      .catch(() => onNotify('Action failed.', 'error'));
+  }
+
+  const renderField = ({ name, label, type, options, required }) => (
+    <div key={name} className={type === 'textarea' ? 'col-span-2' : ''}>
+      <label className={lcLabelCls}>{label}{required ? ' *' : ''}</label>
+      {type === 'project' ? (
+        <select className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}>
+          <option value="">Select project...</option>
+          {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+        </select>
+      ) : type === 'user' ? (
+        <select className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}>
+          <option value="">Select user...</option>
+          {users.map((u) => <option key={u.id} value={u.id}>{u.name || u.username}</option>)}
+        </select>
+      ) : type === 'select' ? (
+        <select className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}>
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : type === 'textarea' ? (
+        <textarea rows={2} className={lcTextareaCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))} />
+      ) : (
+        <input type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'} className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))} />
+      )}
+    </div>
+  );
+
+  const formPopup = (title, onClose, onSave) => (
+    <LcModalShell
+      title={title}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+          <button type="button" onClick={onSave} disabled={saving || !form.project} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60">
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+        {config.fields.map(renderField)}
+      </div>
+    </LcModalShell>
+  );
 
   return (
     <div className="space-y-4">
@@ -8658,252 +8921,548 @@ function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Liaisoning & Commissioning' },
+          { label: config.title },
         ]}
-        actions={<button type="button" onClick={() => onOpenSection('Liaison Application Create')} data-route={liaisonSubRoutes['Liaison Application Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />New Application</button>}
+        actions={
+          <button type="button" onClick={() => { setForm(config.defaults); setShowNew(true); }} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
+            <Plus className="size-4" />{config.newLabel}
+          </button>
+        }
       />
 
-      <section className="space-y-4">
-        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-        <div className="space-y-4">
-          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <OpsStatCard label="Total Applications" value="128" caption="This Financial Year" icon={FileText} tone="green" onClick={() => setStatus('All Status')} />
-            <OpsStatCard label="Pending Approval" value="24" caption="Awaiting action" icon={Clock3} tone="blue" onClick={() => setStatus('Pending')} />
-            <OpsStatCard label="Under Inspection" value="18" caption="In progress" icon={Search} tone="amber" onClick={() => setStatus('In Progress')} />
-            <OpsStatCard label="Commissioned" value="86" caption="Completed" icon={Settings} tone="purple" onClick={() => setStatus('Completed')} />
-            <OpsStatCard label="Compliance Due" value="12" caption="Upcoming" icon={CalendarDays} tone="cyan" onClick={() => onOpenSection('Compliance')} />
-          </section>
+      <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
-          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_170px_220px_180px_240px_auto_auto] xl:items-end">
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                <Search className="size-4 text-[#7386a3]" />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search applications..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
-              </label>
-              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Pending', 'In Progress', 'Completed']} hideLabel />
-              <ReportSelect label="Application Type" value={applicationType} onChange={setApplicationType} options={['All Application Type', 'Net Metering', 'Captive Consumption']} hideLabel />
-              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Chandigarh', 'Patiala', 'Mohali', 'Barnala', 'Jalandhar']} hideLabel />
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
-                <CalendarDays className="size-4 text-[#7386a3]" />
-                <span>01/04/2024 - 31/03/2025</span>
-              </label>
-              <button type="button" onClick={() => onNotify(`Liaison filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
-              <button type="button" onClick={() => onNotify('Liaison applications exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+      <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
+            <input
+              className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none"
+              placeholder={`Search ${config.title.toLowerCase()}...`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="">All Statuses</option>
+            {config.statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {(search || filterStatus) && (
+            <button type="button" onClick={() => { setSearch(''); setFilterStatus(''); }} className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Clear</button>
+          )}
+        </div>
+
+        {/* Table */}
+        <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">Loading...</div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <FileText className="size-10 text-[#c7d4e0]" />
+              <p className="text-[14px] font-bold text-[#7a8fa6]">No {config.title.toLowerCase()} found</p>
+              <button type="button" onClick={() => { setForm(config.defaults); setShowNew(true); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white">
+                <Plus className="size-3.5" />{config.newLabel}
+              </button>
             </div>
-
-            <h2 className="mt-5 font-display text-[15px] font-extrabold text-[#06135a]">Applications List</h2>
-
-            <div className="mt-4 space-y-3 xl:hidden">
-              {filteredRows.map((row) => (
-                <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[13px] font-extrabold text-[#0b65e5]">{row.code}</p>
-                      <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.company}</p>
-                    </div>
-                    <button type="button" onClick={() => onOpenSection('Liaison Application Details')} data-route={liaisonSubRoutes['Liaison Application Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
-                  </div>
-                  <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
-                    <InfoCell label="Application Type" value={row.type} />
-                    <InfoCell label="Capacity (kWp)" value={row.capacity} />
-                    <InfoCell label="Location" value={row.location} />
-                    <InfoCell label="Submitted On" value={row.submittedOn} />
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <OpsPillBadge label={row.stage} tone={row.stageTone} />
-                    <OpsPillBadge label={row.status} tone={row.statusTone} />
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
-              <table className="crm-table min-w-[1180px] w-full">
-                <thead><tr>{['#', 'Application No.', 'Applicant / Company', 'Application Type', 'Capacity (kWp)', 'Location', 'Current Stage', 'Status', 'Submitted On', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
-                <tbody>
-                  {filteredRows.map((row, index) => (
-                    <tr key={row.id}>
-                      <td>{index + 1}</td>
-                      <td className="font-extrabold text-[#0b65e5]">{row.code}</td>
-                      <td className="font-extrabold text-[#1e3261]">{row.company}</td>
-                      <td>{row.type}</td>
-                      <td>{row.capacity}</td>
-                      <td>{row.location}</td>
-                      <td><OpsPillBadge label={row.stage} tone={row.stageTone} /></td>
-                      <td><OpsPillBadge label={row.status} tone={row.statusTone} /></td>
-                      <td>{row.submittedOn}</td>
-                      <td><UserActionButton label={`Open ${row.code}`} icon={MoreVertical} tone="blue" onClick={() => onOpenSection('Liaison Application Details')} /></td>
+          ) : (
+            <div className="max-h-[62vh] overflow-auto">
+              <table className="w-full min-w-[860px] text-left text-[13px]">
+                <thead>
+                  <tr>
+                    {[...config.columns.map((c) => c.label), 'Actions'].map((h) => (
+                      <th key={h} className="sticky top-0 z-10 border-b border-[#e5eaf2] bg-[#f8fafc] px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f1f5f9]">
+                  {pageRows.map((item) => (
+                    <tr key={item.id} className="hover:bg-[#f8fafc]">
+                      {config.columns.map((c) => (
+                        <td key={c.label} className="px-4 py-3">{c.render(item)}</td>
+                      ))}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <button type="button" title="View" onClick={() => setViewItem(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3.5" /></button>
+                          <button type="button" title="Edit" onClick={() => openEdit(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#7c3aed] hover:bg-[#f5f3ff]"><Pencil className="size-3.5" /></button>
+                          {config.canApprove && item.status === 'Pending' && (
+                            <>
+                              <button type="button" title="Approve" onClick={() => handleApprove(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#bbf7d0] text-[#16a34a] hover:bg-[#f0fdf4]"><CheckCircle2 className="size-3.5" /></button>
+                              <button type="button" title="Reject" onClick={() => { setRejectReason(''); setRejectItem(item); }} className="grid size-7 place-items-center rounded-[6px] border border-[#fecaca] text-[#dc2626] hover:bg-[#fef2f2]"><XCircle className="size-3.5" /></button>
+                            </>
+                          )}
+                          {config.canComplete && item.status !== 'Completed' && item.status !== 'Cancelled' && (
+                            <button type="button" title="Mark Completed" onClick={() => handleComplete(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#bbf7d0] text-[#16a34a] hover:bg-[#f0fdf4]"><CheckCircle2 className="size-3.5" /></button>
+                          )}
+                          <button type="button" title="Delete" onClick={() => confirmDeleteRow(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#fecaca] text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
+        </section>
 
-            <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 128 entries`} totalPage="16" onNotify={onNotify} prefix="Application" />
-          </article>
+        {/* Pagination */}
+        {filtered.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between text-[13px] text-[#53647f]">
+            <span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="h-8 rounded-[8px] border border-[#e5eaf2] px-3 font-bold disabled:opacity-40">Previous</button>
+              <span className="font-extrabold text-[#1e2a38]">{page} / {totalPages}</span>
+              <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="h-8 rounded-[8px] border border-[#e5eaf2] px-3 font-bold disabled:opacity-40">Next</button>
+            </div>
+          </div>
+        )}
+      </div>
 
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-            {[
-              { label: 'Applications', note: 'View and manage all applications', icon: FileText, tone: 'blue' },
-              { label: 'Approvals', note: 'Pending and completed approvals', icon: CheckCircle2, tone: 'green' },
-              { label: 'Inspections', note: 'Schedule and track inspections', icon: ClipboardPlus, tone: 'blue' },
-              { label: 'Commissioning', note: 'Manage commissioning activities', icon: Zap, tone: 'green' },
-              { label: 'Compliance', note: 'Compliance and documents', icon: ShieldCheck, tone: 'amber' },
-              { label: 'Reports', note: 'View reports and analytics', icon: BarChart3, tone: 'purple' },
-            ].map((item) => (
-              <button key={item.label} type="button" onClick={() => item.label === 'Reports' ? onOpenSection('Liaison Reports') : onOpenSection(item.label)} data-route={item.label === 'Reports' ? liaisonSubRoutes['Liaison Reports'] : liaisonSubRoutes[item.label]} className={`${panelClass} flex items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]`}>
-                <span className={cx('grid size-11 shrink-0 place-items-center rounded-[12px]', item.tone === 'green' ? 'bg-[#e8f8eb] text-[#16a34a]' : item.tone === 'amber' ? 'bg-[#fff0dc] text-[#f59e0b]' : item.tone === 'purple' ? 'bg-[#f2eafe] text-[#8b5cf6]' : 'bg-[#e8f2ff] text-[#0b65e5]')}>
-                  <item.icon className="size-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[14px] font-extrabold text-[#1e3261]">{item.label}</span>
-                  <span className="mt-1 block text-[12px] font-bold leading-[1.45] text-[#53647f]">{item.note}</span>
-                </span>
-                <ChevronRight className="ml-auto mt-1 size-4 shrink-0 text-[#7a8aa4]" />
-              </button>
-            ))}
-          </section>
-        </div>
-      </section>
+      {/* New / Edit popups */}
+      {showNew && formPopup(config.newLabel, () => setShowNew(false), handleCreate)}
+      {editItem && formPopup(`Edit — ${editItem.record_no}`, () => { setEditItem(null); setForm(config.defaults); }, handleEditSave)}
+
+      {/* View popup */}
+      {viewItem && (
+        <LcModalShell
+          wide
+          title={`${viewItem.record_no} — Details`}
+          onClose={() => setViewItem(null)}
+          footer={
+            <>
+              {config.canApprove && viewItem.status === 'Pending' && (
+                <>
+                  <button type="button" onClick={() => handleApprove(viewItem)} className="h-9 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white hover:bg-[#15803d]">Approve</button>
+                  <button type="button" onClick={() => { setRejectReason(''); setRejectItem(viewItem); setViewItem(null); }} className="h-9 rounded-[8px] border border-[#fecaca] px-4 text-[13px] font-bold text-[#dc2626] hover:bg-[#fef2f2]">Reject</button>
+                </>
+              )}
+              {config.canComplete && viewItem.status !== 'Completed' && viewItem.status !== 'Cancelled' && (
+                <button type="button" onClick={() => handleComplete(viewItem)} className="h-9 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white hover:bg-[#15803d]">Mark Completed</button>
+              )}
+              <button type="button" onClick={() => setViewItem(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
+            </>
+          }
+        >
+          <div className="space-y-5">
+            <div>
+              <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">{config.recordLabel} Details</h3>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
+                <div><dt className={lcLabelCls}>Project</dt><dd className="font-semibold text-[#1e2a38]">{viewItem.project_name || '—'}</dd></div>
+                <div><dt className={lcLabelCls}>Customer</dt><dd className="font-semibold text-[#1e2a38]">{viewItem.customer_name || '—'}</dd></div>
+                <div><dt className={lcLabelCls}>Status</dt><dd><LcStatusBadge status={viewItem.status} /></dd></div>
+                <div><dt className={lcLabelCls}>Created By</dt><dd className="font-semibold text-[#1e2a38]">{viewItem.created_by_name || '—'}</dd></div>
+                {config.detailRows.map(([label, render]) => (
+                  <div key={label} className={label === 'Description' || label === 'Remarks' ? 'col-span-2' : ''}>
+                    <dt className={lcLabelCls}>{label}</dt>
+                    <dd className="font-semibold text-[#1e2a38] whitespace-pre-wrap">{render(viewItem)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+
+            {config.checklistItems && (
+              <LcChecklistSection
+                record={viewItem}
+                api={config.api}
+                onNotify={onNotify}
+                onSaved={(checklist) => setViewItem((v) => ({ ...v, checklist }))}
+              />
+            )}
+
+            {config.canApprove && viewItem.approved_at && (
+              <div>
+                <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">Timeline</h3>
+                <div className="space-y-2 text-[13px]">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex size-6 items-center justify-center rounded-full bg-[#eef4ff]"><Plus className="size-3.5 text-[#0b65e5]" /></span>
+                    <span className="text-[#53647f]">Created on {lcFormatDate(viewItem.created_at)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex size-6 items-center justify-center rounded-full bg-[#dcfce7]">
+                      {viewItem.status === 'Approved' ? <CheckCircle2 className="size-3.5 text-[#16a34a]" /> : <XCircle className="size-3.5 text-[#dc2626]" />}
+                    </span>
+                    <span className="text-[#53647f]">{viewItem.status} by <strong className="text-[#1e2a38]">{viewItem.approved_by_name || '—'}</strong> on {lcFormatDate(viewItem.approved_at)}</span>
+                  </div>
+                  {viewItem.rejection_reason && (
+                    <p className="ml-8 rounded-[8px] bg-[#fef2f2] px-3 py-2 text-[12px] text-[#dc2626]">Reason: {viewItem.rejection_reason}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <LcDocumentsSection moduleName={config.docModule} relatedId={viewItem.id} projectId={viewItem.project} onNotify={onNotify} />
+          </div>
+        </LcModalShell>
+      )}
+
+      {/* Reject reason popup */}
+      {rejectItem && (
+        <LcModalShell
+          title="Reject Approval"
+          onClose={() => setRejectItem(null)}
+          footer={
+            <>
+              <button type="button" onClick={() => setRejectItem(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={handleReject} className="h-9 rounded-[8px] bg-[#dc2626] px-5 text-[13px] font-extrabold text-white hover:bg-[#b91c1c]">Reject</button>
+            </>
+          }
+        >
+          <p className="mb-3 text-[13px] text-[#53647f]">Rejecting: <strong className="text-[#1e2a38]">{rejectItem.record_no}</strong></p>
+          <label className={lcLabelCls}>Reason (optional)</label>
+          <textarea rows={3} className={lcTextareaCls} placeholder="Enter reason for rejection..." value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+        </LcModalShell>
+      )}
+
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
 
       <DashboardFooter />
     </div>
   );
 }
 
+function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
+  const config = {
+    title: 'Applications',
+    recordLabel: 'Application',
+    newLabel: 'New Application',
+    api: lcApplicationApi,
+    docModule: 'Application',
+    statuses: ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Completed'],
+    searchKeys: ['application_number', 'discom', 'application_type'],
+    columns: [
+      { label: 'Application No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.application_number || r.record_no}</span> },
+      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
+      { label: 'Customer', render: (r) => r.customer_name || '—' },
+      { label: 'Capacity (kW)', render: (r) => r.capacity_kw ?? '—' },
+      { label: 'DISCOM', render: (r) => r.discom || '—' },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+      { label: 'Submitted Date', render: (r) => lcFormatDate(r.submitted_date) },
+    ],
+    fields: [
+      { name: 'project', label: 'Select Project', type: 'project', required: true },
+      { name: 'application_type', label: 'Application Type', type: 'select', options: ['Net Metering', 'Captive Consumption', 'Rooftop Solar', 'Grid Connection', 'Other'] },
+      { name: 'application_number', label: 'Application Number', type: 'text' },
+      { name: 'capacity_kw', label: 'Capacity (kW)', type: 'number' },
+      { name: 'discom', label: 'DISCOM', type: 'text' },
+      { name: 'submitted_date', label: 'Submitted Date', type: 'date' },
+      { name: 'status', label: 'Status', type: 'select', options: ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Completed'] },
+      { name: 'remarks', label: 'Remarks', type: 'textarea' },
+    ],
+    defaults: { project: '', application_type: 'Net Metering', application_number: '', capacity_kw: '', discom: '', submitted_date: '', status: 'Submitted', remarks: '' },
+    detailRows: [
+      ['Application No', (r) => r.application_number || r.record_no],
+      ['Application Type', (r) => r.application_type],
+      ['Capacity (kW)', (r) => r.capacity_kw ?? '—'],
+      ['DISCOM', (r) => r.discom || '—'],
+      ['Submitted Date', (r) => lcFormatDate(r.submitted_date)],
+      ['Remarks', (r) => r.remarks || '—'],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
 function LiaisonApprovalsPage({ activeSection, onOpenSection, onNotify }) {
-  const [query, setQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('All Approvals');
+  const config = {
+    title: 'Approvals',
+    recordLabel: 'Approval',
+    newLabel: 'New Approval',
+    api: lcApprovalApi,
+    docModule: 'Approval',
+    canApprove: true,
+    statuses: ['Pending', 'Approved', 'Rejected'],
+    searchKeys: ['approval_type', 'assigned_to_name'],
+    columns: [
+      { label: 'Approval No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
+      { label: 'Approval Type', render: (r) => r.approval_type },
+      { label: 'Assigned To', render: (r) => r.assigned_to_name || '—' },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+      { label: 'Due Date', render: (r) => lcFormatDate(r.due_date) },
+    ],
+    fields: [
+      { name: 'project', label: 'Select Project', type: 'project', required: true },
+      { name: 'approval_type', label: 'Approval Type', type: 'select', options: ['Net Metering Approval', 'DISCOM Approval', 'Electrical Inspector', 'Subsidy Approval', 'Grid Synchronization', 'Other'] },
+      { name: 'assigned_to', label: 'Assigned To', type: 'user' },
+      { name: 'due_date', label: 'Due Date', type: 'date' },
+      { name: 'description', label: 'Description', type: 'textarea' },
+      { name: 'remarks', label: 'Remarks', type: 'textarea' },
+    ],
+    defaults: { project: '', approval_type: 'Other', assigned_to: '', due_date: '', description: '', remarks: '' },
+    detailRows: [
+      ['Approval Type', (r) => r.approval_type],
+      ['Assigned To', (r) => r.assigned_to_name || '—'],
+      ['Due Date', (r) => lcFormatDate(r.due_date)],
+      ['Description', (r) => r.description || '—'],
+      ['Remarks', (r) => r.remarks || '—'],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
 
-  const approvalTabs = ['All Approvals', 'LC Applications', 'Statutory Approvals', 'Commissioning Requests'];
-  const approvalRows = [
-    { id: 1, appId: 'LC-APP-2024-048', type: 'LC Application', typeTone: 'green', customer: 'Ravi Industries Pvt. Ltd.', project: '2 MW Rooftop Project', applicationDate: '20 May 2024', submittedBy: { name: 'Ravi Kumar', role: 'Project Manager', initials: 'RK', tone: 'blue' }, status: 'Pending', dueDate: '27 May 2024', dueNote: '3 days left', dueTone: 'amber' },
-    { id: 2, appId: 'STAT-APP-2024-047', type: 'Statutory Approval', typeTone: 'blue', customer: 'Malwa Textiles', project: '1.5 MW Rooftop Project', applicationDate: '18 May 2024', submittedBy: { name: 'Neha Sharma', role: 'Compliance Officer', initials: 'NS', tone: 'indigo' }, status: 'Pending', dueDate: '26 May 2024', dueNote: '2 days left', dueTone: 'amber' },
-    { id: 3, appId: 'COM-REQ-2024-046', type: 'Commissioning Request', typeTone: 'purple', customer: 'Greenfield Hospital', project: '1 MW Rooftop Project', applicationDate: '17 May 2024', submittedBy: { name: 'Amit Singh', role: 'Project Engineer', initials: 'AS', tone: 'green' }, status: 'Under Review', dueDate: '25 May 2024', dueNote: '1 day left', dueTone: 'red' },
-    { id: 4, appId: 'LC-APP-2024-045', type: 'LC Application', typeTone: 'green', customer: 'Sharma Cold Storage', project: '750 KW Rooftop Project', applicationDate: '15 May 2024', submittedBy: { name: 'Vikram Kumar', role: 'Project Manager', initials: 'VK', tone: 'emerald' }, status: 'Approved', dueDate: '20 May 2024', dueNote: 'Completed', dueTone: 'green' },
-    { id: 5, appId: 'STAT-APP-2024-044', type: 'Statutory Approval', typeTone: 'blue', customer: 'City Mall', project: '2.5 MW Rooftop Project', applicationDate: '14 May 2024', submittedBy: { name: 'Pooja Gupta', role: 'Compliance Officer', initials: 'PG', tone: 'purple' }, status: 'Approved', dueDate: '19 May 2024', dueNote: 'Completed', dueTone: 'green' },
-    { id: 6, appId: 'COM-REQ-2024-043', type: 'Commissioning Request', typeTone: 'purple', customer: 'ABC Corporation', project: '1.2 MW Rooftop Project', applicationDate: '13 May 2024', submittedBy: { name: 'Manoj Kumar', role: 'Project Engineer', initials: 'MK', tone: 'amber' }, status: 'Pending', dueDate: '21 May 2024', dueNote: 'Today', dueTone: 'red' },
-    { id: 7, appId: 'LC-APP-2024-042', type: 'LC Application', typeTone: 'green', customer: 'DLF Warehouse', project: '500 KW Rooftop Project', applicationDate: '10 May 2024', submittedBy: { name: 'Sunil Kumar', role: 'Project Manager', initials: 'SK', tone: 'cyan' }, status: 'Rejected', dueDate: '17 May 2024', dueNote: 'Closed', dueTone: 'red' },
-    { id: 8, appId: 'STAT-APP-2024-041', type: 'Statutory Approval', typeTone: 'blue', customer: 'Minerva School', project: '300 KW Rooftop Project', applicationDate: '09 May 2024', submittedBy: { name: 'Neha Sharma', role: 'Compliance Officer', initials: 'NS', tone: 'indigo' }, status: 'Under Review', dueDate: '16 May 2024', dueNote: 'In review', dueTone: 'blue' },
-    { id: 9, appId: 'COM-REQ-2024-040', type: 'Commissioning Request', typeTone: 'purple', customer: 'Sarla Farms', project: '250 KW Rooftop Project', applicationDate: '08 May 2024', submittedBy: { name: 'Amit Singh', role: 'Project Engineer', initials: 'AS', tone: 'green' }, status: 'Approved', dueDate: '15 May 2024', dueNote: 'Completed', dueTone: 'green' },
-    { id: 10, appId: 'LC-APP-2024-039', type: 'LC Application', typeTone: 'green', customer: 'Jain Resort', project: '650 KW Rooftop Project', applicationDate: '07 May 2024', submittedBy: { name: 'Ravi Kumar', role: 'Project Manager', initials: 'RK', tone: 'blue' }, status: 'Pending', dueDate: '14 May 2024', dueNote: 'Overdue', dueTone: 'red' },
-  ];
+function LiaisonInspectionsPage({ activeSection, onOpenSection, onNotify }) {
+  const config = {
+    title: 'Inspections',
+    recordLabel: 'Inspection',
+    newLabel: 'Schedule Inspection',
+    api: lcInspectionApi,
+    docModule: 'Inspection',
+    canComplete: true,
+    statuses: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'],
+    searchKeys: ['inspector'],
+    checklistItems: ['Site readiness verified', 'Earthing checked', 'Structure alignment checked', 'Wiring & connections inspected', 'Safety equipment available', 'Meter installation verified'],
+    columns: [
+      { label: 'Inspection No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
+      { label: 'Inspector', render: (r) => r.inspector || '—' },
+      { label: 'Date', render: (r) => lcFormatDate(r.date) },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+    ],
+    fields: [
+      { name: 'project', label: 'Select Project', type: 'project', required: true },
+      { name: 'inspector', label: 'Inspector', type: 'text' },
+      { name: 'date', label: 'Inspection Date', type: 'date' },
+      { name: 'status', label: 'Status', type: 'select', options: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'] },
+      { name: 'remarks', label: 'Remarks', type: 'textarea' },
+    ],
+    defaults: { project: '', inspector: '', date: '', status: 'Scheduled', remarks: '' },
+    detailRows: [
+      ['Inspector', (r) => r.inspector || '—'],
+      ['Inspection Date', (r) => lcFormatDate(r.date)],
+      ['Remarks', (r) => r.remarks || '—'],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
 
-  const filteredRows = approvalRows.filter((row) => {
-    const queryText = query.toLowerCase();
-    const queryMatch = [row.appId, row.type, row.customer, row.project, row.submittedBy.name].some((value) => value.toLowerCase().includes(queryText));
-    const tabMatch = activeTab === 'All Approvals' || row.type === activeTab.slice(0, -1);
-    return queryMatch && tabMatch;
+function LiaisonCommissioningPage({ activeSection, onOpenSection, onNotify }) {
+  const config = {
+    title: 'Commissioning',
+    recordLabel: 'Commissioning',
+    newLabel: 'New Commissioning',
+    api: lcCommissioningApi,
+    docModule: 'Commissioning',
+    canComplete: true,
+    statuses: ['Scheduled', 'In Progress', 'Completed'],
+    searchKeys: ['engineer'],
+    checklistItems: ['Inverter installed & configured', 'Panels connected & tested', 'Earthing verified', 'Net meter synchronized', 'Generation test completed', 'Handover documentation done'],
+    columns: [
+      { label: 'Commission No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
+      { label: 'Engineer', render: (r) => r.engineer || '—' },
+      { label: 'Date', render: (r) => lcFormatDate(r.date) },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+    ],
+    fields: [
+      { name: 'project', label: 'Select Project', type: 'project', required: true },
+      { name: 'engineer', label: 'Engineer', type: 'text' },
+      { name: 'date', label: 'Commissioning Date', type: 'date' },
+      { name: 'status', label: 'Status', type: 'select', options: ['Scheduled', 'In Progress', 'Completed'] },
+      { name: 'remarks', label: 'Remarks', type: 'textarea' },
+    ],
+    defaults: { project: '', engineer: '', date: '', status: 'Scheduled', remarks: '' },
+    detailRows: [
+      ['Engineer', (r) => r.engineer || '—'],
+      ['Commissioning Date', (r) => lcFormatDate(r.date)],
+      ['Remarks', (r) => r.remarks || '—'],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function LiaisonCompliancePage({ activeSection, onOpenSection, onNotify }) {
+  const config = {
+    title: 'Compliance',
+    recordLabel: 'Compliance',
+    newLabel: 'New Compliance',
+    api: lcComplianceApi,
+    docModule: 'Compliance',
+    statuses: ['Pending', 'Submitted', 'Completed', 'Overdue'],
+    searchKeys: ['compliance_type'],
+    columns: [
+      { label: 'Compliance No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
+      { label: 'Compliance Type', render: (r) => r.compliance_type },
+      {
+        label: 'Due Date',
+        render: (r) => {
+          const overdue = r.due_date && r.status !== 'Completed' && new Date(r.due_date) < new Date();
+          return <span className={overdue ? 'font-bold text-[#dc2626]' : ''}>{lcFormatDate(r.due_date)}</span>;
+        },
+      },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+    ],
+    fields: [
+      { name: 'project', label: 'Select Project', type: 'project', required: true },
+      { name: 'compliance_type', label: 'Compliance Type', type: 'select', options: ['Safety Certificate', 'CEIG Approval', 'Pollution Clearance', 'Fire Safety', 'Annual Compliance', 'Other'] },
+      { name: 'due_date', label: 'Due Date', type: 'date' },
+      { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Submitted', 'Completed', 'Overdue'] },
+      { name: 'remarks', label: 'Remarks', type: 'textarea' },
+    ],
+    defaults: { project: '', compliance_type: 'Other', due_date: '', status: 'Pending', remarks: '' },
+    detailRows: [
+      ['Compliance Type', (r) => r.compliance_type],
+      ['Due Date', (r) => lcFormatDate(r.due_date)],
+      ['Remarks', (r) => r.remarks || '—'],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
+  const DOC_TYPES = ['Application Form', 'Approval Letter', 'Inspection Report', 'Commissioning Report', 'Compliance Certificate', 'Agreement', 'Other'];
+  const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [docs, setDocs] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [viewDoc, setViewDoc] = useState(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [uploadForm, setUploadForm] = useState({ project: '', doc_type: 'Other', name: '', file: null });
+  const [replaceFile, setReplaceFile] = useState(null);
+
+  useEffect(() => {
+    projectApi.list().then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+  }, []);
+
+  const loadDocs = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (filterType) params.doc_type = filterType;
+    lcDocumentApi.list(params)
+      .then((r) => { setDocs(normalizeApiRows(r)); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [filterType]);
+
+  useEffect(() => { loadDocs(); }, [loadDocs]);
+
+  const filtered = docs.filter((d) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (d.name || '').toLowerCase().includes(q) || (d.project_name || '').toLowerCase().includes(q);
   });
+
+  function handleUpload() {
+    if (!uploadForm.file) return;
+    setSaving(true);
+    const fd = new FormData();
+    if (uploadForm.project) fd.append('project', uploadForm.project);
+    fd.append('module', 'General');
+    fd.append('doc_type', uploadForm.doc_type);
+    fd.append('name', uploadForm.name || uploadForm.file.name);
+    fd.append('file', uploadForm.file);
+    lcDocumentApi.create(fd)
+      .then(() => { onNotify('Document uploaded.', 'success'); setShowUpload(false); setUploadForm({ project: '', doc_type: 'Other', name: '', file: null }); loadDocs(); })
+      .catch(() => onNotify('Upload failed.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  function handleReplace() {
+    if (!replaceFile || !viewDoc) return;
+    setSaving(true);
+    const fd = new FormData();
+    fd.append('file', replaceFile);
+    lcDocumentApi.update(viewDoc.id, fd)
+      .then((updated) => { onNotify('File replaced.', 'success'); setReplaceFile(null); setViewDoc(updated); loadDocs(); })
+      .catch(() => onNotify('Replace failed.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  function confirmDeleteDoc(doc) {
+    setDeleteConfirm({
+      message: doc.name || 'this document',
+      onConfirm: () => {
+        lcDocumentApi.delete(doc.id)
+          .then(() => { onNotify('Document deleted.', 'success'); setDeleteConfirm(null); if (viewDoc?.id === doc.id) setViewDoc(null); loadDocs(); })
+          .catch(() => onNotify('Delete failed.', 'error'));
+      },
+    });
+  }
+
+  const isImage = (url) => /\.(png|jpe?g|gif|webp)(\?|$)/i.test(url || '');
 
   return (
     <div className="space-y-4">
       <PageHeading
-        title="Liaisoning & Commissioning Approvals"
+        title="Liaisoning & Commissioning"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
-          { label: 'Approvals' },
+          { label: 'Liaisoning & Commissioning' },
+          { label: 'Documents' },
         ]}
+        actions={
+          <button type="button" onClick={() => setShowUpload(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
+            <Upload className="size-4" />Upload Document
+          </button>
+        }
       />
 
-      <section className="space-y-4">
-        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-        <div className="space-y-4">
-          <p className="text-[14px] font-bold text-[#324871]">
-            Review and approve LC applications, statutory approvals, and commissioning requests.
-          </p>
+      <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
-          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <LiaisonApprovalStatCard label="Total Applications" value="48" caption="All Time" icon={FileText} tone="green" onClick={() => setActiveTab('All Approvals')} />
-            <LiaisonApprovalStatCard label="Pending Approvals" value="14" caption="Requires Action" icon={Clock3} tone="blue" onClick={() => onOpenSection('Liaison Approval Details')} />
-            <LiaisonApprovalStatCard label="Approved" value="28" caption="This Year" icon={CheckCircle2} tone="amber" onClick={() => onOpenSection('Liaison Approval Details')} />
-            <LiaisonApprovalStatCard label="Rejected" value="6" caption="This Year" icon={XCircle} tone="purple" onClick={() => onOpenSection('Liaison Approval Details')} />
-            <LiaisonApprovalStatCard label="Due This Week" value="5" caption="Action Needed" icon={CalendarDays} tone="cyan" onClick={() => onOpenSection('Liaison Approval Details')} />
-          </section>
+      <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
+            <input
+              className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none"
+              placeholder="Search documents, projects..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+            <option value="">All Types</option>
+            {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          {(search || filterType) && (
+            <button type="button" onClick={() => { setSearch(''); setFilterType(''); }} className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Clear</button>
+          )}
+        </div>
 
-          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="-mx-1 overflow-x-auto px-1">
-                <div className="flex min-w-max gap-2">
-                  {approvalTabs.map((tab) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => setActiveTab(tab)}
-                      className={cx(
-                        'rounded-[10px] border-b-2 px-4 py-3 text-[13px] font-extrabold transition',
-                        activeTab === tab
-                          ? 'border-[#16a34a] text-[#11823f]'
-                          : 'border-transparent text-[#34466c] hover:text-[#0b65e5]',
-                      )}
-                    >
-                      {tab}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <label className="flex h-11 min-w-0 items-center gap-3 rounded-[8px] border border-[#d9e4f2] bg-white px-4 sm:w-[260px]">
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    type="search"
-                    placeholder="Search applications..."
-                    className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
-                  />
-                  <Search className="size-4 text-[#7386a3]" />
-                </label>
-                <button type="button" onClick={() => onNotify(`Approval filters opened for ${activeTab}`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                  <Filter className="size-4 text-[#0b65e5]" />
-                  Filter
-                </button>
-                <button type="button" onClick={() => onNotify('Approval list exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                  <Download className="size-4 text-[#0b65e5]" />
-                  Export
-                </button>
-              </div>
+        <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">Loading documents...</div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <FileText className="size-10 text-[#c7d4e0]" />
+              <p className="text-[14px] font-bold text-[#7a8fa6]">No documents found</p>
+              <button type="button" onClick={() => setShowUpload(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white">
+                <Upload className="size-3.5" />Upload First Document
+              </button>
             </div>
-
-            <div className="mt-5 space-y-3 xl:hidden">
-              {filteredRows.map((row, index) => (
-                <LiaisonApprovalMobileCard key={row.id} row={row} index={index + 1} onOpenSection={onOpenSection} />
-              ))}
-            </div>
-
-            <div className="mt-5 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
-              <table className="crm-table min-w-[1280px] w-full">
+          ) : (
+            <div className="max-h-[62vh] overflow-auto">
+              <table className="w-full min-w-[820px] text-left text-[13px]">
                 <thead>
                   <tr>
-                    {['#', 'Application ID', 'Type', 'Project / Customer', 'Application Date', 'Submitted By', 'Status', 'Due Date', 'Actions'].map((header) => (
-                      <th key={header}>{header}</th>
+                    {['Document Name', 'Type', 'Project', 'Uploaded By', 'Date', 'Actions'].map((h) => (
+                      <th key={h} className="sticky top-0 z-10 border-b border-[#e5eaf2] bg-[#f8fafc] px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody>
-                  {filteredRows.map((row, index) => (
-                    <tr key={row.id}>
-                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
-                      <td className="font-extrabold text-[#2643a2]">{row.appId}</td>
-                      <td><LiaisonApprovalTypeBadge type={row.type} tone={row.typeTone} /></td>
-                      <td>
-                        <div>
-                          <p className="font-extrabold text-[#1e3261]">{row.customer}</p>
-                          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.project}</p>
+                <tbody className="divide-y divide-[#f1f5f9]">
+                  {filtered.map((doc) => (
+                    <tr key={doc.id} className="hover:bg-[#f8fafc]">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <FileText className="size-4 shrink-0 text-[#7a8fa6]" />
+                          <span className="max-w-[240px] truncate font-semibold text-[#1e2a38]" title={doc.name}>{doc.name || '—'}</span>
                         </div>
                       </td>
-                      <td className="font-extrabold text-[#223768]">{row.applicationDate}</td>
-                      <td><LiaisonApprovalSubmittedBy user={row.submittedBy} /></td>
-                      <td><LiaisonApprovalStatusBadge status={row.status} /></td>
-                      <td><LiaisonApprovalDueDate dueDate={row.dueDate} dueNote={row.dueNote} dueTone={row.dueTone} /></td>
-                      <td>
-                        <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => onOpenSection('Liaison Approval Details')} data-route={liaisonSubRoutes['Liaison Approval Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
-                            <Eye className="size-4" />
-                          </button>
-                          <button type="button" onClick={() => onOpenSection('Liaison Approval Details')} data-route={liaisonSubRoutes['Liaison Approval Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
-                            <ChevronDown className="size-4" />
-                          </button>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-bold text-[#0b65e5]">{doc.doc_type || '—'}</span>
+                      </td>
+                      <td className="px-4 py-3 text-[#53647f]">{doc.project_name || '—'}</td>
+                      <td className="px-4 py-3 text-[#53647f]">{doc.uploaded_by_name || '—'}</td>
+                      <td className="px-4 py-3 text-[#53647f]">{lcFormatDate(doc.uploaded_at)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <button type="button" title="View" onClick={() => { setReplaceFile(null); setViewDoc(doc); }} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3.5" /></button>
+                          <a href={doc.file} download target="_blank" rel="noreferrer" title="Download" className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3.5" /></a>
+                          <button type="button" title="Delete" onClick={() => confirmDeleteDoc(doc)} className="grid size-7 place-items-center rounded-[6px] border border-[#fecaca] text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
                         </div>
                       </td>
                     </tr>
@@ -8911,22 +9470,105 @@ function LiaisonApprovalsPage({ activeSection, onOpenSection, onNotify }) {
                 </tbody>
               </table>
             </div>
+          )}
+        </section>
+      </div>
 
-            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-              <p>Showing 1 to {filteredRows.length} of 48 entries</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <PaginationButton onClick={() => onNotify('Previous approvals page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-                <PaginationButton active onClick={() => onNotify('Approvals page 1 selected')}>1</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Approvals page 2 selected')}>2</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Approvals page 3 selected')}>3</PaginationButton>
-                <span className="px-2 text-[#53647f]">...</span>
-                <PaginationButton onClick={() => onNotify('Approvals page 5 selected')}>5</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Next approvals page selected')}><ChevronRight className="size-4" /></PaginationButton>
+      {/* Upload popup */}
+      {showUpload && (
+        <LcModalShell
+          title="Upload Document"
+          onClose={() => setShowUpload(false)}
+          footer={
+            <>
+              <button type="button" onClick={() => setShowUpload(false)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={handleUpload} disabled={saving || !uploadForm.file} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60">
+                {saving ? 'Uploading...' : 'Upload'}
+              </button>
+            </>
+          }
+        >
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <div className="col-span-2">
+              <label className={lcLabelCls}>Select Project</label>
+              <select className={lcInputCls} value={uploadForm.project} onChange={(e) => setUploadForm((p) => ({ ...p, project: e.target.value }))}>
+                <option value="">General (no project)</option>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lcLabelCls}>Document Type</label>
+              <select className={lcInputCls} value={uploadForm.doc_type} onChange={(e) => setUploadForm((p) => ({ ...p, doc_type: e.target.value }))}>
+                {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lcLabelCls}>Document Name</label>
+              <input type="text" className={lcInputCls} placeholder="Auto from file if blank" value={uploadForm.name} onChange={(e) => setUploadForm((p) => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div className="col-span-2">
+              <label className={lcLabelCls}>Upload File *</label>
+              <input type="file" className="block w-full text-[13px] text-[#1e2a38] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:py-1.5 file:text-[12px] file:font-bold file:text-[#0b65e5] hover:file:bg-[#dbeafe]" onChange={(e) => setUploadForm((p) => ({ ...p, file: e.target.files[0] || null }))} />
+            </div>
+          </div>
+        </LcModalShell>
+      )}
+
+      {/* View popup */}
+      {viewDoc && (
+        <LcModalShell
+          wide
+          title="Document Details"
+          onClose={() => setViewDoc(null)}
+          footer={
+            <>
+              <button type="button" onClick={() => confirmDeleteDoc(viewDoc)} className="h-9 rounded-[8px] border border-[#fecaca] px-4 text-[13px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Delete</button>
+              <a href={viewDoc.file} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
+              <button type="button" onClick={() => setViewDoc(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            {isImage(viewDoc.file) ? (
+              <img src={viewDoc.file} alt={viewDoc.name} className="max-h-[320px] w-full rounded-[10px] border border-[#e5eaf2] object-contain bg-[#f8fafc]" />
+            ) : (
+              <div className="flex items-center gap-3 rounded-[10px] border border-[#e5eaf2] bg-[#f8fafc] p-4">
+                <FileText className="size-8 shrink-0 text-[#7a8fa6]" />
+                <div className="min-w-0">
+                  <p className="truncate font-extrabold text-[#1e2a38]">{viewDoc.name}</p>
+                  <p className="text-[12px] text-[#7a8fa6]">Preview not available — download to view.</p>
+                </div>
+              </div>
+            )}
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
+              {[
+                ['Type', viewDoc.doc_type || '—'],
+                ['Project', viewDoc.project_name || 'General'],
+                ['Uploaded By', viewDoc.uploaded_by_name || '—'],
+                ['Date', lcFormatDate(viewDoc.uploaded_at)],
+              ].map(([label, val]) => (
+                <div key={label}>
+                  <dt className={lcLabelCls}>{label}</dt>
+                  <dd className="font-semibold text-[#1e2a38]">{val}</dd>
+                </div>
+              ))}
+            </dl>
+            <div>
+              <label className={lcLabelCls}>Replace File</label>
+              <div className="flex items-center gap-2">
+                <input type="file" className="block flex-1 text-[12px] text-[#1e2a38] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:py-1.5 file:text-[12px] file:font-bold file:text-[#0b65e5]" onChange={(e) => setReplaceFile(e.target.files[0] || null)} />
+                <button type="button" onClick={handleReplace} disabled={!replaceFile || saving} className="h-8 shrink-0 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white disabled:opacity-50">
+                  {saving ? 'Replacing...' : 'Replace'}
+                </button>
               </div>
             </div>
-          </article>
-        </div>
-      </section>
+          </div>
+        </LcModalShell>
+      )}
+
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
 
       <DashboardFooter />
     </div>
@@ -8966,16 +9608,6 @@ function LiaisonApprovalStatCard({ label, value, caption, icon: Icon, tone, onCl
   );
 }
 
-function LiaisonApprovalTypeBadge({ type, tone }) {
-  const classes = {
-    green: 'bg-[#e8f8eb] text-[#16a34a]',
-    blue: 'bg-[#e8f2ff] text-[#2563eb]',
-    purple: 'bg-[#f3edff] text-[#7c3aed]',
-  }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
-
-  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{type}</span>;
-}
-
 function LiaisonApprovalStatusBadge({ status }) {
   const classes = {
     Pending: 'bg-[#fff0dc] text-[#f38200]',
@@ -9011,863 +9643,6 @@ function LiaisonApprovalSubmittedBy({ user }) {
   );
 }
 
-function LiaisonApprovalDueDate({ dueDate, dueNote, dueTone }) {
-  const toneClass = {
-    amber: 'text-[#f38200]',
-    red: 'text-[#ef4444]',
-    green: 'text-[#16a34a]',
-    blue: 'text-[#2563eb]',
-  }[dueTone] ?? 'text-[#53647f]';
-
-  return (
-    <div>
-      <p className="font-extrabold text-[#1e3261]">{dueDate}</p>
-      <p className={cx('mt-1 text-[12px] font-extrabold', toneClass)}>{dueNote}</p>
-    </div>
-  );
-}
-
-function LiaisonApprovalMobileCard({ row, index, onOpenSection }) {
-  return (
-    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
-          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.appId}</p>
-          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.customer}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.project}</p>
-        </div>
-        <LiaisonApprovalStatusBadge status={row.status} />
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <LiaisonApprovalTypeBadge type={row.type} tone={row.typeTone} />
-      </div>
-
-      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
-        <InfoCell label="Application Date" value={row.applicationDate} />
-        <InfoCell label="Due Date" valueNode={<LiaisonApprovalDueDate dueDate={row.dueDate} dueNote={row.dueNote} dueTone={row.dueTone} />} />
-        <InfoCell label="Submitted By" valueNode={<LiaisonApprovalSubmittedBy user={row.submittedBy} />} />
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <button type="button" onClick={() => onOpenSection('Liaison Approval Details')} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
-          <Eye className="size-4" />
-          View
-        </button>
-        <button type="button" onClick={() => onOpenSection('Liaison Approval Details')} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
-          <ChevronDown className="size-4" />
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function LiaisonInspectionsPage({ activeSection, onOpenSection, onNotify }) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('All Status');
-  const [applicationType, setApplicationType] = useState('All Application Type');
-  const [branch, setBranch] = useState('All Branch');
-  const [inspector, setInspector] = useState('All Inspector');
-
-  const inspectionRows = [
-    { id: 1, inspectionNo: 'LC-INS-2024-0096', applicationNo: 'LC-2024-0006', company: 'Future Electronics', applicationType: 'Net Metering', location: 'Mohali, Punjab', inspector: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue' }, scheduledDate: '13 May 2024', status: 'Scheduled', issues: 0 },
-    { id: 2, inspectionNo: 'LC-INS-2024-0095', applicationNo: 'LC-2024-0005', company: 'XYZ Cold Storage', applicationType: 'Captive Consumption', location: 'Patiala, Punjab', inspector: { name: 'Amit Singh', initials: 'AS', tone: 'cyan' }, scheduledDate: '12 May 2024', status: 'In Progress', issues: 1 },
-    { id: 3, inspectionNo: 'LC-INS-2024-0094', applicationNo: 'LC-2024-0004', company: 'Green Field School', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', inspector: { name: 'Neha Sharma', initials: 'NS', tone: 'green' }, scheduledDate: '10 May 2024', status: 'Completed', issues: 0 },
-    { id: 4, inspectionNo: 'LC-INS-2024-0093', applicationNo: 'LC-2024-0003', company: 'ABC Motors', applicationType: 'Captive Consumption', location: 'Chandigarh', inspector: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple' }, scheduledDate: '09 May 2024', status: 'Completed', issues: 2 },
-    { id: 5, inspectionNo: 'LC-INS-2024-0092', applicationNo: 'LC-2024-0002', company: 'Sharma Textiles', applicationType: 'Net Metering', location: 'Sangrur, Punjab', inspector: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple' }, scheduledDate: '08 May 2024', status: 'Completed', issues: 0 },
-    { id: 6, inspectionNo: 'LC-INS-2024-0091', applicationNo: 'LC-2024-0001', company: 'Malwa Industrial Pvt. Ltd.', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', inspector: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue' }, scheduledDate: '07 May 2024', status: 'Completed', issues: 1 },
-    { id: 7, inspectionNo: 'LC-INS-2024-0090', applicationNo: 'LC-2024-0010', company: 'Jain Resort', applicationType: 'Captive Consumption', location: 'Jalandhar, Punjab', inspector: { name: 'Amit Singh', initials: 'AS', tone: 'cyan' }, scheduledDate: '06 May 2024', status: 'Pending', issues: 0 },
-    { id: 8, inspectionNo: 'LC-INS-2024-0089', applicationNo: 'LC-2024-0009', company: 'Punjab Warehouse', applicationType: 'Net Metering', location: 'Amritsar, Punjab', inspector: { name: 'Neha Sharma', initials: 'NS', tone: 'green' }, scheduledDate: '05 May 2024', status: 'Pending', issues: 0 },
-    { id: 9, inspectionNo: 'LC-INS-2024-0088', applicationNo: 'LC-2024-0008', company: 'Metro Shopping Mall', applicationType: 'Captive Consumption', location: 'Bathinda, Punjab', inspector: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple' }, scheduledDate: '04 May 2024', status: 'Cancelled', issues: 0 },
-    { id: 10, inspectionNo: 'LC-INS-2024-0087', applicationNo: 'LC-2024-0007', company: 'Sunrise Hospital', applicationType: 'Net Metering', location: 'Pathankot, Punjab', inspector: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple' }, scheduledDate: '03 May 2024', status: 'Completed', issues: 0 },
-  ];
-
-  const filteredRows = inspectionRows.filter((row) => {
-    const queryText = query.toLowerCase();
-    const queryMatch = [row.inspectionNo, row.applicationNo, row.company, row.location, row.inspector.name].some((value) => value.toLowerCase().includes(queryText));
-    const statusMatch = status === 'All Status' || row.status === status;
-    const typeMatch = applicationType === 'All Application Type' || row.applicationType === applicationType;
-    const branchMatch = branch === 'All Branch' || row.location.includes(branch);
-    const inspectorMatch = inspector === 'All Inspector' || row.inspector.name === inspector;
-    return queryMatch && statusMatch && typeMatch && branchMatch && inspectorMatch;
-  });
-
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Liaisoning & Commissioning - Inspections"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
-          { label: 'Inspections' },
-        ]}
-        actions={(
-          <button type="button" onClick={() => onOpenSection('Liaison Inspection Create')} data-route={liaisonSubRoutes['Liaison Inspection Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
-            <Plus className="size-4" />
-            New Inspection
-          </button>
-        )}
-      />
-
-      <section className="space-y-4">
-        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-        <div className="space-y-4">
-          <p className="text-[14px] font-bold text-[#324871]">
-            Track and manage site inspections for LC applications and projects.
-          </p>
-
-          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <LiaisonApprovalStatCard label="Total Inspections" value="96" caption="This Financial Year" icon={ClipboardPlus} tone="green" onClick={() => setStatus('All Status')} />
-            <LiaisonApprovalStatCard label="Pending Inspections" value="18" caption="Awaiting Schedule" icon={Search} tone="blue" onClick={() => setStatus('Pending')} />
-            <LiaisonApprovalStatCard label="Completed Inspections" value="62" caption="This Financial Year" icon={Eye} tone="amber" onClick={() => setStatus('Completed')} />
-            <LiaisonApprovalStatCard label="Issues Found" value="14" caption="Requires Action" icon={Flag} tone="purple" onClick={() => onOpenSection('Liaison Inspection Details')} />
-            <LiaisonApprovalStatCard label="Scheduled Today" value="06" caption="Today" icon={CalendarDays} tone="cyan" onClick={() => setStatus('Scheduled')} />
-          </section>
-
-          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_170px_180px_170px_170px_230px_auto_auto] xl:items-end">
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search inspections..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
-                <Search className="size-4 text-[#7386a3]" />
-              </label>
-              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Scheduled', 'Pending', 'In Progress', 'Completed', 'Cancelled']} hideLabel />
-              <ReportSelect label="Application Type" value={applicationType} onChange={setApplicationType} options={['All Application Type', 'Net Metering', 'Captive Consumption']} hideLabel />
-              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Mohali', 'Patiala', 'Ludhiana', 'Chandigarh', 'Sangrur', 'Jalandhar', 'Amritsar', 'Bathinda', 'Pathankot']} hideLabel />
-              <ReportSelect label="Inspector" value={inspector} onChange={setInspector} options={['All Inspector', 'Ravi Kumar', 'Amit Singh', 'Neha Sharma', 'Vikram Kumar', 'Pooja Gupta']} hideLabel />
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
-                <CalendarDays className="size-4 text-[#7386a3]" />
-                <span>01/04/2024 - 31/03/2025</span>
-              </label>
-              <button type="button" onClick={() => onNotify(`Inspection filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                <Search className="size-4 text-[#0b65e5]" />
-                Filter
-              </button>
-              <button type="button" onClick={() => onNotify('Inspections exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                <Download className="size-4 text-[#0b65e5]" />
-                Export
-              </button>
-            </div>
-
-            <h2 className="mt-5 font-display text-[18px] font-extrabold text-[#06135a]">Inspections List</h2>
-
-            <div className="mt-4 space-y-3 xl:hidden">
-              {filteredRows.map((row, index) => (
-                <LiaisonInspectionMobileCard key={row.id} row={row} index={index + 1} onOpenSection={onOpenSection} />
-              ))}
-            </div>
-
-            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
-              <table className="crm-table min-w-[1320px] w-full">
-                <thead>
-                  <tr>
-                    {['#', 'Inspection No.', 'Application No.', 'Project / Company', 'Application Type', 'Location', 'Inspector', 'Scheduled Date', 'Status', 'Issues', 'Actions'].map((header) => (
-                      <th key={header}>{header}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row, index) => (
-                    <tr key={row.id}>
-                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
-                      <td className="font-extrabold text-[#2643a2]">{row.inspectionNo}</td>
-                      <td className="font-extrabold text-[#2643a2]">{row.applicationNo}</td>
-                      <td className="font-extrabold text-[#1e3261]">{row.company}</td>
-                      <td>{row.applicationType}</td>
-                      <td>{row.location}</td>
-                      <td><LiaisonApprovalSubmittedBy user={row.inspector} /></td>
-                      <td className="font-extrabold text-[#223768]">{row.scheduledDate}</td>
-                      <td><LiaisonInspectionStatusBadge status={row.status} /></td>
-                      <td className={cx('font-extrabold', row.issues > 0 ? 'text-[#ef4444]' : 'text-[#1e3261]')}>{row.issues}</td>
-                      <td>
-                        <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => onOpenSection('Liaison Inspection Details')} data-route={liaisonSubRoutes['Liaison Inspection Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
-                            <Eye className="size-4" />
-                          </button>
-                          <button type="button" onClick={() => onOpenSection('Liaison Inspection Details')} data-route={liaisonSubRoutes['Liaison Inspection Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
-                            <MoreVertical className="size-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-              <p>Showing 1 to {filteredRows.length} of 96 entries</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <PaginationButton onClick={() => onNotify('Previous inspections page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-                <PaginationButton active onClick={() => onNotify('Inspections page 1 selected')}>1</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Inspections page 2 selected')}>2</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Inspections page 3 selected')}>3</PaginationButton>
-                <span className="px-2 text-[#53647f]">...</span>
-                <PaginationButton onClick={() => onNotify('Inspections page 10 selected')}>10</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Next inspections page selected')}><ChevronRight className="size-4" /></PaginationButton>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <DashboardFooter />
-    </div>
-  );
-}
-
-function LiaisonInspectionStatusBadge({ status }) {
-  const classes = {
-    Scheduled: 'bg-[#e8f2ff] text-[#2563eb]',
-    'In Progress': 'bg-[#e8f2ff] text-[#2563eb]',
-    Completed: 'bg-[#e8f8eb] text-[#16a34a]',
-    Pending: 'bg-[#fff0dc] text-[#f38200]',
-    Cancelled: 'bg-[#ffe9e6] text-[#ef4444]',
-  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
-
-  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
-}
-
-function LiaisonInspectionMobileCard({ row, index, onOpenSection }) {
-  return (
-    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
-          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.inspectionNo}</p>
-          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.company}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.applicationNo} | {row.applicationType}</p>
-        </div>
-        <LiaisonInspectionStatusBadge status={row.status} />
-      </div>
-
-      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
-        <InfoCell label="Location" value={row.location} />
-        <InfoCell label="Scheduled Date" value={row.scheduledDate} />
-        <InfoCell label="Inspector" valueNode={<LiaisonApprovalSubmittedBy user={row.inspector} />} />
-        <InfoCell label="Issues" value={String(row.issues)} valueClass={row.issues > 0 ? 'text-[#ef4444]' : undefined} />
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <button type="button" onClick={() => onOpenSection('Liaison Inspection Details')} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
-          <Eye className="size-4" />
-          View
-        </button>
-        <button type="button" onClick={() => onOpenSection('Liaison Inspection Details')} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
-          <MoreVertical className="size-4" />
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function LiaisonCommissioningPage({ activeSection, onOpenSection, onNotify }) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('All Status');
-  const [applicationType, setApplicationType] = useState('All Application Type');
-  const [branch, setBranch] = useState('All Branch');
-  const [engineer, setEngineer] = useState('All Engineer');
-
-  const commissioningRows = [
-    { id: 1, commissioningNo: 'LC-COM-2024-0086', applicationNo: 'LC-APP-2024-0048', company: 'Ravi Industries Pvt. Ltd.', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', engineer: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue' }, scheduledDate: '20 May 2024', status: 'Scheduled', commissionedOn: '-' },
-    { id: 2, commissioningNo: 'LC-COM-2024-0085', applicationNo: 'LC-APP-2024-0046', company: 'Greenfield Hospital', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', engineer: { name: 'Amit Singh', initials: 'AS', tone: 'cyan' }, scheduledDate: '18 May 2024', status: 'In Progress', commissionedOn: '-' },
-    { id: 3, commissioningNo: 'LC-COM-2024-0084', applicationNo: 'LC-APP-2024-0044', company: 'City Mall', applicationType: 'Captive Consumption', location: 'Sangrur, Punjab', engineer: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple' }, scheduledDate: '16 May 2024', status: 'Completed', commissionedOn: '16 May 2024' },
-    { id: 4, commissioningNo: 'LC-COM-2024-0083', applicationNo: 'LC-APP-2024-0042', company: 'DLF Warehouse', applicationType: 'Net Metering', location: 'Patiala, Punjab', engineer: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple' }, scheduledDate: '15 May 2024', status: 'Completed', commissionedOn: '15 May 2024' },
-    { id: 5, commissioningNo: 'LC-COM-2024-0082', applicationNo: 'LC-APP-2024-0041', company: 'Minerva School', applicationType: 'Net Metering', location: 'Bathinda, Punjab', engineer: { name: 'Neha Sharma', initials: 'NS', tone: 'green' }, scheduledDate: '14 May 2024', status: 'Completed', commissionedOn: '14 May 2024' },
-    { id: 6, commissioningNo: 'LC-COM-2024-0081', applicationNo: 'LC-APP-2024-0039', company: 'Jain Resort', applicationType: 'Captive Consumption', location: 'Jalandhar, Punjab', engineer: { name: 'Ravi Kumar', initials: 'RK', tone: 'blue' }, scheduledDate: '12 May 2024', status: 'Completed', commissionedOn: '12 May 2024' },
-    { id: 7, commissioningNo: 'LC-COM-2024-0080', applicationNo: 'LC-APP-2024-0038', company: 'Punjab Warehouse', applicationType: 'Net Metering', location: 'Amritsar, Punjab', engineer: { name: 'Amit Singh', initials: 'AS', tone: 'cyan' }, scheduledDate: '10 May 2024', status: 'Delayed', commissionedOn: '-' },
-    { id: 8, commissioningNo: 'LC-COM-2024-0079', applicationNo: 'LC-APP-2024-0037', company: 'Metro Shopping Mall', applicationType: 'Captive Consumption', location: 'Mohali, Punjab', engineer: { name: 'Vikram Kumar', initials: 'VK', tone: 'purple' }, scheduledDate: '09 May 2024', status: 'Pending', commissionedOn: '-' },
-    { id: 9, commissioningNo: 'LC-COM-2024-0078', applicationNo: 'LC-APP-2024-0036', company: 'Sunrise Hospital', applicationType: 'Net Metering', location: 'Pathankot, Punjab', engineer: { name: 'Pooja Gupta', initials: 'PG', tone: 'purple' }, scheduledDate: '08 May 2024', status: 'Scheduled', commissionedOn: '-' },
-    { id: 10, commissioningNo: 'LC-COM-2024-0077', applicationNo: 'LC-APP-2024-0035', company: 'ABC Corporation', applicationType: 'Captive Consumption', location: 'Chandigarh', engineer: { name: 'Neha Sharma', initials: 'NS', tone: 'green' }, scheduledDate: '07 May 2024', status: 'Pending', commissionedOn: '-' },
-  ];
-
-  const filteredRows = commissioningRows.filter((row) => {
-    const queryText = query.toLowerCase();
-    const queryMatch = [row.commissioningNo, row.applicationNo, row.company, row.location, row.engineer.name].some((value) => value.toLowerCase().includes(queryText));
-    const statusMatch = status === 'All Status' || row.status === status;
-    const typeMatch = applicationType === 'All Application Type' || row.applicationType === applicationType;
-    const branchMatch = branch === 'All Branch' || row.location.includes(branch);
-    const engineerMatch = engineer === 'All Engineer' || row.engineer.name === engineer;
-    return queryMatch && statusMatch && typeMatch && branchMatch && engineerMatch;
-  });
-
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Liaisoning & Commissioning - Commissioning"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
-          { label: 'Commissioning' },
-        ]}
-        actions={(
-          <button type="button" onClick={() => onOpenSection('Liaison Commissioning Create')} data-route={liaisonSubRoutes['Liaison Commissioning Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
-            <Plus className="size-4" />
-            New Commissioning
-          </button>
-        )}
-      />
-
-      <section className="space-y-4">
-        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-        <div className="space-y-4">
-          <p className="text-[14px] font-bold text-[#324871]">
-            Manage commissioning activities and track completion status for all LC approved projects.
-          </p>
-
-          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <LiaisonApprovalStatCard label="Total Commissioning" value="86" caption="This Financial Year" icon={ClipboardPlus} tone="green" onClick={() => setStatus('All Status')} />
-            <LiaisonApprovalStatCard label="Pending Commissioning" value="22" caption="Awaiting Execution" icon={Clock3} tone="blue" onClick={() => setStatus('Pending')} />
-            <LiaisonApprovalStatCard label="Completed Commissioning" value="54" caption="This Financial Year" icon={Settings} tone="amber" onClick={() => setStatus('Completed')} />
-            <LiaisonApprovalStatCard label="Delayed" value="08" caption="Requires Attention" icon={Flag} tone="purple" onClick={() => setStatus('Delayed')} />
-            <LiaisonApprovalStatCard label="Scheduled Today" value="05" caption="Today" icon={CalendarDays} tone="cyan" onClick={() => setStatus('Scheduled')} />
-          </section>
-
-          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_170px_180px_170px_170px_230px_auto_auto] xl:items-end">
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search commissioning..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
-                <Search className="size-4 text-[#7386a3]" />
-              </label>
-              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Scheduled', 'Pending', 'In Progress', 'Completed', 'Delayed']} hideLabel />
-              <ReportSelect label="Application Type" value={applicationType} onChange={setApplicationType} options={['All Application Type', 'Net Metering', 'Captive Consumption']} hideLabel />
-              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Patiala', 'Bathinda', 'Jalandhar', 'Amritsar', 'Mohali', 'Pathankot', 'Chandigarh']} hideLabel />
-              <ReportSelect label="Engineer" value={engineer} onChange={setEngineer} options={['All Engineer', 'Ravi Kumar', 'Amit Singh', 'Vikram Kumar', 'Pooja Gupta', 'Neha Sharma']} hideLabel />
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
-                <CalendarDays className="size-4 text-[#7386a3]" />
-                <span>01/04/2024 - 31/03/2025</span>
-              </label>
-              <button type="button" onClick={() => onNotify(`Commissioning filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                <Search className="size-4 text-[#0b65e5]" />
-                Filter
-              </button>
-              <button type="button" onClick={() => onNotify('Commissioning exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                <Download className="size-4 text-[#0b65e5]" />
-                Export
-              </button>
-            </div>
-
-            <h2 className="mt-5 font-display text-[18px] font-extrabold text-[#06135a]">Commissioning List</h2>
-
-            <div className="mt-4 space-y-3 xl:hidden">
-              {filteredRows.map((row, index) => (
-                <LiaisonCommissioningMobileCard key={row.id} row={row} index={index + 1} onOpenSection={onOpenSection} />
-              ))}
-            </div>
-
-            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
-              <table className="crm-table min-w-[1380px] w-full">
-                <thead>
-                  <tr>
-                    {['#', 'Commissioning No.', 'Application No.', 'Project / Company', 'Application Type', 'Location', 'Commissioning Engineer', 'Scheduled Date', 'Status', 'Commissioned On', 'Actions'].map((header) => (
-                      <th key={header}>{header}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row, index) => (
-                    <tr key={row.id}>
-                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
-                      <td className="font-extrabold text-[#2643a2]">{row.commissioningNo}</td>
-                      <td className="font-extrabold text-[#2643a2]">{row.applicationNo}</td>
-                      <td className="font-extrabold text-[#1e3261]">{row.company}</td>
-                      <td>{row.applicationType}</td>
-                      <td>{row.location}</td>
-                      <td><LiaisonApprovalSubmittedBy user={row.engineer} /></td>
-                      <td className="font-extrabold text-[#223768]">{row.scheduledDate}</td>
-                      <td><LiaisonCommissioningStatusBadge status={row.status} /></td>
-                      <td className="font-extrabold text-[#223768]">{row.commissionedOn}</td>
-                      <td>
-                        <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => onOpenSection('Liaison Commissioning Details')} data-route={liaisonSubRoutes['Liaison Commissioning Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
-                            <Eye className="size-4" />
-                          </button>
-                          <button type="button" onClick={() => onOpenSection('Liaison Commissioning Details')} data-route={liaisonSubRoutes['Liaison Commissioning Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
-                            <MoreVertical className="size-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-              <p>Showing 1 to {filteredRows.length} of 86 entries</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <PaginationButton onClick={() => onNotify('Previous commissioning page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-                <PaginationButton active onClick={() => onNotify('Commissioning page 1 selected')}>1</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Commissioning page 2 selected')}>2</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Commissioning page 3 selected')}>3</PaginationButton>
-                <span className="px-2 text-[#53647f]">...</span>
-                <PaginationButton onClick={() => onNotify('Commissioning page 9 selected')}>9</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Next commissioning page selected')}><ChevronRight className="size-4" /></PaginationButton>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <DashboardFooter />
-    </div>
-  );
-}
-
-function LiaisonCommissioningStatusBadge({ status }) {
-  const classes = {
-    Scheduled: 'bg-[#e8f2ff] text-[#2563eb]',
-    'In Progress': 'bg-[#e8f2ff] text-[#2563eb]',
-    Completed: 'bg-[#e8f8eb] text-[#16a34a]',
-    Pending: 'bg-[#fff0dc] text-[#f38200]',
-    Delayed: 'bg-[#ffe9e6] text-[#ef4444]',
-  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
-
-  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
-}
-
-function LiaisonCommissioningMobileCard({ row, index, onOpenSection }) {
-  return (
-    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
-          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.commissioningNo}</p>
-          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.company}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.applicationNo} | {row.applicationType}</p>
-        </div>
-        <LiaisonCommissioningStatusBadge status={row.status} />
-      </div>
-
-      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
-        <InfoCell label="Location" value={row.location} />
-        <InfoCell label="Scheduled Date" value={row.scheduledDate} />
-        <InfoCell label="Engineer" valueNode={<LiaisonApprovalSubmittedBy user={row.engineer} />} />
-        <InfoCell label="Commissioned On" value={row.commissionedOn} />
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <button type="button" onClick={() => onOpenSection('Liaison Commissioning Details')} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
-          <Eye className="size-4" />
-          View
-        </button>
-        <button type="button" onClick={() => onOpenSection('Liaison Commissioning Details')} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
-          <MoreVertical className="size-4" />
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function LiaisonCompliancePage({ activeSection, onOpenSection, onNotify }) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('All Status');
-  const [applicationType, setApplicationType] = useState('All Application Type');
-  const [branch, setBranch] = useState('All Branch');
-  const [department, setDepartment] = useState('All Department');
-
-  const complianceRows = [
-    { id: 1, complianceId: 'LC-CMP-2024-0102', applicationNo: 'LC-APP-2024-0048', company: 'Ravi Industries Pvt. Ltd.', complianceType: 'Statutory Clearance', requirement: 'Pollution NOC', status: 'Compliant', dueDate: '15 May 2024', submittedOn: '12 May 2024', remarks: 'All norms met', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', department: 'Regulatory' },
-    { id: 2, complianceId: 'LC-CMP-2024-0101', applicationNo: 'LC-APP-2024-0046', company: 'Greenfield Hospital', complianceType: 'Electrical Safety', requirement: 'Electrical Safety Certificate', status: 'Pending', dueDate: '20 May 2024', submittedOn: '-', remarks: 'Awaiting document', applicationType: 'Net Metering', location: 'Ludhiana, Punjab', department: 'Electrical' },
-    { id: 3, complianceId: 'LC-CMP-2024-0100', applicationNo: 'LC-APP-2024-0044', company: 'City Mall', complianceType: 'Fire Safety', requirement: 'Fire NOC', status: 'Compliant', dueDate: '18 May 2024', submittedOn: '16 May 2024', remarks: 'Compliant', applicationType: 'Captive Consumption', location: 'Sangrur, Punjab', department: 'Safety' },
-    { id: 4, complianceId: 'LC-CMP-2024-0099', applicationNo: 'LC-APP-2024-0042', company: 'DLF Warehouse', complianceType: 'Land Use Approval', requirement: 'Land Use Certificate', status: 'Non-Compliant', dueDate: '10 May 2024', submittedOn: '08 May 2024', remarks: 'Zone mismatch', applicationType: 'Net Metering', location: 'Patiala, Punjab', department: 'Regulatory' },
-    { id: 5, complianceId: 'LC-CMP-2024-0098', applicationNo: 'LC-APP-2024-0041', company: 'Minerva School', complianceType: 'Environmental Clearance', requirement: 'EC Certificate', status: 'Compliant', dueDate: '22 May 2024', submittedOn: '20 May 2024', remarks: 'Valid', applicationType: 'Net Metering', location: 'Bathinda, Punjab', department: 'Environment' },
-    { id: 6, complianceId: 'LC-CMP-2024-0097', applicationNo: 'LC-APP-2024-0039', company: 'Jain Resort', complianceType: 'Grid Connectivity', requirement: 'Connectivity Approval', status: 'Pending', dueDate: '25 May 2024', submittedOn: '-', remarks: 'Under review', applicationType: 'Captive Consumption', location: 'Jalandhar, Punjab', department: 'Electrical' },
-    { id: 7, complianceId: 'LC-CMP-2024-0096', applicationNo: 'LC-APP-2024-0038', company: 'Punjab Warehouse', complianceType: 'Building Plan Approval', requirement: 'Building Plan Sanction', status: 'Compliant', dueDate: '12 May 2024', submittedOn: '10 May 2024', remarks: 'Approved', applicationType: 'Net Metering', location: 'Amritsar, Punjab', department: 'Civil' },
-    { id: 8, complianceId: 'LC-CMP-2024-0095', applicationNo: 'LC-APP-2024-0037', company: 'Metro Shopping Mall', complianceType: 'Water Connection', requirement: 'Water Connection NOC', status: 'Non-Compliant', dueDate: '14 May 2024', submittedOn: '13 May 2024', remarks: 'Document expired', applicationType: 'Captive Consumption', location: 'Mohali, Punjab', department: 'Utility' },
-    { id: 9, complianceId: 'LC-CMP-2024-0094', applicationNo: 'LC-APP-2024-0036', company: 'Sunrise Hospital', complianceType: 'Local Body Approval', requirement: 'Municipal Approval', status: 'Compliant', dueDate: '11 May 2024', submittedOn: '09 May 2024', remarks: 'All clear', applicationType: 'Net Metering', location: 'Pathankot, Punjab', department: 'Regulatory' },
-    { id: 10, complianceId: 'LC-CMP-2024-0093', applicationNo: 'LC-APP-2024-0035', company: 'ABC Corporation', complianceType: 'Labor Compliance', requirement: 'Labor NOC', status: 'Pending', dueDate: '30 May 2024', submittedOn: '-', remarks: 'Awaiting NOC', applicationType: 'Captive Consumption', location: 'Chandigarh', department: 'Admin' },
-  ];
-
-  const filteredRows = complianceRows.filter((row) => {
-    const queryText = query.toLowerCase();
-    const queryMatch = [row.complianceId, row.applicationNo, row.company, row.requirement, row.remarks].some((value) => value.toLowerCase().includes(queryText));
-    const statusMatch = status === 'All Status' || row.status === status;
-    const typeMatch = applicationType === 'All Application Type' || row.applicationType === applicationType;
-    const branchMatch = branch === 'All Branch' || row.location.includes(branch);
-    const departmentMatch = department === 'All Department' || row.department === department;
-    return queryMatch && statusMatch && typeMatch && branchMatch && departmentMatch;
-  });
-
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Liaisoning & Commissioning - Compliance"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
-          { label: 'Compliance' },
-        ]}
-        actions={(
-          <button type="button" onClick={() => onOpenSection('Liaison Compliance Create')} data-route={liaisonSubRoutes['Liaison Compliance Create']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
-            <Plus className="size-4" />
-            New Compliance Item
-          </button>
-        )}
-      />
-
-      <section className="space-y-4">
-        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-        <div className="space-y-4">
-          <p className="text-[14px] font-bold text-[#324871]">
-            Track compliance requirements, document submissions, and regulatory adherence for LC approved projects.
-          </p>
-
-          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <LiaisonApprovalStatCard label="Total Compliance Items" value="102" caption="This Financial Year" icon={ShieldCheck} tone="green" onClick={() => setStatus('All Status')} />
-            <LiaisonApprovalStatCard label="Pending Items" value="23" caption="Action Required" icon={FileText} tone="blue" onClick={() => setStatus('Pending')} />
-            <LiaisonApprovalStatCard label="Compliant" value="65" caption="Completed" icon={CheckCircle2} tone="amber" onClick={() => setStatus('Compliant')} />
-            <LiaisonApprovalStatCard label="Non-Compliant" value="07" caption="Requires Attention" icon={AlertTriangle} tone="purple" onClick={() => setStatus('Non-Compliant')} />
-            <LiaisonApprovalStatCard label="Due This Month" value="07" caption="Upcoming Deadlines" icon={CalendarDays} tone="cyan" onClick={() => setStatus('Pending')} />
-          </section>
-
-          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_170px_180px_170px_170px_230px_auto_auto] xl:items-end">
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search compliance items..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
-                <Search className="size-4 text-[#7386a3]" />
-              </label>
-              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Compliant', 'Pending', 'Non-Compliant']} hideLabel />
-              <ReportSelect label="Application Type" value={applicationType} onChange={setApplicationType} options={['All Application Type', 'Net Metering', 'Captive Consumption']} hideLabel />
-              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Sangrur', 'Patiala', 'Bathinda', 'Jalandhar', 'Amritsar', 'Mohali', 'Pathankot', 'Chandigarh']} hideLabel />
-              <ReportSelect label="Department" value={department} onChange={setDepartment} options={['All Department', 'Regulatory', 'Electrical', 'Safety', 'Environment', 'Civil', 'Utility', 'Admin']} hideLabel />
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
-                <CalendarDays className="size-4 text-[#7386a3]" />
-                <span>01/04/2024 - 31/03/2025</span>
-              </label>
-              <button type="button" onClick={() => onNotify(`Compliance filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                <Search className="size-4 text-[#0b65e5]" />
-                Filter
-              </button>
-              <button type="button" onClick={() => onNotify('Compliance exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                <Download className="size-4 text-[#0b65e5]" />
-                Export
-              </button>
-            </div>
-
-            <h2 className="mt-5 font-display text-[18px] font-extrabold text-[#06135a]">Compliance List</h2>
-
-            <div className="mt-4 space-y-3 xl:hidden">
-              {filteredRows.map((row, index) => (
-                <LiaisonComplianceMobileCard key={row.id} row={row} index={index + 1} onOpenSection={onOpenSection} />
-              ))}
-            </div>
-
-            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
-              <table className="crm-table min-w-[1500px] w-full">
-                <thead>
-                  <tr>
-                    {['#', 'Compliance ID', 'Application No.', 'Project / Company', 'Compliance Type', 'Requirement', 'Status', 'Due Date', 'Submitted On', 'Remarks', 'Actions'].map((header) => (
-                      <th key={header}>{header}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row, index) => (
-                    <tr key={row.id}>
-                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
-                      <td className="font-extrabold text-[#2643a2]">{row.complianceId}</td>
-                      <td className="font-extrabold text-[#2643a2]">{row.applicationNo}</td>
-                      <td className="font-extrabold text-[#1e3261]">{row.company}</td>
-                      <td>{row.complianceType}</td>
-                      <td>{row.requirement}</td>
-                      <td><LiaisonComplianceStatusBadge status={row.status} /></td>
-                      <td className={cx('font-extrabold', row.status === 'Pending' ? 'text-[#ef4444]' : 'text-[#223768]')}>{row.dueDate}</td>
-                      <td className="font-extrabold text-[#223768]">{row.submittedOn}</td>
-                      <td>{row.remarks}</td>
-                      <td>
-                        <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => onOpenSection('Liaison Compliance Details')} data-route={liaisonSubRoutes['Liaison Compliance Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
-                            <Eye className="size-4" />
-                          </button>
-                          <button type="button" onClick={() => onOpenSection('Liaison Compliance Details')} data-route={liaisonSubRoutes['Liaison Compliance Details']} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
-                            <MoreVertical className="size-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-              <p>Showing 1 to {filteredRows.length} of 102 entries</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <PaginationButton onClick={() => onNotify('Previous compliance page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-                <PaginationButton active onClick={() => onNotify('Compliance page 1 selected')}>1</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Compliance page 2 selected')}>2</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Compliance page 3 selected')}>3</PaginationButton>
-                <span className="px-2 text-[#53647f]">...</span>
-                <PaginationButton onClick={() => onNotify('Compliance page 11 selected')}>11</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Next compliance page selected')}><ChevronRight className="size-4" /></PaginationButton>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <DashboardFooter />
-    </div>
-  );
-}
-
-function LiaisonComplianceStatusBadge({ status }) {
-  const classes = {
-    Compliant: 'bg-[#e8f8eb] text-[#16a34a]',
-    Pending: 'bg-[#fff0dc] text-[#f38200]',
-    'Non-Compliant': 'bg-[#ffe9e6] text-[#ef4444]',
-  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
-
-  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
-}
-
-function LiaisonComplianceMobileCard({ row, index, onOpenSection }) {
-  return (
-    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
-          <p className="mt-1 text-[14px] font-extrabold text-[#2643a2]">{row.complianceId}</p>
-          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.company}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.applicationNo} | {row.complianceType}</p>
-        </div>
-        <LiaisonComplianceStatusBadge status={row.status} />
-      </div>
-
-      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
-        <InfoCell label="Requirement" value={row.requirement} />
-        <InfoCell label="Due Date" value={row.dueDate} valueClass={row.status === 'Pending' ? 'text-[#ef4444]' : undefined} />
-        <InfoCell label="Submitted On" value={row.submittedOn} />
-        <InfoCell label="Remarks" value={row.remarks} />
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <button type="button" onClick={() => onOpenSection('Liaison Compliance Details')} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
-          <Eye className="size-4" />
-          View
-        </button>
-        <button type="button" onClick={() => onOpenSection('Liaison Compliance Details')} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
-          <MoreVertical className="size-4" />
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
-  const [query, setQuery] = useState('');
-  const [documentType, setDocumentType] = useState('All Document Type');
-  const [applicationType, setApplicationType] = useState('All Application Type');
-  const [status, setStatus] = useState('All Status');
-  const [branch, setBranch] = useState('All Branch');
-
-  const documentRows = [
-    { id: 1, name: 'Pollution NOC.pdf', fileType: 'pdf', documentType: 'Statutory Clearance', relatedTo: 'LC Application', applicationNo: 'LC-APP-2024-0048', company: 'Ravi Industries Pvt. Ltd.', uploadedBy: { name: 'Ravi Kumar', role: 'Project Manager', initials: 'RK', tone: 'blue' }, uploadDate: '20 May 2024', status: 'Approved', applicationType: 'Net Metering', location: 'Ludhiana, Punjab' },
-    { id: 2, name: 'Electrical Safety Certificate.pdf', fileType: 'pdf', documentType: 'Safety Certificate', relatedTo: 'Inspection', applicationNo: 'LC-INS-2024-0096', company: 'Future Electronics', uploadedBy: { name: 'Amit Singh', role: 'Site Engineer', initials: 'AS', tone: 'cyan' }, uploadDate: '13 May 2024', status: 'Under Review', applicationType: 'Net Metering', location: 'Mohali, Punjab' },
-    { id: 3, name: 'Load Test Report.xlsx', fileType: 'xlsx', documentType: 'Test Report', relatedTo: 'Commissioning', applicationNo: 'LC-COM-2024-0086', company: 'Ravi Industries Pvt. Ltd.', uploadedBy: { name: 'Vikram Kumar', role: 'Commissioning Eng.', initials: 'VK', tone: 'emerald' }, uploadDate: '22 May 2024', status: 'Approved', applicationType: 'Net Metering', location: 'Ludhiana, Punjab' },
-    { id: 4, name: 'Land Use Certificate.pdf', fileType: 'pdf', documentType: 'Land Approval', relatedTo: 'Compliance', applicationNo: 'LC-CMP-2024-0099', company: 'DLF Warehouse', uploadedBy: { name: 'Neha Sharma', role: 'Compliance Officer', initials: 'NS', tone: 'green' }, uploadDate: '10 May 2024', status: 'Pending Review', applicationType: 'Net Metering', location: 'Patiala, Punjab' },
-    { id: 5, name: 'Building Plan Approval.docx', fileType: 'docx', documentType: 'Building Plan', relatedTo: 'Compliance', applicationNo: 'LC-CMP-2024-0096', company: 'Punjab Warehouse', uploadedBy: { name: 'Ravi Kumar', role: 'Project Manager', initials: 'RK', tone: 'blue' }, uploadDate: '12 May 2024', status: 'Approved', applicationType: 'Net Metering', location: 'Amritsar, Punjab' },
-    { id: 6, name: 'Fire NOC.pdf', fileType: 'pdf', documentType: 'Fire Safety', relatedTo: 'Compliance', applicationNo: 'LC-CMP-2024-0100', company: 'City Mall', uploadedBy: { name: 'Pooja Gupta', role: 'Compliance Officer', initials: 'PG', tone: 'purple' }, uploadDate: '18 May 2024', status: 'Rejected', applicationType: 'Captive Consumption', location: 'Sangrur, Punjab' },
-    { id: 7, name: 'Meter Test Report.xlsx', fileType: 'xlsx', documentType: 'Test Report', relatedTo: 'Inspection', applicationNo: 'LC-INS-2024-0094', company: 'Green Field School', uploadedBy: { name: 'Amit Singh', role: 'Site Engineer', initials: 'AS', tone: 'cyan' }, uploadDate: '10 May 2024', status: 'Under Review', applicationType: 'Net Metering', location: 'Ludhiana, Punjab' },
-    { id: 8, name: 'Commissioning Certificate.pdf', fileType: 'pdf', documentType: 'Commissioning Certificate', relatedTo: 'Commissioning', applicationNo: 'LC-COM-2024-0084', company: 'Green Field School', uploadedBy: { name: 'Vikram Kumar', role: 'Commissioning Eng.', initials: 'VK', tone: 'emerald' }, uploadDate: '16 May 2024', status: 'Approved', applicationType: 'Captive Consumption', location: 'Sangrur, Punjab' },
-    { id: 9, name: 'Connectivity Approval.pdf', fileType: 'pdf', documentType: 'Connectivity Approval', relatedTo: 'Compliance', applicationNo: 'LC-CMP-2024-0097', company: 'Jain Resort', uploadedBy: { name: 'Neha Sharma', role: 'Compliance Officer', initials: 'NS', tone: 'green' }, uploadDate: '25 May 2024', status: 'Approved', applicationType: 'Captive Consumption', location: 'Jalandhar, Punjab' },
-    { id: 10, name: 'Site Inspection Report.docx', fileType: 'docx', documentType: 'Inspection Report', relatedTo: 'Inspection', applicationNo: 'LC-INS-2024-0092', company: 'Sharma Textiles', uploadedBy: { name: 'Pooja Gupta', role: 'Site Engineer', initials: 'PG', tone: 'purple' }, uploadDate: '08 May 2024', status: 'Under Review', applicationType: 'Net Metering', location: 'Sangrur, Punjab' },
-  ];
-
-  const filteredRows = documentRows.filter((row) => {
-    const queryText = query.toLowerCase();
-    const queryMatch = [row.name, row.documentType, row.relatedTo, row.applicationNo, row.company, row.uploadedBy.name].some((value) => value.toLowerCase().includes(queryText));
-    const typeMatch = documentType === 'All Document Type' || row.documentType === documentType;
-    const applicationMatch = applicationType === 'All Application Type' || row.applicationType === applicationType;
-    const statusMatch = status === 'All Status' || row.status === status;
-    const branchMatch = branch === 'All Branch' || row.location.includes(branch);
-    return queryMatch && typeMatch && applicationMatch && statusMatch && branchMatch;
-  });
-
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Liaisoning & Commissioning - Documents"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
-          { label: 'Documents' },
-        ]}
-        actions={(
-          <button type="button" onClick={() => onOpenSection('Liaison Document Upload')} data-route={liaisonSubRoutes['Liaison Document Upload']} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#14a44d] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(20,164,77,0.22)] transition hover:bg-[#10883f]">
-            <Plus className="size-4" />
-            Upload Document
-          </button>
-        )}
-      />
-
-      <section className="space-y-4">
-        <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-        <div className="space-y-4">
-          <p className="text-[14px] font-bold text-[#324871]">
-            Manage and track all documents related to LC applications, approvals, inspections, commissioning and compliance.
-          </p>
-
-          <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <LiaisonApprovalStatCard label="Total Documents" value="256" caption="All Documents" icon={FolderKanban} tone="green" onClick={() => setStatus('All Status')} />
-            <LiaisonApprovalStatCard label="Pending Review" value="34" caption="Requires Action" icon={FileText} tone="blue" onClick={() => setStatus('Under Review')} />
-            <LiaisonApprovalStatCard label="Approved" value="162" caption="Approved Documents" icon={CheckCircle2} tone="amber" onClick={() => setStatus('Approved')} />
-            <LiaisonApprovalStatCard label="Rejected" value="18" caption="Rejected Documents" icon={XCircle} tone="purple" onClick={() => setStatus('Rejected')} />
-            <LiaisonApprovalStatCard label="Archived" value="42" caption="Archived Documents" icon={HardDrive} tone="cyan" onClick={() => onOpenSection('Liaison Document Preview')} />
-          </section>
-
-          <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_170px_180px_150px_170px_230px_auto_auto] xl:items-end">
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search documents..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
-                <Search className="size-4 text-[#7386a3]" />
-              </label>
-              <ReportSelect label="Document Type" value={documentType} onChange={setDocumentType} options={['All Document Type', 'Statutory Clearance', 'Safety Certificate', 'Test Report', 'Land Approval', 'Building Plan', 'Fire Safety', 'Commissioning Certificate', 'Connectivity Approval', 'Inspection Report']} hideLabel />
-              <ReportSelect label="Application Type" value={applicationType} onChange={setApplicationType} options={['All Application Type', 'Net Metering', 'Captive Consumption']} hideLabel />
-              <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Approved', 'Under Review', 'Pending Review', 'Rejected']} hideLabel />
-              <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branch', 'Ludhiana', 'Mohali', 'Patiala', 'Amritsar', 'Sangrur', 'Jalandhar']} hideLabel />
-              <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
-                <CalendarDays className="size-4 text-[#7386a3]" />
-                <span>01/04/2024 - 31/03/2025</span>
-              </label>
-              <button type="button" onClick={() => onNotify(`Document filters applied: ${filteredRows.length} results`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                <Filter className="size-4 text-[#0b65e5]" />
-                Filter
-              </button>
-              <button type="button" onClick={() => onNotify('Documents exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-                <Download className="size-4 text-[#0b65e5]" />
-                Export
-              </button>
-            </div>
-
-            <h2 className="mt-5 font-display text-[18px] font-extrabold text-[#06135a]">Documents List</h2>
-
-            <div className="mt-4 space-y-3 xl:hidden">
-              {filteredRows.map((row, index) => (
-                <LiaisonDocumentMobileCard key={row.id} row={row} index={index + 1} onOpenSection={onOpenSection} />
-              ))}
-            </div>
-
-            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
-              <table className="crm-table min-w-[1560px] w-full">
-                <thead>
-                  <tr>
-                    {['#', 'Document Name', 'Document Type', 'Related To', 'Application No.', 'Project / Company', 'Uploaded By', 'Upload Date', 'Status', 'Actions'].map((header) => (
-                      <th key={header}>{header}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row, index) => (
-                    <tr key={row.id}>
-                      <td className="font-extrabold text-[#223768]">{index + 1}</td>
-                      <td><LiaisonDocumentNameCell name={row.name} fileType={row.fileType} /></td>
-                      <td>{row.documentType}</td>
-                      <td>{row.relatedTo}</td>
-                      <td className="font-extrabold text-[#2643a2]">{row.applicationNo}</td>
-                      <td className="font-extrabold text-[#1e3261]">{row.company}</td>
-                      <td><LiaisonApprovalSubmittedBy user={row.uploadedBy} /></td>
-                      <td className="font-extrabold text-[#223768]">{row.uploadDate}</td>
-                      <td><LiaisonDocumentStatusBadge status={row.status} /></td>
-                      <td>
-                        <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => onOpenSection('Liaison Document Preview')} data-route={liaisonSubRoutes['Liaison Document Preview']} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#2643a2] transition hover:bg-[#f8fbff]">
-                            <Eye className="size-4" />
-                          </button>
-                          <button type="button" onClick={() => onOpenSection('Liaison Document Preview')} data-route={liaisonSubRoutes['Liaison Document Preview']} className="inline-flex size-9 items-center justify-center rounded-[8px] bg-white text-[#53647f] transition hover:bg-[#f8fbff]">
-                            <MoreVertical className="size-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-              <p>Showing 1 to {filteredRows.length} of 256 entries</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <PaginationButton onClick={() => onNotify('Previous documents page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-                <PaginationButton active onClick={() => onNotify('Documents page 1 selected')}>1</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Documents page 2 selected')}>2</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Documents page 3 selected')}>3</PaginationButton>
-                <span className="px-2 text-[#53647f]">...</span>
-                <PaginationButton onClick={() => onNotify('Documents page 26 selected')}>26</PaginationButton>
-                <PaginationButton onClick={() => onNotify('Next documents page selected')}><ChevronRight className="size-4" /></PaginationButton>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <DashboardFooter />
-    </div>
-  );
-}
-
-function LiaisonDocumentNameCell({ name, fileType }) {
-  const toneClass = {
-    pdf: 'bg-[#ffe9e6] text-[#ef4444]',
-    xlsx: 'bg-[#e8f8eb] text-[#16a34a]',
-    docx: 'bg-[#e8f2ff] text-[#2563eb]',
-  }[fileType] ?? 'bg-[#eef2f7] text-[#53647f]';
-
-  return (
-    <div className="flex items-center gap-3">
-      <span className={cx('inline-flex min-w-[38px] items-center justify-center rounded-[8px] px-2 py-1 text-[10px] font-extrabold uppercase', toneClass)}>
-        {fileType}
-      </span>
-      <span className="font-extrabold text-[#1e3261]">{name}</span>
-    </div>
-  );
-}
-
-function LiaisonDocumentStatusBadge({ status }) {
-  const classes = {
-    Approved: 'bg-[#e8f8eb] text-[#16a34a]',
-    'Under Review': 'bg-[#e8f2ff] text-[#2563eb]',
-    'Pending Review': 'bg-[#fff0dc] text-[#f38200]',
-    Rejected: 'bg-[#ffe9e6] text-[#ef4444]',
-  }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
-
-  return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
-}
-
-function LiaisonDocumentMobileCard({ row, index, onOpenSection }) {
-  return (
-    <article className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
-          <div className="mt-1">
-            <LiaisonDocumentNameCell name={row.name} fileType={row.fileType} />
-          </div>
-          <p className="mt-2 text-[12px] font-bold text-[#53647f]">{row.applicationNo} | {row.relatedTo}</p>
-        </div>
-        <LiaisonDocumentStatusBadge status={row.status} />
-      </div>
-
-      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
-        <InfoCell label="Document Type" value={row.documentType} />
-        <InfoCell label="Project / Company" value={row.company} />
-        <InfoCell label="Uploaded By" valueNode={<LiaisonApprovalSubmittedBy user={row.uploadedBy} />} />
-        <InfoCell label="Upload Date" value={row.uploadDate} />
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <button type="button" onClick={() => onOpenSection('Liaison Document Preview')} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#2643a2]">
-          <Eye className="size-4" />
-          View
-        </button>
-        <button type="button" onClick={() => onOpenSection('Liaison Document Preview')} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[#2643a2]">
-          <MoreVertical className="size-4" />
-        </button>
-      </div>
-    </article>
-  );
-}
 
 function OmPage({ activeSection, onOpenSection, onNotify }) {
   if (activeSection === 'Maintenance Tasks') {

@@ -271,17 +271,17 @@ class ProjectApprovalSerializer(serializers.ModelSerializer):
 
     def get_assigned_to_name(self, obj):
         if obj.assigned_to:
-            return obj.assigned_to.get_full_name() or obj.assigned_to.username
+            return obj.assigned_to.name or obj.assigned_to.email
         return ''
 
     def get_created_by_name(self, obj):
         if obj.created_by:
-            return obj.created_by.get_full_name() or obj.created_by.username
+            return obj.created_by.name or obj.created_by.email
         return ''
 
     def get_approved_by_name(self, obj):
         if obj.approved_by:
-            return obj.approved_by.get_full_name() or obj.approved_by.username
+            return obj.approved_by.name or obj.approved_by.email
         return ''
 
     class Meta:
