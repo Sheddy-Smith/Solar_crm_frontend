@@ -70,6 +70,21 @@ MODULE_ACTION_FLAGS = {
 }
 
 
+SAFE_HTTP_METHODS = ('GET', 'HEAD', 'OPTIONS')
+
+# Fallback for plain APIViews (no `.action` attribute): map the HTTP method
+# to a permission flag. Views can override per-method via `permission_method_map`.
+HTTP_METHOD_FLAGS = {
+    'GET': 'can_view',
+    'HEAD': 'can_view',
+    'OPTIONS': 'can_view',
+    'POST': 'can_add',
+    'PUT': 'can_edit',
+    'PATCH': 'can_edit',
+    'DELETE': 'can_delete',
+}
+
+
 class HasModulePermission(BasePermission):
     """Gates a viewset action against the requesting user's Role.permissions row
     for the module declared as `permission_module` on the view. Only the Super
@@ -87,10 +102,20 @@ class HasModulePermission(BasePermission):
         if not module:
             return False
 
-        action_map = {**MODULE_ACTION_FLAGS, **getattr(view, 'permission_action_map', {})}
-        flag = action_map.get(view.action)
+        action = getattr(view, 'action', None)
+        if action:
+            action_map = {**MODULE_ACTION_FLAGS, **getattr(view, 'permission_action_map', {})}
+            flag = action_map.get(action)
+        else:
+            method_map = {**HTTP_METHOD_FLAGS, **getattr(view, 'permission_method_map', {})}
+            flag = method_map.get(request.method)
         if not flag:
             return False
+
+        # Custom actions that serve both reads and writes (e.g. site_survey
+        # GET+PUT) map to can_view; an unsafe method must still require edit.
+        if flag == 'can_view' and request.method not in SAFE_HTTP_METHODS:
+            flag = 'can_edit'
 
         role = user.role
         if not role:

@@ -7,7 +7,7 @@ from .serializers import (
     ChartOfAccountSerializer, AccountSerializer, BankAccountSerializer,
     PaymentSerializer, ChequeSerializer, TransactionSerializer,
 )
-from .services import after_payment_saved, after_payment_deleted, accounts_dashboard_summary
+from .services import after_payment_saved, before_payment_delete, after_payment_deleted, accounts_dashboard_summary
 from apps.accounts.permissions import HasModulePermission
 
 
@@ -79,8 +79,11 @@ class PaymentViewSet(AccountsBaseViewSet):
         after_payment_saved(payment, old_party_id=old_party, old_bank_id=old_bank)
 
     def perform_destroy(self, instance):
-        after_payment_deleted(instance)
+        party_id = instance.party_id
+        bank_id = instance.bank_account_id
+        before_payment_delete(instance)
         instance.delete()
+        after_payment_deleted(party_id, bank_id)
 
 
 class ChequeViewSet(AccountsBaseViewSet):

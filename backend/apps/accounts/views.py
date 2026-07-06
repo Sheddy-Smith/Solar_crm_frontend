@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
 from .models import Branch, Role, RolePermission
@@ -17,28 +18,41 @@ User = get_user_model()
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
 
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
+        # Invalid credentials make super().post() RAISE (AuthenticationFailed),
+        # not return a non-200 response — so failed attempts must be logged in
+        # an except block or they are never recorded at all.
+        try:
+            response = super().post(request, *args, **kwargs)
+        except Exception:
+            self._log_attempt(request, success=False)
+            raise
         if response.status_code == 200:
-            try:
-                from apps.crm_settings.services import log_user_activity
-                log_user_activity(request, 'Login', 'Authentication', 'User logged in successfully')
-            except Exception:
-                pass
+            self._log_attempt(request, success=True)
         else:
-            try:
-                from apps.crm_settings.services import log_user_activity
+            self._log_attempt(request, success=False)
+        return response
+
+    @staticmethod
+    def _log_attempt(request, success):
+        try:
+            from apps.crm_settings.services import log_user_activity
+            if success:
+                log_user_activity(request, 'Login', 'Authentication', 'User logged in successfully')
+            else:
+                attempted_email = request.data.get('email', '') if hasattr(request, 'data') else ''
                 log_user_activity(
                     request,
                     'Login Failed',
                     'Authentication',
-                    'Failed login attempt',
+                    f'Failed login attempt for {attempted_email}' if attempted_email else 'Failed login attempt',
                     status='Failed',
                 )
-            except Exception:
-                pass
-        return response
+        except Exception:
+            pass
 
 
 class BranchViewSet(viewsets.ModelViewSet):
@@ -131,6 +145,11 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def toggle_active(self, request, pk=None):
         user = self.get_object()
+        if user == request.user and user.is_active:
+            return Response(
+                {'detail': 'You cannot deactivate your own account.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         user.is_active = not user.is_active
         user.save()
         return Response({'is_active': user.is_active})

@@ -37,22 +37,42 @@ def _default_accounts():
 
 
 def get_or_create_party_for_project(project):
-    party, created = Account.objects.get_or_create(
-        name=project.customer_name,
-        defaults={
-            'account_type': 'Customer',
-            'city': project.city or '',
-            'phone': '',
-            'status': 'Active',
-        },
-    )
-    if created and project.lead_id:
-        lead = project.lead
-        if lead:
-            party.phone = lead.mobile_number or party.phone
-            party.email = lead.email or party.email
-            party.city = party.city or lead.city or ''
-            party.save(update_fields=['phone', 'email', 'city'])
+    lead = project.lead if project.lead_id else None
+    phone = (lead.mobile_number or '').strip() if lead else ''
+
+    # Phone is the identity when available — matching by name alone merges
+    # two different customers who happen to share a name.
+    party = None
+    if phone:
+        party = Account.objects.filter(phone=phone).first()
+    if party is None:
+        name_qs = Account.objects.filter(name=project.customer_name)
+        if phone:
+            name_qs = name_qs.filter(phone__in=['', phone])
+        party = name_qs.first()
+
+    if party is None:
+        party = Account.objects.create(
+            name=project.customer_name,
+            account_type='Customer',
+            city=project.city or (lead.city if lead else '') or '',
+            phone=phone,
+            email=(lead.email or '') if lead else '',
+            status='Active',
+        )
+    elif lead:
+        updates = []
+        if not party.phone and phone:
+            party.phone = phone
+            updates.append('phone')
+        if not party.email and lead.email:
+            party.email = lead.email
+            updates.append('email')
+        if not party.city and (project.city or lead.city):
+            party.city = project.city or lead.city
+            updates.append('city')
+        if updates:
+            party.save(update_fields=updates)
     return party
 
 
@@ -86,6 +106,9 @@ def recalculate_bank_balance(bank_id):
 
 def sync_cheque_for_payment(payment):
     if payment.payment_mode != 'Cheque' or payment.status != 'Completed':
+        # Mode changed away from Cheque (or payment no longer completed):
+        # remove the stale cheque record instead of leaving it behind.
+        Cheque.objects.filter(payment=payment).delete()
         return
     payee = payment.party.name if payment.party_id else (payment.party_name or '—')
     cheque_type = 'Received' if payment.direction == 'Received' else 'Issued'
@@ -149,11 +172,14 @@ def after_payment_saved(payment, old_party_id=None, old_bank_id=None):
     sync_journal_for_payment(payment)
 
 
-def after_payment_deleted(payment):
-    party_id = payment.party_id
-    bank_id = payment.bank_account_id
+def before_payment_delete(payment):
+    """Remove derived records. Call before instance.delete() while the FK is still valid."""
     Transaction.objects.filter(source_payment=payment).delete()
     Cheque.objects.filter(payment=payment).delete()
+
+
+def after_payment_deleted(party_id, bank_id):
+    """Refresh balances. Call after instance.delete() so the aggregate excludes it."""
     recalculate_party_balance(party_id)
     recalculate_bank_balance(bank_id)
 
@@ -187,8 +213,11 @@ def sync_project_payment_to_accounts(project_payment, user):
 def remove_accounts_payment_for_project_payment(project_payment):
     payment = Payment.objects.filter(project_payment=project_payment).first()
     if payment:
-        after_payment_deleted(payment)
+        party_id = payment.party_id
+        bank_id = payment.bank_account_id
+        before_payment_delete(payment)
         payment.delete()
+        after_payment_deleted(party_id, bank_id)
 
 
 def accounts_dashboard_summary():

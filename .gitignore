@@ -25,3 +25,7 @@ backend/venv/
 .claude/settings.local.json
 .pytest_cache/
 .coverage
+
+# Reference desktop app (too large for GitHub)
+Malwa_trolley_CRM.exe
+*.exe

@@ -166,17 +166,22 @@ class ProjectExpenseViewSet(viewsets.ModelViewSet):
     def summary(self, request):
         from django.db.models import Sum, Count
         from decimal import Decimal
-        qs = self.get_queryset()
+        # filter_queryset applies project/category/status query params too —
+        # get_queryset alone only handles the manual date range.
+        qs = self.filter_queryset(self.get_queryset())
         total_expenses = qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
         material = qs.filter(category='Materials').aggregate(t=Sum('amount'))['t'] or Decimal('0')
         labour = qs.filter(category='Labor').aggregate(t=Sum('amount'))['t'] or Decimal('0')
         transport = qs.filter(category='Transport').aggregate(t=Sum('amount'))['t'] or Decimal('0')
         equipment = qs.filter(category='Equipment').aggregate(t=Sum('amount'))['t'] or Decimal('0')
         misc = qs.filter(category='Miscellaneous').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-        other = total_expenses - material - labour
+        other = total_expenses - material - labour - transport - equipment - misc
         project_ids = qs.values('project').distinct().count()
-        from .models import Project
-        total_budget = Project.objects.aggregate(b=Sum('total_value'))['b'] or Decimal('0')
+        budget_qs = Project.objects.all()
+        project_id = request.query_params.get('project')
+        if project_id:
+            budget_qs = budget_qs.filter(pk=project_id)
+        total_budget = budget_qs.aggregate(b=Sum('total_value'))['b'] or Decimal('0')
         return Response({
             'total_projects': project_ids,
             'total_budget': float(total_budget),

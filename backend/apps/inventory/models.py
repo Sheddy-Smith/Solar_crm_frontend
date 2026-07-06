@@ -113,6 +113,17 @@ class StockMovement(models.Model):
                 previous.movement_type, previous.quantity,
                 previous.to_warehouse_id, previous.from_warehouse_id,
             )
+
+            # If the movement was re-pointed at a different item, the old
+            # delta must be reverted on the OLD item, not subtracted here.
+            old_item = None
+            if previous is not None and previous.item_id != self.item_id:
+                old_item = InventoryItem.objects.select_for_update().get(pk=previous.item_id)
+                reverted_old_stock = old_item.current_stock - previous_delta
+                if reverted_old_stock < 0:
+                    raise ValidationError({'item': 'Reverting this movement would make the original item stock negative.'})
+                previous_delta = 0
+
             new_delta = self._stock_delta(
                 self.movement_type, self.quantity,
                 self.to_warehouse_id, self.from_warehouse_id,
@@ -123,6 +134,9 @@ class StockMovement(models.Model):
                 raise ValidationError({'quantity': 'Insufficient stock for this movement.'})
 
             super().save(*args, **kwargs)
+            if old_item is not None:
+                old_item.current_stock = reverted_old_stock
+                old_item.save(update_fields=['current_stock'])
             item.current_stock = updated_stock
             item.save(update_fields=['current_stock'])
 

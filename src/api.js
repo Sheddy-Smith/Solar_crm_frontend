@@ -1,6 +1,11 @@
 // Dev: default `/api/v1` goes through Vite proxy → backend (works on LAN Network URL).
 // Set VITE_API_URL only when you need a fixed direct backend URL (same machine only).
-const API_BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? '/api/v1' : 'http://localhost:8000/api/v1');
+// Prod: VITE_API_URL is REQUIRED at build time — fail loudly instead of silently
+// pointing every request at localhost.
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
+if (!import.meta.env.DEV && !import.meta.env.VITE_API_URL) {
+  console.error('VITE_API_URL is not set — this production build has no backend URL. Set VITE_API_URL in the build environment.');
+}
 
 const TOKEN_KEY = 'malwa_access';
 const REFRESH_KEY = 'malwa_refresh';
@@ -73,7 +78,9 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
 
     if (res.status === 401 && auth) {
       const newAccess = await refreshAccessToken();
-      if (!newAccess) return null;
+      // Throw instead of returning null: callers treat null as "no data",
+      // which silently hides the expired session.
+      if (!newAccess) throw new Error('Session expired. Please login again.');
       headers['Authorization'] = `Bearer ${newAccess}`;
       res = await doFetch(headers);
     }

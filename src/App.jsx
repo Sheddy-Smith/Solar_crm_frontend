@@ -409,6 +409,20 @@ const amcSubRoutes = {
 };
 
 const sectionRoutes = {
+  // Sub-route maps come FIRST: resolveSectionFromPath returns the first
+  // matching entry, and several top-level aliases below share a path with a
+  // sub-page (e.g. '/liaisoning/applications'). If the alias wins, the
+  // renderer has no branch for the top-level label and falls through to the
+  // dashboard on a direct URL / refresh.
+  ...leadSubRoutes,
+  ...employeeSubRoutes,
+  ...projectSubRoutes,
+  ...accountsSubRoutes,
+  ...inventorySubRoutes,
+  ...liaisonSubRoutes,
+  ...omSubRoutes,
+  ...amcSubRoutes,
+  ...summarySubRoutes,
   Dashboard: '/dashboard',
   Lead: '/lead/list',
   'Project Management': '/projects/list',
@@ -423,15 +437,6 @@ const sectionRoutes = {
   Quotation: '/quotation',
   'O&M': '/om/overview',
   Reports: '/reports',
-  ...leadSubRoutes,
-  ...employeeSubRoutes,
-  ...projectSubRoutes,
-  ...accountsSubRoutes,
-  ...inventorySubRoutes,
-  ...liaisonSubRoutes,
-  ...omSubRoutes,
-  ...amcSubRoutes,
-  ...summarySubRoutes,
 };
 
 function normalizePathname(pathname) {
@@ -613,6 +618,12 @@ function formatRevenueShort(value) {
   if (num >= 10000000) return `Rs ${(num / 10000000).toFixed(2)}Cr`;
   if (num >= 100000) return `Rs ${(num / 100000).toFixed(2)}L`;
   return `Rs ${num.toLocaleString('en-IN')}`;
+}
+
+function formatCurrencyPrecise(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '₹0';
+  return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 }
 
 const stats = [
@@ -1603,19 +1614,11 @@ const actionIcons = [
   { icon: MessageSquareMore, badge: null, label: 'Messages' },
 ];
 
-const recentNotifications = [
-  { title: 'New lead assigned', note: 'Amit Sharma - 5kW On-Grid', time: '2 min ago', target: 'Lead Details', tone: 'green' },
-  { title: 'Follow-up due today', note: 'Sunil Verma call pending', time: '18 min ago', target: 'Lead List', tone: 'blue' },
-  { title: 'Quotation pending', note: '64 quotations need review', time: '45 min ago', target: 'Lead List', tone: 'amber' },
-  { title: 'Project milestone updated', note: '20kW installation moved to Work Progress', time: '1 hr ago', target: 'Project Installation', tone: 'purple' },
-  { title: 'Payment reminder', note: 'Sungrow invoice payment pending', time: '2 hr ago', target: 'Payment Made', tone: 'red' },
-];
+// Real notification/message feeds are not wired to the backend yet — keep these
+// empty rather than showing hardcoded demo entries that look like live data.
+const recentNotifications = [];
 
-const unreadWhatsAppMessages = [
-  { name: 'Amit Sharma', phone: '+91 98765 43210', message: 'Quotation ka latest price share kar dijiye.', time: '4 min ago' },
-  { name: 'Sunil Verma', phone: '+91 91234 56780', message: 'Site visit kal morning possible hai kya?', time: '22 min ago' },
-  { name: 'Pooja Mehta', phone: '+91 99887 76655', message: 'Payment receipt confirm ho gaya?', time: '48 min ago' },
-];
+const unreadWhatsAppMessages = [];
 
 const panelClass =
   'rounded-[14px] border border-[#dbe5f2] bg-white/90 shadow-[0_12px_28px_rgba(24,48,87,0.07)] backdrop-blur-sm';
@@ -3209,6 +3212,9 @@ function NotificationMenu({ onOpenNotification }) {
         <span className="rounded-full bg-[#ffefef] px-2.5 py-1 text-[11px] font-extrabold text-[#e44d4d]">New</span>
       </div>
       <div className="max-h-[360px] overflow-y-auto p-2">
+        {recentNotifications.length === 0 && (
+          <p className="p-4 text-center text-[12px] font-bold text-[#7b8ca8]">No new notifications</p>
+        )}
         {recentNotifications.map((item) => (
           <button
             key={`${item.title}-${item.time}`}
@@ -3247,6 +3253,9 @@ function WhatsAppMessageMenu({ onOpenMessage, onOpenWhatsApp }) {
         <span className="rounded-full bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#0d9f4a]">WhatsApp</span>
       </div>
       <div className="max-h-[360px] overflow-y-auto p-2">
+        {unreadWhatsAppMessages.length === 0 && (
+          <p className="p-4 text-center text-[12px] font-bold text-[#7b8ca8]">No unread messages</p>
+        )}
         {unreadWhatsAppMessages.map((item) => (
           <button
             key={`${item.phone}-${item.time}`}
@@ -4307,7 +4316,7 @@ function SettingsNavigationRail({ activeSection, onOpenSection, onNotify }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-display text-[16px] font-extrabold text-[#1e3261]">{activeGroup.title}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">Sirf is category ki sub-categories yahan horizontally dikhengi.</p>
+          <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">Only this category's sub-categories are shown here.</p>
         </div>
         <button
           type="button"
@@ -4969,6 +4978,37 @@ function PaymentSettingsPage({ activeSection, onOpenSection, onNotify }) {
 
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   const toggleBankDetail = (field) => setBankDetails((current) => ({ ...current, [field]: !current[field] }));
+
+  useEffect(() => {
+    settingsApi.payment.get()
+      .then((data) => {
+        if (!data) return;
+        if (data.lateFeeEnabled !== undefined) setLateFeeEnabled(Boolean(data.lateFeeEnabled));
+        if (data.remindersEnabled !== undefined) setRemindersEnabled(Boolean(data.remindersEnabled));
+        if (data.allowPartial !== undefined) setAllowPartial(Boolean(data.allowPartial));
+        if (data.autoPaid !== undefined) setAutoPaid(Boolean(data.autoPaid));
+        const { bankDetails: bank, ...rest } = data;
+        setForm((c) => ({ ...c, ...rest }));
+        if (bank) setBankDetails((c) => ({ ...c, ...bank }));
+      })
+      .catch(() => {});
+  }, []);
+
+  const savePaymentSettings = async () => {
+    try {
+      await settingsApi.payment.update({
+        ...form,
+        lateFeeEnabled,
+        remindersEnabled,
+        allowPartial,
+        autoPaid,
+        bankDetails,
+      });
+      onNotify('Payment settings saved');
+    } catch {
+      onNotify('Could not save payment settings.', 'error');
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -7297,7 +7337,7 @@ function OrganizationSettingsPlaceholderPage({ activeSection, onOpenSection, onN
         <SettingsSectionCard title={`${activeSection} Details`}>
           <div className="rounded-[12px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6 text-center">
             <p className="text-[15px] font-extrabold text-[#1e3261]">{activeSection} page structure ready</p>
-            <p className="mt-2 text-[13px] font-bold text-[#53647f]">Is section ka detailed form next pass me expand kiya ja sakta hai. Abhi navigation aur save flow clickable hai.</p>
+            <p className="mt-2 text-[13px] font-bold text-[#53647f]">This section's detailed form will be expanded in a future update. Navigation and the save flow are already functional.</p>
           </div>
         </SettingsSectionCard>
       </section>
@@ -8106,7 +8146,7 @@ function LiaisonSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
       title="Liaisoning Subcategories"
-      helperText="Module pages ko yahan se horizontally switch karein."
+      helperText="Switch between module pages here."
       items={liaisonSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8136,7 +8176,7 @@ function EmployeeSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
       title="Employee Subcategories"
-      helperText="Employee module pages ko yahan se horizontally switch karein."
+      helperText="Switch between employee module pages here."
       items={employeeSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8165,7 +8205,7 @@ function SummarySubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
       title="Summary Subcategories"
-      helperText="Summary pages ko yahan se horizontally switch karein."
+      helperText="Switch between summary pages here."
       items={summarySubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8181,7 +8221,7 @@ function AccountsSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
       title="Accounts Subcategories"
-      helperText="Accounts module pages ko yahan se horizontally switch karein."
+      helperText="Switch between accounts module pages here."
       items={accountsSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8196,7 +8236,7 @@ function InventorySubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
       title="Inventory Subcategories"
-      helperText="Inventory module pages ko yahan se horizontally switch karein."
+      helperText="Switch between inventory module pages here."
       items={inventorySubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8211,7 +8251,7 @@ function AmcSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
       title="AMC & Warranty Subcategories"
-      helperText="AMC module pages ko yahan se horizontally switch karein."
+      helperText="Switch between AMC module pages here."
       items={amcSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8258,7 +8298,7 @@ function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSe
           <SettingsSectionCard title={activeLabel}>
             <div className="rounded-[12px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6 text-center">
               <p className="text-[15px] font-extrabold text-[#1e3261]">{activeLabel} module ready for integration</p>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">Subcategory navigation clickable hai. Is screen ko next step me workflow-specific forms aur reports ke saath expand kiya ja sakta hai.</p>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">Subcategory navigation is ready. This screen will be expanded with workflow-specific forms and reports in a future update.</p>
             </div>
           </SettingsSectionCard>
         </section>
@@ -8268,7 +8308,7 @@ function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSe
           <SettingsSectionCard title={activeLabel}>
             <div className="rounded-[12px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6 text-center">
               <p className="text-[15px] font-extrabold text-[#1e3261]">{activeLabel} module ready for integration</p>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">Subcategory navigation clickable hai. Is screen ko next step me workflow-specific forms aur reports ke saath expand kiya ja sakta hai.</p>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">Subcategory navigation is ready. This screen will be expanded with workflow-specific forms and reports in a future update.</p>
             </div>
           </SettingsSectionCard>
         </section>
@@ -8278,7 +8318,7 @@ function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSe
           <SettingsSectionCard title={activeLabel}>
             <div className="rounded-[12px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6 text-center">
               <p className="text-[15px] font-extrabold text-[#1e3261]">{activeLabel} module ready for integration</p>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">Subcategory navigation clickable hai. Is screen ko next step me workflow-specific forms aur reports ke saath expand kiya ja sakta hai.</p>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">Subcategory navigation is ready. This screen will be expanded with workflow-specific forms and reports in a future update.</p>
             </div>
           </SettingsSectionCard>
         </section>
@@ -8290,322 +8330,55 @@ function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSe
 }
 
 function LiaisoningCommissioningPage({ activeSection, onOpenSection, onNotify }) {
+  // Legacy action routes (create/details/upload/reports) used to render a
+  // static demo form with fake data and a Save button that saved nothing.
+  // Resolve them to the real page for that entity instead — the actual
+  // create/edit flows live in popups on the list pages.
   const actionType = liaisonActionPageTypes[activeSection];
+  const section = actionType
+    ? ({
+        'application-create': 'Applications',
+        'application-detail': 'Applications',
+        'approval-detail': 'Approvals',
+        'inspection-create': 'Inspections',
+        'inspection-detail': 'Inspections',
+        'commissioning-create': 'Commissioning',
+        'commissioning-detail': 'Commissioning',
+        'compliance-create': 'Compliance',
+        'compliance-detail': 'Compliance',
+        'document-upload': 'Documents',
+        'document-preview': 'Documents',
+        reports: 'Applications',
+      }[actionType] ?? 'Applications')
+    : activeSection;
 
-  if (actionType) {
-    return <LiaisonActionPage type={actionType} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (section === 'Applications') {
+    return <LiaisonApplicationsPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
-  if (activeSection === 'Applications') {
-    return <LiaisonApplicationsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (section === 'Approvals') {
+    return <LiaisonApprovalsPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
-  if (activeSection === 'Approvals') {
-    return <LiaisonApprovalsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (section === 'Inspections') {
+    return <LiaisonInspectionsPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
-  if (activeSection === 'Inspections') {
-    return <LiaisonInspectionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (section === 'Commissioning') {
+    return <LiaisonCommissioningPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
-  if (activeSection === 'Commissioning') {
-    return <LiaisonCommissioningPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (section === 'Compliance') {
+    return <LiaisonCompliancePage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
-  if (activeSection === 'Compliance') {
-    return <LiaisonCompliancePage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (section === 'Documents') {
+    return <LiaisonDocumentsPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
-  if (activeSection === 'Documents') {
-    return <LiaisonDocumentsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-
-  return <OperationsPlaceholderPage moduleTitle="Liaisoning & Commissioning" activeSection={activeSection} items={liaisonSubItems} onOpenSection={onOpenSection} onNotify={onNotify} accent="green" />;
+  return <OperationsPlaceholderPage moduleTitle="Liaisoning & Commissioning" activeSection={section} items={liaisonSubItems} onOpenSection={onOpenSection} onNotify={onNotify} accent="green" />;
 }
 
-function LiaisonActionPage({ type, onOpenSection, onNotify }) {
-  const config = {
-    'application-create': {
-      title: 'Create LC Application',
-      route: liaisonSubRoutes['Liaison Application Create'],
-      icon: FilePlus2,
-      saveLabel: 'Save Application',
-      note: 'New LC application create karo aur application type, capacity, location aur owner details set karo.',
-      fields: [
-        ['Application No.', 'LC-2024-0009'],
-        ['Applicant / Company', 'Ravi Industries Pvt. Ltd.'],
-        ['Application Type', 'Net Metering'],
-        ['Capacity', '100.00 kWp'],
-        ['Location', 'Ludhiana, Punjab'],
-        ['Current Stage', 'Documentation'],
-      ],
-      textLabel: 'Application Notes',
-      textValue: 'Initial documents received. Pending statutory approval and inspection scheduling.',
-    },
-    'application-detail': {
-      title: 'LC Application Details',
-      route: liaisonSubRoutes['Liaison Application Details'],
-      icon: FileText,
-      saveLabel: 'Update Application',
-      note: 'Application status, stage aur submitted documents review karo.',
-      fields: [
-        ['Application No.', 'LC-2024-0001'],
-        ['Company', 'Malwa Industrial Pvt. Ltd.'],
-        ['Application Type', 'Net Metering'],
-        ['Capacity', '100.00 kWp'],
-        ['Status', 'Pending'],
-        ['Submitted On', '20 Apr 2024'],
-      ],
-      textLabel: 'Review Notes',
-      textValue: 'Approval file is pending with DISCOM. Follow up before next inspection slot.',
-    },
-    'approval-detail': {
-      title: 'LC Approval Details',
-      route: liaisonSubRoutes['Liaison Approval Details'],
-      icon: ShieldCheck,
-      saveLabel: 'Update Approval',
-      note: 'Approval request, reviewer, due date aur decision trail manage karo.',
-      fields: [
-        ['Approval ID', 'LC-APP-2024-048'],
-        ['Type', 'LC Application'],
-        ['Customer', 'Ravi Industries Pvt. Ltd.'],
-        ['Project', '2 MW Rooftop Project'],
-        ['Status', 'Pending'],
-        ['Due Date', '22 Jun 2026'],
-      ],
-      textLabel: 'Approval Remarks',
-      textValue: 'Technical documents verified. Awaiting final regulatory approval.',
-    },
-    'inspection-create': {
-      title: 'Schedule LC Inspection',
-      route: liaisonSubRoutes['Liaison Inspection Create'],
-      icon: CalendarDays,
-      saveLabel: 'Schedule Inspection',
-      note: 'Inspection schedule karo, inspector assign karo aur site checklist prepare karo.',
-      fields: [
-        ['Inspection No.', 'LC-INS-2024-0097'],
-        ['Application No.', 'LC-2024-0006'],
-        ['Company', 'Future Electronics'],
-        ['Inspector', 'Ravi Kumar'],
-        ['Scheduled Date', '26 May 2026'],
-        ['Status', 'Scheduled'],
-      ],
-      textLabel: 'Inspection Checklist',
-      textValue: 'Verify meter room, AC/DC safety labels, earthing, net meter readiness and site photos.',
-    },
-    'inspection-detail': {
-      title: 'LC Inspection Details',
-      route: liaisonSubRoutes['Liaison Inspection Details'],
-      icon: Search,
-      saveLabel: 'Update Inspection',
-      note: 'Inspection result, issues aur corrective actions track karo.',
-      fields: [
-        ['Inspection No.', 'LC-INS-2024-0096'],
-        ['Application No.', 'LC-2024-0006'],
-        ['Company', 'Future Electronics'],
-        ['Inspector', 'Ravi Kumar'],
-        ['Status', 'Scheduled'],
-        ['Issues Found', '0'],
-      ],
-      textLabel: 'Inspection Notes',
-      textValue: 'Site is ready for inspection. Keep signed checklist and photos attached.',
-    },
-    'commissioning-create': {
-      title: 'Create Commissioning Activity',
-      route: liaisonSubRoutes['Liaison Commissioning Create'],
-      icon: Zap,
-      saveLabel: 'Save Commissioning',
-      note: 'Commissioning activity create karo aur engineer, schedule, testing status set karo.',
-      fields: [
-        ['Commissioning No.', 'LC-COM-2024-0087'],
-        ['Application No.', 'LC-APP-2024-0048'],
-        ['Company', 'Ravi Industries Pvt. Ltd.'],
-        ['Engineer', 'Ravi Kumar'],
-        ['Scheduled Date', '27 May 2026'],
-        ['Status', 'Scheduled'],
-      ],
-      textLabel: 'Commissioning Scope',
-      textValue: 'Complete system checks, inverter sync, load test and commissioning certificate.',
-    },
-    'commissioning-detail': {
-      title: 'Commissioning Details',
-      route: liaisonSubRoutes['Liaison Commissioning Details'],
-      icon: Settings,
-      saveLabel: 'Update Commissioning',
-      note: 'Commissioning status, testing result aur certificate details review karo.',
-      fields: [
-        ['Commissioning No.', 'LC-COM-2024-0086'],
-        ['Application No.', 'LC-APP-2024-0048'],
-        ['Company', 'Ravi Industries Pvt. Ltd.'],
-        ['Engineer', 'Ravi Kumar'],
-        ['Status', 'Scheduled'],
-        ['Commissioned On', '-'],
-      ],
-      textLabel: 'Testing Notes',
-      textValue: 'Commissioning planned after approval closure. Keep test report ready for upload.',
-    },
-    'compliance-create': {
-      title: 'Create Compliance Item',
-      route: liaisonSubRoutes['Liaison Compliance Create'],
-      icon: ShieldCheck,
-      saveLabel: 'Save Compliance',
-      note: 'Compliance requirement create karo aur due date, department, document status assign karo.',
-      fields: [
-        ['Compliance ID', 'LC-CMP-2024-0103'],
-        ['Application No.', 'LC-APP-2024-0048'],
-        ['Requirement', 'Electrical Safety Certificate'],
-        ['Department', 'Electrical'],
-        ['Due Date', '30 May 2026'],
-        ['Status', 'Pending'],
-      ],
-      textLabel: 'Compliance Notes',
-      textValue: 'Certificate submission required before commissioning closure.',
-    },
-    'compliance-detail': {
-      title: 'Compliance Details',
-      route: liaisonSubRoutes['Liaison Compliance Details'],
-      icon: BadgeCheck,
-      saveLabel: 'Update Compliance',
-      note: 'Compliance evidence, status aur remarks review karo.',
-      fields: [
-        ['Compliance ID', 'LC-CMP-2024-0102'],
-        ['Company', 'Ravi Industries Pvt. Ltd.'],
-        ['Requirement', 'Pollution NOC'],
-        ['Department', 'Regulatory'],
-        ['Status', 'Compliant'],
-        ['Submitted On', '12 May 2024'],
-      ],
-      textLabel: 'Compliance Remarks',
-      textValue: 'All required evidence is uploaded and approved by the regulatory team.',
-    },
-    'document-upload': {
-      title: 'Upload LC Document',
-      route: liaisonSubRoutes['Liaison Document Upload'],
-      icon: Upload,
-      saveLabel: 'Upload Document',
-      note: 'LC document upload karo aur category, relation, access aur review status set karo.',
-      fields: [
-        ['Document Type', 'Statutory Clearance'],
-        ['Related To', 'LC Application'],
-        ['Application No.', 'LC-APP-2024-0048'],
-        ['Uploaded By', 'Ravi Kumar'],
-        ['Access', 'Project Team'],
-        ['Status', 'Under Review'],
-      ],
-      textLabel: 'Document Notes',
-      textValue: 'Attach latest NOC, approval letter, safety certificate or inspection report.',
-    },
-    'document-preview': {
-      title: 'LC Document Preview',
-      route: liaisonSubRoutes['Liaison Document Preview'],
-      icon: FileText,
-      saveLabel: 'Update Document',
-      note: 'Document preview, review status aur related LC record check karo.',
-      fields: [
-        ['Document', 'Pollution NOC.pdf'],
-        ['Document Type', 'Statutory Clearance'],
-        ['Related To', 'LC Application'],
-        ['Application No.', 'LC-APP-2024-0048'],
-        ['File Type', 'PDF'],
-        ['Status', 'Approved'],
-      ],
-      textLabel: 'Review Notes',
-      textValue: 'Document is approved and ready for compliance reference.',
-    },
-    reports: {
-      title: 'Liaison Reports',
-      route: liaisonSubRoutes['Liaison Reports'],
-      icon: BarChart3,
-      saveLabel: 'Generate Report',
-      note: 'Applications, approvals, inspections, commissioning aur compliance reports generate karo.',
-      fields: [
-        ['Report Type', 'Liaison Summary'],
-        ['Date Range', 'May 2026'],
-        ['Branch', 'All Branches'],
-        ['Format', 'PDF'],
-        ['Owner', 'Compliance Team'],
-        ['Status', 'Ready'],
-      ],
-      textLabel: 'Report Scope',
-      textValue: 'Include pending approvals, due compliance items, inspection status and commissioning summary.',
-    },
-  }[type];
-
-  const Icon = config.icon;
-  const activeSubcategory = {
-    'application-create': 'Applications',
-    'application-detail': 'Applications',
-    'approval-detail': 'Approvals',
-    'inspection-create': 'Inspections',
-    'inspection-detail': 'Inspections',
-    'commissioning-create': 'Commissioning',
-    'commissioning-detail': 'Commissioning',
-    'compliance-create': 'Compliance',
-    'compliance-detail': 'Compliance',
-    'document-upload': 'Documents',
-    'document-preview': 'Documents',
-    reports: 'Applications',
-  }[type] ?? 'Applications';
-
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title={config.title}
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Liaisoning & Commissioning', onClick: () => onOpenSection('Applications') },
-          { label: config.title },
-        ]}
-        actions={(
-          <>
-            <button type="button" onClick={() => onOpenSection(activeSubcategory)} data-route={liaisonSubRoutes[activeSubcategory]} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />{activeSubcategory}</button>
-            <button type="button" onClick={() => onNotify(`${config.title} saved`)} data-route={config.route} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"><Save className="size-4" />{config.saveLabel}</button>
-          </>
-        )}
-      />
-
-      <LiaisonSubnavTabs activeSection={activeSubcategory} onOpenSection={onOpenSection} />
-
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <article className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex items-start gap-4 rounded-[12px] border border-[#edf2f8] bg-[#fbfdff] p-4">
-            <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#effbf3] text-[#0d9f4a]"><Icon className="size-5" /></span>
-            <div>
-              <p className="font-display text-[18px] font-extrabold text-[#06135a]">{config.title}</p>
-              <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">{config.note}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {config.fields.map(([label, value]) => <ReadonlyField key={label} label={label} value={value} />)}
-            <label className="block md:col-span-2">
-              <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{config.textLabel}</span>
-              <textarea defaultValue={config.textValue} rows={5} className="w-full rounded-[8px] border border-black/20 bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
-            </label>
-          </div>
-        </article>
-
-        <aside className="space-y-4">
-          <InfoPanel title="LC Summary" icon={ShieldCheck} tone="success">
-            <DetailRow label="Application" value="LC-2024-0001" />
-            <DetailRow label="Customer" value="Ravi Industries Pvt. Ltd." />
-            <DetailRow label="Capacity" value="100.00 kWp" />
-            <DetailRow label="Status" valueNode={<LiaisonApprovalStatusBadge status="Pending" />} />
-          </InfoPanel>
-          <InfoPanel title="Quick Navigation" icon={Zap} tone="primary">
-            <div className="grid gap-3">
-              <MiniActionButton label="Applications" icon={FileText} tone="blue" onClick={() => onOpenSection('Applications')} />
-              <MiniActionButton label="Approvals" icon={ShieldCheck} tone="green" onClick={() => onOpenSection('Approvals')} />
-              <MiniActionButton label="Documents" icon={FolderKanban} tone="purple" onClick={() => onOpenSection('Documents')} />
-            </div>
-          </InfoPanel>
-        </aside>
-      </section>
-
-      <DashboardFooter />
-    </div>
-  );
-}
 
 // ── Liaisoning & Commissioning (simplified popup-based module) ────────────────
 
@@ -8774,10 +8547,10 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const needsProjects = config.fields.some((f) => f.type === 'project');
 
   useEffect(() => {
-    if (needsProjects) projectApi.list().then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
-    if (needsUsers) userApi.list().then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
+    if (needsProjects) projectApi.list({ page_size: 1000 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+    if (needsUsers) userApi.list({ page_size: 500 }).then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
     Object.entries(config.lookups || {}).forEach(([key, lk]) => {
-      lk.api.list().then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) }))).catch(() => {});
+      lk.api.list({ page_size: 1000 }).then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) }))).catch(() => {});
     });
   }, [needsUsers, needsProjects]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -8785,7 +8558,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   const loadRows = useCallback(() => {
     setLoading(true);
-    const params = { ...(config.listParams || {}) };
+    const params = { page_size: 1000, ...(config.listParams || {}) };
     if (filterStatus) params.status = filterStatus;
     extraFilters.forEach((f) => {
       if (!f.client && extraFilterValues[f.key]) params[f.key] = extraFilterValues[f.key];
@@ -9326,7 +9099,8 @@ function LiaisonCompliancePage({ activeSection, onOpenSection, onNotify }) {
       {
         label: 'Due Date',
         render: (r) => {
-          const overdue = r.due_date && r.status !== 'Completed' && new Date(r.due_date) < new Date();
+          // Date-only compare: due today is not overdue.
+          const overdue = r.due_date && r.status !== 'Completed' && r.due_date < new Date().toISOString().slice(0, 10);
           return <span className={overdue ? 'font-bold text-[#dc2626]' : ''}>{lcFormatDate(r.due_date)}</span>;
         },
       },
@@ -9364,12 +9138,12 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
   const [replaceFile, setReplaceFile] = useState(null);
 
   useEffect(() => {
-    projectApi.list().then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+    projectApi.list({ page_size: 1000 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
   }, []);
 
   const loadDocs = useCallback(() => {
     setLoading(true);
-    const params = {};
+    const params = { page_size: 1000 };
     if (filterType) params.doc_type = filterType;
     lcDocumentApi.list(params)
       .then((r) => { setDocs(normalizeApiRows(r)); setLoading(false); })
@@ -12947,7 +12721,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Create'],
       icon: FolderKanban,
       saveLabel: 'Save Project',
-      note: 'New solar project create karo aur customer, site, capacity aur manager details set karo.',
+      note: 'Create a new solar project and set the customer, site, capacity and manager details.',
       fields: [
         ['Project Name', '20kW On-Grid System'],
         ['Customer', 'Amit Sharma'],
@@ -12964,7 +12738,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Activity Create'],
       icon: ClipboardPlus,
       saveLabel: 'Save Activity',
-      note: 'Project activity, owner aur due date add karo.',
+      note: 'Add a project activity with its owner and due date.',
       fields: [
         ['Activity Type', 'Site Update'],
         ['Category', 'Execution'],
@@ -12981,7 +12755,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Note Create'],
       icon: MessageSquareMore,
       saveLabel: 'Save Note',
-      note: 'Internal note add karo jo project team ke liye visible ho.',
+      note: 'Add an internal note visible to the project team.',
       fields: [
         ['Note Type', 'Internal'],
         ['Category', 'Execution'],
@@ -12998,7 +12772,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Team Add'],
       icon: UsersRound,
       saveLabel: 'Add Member',
-      note: 'Project team member assign karo aur access level set karo.',
+      note: 'Assign a project team member and set their access level.',
       fields: [
         ['Employee', 'Amit Sharma'],
         ['Role', 'Site Engineer'],
@@ -13015,7 +12789,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Progress Update'],
       icon: CheckCircle2,
       saveLabel: 'Update Progress',
-      note: 'Milestone progress update karo aur status history maintain karo.',
+      note: 'Update milestone progress and maintain the status history.',
       fields: [
         ['Current Progress', '58%'],
         ['New Progress', '65%'],
@@ -13032,7 +12806,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Work Order Create'],
       icon: ClipboardPlus,
       saveLabel: 'Save Work Order',
-      note: 'Installation ya electrical task ke liye work order create karo.',
+      note: 'Create a work order for an installation or electrical task.',
       fields: [
         ['Work Order ID', 'WO-2024-0006'],
         ['Task', 'Panel Installation'],
@@ -13049,7 +12823,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Expense Create'],
       icon: IndianRupee,
       saveLabel: 'Save Expense',
-      note: 'Project expense add karo aur vendor/payment details capture karo.',
+      note: 'Add a project expense and capture vendor/payment details.',
       fields: [
         ['Expense Category', 'Installation'],
         ['Vendor', 'EnerTech Solutions'],
@@ -13066,7 +12840,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Expense Details'],
       icon: ReceiptText,
       saveLabel: 'Update Expense',
-      note: 'Invoice, payment status aur approval detail review karo.',
+      note: 'Review the invoice, payment status and approval details.',
       fields: [
         ['Expense ID', 'EXP-2024-0002'],
         ['Invoice', 'INV-1002.pdf'],
@@ -13083,7 +12857,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Document Upload'],
       icon: ArrowUpRight,
       saveLabel: 'Upload Document',
-      note: 'Project document upload karo aur category/access set karo.',
+      note: 'Upload a project document and set its category/access.',
       fields: [
         ['Document Type', 'Technical Document'],
         ['Category', 'Site Survey'],
@@ -13100,7 +12874,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Document Preview'],
       icon: FileText,
       saveLabel: 'Update Document',
-      note: 'Document preview, status aur access details review karo.',
+      note: 'Review the document preview, status and access details.',
       fields: [
         ['Document', 'Site Survey Report.pdf'],
         ['Category', 'Project Documents'],
@@ -13117,7 +12891,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Folder Create'],
       icon: FolderKanban,
       saveLabel: 'Create Folder',
-      note: 'Project documents ke liye new folder/category create karo.',
+      note: 'Create a new folder/category for project documents.',
       fields: [
         ['Folder Name', 'Installation Photos'],
         ['Parent Folder', 'Project Documents'],
@@ -13134,7 +12908,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Approval Create'],
       icon: ShieldCheck,
       saveLabel: 'Submit Approval',
-      note: 'Approval request create karo aur approver assign karo.',
+      note: 'Create an approval request and assign an approver.',
       fields: [
         ['Approval Type', 'Technical'],
         ['Title', 'Installation Plan'],
@@ -13151,7 +12925,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Approval Details'],
       icon: ShieldCheck,
       saveLabel: 'Update Approval',
-      note: 'Approval status, approver aur decision trail review karo.',
+      note: 'Review the approval status, approver and decision trail.',
       fields: [
         ['Approval ID', 'APR-2024-0027'],
         ['Title', 'Site Survey Report'],
@@ -13168,7 +12942,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Custom Report Create'],
       icon: BarChart3,
       saveLabel: 'Create Report',
-      note: 'Custom project report builder open karo.',
+      note: 'Open the custom project report builder.',
       fields: [
         ['Report Name', 'Custom Site Margin Report'],
         ['Report Category', 'Custom Reports'],
@@ -13185,7 +12959,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Report Details'],
       icon: FileText,
       saveLabel: 'Regenerate Report',
-      note: 'Generated report detail, download status aur ownership review karo.',
+      note: 'Review generated report details, download status and ownership.',
       fields: [
         ['Report', 'Project Progress Report - Jun 2026'],
         ['Category', 'Project Reports'],
@@ -13202,7 +12976,7 @@ function ProjectActionPage({ type, onOpenSection, onNotify }) {
       route: projectSubRoutes['Project Report Schedule'],
       icon: CalendarDays,
       saveLabel: 'Schedule Report',
-      note: 'Project, financial ya operational report schedule set karo.',
+      note: 'Set a schedule for project, financial or operational reports.',
       fields: [
         ['Report Type', 'Project Progress Report'],
         ['Frequency', 'Weekly'],
@@ -22635,7 +22409,7 @@ function ProjectModulePlaceholderPage({ activeSection, onOpenSection, onNotify }
         </span>
         <h2 className="mt-5 font-display text-[24px] font-extrabold text-[#111827]">{getModuleSubnavLabel(activeSection)}</h2>
         <p className="mx-auto mt-3 max-w-[620px] text-[14px] font-bold leading-7 text-[#53647f]">
-          Is subcategory ka detailed screen abhi next phase me build kiya ja sakta hai. Horizontal navigation aur page routing fully ready hai, aur aap yahan se baaki project module sections par switch kar sakte ho.
+          The detailed screen for this subcategory will be built in a future phase. Horizontal navigation and page routing are fully ready, and you can switch to other project module sections from here.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <button type="button" onClick={() => onOpenSection('Project Overview')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><ArrowRight className="size-4" />Open Overview</button>
@@ -24772,7 +24546,7 @@ function SettingsCategoryPlaceholderPage({ activeSection, onOpenSection, onNotif
         <article className={`${panelClass} p-5`}>
           <div className="rounded-[14px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6">
             <p className="text-[18px] font-extrabold text-[#1e3261]">{title} page structure ready</p>
-            <p className="mt-3 max-w-[740px] text-[13px] font-bold leading-6 text-[#53647f]">Yeh settings screen ab sidebar se fully wired hai. Agle step me is section ke domain-specific fields, validations, import/export workflow aur backend APIs connect kiye ja sakte hain.</p>
+            <p className="mt-3 max-w-[740px] text-[13px] font-bold leading-6 text-[#53647f]">This settings screen is fully wired from the sidebar. Domain-specific fields, validations, import/export workflows and backend APIs can be connected in the next step.</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <SettingsInputField label={`${title} Name`} value={title} onChange={() => {}} />
               <SettingsInputField label="Default Value" value="Configured" onChange={() => {}} />
@@ -24910,6 +24684,7 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
         }}
         onUpdateUser={updateUser}
         onNotify={onNotify}
+        onOpenSection={onOpenSection}
       />
     );
   }
@@ -25055,7 +24830,7 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
   );
 }
 
-function UserDetailsPage({ user, onBack, onUpdateUser, onNotify }) {
+function UserDetailsPage({ user, onBack, onUpdateUser, onNotify, onOpenSection }) {
   const [activeTab, setActiveTab] = useState('Roles & Permissions');
   const [detailsMenuOpen, setDetailsMenuOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -25686,7 +25461,7 @@ function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
   );
 }
 
-function ActivityLogsPage({ onNotify }) {
+function ActivityLogsPage({ onNotify, onOpenSection }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('2026-07-01');
   const [dateTo, setDateTo] = useState('2026-07-03');
@@ -29812,7 +29587,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
 
   useEffect(() => {
     loadQuotation();
-    setConfirmingQuotationDelete(false);
+    setDeleteConfirm(null);
   }, [lead?.id]);
 
   if (!lead?.id) return <NoLeadSelected title="Lead Details" onGoToList={onBackToList} />;

@@ -1,7 +1,8 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.static import serve as media_serve
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -22,3 +23,10 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    # Whitenoise only serves static files, not uploads; without this route all
+    # media URLs 404 in production. (Note: the host's filesystem is ephemeral —
+    # uploads still need external storage such as S3 to survive redeploys.)
+    urlpatterns += [
+        re_path(r'^media/(?P<path>.*)$', media_serve, {'document_root': settings.MEDIA_ROOT}),
+    ]

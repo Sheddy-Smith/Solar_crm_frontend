@@ -280,15 +280,53 @@ def accounts_settings_summary():
     }
 
 
+def _human_size(num_bytes):
+    for unit in ('B', 'KB', 'MB', 'GB'):
+        if num_bytes < 1024 or unit == 'GB':
+            return f'{num_bytes:.1f} {unit}' if unit != 'B' else f'{int(num_bytes)} B'
+        num_bytes /= 1024
+
+
 def create_backup_log(user, backup_type='Full'):
+    """Export the full database (dumpdata) to a gzipped JSON file under
+    MEDIA_ROOT/backups/ and record the real outcome."""
+    import gzip
+    import io
+    from pathlib import Path
+
+    from django.conf import settings as dj_settings
+    from django.core.management import call_command
+
     ts = timezone.now().strftime('%Y%m%d_%H%M%S')
-    filename = f'malwa_crm_backup_{ts}.sql.gz'
+    filename = f'malwa_crm_backup_{ts}.json.gz'
+    backup_dir = Path(dj_settings.MEDIA_ROOT) / 'backups'
+    file_size = ''
+    status = 'Completed'
+    notes = f'Database export saved to media/backups/{filename}.'
+    try:
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        buffer = io.StringIO()
+        call_command(
+            'dumpdata',
+            '--natural-foreign',
+            '--natural-primary',
+            exclude=['contenttypes', 'auth.permission', 'sessions.session', 'admin.logentry'],
+            stdout=buffer,
+        )
+        path = backup_dir / filename
+        with gzip.open(path, 'wt', encoding='utf-8') as fh:
+            fh.write(buffer.getvalue())
+        file_size = _human_size(path.stat().st_size)
+    except Exception as exc:  # record the failure instead of pretending success
+        status = 'Failed'
+        notes = f'Backup failed: {exc}'[:500]
+
     log = SystemBackupLog.objects.create(
         filename=filename,
-        file_size='12.4 MB',
+        file_size=file_size,
         backup_type=backup_type,
-        status='Completed',
-        notes='Demo backup record created from settings module.',
+        status=status,
+        notes=notes,
         created_by=user if user and user.is_authenticated else None,
     )
     return log
@@ -300,9 +338,37 @@ def run_maintenance_action(action):
         cache.clear()
         results['details'].append('Application cache cleared.')
     elif action == 'health_check':
-        results['details'].append('Database connection OK.')
-        results['details'].append('Media storage OK.')
-        results['details'].append('All core modules reachable.')
+        from pathlib import Path
+
+        from django.conf import settings as dj_settings
+        from django.db import connection
+
+        try:
+            connection.ensure_connection()
+            results['details'].append('Database connection OK.')
+        except Exception as exc:
+            results['status'] = 'Failed'
+            results['details'].append(f'Database connection FAILED: {exc}')
+        try:
+            cache.set('health_check_probe', '1', 10)
+            if cache.get('health_check_probe') == '1':
+                results['details'].append('Cache read/write OK.')
+            else:
+                results['status'] = 'Failed'
+                results['details'].append('Cache read/write FAILED: value not persisted.')
+        except Exception as exc:
+            results['status'] = 'Failed'
+            results['details'].append(f'Cache read/write FAILED: {exc}')
+        try:
+            media_root = Path(dj_settings.MEDIA_ROOT)
+            media_root.mkdir(parents=True, exist_ok=True)
+            probe = media_root / '.health_check_probe'
+            probe.write_text('ok')
+            probe.unlink()
+            results['details'].append('Media storage writable.')
+        except Exception as exc:
+            results['status'] = 'Failed'
+            results['details'].append(f'Media storage FAILED: {exc}')
     elif action == 'cleanup_logs':
         cutoff_days = int(get_category_settings('maintenance').get('logRetentionDays', 90))
         deleted, _ = UserActivityLog.objects.filter(

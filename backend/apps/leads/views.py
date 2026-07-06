@@ -73,10 +73,6 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def analytics(self, request):
-        import pandas as pd
-        from django.db.models.functions import TruncMonth
-        from django.db.models import Q, Count
-
         qs = self.get_queryset()
         date_from = request.query_params.get('date_from')
         date_to = request.query_params.get('date_to')
@@ -170,8 +166,12 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):
+        from django.contrib.auth import get_user_model
         lead = self.get_object()
-        lead.assigned_to_id = request.data.get('assigned_to')
+        user_id = request.data.get('assigned_to')
+        if user_id is not None and not get_user_model().objects.filter(pk=user_id, is_active=True).exists():
+            return Response({'error': 'Invalid or inactive user.'}, status=status.HTTP_400_BAD_REQUEST)
+        lead.assigned_to_id = user_id
         lead.save(update_fields=['assigned_to', 'updated_at'])
         return Response({'assigned_to': lead.assigned_to_id})
 

@@ -136,6 +136,8 @@ class AccountsSettingsSummaryView(SettingsPermissionMixin, APIView):
 
 
 class SystemMaintenanceView(SettingsPermissionMixin, APIView):
+    permission_method_map = {'POST': 'can_edit'}
+
     def post(self, request):
         action_name = request.data.get('action', 'health_check')
         result = run_maintenance_action(action_name)
