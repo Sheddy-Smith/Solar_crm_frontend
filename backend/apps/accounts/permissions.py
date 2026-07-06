@@ -103,10 +103,13 @@ class HasModulePermission(BasePermission):
             return False
 
         action = getattr(view, 'action', None)
-        if action:
-            action_map = {**MODULE_ACTION_FLAGS, **getattr(view, 'permission_action_map', {})}
-            flag = action_map.get(action)
-        else:
+        action_map = {**MODULE_ACTION_FLAGS, **getattr(view, 'permission_action_map', {})}
+        flag = action_map.get(action) if action else None
+        if not flag:
+            # Custom actions not explicitly mapped (and plain APIViews with no
+            # `.action` at all) fall back to the HTTP method's default flag
+            # instead of being denied outright, so full_access roles aren't
+            # 403'd on every new @action until someone remembers to map it.
             method_map = {**HTTP_METHOD_FLAGS, **getattr(view, 'permission_method_map', {})}
             flag = method_map.get(request.method)
         if not flag:

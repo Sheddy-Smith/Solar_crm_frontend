@@ -20,6 +20,7 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
+    "framer-motion": "^12.42.2",
     "lucide-react": "^1.14.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

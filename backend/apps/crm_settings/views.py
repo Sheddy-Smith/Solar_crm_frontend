@@ -55,6 +55,7 @@ class SettingsPermissionMixin:
         'run': 'can_edit',
         'restore': 'can_edit',
         'summary': 'can_view',
+        'set_current': 'can_edit',
     }
 
 

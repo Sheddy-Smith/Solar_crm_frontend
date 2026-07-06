@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -60,14 +62,29 @@ class LeadViewSet(viewsets.ModelViewSet):
     def stats(self, request):
         qs = self.get_queryset()
         today = timezone.now().date()
+
+        # `period` scopes the headline counts to leads created today / this
+        # week / this month, for the dashboard's Day/Week/Month toggle.
+        # `today_followups` and `overdue` stay absolute — they describe
+        # what's due today, not when the lead was created.
+        period = request.query_params.get('period')
+        if period == 'day':
+            period_qs = qs.filter(created_at__date=today)
+        elif period == 'week':
+            period_qs = qs.filter(created_at__date__gte=today - timedelta(days=today.weekday()))
+        elif period == 'month':
+            period_qs = qs.filter(created_at__year=today.year, created_at__month=today.month)
+        else:
+            period_qs = qs
+
         return Response({
-            'total': qs.count(),
-            'new': qs.filter(status='New').count(),
-            'follow_up': qs.filter(status='Follow-up').count(),
+            'total': period_qs.count(),
+            'new': period_qs.filter(status='New').count(),
+            'follow_up': period_qs.filter(status='Follow-up').count(),
             'today_followups': qs.filter(next_follow_up__date=today).count(),
-            'quotation': qs.filter(status='Quotation').count(),
-            'won': qs.filter(status='Won').count(),
-            'lost': qs.filter(status='Lost').count(),
+            'quotation': period_qs.filter(status='Quotation').count(),
+            'won': period_qs.filter(status='Won').count(),
+            'lost': period_qs.filter(status='Lost').count(),
             'overdue': qs.filter(next_follow_up__lt=timezone.now(), status__in=['New', 'Follow-up']).count(),
         })
 

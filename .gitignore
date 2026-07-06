@@ -26,6 +26,8 @@ backend/venv/
 .pytest_cache/
 .coverage
 
-# Reference desktop app (too large for GitHub)
+# Reference desktop app (too large for GitHub) and its extracted source,
+# kept locally only for UI/UX comparison — not part of this project.
 Malwa_trolley_CRM.exe
 *.exe
+src_malwa_trolley/

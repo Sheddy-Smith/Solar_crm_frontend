@@ -166,7 +166,7 @@ export const leadApi = {
     request(`/leads/${id}/update_status/`, { method: 'POST', body: { status } }),
   assign: (id, userId) =>
     request(`/leads/${id}/assign/`, { method: 'POST', body: { assigned_to: userId } }),
-  stats: () => request('/leads/stats/'),
+  stats: (period) => request(`/leads/stats/${period ? '?period=' + period : ''}`),
   todayFollowUps: () => request('/leads/today_followups/'),
   overdue: () => request('/leads/overdue/'),
   recent: () => request('/leads/recent/'),

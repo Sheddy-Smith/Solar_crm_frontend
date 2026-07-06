@@ -1,6 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Nunito+Sans:wght@400;600;700;800&display=swap');
 @import "tailwindcss";
 
+/* Enables real `dark:` utility variants, matched against the `.dark` class
+   the app already toggles on <html> — new components should use `dark:`
+   classes instead of the attribute-selector overrides further down. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   color-scheme: light;
   font-family: "Nunito Sans", sans-serif;
@@ -24,6 +29,217 @@ body {
   color: #20345f;
   line-height: 1.5;
   overflow-x: hidden;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background: #020617;
+  color: #e2e8f0;
+}
+
+html.dark .sidebar-root {
+  background: linear-gradient(180deg, #042a40 0%, #043a57 45%, #041d31 100%);
+  border-color: rgba(148, 206, 255, 0.16);
+  box-shadow: 0 28px 66px rgba(0, 0, 0, 0.45);
+}
+
+html.dark .sidebar-root > div:first-child {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  background: rgba(3, 15, 30, 0.96);
+}
+
+html.dark .sidebar-root nav button {
+  color: #d0e8ff;
+  background: transparent !important;
+}
+
+html.dark .sidebar-root nav button[aria-current="page"] {
+  background: linear-gradient(180deg, #0d82d3 0%, #0ab36d 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 18px 36px rgba(0, 80, 140, 0.22);
+}
+
+html.dark .sidebar-root nav button:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #eef7ff;
+}
+
+html.dark .sidebar-root nav button .size-4,
+html.dark .sidebar-root nav button .size-5,
+html.dark .sidebar-root nav button .size-6,
+html.dark .sidebar-root nav button .size-7,
+html.dark .sidebar-root nav button .size-8 {
+  color: #cfe8ff !important;
+}
+
+html.dark .sidebar-root [class^="rounded-[8px]"],
+html.dark .sidebar-root [class*=" rounded-[8px]"] {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+html.dark .search-input {
+  background: rgba(8, 20, 36, 0.92) !important;
+  border-color: rgba(56, 189, 248, 0.22) !important;
+}
+
+html.dark .search-input input {
+  color: #e2e8f0 !important;
+}
+
+html.dark .search-input input::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.dark .search-input button {
+  color: #94a3b8 !important;
+}
+
+html.dark .header-toolbar {
+  background: linear-gradient(180deg, rgba(4, 23, 52, 0.98), rgba(3, 11, 26, 0.96)) !important;
+  border-color: rgba(56, 189, 248, 0.18) !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.30) !important;
+}
+
+html.dark .header-toolbar button {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #d7e4f6 !important;
+}
+
+html.dark .header-banner {
+  background: linear-gradient(180deg, #0b3b66 0%, #031b2e 100%) !important;
+  border-color: rgba(56, 189, 248, 0.16);
+}
+
+html.dark .header-banner img {
+  filter: saturate(1.25) brightness(0.76) contrast(1.22) !important;
+}
+
+html.dark .crm-panel,
+html.dark .crm-data-panel {
+  background: rgba(6, 11, 23, 0.95) !important;
+  border-color: rgba(72, 104, 146, 0.20) !important;
+  color: #e9f3ff;
+}
+
+html.dark .crm-panel {
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.44) !important;
+}
+
+html.dark .crm-data-panel {
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42) !important;
+}
+
+html.dark .crm-table {
+  background: transparent;
+}
+
+html.dark .crm-table thead tr {
+  background: #0f172a;
+}
+
+html.dark .crm-table th,
+html.dark .crm-table td {
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+html.dark .crm-table tbody tr:hover {
+  background: rgba(148, 163, 184, 0.1);
+}
+
+html.dark .header-banner::before,
+html.dark .header-banner::after {
+  background: linear-gradient(90deg, rgba(6, 16, 27, 0.96), rgba(6, 16, 27, 0));
+}
+
+/*
+ * Retints raw Tailwind arbitrary-value utilities (bg-[#hex], border-[#hex],
+ * text-[#hex]) for dark mode, since the project doesn't use Tailwind's
+ * `dark:` variant. `[class^="X"], [class*=" X"]` matches X only as a whole
+ * class token (start of the attribute, or right after a space) — a plain
+ * substring match (`[class*="X"]`) would also match variant-prefixed classes
+ * like `hover:X`, permanently applying what should only be a hover style.
+ */
+html.dark [class^="bg-white"], html.dark [class*=" bg-white"],
+html.dark [class^="bg-[#fbfcff]"], html.dark [class*=" bg-[#fbfcff]"],
+html.dark [class^="bg-[#eef4fb]"], html.dark [class*=" bg-[#eef4fb]"],
+html.dark [class^="bg-[#f5f9ff]"], html.dark [class*=" bg-[#f5f9ff]"],
+html.dark [class^="bg-[#f8fbff]"], html.dark [class*=" bg-[#f8fbff]"],
+html.dark [class^="bg-[#fbfdff]"], html.dark [class*=" bg-[#fbfdff]"],
+html.dark [class^="bg-[#f3f7fb]"], html.dark [class*=" bg-[#f3f7fb]"],
+html.dark [class^="bg-[#eef8fb]"], html.dark [class*=" bg-[#eef8fb]"],
+html.dark [class^="bg-[#eef3f7]"], html.dark [class*=" bg-[#eef3f7]"],
+html.dark [class^="bg-[#f8fafc]"], html.dark [class*=" bg-[#f8fafc]"],
+html.dark [class^="bg-[#f6fbff]"], html.dark [class*=" bg-[#f6fbff]"],
+html.dark [class^="bg-[#fffaf0]"], html.dark [class*=" bg-[#fffaf0]"],
+html.dark [class^="bg-[#fff6f6]"], html.dark [class*=" bg-[#fff6f6]"],
+html.dark [class^="bg-[#f0fdf9]"], html.dark [class*=" bg-[#f0fdf9]"],
+html.dark [class^="bg-[#fff0dc]"], html.dark [class*=" bg-[#fff0dc]"],
+html.dark [class^="bg-[#e8f8eb]"], html.dark [class*=" bg-[#e8f8eb]"],
+html.dark [class^="bg-[#eef5ff]"], html.dark [class*=" bg-[#eef5ff]"],
+html.dark [class^="bg-[#fff"], html.dark [class*=" bg-[#fff"],
+html.dark [class^="bg-[#fef"], html.dark [class*=" bg-[#fef"],
+html.dark [class^="bg-[#f8f"], html.dark [class*=" bg-[#f8f"],
+html.dark [class^="bg-[#f6f"], html.dark [class*=" bg-[#f6f"],
+html.dark [class^="bg-[#f4f"], html.dark [class*=" bg-[#f4f"],
+html.dark [class^="bg-[#f2f"], html.dark [class*=" bg-[#f2f"],
+html.dark [class^="bg-[#eef"], html.dark [class*=" bg-[#eef"] {
+  background-color: rgba(6, 12, 28, 0.92) !important;
+}
+
+html.dark [class^="bg-white/"], html.dark [class*=" bg-white/"] {
+  background-color: rgba(6, 12, 28, 0.92) !important;
+}
+
+html.dark [class^="border-black/20"], html.dark [class*=" border-black/20"] {
+  border-color: rgba(94, 113, 158, 0.18) !important;
+}
+
+html.dark [class^="border-[#dfe7f2]"], html.dark [class*=" border-[#dfe7f2]"],
+html.dark [class^="border-[#dce8f5]"], html.dark [class*=" border-[#dce8f5]"],
+html.dark [class^="border-[#e8eef6]"], html.dark [class*=" border-[#e8eef6]"],
+html.dark [class^="border-[#e4ebf4]"], html.dark [class*=" border-[#e4ebf4]"],
+html.dark [class^="border-[#e5edf6]"], html.dark [class*=" border-[#e5edf6]"],
+html.dark [class^="border-[#edf2f8]"], html.dark [class*=" border-[#edf2f8]"],
+html.dark [class^="border-[#e3ebf7]"], html.dark [class*=" border-[#e3ebf7]"],
+html.dark [class^="border-[#d8e4f4]"], html.dark [class*=" border-[#d8e4f4]"],
+html.dark [class^="border-[#dce7f5]"], html.dark [class*=" border-[#dce7f5]"],
+html.dark [class^="border-[#f5f9ff]"], html.dark [class*=" border-[#f5f9ff]"],
+html.dark [class^="border-[#eef4fb]"], html.dark [class*=" border-[#eef4fb]"],
+html.dark [class^="border-[#f1fff6]"], html.dark [class*=" border-[#f1fff6]"],
+html.dark [class^="border-[#f8fbff]"], html.dark [class*=" border-[#f8fbff]"],
+html.dark [class^="border-[#fbfdff]"], html.dark [class*=" border-[#fbfdff]"],
+html.dark [class^="border-[#fffaf0]"], html.dark [class*=" border-[#fffaf0]"],
+html.dark [class^="border-[#fff6f6]"], html.dark [class*=" border-[#fff6f6]"] {
+  border-color: rgba(94, 148, 209, 0.18) !important;
+}
+
+html.dark [class^="text-[#20345f]"], html.dark [class*=" text-[#20345f]"],
+html.dark [class^="text-[#52637f]"], html.dark [class*=" text-[#52637f]"],
+html.dark [class^="text-[#30466d]"], html.dark [class*=" text-[#30466d]"],
+html.dark [class^="text-[#7486a3]"], html.dark [class*=" text-[#7486a3]"],
+html.dark [class^="text-[#7b88a2]"], html.dark [class*=" text-[#7b88a2]"],
+html.dark [class^="text-[#8493ab]"], html.dark [class*=" text-[#8493ab]"],
+html.dark [class^="text-[#53647f]"], html.dark [class*=" text-[#53647f]"],
+html.dark [class^="text-[#4e6282]"], html.dark [class*=" text-[#4e6282]"],
+html.dark [class^="text-[#5a6d88]"], html.dark [class*=" text-[#5a6d88]"],
+html.dark [class^="text-[#6f7f98]"], html.dark [class*=" text-[#6f7f98]"],
+html.dark [class^="text-[#7a8aa4]"], html.dark [class*=" text-[#7a8aa4]"] {
+  color: #cdd9ec !important;
+}
+
+html.dark [class^="text-[#0b65e5]"], html.dark [class*=" text-[#0b65e5]"],
+html.dark [class^="text-[#0d9f4a]"], html.dark [class*=" text-[#0d9f4a]"],
+html.dark [class^="text-[#ea5a4c]"], html.dark [class*=" text-[#ea5a4c]"],
+html.dark [class^="text-[#0d3b21]"], html.dark [class*=" text-[#0d3b21]"],
+html.dark [class^="text-[#087532]"], html.dark [class*=" text-[#087532]"],
+html.dark [class^="text-[#1e3261]"], html.dark [class*=" text-[#1e3261]"],
+html.dark [class^="text-[#234069]"], html.dark [class*=" text-[#234069]"] {
+  color: #7dd3fc !important;
 }
 
 *,
@@ -100,6 +316,22 @@ a {
 
 .font-display {
   font-family: "Montserrat", sans-serif;
+}
+
+@keyframes sidebar-shine {
+  0% { transform: translateX(-100%) rotate(20deg); }
+  100% { transform: translateX(220%) rotate(20deg); }
+}
+
+.sidebar-shine {
+  position: absolute;
+  top: -40%;
+  bottom: -40%;
+  left: -20%;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+  animation: sidebar-shine 3.2s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .scroll-soft::-webkit-scrollbar {

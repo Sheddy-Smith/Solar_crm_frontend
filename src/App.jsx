@@ -1,5 +1,9 @@
 import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import Button from './components/ui/Button.jsx';
+import Card from './components/ui/Card.jsx';
+import ThemeToggle from './components/ui/ThemeToggle.jsx';
 import {
   authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
   projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
@@ -99,8 +103,7 @@ const sidebarItems = [
   { label: 'Settings', icon: Settings, showChevron: false },
 ];
 
-const leadSubItems = ['Lead List', 'Create Lead'];
-const leadRelatedPages = [...leadSubItems, 'Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Admin Approval'];
+const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Admin Approval'];
 // Pages jinhe ek selected lead chahiye — refresh/restore pe selectedLead null hota hai, isliye inhe Lead List se replace karo
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
@@ -263,7 +266,6 @@ function normalizeApiRows(data) {
 
 const leadSubRoutes = {
   'Lead List': '/lead/list',
-  'Create Lead': '/lead/create',
   'Lead Edit': '/lead/edit/:leadId',
   'Lead Follow-up Create': '/lead/follow-up/create/:leadId',
   'Lead Site Visit Schedule': '/lead/site-visit/schedule/:leadId',
@@ -624,6 +626,64 @@ function formatCurrencyPrecise(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return '₹0';
   return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+}
+
+function buildDashboardWorkflowStages(leadStats = {}, projectSummary = {}) {
+  const totalLeads = Number(leadStats.total ?? 0);
+  const followUps = Number(leadStats.follow_up ?? 0);
+  const quotations = Number(leadStats.quotation ?? 0);
+  const activeProjects = Number(projectSummary.active ?? 0);
+  const completedProjects = Number(projectSummary.completed ?? 0);
+  const projectTotal = ['planning', 'active', 'on_hold', 'completed', 'cancelled'].reduce(
+    (sum, key) => sum + (Number(projectSummary?.[key]) || 0),
+    0,
+  );
+
+  const installationProgress = projectTotal ? Math.min(100, Math.round((activeProjects / projectTotal) * 100)) : 0;
+  const handoverProgress = projectTotal ? Math.min(100, Math.round((completedProjects / projectTotal) * 100)) : 0;
+
+  return [
+    {
+      title: 'Lead Captured',
+      status: `${totalLeads} leads in pipeline`,
+      progress: 100,
+      icon: UserPlus,
+      tone: 'bg-[#0b65e5] text-white',
+      target: 'Lead List',
+    },
+    {
+      title: 'Site Survey',
+      status: `${followUps} follow-ups pending`,
+      progress: totalLeads ? Math.min(100, Math.round((followUps / totalLeads) * 100)) : 0,
+      icon: MapPin,
+      tone: 'bg-[#10b981] text-white',
+      target: 'Lead List',
+    },
+    {
+      title: 'Quotation Sent',
+      status: `${quotations} quotations`,
+      progress: totalLeads ? Math.min(100, Math.round((quotations / totalLeads) * 100)) : 0,
+      icon: ReceiptText,
+      tone: 'bg-[#f59e0b] text-white',
+      target: 'Lead List',
+    },
+    {
+      title: 'Installation',
+      status: `${activeProjects} active projects`,
+      progress: installationProgress,
+      icon: Wrench,
+      tone: 'bg-[#64748b] text-white',
+      target: 'Project List',
+    },
+    {
+      title: 'Handover',
+      status: `${completedProjects} completed`,
+      progress: handoverProgress,
+      icon: ShieldCheck,
+      tone: 'bg-[#475569] text-white',
+      target: 'Project List',
+    },
+  ];
 }
 
 const stats = [
@@ -1590,9 +1650,9 @@ const paymentModeRows = [
 
 const quickActions = [
   {
-    label: 'Add Lead',
+    label: 'Fast Lead',
     icon: UserPlus,
-    bg: 'from-[#17c53f] to-[#22d84d]',
+    bg: 'from-[#f59e0b] to-[#fb923c]',
     target: 'Create Lead',
   },
   {
@@ -1614,6 +1674,8 @@ const actionIcons = [
   { icon: MessageSquareMore, badge: null, label: 'Messages' },
 ];
 
+const dashboardPeriods = ['Day', 'Week', 'Month'];
+
 // Real notification/message feeds are not wired to the backend yet — keep these
 // empty rather than showing hardcoded demo entries that look like live data.
 const recentNotifications = [];
@@ -1621,10 +1683,10 @@ const recentNotifications = [];
 const unreadWhatsAppMessages = [];
 
 const panelClass =
-  'rounded-[14px] border border-[#dbe5f2] bg-white/90 shadow-[0_12px_28px_rgba(24,48,87,0.07)] backdrop-blur-sm';
+  'crm-panel rounded-[14px] border border-[#dbe5f2] bg-white/90 shadow-[0_12px_28px_rgba(24,48,87,0.07)] backdrop-blur-sm';
 
 const dataPanelClass =
-  'overflow-hidden rounded-[14px] border border-[#dbe5f2] bg-white/75 shadow-[0_14px_32px_rgba(24,48,87,0.08)] backdrop-blur-md';
+  'crm-data-panel overflow-hidden rounded-[14px] border border-[#dbe5f2] bg-white/75 shadow-[0_14px_32px_rgba(24,48,87,0.08)] backdrop-blur-md';
 
 const tableHeaders = ['Customer Name', 'Mobile Number', 'IVRS Number', 'Project Name', 'Assigned To', 'Follow-up Date', 'Action'];
 const recentHeaders = ['Customer Name', 'Mobile Number', 'Project Name', 'Status', 'Assigned To', 'Created On', 'Action'];
@@ -1747,11 +1809,28 @@ function App() {
   });
   const [globalSearch, setGlobalSearch] = useState('');
   const [dashboardStats, setDashboardStats] = useState(() => stats.map((s) => ({ ...s, value: '—', delta: '' })));
+  const [dashboardLeadStats, setDashboardLeadStats] = useState({});
+  const [dashboardProjectSummary, setDashboardProjectSummary] = useState({});
   const [dashboardFollowUps, setDashboardFollowUps] = useState([]);
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
   const [dashboardOverdue, setDashboardOverdue] = useState(null);
   const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
   const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
+  const [dashboardPeriod, setDashboardPeriod] = useState('Month');
+  const [theme, setTheme] = useState(() => (
+    ['light', 'dark', 'system'].includes(initialPreferences.theme) ? initialPreferences.theme : 'light'
+  ));
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : false
+  ));
+  const isDarkMode = theme === 'system' ? systemPrefersDark : theme === 'dark';
+
+  const dashboardWorkflowStages = useMemo(
+    () => buildDashboardWorkflowStages(dashboardLeadStats, dashboardProjectSummary),
+    [dashboardLeadStats, dashboardProjectSummary],
+  );
 
   const notify = (message, type = 'info') => {
     setToast({ id: Date.now(), message, type });
@@ -1796,11 +1875,14 @@ function App() {
     });
   }, [currentPage]);
 
-  // Fetch dashboard stats from API
+  // Lead stats are scoped to the Day/Week/Month toggle, so they get their own
+  // effect keyed on dashboardPeriod — everything else on the dashboard is
+  // period-independent and stays in the effect below.
   useEffect(() => {
     if (currentPage !== 'dashboard') return;
-    leadApi.stats().then((data) => {
+    leadApi.stats(dashboardPeriod.toLowerCase()).then((data) => {
       if (!data) return;
+      setDashboardLeadStats(data);
       setDashboardStats((prev) =>
         prev.map((s) => {
           if (s.title === 'Total Leads') return { ...s, value: String(data.total ?? s.value) };
@@ -1810,6 +1892,15 @@ function App() {
           return s;
         }),
       );
+    }).catch(() => {});
+  }, [currentPage, dashboardPeriod]);
+
+  // Fetch dashboard stats from API
+  useEffect(() => {
+    if (currentPage !== 'dashboard') return;
+    projectApi.summary().then((data) => {
+      if (!data) return;
+      setDashboardProjectSummary(data);
     }).catch(() => {});
 
     accountsModuleApi.summary().then((data) => {
@@ -1877,6 +1968,15 @@ function App() {
   }, [currentPage]);
 
   const openDashboardSection = (section, message, lead, tab) => {
+    if (section === 'Create Lead') {
+      setDashboardCreateLeadOpen(true);
+      setMobileSidebarOpen(false);
+      setNotificationMenuOpen(false);
+      setMessageMenuOpen(false);
+      notify(message ?? 'Create Lead opened');
+      return;
+    }
+
     if (!isKnownSection(section)) {
       notify(message ?? `${section} opened`);
       return;
@@ -1963,6 +2063,23 @@ function App() {
   }, [toast]);
 
   useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    document.documentElement.classList.toggle('dark', isDarkMode);
+  }, [isDarkMode]);
+
+  // Keep 'system' theme in sync if the OS-level color scheme changes while the app is open.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (event) => setSystemPrefersDark(event.matches);
+    mq.addEventListener('change', handleChange);
+    return () => mq.removeEventListener('change', handleChange);
+  }, []);
+
+  useEffect(() => {
     if (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Lead'); return; }
     if (activeSidebarItem === 'Project Management' || projectRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Project Management'); return; }
     if (activeSidebarItem === 'Employee Management' || employeeRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Employee Management'); return; }
@@ -1985,9 +2102,10 @@ function App() {
         currentPage,
         activeSidebarItem,
         desktopSidebarCollapsed,
+        theme,
       }),
     );
-  }, [activeSidebarItem, currentPage, desktopSidebarCollapsed]);
+  }, [activeSidebarItem, currentPage, desktopSidebarCollapsed, theme]);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -2153,7 +2271,14 @@ function App() {
   }
 
   return (
-    <div className="box-border min-h-screen max-w-full overflow-x-hidden bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] p-2 text-[#20345f] sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden">
+    <div
+      className={cx(
+        'box-border min-h-screen max-w-full overflow-x-hidden p-2 sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden',
+        isDarkMode
+          ? 'bg-slate-950 text-slate-100'
+          : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
+      )}
+    >
       <div className="mx-auto flex w-full max-w-full gap-3 xl:h-full xl:items-stretch xl:gap-4">
         <div
           className={cx(
@@ -2165,7 +2290,7 @@ function App() {
 
         <aside
           className={cx(
-            'fixed inset-y-2 left-2 z-50 flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] border-r-white/10 bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
+            'sidebar-root fixed inset-y-2 left-2 z-50 flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] border-r-white/10 bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
             desktopSidebarCollapsed ? 'xl:w-[84px]' : 'xl:w-[236px]',
             mobileSidebarOpen ? 'translate-x-0' : 'translate-x-[-110%] xl:translate-x-0',
           )}
@@ -2192,7 +2317,8 @@ function App() {
           </div>
 
           <div className="relative min-h-0 flex-1 overflow-hidden rounded-t-[14px] bg-[linear-gradient(180deg,#09b83f_0%,#0799a7_42%,#075fc2_100%)]">
-            <div className="scroll-soft sidebar-menu-scroll h-full overflow-y-auto px-4 py-4">
+            <div className="sidebar-shine" aria-hidden="true" />
+            <div className="scroll-soft sidebar-menu-scroll relative h-full overflow-y-auto px-4 py-4">
               <nav className="space-y-0.5">
                 {sidebarItems.map((item) => {
                   const Icon = item.icon;
@@ -2292,8 +2418,15 @@ function App() {
                           </span>
                         ) : null}
                       </button>
-                      {isProjectOpen && !desktopSidebarCollapsed ? (
-                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                      <AnimatePresence>
+                      {isProjectOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
                           <div className="space-y-1">
                             {projectSubItems.map((subItem) => {
                               const isSubActive = activeSidebarItem === subItem;
@@ -2320,10 +2453,18 @@ function App() {
                               );
                             })}
                           </div>
-                        </div>
-                      ) : null}
-                      {isEmployeeOpen && !desktopSidebarCollapsed ? (
-                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
+                      <AnimatePresence>
+                      {isEmployeeOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
                           <div className="space-y-1">
                             {employeeSubItems.map((subItem) => {
                               const isSubActive = activeSidebarItem === subItem;
@@ -2354,10 +2495,18 @@ function App() {
                               );
                             })}
                           </div>
-                        </div>
-                      ) : null}
-                      {isAccountsOpen && !desktopSidebarCollapsed ? (
-                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
+                      <AnimatePresence>
+                      {isAccountsOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
                           <div className="space-y-1">
                             {accountsSubItems.map((subItem) => {
                               const isSubActive = activeSidebarItem === subItem;
@@ -2388,10 +2537,18 @@ function App() {
                               );
                             })}
                           </div>
-                        </div>
-                      ) : null}
-                      {isInventoryOpen && !desktopSidebarCollapsed ? (
-                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
+                      <AnimatePresence>
+                      {isInventoryOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
                           <div className="space-y-1">
                             {inventorySubItems.map((subItem) => {
                               const isSubActive = activeSidebarItem === subItem;
@@ -2422,10 +2579,18 @@ function App() {
                               );
                             })}
                           </div>
-                        </div>
-                      ) : null}
-                      {isLiaisonOpen && !desktopSidebarCollapsed ? (
-                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
+                      <AnimatePresence>
+                      {isLiaisonOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
                           <div className="space-y-1">
                             {liaisonSubItems.map((subItem) => {
                               const isSubActive = activeSidebarItem === subItem;
@@ -2451,10 +2616,18 @@ function App() {
                               );
                             })}
                           </div>
-                        </div>
-                      ) : null}
-                      {isOmOpen && !desktopSidebarCollapsed ? (
-                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
+                      <AnimatePresence>
+                      {isOmOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
                           <div className="space-y-1">
                             {omSubItems.map((subItem) => {
                               const isSubActive = activeSidebarItem === subItem;
@@ -2480,10 +2653,18 @@ function App() {
                               );
                             })}
                           </div>
-                        </div>
-                      ) : null}
-                      {isAmcOpen && !desktopSidebarCollapsed ? (
-                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
+                      <AnimatePresence>
+                      {isAmcOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
                           <div className="space-y-1">
                             {amcSubItems.map((subItem) => {
                               const isSubActive = activeSidebarItem === subItem;
@@ -2509,10 +2690,18 @@ function App() {
                               );
                             })}
                           </div>
-                        </div>
-                      ) : null}
-                      {isSummaryOpen && !desktopSidebarCollapsed ? (
-                        <div className="my-2 rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]">
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
+                      <AnimatePresence>
+                      {isSummaryOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
                           <div className="space-y-1">
                             {summarySubItems.map((subItem) => {
                               const isSubActive = activeSidebarItem === subItem;
@@ -2538,8 +2727,9 @@ function App() {
                               );
                             })}
                           </div>
-                        </div>
-                      ) : null}
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
                       {null /* Settings subcategories shown on page only */}
                     </div>
                   );
@@ -2566,7 +2756,7 @@ function App() {
 
         <main className="min-w-0 flex-1 w-full xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
           <div className="space-y-2.5 xl:pb-3">
-            <header className={`${panelClass} relative z-30 overflow-visible px-3 py-3 sm:px-4`}>
+            <header className={`${panelClass} header-toolbar relative z-30 overflow-visible px-3 py-3 sm:px-4`}>
               <div className="grid gap-3 lg:grid-cols-[44px_minmax(0,1fr)] xl:grid-cols-[44px_326px_minmax(0,1fr)_auto] xl:items-center">
                 <div className="flex items-center justify-between gap-3 lg:contents">
                   <button
@@ -2655,7 +2845,7 @@ function App() {
                   </div>
                 </div>
 
-                <label className="flex h-11 min-w-0 items-center rounded-[10px] border border-black/20 bg-[#fbfcff] px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 lg:col-span-1 xl:col-span-1">
+                <label className="search-input flex h-11 min-w-0 items-center rounded-[10px] border border-black/20 bg-[#fbfcff] px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 lg:col-span-1 xl:col-span-1">
                   <Search className="size-4 text-[#7486a3]" />
                   <input
                     type="search"
@@ -2690,10 +2880,13 @@ function App() {
 
                     return (
                       <div key={action.label} className="relative" data-header-actions="true">
-                        <button
+                        <motion.button
                           type="button"
+                          whileHover={{ scale: 1.08 }}
+                          whileTap={{ scale: 0.92 }}
+                          transition={{ duration: 0.15, ease: 'easeOut' }}
                           onClick={() => handleHeaderAction(action.label)}
-                          className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
+                          className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition-colors hover:text-[#2158d6]"
                           aria-label={action.label}
                           aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
                         >
@@ -2703,7 +2896,7 @@ function App() {
                             {action.badge}
                           </span>
                         ) : null}
-                      </button>
+                      </motion.button>
                       {action.label === 'Notifications' && notificationMenuOpen ? (
                         <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
                       ) : null}
@@ -2713,6 +2906,14 @@ function App() {
                       </div>
                     );
                   })}
+
+                  <ThemeToggle
+                    theme={theme}
+                    onChange={(next) => {
+                      setTheme(next);
+                      notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
+                    }}
+                  />
 
                   <div className="relative ml-auto" data-profile-menu="true">
                     <button
@@ -2774,6 +2975,11 @@ function App() {
               <SummaryPage
                 activeSection={activeSidebarItem}
                 onOpenSection={(section) => {
+                  if (section === 'Create Lead') {
+                    setDashboardCreateLeadOpen(true);
+                    notify('Create Lead opened');
+                    return;
+                  }
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
                 }}
@@ -2859,7 +3065,7 @@ function App() {
                   notify(`${section} opened`);
                 }}
                 onCreateLead={() => {
-                  setActiveSidebarItem('Create Lead');
+                  setDashboardCreateLeadOpen(true);
                   notify('Create Lead opened');
                 }}
                 onOpenLead={(lead) => {
@@ -2867,27 +3073,6 @@ function App() {
                   setLeadDetailsTab('overview');
                   setActiveSidebarItem('Lead Details');
                   notify('Lead Details opened');
-                }}
-                onNotify={notify}
-              />
-            ) : activeSidebarItem === 'Create Lead' ? (
-              <CreateLeadPage
-                activeSection="Create Lead"
-                onOpenSection={(section) => {
-                  setActiveSidebarItem(section);
-                  notify(`${section} opened`);
-                }}
-                onCancel={() => {
-                  setActiveSidebarItem('Lead List');
-                  notify('Lead List opened');
-                }}
-                onDashboard={() => {
-                  setActiveSidebarItem('Dashboard');
-                  notify('Dashboard opened');
-                }}
-                onRequestApproval={() => {
-                  setActiveSidebarItem('Admin Approval');
-                  notify('Admin Approval opened');
                 }}
                 onNotify={notify}
               />
@@ -2943,6 +3128,35 @@ function App() {
               />
             ) : (
               <div className="space-y-1.5">
+            <Card className="p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#0e582a] dark:text-emerald-400">Live Dashboard</p>
+                  <h3 className="mt-2 text-[20px] font-extrabold text-[#163d70] dark:text-slate-100">Overview for {dashboardPeriod}</h3>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {dashboardPeriods.map((period) => (
+                    <motion.button
+                      key={period}
+                      type="button"
+                      whileHover={{ y: -1 }}
+                      whileTap={{ scale: 0.95 }}
+                      transition={{ duration: 0.15, ease: 'easeOut' }}
+                      onClick={() => setDashboardPeriod(period)}
+                      className={cx(
+                        'rounded-full px-4 py-2 text-[13px] font-bold transition-colors',
+                        dashboardPeriod === period
+                          ? 'bg-[#0b65e5] text-white'
+                          : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700',
+                      )}
+                    >
+                      {period}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            </Card>
+
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {dashboardStats.map((stat) => (
                 <StatCard key={stat.title} stat={stat} onClick={() => openDashboardSection(stat.target, `${stat.title} opened`)} />
@@ -3021,18 +3235,21 @@ function App() {
                     const Icon = action.icon;
 
                     return (
-                      <button
+                      <motion.button
                         key={action.label}
                         type="button"
+                        whileHover={{ y: -3, filter: 'brightness(1.03)' }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ duration: 0.15, ease: 'easeOut' }}
                         onClick={() => {
-                          if (action.label === 'Add Lead') {
+                          if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
                             setDashboardCreateLeadOpen(true);
                           } else {
                             openDashboardSection(action.target, `${action.label} opened`);
                           }
                         }}
                         className={cx(
-                          'flex w-full items-center justify-between rounded-[10px] bg-linear-to-r px-4 py-4 text-left text-white shadow-[0_12px_24px_rgba(22,65,145,0.16)] transition hover:-translate-y-0.5 hover:brightness-[1.03] sm:min-h-[92px] xl:min-h-0',
+                          'flex w-full items-center justify-between rounded-[10px] bg-linear-to-r px-4 py-4 text-left text-white shadow-[0_12px_24px_rgba(22,65,145,0.16)] sm:min-h-[92px] xl:min-h-0',
                           action.bg,
                         )}
                       >
@@ -3043,10 +3260,16 @@ function App() {
                           <span className="text-[14px] font-extrabold">{action.label}</span>
                         </span>
                         <ArrowRight className="size-4.5" />
-                      </button>
+                      </motion.button>
                     );
                   })}
                 </div>
+
+                <ProjectWorkflowPanel
+                  stages={dashboardWorkflowStages}
+                  onViewAll={() => openDashboardSection('Project List', 'Project workflow opened')}
+                  onStageClick={(target) => openDashboardSection(target, `${target} opened`)}
+                />
               </aside>
             </section>
 
@@ -3752,7 +3975,6 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             <button
               type="button"
               onClick={() => setCreateModalOpen(true)}
-              data-route={leadSubRoutes['Create Lead']}
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] bg-[#12a54f] px-2.5 text-[12px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9145]"
             >
               <Plus className="size-3.5" />
@@ -26455,215 +26677,6 @@ function useIvrsCheck(excludeId) {
   return { checking, result, check, reset: () => setResult(null) };
 }
 
-function CreateLeadPage({ activeSection = 'Create Lead', onOpenSection, onCancel, onDashboard, onRequestApproval, onNotify }) {
-  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
-  const [duplicateIvrs, setDuplicateIvrs] = useState('');
-  const [duplicateLeadMatches, setDuplicateLeadMatches] = useState([]);
-  const [duplicateLeadPayload, setDuplicateLeadPayload] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-  const [employeeOptions, setEmployeeOptions] = useState(cachedEmployeeOptions || []);
-  const [viewDuplicateLeadId, setViewDuplicateLeadId] = useState(null);
-  const ivrsCheck = useIvrsCheck();
-
-  useEffect(() => {
-    getEmployeeOptions().then(setEmployeeOptions);
-  }, []);
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const fd = new FormData(event.currentTarget);
-    const mobile = fd.get('mobile_number')?.trim();
-    const ivrs = fd.get('ivrs_number')?.trim();
-
-    setSubmitting(true);
-    setSubmitError('');
-    const payload = {
-      customer_name: fd.get('customer_name'),
-      mobile_number: mobile,
-      ivrs_number: ivrs || undefined,
-      alternate_number: fd.get('alternate_number') || undefined,
-      email: fd.get('email') || undefined,
-      project_name: fd.get('project_name') || undefined,
-      project_type: fd.get('project_type') || undefined,
-      requirement_details: fd.get('requirement_details') || undefined,
-      source: fd.get('source') || undefined,
-      estimated_capacity: fd.get('estimated_capacity') || undefined,
-      next_follow_up: fd.get('next_follow_up') || undefined,
-      assigned_to: fd.get('assigned_to') || undefined,
-      status: fd.get('status') || 'New',
-      remarks: fd.get('remarks') || undefined,
-      address: fd.get('address') || undefined,
-      city: fd.get('city') || undefined,
-      state: fd.get('state') || undefined,
-      latitude: fd.get('latitude') || undefined,
-      longitude: fd.get('longitude') || undefined,
-    };
-    try {
-      await leadApi.create(payload);
-      onNotify?.('Lead created successfully!');
-      onCancel();
-    } catch (err) {
-      if (err.message?.toLowerCase().includes('ivrs number already exists')) {
-        const matches = await leadApi.list({ search: ivrs }).catch(() => null);
-        const matchRows = matches ? (Array.isArray(matches) ? matches : matches.results ?? []) : [];
-        setDuplicateLeadMatches(matchRows.filter((row) => row.ivrs_number === ivrs));
-        setDuplicateLeadPayload(payload);
-        setDuplicateIvrs(ivrs);
-        setDuplicateModalOpen(true);
-      } else {
-        setSubmitError(err.message || 'Error saving lead. Please try again.');
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-4 rounded-[14px] bg-white/60 p-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-display text-[24px] font-extrabold leading-tight text-[#111827] sm:text-[28px]">
-            Create Lead
-          </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] font-bold">
-            <button
-              type="button"
-              onClick={onDashboard}
-              className="rounded-[7px] border border-black/20 px-2 py-1 text-[#0b65e5] transition hover:bg-white"
-            >
-              Dashboard
-            </button>
-            <ChevronRight className="size-3.5 text-[#9aa8bc]" />
-            <span className="text-[#53647f]">Lead</span>
-            <ChevronRight className="size-3.5 text-[#9aa8bc]" />
-            <span className="text-[#111827]">Create Lead</span>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <button
-            type="button"
-            onClick={onCancel}
-            data-action="create-lead-cancel"
-            data-route={leadSubRoutes['Lead List']}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-extrabold text-[#233a6b] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:bg-[#f8fbff] sm:w-auto"
-          >
-            <X className="size-4" />
-            Cancel
-          </button>
-          <button
-            type="submit"
-            form="create-lead-form"
-            disabled={submitting}
-            data-action="create-lead-save"
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-[#10a64e] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9145] disabled:opacity-60 sm:w-auto"
-          >
-            <Save className="size-4" />
-            {submitting ? 'Saving...' : 'Save Lead'}
-          </button>
-        </div>
-      </div>
-
-      {submitError ? (
-        <div className="rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-bold text-red-600">
-          {submitError}
-        </div>
-      ) : null}
-
-      <form
-        id="create-lead-form"
-        className="grid items-start gap-4 xl:grid-cols-2"
-        onSubmit={handleSubmit}
-      >
-        <LeadFormSection
-          title="1. Basic Information"
-          icon={ReceiptText}
-          tone="success"
-        >
-          <div className="grid gap-4 lg:grid-cols-3">
-            <LeadInput label="Customer Name" required icon={UserRound} placeholder="Enter customer name" name="customer_name" />
-            <LeadPhoneInput label="Mobile Number" required placeholder="Enter mobile number" name="mobile_number" />
-            <IvrsVerifyField
-              checking={ivrsCheck.checking}
-              result={ivrsCheck.result}
-              onCheck={ivrsCheck.check}
-              onReset={ivrsCheck.reset}
-              onShowDetail={setViewDuplicateLeadId}
-            />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <LeadPhoneInput label="Alternate Number" placeholder="Enter alternate number" name="alternate_number" />
-            <LeadInput label="Email Address" icon={Mail} placeholder="Enter email address" type="email" name="email" />
-          </div>
-        </LeadFormSection>
-
-        <LeadFormSection title="2. Project Information" icon={ClipboardPlus} tone="primary">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <LeadInput label="Project Name" icon={FolderKanban} placeholder="Enter project name" name="project_name" />
-            <LeadSelect label="Project Type" placeholder="Select project type" options={['On-Grid', 'Off-Grid', 'Hybrid']} name="project_type" />
-          </div>
-          <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." name="requirement_details" />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <LeadSelect label="Source" placeholder="Select source" options={['Website', 'Referral', 'Walk-in', 'Campaign']} name="source" />
-            <LeadInput label="Estimated Capacity (kW)" icon={Zap} type="number" placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" />
-          </div>
-        </LeadFormSection>
-
-        <LeadFormSection title="3. Assignment & Follow-up" icon={UserRound} tone="purple">
-          <div className="grid gap-4 lg:grid-cols-3">
-            <LeadSelect label="Assigned Employee" required placeholder={employeeOptions.length ? 'Select employee' : 'No active employees found'} options={employeeOptions} name="assigned_to" />
-            <LeadDateInput label="Follow-up Date" required name="next_follow_up" />
-            <LeadSelect label="Lead Status" placeholder="New" options={['New', 'Follow-up', 'Quotation', 'Lost']} badgeValue="New" name="status" />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <LeadTextarea label="Remarks" icon={MapPin} placeholder="Enter remarks (optional)" compact name="remarks" />
-          </div>
-        </LeadFormSection>
-
-        <LeadFormSection title="4. Location Information" titleSuffix="(Optional)" icon={MapPin} tone="warning">
-          <LeadTextarea label="Address" icon={MapPin} placeholder="Enter full address" name="address" />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <LeadInput label="Latitude" optional icon={MapPin} placeholder="Enter latitude" name="latitude" />
-            <LeadInput label="Longitude" optional icon={MapPin} placeholder="Enter longitude" name="longitude" />
-          </div>
-        </LeadFormSection>
-
-        <CreateLeadNotice />
-      </form>
-
-      <DashboardFooter />
-
-      {duplicateModalOpen ? (
-        <DuplicateIvrsModal
-          ivrsNumber={duplicateIvrs}
-          existingLeads={duplicateLeadMatches}
-          requestedLead={duplicateLeadPayload}
-          onClose={() => {
-            setDuplicateModalOpen(false);
-            setDuplicateLeadPayload(null);
-          }}
-          onRequestApproval={() => {
-            setDuplicateModalOpen(false);
-            setDuplicateLeadPayload(null);
-            onRequestApproval();
-          }}
-          onNotify={onNotify}
-        />
-      ) : null}
-
-      {viewDuplicateLeadId ? (
-        <LeadViewModal
-          leadId={viewDuplicateLeadId}
-          onClose={() => setViewDuplicateLeadId(null)}
-          onEdit={() => setViewDuplicateLeadId(null)}
-          onNotify={onNotify}
-        />
-      ) : null}
-    </div>
-  );
-}
-
 function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCreate = false, onClose, onSaved, onRequestApproval, onNotify }) {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateIvrs, setDuplicateIvrs] = useState('');
@@ -30931,7 +30944,14 @@ function StatCard({ stat, onClick }) {
   const Icon = stat.icon;
 
   return (
-    <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[106px] w-full items-center gap-3 px-3 py-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)] sm:gap-4 sm:px-4`}>
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileHover={{ y: -3 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
+      className={`${panelClass} flex min-h-[106px] w-full items-center gap-3 px-3 py-4 text-left transition-shadow duration-200 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)] sm:gap-4 sm:px-4`}
+    >
       <div
         className={cx(
           'flex size-12 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-white shadow-[0_12px_24px_rgba(24,86,190,0.18)] sm:size-[52px]',
@@ -30960,7 +30980,7 @@ function StatCard({ stat, onClick }) {
           <span>{stat.delta}</span>
         </div>
       </div>
-    </button>
+    </motion.button>
   );
 }
 
@@ -30991,6 +31011,74 @@ function SectionHeader({ icon: Icon, title, actionLabel, onAction, iconTone = 'p
           <ArrowRight className="size-4" />
         </button>
       ) : null}
+    </div>
+  );
+}
+
+function ProjectWorkflowPanel({ stages, onViewAll, onStageClick }) {
+  return (
+    <div className="mt-4 rounded-[16px] border border-[#dce7f5] bg-[#f8fbff] p-4 shadow-[0_16px_32px_rgba(17,39,83,0.1)]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 place-items-center rounded-full bg-[#0b65e5] text-white shadow-sm">
+            <FolderKanban className="size-4" />
+          </span>
+          <div>
+            <p className="font-display text-[15px] font-extrabold text-[#223768]">Project Workflow</p>
+            <p className="text-[12px] font-semibold text-[#53647f]">Track your active project stages</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onViewAll}
+          className="inline-flex items-center gap-1.5 self-start rounded-[8px] border border-[#d4e1f4] bg-white px-3 py-2 text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#eef5ff] sm:self-auto"
+        >
+          View All
+          <ArrowRight className="size-4" />
+        </button>
+      </div>
+
+      <div className="mt-4 space-y-4">
+        {stages.map((step, index) => (
+          <button
+            key={step.title}
+            type="button"
+            onClick={() => onStageClick(step.target)}
+            className="group w-full overflow-hidden rounded-[18px] border border-[#e0e7f2] bg-white px-4 py-4 text-left shadow-[0_10px_20px_rgba(23,44,86,0.06)] transition hover:-translate-y-0.5 hover:border-[#cfd8ea]"
+          >
+            <div className="grid gap-3 sm:grid-cols-[auto_1fr]">
+              <div className="relative flex items-start">
+                <span className={cx('grid h-12 w-12 place-items-center rounded-[16px] text-[14px] font-extrabold shadow-sm', step.tone)}>
+                  <step.icon className="size-5" />
+                </span>
+                {index < stages.length - 1 ? (
+                  <span className="absolute left-1/2 top-full h-full w-px -translate-x-1/2 bg-[#cfd8ea]" />
+                ) : null}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-extrabold text-[#102446]">{step.title}</p>
+                    <p className="mt-1 text-[12px] font-semibold text-[#64748b]">{step.status}</p>
+                  </div>
+                  <span className="rounded-full border border-[#d4e1f4] bg-[#eef5ff] px-2.5 py-1 text-[11px] font-extrabold text-[#0b65e5]">
+                    {step.progress}%
+                  </span>
+                </div>
+                <div className="mt-4 overflow-hidden rounded-full bg-[#e8eff8] h-2.5">
+                  <div
+                    className={cx(
+                      'h-full rounded-full',
+                      step.progress >= 100 ? 'bg-[#0b65e5]' : step.progress >= 50 ? 'bg-[#10b981]' : 'bg-[#f59e0b]',
+                    )}
+                    style={{ width: `${step.progress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
