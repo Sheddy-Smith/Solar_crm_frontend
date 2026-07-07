@@ -7,10 +7,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Q, Count
 from django.db.models.functions import TruncMonth
-from .models import Lead, FollowUp, AdminApproval, Quotation
+from .models import Lead, FollowUp, AdminApproval, Quotation, LeadSiteSurvey, LeadSurveyPhoto
 from .serializers import (
     LeadListSerializer, LeadDetailSerializer, LeadCreateSerializer,
     FollowUpSerializer, AdminApprovalSerializer, QuotationSerializer,
+    LeadSiteSurveySerializer, LeadSurveyPhotoSerializer,
 )
 from apps.accounts.permissions import HasModulePermission
 
@@ -26,7 +27,7 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        qs = Lead.objects.select_related('assigned_to', 'created_by')
+        qs = Lead.objects.select_related('assigned_to', 'created_by', 'site_survey')
         # Sales Executive sees only their own leads
         if getattr(user.role, 'name', '') == 'Sales Executive':
             qs = qs.filter(assigned_to=user)
@@ -215,6 +216,33 @@ class LeadViewSet(viewsets.ModelViewSet):
         lead.assigned_to_id = user_id
         lead.save(update_fields=['assigned_to', 'updated_at'])
         return Response({'assigned_to': lead.assigned_to_id})
+
+    @action(detail=True, methods=['get', 'put'])
+    def site_survey(self, request, pk=None):
+        lead = self.get_object()
+        survey = getattr(lead, 'site_survey', None)
+        if request.method == 'GET':
+            if not survey:
+                return Response(None)
+            return Response(LeadSiteSurveySerializer(survey).data)
+        if not survey:
+            survey = LeadSiteSurvey(lead=lead)
+        serializer = LeadSiteSurveySerializer(survey, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class LeadSurveyPhotoViewSet(viewsets.ModelViewSet):
+    queryset = LeadSurveyPhoto.objects.select_related('survey', 'survey__lead', 'uploaded_by').all()
+    serializer_class = LeadSurveyPhotoSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Leads'
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['survey']
+
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)
 
 
 class FollowUpViewSet(viewsets.ModelViewSet):

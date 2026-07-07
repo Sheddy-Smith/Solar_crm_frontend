@@ -176,6 +176,13 @@ export const leadApi = {
   todayFollowUps: () => request('/leads/today_followups/'),
   overdue: () => request('/leads/overdue/'),
   recent: () => request('/leads/recent/'),
+  getSiteSurvey: (id) => request(`/leads/${id}/site_survey/`),
+  saveSiteSurvey: (id, data) => request(`/leads/${id}/site_survey/`, { method: 'PUT', body: data }),
+};
+
+export const leadSurveyPhotoApi = {
+  create: (formData) => request('/lead-survey-photos/', { method: 'POST', body: formData }),
+  delete: (id) => request(`/lead-survey-photos/${id}/`, { method: 'DELETE' }),
 };
 
 export const analyticsApi = {

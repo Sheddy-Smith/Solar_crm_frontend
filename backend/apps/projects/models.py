@@ -369,6 +369,8 @@ class SiteSurvey(models.Model):
     building_type = models.CharField(max_length=100, blank=True)
     floor_count = models.CharField(max_length=20, blank=True)
     roof_type = models.CharField(max_length=100, blank=True)
+    latitude = models.CharField(max_length=20, blank=True)
+    longitude = models.CharField(max_length=20, blank=True)
     rooftop_area_sqft = models.CharField(max_length=50, blank=True)
     shadow_free_area_sqft = models.CharField(max_length=50, blank=True)
     available_area_sqft = models.CharField(max_length=50, blank=True)

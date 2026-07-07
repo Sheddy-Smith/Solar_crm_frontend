@@ -1,6 +1,7 @@
 import datetime
 import uuid
 from decimal import Decimal, InvalidOperation
+from django.core.files.base import ContentFile
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -374,12 +375,62 @@ class QuotationItem(models.Model):
         ]
 
 
+class LeadSiteSurvey(models.Model):
+    # Lightweight survey done at the lead stage, when someone visits the site
+    # to inspect it before the lead is won. This is distinct from the fuller
+    # `SiteSurvey` under Project Management, which happens after conversion —
+    # this record's fields get copied onto that one when the lead is won.
+    MOUNTING_CHOICES = [
+        ('Ground Mount', 'Ground Mount'),
+        ('Roof / Terrace Mount', 'Roof / Terrace Mount'),
+        ('Tin Shed Mount', 'Tin Shed Mount'),
+    ]
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('In Progress', 'In Progress'),
+        ('Completed', 'Completed'),
+    ]
+
+    lead = models.OneToOneField(Lead, on_delete=models.CASCADE, related_name='site_survey')
+    site_address = models.TextField(blank=True)
+    latitude = models.CharField(max_length=20, blank=True)
+    longitude = models.CharField(max_length=20, blank=True)
+    mounting_type = models.CharField(max_length=30, choices=MOUNTING_CHOICES, blank=True)
+    site_size_sqft = models.CharField(max_length=50, blank=True)
+    customer_feedback = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='In Progress')
+    survey_date = models.DateField(null=True, blank=True)
+    surveyed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='lead_site_surveys')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.lead.customer_name} — Site Survey ({self.status})'
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class LeadSurveyPhoto(models.Model):
+    survey = models.ForeignKey(LeadSiteSurvey, on_delete=models.CASCADE, related_name='photos')
+    image = models.ImageField(upload_to='lead_survey_photos/%Y/%m/')
+    caption = models.CharField(max_length=200, blank=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_survey_photos')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.survey.lead.customer_name} — Survey Photo #{self.pk}'
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+
 @receiver(post_save, sender=Lead)
 def create_project_for_won_lead(sender, instance, **kwargs):
     if instance.status != 'Won':
         return
 
-    from apps.projects.models import Project
+    from apps.projects.models import Project, SiteSurvey, ProjectDocument
 
     if Project.objects.filter(lead=instance).exists():
         return
@@ -389,16 +440,47 @@ def create_project_for_won_lead(sender, instance, **kwargs):
     except (InvalidOperation, ValueError):
         capacity_kwp = Decimal('0')
 
-    Project.objects.create(
+    lead_survey = getattr(instance, 'site_survey', None)
+
+    project = Project.objects.create(
         project_name=instance.project_name or f'{instance.customer_name} Solar Project',
         lead=instance,
         customer_name=instance.customer_name,
-        site_address=instance.address,
+        site_address=(lead_survey.site_address if lead_survey and lead_survey.site_address else instance.address),
         city=instance.city,
         state=instance.state,
+        site_size=(lead_survey.site_size_sqft if lead_survey else ''),
         project_type=instance.project_type or 'On-Grid',
         capacity_kwp=capacity_kwp,
         manager=instance.assigned_to,
         status='Planning',
         created_by=instance.created_by,
     )
+
+    if lead_survey:
+        SiteSurvey.objects.create(
+            project=project,
+            survey_date=lead_survey.survey_date,
+            surveyed_by=lead_survey.surveyed_by,
+            roof_type=lead_survey.mounting_type,
+            rooftop_area_sqft=lead_survey.site_size_sqft,
+            available_area_sqft=lead_survey.site_size_sqft,
+            latitude=lead_survey.latitude,
+            longitude=lead_survey.longitude,
+            summary_notes=(f'From lead site visit: {lead_survey.customer_feedback}' if lead_survey.customer_feedback else ''),
+        )
+        for photo in lead_survey.photos.all():
+            try:
+                photo.image.open('rb')
+                content = photo.image.read()
+            except (OSError, ValueError):
+                continue
+            finally:
+                photo.image.close()
+            doc = ProjectDocument(
+                project=project,
+                name=photo.caption or f'Site Photo {photo.pk}',
+                category='Site Photos',
+                uploaded_by=lead_survey.surveyed_by,
+            )
+            doc.file.save(photo.image.name.rsplit('/', 1)[-1], ContentFile(content), save=True)

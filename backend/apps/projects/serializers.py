@@ -123,7 +123,7 @@ class SiteSurveySerializer(serializers.ModelSerializer):
         model = SiteSurvey
         fields = [
             'id', 'project', 'survey_id', 'survey_date', 'surveyed_by', 'surveyed_by_name',
-            'building_type', 'floor_count', 'roof_type', 'rooftop_area_sqft', 'shadow_free_area_sqft',
+            'building_type', 'floor_count', 'roof_type', 'latitude', 'longitude', 'rooftop_area_sqft', 'shadow_free_area_sqft',
             'available_area_sqft', 'site_details', 'roof_details',
             'electrical_details', 'roof_stats', 'feasibility', 'summary_notes', 'status',
             'customer_budget', 'electricity_bill_amount', 'subsidy_applicable', 'financial_remarks',

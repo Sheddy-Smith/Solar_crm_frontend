@@ -1,6 +1,27 @@
 from rest_framework import serializers
-from .models import Lead, FollowUp, AdminApproval, Quotation, QuotationItem
+from .models import Lead, FollowUp, AdminApproval, Quotation, QuotationItem, LeadSiteSurvey, LeadSurveyPhoto
 from apps.accounts.serializers import UserSerializer
+
+
+class LeadSurveyPhotoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LeadSurveyPhoto
+        fields = ['id', 'survey', 'image', 'caption', 'uploaded_at']
+        read_only_fields = ['uploaded_at']
+
+
+class LeadSiteSurveySerializer(serializers.ModelSerializer):
+    surveyed_by_name = serializers.CharField(source='surveyed_by.name', read_only=True)
+    photos = LeadSurveyPhotoSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = LeadSiteSurvey
+        fields = [
+            'id', 'lead', 'site_address', 'latitude', 'longitude', 'mounting_type',
+            'site_size_sqft', 'customer_feedback', 'status', 'survey_date',
+            'surveyed_by', 'surveyed_by_name', 'photos', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
 
 
 class FollowUpSerializer(serializers.ModelSerializer):
@@ -103,6 +124,7 @@ class QuotationSerializer(serializers.ModelSerializer):
 class LeadListSerializer(serializers.ModelSerializer):
     assigned_to_name = serializers.CharField(source='assigned_to.name', read_only=True)
     created_at_display = serializers.SerializerMethodField()
+    survey_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Lead
@@ -111,11 +133,15 @@ class LeadListSerializer(serializers.ModelSerializer):
             'project_name', 'project_type', 'estimated_capacity',
             'status', 'priority', 'category',
             'assigned_to', 'assigned_to_name',
-            'next_follow_up', 'created_at', 'created_at_display',
+            'next_follow_up', 'created_at', 'created_at_display', 'survey_status',
         ]
 
     def get_created_at_display(self, obj):
         return obj.created_at.strftime('%d %b %Y') if obj.created_at else '—'
+
+    def get_survey_status(self, obj):
+        survey = getattr(obj, 'site_survey', None)
+        return survey.status if survey else 'Pending'
 
 
 class LeadDetailSerializer(serializers.ModelSerializer):
@@ -124,6 +150,7 @@ class LeadDetailSerializer(serializers.ModelSerializer):
     follow_ups = FollowUpSerializer(many=True, read_only=True)
     quotations = QuotationSerializer(many=True, read_only=True)
     approvals = AdminApprovalSerializer(many=True, read_only=True)
+    site_survey = LeadSiteSurveySerializer(read_only=True)
     created_at_display = serializers.SerializerMethodField()
 
     class Meta:

@@ -5,7 +5,7 @@ import Button from './components/ui/Button.jsx';
 import Card from './components/ui/Card.jsx';
 import ThemeToggle from './components/ui/ThemeToggle.jsx';
 import {
-  authApi, userApi, roleApi, branchApi, leadApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
+  authApi, userApi, roleApi, branchApi, leadApi, leadSurveyPhotoApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
   projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
   projectTeamApi, projectMilestoneApi, projectChecklistApi,
   installationMaterialApi, materialPlanApi, workforceApi, subsidyApi, projectApprovalApi,
@@ -33,6 +33,7 @@ import {
   ChevronLeft,
   Copy,
   CreditCard,
+  Crosshair,
   Eye,
   Database,
   Download,
@@ -87,6 +88,18 @@ import {
 } from 'lucide-react';
 import signInBgImage from './assets/data/Sign_in_bg.png';
 import navBarImage from './assets/data/nav_bar_img.png';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import leafletMarkerIconUrl from 'leaflet/dist/images/marker-icon.png';
+import leafletMarkerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import leafletMarkerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: leafletMarkerIcon2xUrl,
+  iconUrl: leafletMarkerIconUrl,
+  shadowUrl: leafletMarkerShadowUrl,
+});
 
 const sidebarItems = [
   { label: 'Dashboard', icon: Home, active: true },
@@ -3835,6 +3848,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [viewLeadId, setViewLeadId] = useState(null);
   const [followUpsOverviewOpen, setFollowUpsOverviewOpen] = useState(false);
+  const [surveyLead, setSurveyLead] = useState(null);
 
   const exportVisibleLeads = () => {
     const rows = visibleLeadRows;
@@ -3920,6 +3934,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         assignedTo: { id: lead.assigned_to || null, name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
         nextFollowUpRaw: lead.next_follow_up || null,
+        surveyStatus: lead.survey_status || 'Pending',
       })));
       setActivePage(1);
     }).catch((err) => {
@@ -3938,6 +3953,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
     'Status',
     'Assigned To',
     'Next Follow-up',
+    'Survey Status',
     'Action',
   ];
 
@@ -4213,6 +4229,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
               index={(safePage - 1) * LEAD_PAGE_SIZE + index + 1}
               lead={lead}
               onOpenLead={onOpenLead}
+              onOpenSurvey={() => setSurveyLead(lead)}
               onNotify={onNotify}
             />
           ))}
@@ -4224,15 +4241,16 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
           <table className="crm-table crm-table--fit w-full">
             <colgroup>
               <col style={{ width: '4%' }} />
-              <col style={{ width: '13%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '8%' }} />
               <col style={{ width: '12%' }} />
               <col style={{ width: '9%' }} />
-              <col style={{ width: '16%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '14%' }} />
             </colgroup>
               <thead>
                 <tr>
@@ -4262,6 +4280,9 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                       <span className="block truncate">{lead.nextFollowUp}</span>
                     </td>
                     <td>
+                      <SurveyStatusBadge status={lead.surveyStatus} />
+                    </td>
+                    <td>
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
@@ -4282,6 +4303,16 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                           title="Edit"
                         >
                           <Pencil className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSurveyLead(lead)}
+                          data-action="lead-survey"
+                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#7c3aed] transition hover:bg-[#f5f9ff]"
+                          aria-label={`Site survey for ${lead.customer}`}
+                          title={lead.surveyStatus === 'Completed' ? 'View Survey' : lead.surveyStatus === 'In Progress' ? 'Continue Survey' : 'Start Survey'}
+                        >
+                          <MapPin className="size-4" />
                         </button>
                         <button
                           type="button"
@@ -4377,6 +4408,16 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             setViewLeadId(null);
             setEditLeadId(id);
           }}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {surveyLead ? (
+        <LeadSiteSurveyModal
+          leadId={surveyLead.id}
+          customerName={surveyLead.customer}
+          onClose={() => setSurveyLead(null)}
+          onSaved={() => setRefreshKey((key) => key + 1)}
           onNotify={onNotify}
         />
       ) : null}
@@ -12444,8 +12485,6 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 600);
   };
 
-  const PROJECT_PAGE_SIZE = 10;
-
   const filteredRows = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
     return projectRows.filter((row) => {
@@ -12463,6 +12502,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     });
   }, [deferredQuery, projectRows, statusFilter, dateFrom, dateTo]);
 
+  const PROJECT_PAGE_SIZE = 10;
   const totalProjectPages = Math.max(1, Math.ceil(filteredRows.length / PROJECT_PAGE_SIZE));
   const pagedProjectRows = filteredRows.slice((activePage - 1) * PROJECT_PAGE_SIZE, activePage * PROJECT_PAGE_SIZE);
 
@@ -26763,6 +26803,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
   const [quotationDetail, setQuotationDetail] = useState(null);
   const [showQuotationDetailModal, setShowQuotationDetailModal] = useState(false);
   const [viewDuplicateLeadId, setViewDuplicateLeadId] = useState(null);
+  const [surveyModalOpen, setSurveyModalOpen] = useState(false);
   const ivrsCheck = useIvrsCheck(lead?.id);
   // "Project Details Update" (edit) aur "New Project" (create) dono project popups —
   // in dono me lead status fixed 'Won' rehta hai aur follow-up date optional hai.
@@ -27014,6 +27055,22 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
             <LeadFormSection title="6. Assigned To" titleSuffix="(Optional)" icon={UserRound} tone="purple">
               <LeadSelect label="Assigned Employee" optional placeholder={employeeOptions.length ? 'Select employee' : 'No active employees found'} options={employeeOptions} name="assigned_to" defaultValue={d.assigned_to ? String(d.assigned_to) : ''} />
             </LeadFormSection>
+
+            {!projectMode && mode === 'edit' && lead?.id ? (
+              <LeadFormSection title="7. Site Survey" titleSuffix="(Optional)" icon={MapPin} tone="warning">
+                <p className="-mt-1 mb-1 text-[12px] font-bold text-[#7386a3]">
+                  Capture a quick site inspection (address, lat/long, roof type, size, customer feedback, photos). This gets copied automatically into the Project Management site survey once this lead is won.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSurveyModalOpen(true)}
+                  className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-[#0b65e5] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#edf5ff]"
+                >
+                  <MapPin className="size-4" />
+                  {d.site_survey?.status === 'Completed' ? 'View Survey' : d.site_survey?.status === 'In Progress' ? 'Continue Survey' : 'Start Survey'}
+                </button>
+              </LeadFormSection>
+            ) : null}
           </form>
           )}
         </div>
@@ -27087,6 +27144,505 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
           onNotify={onNotify}
         />
       ) : null}
+
+      {surveyModalOpen && lead?.id ? (
+        <LeadSiteSurveyModal
+          leadId={lead.id}
+          customerName={d.customer_name}
+          onClose={() => setSurveyModalOpen(false)}
+          onSaved={(saved) => setDetail((prev) => ({ ...prev, site_survey: saved }))}
+          onNotify={onNotify}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+const LEAD_SURVEY_MOUNTING_OPTIONS = ['Ground Mount', 'Roof / Terrace Mount', 'Tin Shed Mount'];
+
+// Lightweight site inspection captured at the lead stage (before the lead is
+// won) — separate from the fuller Project Management > Site Survey, which
+// happens after conversion and gets auto-filled from this one.
+function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify }) {
+  const [loading, setLoading] = useState(true);
+  const [survey, setSurvey] = useState(null);
+  const [form, setForm] = useState({
+    status: 'In Progress', site_address: '', latitude: '', longitude: '', mounting_type: '',
+    site_size_sqft: '', customer_feedback: '', survey_date: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    leadApi.getSiteSurvey(leadId).then((data) => {
+      if (cancelled) return;
+      setSurvey(data);
+      if (data) {
+        setForm({
+          status: data.status || 'In Progress',
+          site_address: data.site_address || '',
+          latitude: data.latitude || '',
+          longitude: data.longitude || '',
+          mounting_type: data.mounting_type || '',
+          site_size_sqft: data.site_size_sqft || '',
+          customer_feedback: data.customer_feedback || '',
+          survey_date: data.survey_date || '',
+        });
+      }
+    }).catch(() => {
+      onNotify?.('Could not load site survey', 'error');
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [leadId]);
+
+  const handleUseLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Location is not supported on this device/browser.');
+      return;
+    }
+    setLocating(true);
+    setLocationError('');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setForm((f) => ({
+          ...f,
+          latitude: position.coords.latitude.toFixed(6),
+          longitude: position.coords.longitude.toFixed(6),
+        }));
+        setLocating(false);
+      },
+      (error) => {
+        setLocating(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationError('Location access is blocked for this site. Allow location permission in your browser/device settings, then tap Retry.');
+        } else {
+          setLocationError('Could not fetch location — make sure Location/GPS is turned on for this device, then tap Retry.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const saved = await leadApi.saveSiteSurvey(leadId, form);
+      setSurvey(saved);
+      onNotify?.('Site survey saved');
+      onSaved?.(saved);
+    } catch (err) {
+      onNotify?.(err?.message || 'Failed to save site survey', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUploadPhotos = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+    if (!survey?.id) {
+      onNotify?.('Save the survey once before adding photos', 'error');
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append('survey', survey.id);
+        fd.append('image', file);
+        await leadSurveyPhotoApi.create(fd);
+      }
+      const refreshed = await leadApi.getSiteSurvey(leadId);
+      setSurvey(refreshed);
+      onNotify?.('Photo(s) uploaded');
+    } catch (err) {
+      onNotify?.(err?.message || 'Failed to upload photo(s)', 'error');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photoId) => {
+    try {
+      await leadSurveyPhotoApi.delete(photoId);
+      const refreshed = await leadApi.getSiteSurvey(leadId);
+      setSurvey(refreshed);
+    } catch (err) {
+      onNotify?.(err?.message || 'Failed to delete photo', 'error');
+    }
+  };
+
+  return (
+    <div
+      className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[640px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+          <div>
+            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Site Survey</h2>
+            {customerName ? <p className="mt-0.5 text-[12px] font-bold text-[#7386a3]">{customerName}</p> : null}
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+
+        <div className="scroll-soft flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <PageLoadingState message="Loading survey..." />
+          ) : (
+            <div className="space-y-5">
+              <label className="block min-w-0">
+                <LeadLabel label="Status" />
+                <span className="mt-2 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none"
+                  >
+                    <option value="Pending">🔴 Pending</option>
+                    <option value="In Progress">🟡 In Progress</option>
+                    <option value="Completed">🟢 Completed</option>
+                  </select>
+                </span>
+              </label>
+
+              {form.status === 'Completed' ? (
+                <p className="rounded-[8px] bg-[#e8f8eb] px-3 py-2 text-[12px] font-extrabold text-[#0d9f4a]">
+                  This survey is marked completed. You can still edit and re-save it.
+                </p>
+              ) : null}
+
+              <label className="block min-w-0">
+                <LeadLabel label="Site Details / Address" optional />
+                <span className="mt-2 flex min-h-[74px] items-start gap-3 rounded-[8px] border border-black/20 bg-white px-3 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-[#8391a8]" />
+                  <textarea
+                    placeholder="Site address, landmark, access notes"
+                    rows={3}
+                    value={form.site_address}
+                    onChange={(e) => setForm((f) => ({ ...f, site_address: e.target.value }))}
+                    className="min-h-full min-w-0 flex-1 resize-y bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+                  />
+                </span>
+              </label>
+
+              <div>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[12px] font-extrabold text-[#34466c]">Latitude / Longitude</span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleUseLocation}
+                      disabled={locating}
+                      className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
+                    >
+                      <Crosshair className="size-3.5" />
+                      {locating ? 'Locating...' : 'Use My Location'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMapPickerOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"
+                    >
+                      <MapPin className="size-3.5" />
+                      Select Manually / Address
+                    </button>
+                  </div>
+                </div>
+                {locationError ? (
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-[#f6dda9] bg-[#fff8e8] px-3 py-2 text-[12px] font-bold text-[#a76200]">
+                    <span className="inline-flex items-center gap-1.5"><AlertTriangle className="size-3.5 shrink-0" />{locationError}</span>
+                    <button
+                      type="button"
+                      onClick={handleUseLocation}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-[#f6dda9] bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#a76200] transition hover:bg-[#fff3d6]"
+                    >
+                      <RefreshCw className="size-3" />
+                      Retry
+                    </button>
+                  </div>
+                ) : null}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block min-w-0">
+                    <span className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                      <MapPin className="size-4 shrink-0 text-[#8391a8]" />
+                      <input
+                        type="text"
+                        placeholder="Latitude"
+                        value={form.latitude}
+                        onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
+                        className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+                      />
+                    </span>
+                  </label>
+                  <label className="block min-w-0">
+                    <span className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                      <MapPin className="size-4 shrink-0 text-[#8391a8]" />
+                      <input
+                        type="text"
+                        placeholder="Longitude"
+                        value={form.longitude}
+                        onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
+                        className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+                      />
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Mounting Type</span>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {LEAD_SURVEY_MOUNTING_OPTIONS.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, mounting_type: option }))}
+                      className={cx(
+                        'rounded-[8px] border px-3 py-2.5 text-[12px] font-extrabold transition',
+                        form.mounting_type === option
+                          ? 'border-[#0b65e5] bg-[#edf5ff] text-[#0b65e5]'
+                          : 'border-[#dbe5f2] bg-white text-[#30466d] hover:bg-[#f8fbff]',
+                      )}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="block min-w-0">
+                <LeadLabel label="Site / Roof Size (sq. ft.)" optional />
+                <span className="mt-2 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                  <input
+                    type="text"
+                    placeholder="e.g. 850"
+                    value={form.site_size_sqft}
+                    onChange={(e) => setForm((f) => ({ ...f, site_size_sqft: e.target.value }))}
+                    className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+                  />
+                </span>
+              </label>
+
+              <label className="block min-w-0">
+                <LeadLabel label="Customer Feedback" optional />
+                <span className="mt-2 flex min-h-[62px] items-start gap-3 rounded-[8px] border border-black/20 bg-white px-3 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                  <textarea
+                    placeholder="Customer's feedback / expectations from the site visit"
+                    rows={2}
+                    value={form.customer_feedback}
+                    onChange={(e) => setForm((f) => ({ ...f, customer_feedback: e.target.value }))}
+                    className="min-h-full min-w-0 flex-1 resize-y bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+                  />
+                </span>
+              </label>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[12px] font-extrabold text-[#34466c]">Site Photos</span>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
+                  >
+                    <Upload className="size-3.5" />
+                    {uploadingPhoto ? 'Uploading...' : 'Upload'}
+                  </button>
+                  <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleUploadPhotos} />
+                </div>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {(survey?.photos ?? []).length === 0 ? (
+                    <p className="col-span-full text-[12px] font-bold text-[#8a98af]">No photos uploaded yet.</p>
+                  ) : survey.photos.map((photo) => (
+                    <div key={photo.id} className="group relative overflow-hidden rounded-[8px] border border-[#e7eef7]">
+                      <img src={photo.image} alt="Site" className="h-20 w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePhoto(photo.id)}
+                        aria-label="Remove photo"
+                        className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded-full bg-black/60 text-white group-hover:flex"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {!survey?.id ? (
+                  <p className="mt-1.5 text-[11px] font-bold text-[#8a98af]">Save the survey once to enable photo uploads.</p>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-4 sm:flex-row">
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || loading}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60"
+          >
+            <Save className="size-4" />
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {mapPickerOpen ? (
+        <LeadSurveyMapPickerModal
+          initialLat={form.latitude}
+          initialLng={form.longitude}
+          onClose={() => setMapPickerOpen(false)}
+          onConfirm={(lat, lng) => {
+            setForm((f) => ({ ...f, latitude: lat, longitude: lng }));
+            setLocationError('');
+            setMapPickerOpen(false);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// Free OpenStreetMap picker (no API key needed) — click or drag the pin to set
+// a location, or search an address via Nominatim's free geocoding endpoint.
+const LEAD_SURVEY_DEFAULT_MAP_CENTER = { lat: 22.7196, lng: 75.8577 }; // Indore, HQ city
+
+function LeadSurveyMapPickerModal({ initialLat, initialLng, onClose, onConfirm }) {
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markerRef = useRef(null);
+  const [position, setPosition] = useState(() => ({
+    lat: initialLat ? parseFloat(initialLat) : LEAD_SURVEY_DEFAULT_MAP_CENTER.lat,
+    lng: initialLng ? parseFloat(initialLng) : LEAD_SURVEY_DEFAULT_MAP_CENTER.lng,
+  }));
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapInstanceRef.current) return;
+
+    const map = L.map(mapContainerRef.current).setView([position.lat, position.lng], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    const marker = L.marker([position.lat, position.lng], { draggable: true }).addTo(map);
+    marker.on('dragend', () => {
+      const latLng = marker.getLatLng();
+      setPosition({ lat: latLng.lat, lng: latLng.lng });
+    });
+    map.on('click', (event) => {
+      marker.setLatLng(event.latlng);
+      setPosition({ lat: event.latlng.lat, lng: event.latlng.lng });
+    });
+
+    mapInstanceRef.current = map;
+    markerRef.current = marker;
+
+    // Modal's layout may not be final-size on first paint — nudge Leaflet to re-measure.
+    const resizeTimer = window.setTimeout(() => map.invalidateSize(), 150);
+
+    return () => {
+      window.clearTimeout(resizeTimer);
+      map.remove();
+      mapInstanceRef.current = null;
+      markerRef.current = null;
+    };
+  }, []);
+
+  const handleSearch = async () => {
+    const query = searchQuery.trim();
+    if (!query) return;
+    setSearching(true);
+    setSearchError('');
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
+      const results = await res.json();
+      if (!results.length) {
+        setSearchError('No matching location found');
+        return;
+      }
+      const lat = parseFloat(results[0].lat);
+      const lng = parseFloat(results[0].lon);
+      setPosition({ lat, lng });
+      mapInstanceRef.current?.setView([lat, lng], 16);
+      markerRef.current?.setLatLng([lat, lng]);
+    } catch {
+      setSearchError('Search failed. Please try again.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  return (
+    <div
+      className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-pop-in flex h-[85vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+          <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Location on Map</h2>
+          <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+
+        <div className="flex items-center gap-2 border-b border-[#edf2f8] px-6 py-3">
+          <span className="flex h-10 flex-1 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3">
+            <Search className="size-4 shrink-0 text-[#8391a8]" />
+            <input
+              type="text"
+              placeholder="Search an address / place name"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); handleSearch(); } }}
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+            />
+          </span>
+          <button
+            type="button"
+            onClick={handleSearch}
+            disabled={searching}
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0954c2] disabled:opacity-60"
+          >
+            {searching ? 'Searching...' : 'Search'}
+          </button>
+        </div>
+        {searchError ? <p className="px-6 pt-2 text-[12px] font-bold text-[#e2594c]">{searchError}</p> : null}
+
+        <div ref={mapContainerRef} className="min-h-0 flex-1" />
+
+        <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[12px] font-bold text-[#53647f]">
+            Lat: <span className="font-extrabold text-[#30466d]">{position.lat.toFixed(6)}</span>
+            {'   '}Lng: <span className="font-extrabold text-[#30466d]">{position.lng.toFixed(6)}</span>
+          </p>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onConfirm(position.lat.toFixed(6), position.lng.toFixed(6))}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145]"
+            >
+              <MapPin className="size-4" />
+              Use This Location
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -30966,7 +31522,9 @@ function PaginationButton({ active = false, children, onClick }) {
   );
 }
 
-function LeadListMobileCard({ index, lead, onOpenLead, onNotify }) {
+function LeadListMobileCard({ index, lead, onOpenLead, onOpenSurvey, onNotify }) {
+  const surveyButtonLabel = lead.surveyStatus === 'Completed' ? 'View Survey' : lead.surveyStatus === 'In Progress' ? 'Continue Survey' : 'Start Survey';
+
   return (
     <article className="rounded-[14px] border border-[#e5edf6] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
       <div className="flex items-start justify-between gap-3">
@@ -30983,16 +31541,28 @@ function LeadListMobileCard({ index, lead, onOpenLead, onNotify }) {
         <InfoCell label="Project Type" value={lead.type} />
         <InfoCell label="Next Follow-up" value={lead.nextFollowUp} valueClass={index <= 2 ? 'text-[#f04438]' : undefined} />
         <InfoCell label="Assigned To" valueNode={<AssigneeCell assignee={lead.assignedTo} compact />} />
+        <InfoCell label="Survey Status" valueNode={<SurveyStatusBadge status={lead.surveyStatus} />} />
       </div>
-      <button
-        type="button"
-        onClick={() => onOpenLead(lead)}
-        data-action="lead-view-mobile"
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-3 py-2 text-[12px] font-extrabold text-[#2d67e1]"
-      >
-        View Lead
-        <Eye className="size-3.5" />
-      </button>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onOpenLead(lead)}
+          data-action="lead-view-mobile"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-3 py-2 text-[12px] font-extrabold text-[#2d67e1]"
+        >
+          View Lead
+          <Eye className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onOpenSurvey}
+          data-action="lead-survey-mobile"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#e3d6fb] bg-white px-3 py-2 text-[12px] font-extrabold text-[#7c3aed]"
+        >
+          {surveyButtonLabel}
+          <MapPin className="size-3.5" />
+        </button>
+      </div>
     </article>
   );
 }
@@ -31163,6 +31733,22 @@ function StatusBadge({ status }) {
   return (
     <span className={cx('inline-flex rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>
       {status}
+    </span>
+  );
+}
+
+function SurveyStatusBadge({ status }) {
+  const config =
+    {
+      Completed: { dot: '🟢', classes: 'bg-[#e8f8eb] text-[#18a34a]' },
+      'In Progress': { dot: '🟡', classes: 'bg-[#fff4df] text-[#b45309]' },
+      Pending: { dot: '🔴', classes: 'bg-[#ffe9e6] text-[#e2594c]' },
+    }[status] ?? { dot: '🔴', classes: 'bg-[#ffe9e6] text-[#e2594c]' };
+
+  return (
+    <span className={cx('inline-flex items-center gap-1 rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', config.classes)}>
+      <span aria-hidden="true">{config.dot}</span>
+      {status || 'Pending'}
     </span>
   );
 }
