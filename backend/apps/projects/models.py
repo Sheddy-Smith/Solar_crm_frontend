@@ -358,29 +358,104 @@ class SiteSurvey(models.Model):
         ('Not Feasible', 'Not Feasible'),
     ]
     STATUS_CHOICES = [
-        ('Draft', 'Draft'),
+        ('Pending', 'Pending'),
+        ('In Progress', 'In Progress'),
         ('Completed', 'Completed'),
     ]
+    ROOF_TYPE_CHOICES = [
+        ('RCC', 'RCC'),
+        ('Tin Shed', 'Tin Shed'),
+        ('Metal Roof', 'Metal Roof'),
+        ('Ground Mount', 'Ground Mount'),
+    ]
+    INVERTER_PLACEMENT_CHOICES = [('Indoor', 'Indoor'), ('Outdoor', 'Outdoor')]
+    INVERTER_MOUNTING_CHOICES = [('Wall Mounted', 'Wall Mounted'), ('Floor Mounted', 'Floor Mounted')]
+    METER_PHASE_CHOICES = [('Single Phase', 'Single Phase'), ('Three Phase', 'Three Phase')]
+    MODULE_ORIENTATION_CHOICES = [('Portrait', 'Portrait'), ('Landscape', 'Landscape')]
 
     project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='site_survey')
     survey_id = models.CharField(max_length=50, unique=True, editable=False)
+
+    # Section 1 — Survey Information
     survey_date = models.DateField(null=True, blank=True)
     surveyed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='site_surveys')
-    building_type = models.CharField(max_length=100, blank=True)
-    floor_count = models.CharField(max_length=20, blank=True)
-    roof_type = models.CharField(max_length=100, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     latitude = models.CharField(max_length=20, blank=True)
     longitude = models.CharField(max_length=20, blank=True)
+
+    # Section 2 — Roof Details
+    building_type = models.CharField(max_length=100, blank=True)
+    floor_count = models.CharField(max_length=20, blank=True)
+    roof_type = models.CharField(max_length=30, choices=ROOF_TYPE_CHOICES, blank=True)
+    roof_height_ft = models.CharField(max_length=20, blank=True)
     rooftop_area_sqft = models.CharField(max_length=50, blank=True)
+    roof_length_ft = models.CharField(max_length=20, blank=True)
+    roof_width_ft = models.CharField(max_length=20, blank=True)
     shadow_free_area_sqft = models.CharField(max_length=50, blank=True)
     available_area_sqft = models.CharField(max_length=50, blank=True)
+    shadow_present = models.BooleanField(default=False)
+    water_tank_present = models.BooleanField(default=False)
+    tree_nearby = models.BooleanField(default=False)
+    obstacle_present = models.BooleanField(default=False)
+    roof_remarks = models.TextField(blank=True)
+
+    # Section 4 — Earthing Details
+    earthing_required = models.BooleanField(default=False)
+    earthing_count = models.CharField(max_length=20, blank=True)
+    earthing_type = models.CharField(max_length=100, blank=True)
+    earthing_location = models.CharField(max_length=200, blank=True)
+    earthing_remarks = models.TextField(blank=True)
+
+    # Section 5 — Inverter Location
+    inverter_placement = models.CharField(max_length=20, choices=INVERTER_PLACEMENT_CHOICES, blank=True)
+    inverter_mounting = models.CharField(max_length=20, choices=INVERTER_MOUNTING_CHOICES, blank=True)
+    inverter_location_description = models.CharField(max_length=255, blank=True)
+    inverter_distance_from_roof = models.CharField(max_length=50, blank=True)
+
+    # Section 6 — Meter Details
+    meter_type = models.CharField(max_length=100, blank=True)
+    meter_phase = models.CharField(max_length=20, choices=METER_PHASE_CHOICES, blank=True)
+    meter_capacity = models.CharField(max_length=50, blank=True)
+    existing_mcb = models.CharField(max_length=100, blank=True)
+    connection_point_after_commissioning = models.CharField(max_length=255, blank=True)
+    meter_remarks = models.TextField(blank=True)
+
+    # Section 7 — Cable & Conduit Route
+    conduit_route_description = models.TextField(blank=True)
+    ac_cable_route = models.CharField(max_length=255, blank=True)
+    dc_cable_route = models.CharField(max_length=255, blank=True)
+    ac_cable_length_approx = models.CharField(max_length=50, blank=True)
+    dc_cable_length_approx = models.CharField(max_length=50, blank=True)
+    conduit_length_approx = models.CharField(max_length=50, blank=True)
+
+    # Section 8 — Structure Layout
+    module_orientation = models.CharField(max_length=20, choices=MODULE_ORIENTATION_CHOICES, blank=True)
+    tilt_angle = models.CharField(max_length=20, blank=True)
+    structure_rows = models.CharField(max_length=20, blank=True)
+    structure_columns = models.CharField(max_length=20, blank=True)
+    approx_plant_capacity = models.CharField(max_length=50, blank=True)
+    future_expansion = models.BooleanField(default=False)
+
+    # Section 9 — Safety Checklist
+    safety_roof_safe = models.BooleanField(default=False)
+    safety_shadow_checked = models.BooleanField(default=False)
+    safety_earthing_finalized = models.BooleanField(default=False)
+    safety_meter_verified = models.BooleanField(default=False)
+    safety_inverter_location_final = models.BooleanField(default=False)
+    safety_cable_route_final = models.BooleanField(default=False)
+    safety_tank_checked = models.BooleanField(default=False)
+    safety_customer_approval_taken = models.BooleanField(default=False)
+    safety_gps_captured = models.BooleanField(default=False)
+    safety_all_photos_uploaded = models.BooleanField(default=False)
+
+    # Legacy/free-form (kept for backward compatibility — no live UI editor)
     site_details = models.JSONField(default=list, blank=True)
     roof_details = models.JSONField(default=list, blank=True)
     electrical_details = models.JSONField(default=list, blank=True)
     roof_stats = models.JSONField(default=list, blank=True)
+
     feasibility = models.CharField(max_length=30, choices=FEASIBILITY_CHOICES, blank=True)
-    summary_notes = models.TextField(blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
+    summary_notes = models.TextField(blank=True)  # Section 11 — Survey Remarks
     customer_budget = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     electricity_bill_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     subsidy_applicable = models.BooleanField(default=False)
@@ -397,6 +472,41 @@ class SiteSurvey(models.Model):
 
     def __str__(self):
         return f'{self.project.project_id} — Site Survey'
+
+
+class SiteSurveyPhoto(models.Model):
+    SLOT_CHOICES = [
+        ('North Side', 'North Side'),
+        ('South Side', 'South Side'),
+        ('East Side', 'East Side'),
+        ('West Side', 'West Side'),
+        ('Overall Roof', 'Overall Roof'),
+        ('Roof Close-up', 'Roof Close-up'),
+        ('Water Tank', 'Water Tank'),
+        ('Obstacle', 'Obstacle'),
+        ('Drone Photo', 'Drone Photo'),
+        ('Earthing Location', 'Earthing Location'),
+        ('Inverter Location', 'Inverter Location'),
+        ('Meter', 'Meter'),
+        ('Cable Route', 'Cable Route'),
+    ]
+    REQUIRED_SLOTS = [
+        'North Side', 'South Side', 'East Side', 'West Side', 'Overall Roof',
+        'Roof Close-up', 'Water Tank', 'Obstacle',
+    ]
+
+    survey = models.ForeignKey(SiteSurvey, on_delete=models.CASCADE, related_name='photos')
+    slot = models.CharField(max_length=30, choices=SLOT_CHOICES)
+    image = models.ImageField(upload_to='site_survey_photos/%Y/%m/')
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_site_survey_photos')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.survey.project.project_id} — {self.slot}'
+
+    class Meta:
+        ordering = ['-uploaded_at']
+        unique_together = ['survey', 'slot']
 
 
 class ProjectChecklistItem(models.Model):

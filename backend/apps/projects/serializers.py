@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
-    ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
+    ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey, SiteSurveyPhoto,
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
     ProjectExpenseDocument, ProjectApproval, ProjectApprovalDocument,
 )
@@ -116,20 +116,72 @@ class ProjectMilestoneSerializer(serializers.ModelSerializer):
         return ProjectMilestoneSerializer(children, many=True).data
 
 
+class SiteSurveyPhotoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteSurveyPhoto
+        fields = ['id', 'survey', 'slot', 'image', 'uploaded_by', 'uploaded_at']
+        read_only_fields = ['uploaded_by', 'uploaded_at']
+
+
 class SiteSurveySerializer(serializers.ModelSerializer):
     surveyed_by_name = serializers.CharField(source='surveyed_by.name', read_only=True)
+    photos = SiteSurveyPhotoSerializer(many=True, read_only=True)
+    # Section 1 "(Auto)" fields — read straight off the linked project/lead so
+    # the survey form never asks for data that already exists elsewhere.
+    customer_name = serializers.CharField(source='project.customer_name', read_only=True)
+    mobile_number = serializers.SerializerMethodField()
+    address = serializers.CharField(source='project.site_address', read_only=True)
+    project_name = serializers.CharField(source='project.project_name', read_only=True)
+
+    class Meta:
+        model = SiteSurvey
+        fields = '__all__'
+        read_only_fields = ['survey_id', 'created_at', 'updated_at']
+
+    def get_mobile_number(self, obj):
+        lead = obj.project.lead
+        return lead.mobile_number if lead else ''
+
+
+SURVEY_SAFETY_FIELD_NAMES = [
+    'safety_roof_safe', 'safety_shadow_checked', 'safety_earthing_finalized', 'safety_meter_verified',
+    'safety_inverter_location_final', 'safety_cable_route_final', 'safety_tank_checked',
+    'safety_customer_approval_taken', 'safety_gps_captured', 'safety_all_photos_uploaded',
+]
+SURVEY_REQUIRED_ROOF_SLOTS = {
+    'North Side', 'South Side', 'East Side', 'West Side',
+    'Overall Roof', 'Roof Close-up', 'Water Tank', 'Obstacle',
+}
+
+
+def compute_survey_completion_percent(survey):
+    # Mirrors the frontend's progress-bar formula (Section 12 "Survey Summary")
+    # so the dashboard list and the edit form always agree on the same number.
+    uploaded_slots = {p.slot for p in survey.photos.all()}
+    roof_score = len(SURVEY_REQUIRED_ROOF_SLOTS & uploaded_slots) / len(SURVEY_REQUIRED_ROOF_SLOTS) * 40
+    safety_score = sum(1 for f in SURVEY_SAFETY_FIELD_NAMES if getattr(survey, f)) / len(SURVEY_SAFETY_FIELD_NAMES) * 30
+    roof_type_score = 15 if survey.roof_type else 0
+    gps_score = 15 if survey.latitude and survey.longitude else 0
+    return round(roof_score + safety_score + roof_type_score + gps_score)
+
+
+class SiteSurveyListSerializer(serializers.ModelSerializer):
+    surveyed_by_name = serializers.CharField(source='surveyed_by.name', read_only=True)
+    project_name = serializers.CharField(source='project.project_name', read_only=True)
+    customer_name = serializers.CharField(source='project.customer_name', read_only=True)
+    project_id_display = serializers.CharField(source='project.project_id', read_only=True)
+    completion_percent = serializers.SerializerMethodField()
 
     class Meta:
         model = SiteSurvey
         fields = [
-            'id', 'project', 'survey_id', 'survey_date', 'surveyed_by', 'surveyed_by_name',
-            'building_type', 'floor_count', 'roof_type', 'latitude', 'longitude', 'rooftop_area_sqft', 'shadow_free_area_sqft',
-            'available_area_sqft', 'site_details', 'roof_details',
-            'electrical_details', 'roof_stats', 'feasibility', 'summary_notes', 'status',
-            'customer_budget', 'electricity_bill_amount', 'subsidy_applicable', 'financial_remarks',
-            'created_at', 'updated_at',
+            'id', 'project', 'project_id_display', 'project_name', 'customer_name',
+            'survey_id', 'survey_date', 'surveyed_by', 'surveyed_by_name',
+            'status', 'completion_percent', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['survey_id', 'created_at', 'updated_at']
+
+    def get_completion_percent(self, obj):
+        return compute_survey_completion_percent(obj)
 
 
 class ProjectChecklistItemSerializer(serializers.ModelSerializer):

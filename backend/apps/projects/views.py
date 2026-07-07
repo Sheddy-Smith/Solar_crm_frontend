@@ -4,9 +4,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
+from django.db.models import Count, Q
 from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
-    ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
+    ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey, SiteSurveyPhoto,
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
     ProjectExpenseDocument, ProjectApproval, ProjectApprovalDocument,
 )
@@ -15,7 +16,7 @@ from .serializers import (
     ProjectActivitySerializer, ProjectNoteSerializer,
     ProjectDocumentSerializer, ProjectExpenseSerializer, ProjectPaymentSerializer, WorkOrderSerializer,
     ProjectTeamMemberSerializer, ProjectSystemConfigSerializer, ProjectMilestoneSerializer,
-    SiteSurveySerializer, ProjectChecklistItemSerializer, InstallationMaterialSerializer,
+    SiteSurveySerializer, SiteSurveyListSerializer, SiteSurveyPhotoSerializer, ProjectChecklistItemSerializer, InstallationMaterialSerializer,
     MaterialPlanSerializer, SubsidyApplicationSerializer, SubsidyDocumentSerializer,
     ProjectExpenseDocumentSerializer, ProjectApprovalSerializer, ProjectApprovalDocumentSerializer,
 )
@@ -135,6 +136,74 @@ class ProjectDocumentViewSet(viewsets.ModelViewSet):
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'category']
+
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)
+
+
+class SiteSurveyViewSet(viewsets.ReadOnlyModelViewSet):
+    # Read-only across all projects, for the office-wide Survey Dashboard.
+    # Editing a survey always goes through /projects/{id}/site_survey/ — one
+    # write path keeps the OneToOne get-or-create semantics unambiguous.
+    queryset = SiteSurvey.objects.select_related('project', 'project__lead', 'surveyed_by').prefetch_related('photos').all()
+    serializer_class = SiteSurveyListSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['status', 'surveyed_by']
+    ordering_fields = ['survey_date', 'created_at']
+    ordering = ['-created_at']
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return SiteSurveySerializer
+        return SiteSurveyListSerializer
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        qs = self.get_queryset()
+        engineer_stats = list(
+            qs.filter(surveyed_by__isnull=False)
+            .values('surveyed_by__name')
+            .annotate(
+                total=Count('id'),
+                completed=Count('id', filter=Q(status='Completed')),
+                in_progress=Count('id', filter=Q(status='In Progress')),
+                pending=Count('id', filter=Q(status='Pending')),
+            )
+            .order_by('-total')
+        )
+        for row in engineer_stats:
+            row['name'] = row.pop('surveyed_by__name') or 'Unassigned'
+        return Response({
+            'total': qs.count(),
+            'pending': qs.filter(status='Pending').count(),
+            'in_progress': qs.filter(status='In Progress').count(),
+            'completed': qs.filter(status='Completed').count(),
+            'engineer_stats': engineer_stats,
+        })
+
+
+class SiteSurveyPhotoViewSet(viewsets.ModelViewSet):
+    queryset = SiteSurveyPhoto.objects.select_related('survey', 'survey__project', 'uploaded_by').all()
+    serializer_class = SiteSurveyPhotoSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['survey', 'slot']
+
+    def create(self, request, *args, **kwargs):
+        # Each checklist slot holds exactly one photo — uploading again for the
+        # same slot replaces it instead of erroring on the unique constraint.
+        survey_id = request.data.get('survey')
+        slot = request.data.get('slot')
+        existing = SiteSurveyPhoto.objects.filter(survey_id=survey_id, slot=slot).first()
+        if existing:
+            serializer = self.get_serializer(existing, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(uploaded_by=request.user)
+            return Response(serializer.data)
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         serializer.save(uploaded_by=self.request.user)

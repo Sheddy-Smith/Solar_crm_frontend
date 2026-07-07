@@ -330,6 +330,20 @@ export const projectApi = {
   saveSiteSurvey: (id, data) => request(`/projects/${id}/site_survey/`, { method: 'PUT', body: data }),
 };
 
+export const siteSurveyPhotoApi = {
+  create: (formData) => request('/site-survey-photos/', { method: 'POST', body: formData }),
+  delete: (id) => request(`/site-survey-photos/${id}/`, { method: 'DELETE' }),
+};
+
+export const siteSurveyApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/site-surveys/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/site-surveys/${id}/`),
+  summary: () => request('/site-surveys/summary/'),
+};
+
 // ─── Work Orders ─────────────────────────────────────────────────────────────
 
 export const workOrderApi = {

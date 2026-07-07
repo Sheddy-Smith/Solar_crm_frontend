@@ -12,7 +12,7 @@ import {
   workOrderApi,
   lcApplicationApi, lcApprovalApi, lcInspectionApi, lcCommissioningApi, lcComplianceApi, lcDocumentApi,
   omAssetApi, omMaintenanceApi, omTicketApi, omVisitApi, omSparePartApi, omReportApi, omDocumentApi,
-  inventoryApi, amcModuleApi, reportsApi, settingsApi,
+  inventoryApi, amcModuleApi, reportsApi, settingsApi, siteSurveyPhotoApi, siteSurveyApi,
 } from './api.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -24,6 +24,7 @@ import {
   Bell,
   Boxes,
   CalendarDays,
+  Camera,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -88,18 +89,66 @@ import {
 } from 'lucide-react';
 import signInBgImage from './assets/data/Sign_in_bg.png';
 import navBarImage from './assets/data/nav_bar_img.png';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import leafletMarkerIconUrl from 'leaflet/dist/images/marker-icon.png';
-import leafletMarkerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png';
-import leafletMarkerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
 
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: leafletMarkerIcon2xUrl,
-  iconUrl: leafletMarkerIconUrl,
-  shadowUrl: leafletMarkerShadowUrl,
-});
+let googleMapsLoaderPromise = null;
+
+// Loads the Google Maps JavaScript API script once and caches the promise —
+// safe to call from multiple components without injecting the script twice.
+function loadGoogleMapsApi() {
+  if (window.google?.maps) return Promise.resolve(window.google.maps);
+  if (googleMapsLoaderPromise) return googleMapsLoaderPromise;
+
+  googleMapsLoaderPromise = new Promise((resolve, reject) => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      reject(new Error('Google Maps API key is not configured (VITE_GOOGLE_MAPS_API_KEY).'));
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geocoding`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve(window.google.maps);
+    script.onerror = () => reject(new Error('Failed to load Google Maps'));
+    document.head.appendChild(script);
+  });
+
+  return googleMapsLoaderPromise;
+}
+
+// Resizes + re-encodes an image client-side before upload (canvas-based —
+// no extra dependency) so survey photos taken on-site don't ship full camera
+// resolution over a slow mobile connection.
+function compressImageFile(file, { maxDimension = 1600, quality = 0.8 } = {}) {
+  return new Promise((resolve) => {
+    if (!file || !file.type?.startsWith('image/') || file.type === 'image/gif') {
+      resolve(file);
+      return;
+    }
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        const scale = maxDimension / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        if (!blob) { resolve(file); return; }
+        resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
+    img.src = objectUrl;
+  });
+}
 
 const sidebarItems = [
   { label: 'Dashboard', icon: Home, active: true },
@@ -121,7 +170,7 @@ const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Lead Follow
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const employeeRelatedPages = [...employeeSubItems];
-const projectSubItems = ['Project List', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Subsidy', 'Project Installation', 'Project Expenses', 'Project Documents', 'Project Approvals'];
+const projectSubItems = ['Project List', 'Survey Dashboard', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Subsidy', 'Project Installation', 'Project Expenses', 'Project Documents', 'Project Approvals'];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
 // 'Project Timeline' aur 'Project Work Orders' ab sidebar me nahi — Project List ke 3-dot action menu se khulte hain (routing yahin valid rehni chahiye)
 const projectRelatedPages = ['Project Management', 'Project Overview', 'Project KPI Analytics', 'Project Reports', ...projectActionPages, ...projectSubItems, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
@@ -297,6 +346,7 @@ const projectSubRoutes = {
   'Project Create': '/projects/create',
   'Project KPI Analytics': '/projects/kpi-analytics',
   'Project List': '/projects/list',
+  'Survey Dashboard': '/projects/survey-dashboard',
   'Project Details': '/projects/details/:projectId',
   'Project Activity Create': '/projects/activities/create/:projectId',
   'Project Note Create': '/projects/notes/create/:projectId',
@@ -1678,7 +1728,7 @@ const quickActions = [
     label: 'Create Quotation',
     icon: FilePlus2,
     bg: 'from-[#5242ef] to-[#6046eb]',
-    target: 'Lead List',
+    target: 'Quotation',
   },
 ];
 
@@ -1869,6 +1919,8 @@ function App() {
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
   const [dashboardOverdue, setDashboardOverdue] = useState(null);
   const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
+  const [autoOpenFollowUps, setAutoOpenFollowUps] = useState(false);
+  const [autoOpenQuotation, setAutoOpenQuotation] = useState(false);
   const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
   const [dashboardPeriod, setDashboardPeriod] = useState('Month');
   const [dashboardPeriodAnchor, setDashboardPeriodAnchor] = useState(() => new Date());
@@ -2817,206 +2869,27 @@ function App() {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 w-full xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
+        <main className="main-scroll-area min-w-0 flex-1 w-full xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
           <div className="space-y-2.5 xl:pb-3">
-            <header className={`${panelClass} header-toolbar relative z-30 overflow-visible px-3 py-3 sm:px-4`}>
-              <div className="grid gap-3 lg:grid-cols-[44px_minmax(0,1fr)] xl:grid-cols-[44px_326px_minmax(0,1fr)_auto] xl:items-center">
-                <div className="flex items-center justify-between gap-3 lg:contents">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileSidebarOpen(true);
-                      notify('Sidebar opened');
-                    }}
-                    className="inline-flex size-11 shrink-0 items-center justify-center rounded-[12px] border border-[#dfe7f2] bg-white text-[#52637f] transition hover:border-[#cfdbee] hover:text-[#2158d6] xl:hidden"
-                    aria-label="Open sidebar"
-                  >
-                    <Menu className="size-5" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDesktopSidebarCollapsed((current) => {
-                        const next = !current;
-                        notify(next ? 'Sidebar collapsed' : 'Sidebar expanded');
-                        return next;
-                      });
-                    }}
-                    className="hidden size-10 shrink-0 items-center justify-center rounded-[8px] bg-transparent text-[#52637f] transition hover:bg-[#f7faff] hover:text-[#244c7e] xl:inline-flex"
-                    aria-label="Toggle sidebar menu"
-                  >
-                    <Menu className="size-[21px]" />
-                  </button>
-
-                  <div className="flex flex-wrap items-center justify-end gap-3 lg:hidden">
-                    {actionIcons.map((action) => {
-                      const Icon = action.icon;
-
-                    return (
-                      <div key={`mobile-${action.label}`} className="relative" data-header-actions="true">
-                        <button
-                          type="button"
-                          onClick={() => handleHeaderAction(action.label)}
-                          className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
-                          aria-label={action.label}
-                          aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
-                        >
-                          <Icon className="size-[18px]" />
-                          {action.badge ? (
-                            <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
-                              {action.badge}
-                            </span>
-                          ) : null}
-                        </button>
-                        {action.label === 'Notifications' && notificationMenuOpen ? (
-                          <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
-                        ) : null}
-                        {action.label === 'Messages' && messageMenuOpen ? (
-                          <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
-                        ) : null}
-                      </div>
-                    );
-                    })}
-
-                    <div className="relative" data-profile-menu="true">
-                      <button
-                        type="button"
-                        onClick={() => setProfileMenuOpen((current) => !current)}
-                        className="rounded-full transition hover:scale-[1.02]"
-                        aria-label="Open profile menu"
-                        aria-expanded={profileMenuOpen}
-                      >
-                        <AdminAvatar />
-                      </button>
-
-                      {profileMenuOpen ? (
-                        <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
-                          {['My Profile', 'Logout'].map((item) => (
-                            <button
-                              key={`mobile-${item}`}
-                              type="button"
-                              onClick={() => handleProfileAction(item)}
-                              className={`block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff] ${item === 'Logout' ? 'text-[#e03434]' : 'text-[#263d72]'}`}
-                            >
-                              {item}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                <label className="search-input flex h-11 min-w-0 items-center rounded-[10px] border border-black/20 bg-[#fbfcff] px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 lg:col-span-1 xl:col-span-1">
-                  <Search className="size-4 text-[#7486a3]" />
-                  <input
-                    type="search"
-                    value={globalSearch}
-                    onChange={(e) => setGlobalSearch(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && globalSearch.trim()) {
-                        setActiveSidebarItem('Lead List');
-                        notify(`Searching: ${globalSearch.trim()}`);
-                      }
-                    }}
-                    placeholder="Search leads, customers, projects..."
-                    className="h-full min-w-0 w-full bg-transparent px-3 text-[14px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba]"
-                  />
-                  {globalSearch && (
-                    <button type="button" onClick={() => setGlobalSearch('')} className="ml-1 text-[#8ea0ba] hover:text-[#e03434]">✕</button>
-                  )}
-                </label>
-
-                <div className="header-banner relative min-w-0 w-full overflow-hidden rounded-[10px] border border-[#dce8f5] bg-[#eef8fb] lg:col-span-2 xl:col-span-1">
-                  <img
-                    src={navBarImage}
-                    alt="Solar header"
-                    decoding="async"
-                    className="nav-banner-image h-[58px] w-full object-cover sm:h-[64px]"
-                  />
-                </div>
-
-                <div className="hidden flex-wrap items-center justify-between gap-3 lg:col-span-2 lg:flex xl:col-span-1 xl:justify-end">
-                  {actionIcons.map((action) => {
-                    const Icon = action.icon;
-
-                    return (
-                      <div key={action.label} className="relative" data-header-actions="true">
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.08 }}
-                          whileTap={{ scale: 0.92 }}
-                          transition={{ duration: 0.15, ease: 'easeOut' }}
-                          onClick={() => handleHeaderAction(action.label)}
-                          className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition-colors hover:text-[#2158d6]"
-                          aria-label={action.label}
-                          aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
-                        >
-                        <Icon className="size-[18px]" />
-                        {action.badge ? (
-                          <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
-                            {action.badge}
-                          </span>
-                        ) : null}
-                      </motion.button>
-                      {action.label === 'Notifications' && notificationMenuOpen ? (
-                        <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
-                      ) : null}
-                      {action.label === 'Messages' && messageMenuOpen ? (
-                        <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
-                      ) : null}
-                      </div>
-                    );
-                  })}
-
-                  <ThemeToggle
-                    theme={theme}
-                    onChange={(next) => {
-                      setTheme(next);
-                      notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
-                    }}
-                  />
-
-                  <div className="relative ml-auto" data-profile-menu="true">
-                    <button
-                      type="button"
-                      onClick={() => setProfileMenuOpen((current) => !current)}
-                      className="flex items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#f5f9ff] sm:gap-3"
-                      aria-label="Open profile menu"
-                      aria-expanded={profileMenuOpen}
-                    >
-                      <AdminAvatar name={loggedInUser?.name} />
-                      <div className="text-right">
-                        <p className="text-[15px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
-                        <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
-                      </div>
-                      <ChevronRight
-                        className={cx(
-                          'size-4 text-[#7a8aa4] transition',
-                          profileMenuOpen && 'rotate-90 text-[#2d67e1]',
-                        )}
-                      />
-                    </button>
-
-                    {profileMenuOpen ? (
-                      <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
-                        {['My Profile', 'Logout'].map((item) => (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() => handleProfileAction(item)}
-                            className={`block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff] ${item === 'Logout' ? 'text-[#e03434]' : 'text-[#263d72]'}`}
-                          >
-                            {item}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </header>
+            <AppHeader
+              notify={notify}
+              setMobileSidebarOpen={setMobileSidebarOpen}
+              setDesktopSidebarCollapsed={setDesktopSidebarCollapsed}
+              notificationMenuOpen={notificationMenuOpen}
+              messageMenuOpen={messageMenuOpen}
+              handleHeaderAction={handleHeaderAction}
+              openDashboardSection={openDashboardSection}
+              openWhatsApp={openWhatsApp}
+              profileMenuOpen={profileMenuOpen}
+              setProfileMenuOpen={setProfileMenuOpen}
+              handleProfileAction={handleProfileAction}
+              globalSearch={globalSearch}
+              setGlobalSearch={setGlobalSearch}
+              setActiveSidebarItem={setActiveSidebarItem}
+              theme={theme}
+              setTheme={setTheme}
+              loggedInUser={loggedInUser}
+            />
 
             {activeSidebarItem === 'Settings Users' ? (
               <SettingsUsersPage activeSection="Settings Users" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
@@ -3137,10 +3010,16 @@ function App() {
                   setActiveSidebarItem('Lead Details');
                   notify('Lead Details opened');
                 }}
+                autoOpenFollowUps={autoOpenFollowUps}
+                onConsumeAutoOpenFollowUps={() => setAutoOpenFollowUps(false)}
                 onNotify={notify}
               />
             ) : activeSidebarItem === 'Quotation' ? (
-              <QuotationListPage onNotify={notify} />
+              <QuotationListPage
+                autoOpenCreate={autoOpenQuotation}
+                onConsumeAutoOpenCreate={() => setAutoOpenQuotation(false)}
+                onNotify={notify}
+              />
             ) : activeSidebarItem === 'Lead Details' ? (
               <LeadDetailsPage
                 lead={selectedLead}
@@ -3371,6 +3250,8 @@ function App() {
                           if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
                             setDashboardCreateLeadOpen(true);
                           } else {
+                            if (action.label === 'Add Follow-up') setAutoOpenFollowUps(true);
+                            if (action.label === 'Create Quotation') setAutoOpenQuotation(true);
                             openDashboardSection(action.target, `${action.label} opened`);
                           }
                         }}
@@ -3473,6 +3354,219 @@ function App() {
 
       <Toast toast={toast} />
     </div>
+  );
+}
+
+// Single shared top navbar — search box, notification/message bells, theme
+// toggle, profile menu. Rendered once from App; every page swaps out only the
+// content below it, so this never re-mounts when switching sidebar sections.
+function AppHeader({
+  notify, setMobileSidebarOpen, setDesktopSidebarCollapsed,
+  notificationMenuOpen, messageMenuOpen, handleHeaderAction,
+  openDashboardSection, openWhatsApp,
+  profileMenuOpen, setProfileMenuOpen, handleProfileAction,
+  globalSearch, setGlobalSearch, setActiveSidebarItem,
+  theme, setTheme, loggedInUser,
+}) {
+  return (
+    <header className={`${panelClass} header-toolbar relative z-30 overflow-visible px-3 py-3 sm:px-4`}>
+      <div className="grid gap-3 lg:grid-cols-[44px_minmax(0,1fr)] xl:grid-cols-[44px_326px_minmax(0,1fr)_auto] xl:items-center">
+        <div className="flex items-center justify-between gap-3 lg:contents">
+          <button
+            type="button"
+            onClick={() => {
+              setMobileSidebarOpen(true);
+              notify('Sidebar opened');
+            }}
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-[12px] border border-[#dfe7f2] bg-white text-[#52637f] transition hover:border-[#cfdbee] hover:text-[#2158d6] xl:hidden"
+            aria-label="Open sidebar"
+          >
+            <Menu className="size-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDesktopSidebarCollapsed((current) => {
+                const next = !current;
+                notify(next ? 'Sidebar collapsed' : 'Sidebar expanded');
+                return next;
+              });
+            }}
+            className="hidden size-10 shrink-0 items-center justify-center rounded-[8px] bg-transparent text-[#52637f] transition hover:bg-[#f7faff] hover:text-[#244c7e] xl:inline-flex"
+            aria-label="Toggle sidebar menu"
+          >
+            <Menu className="size-[21px]" />
+          </button>
+
+          <div className="flex flex-wrap items-center justify-end gap-3 lg:hidden">
+            {actionIcons.map((action) => {
+              const Icon = action.icon;
+
+            return (
+              <div key={`mobile-${action.label}`} className="relative" data-header-actions="true">
+                <button
+                  type="button"
+                  onClick={() => handleHeaderAction(action.label)}
+                  className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
+                  aria-label={action.label}
+                  aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
+                >
+                  <Icon className="size-[18px]" />
+                  {action.badge ? (
+                    <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
+                      {action.badge}
+                    </span>
+                  ) : null}
+                </button>
+                {action.label === 'Notifications' && notificationMenuOpen ? (
+                  <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
+                ) : null}
+                {action.label === 'Messages' && messageMenuOpen ? (
+                  <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
+                ) : null}
+              </div>
+            );
+            })}
+
+            <div className="relative" data-profile-menu="true">
+              <button
+                type="button"
+                onClick={() => setProfileMenuOpen((current) => !current)}
+                className="rounded-full transition hover:scale-[1.02]"
+                aria-label="Open profile menu"
+                aria-expanded={profileMenuOpen}
+              >
+                <AdminAvatar />
+              </button>
+
+              {profileMenuOpen ? (
+                <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                  {['My Profile', 'Logout'].map((item) => (
+                    <button
+                      key={`mobile-${item}`}
+                      type="button"
+                      onClick={() => handleProfileAction(item)}
+                      className={`block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff] ${item === 'Logout' ? 'text-[#e03434]' : 'text-[#263d72]'}`}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <label className="search-input flex h-11 min-w-0 items-center rounded-[10px] border border-black/20 bg-[#fbfcff] px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 lg:col-span-1 xl:col-span-1">
+          <Search className="size-4 text-[#7486a3]" />
+          <input
+            type="search"
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && globalSearch.trim()) {
+                setActiveSidebarItem('Lead List');
+                notify(`Searching: ${globalSearch.trim()}`);
+              }
+            }}
+            placeholder="Search leads, customers, projects..."
+            className="h-full min-w-0 w-full bg-transparent px-3 text-[14px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba]"
+          />
+          {globalSearch && (
+            <button type="button" onClick={() => setGlobalSearch('')} className="ml-1 text-[#8ea0ba] hover:text-[#e03434]">✕</button>
+          )}
+        </label>
+
+        <div className="header-banner relative min-w-0 w-full overflow-hidden rounded-[10px] border border-[#dce8f5] bg-[#eef8fb] lg:col-span-2 xl:col-span-1">
+          <img
+            src={navBarImage}
+            alt="Solar header"
+            decoding="async"
+            className="nav-banner-image h-[58px] w-full object-cover sm:h-[64px]"
+          />
+        </div>
+
+        <div className="hidden flex-wrap items-center justify-between gap-3 lg:col-span-2 lg:flex xl:col-span-1 xl:justify-end">
+          {actionIcons.map((action) => {
+            const Icon = action.icon;
+
+            return (
+              <div key={action.label} className="relative" data-header-actions="true">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  onClick={() => handleHeaderAction(action.label)}
+                  className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition-colors hover:text-[#2158d6]"
+                  aria-label={action.label}
+                  aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
+                >
+                <Icon className="size-[18px]" />
+                {action.badge ? (
+                  <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
+                    {action.badge}
+                  </span>
+                ) : null}
+              </motion.button>
+              {action.label === 'Notifications' && notificationMenuOpen ? (
+                <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
+              ) : null}
+              {action.label === 'Messages' && messageMenuOpen ? (
+                <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
+              ) : null}
+              </div>
+            );
+          })}
+
+          <ThemeToggle
+            theme={theme}
+            onChange={(next) => {
+              setTheme(next);
+              notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
+            }}
+          />
+
+          <div className="relative ml-auto" data-profile-menu="true">
+            <button
+              type="button"
+              onClick={() => setProfileMenuOpen((current) => !current)}
+              className="flex items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#f5f9ff] sm:gap-3"
+              aria-label="Open profile menu"
+              aria-expanded={profileMenuOpen}
+            >
+              <AdminAvatar name={loggedInUser?.name} />
+              <div className="text-right">
+                <p className="text-[15px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
+                <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
+              </div>
+              <ChevronRight
+                className={cx(
+                  'size-4 text-[#7a8aa4] transition',
+                  profileMenuOpen && 'rotate-90 text-[#2d67e1]',
+                )}
+              />
+            </button>
+
+            {profileMenuOpen ? (
+              <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                {['My Profile', 'Logout'].map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => handleProfileAction(item)}
+                    className={`block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff] ${item === 'Logout' ? 'text-[#e03434]' : 'text-[#263d72]'}`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -3829,7 +3923,7 @@ function LoginFeature({ feature }) {
   );
 }
 
-function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead, onOpenLead, onNotify }) {
+function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead, onOpenLead, autoOpenFollowUps = false, onConsumeAutoOpenFollowUps, onNotify }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [projectTypeFilter, setProjectTypeFilter] = useState('All');
@@ -3849,6 +3943,14 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   const [viewLeadId, setViewLeadId] = useState(null);
   const [followUpsOverviewOpen, setFollowUpsOverviewOpen] = useState(false);
   const [surveyLead, setSurveyLead] = useState(null);
+
+  // Dashboard's "Add Follow-up" quick action lands here and asks us to open
+  // the View Follow-up popup immediately, instead of just landing on the list.
+  useEffect(() => {
+    if (!autoOpenFollowUps) return;
+    setFollowUpsOverviewOpen(true);
+    onConsumeAutoOpenFollowUps?.();
+  }, [autoOpenFollowUps, onConsumeAutoOpenFollowUps]);
 
   const exportVisibleLeads = () => {
     const rows = visibleLeadRows;
@@ -11601,6 +11703,10 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     return <ProjectListPage activeSection={activeSection} onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
+  if (activeSection === 'Survey Dashboard') {
+    return <SurveyDashboardPage onNotify={onNotify} />;
+  }
+
   if (activeSection === 'Project Details') {
     return <ProjectDetailsPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
   }
@@ -12990,35 +13096,884 @@ function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject }) {
   );
 }
 
-// Site Survey list ke "Edit" action ka popup — poora survey hub page (Overview, Customer & Site,
-// Roof & Electrical, System Details, Financials, Progress, Team, Documents, Checklist, Activities,
-// Notes sub-tabs sahit) ek modal ke andar khulta hai, alag page par navigate kiye bina.
-function SiteSurveyEditModal({ row, onClose, onOpenSection, onNotify }) {
-  const handleOpenSection = (section, options) => {
-    onClose();
-    onOpenSection?.(section, options);
-  };
+// Office-wide view across every project's site survey — counts by status,
+// engineer-wise breakdown, and a one-click "View" into the same edit popup
+// used from Project Management.
+function SurveyDashboardPage({ onNotify }) {
+  const [summary, setSummary] = useState(null);
+  const [surveys, setSurveys] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [viewSurveyRow, setViewSurveyRow] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      siteSurveyApi.summary(),
+      siteSurveyApi.list(statusFilter !== 'All' ? { status: statusFilter } : {}),
+    ]).then(([summaryData, listData]) => {
+      setSummary(summaryData);
+      setSurveys(Array.isArray(listData) ? listData : (listData?.results ?? []));
+    }).catch(() => {
+      onNotify?.('Failed to load survey dashboard', 'error');
+    }).finally(() => setLoading(false));
+  }, [statusFilter, refreshKey, onNotify]);
+
+  const stats = [
+    { label: 'Total Surveys', value: summary?.total ?? '—', toneClass: 'bg-linear-to-br from-[#1578ff] to-[#0a9ff5]', icon: ClipboardPlus },
+    { label: 'Pending', value: summary?.pending ?? '—', toneClass: 'bg-linear-to-br from-[#ef4444] to-[#f87171]', icon: Clock3 },
+    { label: 'In Progress', value: summary?.in_progress ?? '—', toneClass: 'bg-linear-to-br from-[#f59e0b] to-[#fb923c]', icon: RefreshCw },
+    { label: 'Completed', value: summary?.completed ?? '—', toneClass: 'bg-linear-to-br from-[#10b981] to-[#059669]', icon: CheckCircle2 },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Survey Dashboard</h2>
+        <p className="mt-1 text-[12px] font-bold text-[#7386a3]">Office-wide view of every site survey across all projects.</p>
+      </Card>
+
+      <section className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <article key={stat.label} className={`${panelClass} flex items-center gap-3 p-4`}>
+              <span className={cx('grid size-11 shrink-0 place-items-center rounded-full text-white', stat.toneClass)}>
+                <Icon className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] font-extrabold uppercase text-[#7b88a2]">{stat.label}</p>
+                <p className="font-display text-[21px] font-extrabold text-[#223768]">{stat.value}</p>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      {summary?.engineer_stats?.length ? (
+        <article className={dataPanelClass}>
+          <SectionHeader icon={UserRound} title="Survey Engineer-wise Status" />
+          <div className="overflow-x-auto p-4">
+            <table className="crm-table min-w-[520px] w-full">
+              <thead>
+                <tr><th>Engineer</th><th>Total</th><th>Pending</th><th>In Progress</th><th>Completed</th></tr>
+              </thead>
+              <tbody>
+                {summary.engineer_stats.map((row) => (
+                  <tr key={row.name}>
+                    <td className="font-bold text-[#233a6b]">{row.name}</td>
+                    <td>{row.total}</td>
+                    <td>{row.pending}</td>
+                    <td>{row.in_progress}</td>
+                    <td>{row.completed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      ) : null}
+
+      <article className={dataPanelClass}>
+        <SectionHeader icon={ClipboardPlus} title="All Surveys" />
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#e5edf6] px-4 py-3">
+          {['All', 'Pending', 'In Progress', 'Completed'].map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatusFilter(s)}
+              className={cx(
+                'rounded-full px-3 py-1.5 text-[12px] font-extrabold transition',
+                statusFilter === s ? 'bg-[#0b65e5] text-white' : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff]',
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        {loading ? (
+          <PageLoadingState message="Loading surveys..." />
+        ) : surveys.length === 0 ? (
+          <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">No surveys found</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="crm-table min-w-[820px] w-full">
+              <thead>
+                <tr>
+                  <th>Survey Date</th><th>Project</th><th>Customer</th><th>Engineer</th><th>Status</th><th>Completion</th><th className="text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {surveys.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.survey_date ? new Date(row.survey_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
+                    <td className="font-bold text-[#233a6b]">{row.project_name || '—'}</td>
+                    <td>{row.customer_name || '—'}</td>
+                    <td>{row.surveyed_by_name || 'Unassigned'}</td>
+                    <td><SurveyStatusBadge status={row.status} /></td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[#e7eef7]">
+                          <div className="h-full rounded-full bg-[#0b65e5]" style={{ width: `${row.completion_percent}%` }} />
+                        </div>
+                        <span className="text-[11px] font-extrabold text-[#4b5b78]">{row.completion_percent}%</span>
+                      </div>
+                    </td>
+                    <td className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => setViewSurveyRow({ id: row.project })}
+                        className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
+                        aria-label={`View survey for ${row.project_name}`}
+                      >
+                        <Eye className="size-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </article>
+
+      {viewSurveyRow ? (
+        <SiteSurveyEditModal
+          row={viewSurveyRow}
+          onClose={() => { setViewSurveyRow(null); setRefreshKey((k) => k + 1); }}
+          onNotify={onNotify}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// Site Survey list ke "Edit" action ka popup — poora 12-section survey form
+// (Survey Info, Roof Details, Roof Photo Checklist, Earthing, Inverter Location,
+// Meter, Cable Route, Structure Layout, Safety Checklist, Documents, Remarks,
+// Completion) ek modal ke andar, alag page par navigate kiye bina.
+function SiteSurveyEditModal({ row, onClose, onOpenSection, onNotify }) {
   return (
     <div
       className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
-      <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-        <div className="scroll-soft flex-1 overflow-y-auto">
-          <ProjectDetailsPage
-            activeSection="Project Site Survey"
-            onOpenSection={handleOpenSection}
-            project={{ id: row.id }}
-            onNotify={onNotify}
-            hubMode
-            initialEditMode
-            stackedSections
-            onClose={onClose}
-          />
-        </div>
+      <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[960px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <SiteSurveyFullForm projectId={row.id} onClose={onClose} onNotify={onNotify} />
       </div>
     </div>
+  );
+}
+
+const SURVEY_ROOF_PHOTO_SLOTS = [
+  { slot: 'North Side', required: true },
+  { slot: 'South Side', required: true },
+  { slot: 'East Side', required: true },
+  { slot: 'West Side', required: true },
+  { slot: 'Overall Roof', required: true },
+  { slot: 'Roof Close-up', required: true },
+  { slot: 'Water Tank', required: true },
+  { slot: 'Obstacle', required: true },
+  { slot: 'Drone Photo', required: false },
+];
+const SURVEY_ROOF_TYPE_OPTIONS = ['RCC', 'Tin Shed', 'Metal Roof', 'Ground Mount'];
+const SURVEY_INVERTER_PLACEMENT_OPTIONS = ['Indoor', 'Outdoor'];
+const SURVEY_INVERTER_MOUNTING_OPTIONS = ['Wall Mounted', 'Floor Mounted'];
+const SURVEY_METER_PHASE_OPTIONS = ['Single Phase', 'Three Phase'];
+const SURVEY_MODULE_ORIENTATION_OPTIONS = ['Portrait', 'Landscape'];
+const SURVEY_ADDITIONAL_DOC_CATEGORIES = ['Images', 'Videos', 'PDF', 'Other Documents'];
+const SURVEY_SAFETY_ITEMS = [
+  { key: 'safety_roof_safe', label: 'Roof Safe' },
+  { key: 'safety_shadow_checked', label: 'Shadow Checked' },
+  { key: 'safety_earthing_finalized', label: 'Earthing Finalized' },
+  { key: 'safety_meter_verified', label: 'Meter Verified' },
+  { key: 'safety_inverter_location_final', label: 'Inverter Location Final' },
+  { key: 'safety_cable_route_final', label: 'Cable Route Final' },
+  { key: 'safety_tank_checked', label: 'Tank Checked' },
+  { key: 'safety_customer_approval_taken', label: 'Customer Approval Taken' },
+  { key: 'safety_gps_captured', label: 'GPS Captured' },
+  { key: 'safety_all_photos_uploaded', label: 'All Photos Uploaded' },
+];
+const SURVEY_EMPTY_FORM = {
+  survey_date: '', surveyed_by: '', status: 'Pending', latitude: '', longitude: '',
+  building_type: '', floor_count: '', roof_type: '', roof_height_ft: '', rooftop_area_sqft: '',
+  roof_length_ft: '', roof_width_ft: '', shadow_free_area_sqft: '', available_area_sqft: '',
+  shadow_present: false, water_tank_present: false, tree_nearby: false, obstacle_present: false, roof_remarks: '',
+  earthing_required: false, earthing_count: '', earthing_type: '', earthing_location: '', earthing_remarks: '',
+  inverter_placement: '', inverter_mounting: '', inverter_location_description: '', inverter_distance_from_roof: '',
+  meter_type: '', meter_phase: '', meter_capacity: '', existing_mcb: '', connection_point_after_commissioning: '', meter_remarks: '',
+  conduit_route_description: '', ac_cable_route: '', dc_cable_route: '', ac_cable_length_approx: '', dc_cable_length_approx: '', conduit_length_approx: '',
+  module_orientation: '', tilt_angle: '', structure_rows: '', structure_columns: '', approx_plant_capacity: '', future_expansion: false,
+  safety_roof_safe: false, safety_shadow_checked: false, safety_earthing_finalized: false, safety_meter_verified: false,
+  safety_inverter_location_final: false, safety_cable_route_final: false, safety_tank_checked: false,
+  safety_customer_approval_taken: false, safety_gps_captured: false, safety_all_photos_uploaded: false,
+  summary_notes: '',
+};
+const surveyFieldClass = 'h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500';
+
+function SurveySection({ number, title, children }) {
+  return (
+    <section className="rounded-[14px] border border-[#e7eef7] bg-white p-4 sm:p-5">
+      <h3 className="mb-3 text-[14px] font-extrabold text-[#1e3261]">{number}. {title}</h3>
+      <div className="space-y-3">{children}</div>
+    </section>
+  );
+}
+
+function SurveyField({ label, optional, children }) {
+  return (
+    <label className="block min-w-0">
+      <span className="mb-1.5 block text-[11px] font-extrabold text-[#7386a3]">{label}{optional ? ' (Optional)' : ''}</span>
+      {children}
+    </label>
+  );
+}
+
+function SurveyCheckbox({ label, checked, onChange }) {
+  return (
+    <label className="flex items-center gap-2 rounded-[8px] border border-[#e7eef7] bg-[#f8fafc] px-3 py-2.5 text-[12px] font-bold text-[#30466d]">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-[#0b65e5]" />
+      {label}
+    </label>
+  );
+}
+
+function SurveyPhotoSlot({ label, optional, photo, uploading, onUpload, onDelete }) {
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+
+  return (
+    <div className="rounded-[10px] border border-[#e7eef7] bg-white p-2.5">
+      <div className="flex items-center justify-between gap-1">
+        <p className="truncate text-[11px] font-extrabold text-[#34466c]" title={label}>{label}{optional ? ' (Optional)' : ''}</p>
+        {photo ? <CheckCircle2 className="size-4 shrink-0 text-[#0d9f4a]" /> : null}
+      </div>
+      <div className="mt-2 aspect-square overflow-hidden rounded-[8px] bg-[#f4f7fb]">
+        {photo ? (
+          <img src={photo.image} alt={label} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-[#c3ccdb]">
+            <Camera className="size-6" />
+          </div>
+        )}
+      </div>
+      {photo ? (
+        <p className="mt-1.5 flex items-center justify-center gap-1 text-[10px] font-extrabold text-[#0d9f4a]">
+          <CheckCircle2 className="size-3" /> Uploaded
+        </p>
+      ) : null}
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+          <Upload className="size-3" /> Upload
+        </button>
+        <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+          <Camera className="size-3" /> Camera
+        </button>
+      </div>
+      {photo ? (
+        <button type="button" onClick={onDelete} className="mt-1.5 flex w-full items-center justify-center gap-1 text-[10px] font-bold text-[#e2594c] hover:underline">
+          <Trash2 className="size-3" /> Remove
+        </button>
+      ) : null}
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+    </div>
+  );
+}
+
+function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
+  const [loading, setLoading] = useState(true);
+  const [survey, setSurvey] = useState(null);
+  const [form, setForm] = useState(SURVEY_EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [uploadingSlot, setUploadingSlot] = useState(null);
+  const [employeeOptions, setEmployeeOptions] = useState(cachedEmployeeOptions || []);
+  const [additionalDocuments, setAdditionalDocuments] = useState([]);
+  const dirtyRef = useRef(false);
+  const skipDirtyRef = useRef(true);
+
+  useEffect(() => {
+    getEmployeeOptions().then(setEmployeeOptions);
+  }, []);
+
+  const reloadAdditionalDocuments = useCallback(() => {
+    projectDocumentApi.list({ project: projectId }).then((data) => {
+      const rows = Array.isArray(data) ? data : (data?.results ?? []);
+      setAdditionalDocuments(rows.filter((doc) => SURVEY_ADDITIONAL_DOC_CATEGORIES.includes(doc.category)));
+    }).catch(() => {});
+  }, [projectId]);
+
+  useEffect(() => {
+    reloadAdditionalDocuments();
+  }, [reloadAdditionalDocuments]);
+
+  useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
+
+  useEffect(() => {
+    let cancelled = false;
+    projectApi.getSiteSurvey(projectId).then((data) => {
+      if (cancelled || !data) return;
+      skipDirtyRef.current = true;
+      setSurvey(data);
+      setForm({
+        survey_date: data.survey_date || '',
+        surveyed_by: data.surveyed_by ? String(data.surveyed_by) : '',
+        status: data.status || 'Pending',
+        latitude: data.latitude || '',
+        longitude: data.longitude || '',
+        building_type: data.building_type || '',
+        floor_count: data.floor_count || '',
+        roof_type: data.roof_type || '',
+        roof_height_ft: data.roof_height_ft || '',
+        rooftop_area_sqft: data.rooftop_area_sqft || '',
+        roof_length_ft: data.roof_length_ft || '',
+        roof_width_ft: data.roof_width_ft || '',
+        shadow_free_area_sqft: data.shadow_free_area_sqft || '',
+        available_area_sqft: data.available_area_sqft || '',
+        shadow_present: Boolean(data.shadow_present),
+        water_tank_present: Boolean(data.water_tank_present),
+        tree_nearby: Boolean(data.tree_nearby),
+        obstacle_present: Boolean(data.obstacle_present),
+        roof_remarks: data.roof_remarks || '',
+        earthing_required: Boolean(data.earthing_required),
+        earthing_count: data.earthing_count || '',
+        earthing_type: data.earthing_type || '',
+        earthing_location: data.earthing_location || '',
+        earthing_remarks: data.earthing_remarks || '',
+        inverter_placement: data.inverter_placement || '',
+        inverter_mounting: data.inverter_mounting || '',
+        inverter_location_description: data.inverter_location_description || '',
+        inverter_distance_from_roof: data.inverter_distance_from_roof || '',
+        meter_type: data.meter_type || '',
+        meter_phase: data.meter_phase || '',
+        meter_capacity: data.meter_capacity || '',
+        existing_mcb: data.existing_mcb || '',
+        connection_point_after_commissioning: data.connection_point_after_commissioning || '',
+        meter_remarks: data.meter_remarks || '',
+        conduit_route_description: data.conduit_route_description || '',
+        ac_cable_route: data.ac_cable_route || '',
+        dc_cable_route: data.dc_cable_route || '',
+        ac_cable_length_approx: data.ac_cable_length_approx || '',
+        dc_cable_length_approx: data.dc_cable_length_approx || '',
+        conduit_length_approx: data.conduit_length_approx || '',
+        module_orientation: data.module_orientation || '',
+        tilt_angle: data.tilt_angle || '',
+        structure_rows: data.structure_rows || '',
+        structure_columns: data.structure_columns || '',
+        approx_plant_capacity: data.approx_plant_capacity || '',
+        future_expansion: Boolean(data.future_expansion),
+        safety_roof_safe: Boolean(data.safety_roof_safe),
+        safety_shadow_checked: Boolean(data.safety_shadow_checked),
+        safety_earthing_finalized: Boolean(data.safety_earthing_finalized),
+        safety_meter_verified: Boolean(data.safety_meter_verified),
+        safety_inverter_location_final: Boolean(data.safety_inverter_location_final),
+        safety_cable_route_final: Boolean(data.safety_cable_route_final),
+        safety_tank_checked: Boolean(data.safety_tank_checked),
+        safety_customer_approval_taken: Boolean(data.safety_customer_approval_taken),
+        safety_gps_captured: Boolean(data.safety_gps_captured),
+        safety_all_photos_uploaded: Boolean(data.safety_all_photos_uploaded),
+        summary_notes: data.summary_notes || '',
+      });
+    }).catch(() => {
+      onNotify?.('Could not load site survey', 'error');
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  const updateField = (key, value) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    setDirty(true);
+  };
+
+  const handleCaptureLocation = () => {
+    if (!navigator.geolocation) {
+      onNotify?.('Location is not supported on this device/browser', 'error');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        updateField('latitude', position.coords.latitude.toFixed(6));
+        setForm((f) => ({ ...f, longitude: position.coords.longitude.toFixed(6) }));
+        setDirty(true);
+        setLocating(false);
+      },
+      () => {
+        onNotify?.('Could not fetch current location — check device GPS/location permission', 'error');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
+  const buildPayload = () => ({
+    ...form,
+    survey_date: form.survey_date || null,
+    surveyed_by: form.surveyed_by || null,
+  });
+
+  const handleSave = useCallback(async (nextStatus) => {
+    setSaving(true);
+    try {
+      const payload = buildPayload();
+      if (nextStatus) payload.status = nextStatus;
+      const saved = await projectApi.saveSiteSurvey(projectId, payload);
+      setSurvey((prev) => ({ ...prev, ...saved }));
+      setForm((f) => ({ ...f, status: saved.status }));
+      setDirty(false);
+      return saved;
+    } catch (err) {
+      onNotify?.(err?.message || 'Failed to save survey', 'error');
+      return null;
+    } finally {
+      setSaving(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, form]);
+
+  // Auto-save draft every 30s while there are unsaved changes.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (dirtyRef.current && form.status !== 'Completed') {
+        handleSave().then((saved) => { if (saved) onNotify?.('Draft auto-saved'); });
+      }
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [handleSave, form.status, onNotify]);
+
+  const handleSaveDraft = async () => {
+    const saved = await handleSave();
+    if (saved) onNotify?.('Survey saved as draft');
+  };
+
+  const getMissingForCompletion = () => {
+    const missing = [];
+    if (!form.roof_type) missing.push('Roof Type');
+    if (!form.rooftop_area_sqft) missing.push('Roof Area');
+    if (!form.latitude || !form.longitude) missing.push('GPS Location');
+    const uploadedSlots = new Set((survey?.photos ?? []).map((p) => p.slot));
+    const missingPhotos = SURVEY_ROOF_PHOTO_SLOTS.filter((s) => s.required && !uploadedSlots.has(s.slot)).map((s) => s.slot);
+    if (missingPhotos.length) missing.push(`Photos — ${missingPhotos.join(', ')}`);
+    return missing;
+  };
+
+  const handleComplete = async () => {
+    const missing = getMissingForCompletion();
+    if (missing.length) {
+      onNotify?.(`Complete these before finishing: ${missing.join('; ')}`, 'error');
+      return;
+    }
+    const saved = await handleSave('Completed');
+    if (saved) onNotify?.('Survey marked completed');
+  };
+
+  const getPhoto = (slot) => (survey?.photos ?? []).find((p) => p.slot === slot) || null;
+
+  const handlePhotoUpload = async (slot, file) => {
+    if (!file) return;
+    if (!survey?.id) {
+      onNotify?.('Save the survey once before adding photos', 'error');
+      return;
+    }
+    setUploadingSlot(slot);
+    try {
+      const compressed = await compressImageFile(file);
+      const fd = new FormData();
+      fd.append('survey', survey.id);
+      fd.append('slot', slot);
+      fd.append('image', compressed);
+      await siteSurveyPhotoApi.create(fd);
+      const refreshed = await projectApi.getSiteSurvey(projectId);
+      skipDirtyRef.current = true;
+      setSurvey(refreshed);
+      onNotify?.(`${slot} photo uploaded`);
+    } catch (err) {
+      onNotify?.(err?.message || `Failed to upload ${slot} photo`, 'error');
+    } finally {
+      setUploadingSlot(null);
+    }
+  };
+
+  const handlePhotoDelete = async (photoId) => {
+    try {
+      await siteSurveyPhotoApi.delete(photoId);
+      const refreshed = await projectApi.getSiteSurvey(projectId);
+      skipDirtyRef.current = true;
+      setSurvey(refreshed);
+    } catch (err) {
+      onNotify?.(err?.message || 'Failed to delete photo', 'error');
+    }
+  };
+
+  const uploadedRoofPhotoCount = (survey?.photos ?? []).filter((p) => SURVEY_ROOF_PHOTO_SLOTS.some((s) => s.slot === p.slot)).length;
+  const totalRoofPhotoSlots = SURVEY_ROOF_PHOTO_SLOTS.length;
+  const safetyDoneCount = SURVEY_SAFETY_ITEMS.filter((item) => form[item.key]).length;
+  const overallProgress = Math.round((
+    (uploadedRoofPhotoCount / totalRoofPhotoSlots) * 40
+    + (safetyDoneCount / SURVEY_SAFETY_ITEMS.length) * 30
+    + (form.roof_type ? 15 : 0)
+    + (form.latitude && form.longitude ? 15 : 0)
+  ));
+
+  if (loading) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-10">
+        <PageLoadingState message="Loading site survey..." />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
+        <div>
+          <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Site Survey</h2>
+          <p className="mt-0.5 text-[12px] font-bold text-[#7386a3]">{survey?.project_name || '—'} · {survey?.customer_name || '—'}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {dirty ? <span className="text-[11px] font-bold text-[#b45309]">Unsaved changes</span> : null}
+          <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+      </div>
+
+      <div className="scroll-soft flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-6">
+        <div className="space-y-4">
+
+          <SurveySection number={1} title="Survey Information">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SurveyField label="Survey Date">
+                <input type="date" value={form.survey_date} onChange={(e) => updateField('survey_date', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Survey Engineer">
+                <select value={form.surveyed_by} onChange={(e) => updateField('surveyed_by', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select engineer</option>
+                  {employeeOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="Survey Status">
+                <select value={form.status} onChange={(e) => updateField('status', e.target.value)} className={surveyFieldClass}>
+                  <option value="Pending">🔴 Pending</option>
+                  <option value="In Progress">🟡 In Progress</option>
+                  <option value="Completed">🟢 Completed</option>
+                </select>
+              </SurveyField>
+              <SurveyField label="Customer Name (Auto)">
+                <input value={survey?.customer_name || ''} disabled className={`${surveyFieldClass} bg-[#f4f7fb] text-[#7386a3]`} />
+              </SurveyField>
+              <SurveyField label="Mobile Number (Auto)">
+                <input value={survey?.mobile_number || ''} disabled className={`${surveyFieldClass} bg-[#f4f7fb] text-[#7386a3]`} />
+              </SurveyField>
+              <SurveyField label="Project Name (Auto)">
+                <input value={survey?.project_name || ''} disabled className={`${surveyFieldClass} bg-[#f4f7fb] text-[#7386a3]`} />
+              </SurveyField>
+              <SurveyField label="Address (Auto)" optional>
+                <input value={survey?.address || ''} disabled className={`${surveyFieldClass} bg-[#f4f7fb] text-[#7386a3]`} />
+              </SurveyField>
+            </div>
+
+            <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[12px] font-extrabold text-[#34466c]">GPS Location</span>
+                <button
+                  type="button"
+                  onClick={handleCaptureLocation}
+                  disabled={locating}
+                  className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
+                >
+                  <Crosshair className="size-3.5" />
+                  {locating ? 'Capturing...' : 'Capture Current Location'}
+                </button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SurveyField label="Latitude">
+                  <input value={form.latitude} onChange={(e) => updateField('latitude', e.target.value)} placeholder="e.g. 22.7196" className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="Longitude">
+                  <input value={form.longitude} onChange={(e) => updateField('longitude', e.target.value)} placeholder="e.g. 75.8577" className={surveyFieldClass} />
+                </SurveyField>
+              </div>
+            </div>
+          </SurveySection>
+
+          <SurveySection number={2} title="Roof Details">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SurveyField label="Roof Type">
+                <select value={form.roof_type} onChange={(e) => updateField('roof_type', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select roof type</option>
+                  {SURVEY_ROOF_TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="Roof Height (ft)" optional>
+                <input value={form.roof_height_ft} onChange={(e) => updateField('roof_height_ft', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Roof Area (sq.ft)">
+                <input value={form.rooftop_area_sqft} onChange={(e) => updateField('rooftop_area_sqft', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Roof Length" optional>
+                <input value={form.roof_length_ft} onChange={(e) => updateField('roof_length_ft', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Roof Width" optional>
+                <input value={form.roof_width_ft} onChange={(e) => updateField('roof_width_ft', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Shadow-free Area (sq.ft)" optional>
+                <input value={form.shadow_free_area_sqft} onChange={(e) => updateField('shadow_free_area_sqft', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <SurveyCheckbox label="Shadow Present" checked={form.shadow_present} onChange={(v) => updateField('shadow_present', v)} />
+              <SurveyCheckbox label="Water Tank Present" checked={form.water_tank_present} onChange={(v) => updateField('water_tank_present', v)} />
+              <SurveyCheckbox label="Tree Nearby" checked={form.tree_nearby} onChange={(v) => updateField('tree_nearby', v)} />
+              <SurveyCheckbox label="Obstacle Present" checked={form.obstacle_present} onChange={(v) => updateField('obstacle_present', v)} />
+            </div>
+            <SurveyField label="Roof Remarks" optional>
+              <textarea value={form.roof_remarks} onChange={(e) => updateField('roof_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            </SurveyField>
+          </SurveySection>
+
+          <SurveySection number={3} title="Roof Photo Checklist">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+              {SURVEY_ROOF_PHOTO_SLOTS.map(({ slot, required }) => (
+                <SurveyPhotoSlot
+                  key={slot}
+                  label={slot}
+                  optional={!required}
+                  photo={getPhoto(slot)}
+                  uploading={uploadingSlot === slot}
+                  onUpload={(file) => handlePhotoUpload(slot, file)}
+                  onDelete={() => handlePhotoDelete(getPhoto(slot).id)}
+                />
+              ))}
+            </div>
+            {!survey?.id ? <p className="mt-2 text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
+          </SurveySection>
+
+          <SurveySection number={4} title="Earthing Details">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SurveyField label="Earthing Required">
+                <select value={form.earthing_required ? 'yes' : 'no'} onChange={(e) => updateField('earthing_required', e.target.value === 'yes')} className={surveyFieldClass}>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </SurveyField>
+              <SurveyField label="Number of Earthing" optional>
+                <input value={form.earthing_count} onChange={(e) => updateField('earthing_count', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Earthing Type" optional>
+                <input value={form.earthing_type} onChange={(e) => updateField('earthing_type', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Earthing Location" optional>
+                <input value={form.earthing_location} onChange={(e) => updateField('earthing_location', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+            </div>
+            <SurveyField label="Remarks" optional>
+              <textarea value={form.earthing_remarks} onChange={(e) => updateField('earthing_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            </SurveyField>
+            <div className="max-w-[180px]">
+              <SurveyPhotoSlot
+                label="Earthing Location"
+                photo={getPhoto('Earthing Location')}
+                uploading={uploadingSlot === 'Earthing Location'}
+                onUpload={(file) => handlePhotoUpload('Earthing Location', file)}
+                onDelete={() => handlePhotoDelete(getPhoto('Earthing Location').id)}
+              />
+            </div>
+          </SurveySection>
+
+          <SurveySection number={5} title="Inverter Location">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <SurveyField label="Indoor / Outdoor">
+                <select value={form.inverter_placement} onChange={(e) => updateField('inverter_placement', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_INVERTER_PLACEMENT_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="Mounting">
+                <select value={form.inverter_mounting} onChange={(e) => updateField('inverter_mounting', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_INVERTER_MOUNTING_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="Location Description" optional>
+                <input value={form.inverter_location_description} onChange={(e) => updateField('inverter_location_description', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Distance from Roof" optional>
+                <input value={form.inverter_distance_from_roof} onChange={(e) => updateField('inverter_distance_from_roof', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+            </div>
+            <div className="max-w-[180px]">
+              <SurveyPhotoSlot
+                label="Inverter Location"
+                photo={getPhoto('Inverter Location')}
+                uploading={uploadingSlot === 'Inverter Location'}
+                onUpload={(file) => handlePhotoUpload('Inverter Location', file)}
+                onDelete={() => handlePhotoDelete(getPhoto('Inverter Location').id)}
+              />
+            </div>
+          </SurveySection>
+
+          <SurveySection number={6} title="Meter Details">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SurveyField label="Meter Type" optional>
+                <input value={form.meter_type} onChange={(e) => updateField('meter_type', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Phase">
+                <select value={form.meter_phase} onChange={(e) => updateField('meter_phase', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_METER_PHASE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="Meter Capacity" optional>
+                <input value={form.meter_capacity} onChange={(e) => updateField('meter_capacity', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Existing MCB" optional>
+                <input value={form.existing_mcb} onChange={(e) => updateField('existing_mcb', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Connection Point After Commissioning" optional>
+                <input value={form.connection_point_after_commissioning} onChange={(e) => updateField('connection_point_after_commissioning', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+            </div>
+            <SurveyField label="Remarks" optional>
+              <textarea value={form.meter_remarks} onChange={(e) => updateField('meter_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            </SurveyField>
+            <div className="max-w-[180px]">
+              <SurveyPhotoSlot
+                label="Meter"
+                photo={getPhoto('Meter')}
+                uploading={uploadingSlot === 'Meter'}
+                onUpload={(file) => handlePhotoUpload('Meter', file)}
+                onDelete={() => handlePhotoDelete(getPhoto('Meter').id)}
+              />
+            </div>
+          </SurveySection>
+
+          <SurveySection number={7} title="Cable & Conduit Route">
+            <SurveyField label="Conduit Route Description" optional>
+              <textarea value={form.conduit_route_description} onChange={(e) => updateField('conduit_route_description', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            </SurveyField>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SurveyField label="AC Cable Route" optional>
+                <input value={form.ac_cable_route} onChange={(e) => updateField('ac_cable_route', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="DC Cable Route" optional>
+                <input value={form.dc_cable_route} onChange={(e) => updateField('dc_cable_route', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Approx AC Cable Length" optional>
+                <input value={form.ac_cable_length_approx} onChange={(e) => updateField('ac_cable_length_approx', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Approx DC Cable Length" optional>
+                <input value={form.dc_cable_length_approx} onChange={(e) => updateField('dc_cable_length_approx', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Approx Conduit Length" optional>
+                <input value={form.conduit_length_approx} onChange={(e) => updateField('conduit_length_approx', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+            </div>
+            <div className="max-w-[180px]">
+              <SurveyPhotoSlot
+                label="Cable Route"
+                photo={getPhoto('Cable Route')}
+                uploading={uploadingSlot === 'Cable Route'}
+                onUpload={(file) => handlePhotoUpload('Cable Route', file)}
+                onDelete={() => handlePhotoDelete(getPhoto('Cable Route').id)}
+              />
+            </div>
+          </SurveySection>
+
+          <SurveySection number={8} title="Structure Layout">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SurveyField label="Module Orientation">
+                <select value={form.module_orientation} onChange={(e) => updateField('module_orientation', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_MODULE_ORIENTATION_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="Tilt Angle" optional>
+                <input value={form.tilt_angle} onChange={(e) => updateField('tilt_angle', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Number of Rows" optional>
+                <input value={form.structure_rows} onChange={(e) => updateField('structure_rows', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Number of Columns" optional>
+                <input value={form.structure_columns} onChange={(e) => updateField('structure_columns', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Approx Plant Capacity" optional>
+                <input value={form.approx_plant_capacity} onChange={(e) => updateField('approx_plant_capacity', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Future Expansion">
+                <select value={form.future_expansion ? 'yes' : 'no'} onChange={(e) => updateField('future_expansion', e.target.value === 'yes')} className={surveyFieldClass}>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </SurveyField>
+            </div>
+          </SurveySection>
+
+          <SurveySection number={9} title="Safety Checklist">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {SURVEY_SAFETY_ITEMS.map((item) => (
+                <SurveyCheckbox key={item.key} label={item.label} checked={form[item.key]} onChange={(v) => updateField(item.key, v)} />
+              ))}
+            </div>
+          </SurveySection>
+
+          <SurveySection number={10} title="Additional Documents">
+            <SiteSurveyDocumentUploads
+              projectId={projectId}
+              documents={additionalDocuments}
+              categories={SURVEY_ADDITIONAL_DOC_CATEGORIES}
+              onReload={reloadAdditionalDocuments}
+              onNotify={onNotify}
+            />
+          </SurveySection>
+
+          <SurveySection number={11} title="Survey Remarks">
+            <SurveyField label="Additional Remarks" optional>
+              <textarea value={form.summary_notes} onChange={(e) => updateField('summary_notes', e.target.value)} rows={4} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            </SurveyField>
+          </SurveySection>
+
+          <SurveySection number={12} title="Survey Completion">
+            <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[12px] font-extrabold text-[#34466c]">Survey Summary</span>
+                <span className="text-[12px] font-extrabold text-[#0b65e5]">{overallProgress}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[#e7eef7]">
+                <div className="h-full rounded-full bg-[#0b65e5]" style={{ width: `${Math.min(overallProgress, 100)}%` }} />
+              </div>
+              <div className="mt-3 space-y-1.5 text-[12px] font-bold text-[#4b5b78]">
+                <div className="flex items-center justify-between"><span>Roof Photos</span><span>{uploadedRoofPhotoCount >= totalRoofPhotoSlots ? '✅' : '⏳'} {uploadedRoofPhotoCount}/{totalRoofPhotoSlots}</span></div>
+                <div className="flex items-center justify-between"><span>Earthing</span><span>{form.earthing_type || getPhoto('Earthing Location') ? '✅ Done' : '⏳ Pending'}</span></div>
+                <div className="flex items-center justify-between"><span>Meter</span><span>{form.meter_type || getPhoto('Meter') ? '✅ Done' : '⏳ Pending'}</span></div>
+                <div className="flex items-center justify-between"><span>Cable Route</span><span>{form.ac_cable_route || form.dc_cable_route || getPhoto('Cable Route') ? '✅ Done' : '⏳ Pending'}</span></div>
+                <div className="flex items-center justify-between"><span>Safety Checklist</span><span>{safetyDoneCount}/{SURVEY_SAFETY_ITEMS.length}</span></div>
+              </div>
+            </div>
+          </SurveySection>
+
+        </div>
+      </div>
+
+      <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-4 sm:flex-row">
+        <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
+          Cancel
+        </button>
+        <button type="button" onClick={handleSaveDraft} disabled={saving} className="h-11 rounded-[8px] border border-[#0b65e5] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#edf5ff] disabled:opacity-60">
+          {saving ? 'Saving...' : 'Save Draft'}
+        </button>
+        <button
+          type="button"
+          onClick={handleComplete}
+          disabled={saving}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60"
+        >
+          <Save className="size-4" />
+          Complete Survey
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -17849,7 +18804,7 @@ function isImageFileName(name) {
   return /\.(png|jpe?g|gif|webp|bmp)$/i.test(name || '');
 }
 
-function SiteSurveyDocumentUploads({ projectId, documents = [], onReload, onNotify }) {
+function SiteSurveyDocumentUploads({ projectId, documents = [], categories = SURVEY_DOCUMENT_CATEGORIES, onReload, onNotify }) {
   const fileInputRefs = useRef({});
   const [uploadingCategory, setUploadingCategory] = useState(null);
 
@@ -17879,7 +18834,7 @@ function SiteSurveyDocumentUploads({ projectId, documents = [], onReload, onNoti
   return (
     <article className={`${panelClass} p-4 sm:p-5`}>
       <div className="grid gap-2 sm:grid-cols-2">
-        {SURVEY_DOCUMENT_CATEGORIES.map((category) => {
+        {categories.map((category) => {
           const categoryDocs = documents.filter((doc) => doc.category === category);
           return (
             <div key={category} className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
@@ -27176,6 +28131,7 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -27209,12 +28165,20 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
     setLocationError('');
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setForm((f) => ({
-          ...f,
-          latitude: position.coords.latitude.toFixed(6),
-          longitude: position.coords.longitude.toFixed(6),
-        }));
+        const lat = position.coords.latitude.toFixed(6);
+        const lng = position.coords.longitude.toFixed(6);
+        setForm((f) => ({ ...f, latitude: lat, longitude: lng }));
         setLocating(false);
+
+        // Best-effort reverse geocode into the address field too — location fix
+        // already succeeded, so a failure here shouldn't surface as an error.
+        loadGoogleMapsApi().then((maps) => {
+          new maps.Geocoder().geocode({ location: { lat: Number(lat), lng: Number(lng) } }, (results, status) => {
+            if (status === 'OK' && results?.[0]) {
+              setForm((f) => ({ ...f, site_address: results[0].formatted_address }));
+            }
+          });
+        }).catch(() => {});
       },
       (error) => {
         setLocating(false);
@@ -27231,7 +28195,7 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const saved = await leadApi.saveSiteSurvey(leadId, form);
+      const saved = await leadApi.saveSiteSurvey(leadId, { ...form, survey_date: form.survey_date || null });
       setSurvey(saved);
       onNotify?.('Site survey saved');
       onSaved?.(saved);
@@ -27318,23 +28282,9 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
                 </p>
               ) : null}
 
-              <label className="block min-w-0">
-                <LeadLabel label="Site Details / Address" optional />
-                <span className="mt-2 flex min-h-[74px] items-start gap-3 rounded-[8px] border border-black/20 bg-white px-3 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                  <MapPin className="mt-0.5 size-4 shrink-0 text-[#8391a8]" />
-                  <textarea
-                    placeholder="Site address, landmark, access notes"
-                    rows={3}
-                    value={form.site_address}
-                    onChange={(e) => setForm((f) => ({ ...f, site_address: e.target.value }))}
-                    className="min-h-full min-w-0 flex-1 resize-y bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
-                  />
-                </span>
-              </label>
-
               <div>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[12px] font-extrabold text-[#34466c]">Latitude / Longitude</span>
+                  <span className="text-[12px] font-extrabold text-[#34466c]">Site Details / Address, Latitude &amp; Longitude</span>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -27351,10 +28301,11 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
                       className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"
                     >
                       <MapPin className="size-3.5" />
-                      Select Manually / Address
+                      Manually
                     </button>
                   </div>
                 </div>
+                <p className="mb-2 text-[11px] font-bold text-[#8a98af]">Either button fills the address and lat/long together — you can also edit any field by hand.</p>
                 {locationError ? (
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-[#f6dda9] bg-[#fff8e8] px-3 py-2 text-[12px] font-bold text-[#a76200]">
                     <span className="inline-flex items-center gap-1.5"><AlertTriangle className="size-3.5 shrink-0" />{locationError}</span>
@@ -27368,7 +28319,21 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
                     </button>
                   </div>
                 ) : null}
-                <div className="grid gap-4 sm:grid-cols-2">
+
+                <label className="block min-w-0">
+                  <span className="flex min-h-[74px] items-start gap-3 rounded-[8px] border border-black/20 bg-white px-3 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                    <MapPin className="mt-0.5 size-4 shrink-0 text-[#8391a8]" />
+                    <textarea
+                      placeholder="Site address, landmark, access notes"
+                      rows={3}
+                      value={form.site_address}
+                      onChange={(e) => setForm((f) => ({ ...f, site_address: e.target.value }))}
+                      className="min-h-full min-w-0 flex-1 resize-y bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+                    />
+                  </span>
+                </label>
+
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <label className="block min-w-0">
                     <span className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
                       <MapPin className="size-4 shrink-0 text-[#8391a8]" />
@@ -27446,16 +28411,28 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="text-[12px] font-extrabold text-[#34466c]">Site Photos</span>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingPhoto}
-                    className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
-                  >
-                    <Upload className="size-3.5" />
-                    {uploadingPhoto ? 'Uploading...' : 'Upload'}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingPhoto}
+                      className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
+                    >
+                      <Upload className="size-3.5" />
+                      {uploadingPhoto ? 'Uploading...' : 'Upload'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      disabled={uploadingPhoto}
+                      className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
+                    >
+                      <Camera className="size-3.5" />
+                      Camera
+                    </button>
+                  </div>
                   <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleUploadPhotos} />
+                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadPhotos} />
                 </div>
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {(survey?.photos ?? []).length === 0 ? (
@@ -27503,8 +28480,8 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
           initialLat={form.latitude}
           initialLng={form.longitude}
           onClose={() => setMapPickerOpen(false)}
-          onConfirm={(lat, lng) => {
-            setForm((f) => ({ ...f, latitude: lat, longitude: lng }));
+          onConfirm={(lat, lng, address) => {
+            setForm((f) => ({ ...f, latitude: lat, longitude: lng, site_address: address || f.site_address }));
             setLocationError('');
             setMapPickerOpen(false);
           }}
@@ -27514,77 +28491,112 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
   );
 }
 
-// Free OpenStreetMap picker (no API key needed) — click or drag the pin to set
-// a location, or search an address via Nominatim's free geocoding endpoint.
+// Real Google Maps picker — click or drag the pin to set a location, or search
+// an address. Also reverse-geocodes the picked point into a formatted address
+// so the caller can fill both the lat/long fields and the address text.
 const LEAD_SURVEY_DEFAULT_MAP_CENTER = { lat: 22.7196, lng: 75.8577 }; // Indore, HQ city
 
 function LeadSurveyMapPickerModal({ initialLat, initialLng, onClose, onConfirm }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
+  const geocoderRef = useRef(null);
   const [position, setPosition] = useState(() => ({
     lat: initialLat ? parseFloat(initialLat) : LEAD_SURVEY_DEFAULT_MAP_CENTER.lat,
     lng: initialLng ? parseFloat(initialLng) : LEAD_SURVEY_DEFAULT_MAP_CENTER.lng,
   }));
+  const [resolvedAddress, setResolvedAddress] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [mapError, setMapError] = useState('');
 
-  useEffect(() => {
-    if (!mapContainerRef.current || mapInstanceRef.current) return;
-
-    const map = L.map(mapContainerRef.current).setView([position.lat, position.lng], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19,
-    }).addTo(map);
-
-    const marker = L.marker([position.lat, position.lng], { draggable: true }).addTo(map);
-    marker.on('dragend', () => {
-      const latLng = marker.getLatLng();
-      setPosition({ lat: latLng.lat, lng: latLng.lng });
+  const reverseGeocode = useCallback((lat, lng) => {
+    geocoderRef.current?.geocode({ location: { lat, lng } }, (results, status) => {
+      if (status === 'OK' && results?.[0]) setResolvedAddress(results[0].formatted_address);
     });
-    map.on('click', (event) => {
-      marker.setLatLng(event.latlng);
-      setPosition({ lat: event.latlng.lat, lng: event.latlng.lng });
-    });
-
-    mapInstanceRef.current = map;
-    markerRef.current = marker;
-
-    // Modal's layout may not be final-size on first paint — nudge Leaflet to re-measure.
-    const resizeTimer = window.setTimeout(() => map.invalidateSize(), 150);
-
-    return () => {
-      window.clearTimeout(resizeTimer);
-      map.remove();
-      mapInstanceRef.current = null;
-      markerRef.current = null;
-    };
   }, []);
 
-  const handleSearch = async () => {
+  useEffect(() => {
+    let cancelled = false;
+    loadGoogleMapsApi().then((maps) => {
+      if (cancelled || !mapContainerRef.current) return;
+
+      const map = new maps.Map(mapContainerRef.current, {
+        center: position,
+        zoom: 15,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControl: true,
+        zoomControlOptions: { position: maps.ControlPosition.RIGHT_BOTTOM },
+      });
+      const marker = new maps.Marker({ position, map, draggable: true });
+      marker.addListener('dragend', () => {
+        const latLng = marker.getPosition();
+        const next = { lat: latLng.lat(), lng: latLng.lng() };
+        setPosition(next);
+        reverseGeocode(next.lat, next.lng);
+      });
+      map.addListener('click', (event) => {
+        const next = { lat: event.latLng.lat(), lng: event.latLng.lng() };
+        marker.setPosition(next);
+        setPosition(next);
+        reverseGeocode(next.lat, next.lng);
+      });
+
+      // "My Location" button — Google Maps JS API has no built-in one, so this
+      // adds a custom control matching the familiar circular target icon,
+      // stacked above the zoom control.
+      const locateButton = document.createElement('button');
+      locateButton.type = 'button';
+      locateButton.title = 'Show my location';
+      locateButton.setAttribute('aria-label', 'Show my location');
+      locateButton.style.cssText = 'margin:10px;width:40px;height:40px;border-radius:50%;background:#fff;border:none;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer;display:flex;align-items:center;justify-content:center;';
+      locateButton.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3367d6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="1.6" fill="#3367d6"></circle><line x1="12" y1="1" x2="12" y2="4"></line><line x1="12" y1="20" x2="12" y2="23"></line><line x1="1" y1="12" x2="4" y2="12"></line><line x1="20" y1="12" x2="23" y2="12"></line></svg>';
+      locateButton.addEventListener('click', () => {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition((geoPosition) => {
+          const next = { lat: geoPosition.coords.latitude, lng: geoPosition.coords.longitude };
+          map.setCenter(next);
+          map.setZoom(16);
+          marker.setPosition(next);
+          setPosition(next);
+          reverseGeocode(next.lat, next.lng);
+        });
+      });
+      map.controls[maps.ControlPosition.RIGHT_BOTTOM].push(locateButton);
+
+      mapInstanceRef.current = map;
+      markerRef.current = marker;
+      geocoderRef.current = new maps.Geocoder();
+      geocoderRef.current.geocode({ location: position }, (results, status) => {
+        if (!cancelled && status === 'OK' && results?.[0]) setResolvedAddress(results[0].formatted_address);
+      });
+    }).catch((err) => {
+      if (!cancelled) setMapError(err?.message || 'Failed to load Google Maps');
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSearch = () => {
     const query = searchQuery.trim();
-    if (!query) return;
+    if (!query || !geocoderRef.current) return;
     setSearching(true);
     setSearchError('');
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
-      const results = await res.json();
-      if (!results.length) {
+    geocoderRef.current.geocode({ address: query }, (results, status) => {
+      setSearching(false);
+      if (status !== 'OK' || !results?.[0]) {
         setSearchError('No matching location found');
         return;
       }
-      const lat = parseFloat(results[0].lat);
-      const lng = parseFloat(results[0].lon);
-      setPosition({ lat, lng });
-      mapInstanceRef.current?.setView([lat, lng], 16);
-      markerRef.current?.setLatLng([lat, lng]);
-    } catch {
-      setSearchError('Search failed. Please try again.');
-    } finally {
-      setSearching(false);
-    }
+      const loc = results[0].geometry.location;
+      const next = { lat: loc.lat(), lng: loc.lng() };
+      setPosition(next);
+      setResolvedAddress(results[0].formatted_address);
+      mapInstanceRef.current?.setCenter(next);
+      mapInstanceRef.current?.setZoom(16);
+      markerRef.current?.setPosition(next);
+    });
   };
 
   return (
@@ -27621,21 +28633,31 @@ function LeadSurveyMapPickerModal({ initialLat, initialLng, onClose, onConfirm }
         </div>
         {searchError ? <p className="px-6 pt-2 text-[12px] font-bold text-[#e2594c]">{searchError}</p> : null}
 
-        <div ref={mapContainerRef} className="min-h-0 flex-1" />
+        {mapError ? (
+          <div className="flex flex-1 items-center justify-center px-6 text-center">
+            <p className="text-[13px] font-bold text-[#e2594c]">{mapError}</p>
+          </div>
+        ) : (
+          <div ref={mapContainerRef} className="min-h-0 flex-1" />
+        )}
 
         <div className="flex flex-col gap-3 border-t border-[#edf2f8] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[12px] font-bold text-[#53647f]">
-            Lat: <span className="font-extrabold text-[#30466d]">{position.lat.toFixed(6)}</span>
-            {'   '}Lng: <span className="font-extrabold text-[#30466d]">{position.lng.toFixed(6)}</span>
-          </p>
+          <div className="min-w-0">
+            <p className="text-[12px] font-bold text-[#53647f]">
+              Lat: <span className="font-extrabold text-[#30466d]">{position.lat.toFixed(6)}</span>
+              {'   '}Lng: <span className="font-extrabold text-[#30466d]">{position.lng.toFixed(6)}</span>
+            </p>
+            {resolvedAddress ? <p className="mt-0.5 truncate text-[12px] font-bold text-[#8a98af]" title={resolvedAddress}>{resolvedAddress}</p> : null}
+          </div>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
               Cancel
             </button>
             <button
               type="button"
-              onClick={() => onConfirm(position.lat.toFixed(6), position.lng.toFixed(6))}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145]"
+              onClick={() => onConfirm(position.lat.toFixed(6), position.lng.toFixed(6), resolvedAddress)}
+              disabled={Boolean(mapError)}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60"
             >
               <MapPin className="size-4" />
               Use This Location
@@ -29208,7 +30230,7 @@ function QuotationEditDetailModal({ quotationId, onClose, onSaved, onNotify }) {
   );
 }
 
-function QuotationListPage({ onNotify }) {
+function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, onNotify }) {
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -29230,6 +30252,14 @@ function QuotationListPage({ onNotify }) {
   const [dateFrom, setDateFrom] = useState(() => toIsoDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
   const [dateTo, setDateTo] = useState(() => toIsoDate(new Date()));
   const actionMenuRef = useRef(null);
+
+  // Dashboard's "Create Quotation" quick action lands here and asks us to
+  // open the New Quotation flow immediately, instead of just landing on the list.
+  useEffect(() => {
+    if (!autoOpenCreate) return;
+    setCreateFlow({ step: 'lead' });
+    onConsumeAutoOpenCreate?.();
+  }, [autoOpenCreate, onConsumeAutoOpenCreate]);
 
   const formattedRange = useMemo(() => {
     if (!dateFrom && !dateTo) return 'All Dates';

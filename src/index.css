@@ -353,6 +353,14 @@ a {
   scrollbar-gutter: stable;
 }
 
+/* The header/navbar sits inside this same scroll container as the page
+   content below it. Without reserving scrollbar space up front, switching
+   between a short page (no scrollbar) and a tall one (scrollbar appears)
+   changes the available width and visibly shifts the header sideways. */
+.main-scroll-area {
+  scrollbar-gutter: stable;
+}
+
 .sidebar-menu-scroll {
   scrollbar-color: rgba(255, 255, 255, 0.55) rgba(255, 255, 255, 0.14);
   scrollbar-width: thin;
