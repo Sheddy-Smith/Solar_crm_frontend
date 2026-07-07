@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
@@ -63,17 +63,39 @@ class LeadViewSet(viewsets.ModelViewSet):
         qs = self.get_queryset()
         today = timezone.now().date()
 
-        # `period` scopes the headline counts to leads created today / this
-        # week / this month, for the dashboard's Day/Week/Month toggle.
+        # `anchor` lets the dashboard's date-picker look at a period other than
+        # the current one (e.g. a past month), defaulting to today when absent
+        # or malformed.
+        anchor = today
+        date_param = request.query_params.get('date')
+        if date_param:
+            try:
+                anchor = date.fromisoformat(date_param)
+            except ValueError:
+                anchor = today
+
+        # `period` scopes the headline counts to leads created in the anchored
+        # day / week / month / year, for the dashboard's period toggle.
         # `today_followups` and `overdue` stay absolute — they describe
         # what's due today, not when the lead was created.
         period = request.query_params.get('period')
+        range_start = range_end = None
         if period == 'day':
-            period_qs = qs.filter(created_at__date=today)
+            range_start = range_end = anchor
+            period_qs = qs.filter(created_at__date=anchor)
         elif period == 'week':
-            period_qs = qs.filter(created_at__date__gte=today - timedelta(days=today.weekday()))
+            range_start = anchor - timedelta(days=anchor.weekday())
+            range_end = range_start + timedelta(days=6)
+            period_qs = qs.filter(created_at__date__gte=range_start, created_at__date__lte=range_end)
         elif period == 'month':
-            period_qs = qs.filter(created_at__year=today.year, created_at__month=today.month)
+            range_start = anchor.replace(day=1)
+            next_month = (range_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+            range_end = next_month - timedelta(days=1)
+            period_qs = qs.filter(created_at__year=anchor.year, created_at__month=anchor.month)
+        elif period == 'year':
+            range_start = anchor.replace(month=1, day=1)
+            range_end = anchor.replace(month=12, day=31)
+            period_qs = qs.filter(created_at__year=anchor.year)
         else:
             period_qs = qs
 
@@ -86,6 +108,8 @@ class LeadViewSet(viewsets.ModelViewSet):
             'won': period_qs.filter(status='Won').count(),
             'lost': period_qs.filter(status='Lost').count(),
             'overdue': qs.filter(next_follow_up__lt=timezone.now(), status__in=['New', 'Follow-up']).count(),
+            'range_start': range_start.isoformat() if range_start else None,
+            'range_end': range_end.isoformat() if range_end else None,
         })
 
     @action(detail=False, methods=['get'])

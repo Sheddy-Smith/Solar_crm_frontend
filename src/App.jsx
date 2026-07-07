@@ -1674,7 +1674,50 @@ const actionIcons = [
   { icon: MessageSquareMore, badge: null, label: 'Messages' },
 ];
 
-const dashboardPeriods = ['Day', 'Week', 'Month'];
+const dashboardPeriods = ['Month', 'Year', 'Week'];
+
+function formatIsoDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function dateToMonthInput(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthInputToDate(value) {
+  const [y, m] = value.split('-').map(Number);
+  return new Date(y, m - 1, 1);
+}
+
+// ISO 8601 week (Monday-start, week 1 = week containing the year's first Thursday).
+function dateToWeekInput(d) {
+  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  const weekNo = 1 + Math.round(((date - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  return `${date.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+function weekInputToDate(value) {
+  const [yearStr, weekStr] = value.split('-W');
+  const year = Number(yearStr);
+  const week = Number(weekStr);
+  const jan4 = new Date(year, 0, 4);
+  const week1Monday = new Date(jan4);
+  week1Monday.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+  const target = new Date(week1Monday);
+  target.setDate(week1Monday.getDate() + (week - 1) * 7);
+  return target;
+}
+
+function formatDashboardRange(start, end) {
+  if (!start || !end) return '';
+  const fmt = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return `${fmt(start)} – ${fmt(end)}`;
+}
 
 // Real notification/message feeds are not wired to the backend yet — keep these
 // empty rather than showing hardcoded demo entries that look like live data.
@@ -1688,8 +1731,6 @@ const panelClass =
 const dataPanelClass =
   'crm-data-panel overflow-hidden rounded-[14px] border border-[#dbe5f2] bg-white/75 shadow-[0_14px_32px_rgba(24,48,87,0.08)] backdrop-blur-md';
 
-const tableHeaders = ['Customer Name', 'Mobile Number', 'IVRS Number', 'Project Name', 'Assigned To', 'Follow-up Date', 'Action'];
-const recentHeaders = ['Customer Name', 'Mobile Number', 'Project Name', 'Status', 'Assigned To', 'Created On', 'Action'];
 const APP_PREFERENCES_KEY = 'malwa-solar-crm:ui-preferences';
 const availableSections = new Set([
   ...sidebarItems.map((item) => item.label),
@@ -1817,6 +1858,10 @@ function App() {
   const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
   const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
   const [dashboardPeriod, setDashboardPeriod] = useState('Month');
+  const [dashboardPeriodAnchor, setDashboardPeriodAnchor] = useState(() => new Date());
+  const [dashboardRange, setDashboardRange] = useState({ start: null, end: null });
+  const [dashboardRightTab, setDashboardRightTab] = useState('workflow');
+  const [dashboardFollowUpsOpen, setDashboardFollowUpsOpen] = useState(false);
   const [theme, setTheme] = useState(() => (
     ['light', 'dark', 'system'].includes(initialPreferences.theme) ? initialPreferences.theme : 'light'
   ));
@@ -1875,14 +1920,14 @@ function App() {
     });
   }, [currentPage]);
 
-  // Lead stats are scoped to the Day/Week/Month toggle, so they get their own
-  // effect keyed on dashboardPeriod — everything else on the dashboard is
-  // period-independent and stays in the effect below.
-  useEffect(() => {
-    if (currentPage !== 'dashboard') return;
-    leadApi.stats(dashboardPeriod.toLowerCase()).then((data) => {
+  // Lead stats are scoped to the Month/Year/Week toggle + the picked anchor
+  // date, so they get their own effect/callback — everything else on the
+  // dashboard is period-independent and stays in the effect below.
+  const refreshDashboardLeadStats = useCallback(() => {
+    leadApi.stats(dashboardPeriod.toLowerCase(), formatIsoDate(dashboardPeriodAnchor)).then((data) => {
       if (!data) return;
       setDashboardLeadStats(data);
+      setDashboardRange({ start: data.range_start, end: data.range_end });
       setDashboardStats((prev) =>
         prev.map((s) => {
           if (s.title === 'Total Leads') return { ...s, value: String(data.total ?? s.value) };
@@ -1893,7 +1938,12 @@ function App() {
         }),
       );
     }).catch(() => {});
-  }, [currentPage, dashboardPeriod]);
+  }, [dashboardPeriod, dashboardPeriodAnchor]);
+
+  useEffect(() => {
+    if (currentPage !== 'dashboard') return;
+    refreshDashboardLeadStats();
+  }, [currentPage, refreshDashboardLeadStats]);
 
   // Fetch dashboard stats from API
   useEffect(() => {
@@ -3128,109 +3178,172 @@ function App() {
               />
             ) : (
               <div className="space-y-1.5">
-            <Card className="p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Card className="p-3.5">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div>
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#0e582a] dark:text-emerald-400">Live Dashboard</p>
-                  <h3 className="mt-2 text-[20px] font-extrabold text-[#163d70] dark:text-slate-100">Overview for {dashboardPeriod}</h3>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#0e582a] dark:text-emerald-400">Live Dashboard</p>
+                  <h3 className="mt-1 text-[18px] font-extrabold text-[#163d70] dark:text-slate-100">Overview for {dashboardPeriod}</h3>
+                  {dashboardRange.start && dashboardRange.end ? (
+                    <p className="mt-0.5 text-[12px] font-semibold text-[#7b88a2] dark:text-slate-400">
+                      {formatDashboardRange(dashboardRange.start, dashboardRange.end)}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {dashboardPeriods.map((period) => (
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+                  <div className="flex flex-wrap gap-2">
+                    {dashboardPeriods.map((period) => (
+                      <motion.button
+                        key={period}
+                        type="button"
+                        whileHover={{ y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        transition={{ duration: 0.15, ease: 'easeOut' }}
+                        onClick={() => {
+                          setDashboardPeriod(period);
+                          setDashboardPeriodAnchor(new Date());
+                        }}
+                        className={cx(
+                          'rounded-full px-4 py-2 text-[13px] font-bold transition-colors',
+                          dashboardPeriod === period
+                            ? 'bg-[#0b65e5] text-white'
+                            : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700',
+                        )}
+                      >
+                        {period}
+                      </motion.button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {dashboardPeriod === 'Month' ? (
+                      <input
+                        type="month"
+                        value={dateToMonthInput(dashboardPeriodAnchor)}
+                        onChange={(e) => {
+                          if (!e.target.value) return;
+                          setDashboardPeriodAnchor(monthInputToDate(e.target.value));
+                        }}
+                        className="h-[38px] rounded-[10px] border border-[#d4d9e7] bg-white px-3 text-[13px] font-bold text-[#324f7b] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                        aria-label="Select month"
+                      />
+                    ) : dashboardPeriod === 'Year' ? (
+                      <input
+                        type="number"
+                        value={dashboardPeriodAnchor.getFullYear()}
+                        onChange={(e) => {
+                          const year = Number(e.target.value);
+                          if (!Number.isFinite(year) || String(year).length !== 4) return;
+                          setDashboardPeriodAnchor(new Date(year, dashboardPeriodAnchor.getMonth(), 1));
+                        }}
+                        className="h-[38px] w-[90px] rounded-[10px] border border-[#d4d9e7] bg-white px-3 text-[13px] font-bold text-[#324f7b] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                        aria-label="Select year"
+                      />
+                    ) : (
+                      <input
+                        type="week"
+                        value={dateToWeekInput(dashboardPeriodAnchor)}
+                        onChange={(e) => {
+                          if (!e.target.value) return;
+                          setDashboardPeriodAnchor(weekInputToDate(e.target.value));
+                        }}
+                        className="h-[38px] rounded-[10px] border border-[#d4d9e7] bg-white px-3 text-[13px] font-bold text-[#324f7b] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                        aria-label="Select week"
+                      />
+                    )}
+
                     <motion.button
-                      key={period}
                       type="button"
                       whileHover={{ y: -1 }}
                       whileTap={{ scale: 0.95 }}
                       transition={{ duration: 0.15, ease: 'easeOut' }}
-                      onClick={() => setDashboardPeriod(period)}
-                      className={cx(
-                        'rounded-full px-4 py-2 text-[13px] font-bold transition-colors',
-                        dashboardPeriod === period
-                          ? 'bg-[#0b65e5] text-white'
-                          : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700',
-                      )}
+                      onClick={() => {
+                        refreshDashboardLeadStats();
+                        notify('Dashboard refreshed');
+                      }}
+                      className="inline-flex h-[38px] items-center gap-2 rounded-[10px] bg-[#163d70] px-4 text-[13px] font-bold text-white transition hover:bg-[#12305c] dark:bg-slate-700 dark:hover:bg-slate-600"
                     >
-                      {period}
+                      <RefreshCw className="size-4" />
+                      Refresh
                     </motion.button>
-                  ))}
+                  </div>
                 </div>
               </div>
             </Card>
 
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <section className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3">
               {dashboardStats.map((stat) => (
                 <StatCard key={stat.title} stat={stat} onClick={() => openDashboardSection(stat.target, `${stat.title} opened`)} />
               ))}
             </section>
 
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-              <article className={dataPanelClass}>
-                <SectionHeader icon={CalendarDays} title="Today Follow-ups" />
+            {dashboardFollowUps.length > 0 ? (
+              <div className={dataPanelClass}>
+                <button
+                  type="button"
+                  onClick={() => setDashboardFollowUpsOpen((v) => !v)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="grid size-8 place-items-center rounded-[8px] bg-white shadow-[inset_0_0_0_1px_rgba(220,230,243,0.9)]">
+                      <CalendarDays className="size-[17px] text-[#2d67e1]" />
+                    </span>
+                    <span className="font-display text-[14px] font-extrabold text-[#223768]">
+                      {dashboardFollowUps.length} Follow-up{dashboardFollowUps.length === 1 ? '' : 's'} Today
+                    </span>
+                  </span>
+                  <ChevronDown className={cx('size-4 shrink-0 text-[#7b88a2] transition-transform', dashboardFollowUpsOpen ? 'rotate-180' : '')} />
+                </button>
 
-                <div className="space-y-3 p-4 lg:hidden">
-                  {dashboardFollowUps.map((followUp) => (
-                    <FollowUpCard
-                      key={`${followUp.customer}-${followUp.ivrs}`}
-                      followUp={followUp}
-                      onView={() => setFollowUpPopupLead(followUp)}
-                    />
-                  ))}
-                </div>
-
-                <div className="mx-4 mt-4 hidden overflow-hidden rounded-[12px] border border-[#e5edf6] bg-white lg:block">
-                  <div className="overflow-x-auto">
-                    <table className="crm-table min-w-[760px] w-full">
-                      <thead>
-                        <tr>
-                          {tableHeaders.map((header) => (
-                            <th key={header}>{header}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dashboardFollowUps.map((followUp) => (
-                          <tr key={`${followUp.customer}-${followUp.ivrs}`}>
-                            <td className="font-bold text-[#274072]">{followUp.customer}</td>
-                            <td>{followUp.mobile}</td>
-                            <td>{followUp.ivrs}</td>
-                            <td className="font-bold text-[#274072]">{followUp.project}</td>
-                            <td>
-                              <AssigneeCell assignee={followUp.assignedTo} compact />
-                            </td>
-                            <td className="font-bold text-[#ea5a4c]">{followUp.date}</td>
-                            <td className="text-right">
-                              <button
-                                type="button"
-                                onClick={() => setFollowUpPopupLead(followUp)}
-                                className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
-                                aria-label={`View follow-up for ${followUp.customer}`}
-                              >
-                                <Eye className="size-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                {dashboardFollowUpsOpen ? (
+                  <div className="max-h-[260px] space-y-2 overflow-y-auto border-t border-[#e8eef6] px-4 py-3">
+                    {dashboardFollowUps.map((followUp) => (
+                      <button
+                        key={`${followUp.customer}-${followUp.ivrs}`}
+                        type="button"
+                        onClick={() => setFollowUpPopupLead(followUp)}
+                        className="flex w-full items-center justify-between gap-3 rounded-[10px] border border-[#e8eef6] bg-white px-3 py-2 text-left transition hover:bg-[#f8fbff]"
+                      >
+                        <span className="min-w-0 truncate text-[13px] font-bold text-[#274072]">
+                          {followUp.customer}
+                          <span className="font-semibold text-[#8895ab]"> · {followUp.project}</span>
+                        </span>
+                        <span className="shrink-0 text-[12px] font-extrabold text-[#ea5a4c]">{followUp.date}</span>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => openDashboardSection('Lead List', 'All follow-ups opened')}
+                      className="flex w-full items-center justify-center gap-1.5 pt-1 text-[12px] font-extrabold text-[#2a64dd] hover:underline"
+                    >
+                      View All Follow-ups
+                      <ArrowRight className="size-3.5" />
+                    </button>
                   </div>
-                </div>
+                ) : null}
+              </div>
+            ) : null}
 
-                <div className="flex justify-center px-4 py-4">
-                  <button
-                    type="button"
-                    onClick={() => openDashboardSection('Lead List', 'All follow-ups opened')}
-                    className="inline-flex items-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-5 py-2.5 text-[13px] font-extrabold text-[#2a64dd] shadow-[0_8px_18px_rgba(17,39,84,0.06)] transition hover:bg-[#f8fbff]"
-                  >
-                    View All Follow-ups
-                    <ArrowRight className="size-4" />
-                  </button>
-                </div>
-              </article>
+            <section className="grid gap-3 lg:grid-cols-[1.6fr_1fr] lg:items-start">
+              <div className="min-w-0 space-y-3">
+                <article className={dataPanelClass}>
+                  <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" onAction={() => openDashboardSection('Lead List', 'All recent leads opened')} />
 
-              <aside className={`${panelClass} overflow-hidden`}>
-                <SectionHeader icon={Zap} title="Quick Actions" iconTone="success" />
+                  <div className="max-h-[420px] divide-y divide-[#edf2f8] overflow-y-auto px-4">
+                    {(dashboardRecentLeads ?? []).length === 0 ? (
+                      <p className="py-6 text-center text-[13px] font-semibold text-[#8895ab]">No leads added yet</p>
+                    ) : null}
+                    {(dashboardRecentLeads ?? []).map((lead, index) => (
+                      <RecentLeadRow
+                        key={lead.id ?? `${lead.customer}-${lead.mobile}-${index}`}
+                        lead={lead}
+                        onView={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`, lead)}
+                      />
+                    ))}
+                  </div>
+                </article>
 
-                <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                   {quickActions.map((action) => {
                     const Icon = action.icon;
 
@@ -3238,8 +3351,8 @@ function App() {
                       <motion.button
                         key={action.label}
                         type="button"
-                        whileHover={{ y: -3, filter: 'brightness(1.03)' }}
-                        whileTap={{ scale: 0.98 }}
+                        whileHover={{ y: -2, filter: 'brightness(1.03)' }}
+                        whileTap={{ scale: 0.97 }}
                         transition={{ duration: 0.15, ease: 'easeOut' }}
                         onClick={() => {
                           if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
@@ -3249,103 +3362,61 @@ function App() {
                           }
                         }}
                         className={cx(
-                          'flex w-full items-center justify-between rounded-[10px] bg-linear-to-r px-4 py-4 text-left text-white shadow-[0_12px_24px_rgba(22,65,145,0.16)] sm:min-h-[92px] xl:min-h-0',
+                          'flex flex-col items-center justify-center gap-1.5 rounded-[10px] bg-linear-to-r px-3 py-3 text-center text-white shadow-[0_10px_20px_rgba(22,65,145,0.16)]',
                           action.bg,
                         )}
                       >
-                        <span className="flex items-center gap-3">
-                          <span className="flex size-9 items-center justify-center rounded-[10px] bg-white/12 ring-1 ring-white/25">
-                            <Icon className="size-4.5" />
-                          </span>
-                          <span className="text-[14px] font-extrabold">{action.label}</span>
-                        </span>
-                        <ArrowRight className="size-4.5" />
+                        <Icon className="size-[18px]" />
+                        <span className="text-[12px] font-extrabold leading-tight">{action.label}</span>
                       </motion.button>
                     );
                   })}
                 </div>
+              </div>
 
-                <ProjectWorkflowPanel
-                  stages={dashboardWorkflowStages}
-                  onViewAll={() => openDashboardSection('Project List', 'Project workflow opened')}
-                  onStageClick={(target) => openDashboardSection(target, `${target} opened`)}
-                />
-              </aside>
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <article className={dataPanelClass}>
-                <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" onAction={() => openDashboardSection('Lead List', 'All recent leads opened')} />
-
-                <div className="space-y-3 p-4 lg:hidden">
-                  {(dashboardRecentLeads ?? []).map((lead, index) => (
-                    <RecentLeadCard key={lead.id ?? `${lead.customer}-${lead.mobile}-${index}`} lead={lead} onView={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`, lead)} />
-                  ))}
-                </div>
-
-                <div className="mx-4 mb-4 mt-4 hidden overflow-hidden rounded-[12px] border border-[#e5edf6] bg-white lg:block">
-                  <div className="overflow-x-auto">
-                    <table className="crm-table min-w-[700px] w-full">
-                      <thead>
-                        <tr>
-                          {recentHeaders.map((header) => (
-                            <th key={header}>{header}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(dashboardRecentLeads ?? []).map((lead, index) => (
-                          <tr key={lead.id ?? `${lead.customer}-${lead.mobile}-${index}`}>
-                            <td className="font-bold text-[#3258aa]">{lead.customer}</td>
-                            <td>{lead.mobile}</td>
-                            <td>{lead.project}</td>
-                            <td>
-                              <StatusBadge status={lead.status} />
-                            </td>
-                            <td>
-                              <AssigneeCell assignee={lead.assignedTo} />
-                            </td>
-                            <td>{lead.createdOn}</td>
-                            <td className="text-right">
-                              <button
-                                type="button"
-                                onClick={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`, lead)}
-                                className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
-                                aria-label={`View ${lead.customer}`}
-                              >
-                                <Eye className="size-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </article>
-
-              <aside className={dataPanelClass}>
-                <SectionHeader
-                  icon={Clock3}
-                  title="Overdue Follow-ups"
-                  actionLabel="View All"
-                  iconTone="danger"
-                  onAction={() => openDashboardSection('Lead List', 'All overdue follow-ups opened')}
-                />
-
-                <div className="m-4 divide-y divide-[#edf2f8] overflow-hidden rounded-[12px] border border-[#e5edf6] bg-[#fbfdff] px-4">
-                  {(dashboardOverdue ?? []).slice(0, 4).map((item) => (
-                    <div
-                      key={`${item.customer}-${item.project}`}
-                      className="grid grid-cols-1 gap-1 py-4 text-[13px] sm:grid-cols-[1.2fr_1fr_auto] sm:items-center sm:gap-3"
+              <div className="min-w-0">
+                <aside className={`${panelClass} overflow-hidden`}>
+                  <div className="flex border-b border-[#e8eef6]">
+                    <button
+                      type="button"
+                      onClick={() => setDashboardRightTab('workflow')}
+                      className={cx(
+                        'flex-1 px-4 py-3 text-[13px] font-extrabold transition',
+                        dashboardRightTab === 'workflow'
+                          ? 'border-b-2 border-[#0b65e5] text-[#0b65e5]'
+                          : 'border-b-2 border-transparent text-[#7b88a2] hover:text-[#324f7b]',
+                      )}
                     >
-                      <p className="font-bold text-[#274072]">{item.customer}</p>
-                      <p className="font-semibold text-[#4e6282]">{item.project}</p>
-                      <p className="font-extrabold text-[#ea5a4c] sm:text-right">{item.delay}</p>
-                    </div>
-                  ))}
-                </div>
-              </aside>
+                      Workflow
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDashboardRightTab('overdue')}
+                      className={cx(
+                        'flex-1 px-4 py-3 text-[13px] font-extrabold transition',
+                        dashboardRightTab === 'overdue'
+                          ? 'border-b-2 border-[#ef5a4b] text-[#ef5a4b]'
+                          : 'border-b-2 border-transparent text-[#7b88a2] hover:text-[#324f7b]',
+                      )}
+                    >
+                      Overdue{(dashboardOverdue ?? []).length > 0 ? ` (${(dashboardOverdue ?? []).length})` : ''}
+                    </button>
+                  </div>
+
+                  {dashboardRightTab === 'workflow' ? (
+                    <WorkflowTabContent
+                      stages={dashboardWorkflowStages}
+                      onViewAll={() => openDashboardSection('Project List', 'Project workflow opened')}
+                      onStageClick={(target) => openDashboardSection(target, `${target} opened`)}
+                    />
+                  ) : (
+                    <OverdueTabContent
+                      items={dashboardOverdue}
+                      onViewAll={() => openDashboardSection('Lead List', 'All overdue follow-ups opened')}
+                    />
+                  )}
+                </aside>
+              </div>
             </section>
 
             <footer className="flex flex-col gap-2 border-t border-[#e4ebf4] px-1 pb-1 pt-3 text-center text-[12px] font-semibold text-[#7b88a2] sm:text-left lg:flex-row lg:items-center lg:justify-between">
@@ -30950,35 +31021,36 @@ function StatCard({ stat, onClick }) {
       whileHover={{ y: -3 }}
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className={`${panelClass} flex min-h-[106px] w-full items-center gap-3 px-3 py-4 text-left transition-shadow duration-200 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)] sm:gap-4 sm:px-4`}
+      className={`${panelClass} flex w-full flex-col gap-2 px-3 py-3 text-left transition-shadow duration-200 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]`}
     >
-      <div
-        className={cx(
-          'flex size-12 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-white shadow-[0_12px_24px_rgba(24,86,190,0.18)] sm:size-[52px]',
-          stat.iconBg,
-        )}
-      >
-        <Icon className="size-[22px] sm:size-[24px]" />
-      </div>
-
-      <div className="min-w-0">
-        <p className="text-[12px] font-extrabold text-[#263d72] sm:text-[13px]">{stat.title}</p>
-        <p className="mt-1 font-display text-[20px] font-extrabold leading-none text-[#223768] sm:text-[22px]">
-          {stat.value}
-        </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">{stat.title}</p>
         <div
           className={cx(
-            'mt-3 inline-flex items-center gap-1 text-[10px] font-extrabold sm:text-[11px]',
-            stat.deltaTone === 'positive' ? 'text-[#1db15f]' : 'text-[#8895ab]',
+            'flex size-7 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-white shadow-[0_8px_16px_rgba(24,86,190,0.18)]',
+            stat.iconBg,
           )}
         >
-          {stat.deltaTone === 'positive' ? (
-            <ArrowUpRight className="size-3.5" />
-          ) : (
-            <Minus className="size-3.5" />
-          )}
-          <span>{stat.delta}</span>
+          <Icon className="size-3.5" />
         </div>
+      </div>
+
+      <p className="font-display text-[21px] font-extrabold leading-none text-[#223768]">
+        {stat.value}
+      </p>
+
+      <div
+        className={cx(
+          'inline-flex items-center gap-1 text-[10px] font-extrabold',
+          stat.deltaTone === 'positive' ? 'text-[#1db15f]' : 'text-[#8895ab]',
+        )}
+      >
+        {stat.deltaTone === 'positive' ? (
+          <ArrowUpRight className="size-3.5" />
+        ) : (
+          <Minus className="size-3.5" />
+        )}
+        <span>{stat.delta}</span>
       </div>
     </motion.button>
   );
@@ -30993,7 +31065,7 @@ function SectionHeader({ icon: Icon, title, actionLabel, onAction, iconTone = 'p
     }[iconTone] ?? 'text-[#2d67e1]';
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8eef6] bg-[#f8fbff]/95 px-4 py-3.5">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8eef6] bg-[#f8fbff]/95 px-4 py-2.5">
       <div className="flex items-center gap-2.5">
         <span className="grid size-8 place-items-center rounded-[8px] bg-white shadow-[inset_0_0_0_1px_rgba(220,230,243,0.9)]">
           <Icon className={cx('size-[17px]', iconClass)} />
@@ -31015,57 +31087,44 @@ function SectionHeader({ icon: Icon, title, actionLabel, onAction, iconTone = 'p
   );
 }
 
-function ProjectWorkflowPanel({ stages, onViewAll, onStageClick }) {
+function WorkflowTabContent({ stages, onViewAll, onStageClick }) {
   return (
-    <div className="mt-4 rounded-[16px] border border-[#dce7f5] bg-[#f8fbff] p-4 shadow-[0_16px_32px_rgba(17,39,83,0.1)]">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-full bg-[#0b65e5] text-white shadow-sm">
-            <FolderKanban className="size-4" />
-          </span>
-          <div>
-            <p className="font-display text-[15px] font-extrabold text-[#223768]">Project Workflow</p>
-            <p className="text-[12px] font-semibold text-[#53647f]">Track your active project stages</p>
-          </div>
-        </div>
+    <div className="p-3.5">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold text-[#7b88a2]">Track your active project stages</p>
         <button
           type="button"
           onClick={onViewAll}
-          className="inline-flex items-center gap-1.5 self-start rounded-[8px] border border-[#d4e1f4] bg-white px-3 py-2 text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#eef5ff] sm:self-auto"
+          className="inline-flex shrink-0 items-center gap-1 text-[12px] font-extrabold text-[#0b65e5] hover:underline"
         >
           View All
-          <ArrowRight className="size-4" />
+          <ArrowRight className="size-3.5" />
         </button>
       </div>
 
-      <div className="mt-4 space-y-4">
-        {stages.map((step, index) => (
+      <div className="space-y-2">
+        {stages.map((step) => (
           <button
             key={step.title}
             type="button"
             onClick={() => onStageClick(step.target)}
-            className="group w-full overflow-hidden rounded-[18px] border border-[#e0e7f2] bg-white px-4 py-4 text-left shadow-[0_10px_20px_rgba(23,44,86,0.06)] transition hover:-translate-y-0.5 hover:border-[#cfd8ea]"
+            className="group w-full overflow-hidden rounded-[14px] border border-[#e0e7f2] bg-white px-3 py-2.5 text-left shadow-[0_10px_20px_rgba(23,44,86,0.06)] transition hover:-translate-y-0.5 hover:border-[#cfd8ea]"
           >
-            <div className="grid gap-3 sm:grid-cols-[auto_1fr]">
-              <div className="relative flex items-start">
-                <span className={cx('grid h-12 w-12 place-items-center rounded-[16px] text-[14px] font-extrabold shadow-sm', step.tone)}>
-                  <step.icon className="size-5" />
-                </span>
-                {index < stages.length - 1 ? (
-                  <span className="absolute left-1/2 top-full h-full w-px -translate-x-1/2 bg-[#cfd8ea]" />
-                ) : null}
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className={cx('grid size-9 shrink-0 place-items-center rounded-[12px] text-[13px] font-extrabold shadow-sm', step.tone)}>
+                <step.icon className="size-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-extrabold text-[#102446]">{step.title}</p>
-                    <p className="mt-1 text-[12px] font-semibold text-[#64748b]">{step.status}</p>
+                    <p className="text-[13px] font-extrabold text-[#102446]">{step.title}</p>
+                    <p className="text-[11px] font-semibold text-[#64748b]">{step.status}</p>
                   </div>
-                  <span className="rounded-full border border-[#d4e1f4] bg-[#eef5ff] px-2.5 py-1 text-[11px] font-extrabold text-[#0b65e5]">
+                  <span className="rounded-full border border-[#d4e1f4] bg-[#eef5ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">
                     {step.progress}%
                   </span>
                 </div>
-                <div className="mt-4 overflow-hidden rounded-full bg-[#e8eff8] h-2.5">
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#e8eff8]">
                   <div
                     className={cx(
                       'h-full rounded-full',
@@ -31206,57 +31265,77 @@ function PersonAvatar({ tone, initials }) {
   );
 }
 
-function FollowUpCard({ followUp, onView }) {
+const initialsAvatarPalette = ['#0b65e5', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#0ea5a4'];
+
+function InitialsAvatar({ name, size = 30 }) {
+  const initials = (name || '?')
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+  const hash = [...(name || '')].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  const bg = initialsAvatarPalette[hash % initialsAvatarPalette.length];
+
   return (
-    <article className="rounded-[14px] border border-[#e8eef6] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[15px] font-extrabold text-[#274072]">{followUp.customer}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">{followUp.project}</p>
-        </div>
-        <button
-          type="button"
-          onClick={onView}
-          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff]"
-          aria-label={`View ${followUp.customer}`}
-        >
-          <Eye className="size-4" />
-        </button>
-      </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 text-[12px] min-[420px]:grid-cols-2">
-        <InfoCell label="Mobile" value={followUp.mobile} />
-        <InfoCell label="IVRS" value={followUp.ivrs} />
-        <InfoCell label="Assigned To" valueNode={<AssigneeCell assignee={followUp.assignedTo} compact />} />
-        <InfoCell label="Follow-up Date" value={followUp.date} valueClass="text-[#ea5a4c]" />
-      </div>
-    </article>
+    <span
+      className="grid shrink-0 place-items-center rounded-full text-[11px] font-extrabold text-white"
+      style={{ width: size, height: size, background: bg }}
+    >
+      {initials || '?'}
+    </span>
   );
 }
 
-function RecentLeadCard({ lead, onView }) {
+function RecentLeadRow({ lead, onView }) {
   return (
-    <article className="rounded-[14px] border border-[#e8eef6] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[15px] font-extrabold text-[#3258aa]">{lead.customer}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">{lead.project}</p>
-        </div>
-        <StatusBadge status={lead.status} />
+    <button
+      type="button"
+      onClick={onView}
+      className="flex w-full items-center gap-3 py-2.5 text-left transition hover:bg-[#f8fbff]"
+    >
+      <InitialsAvatar name={lead.customer} />
+      <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#274072]">
+        {lead.customer}
+        <span className="font-semibold text-[#8895ab]"> · {lead.project} · {lead.assignedTo.name}</span>
+      </span>
+      <StatusBadge status={lead.status} />
+    </button>
+  );
+}
+
+function OverdueTabContent({ items, onViewAll }) {
+  const list = items ?? [];
+
+  return (
+    <div className="p-3.5">
+      <div className="divide-y divide-[#edf2f8] overflow-hidden rounded-[12px] border border-[#e5edf6] bg-[#fbfdff] px-4">
+        {list.length === 0 ? (
+          <p className="py-6 text-center text-[13px] font-semibold text-[#8895ab]">No overdue follow-ups</p>
+        ) : null}
+        {list.slice(0, 4).map((item) => (
+          <div
+            key={`${item.customer}-${item.project}`}
+            className="grid grid-cols-1 gap-1 py-2.5 text-[13px] sm:grid-cols-[1.2fr_1fr_auto] sm:items-center sm:gap-3"
+          >
+            <p className="font-bold text-[#274072]">{item.customer}</p>
+            <p className="font-semibold text-[#4e6282]">{item.project}</p>
+            <p className="font-extrabold text-[#ea5a4c] sm:text-right">{item.delay}</p>
+          </div>
+        ))}
       </div>
-      <button
-        type="button"
-        onClick={onView}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-3 py-2 text-[12px] font-extrabold text-[#2d67e1]"
-      >
-        View Lead
-        <ArrowRight className="size-3.5" />
-      </button>
-      <div className="mt-4 grid grid-cols-1 gap-3 text-[12px] min-[420px]:grid-cols-2">
-        <InfoCell label="Mobile" value={lead.mobile} />
-        <InfoCell label="Created On" value={lead.createdOn} />
-        <InfoCell label="Assigned To" valueNode={<AssigneeCell assignee={lead.assignedTo} compact />} />
-      </div>
-    </article>
+      {list.length > 4 ? (
+        <button
+          type="button"
+          onClick={onViewAll}
+          className="mt-2.5 flex w-full items-center justify-center gap-1.5 text-[12px] font-extrabold text-[#2a64dd] hover:underline"
+        >
+          View All
+          <ArrowRight className="size-3.5" />
+        </button>
+      ) : null}
+    </div>
   );
 }
 

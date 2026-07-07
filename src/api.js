@@ -166,7 +166,13 @@ export const leadApi = {
     request(`/leads/${id}/update_status/`, { method: 'POST', body: { status } }),
   assign: (id, userId) =>
     request(`/leads/${id}/assign/`, { method: 'POST', body: { assigned_to: userId } }),
-  stats: (period) => request(`/leads/stats/${period ? '?period=' + period : ''}`),
+  stats: (period, date) => {
+    const qs = new URLSearchParams();
+    if (period) qs.set('period', period);
+    if (date) qs.set('date', date);
+    const query = qs.toString();
+    return request(`/leads/stats/${query ? '?' + query : ''}`);
+  },
   todayFollowUps: () => request('/leads/today_followups/'),
   overdue: () => request('/leads/overdue/'),
   recent: () => request('/leads/recent/'),
