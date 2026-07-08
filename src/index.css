@@ -312,6 +312,21 @@ html.dark [class^="bg-white/"], html.dark [class*=" bg-white/"] {
   background-color: rgba(14, 14, 22, 0.92) !important;
 }
 
+/* Pastel status-badge backgrounds (light blue/green/purple/red chips)
+   that fall outside the prefix groups above — swap to the same dark
+   chip background; their paired text colors stay colored (accent
+   retint or original) so badges read as colored text on a dark pill
+   instead of a bright pastel patch on a black page. */
+html.dark [class^="bg-[#e8f2ff]"], html.dark [class*=" bg-[#e8f2ff]"],
+html.dark [class^="bg-[#f1f5f9]"], html.dark [class*=" bg-[#f1f5f9]"],
+html.dark [class^="bg-[#effbf3]"], html.dark [class*=" bg-[#effbf3]"],
+html.dark [class^="bg-[#f3edff]"], html.dark [class*=" bg-[#f3edff]"],
+html.dark [class^="bg-[#ffe9e6]"], html.dark [class*=" bg-[#ffe9e6]"],
+html.dark [class^="bg-[#dff7e8]"], html.dark [class*=" bg-[#dff7e8]"],
+html.dark [class^="bg-[#ffecef]"], html.dark [class*=" bg-[#ffecef]"] {
+  background-color: rgba(14, 14, 22, 0.92) !important;
+}
+
 /* ---------- RETINT LIGHT BORDERS → DARK ---------- */
 html.dark [class^="border-black/20"], html.dark [class*=" border-black/20"] {
   border-color: rgba(245, 158, 11, 0.10) !important;
@@ -332,8 +347,48 @@ html.dark [class^="border-[#f1fff6]"], html.dark [class*=" border-[#f1fff6]"],
 html.dark [class^="border-[#f8fbff]"], html.dark [class*=" border-[#f8fbff]"],
 html.dark [class^="border-[#fbfdff]"], html.dark [class*=" border-[#fbfdff]"],
 html.dark [class^="border-[#fffaf0]"], html.dark [class*=" border-[#fffaf0]"],
-html.dark [class^="border-[#fff6f6]"], html.dark [class*=" border-[#fff6f6]"] {
+html.dark [class^="border-[#fff6f6]"], html.dark [class*=" border-[#fff6f6]"],
+html.dark [class^="border-[#d9e4f2]"], html.dark [class*=" border-[#d9e4f2]"],
+html.dark [class^="border-[#e7eef7]"], html.dark [class*=" border-[#e7eef7]"],
+html.dark [class^="border-[#dce6f3]"], html.dark [class*=" border-[#dce6f3]"],
+html.dark [class^="border-[#e5eaf2]"], html.dark [class*=" border-[#e5eaf2]"],
+html.dark [class^="border-[#d9e2ec]"], html.dark [class*=" border-[#d9e2ec]"],
+html.dark [class^="border-[#dbe5f2]"], html.dark [class*=" border-[#dbe5f2]"],
+html.dark [class^="border-[#dbe5f1]"], html.dark [class*=" border-[#dbe5f1]"] {
   border-color: rgba(245, 158, 11, 0.08) !important;
+}
+
+/* ---------- GREEN CTA BUTTONS / TOGGLES / CHECKBOXES → GOLDEN ----------
+   Matches the same golden gradient used for the active sidebar item and
+   Logout pill, so every green "primary action" button in the app carries
+   the one accent color in dark mode instead of clashing with green. */
+html.dark [class^="bg-[#0d9f4a]"], html.dark [class*=" bg-[#0d9f4a]"],
+html.dark [class^="bg-[#078c3e]"], html.dark [class*=" bg-[#078c3e]"],
+html.dark [class^="bg-[#067832]"], html.dark [class*=" bg-[#067832]"],
+html.dark [class^="bg-[#12a54f]"], html.dark [class*=" bg-[#12a54f]"],
+html.dark [class^="bg-[#0e9145]"], html.dark [class*=" bg-[#0e9145]"],
+html.dark [class^="bg-[#10a64e]"], html.dark [class*=" bg-[#10a64e]"],
+html.dark [class^="bg-[#16a34a]"], html.dark [class*=" bg-[#16a34a]"],
+html.dark [class^="bg-[#15803d]"], html.dark [class*=" bg-[#15803d]"],
+html.dark [class^="bg-[#11a650]"], html.dark [class*=" bg-[#11a650]"],
+html.dark [class^="bg-[#0e9748]"], html.dark [class*=" bg-[#0e9748]"] {
+  background: linear-gradient(90deg, #ffd873 0%, #f5a623 50%, #d9820f 100%) !important;
+  color: #211404 !important;
+  border-color: transparent !important;
+  box-shadow: 0 10px 22px rgba(245, 158, 11, 0.28) !important;
+}
+
+html.dark [class^="bg-[#0d9f4a]"]:hover, html.dark [class*=" bg-[#0d9f4a]"]:hover,
+html.dark [class^="bg-[#078c3e]"]:hover, html.dark [class*=" bg-[#078c3e]"]:hover,
+html.dark [class^="bg-[#067832]"]:hover, html.dark [class*=" bg-[#067832]"]:hover,
+html.dark [class^="bg-[#12a54f]"]:hover, html.dark [class*=" bg-[#12a54f]"]:hover,
+html.dark [class^="bg-[#0e9145]"]:hover, html.dark [class*=" bg-[#0e9145]"]:hover,
+html.dark [class^="bg-[#10a64e]"]:hover, html.dark [class*=" bg-[#10a64e]"]:hover,
+html.dark [class^="bg-[#16a34a]"]:hover, html.dark [class*=" bg-[#16a34a]"]:hover,
+html.dark [class^="bg-[#15803d]"]:hover, html.dark [class*=" bg-[#15803d]"]:hover,
+html.dark [class^="bg-[#11a650]"]:hover, html.dark [class*=" bg-[#11a650]"]:hover,
+html.dark [class^="bg-[#0e9748]"]:hover, html.dark [class*=" bg-[#0e9748]"]:hover {
+  filter: brightness(1.06);
 }
 
 /* ---------- RETINT LIGHT TEXT → DARK ---------- */
@@ -360,6 +415,39 @@ html.dark [class^="text-[#087532]"], html.dark [class*=" text-[#087532]"],
 html.dark [class^="text-[#1e3261]"], html.dark [class*=" text-[#1e3261]"],
 html.dark [class^="text-[#234069]"], html.dark [class*=" text-[#234069]"] {
   color: #f59e0b !important;
+}
+
+/* Additional muted secondary/caption text tones seen across module pages
+   (stat card captions, table sub-labels) → same light gray as the main
+   body-text retint group above. */
+html.dark [class^="text-[#8a98af]"], html.dark [class*=" text-[#8a98af]"],
+html.dark [class^="text-[#7585a2]"], html.dark [class*=" text-[#7585a2]"],
+html.dark [class^="text-[#7386a3]"], html.dark [class*=" text-[#7386a3]"],
+html.dark [class^="text-[#7a8fa6]"], html.dark [class*=" text-[#7a8fa6]"],
+html.dark [class^="text-[#7b8ca8]"], html.dark [class*=" text-[#7b8ca8]"],
+html.dark [class^="text-[#8a9ab4]"], html.dark [class*=" text-[#8a9ab4]"],
+html.dark [class^="text-[#7e8fab]"], html.dark [class*=" text-[#7e8fab]"],
+html.dark [class^="text-[#8391a8]"], html.dark [class*=" text-[#8391a8]"],
+html.dark [class^="text-[#5b6d8a]"], html.dark [class*=" text-[#5b6d8a]"],
+html.dark [class^="text-[#64748b]"], html.dark [class*=" text-[#64748b]"],
+html.dark [class^="text-[#34466c]"], html.dark [class*=" text-[#34466c]"] {
+  color: #b8bcc6 !important;
+}
+
+/* Near-black heading/value text (stat card numbers, table headers, page
+   titles) — these were tuned for a white background and are unreadable
+   once the card/page background goes near-black. Bump to a bright
+   off-white so numbers and headings stay the most prominent text on
+   the page, matching the emphasis they had in light mode. */
+html.dark [class^="text-[#111827]"], html.dark [class*=" text-[#111827]"],
+html.dark [class^="text-[#06135a]"], html.dark [class*=" text-[#06135a]"],
+html.dark [class^="text-[#1e2a38]"], html.dark [class*=" text-[#1e2a38]"],
+html.dark [class^="text-[#263d72]"], html.dark [class*=" text-[#263d72]"],
+html.dark [class^="text-[#284276]"], html.dark [class*=" text-[#284276]"],
+html.dark [class^="text-[#233a6b]"], html.dark [class*=" text-[#233a6b]"],
+html.dark [class^="text-[#314a79]"], html.dark [class*=" text-[#314a79]"],
+html.dark [class^="text-[#324f7b]"], html.dark [class*=" text-[#324f7b]"] {
+  color: #eef0f5 !important;
 }
 
 /* ---------- DARK MODE SCROLLBAR ---------- */
