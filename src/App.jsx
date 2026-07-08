@@ -170,10 +170,18 @@ const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Lead Follow
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const employeeRelatedPages = [...employeeSubItems];
-const projectSubItems = ['Project List', 'Survey Dashboard', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Subsidy', 'Project Installation', 'Project Expenses', 'Project Documents', 'Project Approvals'];
+const projectSubItems = ['Project List', 'Survey Dashboard', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Project Installation', 'Project Expenses'];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
-// 'Project Timeline' aur 'Project Work Orders' ab sidebar me nahi — Project List ke 3-dot action menu se khulte hain (routing yahin valid rehni chahiye)
-const projectRelatedPages = ['Project Management', 'Project Overview', 'Project KPI Analytics', 'Project Reports', ...projectActionPages, ...projectSubItems, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
+// 'Subsidy', 'Project Documents', 'Project Approvals' ab Project Management ke sidebar submenu me nahi —
+// unke sidebar entries Liaisoning & Commissioning me move ho gaye (Subsidy seedha, Documents/Approvals
+// wahan ke existing pages ke andar tabs ban ke). In section names ko yahan routable rakha hai kyunki
+// inke page components abhi bhi ProjectManagementPage ke andar hain aur kisi internal link/breadcrumb se
+// direct navigate ho sakte hain — lekin sidebar ka Project Management accordion in par expand/highlight
+// nahi hona chahiye (woh ab visually Liaisoning & Commissioning ke saath hain), isliye inhe
+// projectExpandHighlightPages se explicitly bahar rakha gaya hai.
+const projectLegacyOnlyPages = ['Subsidy', 'Project Documents', 'Project Approvals'];
+const projectRelatedPages = ['Project Management', 'Project Overview', 'Project KPI Analytics', 'Project Reports', ...projectActionPages, ...projectSubItems, ...projectLegacyOnlyPages, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
+const projectExpandHighlightPages = projectRelatedPages.filter((p) => !projectLegacyOnlyPages.includes(p));
 const summarySubItems = ['Executive Summary', 'Sales Pipeline', 'Projects & Delivery', 'Finance & Operations'];
 
 const summarySubRoutes = {
@@ -191,7 +199,7 @@ const accountsSubItems = ['Accounts Overview', 'Accounts List', 'Payment Receive
 const accountsRelatedPages = ['Accounts Overview', ...accountsSubItems];
 const inventorySubItems = ['Inventory Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
 const inventoryRelatedPages = ['Inventory', ...inventorySubItems];
-const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents'];
+const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents', 'Subsidy'];
 const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
 const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems];
 const omSubItems = ['Maintenance Tasks', 'Breakdown Tickets', 'Site Visits', 'Asset Management', 'Spare Parts', 'O&M Reports'];
@@ -2196,7 +2204,7 @@ function App() {
 
   useEffect(() => {
     if (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Lead'); return; }
-    if (activeSidebarItem === 'Project Management' || projectRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Project Management'); return; }
+    if (activeSidebarItem === 'Project Management' || projectExpandHighlightPages.includes(activeSidebarItem)) { setExpandedSection('Project Management'); return; }
     if (activeSidebarItem === 'Employee Management' || employeeRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Employee Management'); return; }
     if (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Accounts'); return; }
     if (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Inventory'); return; }
@@ -2448,7 +2456,7 @@ function App() {
                   const isSummarySection = item.label === 'Summary';
                   const isSettingsSection = item.label === 'Settings';
                   const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
-                  const isProjectHighlighted = isProjectSection && (activeSidebarItem === 'Project Management' || projectRelatedPages.includes(activeSidebarItem));
+                  const isProjectHighlighted = isProjectSection && (activeSidebarItem === 'Project Management' || projectExpandHighlightPages.includes(activeSidebarItem));
                   const isEmployeeHighlighted = isEmployeeSection && (activeSidebarItem === 'Employee Management' || employeeRelatedPages.includes(activeSidebarItem));
                   const isAccountsHighlighted = isAccountsSection && (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem));
                   const isInventoryHighlighted = isInventorySection && (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem));
@@ -9100,7 +9108,18 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     <div key={name} className={type === 'textarea' ? 'col-span-2' : ''}>
       <label className={lcLabelCls}>{label}{required ? ' *' : ''}</label>
       {type === 'project' ? (
-        <select className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}>
+        <select
+          className={lcInputCls}
+          value={form[name] ?? ''}
+          onChange={(e) => {
+            const projectId = e.target.value;
+            setForm((p) => ({ ...p, [name]: projectId }));
+            // Optional per-config hook — lets a specific module (e.g. Commissioning,
+            // O&M Assets) pull the project's site survey and prefill other fields,
+            // without affecting any other page that reuses this shared component.
+            config.onProjectSelect?.(projectId, setForm);
+          }}
+        >
           <option value="">Select project...</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
         </select>
@@ -9411,7 +9430,46 @@ function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
   return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
+// Liaisoning ke apne Approvals (LiaisonApproval, DISCOM/net-metering type) aur Project
+// Management se yahan move hue Project Approvals (ProjectApproval) — dono alag data-model
+// hain, isliye merge nahi kiya, ek hi page ke andar do tabs bana diye.
 function LiaisonApprovalsPage({ activeSection, onOpenSection, onNotify }) {
+  const [approvalsTab, setApprovalsTab] = useState('liaison');
+
+  const tabs = (
+    <div className="mb-3 flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={() => setApprovalsTab('liaison')}
+        className={cx(
+          'rounded-full px-4 py-2 text-[13px] font-bold transition',
+          approvalsTab === 'liaison' ? 'bg-[#0b65e5] text-white' : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff]',
+        )}
+      >
+        Liaison Approvals
+      </button>
+      <button
+        type="button"
+        onClick={() => setApprovalsTab('project')}
+        className={cx(
+          'rounded-full px-4 py-2 text-[13px] font-bold transition',
+          approvalsTab === 'project' ? 'bg-[#0b65e5] text-white' : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff]',
+        )}
+      >
+        Project Approvals
+      </button>
+    </div>
+  );
+
+  if (approvalsTab === 'project') {
+    return (
+      <div>
+        {tabs}
+        <ProjectApprovalsPage activeSection="Project Approvals" onOpenSection={onOpenSection} onNotify={onNotify} />
+      </div>
+    );
+  }
+
   const config = {
     title: 'Approvals',
     recordLabel: 'Approval',
@@ -9446,7 +9504,12 @@ function LiaisonApprovalsPage({ activeSection, onOpenSection, onNotify }) {
       ['Remarks', (r) => r.remarks || '—'],
     ],
   };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  return (
+    <div>
+      {tabs}
+      <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+    </div>
+  );
 }
 
 function LiaisonInspectionsPage({ activeSection, onOpenSection, onNotify }) {
@@ -9515,6 +9578,22 @@ function LiaisonCommissioningPage({ activeSection, onOpenSection, onNotify }) {
       ['Commissioning Date', (r) => lcFormatDate(r.date)],
       ['Remarks', (r) => r.remarks || '—'],
     ],
+    // Site survey already recorded GPS/meter/capacity — surface it in Remarks
+    // so the commissioning engineer doesn't need to hunt it down or retype it.
+    onProjectSelect: (projectId, setForm) => {
+      if (!projectId) return;
+      projectApi.get(projectId).then((data) => {
+        const s = data?.site_survey;
+        if (!s) return;
+        const parts = [];
+        if (s.latitude && s.longitude) parts.push(`GPS: ${s.latitude}, ${s.longitude}`);
+        if (s.meter_type || s.meter_phase) parts.push(`Meter: ${[s.meter_type, s.meter_phase].filter(Boolean).join(' / ')}`);
+        if (s.approx_plant_capacity) parts.push(`Capacity: ${s.approx_plant_capacity}`);
+        if (s.inverter_location_description) parts.push(`Inverter: ${s.inverter_location_description}`);
+        if (!parts.length) return;
+        setForm((prev) => (prev.remarks ? prev : { ...prev, remarks: `From Site Survey — ${parts.join(' | ')}` }));
+      }).catch(() => {});
+    },
   };
   return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
@@ -9559,8 +9638,13 @@ function LiaisonCompliancePage({ activeSection, onOpenSection, onNotify }) {
   return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
+// Liaisoning ke apne Documents (LiaisonDocument, module/related_id se kisi bhi liaison
+// record se linked) aur Project Management se yahan move hue Project Documents
+// (ProjectDocument, folder/category based) — alag data-model hone ki wajah se ek
+// hi page ke andar do tabs bana diye, merge nahi kiya.
 function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
   const DOC_TYPES = ['Application Form', 'Approval Letter', 'Inspection Report', 'Commissioning Report', 'Compliance Certificate', 'Agreement', 'Other'];
+  const [documentsTab, setDocumentsTab] = useState('liaison');
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
   const [docs, setDocs] = useState([]);
@@ -9643,14 +9727,43 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
           { label: 'Documents' },
         ]}
         actions={
-          <button type="button" onClick={() => setShowUpload(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
-            <Upload className="size-4" />Upload Document
-          </button>
+          documentsTab === 'liaison' ? (
+            <button type="button" onClick={() => setShowUpload(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
+              <Upload className="size-4" />Upload Document
+            </button>
+          ) : null
         }
       />
 
       <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setDocumentsTab('liaison')}
+          className={cx(
+            'rounded-full px-4 py-2 text-[13px] font-bold transition',
+            documentsTab === 'liaison' ? 'bg-[#0b65e5] text-white' : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff]',
+          )}
+        >
+          Liaison Documents
+        </button>
+        <button
+          type="button"
+          onClick={() => setDocumentsTab('project')}
+          className={cx(
+            'rounded-full px-4 py-2 text-[13px] font-bold transition',
+            documentsTab === 'project' ? 'bg-[#0b65e5] text-white' : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff]',
+          )}
+        >
+          Project Documents
+        </button>
+      </div>
+
+      {documentsTab === 'project' ? (
+        <ProjectDocumentsPage activeSection="Project Documents" onOpenSection={onOpenSection} onNotify={onNotify} />
+      ) : (
+      <>
       <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[180px]">
@@ -9818,6 +9931,8 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
       {deleteConfirm ? (
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
+      </>
+      )}
 
       <DashboardFooter />
     </div>
@@ -10104,6 +10219,25 @@ function OmAssetManagementPage({ activeSection, onOpenSection, onNotify }) {
       ['Specific Yield', (r) => (r.specific_yield != null ? `${r.specific_yield} kWh/kWp` : '—')],
       ['Remarks', (r) => r.remarks || '—'],
     ],
+    // Site survey already has the address/GPS and plant capacity — prefill
+    // Site/Capacity so they don't need retyping for a new asset record.
+    onProjectSelect: (projectId, setForm) => {
+      if (!projectId) return;
+      projectApi.get(projectId).then((data) => {
+        const s = data?.site_survey;
+        setForm((prev) => {
+          const next = { ...prev };
+          if (!next.site) {
+            next.site = data?.site_address || (s?.latitude && s?.longitude ? `${s.latitude}, ${s.longitude}` : '') || '';
+          }
+          const capacityRelevant = ['Inverter', 'Solar Module', 'Structure'].includes(prev.asset_type);
+          if (!next.capacity && capacityRelevant && s?.approx_plant_capacity) {
+            next.capacity = s.approx_plant_capacity;
+          }
+          return next;
+        });
+      }).catch(() => {});
+    },
   };
   return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
@@ -19292,6 +19426,41 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
   };
 
   // â”€â”€ QA / Checklist handlers â”€â”€
+  const SURVEY_SAFETY_CHECKLIST_MAP = [
+    ['safety_roof_safe', 'Roof Safe'],
+    ['safety_shadow_checked', 'Shadow Checked'],
+    ['safety_earthing_finalized', 'Earthing Finalized'],
+    ['safety_meter_verified', 'Meter Verified'],
+    ['safety_inverter_location_final', 'Inverter Location Final'],
+    ['safety_cable_route_final', 'Cable Route Final'],
+    ['safety_tank_checked', 'Tank Checked'],
+    ['safety_customer_approval_taken', 'Customer Approval Taken'],
+    ['safety_gps_captured', 'GPS Captured'],
+    ['safety_all_photos_uploaded', 'All Photos Uploaded'],
+  ];
+
+  const handleImportSurveyChecklist = async () => {
+    const survey = projectData?.site_survey;
+    if (!survey) { onNotify('No site survey found for this project'); return; }
+    const existingLabels = new Set(checklist.map((c) => c.label));
+    const toImport = SURVEY_SAFETY_CHECKLIST_MAP.filter(([, label]) => !existingLabels.has(label));
+    if (!toImport.length) { onNotify('Safety checklist already imported from survey'); return; }
+    try {
+      await Promise.all(toImport.map(([field, label]) => projectChecklistApi.create({
+        project: selectedProject.id,
+        phase: 'Installation',
+        category: 'Safety',
+        label,
+        is_checked: Boolean(survey[field]),
+        notes: 'Imported from Site Survey',
+      })));
+      onNotify(`${toImport.length} checklist item(s) imported from site survey`);
+      loadData(selectedProject);
+    } catch (e) {
+      onNotify(e.message || 'Failed to import from survey');
+    }
+  };
+
   const openAddQa = () => { setEditQa(null); setQaForm(emptyQaForm); setQaModalOpen(true); };
   const openUpdateQa = (row) => { setEditQa(row); setQaForm({ label: row.label, category: row.category ?? 'QA', is_checked: !!row.is_checked, notes: row.notes ?? '' }); setQaModalOpen(true); };
 
@@ -19627,12 +19796,25 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
           {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ QA & SAFETY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'QA & Safety' && (
             <article className={`${panelClass} overflow-hidden`}>
-              <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3">
                 <h3 className="text-[14px] font-extrabold text-[#111827]">QA & Safety Checklist</h3>
-                <button type="button" onClick={openAddQa} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0e9145]">
-                  <Plus className="size-3.5" />
-                  Add Item
-                </button>
+                <div className="flex items-center gap-2">
+                  {projectData?.site_survey ? (
+                    <button
+                      type="button"
+                      onClick={handleImportSurveyChecklist}
+                      title="Pull the Section 9 Safety Checklist already confirmed during the site survey — no re-entry needed"
+                      className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#0b65e5] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#edf5ff]"
+                    >
+                      <Download className="size-3.5" />
+                      Import from Site Survey
+                    </button>
+                  ) : null}
+                  <button type="button" onClick={openAddQa} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0e9145]">
+                    <Plus className="size-3.5" />
+                    Add Item
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="crm-table min-w-[620px] w-full">
@@ -20833,6 +21015,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
   const CHART_COLORS = ['#94a3b8', '#2f80ff', '#22c7d6', '#16a34a', '#ef4444'];
 
   const [selectedProject, setSelectedProject] = useState(null);
+  const [projectSurvey, setProjectSurvey] = useState(null);
   const [rows, setRows] = useState([]);
   const [loadingRows, setLoadingRows] = useState(false);
   const [dashStats, setDashStats] = useState({ total: 0, not_started: 0, in_progress: 0, partially_completed: 0, completed: 0, delayed: 0 });
@@ -20892,11 +21075,23 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
     setProjectPickerOpen(false);
     setProjectSearch('');
     setRows([]);
+    setProjectSurvey(null);
+    // Site survey already captured structure layout/capacity — pull it in so
+    // the mounting-structure/panel rows don't need those numbers re-typed.
+    projectApi.get(proj.id).then((full) => setProjectSurvey(full?.site_survey || null)).catch(() => {});
   };
 
   const openAdd = () => {
     if (!selectedProject) { onNotify('Please select a project first'); return; }
-    setForm(emptyForm); setEditRow(null); setModalOpen(true);
+    const survey = projectSurvey;
+    // Structure layout from the survey (rows × columns) is the most reliable
+    // starting point for how many mounting-structure units are needed.
+    const suggestedItems = survey?.structure_rows && survey?.structure_columns
+      ? String(Number(survey.structure_rows) * Number(survey.structure_columns))
+      : '';
+    setForm({ ...emptyForm, category: 'Mounting Structure', items: suggestedItems });
+    setEditRow(null);
+    setModalOpen(true);
   };
   const openEditRow = (row) => { setForm({ ...row }); setEditRow(row.id); setModalOpen(true); };
 
@@ -21165,6 +21360,17 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
               <button type="button" onClick={() => setModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
             </div>
             <div className="grid gap-4 p-6 sm:grid-cols-2">
+              {projectSurvey ? (
+                <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3 text-[12px] font-bold text-[#4b5b78] sm:col-span-2">
+                  <p className="mb-1.5 text-[11px] font-extrabold uppercase text-[#7386a3]">From Site Survey</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-4">
+                    <span>Roof Area: <b className="text-[#1e3261]">{projectSurvey.rooftop_area_sqft || '—'} sq.ft</b></span>
+                    <span>Structure: <b className="text-[#1e3261]">{projectSurvey.structure_rows || '—'}×{projectSurvey.structure_columns || '—'}</b></span>
+                    <span>Capacity: <b className="text-[#1e3261]">{projectSurvey.approx_plant_capacity || '—'}</b></span>
+                    <span>Orientation: <b className="text-[#1e3261]">{projectSurvey.module_orientation || '—'}</b></span>
+                  </div>
+                </div>
+              ) : null}
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">
                 Category
                 <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
@@ -27759,6 +27965,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
   const [showQuotationDetailModal, setShowQuotationDetailModal] = useState(false);
   const [viewDuplicateLeadId, setViewDuplicateLeadId] = useState(null);
   const [surveyModalOpen, setSurveyModalOpen] = useState(false);
+  const [projectSurveyForQuote, setProjectSurveyForQuote] = useState(null);
   const ivrsCheck = useIvrsCheck(lead?.id);
   // "Project Details Update" (edit) aur "New Project" (create) dono project popups —
   // in dono me lead status fixed 'Won' rehta hai aur follow-up date optional hai.
@@ -27773,6 +27980,13 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
     setLoadingDetail(true);
     leadApi.get(lead.id).then((data) => setDetail(data || {})).catch(() => setDetail({})).finally(() => setLoadingDetail(false));
   }, [mode, lead?.id]);
+
+  // Project already has a site survey by this point (Won lead) — pull it in
+  // so a quotation started from here doesn't need roof/capacity re-typed.
+  useEffect(() => {
+    if (!projectContext?.projectId) { setProjectSurveyForQuote(null); return; }
+    projectApi.get(projectContext.projectId).then((data) => setProjectSurveyForQuote(data?.site_survey || null)).catch(() => {});
+  }, [projectContext?.projectId]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -28071,6 +28285,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
           initialItems={quotationTemplate === quotationDetail?.template ? quotationDetail.items : null}
           leadSnapshot={(() => {
             const snap = formRef.current ? new FormData(formRef.current) : null;
+            const survey = projectSurveyForQuote;
             return {
               customer_name: snap?.get('customer_name') || '',
               mobile_number: snap?.get('mobile_number') || '',
@@ -28079,6 +28294,11 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
               address: snap?.get('address') || '',
               project_name: snap?.get('project_name') || '',
               source: snap?.get('source') || '',
+              // From the project's site survey — already captured on-site, no re-typing.
+              shadow_free_area: survey?.shadow_free_area_sqft || '',
+              installation_type: deriveInstallationTypeFromRoof(survey?.roof_type),
+              plant_capacity_kw: extractLeadingNumber(survey?.approx_plant_capacity),
+              module_orientation: survey?.module_orientation || '',
             };
           })()}
           onClose={() => setShowQuotationDetailModal(false)}
@@ -29578,6 +29798,20 @@ function buildQuotationDetailPayload(template, form, leadId, items) {
   };
 }
 
+// Site survey capacity/measurement fields are free text (e.g. "5.5 kW") —
+// pull just the leading number so it drops cleanly into a numeric form field.
+function extractLeadingNumber(value) {
+  if (!value) return '';
+  const match = String(value).match(/-?\d+(\.\d+)?/);
+  return match ? match[0] : '';
+}
+
+function deriveInstallationTypeFromRoof(roofType) {
+  if (roofType === 'Ground Mount') return 'Ground Mounted';
+  if (roofType === 'RCC' || roofType === 'Tin Shed' || roofType === 'Metal Roof') return 'Rooftop';
+  return '';
+}
+
 function buildLeadSnapshotFromLead(lead) {
   if (!lead) return {};
   return {
@@ -29643,6 +29877,10 @@ function QuotationDetailModal({ template, initialForm, initialItems, leadSnapsho
       email: leadSnapshot?.email || '',
       address: leadSnapshot?.address || '',
       project_name: leadSnapshot?.project_name || '',
+      shadow_free_area: leadSnapshot?.shadow_free_area || '',
+      installation_type: leadSnapshot?.installation_type || '',
+      plant_capacity_kw: leadSnapshot?.plant_capacity_kw || '',
+      module_orientation: leadSnapshot?.module_orientation || '',
     };
   };
   const buildItemsFor = (tpl) => (tpl === template && initialItems?.length ? initialItems : [emptyItemRow()]);

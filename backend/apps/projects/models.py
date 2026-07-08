@@ -1,8 +1,21 @@
 import datetime
 from django.db import models
+from django.utils.text import slugify
 from apps.accounts.models import User
 from apps.leads.models import Lead
 from apps.inventory.models import InventoryItem
+
+
+def site_survey_photo_upload_path(instance, filename):
+    # Filed by lead + customer, per spec ("Save images using Lead ID and
+    # Customer ID"), so photos are traceable back to their record on disk too.
+    ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'jpg'
+    project = instance.survey.project
+    lead_id = project.lead_id or 'na'
+    customer_slug = slugify(project.customer_name) or 'customer'
+    slot_slug = slugify(instance.slot) or 'photo'
+    date_path = datetime.date.today().strftime('%Y/%m')
+    return f'site_survey_photos/{date_path}/lead{lead_id}_{customer_slug}/{slot_slug}.{ext}'
 
 
 class Project(models.Model):
@@ -497,7 +510,7 @@ class SiteSurveyPhoto(models.Model):
 
     survey = models.ForeignKey(SiteSurvey, on_delete=models.CASCADE, related_name='photos')
     slot = models.CharField(max_length=30, choices=SLOT_CHOICES)
-    image = models.ImageField(upload_to='site_survey_photos/%Y/%m/')
+    image = models.ImageField(upload_to=site_survey_photo_upload_path)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_site_survey_photos')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 

@@ -5,11 +5,22 @@ from django.core.files.base import ContentFile
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils.text import slugify
 from apps.accounts.models import User
 
 
 def generate_ivrs():
     return f'IVRS{uuid.uuid4().hex[:8].upper()}'
+
+
+def lead_survey_photo_upload_path(instance, filename):
+    # Filed by lead + customer, per spec ("Save images using Lead ID and
+    # Customer ID"), so photos are traceable back to their record on disk too.
+    ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'jpg'
+    lead = instance.survey.lead
+    customer_slug = slugify(lead.customer_name) or 'customer'
+    date_path = datetime.date.today().strftime('%Y/%m')
+    return f'lead_survey_photos/{date_path}/lead{lead.id}_{customer_slug}/{uuid.uuid4().hex[:8]}.{ext}'
 
 
 class Lead(models.Model):
@@ -413,7 +424,7 @@ class LeadSiteSurvey(models.Model):
 
 class LeadSurveyPhoto(models.Model):
     survey = models.ForeignKey(LeadSiteSurvey, on_delete=models.CASCADE, related_name='photos')
-    image = models.ImageField(upload_to='lead_survey_photos/%Y/%m/')
+    image = models.ImageField(upload_to=lead_survey_photo_upload_path)
     caption = models.CharField(max_length=200, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_survey_photos')
     uploaded_at = models.DateTimeField(auto_now_add=True)
