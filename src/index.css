@@ -31,129 +31,263 @@ body {
   overflow-x: hidden;
 }
 
+/* ============================================================
+   DARK MODE THEME — Reference-matched dark UI with golden accents
+   ============================================================ */
+
 html.dark {
   color-scheme: dark;
 }
 
 html.dark body {
-  background: #020617;
-  color: #e2e8f0;
+  background: #07070d;
+  color: #c9cdd4;
 }
 
+/* ---------- SIDEBAR ---------- */
 html.dark .sidebar-root {
-  background: linear-gradient(180deg, #042a40 0%, #043a57 45%, #041d31 100%);
-  border-color: rgba(148, 206, 255, 0.16);
-  box-shadow: 0 28px 66px rgba(0, 0, 0, 0.45);
+  background: linear-gradient(180deg, #0e0e16 0%, #0b0b13 50%, #090910 100%);
+  border-color: rgba(245, 158, 11, 0.10);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 1px rgba(245, 158, 11, 0.06);
 }
 
+/* Sidebar brand header */
 html.dark .sidebar-root > div:first-child {
-  border-bottom-color: rgba(255, 255, 255, 0.08);
-  background: rgba(3, 15, 30, 0.96);
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+  background: rgba(10, 10, 16, 0.98);
 }
 
+/* Sidebar gradient menu container — override the green→blue gradient */
+html.dark .sidebar-root > div:nth-child(2) {
+  background: linear-gradient(180deg, rgba(14, 14, 22, 0.95) 0%, rgba(10, 10, 16, 0.98) 100%) !important;
+}
+
+/* Sidebar nav buttons — default state */
 html.dark .sidebar-root nav button {
-  color: #d0e8ff;
+  color: rgba(201, 205, 212, 0.7);
   background: transparent !important;
 }
 
+/* Sidebar nav — active / current page */
 html.dark .sidebar-root nav button[aria-current="page"] {
-  background: linear-gradient(180deg, #0d82d3 0%, #0ab36d 100%) !important;
-  color: #ffffff !important;
-  box-shadow: 0 18px 36px rgba(0, 80, 140, 0.22);
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.14) 0%, rgba(217, 119, 6, 0.06) 100%) !important;
+  color: #fbbf24 !important;
+  border-color: rgba(245, 158, 11, 0.25) !important;
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.06), inset 0 0 12px rgba(245, 158, 11, 0.04);
 }
 
-html.dark .sidebar-root nav button:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: #eef7ff;
+/* Sidebar nav — hover */
+html.dark .sidebar-root nav button:hover:not([aria-current="page"]) {
+  background: rgba(245, 158, 11, 0.05) !important;
+  color: #e5c47a;
 }
 
+/* Sidebar icons — default */
 html.dark .sidebar-root nav button .size-4,
 html.dark .sidebar-root nav button .size-5,
 html.dark .sidebar-root nav button .size-6,
 html.dark .sidebar-root nav button .size-7,
 html.dark .sidebar-root nav button .size-8 {
-  color: #cfe8ff !important;
+  color: rgba(201, 205, 212, 0.55) !important;
 }
 
-html.dark .sidebar-root [class^="rounded-[8px]"],
-html.dark .sidebar-root [class*=" rounded-[8px]"] {
-  background: rgba(255, 255, 255, 0.06);
+/* Sidebar icons — active */
+html.dark .sidebar-root nav button[aria-current="page"] .size-4,
+html.dark .sidebar-root nav button[aria-current="page"] .size-5,
+html.dark .sidebar-root nav button[aria-current="page"] .size-6,
+html.dark .sidebar-root nav button[aria-current="page"] .size-7,
+html.dark .sidebar-root nav button[aria-current="page"] .size-8 {
+  color: #fbbf24 !important;
 }
 
+/* Sidebar chevron icons */
+html.dark .sidebar-root nav button svg[class*="chevron"],
+html.dark .sidebar-root nav button .lucide-chevron-right {
+  color: rgba(201, 205, 212, 0.4) !important;
+}
+
+/* Sidebar sub-item cards */
+html.dark .sidebar-root [class*="bg-white"][class*="shadow"] {
+  background: rgba(18, 18, 28, 0.96) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(245, 158, 11, 0.08);
+}
+
+/* Sidebar sub-item text */
+html.dark .sidebar-root [class*="text-[#53647f]"] {
+  color: rgba(201, 205, 212, 0.6) !important;
+}
+html.dark .sidebar-root [class*="text-[#078c3e]"] {
+  color: #fbbf24 !important;
+}
+
+/* Sidebar sub-item dot indicators */
+html.dark .sidebar-root [class*="bg-[#14b84c]"] {
+  background: #f59e0b !important;
+}
+html.dark .sidebar-root [class*="bg-[#b9c4d6]"] {
+  background: rgba(201, 205, 212, 0.3) !important;
+}
+
+/* Sidebar logout button */
+html.dark .sidebar-root button[class*="border-white/12"] {
+  border-color: rgba(245, 158, 11, 0.12) !important;
+  background: rgba(245, 158, 11, 0.04) !important;
+  color: rgba(201, 205, 212, 0.6) !important;
+}
+html.dark .sidebar-root button[class*="border-white/12"]:hover {
+  border-color: rgba(245, 158, 11, 0.22) !important;
+  background: rgba(245, 158, 11, 0.08) !important;
+  color: #fbbf24 !important;
+}
+
+/* ---------- ANIMATED GOLDEN CIRCULAR LIGHT ON SIDEBAR ---------- */
+@keyframes dark-sidebar-orb {
+  0% {
+    transform: translateY(-40px) translateX(-50%);
+    opacity: 0;
+  }
+  4% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(calc(100% + 40px)) translateX(calc(-50% + 4px));
+    opacity: 1;
+  }
+  96% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(calc(200% + 40px)) translateX(-50%);
+    opacity: 0;
+  }
+}
+
+@keyframes dark-sidebar-orb-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 8px rgba(251, 191, 36, 0.15),
+      0 0 20px rgba(251, 191, 36, 0.08),
+      inset 0 0 6px rgba(251, 191, 36, 0.04);
+  }
+  50% {
+    box-shadow:
+      0 0 14px rgba(251, 191, 36, 0.25),
+      0 0 35px rgba(251, 191, 36, 0.12),
+      inset 0 0 10px rgba(251, 191, 36, 0.06);
+  }
+}
+
+html.dark .sidebar-shine {
+  top: 0;
+  bottom: auto;
+  left: 50%;
+  width: 140px;
+  height: 44px;
+  border: 1.5px solid rgba(251, 191, 36, 0.45);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(251, 191, 36, 0.06) 0%, transparent 70%);
+  box-shadow:
+    0 0 8px rgba(251, 191, 36, 0.15),
+    0 0 20px rgba(251, 191, 36, 0.08),
+    inset 0 0 6px rgba(251, 191, 36, 0.04);
+  transform: translateX(-50%);
+  animation:
+    dark-sidebar-orb 6s ease-in-out infinite,
+    dark-sidebar-orb-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ---------- SEARCH INPUT ---------- */
 html.dark .search-input {
-  background: rgba(8, 20, 36, 0.92) !important;
-  border-color: rgba(56, 189, 248, 0.22) !important;
+  background: rgba(14, 14, 22, 0.92) !important;
+  border-color: rgba(245, 158, 11, 0.12) !important;
 }
 
 html.dark .search-input input {
-  color: #e2e8f0 !important;
+  color: #c9cdd4 !important;
 }
 
 html.dark .search-input input::placeholder {
-  color: #94a3b8 !important;
+  color: rgba(201, 205, 212, 0.35) !important;
 }
 
 html.dark .search-input button {
-  color: #94a3b8 !important;
+  color: rgba(201, 205, 212, 0.45) !important;
 }
 
+/* ---------- HEADER / TOOLBAR ---------- */
 html.dark .header-toolbar {
-  background: linear-gradient(180deg, rgba(4, 23, 52, 0.98), rgba(3, 11, 26, 0.96)) !important;
-  border-color: rgba(56, 189, 248, 0.18) !important;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.30) !important;
+  background: linear-gradient(180deg, rgba(12, 12, 18, 0.98), rgba(9, 9, 14, 0.96)) !important;
+  border-color: rgba(245, 158, 11, 0.08) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35) !important;
 }
 
 html.dark .header-toolbar button {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
-  color: #d7e4f6 !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(201, 205, 212, 0.7) !important;
 }
 
+html.dark .header-toolbar button:hover {
+  background: rgba(245, 158, 11, 0.06) !important;
+  color: #fbbf24 !important;
+}
+
+/* ---------- HEADER BANNER ---------- */
 html.dark .header-banner {
-  background: linear-gradient(180deg, #0b3b66 0%, #031b2e 100%) !important;
-  border-color: rgba(56, 189, 248, 0.16);
+  background: linear-gradient(180deg, rgba(16, 16, 24, 0.98) 0%, rgba(10, 10, 16, 0.96) 100%) !important;
+  border-color: rgba(245, 158, 11, 0.06);
 }
 
 html.dark .header-banner img {
-  filter: saturate(1.25) brightness(0.76) contrast(1.22) !important;
+  filter: saturate(0.8) brightness(0.6) contrast(1.1) !important;
 }
 
+html.dark .header-banner::before,
+html.dark .header-banner::after {
+  background: linear-gradient(90deg, rgba(10, 10, 16, 0.96), rgba(10, 10, 16, 0));
+}
+
+/* ---------- CRM PANELS ---------- */
 html.dark .crm-panel,
 html.dark .crm-data-panel {
-  background: rgba(6, 11, 23, 0.95) !important;
-  border-color: rgba(72, 104, 146, 0.20) !important;
-  color: #e9f3ff;
+  background: rgba(14, 14, 22, 0.92) !important;
+  border-color: rgba(245, 158, 11, 0.07) !important;
+  color: #c9cdd4;
 }
 
 html.dark .crm-panel {
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.44) !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4) !important;
 }
 
 html.dark .crm-data-panel {
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42) !important;
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.38) !important;
 }
 
+/* ---------- TABLES ---------- */
 html.dark .crm-table {
   background: transparent;
 }
 
 html.dark .crm-table thead tr {
-  background: #0f172a;
+  background: rgba(20, 20, 30, 0.8);
 }
 
-html.dark .crm-table th,
+html.dark .crm-table th {
+  border-bottom-color: rgba(245, 158, 11, 0.1);
+  color: #d4a843;
+  background: transparent;
+}
+
 html.dark .crm-table td {
-  border-color: #334155;
-  color: #cbd5e1;
+  border-bottom-color: rgba(255, 255, 255, 0.04);
+  color: rgba(201, 205, 212, 0.75);
 }
 
 html.dark .crm-table tbody tr:hover {
-  background: rgba(148, 163, 184, 0.1);
-}
-
-html.dark .header-banner::before,
-html.dark .header-banner::after {
-  background: linear-gradient(90deg, rgba(6, 16, 27, 0.96), rgba(6, 16, 27, 0));
+  background: rgba(245, 158, 11, 0.03);
 }
 
 /*
@@ -164,6 +298,7 @@ html.dark .header-banner::after {
  * substring match (`[class*="X"]`) would also match variant-prefixed classes
  * like `hover:X`, permanently applying what should only be a hover style.
  */
+/* ---------- RETINT LIGHT BACKGROUNDS → DARK ---------- */
 html.dark [class^="bg-white"], html.dark [class*=" bg-white"],
 html.dark [class^="bg-[#fbfcff]"], html.dark [class*=" bg-[#fbfcff]"],
 html.dark [class^="bg-[#eef4fb]"], html.dark [class*=" bg-[#eef4fb]"],
@@ -188,15 +323,16 @@ html.dark [class^="bg-[#f6f"], html.dark [class*=" bg-[#f6f"],
 html.dark [class^="bg-[#f4f"], html.dark [class*=" bg-[#f4f"],
 html.dark [class^="bg-[#f2f"], html.dark [class*=" bg-[#f2f"],
 html.dark [class^="bg-[#eef"], html.dark [class*=" bg-[#eef"] {
-  background-color: rgba(6, 12, 28, 0.92) !important;
+  background-color: rgba(14, 14, 22, 0.92) !important;
 }
 
 html.dark [class^="bg-white/"], html.dark [class*=" bg-white/"] {
-  background-color: rgba(6, 12, 28, 0.92) !important;
+  background-color: rgba(14, 14, 22, 0.92) !important;
 }
 
+/* ---------- RETINT LIGHT BORDERS → DARK ---------- */
 html.dark [class^="border-black/20"], html.dark [class*=" border-black/20"] {
-  border-color: rgba(94, 113, 158, 0.18) !important;
+  border-color: rgba(245, 158, 11, 0.10) !important;
 }
 
 html.dark [class^="border-[#dfe7f2]"], html.dark [class*=" border-[#dfe7f2]"],
@@ -215,9 +351,10 @@ html.dark [class^="border-[#f8fbff]"], html.dark [class*=" border-[#f8fbff]"],
 html.dark [class^="border-[#fbfdff]"], html.dark [class*=" border-[#fbfdff]"],
 html.dark [class^="border-[#fffaf0]"], html.dark [class*=" border-[#fffaf0]"],
 html.dark [class^="border-[#fff6f6]"], html.dark [class*=" border-[#fff6f6]"] {
-  border-color: rgba(94, 148, 209, 0.18) !important;
+  border-color: rgba(245, 158, 11, 0.08) !important;
 }
 
+/* ---------- RETINT LIGHT TEXT → DARK ---------- */
 html.dark [class^="text-[#20345f]"], html.dark [class*=" text-[#20345f]"],
 html.dark [class^="text-[#52637f]"], html.dark [class*=" text-[#52637f]"],
 html.dark [class^="text-[#30466d]"], html.dark [class*=" text-[#30466d]"],
@@ -229,9 +366,10 @@ html.dark [class^="text-[#4e6282]"], html.dark [class*=" text-[#4e6282]"],
 html.dark [class^="text-[#5a6d88]"], html.dark [class*=" text-[#5a6d88]"],
 html.dark [class^="text-[#6f7f98]"], html.dark [class*=" text-[#6f7f98]"],
 html.dark [class^="text-[#7a8aa4]"], html.dark [class*=" text-[#7a8aa4]"] {
-  color: #cdd9ec !important;
+  color: #b8bcc6 !important;
 }
 
+/* Accent text colors → golden/amber tones */
 html.dark [class^="text-[#0b65e5]"], html.dark [class*=" text-[#0b65e5]"],
 html.dark [class^="text-[#0d9f4a]"], html.dark [class*=" text-[#0d9f4a]"],
 html.dark [class^="text-[#ea5a4c]"], html.dark [class*=" text-[#ea5a4c]"],
@@ -239,7 +377,45 @@ html.dark [class^="text-[#0d3b21]"], html.dark [class*=" text-[#0d3b21]"],
 html.dark [class^="text-[#087532]"], html.dark [class*=" text-[#087532]"],
 html.dark [class^="text-[#1e3261]"], html.dark [class*=" text-[#1e3261]"],
 html.dark [class^="text-[#234069]"], html.dark [class*=" text-[#234069]"] {
-  color: #7dd3fc !important;
+  color: #f59e0b !important;
+}
+
+/* ---------- DARK MODE SCROLLBAR ---------- */
+html.dark .scroll-soft::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.18);
+}
+
+html.dark .sidebar-menu-scroll {
+  scrollbar-color: rgba(245, 158, 11, 0.25) rgba(245, 158, 11, 0.06);
+}
+
+html.dark .sidebar-menu-scroll::-webkit-scrollbar-thumb {
+  border-color: rgba(245, 158, 11, 0.08);
+  background: rgba(245, 158, 11, 0.30);
+}
+
+html.dark .sidebar-menu-scroll::-webkit-scrollbar-track {
+  background: rgba(245, 158, 11, 0.04);
+}
+
+/* ---------- DARK MODE SELECTION ---------- */
+html.dark ::selection {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fef3c7;
+}
+
+/* ---------- DARK MODE MODULE TABS ---------- */
+html.dark .module-tab-scroll {
+  scrollbar-color: rgba(245, 158, 11, 0.25) rgba(14, 14, 22, 0.5);
+}
+
+html.dark .module-tab-scroll::-webkit-scrollbar-thumb {
+  border-color: rgba(14, 14, 22, 0.5);
+  background: rgba(245, 158, 11, 0.30);
+}
+
+html.dark .module-tab-scroll::-webkit-scrollbar-track {
+  background: rgba(14, 14, 22, 0.5);
 }
 
 *,

@@ -2398,7 +2398,7 @@ function App() {
       className={cx(
         'box-border min-h-screen max-w-full overflow-x-hidden p-2 sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden',
         isDarkMode
-          ? 'bg-slate-950 text-slate-100'
+          ? 'bg-[#07070d] text-[#c9cdd4]'
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
       )}
     >
