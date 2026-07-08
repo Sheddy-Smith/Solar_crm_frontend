@@ -76,7 +76,14 @@ DATABASES = {
 }
 
 _redis_url = env('REDIS_URL', default='redis://127.0.0.1:6379/1')
-_redis_options = {'CLIENT_CLASS': 'django_redis.client.DefaultClient'}
+_redis_options = {
+    'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+    # Redis (Upstash free tier) backs throttling/caching only — it must
+    # never be able to take down request handling (e.g. login, which is
+    # throttled) if the connection is briefly unreachable or misconfigured.
+    # A failed cache call falls back to "no rate data" instead of a 500.
+    'IGNORE_EXCEPTIONS': True,
+}
 if _redis_url.startswith('rediss://'):
     _redis_options['CONNECTION_POOL_KWARGS'] = {'ssl_cert_reqs': None}
 
@@ -87,6 +94,9 @@ CACHES = {
         'OPTIONS': _redis_options,
     }
 }
+
+DJANGO_REDIS_IGNORE_EXCEPTIONS = True
+DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = True
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
