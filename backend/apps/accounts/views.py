@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.exceptions import Throttled
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
 from .models import Branch, Role, RolePermission
@@ -20,6 +21,22 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'login'
+
+    def check_throttles(self, request):
+        # Throttling is a nice-to-have, not something login can afford to
+        # depend on: if the Redis-backed throttle cache errors (unreachable,
+        # bad credentials, free-tier hiccup), this call happens in
+        # dispatch()/initial() *before* post()'s own try/except ever runs,
+        # so an unhandled cache error here previously took down the entire
+        # login endpoint with a raw 500. Fail open instead — skip throttling
+        # for this request — and let a real Throttled (rate exceeded) through
+        # as normal.
+        try:
+            super().check_throttles(request)
+        except Throttled:
+            raise
+        except Exception:
+            pass
 
     def post(self, request, *args, **kwargs):
         # Invalid credentials make super().post() RAISE (AuthenticationFailed),
