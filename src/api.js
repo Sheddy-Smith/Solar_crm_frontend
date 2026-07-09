@@ -515,6 +515,22 @@ export const workforceApi = {
   deleteDocument: (id) => request(`/workforce/documents/${id}/`, { method: 'DELETE' }),
   employeeSummary: (id) => request(`/workforce/employees/${id}/summary/`),
   employeeHistory: (id) => request(`/workforce/employees/${id}/history/`),
+  attendanceLedger: (id, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/workforce/employees/${id}/attendance-ledger/${qs ? '?' + qs : ''}`);
+  },
+  listAttendance: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/workforce/attendance/${qs ? '?' + qs : ''}`);
+  },
+  updateAttendance: (id, data) => request(`/workforce/attendance/${id}/`, { method: 'PATCH', body: data }),
+  markAttendancePresent: (id, data = {}) => request(`/workforce/attendance/${id}/mark-present/`, { method: 'POST', body: data }),
+  markAttendanceAbsent: (id) => request(`/workforce/attendance/${id}/mark-absent/`, { method: 'POST', body: {} }),
+  listVouchers: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/workforce/vouchers/${qs ? '?' + qs : ''}`);
+  },
+  createVoucher: (data) => request('/workforce/vouchers/', { method: 'POST', body: data }),
 };
 
 // ─── Subsidy ──────────────────────────────────────────────────────────────────

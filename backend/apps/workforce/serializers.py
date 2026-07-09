@@ -1,5 +1,9 @@
+from decimal import Decimal
+
 from rest_framework import serializers
-from .models import Employee, EmployeeAssignment, EmployeeDocument
+
+from .models import Employee, EmployeeAssignment, EmployeeDocument, EmployeeAttendance, EmployeeVoucher
+from .services import employee_net_balance, hourly_rate_for, payment_for_attendance
 
 
 class EmployeeDocumentSerializer(serializers.ModelSerializer):
@@ -33,16 +37,25 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     current_assignment = serializers.SerializerMethodField()
     pending_tasks = serializers.SerializerMethodField()
     completed_tasks = serializers.SerializerMethodField()
+    hourly_rate = serializers.SerializerMethodField()
+    net_balance = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
         fields = [
             'id', 'employee_id', 'name', 'mobile', 'email',
-            'department', 'role', 'joining_date', 'status',
+            'department', 'role', 'skill_trade', 'joining_date', 'status',
+            'aadhaar_number', 'address', 'daily_rate', 'hourly_rate', 'opening_balance', 'net_balance',
             'present_days', 'absent_days', 'leave_balance',
             'current_assignment', 'pending_tasks', 'completed_tasks',
             'created_at',
         ]
+
+    def get_hourly_rate(self, obj):
+        return str(hourly_rate_for(obj))
+
+    def get_net_balance(self, obj):
+        return str(employee_net_balance(obj))
 
     def get_current_assignment(self, obj):
         a = obj.assignments.exclude(status='Completed').order_by('-created_at').first()
@@ -71,18 +84,27 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
     pending_tasks = serializers.SerializerMethodField()
     completed_tasks = serializers.SerializerMethodField()
     overall_progress = serializers.SerializerMethodField()
+    hourly_rate = serializers.SerializerMethodField()
+    net_balance = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
         fields = [
             'id', 'employee_id', 'name', 'mobile', 'email',
-            'department', 'role', 'joining_date', 'status',
+            'department', 'role', 'skill_trade', 'joining_date', 'status',
+            'aadhaar_number', 'address', 'daily_rate', 'hourly_rate', 'opening_balance', 'net_balance',
             'present_days', 'absent_days', 'leave_balance', 'notes',
             'assignments', 'documents',
             'pending_tasks', 'completed_tasks', 'overall_progress',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['employee_id', 'created_at', 'updated_at']
+
+    def get_hourly_rate(self, obj):
+        return str(hourly_rate_for(obj))
+
+    def get_net_balance(self, obj):
+        return str(employee_net_balance(obj))
 
     def get_pending_tasks(self, obj):
         return obj.assignments.exclude(status='Completed').count()
@@ -96,3 +118,51 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
             return 0
         total = sum(a.progress_percent for a in assignments)
         return round(total / assignments.count())
+
+
+class EmployeeAttendanceSerializer(serializers.ModelSerializer):
+    day = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmployeeAttendance
+        fields = [
+            'id', 'employee', 'date', 'day', 'status', 'hours', 'ot_hours',
+            'payment', 'voucher_amount', 'payment_mode', 'notes',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_day(self, obj):
+        return obj.date.strftime('%a')
+
+    def validate(self, attrs):
+        employee = attrs.get('employee') or getattr(self.instance, 'employee', None)
+        status = attrs.get('status', getattr(self.instance, 'status', 'Not Marked'))
+        hours = attrs.get('hours', getattr(self.instance, 'hours', Decimal('0.00')))
+        ot_hours = attrs.get('ot_hours', getattr(self.instance, 'ot_hours', Decimal('0.00')))
+
+        if employee and status == 'Present' and not hours:
+            attrs['hours'] = Decimal('9.00')
+            hours = attrs['hours']
+
+        if employee and status == 'Present':
+            attrs['payment'] = payment_for_attendance(employee, hours, ot_hours)
+        elif status in ('Absent', 'Not Marked'):
+            attrs['payment'] = Decimal('0.00')
+            if status == 'Absent':
+                attrs['hours'] = Decimal('0.00')
+                attrs['ot_hours'] = Decimal('0.00')
+
+        return attrs
+
+
+class EmployeeVoucherSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source='employee.name', read_only=True)
+
+    class Meta:
+        model = EmployeeVoucher
+        fields = [
+            'id', 'employee', 'employee_name', 'voucher_date', 'amount', 'payment_mode',
+            'notes', 'period_start', 'period_end', 'created_at',
+        ]
+        read_only_fields = ['created_at']

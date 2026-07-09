@@ -46,6 +46,7 @@ import {
   Heart,
   Home,
   HardDrive,
+  HardHat,
   Hourglass,
   Info,
   IndianRupee,
@@ -159,6 +160,7 @@ const sidebarItems = [
   { label: 'O&M', icon: Wrench, showChevron: true },
   { label: 'Accounts', icon: ReceiptText, showChevron: true },
   { label: 'Inventory', icon: Boxes, showChevron: true },
+  { label: 'Employee', icon: HardHat, showChevron: true },
   { label: 'Reports', icon: BarChart3 },
   { label: 'AMC & Warranty', icon: ShieldCheck, showChevron: true },
   { label: 'Summary', icon: LayoutDashboard, showChevron: true },
@@ -168,8 +170,9 @@ const sidebarItems = [
 const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Admin Approval'];
 // Pages jinhe ek selected lead chahiye — refresh/restore pe selectedLead null hota hai, isliye inhe Lead List se replace karo
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
-const employeeSubItems = ['Users', 'Roles & Permissions', 'Activity Logs'];
-const employeeRelatedPages = [...employeeSubItems];
+const employeeSubItems = ['Employee Details', 'Employee Ledger'];
+const employeeRelatedPages = ['Employee', ...employeeSubItems];
+const legacyEmployeeAdminPages = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const projectSubItems = ['Project List', 'Survey Dashboard', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Project Installation', 'Project Expenses'];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
 // 'Subsidy', 'Project Documents', 'Project Approvals' ab Project Management ke sidebar submenu me nahi —
@@ -345,6 +348,8 @@ const leadSubRoutes = {
 };
 
 const employeeSubRoutes = {
+  'Employee Details': '/employees/details',
+  'Employee Ledger': '/employees/ledger',
   Users: '/employees/users',
   'Roles & Permissions': '/employees/roles-permissions',
   'Activity Logs': '/employees/activity-logs',
@@ -510,6 +515,7 @@ const sectionRoutes = {
   Quotation: '/quotation',
   'O&M': '/om/overview',
   Reports: '/reports',
+  Employee: '/employees/details',
 };
 
 function normalizePathname(pathname) {
@@ -1820,6 +1826,7 @@ const availableSections = new Set([
   ...sidebarItems.map((item) => item.label),
   ...leadRelatedPages,
   ...employeeRelatedPages,
+  ...legacyEmployeeAdminPages,
   ...projectRelatedPages,
   ...accountsRelatedPages,
   ...inventoryRelatedPages,
@@ -1908,7 +1915,7 @@ function App() {
     const item = isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard';
     if (item === 'Lead' || leadRelatedPages.includes(item)) return 'Lead';
     if (item === 'Project Management' || projectRelatedPages.includes(item)) return 'Project Management';
-    if (item === 'Employee Management' || employeeRelatedPages.includes(item)) return 'Employee Management';
+    if (item === 'Employee' || employeeRelatedPages.includes(item)) return 'Employee';
     if (item === 'Accounts' || accountsRelatedPages.includes(item)) return 'Accounts';
     if (item === 'Inventory' || inventoryRelatedPages.includes(item)) return 'Inventory';
     if (item === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(item)) return 'Liaisoning & Commissioning';
@@ -2218,7 +2225,7 @@ function App() {
   useEffect(() => {
     if (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Lead'); return; }
     if (activeSidebarItem === 'Project Management' || projectExpandHighlightPages.includes(activeSidebarItem)) { setExpandedSection('Project Management'); return; }
-    if (activeSidebarItem === 'Employee Management' || employeeRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Employee Management'); return; }
+    if (activeSidebarItem === 'Employee' || employeeRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Employee'); return; }
     if (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Accounts'); return; }
     if (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Inventory'); return; }
     if (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Liaisoning & Commissioning'); return; }
@@ -2460,7 +2467,7 @@ function App() {
                   const Icon = item.icon;
                   const isLeadSection = item.label === 'Lead';
                   const isProjectSection = item.label === 'Project Management';
-                  const isEmployeeSection = item.label === 'Employee Management';
+                  const isEmployeeSection = item.label === 'Employee';
                   const isAccountsSection = item.label === 'Accounts';
                   const isInventorySection = item.label === 'Inventory';
                   const isLiaisonSection = item.label === 'Liaisoning & Commissioning';
@@ -2470,7 +2477,7 @@ function App() {
                   const isSettingsSection = item.label === 'Settings';
                   const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
                   const isProjectHighlighted = isProjectSection && (activeSidebarItem === 'Project Management' || projectExpandHighlightPages.includes(activeSidebarItem));
-                  const isEmployeeHighlighted = isEmployeeSection && (activeSidebarItem === 'Employee Management' || employeeRelatedPages.includes(activeSidebarItem));
+                  const isEmployeeHighlighted = isEmployeeSection && (activeSidebarItem === 'Employee' || employeeRelatedPages.includes(activeSidebarItem));
                   const isAccountsHighlighted = isAccountsSection && (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem));
                   const isInventoryHighlighted = isInventorySection && (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem));
                   const isLiaisonHighlighted = isLiaisonSection && (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem));
@@ -2479,7 +2486,7 @@ function App() {
                   const isSummaryHighlighted = isSummarySection && (activeSidebarItem === 'Summary' || summaryRelatedPages.includes(activeSidebarItem));
                   const isLeadOpen = isLeadSection && expandedSection === 'Lead';
                   const isProjectOpen = isProjectSection && expandedSection === 'Project Management';
-                  const isEmployeeOpen = isEmployeeSection && expandedSection === 'Employee Management';
+                  const isEmployeeOpen = isEmployeeSection && expandedSection === 'Employee';
                   const isAccountsOpen = isAccountsSection && expandedSection === 'Accounts';
                   const isInventoryOpen = isInventorySection && expandedSection === 'Inventory';
                   const isLiaisonOpen = isLiaisonSection && expandedSection === 'Liaisoning & Commissioning';
@@ -2509,13 +2516,13 @@ function App() {
                             setMobileSidebarOpen(false);
                             return;
                           }
-                          const sectionKey = isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee Management' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : isSummarySection ? 'Summary' : null;
+                          const sectionKey = isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : isSummarySection ? 'Summary' : null;
                           if (sectionKey) {
                             if (expandedSection === sectionKey) {
                               setExpandedSection(null);
                             } else {
                               setExpandedSection(sectionKey);
-                              const nextItem = isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Users' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isAmcSection ? 'AMC Overview' : 'Executive Summary';
+                              const nextItem = isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isAmcSection ? 'AMC Overview' : 'Executive Summary';
                               setActiveSidebarItem(nextItem);
                               notify(`${nextItem} section selected`);
                             }
@@ -2922,6 +2929,15 @@ function App() {
               <SettingsIpRestrictionsPage activeSection="Settings IP Restrictions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Users' ? (
               <UserManagementPage activeSection="Users" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} loggedInUser={loggedInUser} />
+            ) : employeeRelatedPages.includes(activeSidebarItem) ? (
+              <EmployeeManagementPage
+                activeSection={activeSidebarItem}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
             ) : activeSidebarItem === 'Roles & Permissions' ? (
               <RolesPermissionsPage activeSection="Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} loggedInUser={loggedInUser} />
             ) : activeSidebarItem === 'Activity Logs' ? (
@@ -26130,6 +26146,854 @@ function SettingsCategoryPlaceholderPage({ activeSection, onOpenSection, onNotif
   );
 }
 
+function addDaysToIso(iso, days) {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return formatIsoDate(d);
+}
+
+function getMondayIso(value = new Date()) {
+  const d = value instanceof Date ? new Date(value) : new Date(`${value}T00:00:00`);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return formatIsoDate(d);
+}
+
+function getMonthRangeFromInput(monthValue) {
+  const [year, month] = monthValue.split('-').map(Number);
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 0);
+  return { start: formatIsoDate(start), end: formatIsoDate(end) };
+}
+
+function formatInrAmount(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '₹0.00';
+  return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function exportEmployeesCsv(rows) {
+  const headers = ['Name', 'Phone', 'Aadhaar', 'Skill/Role', 'Daily Rate', 'Net Balance'];
+  const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+  const lines = rows.map((row) => [
+    row.name,
+    row.mobile,
+    row.aadhaar_number || '-',
+    row.skill_trade || row.role || '-',
+    row.daily_rate,
+    row.net_balance,
+  ].map(escape).join(','));
+  const blob = new Blob([[headers.join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `employees-${formatIsoDate(new Date())}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
+  const isAttendanceView = activeSection === 'Employee Ledger';
+  const pageTitle = isAttendanceView ? 'Employee Ledger' : 'Employee Management';
+  const emptyEmpForm = { name: '', mobile: '', skill_trade: '', daily_rate: '', address: '', aadhaar_number: '', opening_balance: '0' };
+  const paymentModes = ['Cash', 'Bank Transfer', 'UPI', 'Cheque'];
+
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [skillFilter, setSkillFilter] = useState('All Skills');
+  const [statusFilter, setStatusFilter] = useState('All Status');
+  const [empModalOpen, setEmpModalOpen] = useState(false);
+  const [editEmpId, setEditEmpId] = useState(null);
+  const [empForm, setEmpForm] = useState(emptyEmpForm);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const [rangeMode, setRangeMode] = useState('weekly');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [weekStart, setWeekStart] = useState(() => getMondayIso(new Date()));
+  const [monthValue, setMonthValue] = useState(() => dateToMonthInput(new Date()));
+  const [customStart, setCustomStart] = useState(() => formatIsoDate(new Date()));
+  const [customEnd, setCustomEnd] = useState(() => formatIsoDate(new Date()));
+  const [ledger, setLedger] = useState(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [voucherOpen, setVoucherOpen] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
+  const [editAttRow, setEditAttRow] = useState(null);
+  const [attForm, setAttForm] = useState({ hours: '9', ot_hours: '0', status: 'Present', payment_mode: 'Cash', notes: '' });
+  const [voucherForm, setVoucherForm] = useState({
+    voucher_date: formatIsoDate(new Date()),
+    amount: '',
+    payment_mode: 'Cash',
+    notes: '',
+  });
+  const cardRef = useRef(null);
+
+  const loadEmployees = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await workforceApi.listEmployees({ page_size: 500 });
+      setEmployees(normalizeApiRows(data));
+    } catch {
+      onNotify('Failed to load employees');
+    } finally {
+      setLoading(false);
+    }
+  }, [onNotify]);
+
+  useEffect(() => { loadEmployees(); }, [loadEmployees]);
+
+  const periodRange = useMemo(() => {
+    if (rangeMode === 'weekly') {
+      return { start: weekStart, end: addDaysToIso(weekStart, 6) };
+    }
+    if (rangeMode === 'monthly') {
+      return getMonthRangeFromInput(monthValue);
+    }
+    return { start: customStart, end: customEnd };
+  }, [rangeMode, weekStart, monthValue, customStart, customEnd]);
+
+  const loadLedger = useCallback(async () => {
+    if (!selectedEmployeeId) {
+      setLedger(null);
+      return;
+    }
+    setLedgerLoading(true);
+    try {
+      const data = await workforceApi.attendanceLedger(selectedEmployeeId, {
+        start_date: periodRange.start,
+        end_date: periodRange.end,
+      });
+      setLedger(data);
+    } catch {
+      onNotify('Failed to load attendance ledger');
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, [selectedEmployeeId, periodRange, onNotify]);
+
+  useEffect(() => {
+    if (isAttendanceView && selectedEmployeeId) {
+      loadLedger();
+    }
+  }, [isAttendanceView, selectedEmployeeId, loadLedger]);
+
+  const filteredEmployees = employees.filter((row) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    const searchMatch = [row.name, row.mobile, row.skill_trade, row.role, row.aadhaar_number, row.employee_id]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(q));
+    if (!searchMatch) return false;
+    return true;
+  }).filter((row) => {
+    if (skillFilter !== 'All Skills' && (row.skill_trade || row.role || 'Unassigned') !== skillFilter) return false;
+    if (statusFilter !== 'All Status' && (row.status || 'Available') !== statusFilter) return false;
+    return true;
+  });
+
+  const selectedEmployee = employees.find((row) => String(row.id) === String(selectedEmployeeId)) ?? null;
+  const displayedLedgerRows = useMemo(() => {
+    if (!ledger?.records || !periodRange.start || !periodRange.end) return ledger?.records ?? [];
+    const recordMap = new Map((ledger.records || []).map((row) => [row.date, row]));
+    const rows = [];
+    const cursor = new Date(`${periodRange.start}T00:00:00`);
+    const end = new Date(`${periodRange.end}T00:00:00`);
+    while (cursor <= end) {
+      const iso = formatIsoDate(cursor);
+      rows.push(
+        recordMap.get(iso) ?? {
+          id: `missing-${iso}`,
+          date: iso,
+          day: cursor.toLocaleDateString('en-IN', { weekday: 'short' }),
+          status: 'Not Marked',
+          hours: '0.00',
+          ot_hours: '0.00',
+          payment: '0.00',
+          voucher_amount: '0.00',
+          payment_mode: '',
+          notes: '',
+        },
+      );
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return rows;
+  }, [ledger, periodRange.start, periodRange.end]);
+  const skillOptions = ['All Skills', ...new Set(employees.map((row) => row.skill_trade || row.role).filter(Boolean))];
+  const statusOptions = ['All Status', ...new Set(employees.map((row) => row.status || 'Available').filter(Boolean))];
+  const employeeStats = {
+    total: employees.length,
+    active: employees.filter((row) => ['Available', 'Assigned', 'In Progress'].includes(row.status)).length,
+    onLeave: employees.filter((row) => row.status === 'On Leave').length,
+    todayPresent: ledger?.summary?.present_days ?? 0,
+    totalPayroll: employees.reduce((sum, row) => sum + Number(row.daily_rate || 0), 0),
+  };
+
+  const openCreateEmployee = () => {
+    setEmpForm(emptyEmpForm);
+    setEditEmpId(null);
+    setEmpModalOpen(true);
+  };
+
+  const openEditEmployee = (row) => {
+    setEditEmpId(row.id);
+    setEmpForm({
+      name: row.name || '',
+      mobile: row.mobile || '',
+      skill_trade: row.skill_trade || row.role || '',
+      daily_rate: row.daily_rate ?? '',
+      address: row.address || '',
+      aadhaar_number: row.aadhaar_number || '',
+      opening_balance: row.opening_balance ?? '0',
+    });
+    setEmpModalOpen(true);
+  };
+
+  const handleSaveEmployee = async () => {
+    if (!empForm.name.trim()) { onNotify('Employee name is required'); return; }
+    if (!empForm.skill_trade.trim()) { onNotify('Skill/Trade is required'); return; }
+    if (!empForm.daily_rate) { onNotify('Daily rate is required'); return; }
+    setSaving(true);
+    try {
+      const payload = {
+        name: empForm.name.trim(),
+        mobile: empForm.mobile.trim(),
+        skill_trade: empForm.skill_trade.trim(),
+        role: empForm.skill_trade.trim(),
+        daily_rate: Number(empForm.daily_rate) || 0,
+        address: empForm.address.trim(),
+        aadhaar_number: empForm.aadhaar_number.trim(),
+        opening_balance: Number(empForm.opening_balance) || 0,
+      };
+      if (editEmpId !== null) {
+        await workforceApi.updateEmployee(editEmpId, payload);
+        onNotify('Employee updated');
+      } else {
+        await workforceApi.createEmployee(payload);
+        onNotify('Employee added');
+      }
+      setEmpModalOpen(false);
+      loadEmployees();
+    } catch (error) {
+      onNotify(error.message || 'Failed to save employee');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteEmployee = (row) => {
+    setDeleteConfirm({
+      message: `Delete employee "${row.name}"?`,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          await workforceApi.deleteEmployee(row.id);
+          onNotify('Employee deleted');
+          if (String(selectedEmployeeId) === String(row.id)) {
+            setSelectedEmployeeId('');
+            setLedger(null);
+          }
+          loadEmployees();
+        } catch (error) {
+          onNotify(error.message || 'Delete failed');
+        } finally {
+          setSaving(false);
+          setDeleteConfirm(null);
+        }
+      },
+    });
+  };
+
+  const handleMarkPresent = async (record) => {
+    try {
+      await workforceApi.markAttendancePresent(record.id);
+      onNotify('Attendance marked as present');
+      loadLedger();
+      loadEmployees();
+    } catch (error) {
+      onNotify(error.message || 'Failed to mark present');
+    }
+  };
+
+  const handleMarkAbsent = async (record) => {
+    try {
+      await workforceApi.markAttendanceAbsent(record.id);
+      onNotify('Attendance marked as absent');
+      loadLedger();
+    } catch (error) {
+      onNotify(error.message || 'Failed to mark absent');
+    }
+  };
+
+  const handleSaveAttendanceEdit = async () => {
+    if (!editAttRow) return;
+    setSaving(true);
+    try {
+      await workforceApi.updateAttendance(editAttRow.id, {
+        employee: selectedEmployeeId,
+        date: editAttRow.date,
+        status: attForm.status,
+        hours: Number(attForm.hours) || 0,
+        ot_hours: Number(attForm.ot_hours) || 0,
+        payment_mode: attForm.payment_mode,
+        notes: attForm.notes,
+      });
+      onNotify('Attendance updated');
+      setEditAttRow(null);
+      loadLedger();
+      loadEmployees();
+    } catch (error) {
+      onNotify(error.message || 'Failed to update attendance');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveVoucher = async () => {
+    if (!selectedEmployeeId) { onNotify('Select an employee first'); return; }
+    if (!voucherForm.amount) { onNotify('Payment amount is required'); return; }
+    setSaving(true);
+    try {
+      await workforceApi.createVoucher({
+        employee: Number(selectedEmployeeId),
+        voucher_date: voucherForm.voucher_date,
+        amount: Number(voucherForm.amount) || 0,
+        payment_mode: voucherForm.payment_mode,
+        notes: voucherForm.notes,
+        period_start: periodRange.start,
+        period_end: periodRange.end,
+      });
+      onNotify('Payment voucher processed');
+      setVoucherOpen(false);
+      setVoucherForm({ voucher_date: formatIsoDate(new Date()), amount: '', payment_mode: 'Cash', notes: '' });
+      loadLedger();
+      loadEmployees();
+    } catch (error) {
+      onNotify(error.message || 'Failed to process voucher');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePrintCard = () => {
+    window.print();
+  };
+
+  const handleSaveCardPng = () => {
+    onNotify('Use Print Card to export, or save screenshot from the generated card preview.');
+  };
+
+  const employeeTabs = [
+    { key: 'Employee Details', label: 'Employee Details' },
+    { key: 'Employee Ledger', label: 'Weekly Attendance Card' },
+  ];
+
+  return (
+    <div className="space-y-2.5">
+      <PageHeading
+        title={pageTitle}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Employee' },
+          { label: isAttendanceView ? 'Employee Ledger' : 'Employee Details' },
+        ]}
+        actions={(
+          <button
+            type="button"
+            onClick={openCreateEmployee}
+            className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(22,163,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#15803d]"
+          >
+            <Plus className="size-4" />
+            Add Employee
+          </button>
+        )}
+      />
+
+      <section className={`${panelClass} overflow-hidden`}>
+        <div className="flex overflow-x-auto border-b border-[#e8eef6]">
+          {employeeTabs.map((tab) => {
+            const active = activeSection === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => onOpenSection(tab.key)}
+                className={cx(
+                  'min-w-[180px] flex-1 px-4 py-3 text-[15px] font-semibold transition',
+                  active ? 'border-b-2 border-[#16a34a] text-[#16a34a]' : 'border-b-2 border-transparent text-[#53647f] hover:text-[#1e3261]',
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {!isAttendanceView ? (
+        <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {[
+              { label: 'Total Employees', value: employeeStats.total, note: 'All Registered', tone: 'text-[#0d9f4a]', icon: UsersRound },
+              { label: 'Active Employees', value: employeeStats.active, note: 'Currently Working', tone: 'text-[#0b65e5]', icon: UserRound },
+              { label: 'On Leave', value: employeeStats.onLeave, note: 'Not Available', tone: 'text-[#f59e0b]', icon: Clock3 },
+              { label: 'Today Present', value: employeeStats.todayPresent, note: 'Marked Present', tone: 'text-[#7c3aed]', icon: CalendarDays },
+              { label: 'Total Payroll', value: formatInrAmount(employeeStats.totalPayroll), note: 'This Month', tone: 'text-[#0f766e]', icon: IndianRupee },
+            ].map((card) => {
+              const Icon = card.icon;
+              return (
+                <article key={card.label} className="rounded-[10px] border border-[#e7eef7] bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[13px] font-semibold text-[#53647f]">{card.label}</p>
+                    <span className={cx('grid size-9 place-items-center rounded-full bg-[#f4f8ff]', card.tone)}><Icon className="size-4" /></span>
+                  </div>
+                  <p className={cx('mt-1 text-[22px] font-bold', card.tone)}>{card.value}</p>
+                  <p className="text-[13px] font-medium text-[#8a98af]">{card.note}</p>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="mb-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+              <Search className="size-4 text-[#7e8fab]" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, phone, or skill..."
+                className="w-full bg-transparent text-[16px] font-medium text-[#1e3261] outline-none placeholder:text-[#8a98af]"
+              />
+            </label>
+            <label className="relative">
+              <Filter className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
+              <select value={skillFilter} onChange={(e) => setSkillFilter(e.target.value)} className="h-10 min-w-[120px] appearance-none rounded-[8px] border border-[#dce6f3] bg-white pl-8 pr-8 text-[15px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
+                {skillOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>
+            <label className="relative">
+              <Filter className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-10 min-w-[126px] appearance-none rounded-[8px] border border-[#dce6f3] bg-white pl-8 pr-8 text-[15px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
+                {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => { exportEmployeesCsv(filteredEmployees); onNotify('Employee list exported'); }}
+              className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-4 text-[15px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
+            >
+              <Download className="size-4" />
+              Export CSV
+            </button>
+          </div>
+
+          {loading ? (
+            <PageLoadingState message="Loading employees..." compact />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="crm-table">
+                <thead>
+                  <tr>
+                    {['#', 'Name', 'Phone', 'Aadhaar', 'Skill / Role', 'Rate (₹)', 'Net Balance', 'Status', 'Actions'].map((heading) => (
+                      <th key={heading}>{heading}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEmployees.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-14 text-center">
+                        <UsersRound className="mx-auto size-10 text-[#c9d7ea]" />
+                        <p className="mt-3 text-[20px] font-bold text-[#1e3261]">No employees found</p>
+                        <p className="mt-1 text-[14px] font-medium text-[#7585a2]">Click on \"Add Employee\" to create a new employee record.</p>
+                      </td>
+                    </tr>
+                  ) : filteredEmployees.map((row, index) => {
+                    const balance = Number(row.net_balance || 0);
+                    const hourly = Number(row.hourly_rate || 0);
+                    return (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-semibold text-[#1e3261]">{row.name}</td>
+                        <td>{row.mobile || '-'}</td>
+                        <td>{row.aadhaar_number || '-'}</td>
+                        <td>{row.skill_trade || row.role || '-'}</td>
+                        <td>
+                          <div>{formatInrAmount(row.daily_rate)}</div>
+                          <div className="text-[13px] font-medium text-[#8a98af]">{formatInrAmount(hourly)}/hr</div>
+                        </td>
+                        <td>
+                          <div className={cx('font-semibold', balance > 0 ? 'text-[#ea5a4c]' : 'text-[#0d9f4a]')}>{formatInrAmount(balance)}</div>
+                          <div className="text-[13px] font-medium text-[#8a98af]">{balance > 0 ? 'To Pay' : 'Settled'}</div>
+                        </td>
+                        <td>
+                          <span className={cx(
+                            'inline-flex rounded-full px-2.5 py-1 text-[13px] font-semibold',
+                            row.status === 'On Leave' ? 'bg-[#fff0dc] text-[#f59e0b]'
+                              : row.status === 'Available' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
+                                : 'bg-[#e8f2ff] text-[#0b65e5]',
+                          )}
+                          >
+                            {row.status || 'Available'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <button type="button" onClick={() => openEditEmployee(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]" aria-label="Edit employee"><Pencil className="size-4" /></button>
+                            <button type="button" onClick={() => handleDeleteEmployee(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffe1de] bg-[#fff5f4] text-[#ea5a4c]" aria-label="Delete employee"><Trash2 className="size-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : (
+        <div className="space-y-2.5">
+          <section className={`${panelClass} p-2.5 sm:p-3`}>
+            <p className="mb-2 text-[14px] font-semibold text-[#53647f]">Date Range Mode</p>
+            <div className="flex flex-wrap gap-4">
+              {[
+                { value: 'weekly', label: 'Weekly View' },
+                { value: 'monthly', label: 'Monthly View' },
+                { value: 'custom', label: 'Custom Date Range' },
+              ].map((option) => (
+                <label key={option.value} className="inline-flex items-center gap-2 text-[15px] font-medium text-[#1e3261]">
+                  <input type="radio" name="employee-range-mode" checked={rangeMode === option.value} onChange={() => setRangeMode(option.value)} className="size-4 accent-[#ea5a4c]" />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
+                Select Employee *
+                <select value={selectedEmployeeId} onChange={(e) => setSelectedEmployeeId(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
+                  <option value="">-- Choose Employee --</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.skill_trade || emp.role || 'Employee'})</option>
+                  ))}
+                </select>
+              </label>
+
+              {rangeMode === 'weekly' ? (
+                <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
+                  Week Starting
+                  <input type="date" value={weekStart} onChange={(e) => setWeekStart(getMondayIso(e.target.value))} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+                </label>
+              ) : null}
+
+              {rangeMode === 'monthly' ? (
+                <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
+                  Select Month
+                  <input type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+                </label>
+              ) : null}
+
+              {rangeMode === 'custom' ? (
+                <>
+                  <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
+                    Start Date
+                    <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+                  </label>
+                  <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
+                    End Date
+                    <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+                  </label>
+                </>
+              ) : null}
+            </div>
+          </section>
+
+          {!selectedEmployeeId ? (
+            <section className={`${panelClass} flex flex-col items-center justify-center px-6 py-16 text-center`}>
+              <span className="grid size-16 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]">
+                <CalendarDays className="size-8" />
+              </span>
+              <p className="mt-4 text-[28px] font-bold text-[#1e3261]">No Employee Selected</p>
+              <p className="mt-2 text-[15px] font-medium text-[#53647f]">Select an employee to view their attendance ledger.</p>
+            </section>
+          ) : ledgerLoading ? (
+            <PageLoadingState message="Loading attendance card..." compact />
+          ) : ledger ? (
+            <>
+              <section className="rounded-[10px] border border-[#d9ecff] bg-[#f3f9ff] px-4 py-3">
+                <div className="flex flex-wrap gap-x-8 gap-y-2 text-[14px] font-medium text-[#1e3261]">
+                  <span><strong>Name:</strong> {ledger.employee.name}</span>
+                  <span><strong>Phone:</strong> {ledger.employee.mobile || '-'}</span>
+                  <span><strong>Aadhaar:</strong> {ledger.employee.aadhaar_number || '-'}</span>
+                  <span><strong>Daily Rate:</strong> {formatInrAmount(ledger.employee.daily_rate)} / {formatInrAmount(ledger.employee.hourly_rate)}/hr</span>
+                </div>
+              </section>
+
+              <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
+                <div className="mb-3 flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+                  <h2 className="font-display text-[20px] font-semibold text-[#111827]">
+                    {periodRange.start} to {periodRange.end} — Attendance Ledger
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setCardOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-4 text-[14px] font-semibold text-[#284276]"><FileText className="size-4" />Card Generate</button>
+                    <button type="button" onClick={handlePrintCard} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-4 text-[14px] font-semibold text-[#284276]"><Printer className="size-4" />Print Ledger</button>
+                    <button type="button" onClick={() => setVoucherOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#7c3aed] px-4 text-[14px] font-semibold text-white"><Wallet className="size-4" />Voucher</button>
+                  </div>
+                </div>
+
+                <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                  {[
+                    { label: 'Present Days', value: ledger.summary.present_days, tone: 'text-[#0d9f4a]' },
+                    { label: 'Net Previous Balance', value: formatInrAmount(ledger.summary.net_previous_balance), tone: 'text-[#f59e0b]' },
+                    { label: 'Period Earning', value: formatInrAmount(ledger.summary.period_earning), tone: 'text-[#0b65e5]' },
+                    { label: 'Period Paid', value: formatInrAmount(ledger.summary.period_paid), tone: 'text-[#ea5a4c]' },
+                    { label: 'Net Balance', value: formatInrAmount(ledger.summary.net_balance), tone: 'text-[#7c3aed]' },
+                  ].map((card) => (
+                    <article key={card.label} className="rounded-[10px] border border-[#e7eef7] bg-white p-3">
+                      <p className="text-[13px] font-semibold text-[#53647f]">{card.label}</p>
+                      <p className={cx('mt-1 text-[18px] font-bold', card.tone)}>{card.value}</p>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="crm-table">
+                    <thead>
+                      <tr>{['Date', 'Day', 'Status', 'Hours', 'OT Hours', 'Payment', 'Voucher', 'Mode', 'Action'].map((heading) => <th key={heading}>{heading}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {displayedLedgerRows.map((row) => (
+                        <tr key={row.id}>
+                          <td>{new Date(`${row.date}T00:00:00`).toLocaleDateString('en-IN')}</td>
+                          <td>{row.day}</td>
+                          <td>
+                            <span className={cx(
+                              'inline-flex rounded-full px-2.5 py-1 text-[13px] font-semibold',
+                              row.status === 'Present' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : row.status === 'Absent' ? 'bg-[#ffe9e6] text-[#ea5a4c]' : 'bg-[#eef2f7] text-[#7585a2]',
+                            )}
+                            >
+                              {row.status}
+                            </span>
+                          </td>
+                          <td>{row.hours}</td>
+                          <td>{row.ot_hours}</td>
+                          <td>{formatInrAmount(row.payment)}</td>
+                          <td>{row.voucher_amount !== '0.00' ? formatInrAmount(row.voucher_amount) : '-'}</td>
+                          <td>{row.payment_mode || '-'}</td>
+                          <td>
+                            <div className="flex items-center gap-1.5">
+                              <button type="button" onClick={() => handleMarkPresent(row)} className="inline-flex size-8 items-center justify-center rounded-full border border-[#cfe8d6] bg-[#f1fff5] text-[#0d9f4a]" aria-label="Mark present"><CheckCircle2 className="size-4" /></button>
+                              <button type="button" onClick={() => handleMarkAbsent(row)} className="inline-flex size-8 items-center justify-center rounded-full border border-[#ffe1de] bg-[#fff5f4] text-[#ea5a4c]" aria-label="Mark absent"><XCircle className="size-4" /></button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditAttRow(row);
+                                  setAttForm({
+                                    hours: row.hours,
+                                    ot_hours: row.ot_hours,
+                                    status: row.status,
+                                    payment_mode: row.payment_mode || 'Cash',
+                                    notes: row.notes || '',
+                                  });
+                                }}
+                                className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]"
+                                aria-label="Edit attendance"
+                              >
+                                <Pencil className="size-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-[#f8fbff] font-semibold text-[#1e3261]">
+                        <td colSpan={3}>Total</td>
+                        <td>{displayedLedgerRows.reduce((sum, row) => sum + Number(row.hours || 0), 0)}</td>
+                        <td>{displayedLedgerRows.reduce((sum, row) => sum + Number(row.ot_hours || 0), 0)}</td>
+                        <td>{formatInrAmount(displayedLedgerRows.reduce((sum, row) => sum + Number(row.payment || 0), 0))}</td>
+                        <td>{formatInrAmount(displayedLedgerRows.reduce((sum, row) => sum + Number(row.voucher_amount || 0), 0))}</td>
+                        <td colSpan={2} />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </section>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {empModalOpen ? (
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+          <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <h2 className="font-display text-[20px] font-semibold text-[#111827]">{editEmpId !== null ? 'Edit Employee' : 'Add Employee'}</h2>
+              <button type="button" onClick={() => setEmpModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="grid gap-4 p-5 md:grid-cols-2">
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c] md:col-span-2">Name *
+                <input value={empForm.name} onChange={(e) => setEmpForm((prev) => ({ ...prev, name: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Phone
+                <input value={empForm.mobile} onChange={(e) => setEmpForm((prev) => ({ ...prev, mobile: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Skill/Trade *
+                <input value={empForm.skill_trade} onChange={(e) => setEmpForm((prev) => ({ ...prev, skill_trade: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Rate (₹ per day) *
+                <input type="number" min="0" step="0.01" value={empForm.daily_rate} onChange={(e) => setEmpForm((prev) => ({ ...prev, daily_rate: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+                {empForm.daily_rate ? <span className="text-[13px] font-medium text-[#53647f]">Hourly Rate: {formatInrAmount(Number(empForm.daily_rate) / 9)}/hr (9 hours basis)</span> : null}
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c] md:col-span-2">Address
+                <textarea rows={3} value={empForm.address} onChange={(e) => setEmpForm((prev) => ({ ...prev, address: e.target.value }))} className="rounded-[8px] border border-[#dce6f3] px-3 py-2 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Aadhaar Number
+                <input value={empForm.aadhaar_number} onChange={(e) => setEmpForm((prev) => ({ ...prev, aadhaar_number: e.target.value }))} placeholder="12-digit Aadhaar number" className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Opening Balance (₹)
+                <input type="number" step="0.01" value={empForm.opening_balance} onChange={(e) => setEmpForm((prev) => ({ ...prev, opening_balance: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
+              <button type="button" onClick={() => setEmpModalOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[15px] font-semibold text-[#284276]">Cancel</button>
+              <button type="button" onClick={handleSaveEmployee} disabled={saving} className="h-10 rounded-[8px] bg-[#ea5a4c] px-5 text-[15px] font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {voucherOpen ? (
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-[520px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <h2 className="font-display text-[20px] font-semibold text-[#111827]">Add Payment Voucher</h2>
+              <button type="button" onClick={() => setVoucherOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="rounded-[10px] border border-[#d9ecff] bg-[#f3f9ff] p-4">
+                <p className="text-[14px] font-semibold text-[#53647f]">Period Total Payable</p>
+                <p className="mt-1 text-[24px] font-bold text-[#0b65e5]">{formatInrAmount(ledger?.summary?.period_earning || 0)}</p>
+              </div>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Voucher Date *
+                <input type="date" value={voucherForm.voucher_date} onChange={(e) => setVoucherForm((prev) => ({ ...prev, voucher_date: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Payment Amount (₹) *
+                <input type="number" min="0" step="0.01" value={voucherForm.amount} onChange={(e) => setVoucherForm((prev) => ({ ...prev, amount: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Payment Mode *
+                <select value={voucherForm.payment_mode} onChange={(e) => setVoucherForm((prev) => ({ ...prev, payment_mode: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
+                  {paymentModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Notes/Voucher Details
+                <textarea rows={3} value={voucherForm.notes} onChange={(e) => setVoucherForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Voucher number, payment details..." className="rounded-[8px] border border-[#dce6f3] px-3 py-2 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
+              <button type="button" onClick={() => setVoucherOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[15px] font-semibold text-[#284276]">Cancel</button>
+              <button type="button" onClick={handleSaveVoucher} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#ea5a4c] px-5 text-[15px] font-semibold text-white disabled:opacity-60"><Wallet className="size-4" />Process Payment</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editAttRow ? (
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-[480px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <h2 className="font-display text-[20px] font-semibold text-[#111827]">Edit Attendance</h2>
+              <button type="button" onClick={() => setEditAttRow(null)} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="grid gap-4 p-5">
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Status
+                <select value={attForm.status} onChange={(e) => setAttForm((prev) => ({ ...prev, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
+                  {['Present', 'Absent', 'Not Marked'].map((status) => <option key={status} value={status}>{status}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Hours
+                <input type="number" min="0" step="0.5" value={attForm.hours} onChange={(e) => setAttForm((prev) => ({ ...prev, hours: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">OT Hours
+                <input type="number" min="0" step="0.5" value={attForm.ot_hours} onChange={(e) => setAttForm((prev) => ({ ...prev, ot_hours: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Payment Mode
+                <select value={attForm.payment_mode} onChange={(e) => setAttForm((prev) => ({ ...prev, payment_mode: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
+                  {paymentModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
+              <button type="button" onClick={() => setEditAttRow(null)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[15px] font-semibold text-[#284276]">Cancel</button>
+              <button type="button" onClick={handleSaveAttendanceEdit} disabled={saving} className="h-10 rounded-[8px] bg-[#0b65e5] px-5 text-[15px] font-semibold text-white disabled:opacity-60">Save</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {cardOpen && ledger ? (
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+          <div className="max-h-[92vh] w-full max-w-[900px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <h2 className="font-display text-[20px] font-semibold text-[#111827]">Weekly Attendance Card — {ledger.employee.name}</h2>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={handleSaveCardPng} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#ea5a4c] px-3 text-[13px] font-semibold text-white"><Download className="size-4" />Save PNG</button>
+                <button type="button" onClick={() => setCardOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+              </div>
+            </div>
+            <div ref={cardRef} className="space-y-4 p-5">
+              <div className="rounded-[10px] border border-[#d9ecff] bg-[#f3f9ff] p-4 text-[14px] font-medium text-[#1e3261]">
+                <div>Name: {ledger.employee.name}</div>
+                <div>Phone: {ledger.employee.mobile || '-'}</div>
+                <div>Period: {periodRange.start} to {periodRange.end}</div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                {[
+                  ['Present Days', ledger.summary.present_days],
+                  ['Previous Balance', formatInrAmount(ledger.summary.net_previous_balance)],
+                  ['Period Earning', formatInrAmount(ledger.summary.period_earning)],
+                  ['Period Paid', formatInrAmount(ledger.summary.period_paid)],
+                  ['Net Balance', formatInrAmount(ledger.summary.net_balance)],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-[10px] border border-[#e7eef7] p-3">
+                    <p className="text-[13px] font-semibold text-[#53647f]">{label}</p>
+                    <p className="mt-1 text-[16px] font-bold text-[#1e3261]">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <table className="crm-table">
+                <thead><tr>{['Date', 'Day', 'Status', 'Hours', 'OT', 'Payment'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead>
+                <tbody>
+                  {displayedLedgerRows.map((row) => (
+                    <tr key={`card-${row.id}`}>
+                      <td>{row.date}</td>
+                      <td>{row.day}</td>
+                      <td>{row.status}</td>
+                      <td>{row.hours}</td>
+                      <td>{row.ot_hours}</td>
+                      <td>{formatInrAmount(row.payment)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-center text-[12px] font-medium text-[#8a98af]">Generated on {new Date().toLocaleString('en-IN')}</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} loading={saving} />
+      ) : null}
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
 function mapApiUserToRow(apiUser) {
   const name = apiUser.name || 'Unnamed User';
   const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NU';
@@ -26431,7 +27295,7 @@ function UserDetailsPage({ user, onBack, onUpdateUser, onNotify, onOpenSection }
         title="User Details"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Employee Management', onClick: () => onNotify('Employee Management breadcrumb selected') },
+          { label: 'Employee', onClick: () => onNotify('Employee breadcrumb selected') },
           { label: 'Users', onClick: onBack },
           { label: user.name },
         ]}
@@ -32951,7 +33815,7 @@ function PageHeading({ title, crumbs, actions }) {
   return (
     <div className="page-heading flex min-w-0 flex-col gap-2.5 rounded-[12px] bg-white/60 p-2 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <h1 className="font-display text-[30px] font-bold leading-[1.08] tracking-[-0.01em] text-[#111827] sm:text-[38px] xl:text-[44px]">{title}</h1>
+        <h1 className="font-display text-[24px] font-bold leading-[1.12] tracking-[-0.01em] text-[#111827] sm:text-[30px] xl:text-[34px]">{title}</h1>
         <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-semibold sm:text-[14px]">
           {crumbs.map((crumb, index) => (
             <span key={`${crumb.label}-${index}`} className="inline-flex min-w-0 items-center gap-2">

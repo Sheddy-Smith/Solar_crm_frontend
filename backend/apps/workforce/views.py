@@ -1,25 +1,29 @@
-from rest_framework import viewsets, filters
+from datetime import datetime
+
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
-from .models import Employee, EmployeeAssignment, EmployeeDocument
+from .models import Employee, EmployeeAssignment, EmployeeDocument, EmployeeAttendance, EmployeeVoucher
 from .serializers import (
     EmployeeListSerializer, EmployeeDetailSerializer,
     EmployeeAssignmentSerializer, EmployeeDocumentSerializer,
+    EmployeeAttendanceSerializer, EmployeeVoucherSerializer,
 )
+from .services import attendance_ledger_payload, week_start_for
 from apps.accounts.permissions import HasModulePermission
 
 
 class EmployeeViewSet(viewsets.ModelViewSet):
-    queryset = Employee.objects.prefetch_related('assignments', 'documents').all()
+    queryset = Employee.objects.prefetch_related('assignments', 'documents', 'attendance_records', 'vouchers').all()
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'department']
-    search_fields = ['name', 'employee_id', 'role', 'mobile']
+    search_fields = ['name', 'employee_id', 'role', 'mobile', 'skill_trade', 'aadhaar_number']
     ordering_fields = ['name', 'created_at', 'status']
 
     def get_serializer_class(self):
@@ -85,6 +89,74 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 'notes': a.notes,
             })
         return Response(data)
+
+    @action(detail=True, methods=['get'], url_path='attendance-ledger')
+    def attendance_ledger(self, request, pk=None):
+        emp = self.get_object()
+        start = request.query_params.get('start_date')
+        end = request.query_params.get('end_date')
+        if not start or not end:
+            return Response({'detail': 'start_date and end_date are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            start_date = datetime.strptime(start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(attendance_ledger_payload(emp, start_date, end_date))
+
+
+class EmployeeAttendanceViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeAttendance.objects.select_related('employee').all()
+    serializer_class = EmployeeAttendanceSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['employee', 'status', 'date']
+    ordering_fields = ['date']
+
+    @action(detail=True, methods=['post'], url_path='mark-present')
+    def mark_present(self, request, pk=None):
+        record = self.get_object()
+        hours = request.data.get('hours', 9)
+        ot_hours = request.data.get('ot_hours', 0)
+        serializer = self.get_serializer(record, data={
+            'employee': record.employee_id,
+            'date': record.date,
+            'status': 'Present',
+            'hours': hours,
+            'ot_hours': ot_hours,
+            'payment_mode': request.data.get('payment_mode', record.payment_mode),
+            'notes': request.data.get('notes', record.notes),
+        }, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='mark-absent')
+    def mark_absent(self, request, pk=None):
+        record = self.get_object()
+        serializer = self.get_serializer(record, data={
+            'employee': record.employee_id,
+            'date': record.date,
+            'status': 'Absent',
+            'hours': 0,
+            'ot_hours': 0,
+            'payment_mode': '',
+            'notes': request.data.get('notes', record.notes),
+        }, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class EmployeeVoucherViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeVoucher.objects.select_related('employee').all()
+    serializer_class = EmployeeVoucherSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['employee', 'payment_mode', 'voucher_date']
+    ordering_fields = ['voucher_date', 'created_at']
 
 
 class EmployeeAssignmentViewSet(viewsets.ModelViewSet):
