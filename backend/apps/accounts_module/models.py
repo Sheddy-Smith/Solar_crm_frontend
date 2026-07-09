@@ -129,6 +129,25 @@ class Payment(models.Model):
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     project_ref = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True)
+    received_from = models.CharField(max_length=200, blank=True)
+    particulars = models.TextField(blank=True)
+    receipt_source = models.CharField(
+        max_length=30,
+        blank=True,
+        choices=[
+            ('Estimate', 'Estimate'),
+            ('Invoice', 'Invoice'),
+            ('Advance', 'Advance'),
+            ('Project', 'Project'),
+            ('Other', 'Other'),
+        ],
+    )
+    related_staff = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='cash_receipts_handled',
+    )
+    advance_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    settled_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    due_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Completed')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='payments_created')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -222,3 +241,259 @@ class Transaction(models.Model):
                 condition=models.Q(reference_number__isnull=False) & ~models.Q(reference_number=''),
             ),
         ]
+
+
+class _GstMixin(models.Model):
+    GST_TYPE_CHOICES = [
+        ('IGST', 'IGST'),
+        ('CGST_SGST', 'CGST + SGST'),
+    ]
+    gst_type = models.CharField(max_length=12, choices=GST_TYPE_CHOICES, default='CGST_SGST')
+    cgst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    sgst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    igst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    class Meta:
+        abstract = True
+
+
+class PurchaseInvoice(_GstMixin):
+  STATUS_CHOICES = [
+      ('Draft', 'Draft'),
+      ('Recorded', 'Recorded'),
+      ('Paid', 'Paid'),
+      ('Cancelled', 'Cancelled'),
+  ]
+  invoice_no = models.CharField(max_length=100, blank=True)
+  invoice_date = models.DateField()
+  supplier = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_invoices')
+  supplier_name = models.CharField(max_length=200, blank=True)
+  category = models.CharField(max_length=100, blank=True)
+  project = models.ForeignKey(
+      'projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_invoices',
+  )
+  payment_mode = models.CharField(max_length=20, choices=Payment.MODE_CHOICES, default='NEFT')
+  payment_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  balance_due = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  extra_charges_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Recorded')
+  remarks = models.TextField(blank=True)
+  created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='purchase_invoices_created')
+  created_at = models.DateTimeField(auto_now_add=True)
+  updated_at = models.DateTimeField(auto_now=True)
+
+  def __str__(self):
+      return self.invoice_no or f'PI-{self.id:04d}'
+
+  class Meta:
+      ordering = ['-invoice_date', '-created_at']
+
+
+class PurchaseInvoiceLine(models.Model):
+  invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.CASCADE, related_name='lines')
+  material_name = models.CharField(max_length=200)
+  category = models.CharField(max_length=100, blank=True)
+  quantity = models.DecimalField(max_digits=12, decimal_places=2, default=1)
+  unit = models.CharField(max_length=30, blank=True, default='Nos')
+  rate = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  sort_order = models.PositiveSmallIntegerField(default=0)
+
+  class Meta:
+      ordering = ['sort_order', 'id']
+
+
+class PurchaseInvoiceExtraCharge(models.Model):
+  invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.CASCADE, related_name='extra_charges')
+  description = models.CharField(max_length=200)
+  amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  sort_order = models.PositiveSmallIntegerField(default=0)
+
+  class Meta:
+      ordering = ['sort_order', 'id']
+
+
+class SellInvoice(_GstMixin):
+  STATUS_CHOICES = [
+      ('Pending', 'Pending'),
+      ('Issued', 'Issued'),
+      ('Paid', 'Paid'),
+      ('Cancelled', 'Cancelled'),
+  ]
+  invoice_no = models.CharField(max_length=100, blank=True)
+  invoice_date = models.DateField()
+  party = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='sell_invoices')
+  party_name = models.CharField(max_length=200, blank=True)
+  gst_number = models.CharField(max_length=20, blank=True)
+  branch = models.CharField(max_length=100, blank=True)
+  project = models.ForeignKey(
+      'projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='sell_invoices',
+  )
+  payment_mode = models.CharField(max_length=20, choices=Payment.MODE_CHOICES, blank=True, default='')
+  payment_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  balance_due = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+  remarks = models.TextField(blank=True)
+  created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='sell_invoices_created')
+  created_at = models.DateTimeField(auto_now_add=True)
+  updated_at = models.DateTimeField(auto_now=True)
+
+  def __str__(self):
+      return self.invoice_no or f'SI-{self.id:04d}'
+
+  class Meta:
+      ordering = ['-invoice_date', '-created_at']
+
+
+class SellInvoiceLine(models.Model):
+  invoice = models.ForeignKey(SellInvoice, on_delete=models.CASCADE, related_name='lines')
+  material_name = models.CharField(max_length=200)
+  category = models.CharField(max_length=100, blank=True)
+  quantity = models.DecimalField(max_digits=12, decimal_places=2, default=1)
+  unit = models.CharField(max_length=30, blank=True, default='Nos')
+  rate = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  sort_order = models.PositiveSmallIntegerField(default=0)
+
+  class Meta:
+      ordering = ['sort_order', 'id']
+
+
+class PaymentVoucher(models.Model):
+  ENTRY_TYPE_CHOICES = [
+      ('Voucher', 'Voucher'),
+      ('Expense', 'Expense'),
+  ]
+  PAYEE_TYPE_CHOICES = [
+      ('Supplier', 'Supplier'),
+      ('Labour', 'Labour'),
+      ('Customer', 'Customer'),
+      ('Other', 'Other'),
+  ]
+  voucher_no = models.CharField(max_length=100, blank=True)
+  voucher_date = models.DateField()
+  entry_type = models.CharField(max_length=10, choices=ENTRY_TYPE_CHOICES, default='Voucher')
+  payee_type = models.CharField(max_length=20, choices=PAYEE_TYPE_CHOICES, default='Other')
+  payee_name = models.CharField(max_length=200)
+  category = models.CharField(max_length=100, blank=True)
+  particulars = models.TextField(blank=True)
+  payment_mode = models.CharField(max_length=20, choices=Payment.MODE_CHOICES, default='Cash')
+  amount = models.DecimalField(max_digits=14, decimal_places=2)
+  project = models.ForeignKey(
+      'projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_vouchers',
+  )
+  status = models.CharField(max_length=20, choices=Payment.STATUS_CHOICES, default='Completed')
+  created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='payment_vouchers_created')
+  created_at = models.DateTimeField(auto_now_add=True)
+  updated_at = models.DateTimeField(auto_now=True)
+
+  def __str__(self):
+      return self.voucher_no or f'VCH-{self.id:04d}'
+
+  class Meta:
+      ordering = ['-voucher_date', '-created_at']
+
+
+class PurchaseChallan(models.Model):
+  STATUS_CHOICES = [
+      ('Open', 'Open'),
+      ('Received', 'Received'),
+      ('Cancelled', 'Cancelled'),
+  ]
+  challan_no = models.CharField(max_length=100, blank=True)
+  challan_date = models.DateField()
+  supplier = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_challans')
+  supplier_name = models.CharField(max_length=200, blank=True)
+  project = models.ForeignKey(
+      'projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_challans',
+  )
+  vehicle_no = models.CharField(max_length=30, blank=True)
+  payment_mode = models.CharField(max_length=20, choices=Payment.MODE_CHOICES, blank=True, default='')
+  payment_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  balance_due = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Open')
+  remarks = models.TextField(blank=True)
+  created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='purchase_challans_created')
+  created_at = models.DateTimeField(auto_now_add=True)
+  updated_at = models.DateTimeField(auto_now=True)
+
+  def __str__(self):
+      return self.challan_no or f'PC-{self.id:04d}'
+
+  class Meta:
+      ordering = ['-challan_date', '-created_at']
+
+
+class PurchaseChallanLine(models.Model):
+  challan = models.ForeignKey(PurchaseChallan, on_delete=models.CASCADE, related_name='lines')
+  material_name = models.CharField(max_length=200)
+  category = models.CharField(max_length=100, blank=True)
+  quantity = models.DecimalField(max_digits=12, decimal_places=2, default=1)
+  unit = models.CharField(max_length=30, blank=True, default='Nos')
+  rate = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  sort_order = models.PositiveSmallIntegerField(default=0)
+
+  class Meta:
+      ordering = ['sort_order', 'id']
+
+
+class SellChallan(models.Model):
+  STATUS_CHOICES = [
+      ('Open', 'Open'),
+      ('Dispatched', 'Dispatched'),
+      ('Delivered', 'Delivered'),
+      ('Cancelled', 'Cancelled'),
+  ]
+  challan_no = models.CharField(max_length=100, blank=True)
+  challan_date = models.DateField()
+  party = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='sell_challans')
+  party_name = models.CharField(max_length=200, blank=True)
+  project = models.ForeignKey(
+      'projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='sell_challans',
+  )
+  vehicle_no = models.CharField(max_length=30, blank=True)
+  site_address = models.CharField(max_length=300, blank=True)
+  total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Open')
+  remarks = models.TextField(blank=True)
+  created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='sell_challans_created')
+  created_at = models.DateTimeField(auto_now_add=True)
+  updated_at = models.DateTimeField(auto_now=True)
+
+  def __str__(self):
+      return self.challan_no or f'SC-{self.id:04d}'
+
+  class Meta:
+      ordering = ['-challan_date', '-created_at']
+
+
+class SellChallanLine(models.Model):
+  challan = models.ForeignKey(SellChallan, on_delete=models.CASCADE, related_name='lines')
+  material_name = models.CharField(max_length=200)
+  category = models.CharField(max_length=100, blank=True)
+  quantity = models.DecimalField(max_digits=12, decimal_places=2, default=1)
+  unit = models.CharField(max_length=30, blank=True, default='Nos')
+  rate = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  sort_order = models.PositiveSmallIntegerField(default=0)
+
+  class Meta:
+      ordering = ['sort_order', 'id']
+
+
+class GstOpeningBalance(models.Model):
+  month = models.DateField(unique=True)
+  igst_opening = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  cgst_opening = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  sgst_opening = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+  notes = models.TextField(blank=True)
+  created_at = models.DateTimeField(auto_now_add=True)
+  updated_at = models.DateTimeField(auto_now=True)
+
+  class Meta:
+      ordering = ['-month']

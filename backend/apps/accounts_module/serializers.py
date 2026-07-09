@@ -113,6 +113,8 @@ class PaymentSerializer(serializers.ModelSerializer):
             'party', 'party_name', 'party_display', 'project', 'project_name', 'project_ref',
             'bank_account', 'bank_account_name',
             'payment_mode', 'amount', 'description', 'status',
+            'received_from', 'particulars', 'receipt_source', 'related_staff',
+            'advance_amount', 'settled_amount', 'due_amount',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_by', 'created_at', 'updated_at', 'project_payment']

@@ -265,6 +265,14 @@ export const accountsModuleApi = {
   payments: accountsCrud('payments'),
   cheques: accountsCrud('cheques'),
   transactions: accountsCrud('transactions'),
+  purchaseInvoices: accountsCrud('purchase-invoices'),
+  sellInvoices: accountsCrud('sell-invoices'),
+  vouchers: accountsCrud('vouchers'),
+  purchaseChallans: accountsCrud('purchase-challans'),
+  sellChallans: accountsCrud('sell-challans'),
+  gstOpening: accountsCrud('gst-opening'),
+  gstLedger: (year, month) => request(`/accounts/gst-opening/ledger/?year=${year}&month=${month}`),
+  saveGstOpening: (data) => request('/accounts/gst-opening/save-opening/', { method: 'POST', body: data }),
   summary: () => request('/accounts/transactions/summary/'),
 };
 

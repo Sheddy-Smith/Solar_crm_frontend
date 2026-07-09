@@ -90,6 +90,13 @@ import {
 } from 'lucide-react';
 import signInBgImage from './assets/data/Sign_in_bg.png';
 import navBarImage from './assets/data/nav_bar_img.png';
+import {
+  PurchaseInvoicePage,
+  SellInvoicePage,
+  PurchaseChallanPage,
+  SellChallanPage,
+  GstLedgerPage,
+} from './accountsSolarPages.jsx';
 
 let googleMapsLoaderPromise = null;
 
@@ -198,8 +205,19 @@ const summaryRelatedPages = [...summarySubItems];
 const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Report View'];
 // Sidebar/subnav se in sections par jane par selectedProject clear karo (project action menu / preserveProject ke alawa)
 const projectSubnavSectionsThatClearProject = new Set([...projectSubItems, 'Project List']);
-const accountsSubItems = ['Accounts Overview', 'Accounts List', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List', 'Chart of Accounts'];
-const accountsRelatedPages = ['Accounts Overview', ...accountsSubItems];
+const accountsLegacyPages = ['Accounts List', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List', 'Chart of Accounts'];
+const accountsSubItems = [
+  'Accounts Overview',
+  'Purchase Invoice',
+  'Voucher',
+  'Other Expenses',
+  'Sell Invoice',
+  'Purchase Challan',
+  'Sell Challan',
+  'Cash Receipt',
+  'GST Ledger',
+];
+const accountsRelatedPages = [...new Set([...accountsSubItems, ...accountsLegacyPages])];
 const inventorySubItems = ['Inventory Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
 const inventoryRelatedPages = ['Inventory', ...inventorySubItems];
 const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents', 'Subsidy'];
@@ -410,6 +428,14 @@ const projectActionPageTypes = {
 
 const accountsSubRoutes = {
   'Accounts Overview': '/accounts/overview',
+  'Purchase Invoice': '/accounts/purchase-invoice',
+  Voucher: '/accounts/voucher',
+  'Other Expenses': '/accounts/other-expenses',
+  'Sell Invoice': '/accounts/sell-invoice',
+  'Purchase Challan': '/accounts/purchase-challan',
+  'Sell Challan': '/accounts/sell-challan',
+  'Cash Receipt': '/accounts/cash-receipt',
+  'GST Ledger': '/accounts/gst-ledger',
   'Accounts List': '/accounts/list',
   'Chart of Accounts': '/accounts/chart-of-accounts',
   'Payment Received': '/accounts/payment-received',
@@ -8690,6 +8716,8 @@ function AccountsSubnavTabs({ activeSection, onOpenSection }) {
       activeClasses="border-[#d4e4ff] bg-[#f5f9ff] text-[#1766d3] ring-2 ring-[#e3efff]"
       activeDotClass="bg-[#0b65e5]"
       activeIconClass="text-[#0b65e5]"
+      wrapOnDesktop
+      compact
     />
   );
 }
@@ -10566,8 +10594,23 @@ function OpsStatCard({ label, value, caption, tone, icon: Icon, onClick }) {
 }
 
 function AccountsPage({ activeSection, onOpenSection, onNotify }) {
+  const shared = { activeSection, onOpenSection, onNotify, Subnav: AccountsSubnavTabs };
   if (activeSection === 'Accounts Overview' || activeSection === 'Overview') {
     return <AccountsOverviewPage activeSection="Accounts Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  if (activeSection === 'Purchase Invoice') return <PurchaseInvoicePage {...shared} />;
+  if (activeSection === 'Sell Invoice') return <SellInvoicePage {...shared} />;
+  if (activeSection === 'Purchase Challan') return <PurchaseChallanPage {...shared} />;
+  if (activeSection === 'Sell Challan') return <SellChallanPage {...shared} />;
+  if (activeSection === 'GST Ledger') return <GstLedgerPage {...shared} />;
+  if (activeSection === 'Voucher') {
+    return <AccountsVoucherPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  if (activeSection === 'Other Expenses') {
+    return <AccountsOtherExpensesPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  if (activeSection === 'Cash Receipt') {
+    return <AccountsCashReceiptPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
   if (activeSection === 'Accounts List') {
     return <AccountsPartiesPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
@@ -10602,19 +10645,21 @@ function AccountsOverviewPage({ activeSection, onOpenSection, onNotify }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cards = stats ? [
-    { label: 'Total Received', value: fmtAccRs(stats.total_received), caption: 'Completed payments in', tone: 'green', icon: TrendingUp, onClick: () => onOpenSection('Payment Received') },
+    { label: 'Total Received', value: fmtAccRs(stats.total_received), caption: 'Completed payments in', tone: 'green', icon: TrendingUp, onClick: () => onOpenSection('Cash Receipt') },
     { label: 'Total Paid Out', value: fmtAccRs(stats.total_made), caption: 'Completed payments out', tone: 'red', icon: ReceiptText, onClick: () => onOpenSection('Payment Made') },
-    { label: 'Net Cash Flow', value: fmtAccRs(stats.net_balance), caption: 'Received minus paid', tone: 'blue', icon: IndianRupee, onClick: () => onOpenSection('Payment Received') },
+    { label: 'Net Cash Flow', value: fmtAccRs(stats.net_balance), caption: 'Received minus paid', tone: 'blue', icon: IndianRupee, onClick: () => onOpenSection('Cash Receipt') },
     { label: 'Bank Balance', value: fmtAccRs(stats.bank_balance), caption: `${stats.bank_count ?? 0} active accounts`, tone: 'purple', icon: CreditCard, onClick: () => onOpenSection('Bank Accounts') },
-    { label: 'Pending In', value: fmtAccRs(stats.pending_received), caption: 'Awaiting receipt', tone: 'amber', icon: Hourglass, onClick: () => onOpenSection('Payment Received') },
+    { label: 'Pending In', value: fmtAccRs(stats.pending_received), caption: 'Awaiting receipt', tone: 'amber', icon: Hourglass, onClick: () => onOpenSection('Cash Receipt') },
     { label: 'Pending Cheques', value: String(stats.pending_cheques ?? 0), caption: 'Open cheque items', tone: 'cyan', icon: FileText, onClick: () => onOpenSection('Cheques List') },
   ] : [];
 
   const quickLinks = [
-    { label: 'Record Receipt', section: 'Payment Received', icon: Plus, tone: 'green' },
-    { label: 'Record Payment', section: 'Payment Made', icon: Minus, tone: 'red' },
-    { label: 'Add Party', section: 'Accounts List', icon: UserPlus, tone: 'blue' },
-    { label: 'Add Bank Account', section: 'Bank Accounts', icon: CreditCard, tone: 'purple' },
+    { label: 'Purchase Invoice', section: 'Purchase Invoice', icon: Plus, tone: 'blue' },
+    { label: 'Sell Invoice', section: 'Sell Invoice', icon: ReceiptText, tone: 'green' },
+    { label: 'Cash Receipt', section: 'Cash Receipt', icon: IndianRupee, tone: 'green' },
+    { label: 'Payment Voucher', section: 'Voucher', icon: Minus, tone: 'red' },
+    { label: 'GST Ledger', section: 'GST Ledger', icon: FileText, tone: 'purple' },
+    { label: 'Parties / Banks', section: 'Accounts List', icon: UserPlus, tone: 'blue' },
   ];
 
   return (
@@ -11017,6 +11062,178 @@ function AccountsChequesPage({ activeSection, onOpenSection, onNotify }) {
       ['Type', (r) => r.cheque_type],
       ['Cleared Date', (r) => lcFormatDate(r.cleared_date)],
       ['Remarks', (r) => r.remarks || '—'],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
+  const config = {
+    moduleTitle: 'Accounts',
+    Subnav: AccountsSubnavTabs,
+    title: 'Payment Voucher',
+    recordLabel: 'Voucher',
+    newLabel: 'Add Voucher',
+    api: accountsModuleApi.vouchers,
+    listParams: { entry_type: 'Voucher' },
+    fixedFields: { entry_type: 'Voucher' },
+    statuses: ['Pending', 'Completed', 'Cancelled'],
+    extraFilters: [
+      { key: 'payee_type', label: 'Payee Type', options: ['Supplier', 'Labour', 'Customer', 'Other'] },
+      { key: 'payment_mode', label: 'Mode', options: ACC_PAYMENT_MODES },
+    ],
+    searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars'],
+    lookups: {
+      projects: { api: projectApi, label: (p) => `${p.project_id} — ${p.project_name}` },
+    },
+    columns: [
+      { label: 'Voucher No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Date', render: (r) => lcFormatDate(r.voucher_date) },
+      { label: 'Payee', render: (r) => r.payee_name },
+      { label: 'Type', render: (r) => r.payee_type },
+      { label: 'Category', render: (r) => r.category || '—' },
+      { label: 'Mode', render: (r) => r.payment_mode },
+      { label: 'Amount', render: (r) => fmtAccRs(r.amount) },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+    ],
+    fields: [
+      { name: 'voucher_date', label: 'Date', type: 'date', required: true },
+      { name: 'payee_type', label: 'Payee Type', type: 'select', options: ['Supplier', 'Labour', 'Customer', 'Other'] },
+      { name: 'payee_name', label: 'Payee Name', type: 'text', required: true },
+      { name: 'category', label: 'Category', type: 'text' },
+      { name: 'particulars', label: 'Particulars', type: 'textarea' },
+      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects' },
+      { name: 'payment_mode', label: 'Payment Mode', type: 'select', options: ACC_PAYMENT_MODES },
+      { name: 'amount', label: 'Amount (Rs)', type: 'number', required: true },
+      { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Completed', 'Cancelled'] },
+    ],
+    defaults: { voucher_date: '', payee_type: 'Supplier', payee_name: '', category: '', particulars: '', project: '', payment_mode: 'Cash', amount: '', status: 'Completed' },
+    detailRows: [
+      ['Voucher No', (r) => r.record_no],
+      ['Date', (r) => lcFormatDate(r.voucher_date)],
+      ['Payee', (r) => r.payee_name],
+      ['Payee Type', (r) => r.payee_type],
+      ['Category', (r) => r.category || '—'],
+      ['Project', (r) => r.project_name || '—'],
+      ['Amount', (r) => fmtAccRs(r.amount)],
+      ['Particulars', (r) => r.particulars || '—', true],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
+  const config = {
+    moduleTitle: 'Accounts',
+    Subnav: AccountsSubnavTabs,
+    title: 'Other Expenses',
+    recordLabel: 'Expense',
+    newLabel: 'Add Expense',
+    api: accountsModuleApi.vouchers,
+    listParams: { entry_type: 'Expense' },
+    fixedFields: { entry_type: 'Expense' },
+    statuses: ['Pending', 'Completed', 'Cancelled'],
+    extraFilters: [{ key: 'category', label: 'Category', options: ['Site Visit', 'Transport', 'Office', 'Labour', 'Misc'] }],
+    searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars'],
+    lookups: {
+      projects: { api: projectApi, label: (p) => `${p.project_id} — ${p.project_name}` },
+    },
+    columns: [
+      { label: 'Expense No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Date', render: (r) => lcFormatDate(r.voucher_date) },
+      { label: 'Paid To', render: (r) => r.payee_name },
+      { label: 'Category', render: (r) => r.category || '—' },
+      { label: 'Project', render: (r) => r.project_name || '—' },
+      { label: 'Amount', render: (r) => fmtAccRs(r.amount) },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+    ],
+    fields: [
+      { name: 'voucher_date', label: 'Date', type: 'date', required: true },
+      { name: 'payee_name', label: 'Paid To', type: 'text', required: true },
+      { name: 'category', label: 'Category', type: 'select', options: ['Site Visit', 'Transport', 'Office', 'Labour', 'Misc'] },
+      { name: 'particulars', label: 'Particulars', type: 'textarea' },
+      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects' },
+      { name: 'payment_mode', label: 'Payment Mode', type: 'select', options: ACC_PAYMENT_MODES },
+      { name: 'amount', label: 'Amount (Rs)', type: 'number', required: true },
+      { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Completed', 'Cancelled'] },
+    ],
+    defaults: { voucher_date: '', payee_name: '', category: 'Misc', particulars: '', project: '', payment_mode: 'Cash', amount: '', status: 'Completed' },
+    detailRows: [
+      ['Expense No', (r) => r.record_no],
+      ['Date', (r) => lcFormatDate(r.voucher_date)],
+      ['Paid To', (r) => r.payee_name],
+      ['Category', (r) => r.category || '—'],
+      ['Project', (r) => r.project_name || '—'],
+      ['Amount', (r) => fmtAccRs(r.amount)],
+      ['Particulars', (r) => r.particulars || '—', true],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function AccountsCashReceiptPage({ activeSection, onOpenSection, onNotify }) {
+  const config = {
+    moduleTitle: 'Accounts',
+    Subnav: AccountsSubnavTabs,
+    title: 'Cash Receipt',
+    recordLabel: 'Receipt',
+    newLabel: 'Add Cash Receipt',
+    api: accountsModuleApi.payments,
+    listParams: { direction: 'Received' },
+    fixedFields: { direction: 'Received' },
+    statuses: ['Pending', 'Completed', 'Cancelled'],
+    searchKeys: ['reference_no', 'party_name', 'received_from', 'particulars', 'project_ref'],
+    lookups: {
+      parties: { api: accountsModuleApi.parties, label: (a) => a.name },
+      banks: { api: accountsModuleApi.bankAccounts, label: (b) => b.account_name },
+      projects: { api: projectApi, label: (p) => `${p.project_id} — ${p.project_name}` },
+      staff: { api: userApi, label: (u) => u.name || u.email },
+    },
+    columns: [
+      { label: 'Receipt No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Date', render: (r) => lcFormatDate(r.payment_date) },
+      { label: 'Received From', render: (r) => r.received_from || r.party_display },
+      { label: 'Project', render: (r) => r.project_name || r.project_ref || '—' },
+      { label: 'Source', render: (r) => r.receipt_source || '—' },
+      { label: 'Mode', render: (r) => r.payment_mode },
+      { label: 'Amount', render: (r) => fmtAccRs(r.amount) },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+    ],
+    fields: [
+      { name: 'reference_no', label: 'Receipt No', type: 'text' },
+      { name: 'payment_date', label: 'Date', type: 'date', required: true },
+      { name: 'received_from', label: 'Received From', type: 'text', required: true },
+      { name: 'party', label: 'Customer Account', type: 'lookup', lookup: 'parties' },
+      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects' },
+      { name: 'receipt_source', label: 'Receipt Source', type: 'select', options: ['Estimate', 'Invoice', 'Advance', 'Project', 'Other'] },
+      { name: 'related_staff', label: 'Handled By', type: 'lookup', lookup: 'staff' },
+      { name: 'bank_account', label: 'Deposit To', type: 'lookup', lookup: 'banks' },
+      { name: 'payment_mode', label: 'Payment Mode', type: 'select', options: ACC_PAYMENT_MODES },
+      { name: 'amount', label: 'Amount (Rs)', type: 'number', required: true },
+      { name: 'advance_amount', label: 'Advance (Rs)', type: 'number' },
+      { name: 'settled_amount', label: 'Settled (Rs)', type: 'number' },
+      { name: 'due_amount', label: 'Due (Rs)', type: 'number' },
+      { name: 'particulars', label: 'Particulars', type: 'textarea' },
+      { name: 'project_ref', label: 'Invoice / Ref No', type: 'text' },
+      { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Completed', 'Cancelled'] },
+      { name: 'description', label: 'Notes', type: 'textarea' },
+    ],
+    defaults: {
+      reference_no: '', payment_date: '', received_from: '', party: '', project: '', receipt_source: 'Project',
+      related_staff: '', bank_account: '', payment_mode: 'Cash', amount: '', advance_amount: '', settled_amount: '',
+      due_amount: '', particulars: '', project_ref: '', status: 'Completed', description: '',
+    },
+    detailRows: [
+      ['Receipt No', (r) => r.record_no],
+      ['Date', (r) => lcFormatDate(r.payment_date)],
+      ['Received From', (r) => r.received_from || r.party_display],
+      ['Project', (r) => r.project_name || r.project_ref || '—'],
+      ['Receipt Source', (r) => r.receipt_source || '—'],
+      ['Amount', (r) => fmtAccRs(r.amount)],
+      ['Advance', (r) => fmtAccRs(r.advance_amount)],
+      ['Settled', (r) => fmtAccRs(r.settled_amount)],
+      ['Due', (r) => fmtAccRs(r.due_amount)],
+      ['Particulars', (r) => r.particulars || '—', true],
     ],
   };
   return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
