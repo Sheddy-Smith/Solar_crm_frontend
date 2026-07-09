@@ -220,16 +220,17 @@ html.dark .header-toolbar button:hover {
 /* ---------- HEADER BANNER ---------- */
 html.dark .header-banner {
   background: linear-gradient(180deg, rgba(16, 16, 24, 0.98) 0%, rgba(10, 10, 16, 0.96) 100%) !important;
-  border-color: rgba(245, 158, 11, 0.06);
+  border-color: #000 !important;
+  box-shadow: 0 0 0 2px #f59e0b !important;
 }
 
 html.dark .header-banner img {
-  filter: saturate(0.8) brightness(0.6) contrast(1.1) !important;
+  filter: none !important;
 }
 
 html.dark .header-banner::before,
 html.dark .header-banner::after {
-  background: linear-gradient(90deg, rgba(10, 10, 16, 0.96), rgba(10, 10, 16, 0));
+  display: none !important;
 }
 
 /* ---------- CRM PANELS ---------- */
