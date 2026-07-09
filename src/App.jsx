@@ -686,6 +686,19 @@ const leadCategoryToneClasses = {
   },
 };
 
+// Project List blocker-status quick filter — same tone system as Lead Categories,
+// so "On Hold" jobs (the ones stuck waiting on something) stand out in amber
+// instead of blending into a plain status dropdown.
+const projectStatusTabs = [
+  { value: 'All', label: 'Overall', icon: FolderKanban, tone: 'slate' },
+  { value: 'Planning', label: 'Planning', icon: ClipboardPlus, tone: 'blue' },
+  { value: 'Active', label: 'Active', icon: Zap, tone: 'green' },
+  { value: 'On Hold', label: 'On Hold', icon: PauseCircle, tone: 'amber' },
+  { value: 'Completed', label: 'Completed', icon: CheckCircle2, tone: 'teal' },
+  { value: 'Cancelled', label: 'Cancelled', icon: XCircle, tone: 'red' },
+];
+const projectStatusToneClasses = leadCategoryToneClasses;
+
 function formatRevenueShort(value) {
   const num = Number(value) || 0;
   if (num >= 10000000) return `Rs ${(num / 10000000).toFixed(2)}Cr`;
@@ -4236,6 +4249,20 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
             <Search className="size-4 text-[#7386a3]" />
           </label>
 
+          <label className="flex h-11 shrink-0 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] sm:w-[190px]">
+            <UserRound className="size-4 shrink-0 text-[#7386a3]" />
+            <select
+              value={assignedToFilter}
+              onChange={(event) => { setAssignedToFilter(event.target.value); setActivePage(1); }}
+              aria-label="Assigned To"
+              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none"
+            >
+              {assigneeOptions.map((name) => (
+                <option key={name} value={name}>{name === 'All' ? 'All Executives' : name}</option>
+              ))}
+            </select>
+          </label>
+
           <div className="relative" data-lead-filters-popover="true">
             <button
               type="button"
@@ -4270,8 +4297,6 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                       <p className="mt-1.5 text-[11px] font-bold text-[#8493ab]">{activeLeadCategory.label} category is active — changing status will clear it.</p>
                     ) : null}
                   </div>
-                  <FilterSelect label="Assigned To" value={assignedToFilter} onChange={(v) => { setAssignedToFilter(v); setActivePage(1); }} options={assigneeOptions} />
-
                   <label className="block">
                     <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Follow-up Date</span>
                     <button
@@ -12630,6 +12655,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const [dateTo, setDateTo] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [managerFilter, setManagerFilter] = useState('All');
   const [activePage, setActivePage] = useState(1);
   const [projectRows, setProjectRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12725,6 +12751,19 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 600);
   };
 
+  const managerOptions = useMemo(() => {
+    const names = [...new Set(projectRows.map((row) => row.manager.name).filter((n) => n && n !== 'Unassigned'))].sort();
+    return ['All', ...names];
+  }, [projectRows]);
+
+  const projectStatusCounts = useMemo(() => {
+    const counts = { Planning: 0, Active: 0, 'On Hold': 0, Completed: 0, Cancelled: 0 };
+    for (const row of projectRows) {
+      if (row.status in counts) counts[row.status] += 1;
+    }
+    return counts;
+  }, [projectRows]);
+
   const filteredRows = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
     return projectRows.filter((row) => {
@@ -12736,17 +12775,18 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         const compareValue = isSiteSurveyPicker ? (row.surveyStatus || '') : row.status;
         if (compareValue !== statusFilter) return false;
       }
+      if (managerFilter !== 'All' && row.manager.name !== managerFilter) return false;
       if (dateFrom && row.startDate && row.startDate < dateFrom) return false;
       if (dateTo && row.startDate && row.startDate > dateTo) return false;
       return true;
     });
-  }, [deferredQuery, projectRows, statusFilter, dateFrom, dateTo]);
+  }, [deferredQuery, projectRows, statusFilter, managerFilter, dateFrom, dateTo]);
 
   const PROJECT_PAGE_SIZE = 10;
   const totalProjectPages = Math.max(1, Math.ceil(filteredRows.length / PROJECT_PAGE_SIZE));
   const pagedProjectRows = filteredRows.slice((activePage - 1) * PROJECT_PAGE_SIZE, activePage * PROJECT_PAGE_SIZE);
 
-  useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, dateFrom, dateTo]);
+  useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, managerFilter, dateFrom, dateTo]);
 
   const exportProjects = () => {
     if (loading) {
@@ -12800,8 +12840,42 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
+      {!isSiteSurveyPicker ? (
+        <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+          <div className="flex flex-wrap items-center gap-2.5">
+            {projectStatusTabs.map((tab) => {
+              const Icon = tab.icon;
+              const tone = projectStatusToneClasses[tab.tone];
+              const isActive = statusFilter === tab.value;
+              const count = tab.value === 'All'
+                ? projectRows.length
+                : (projectStatusCounts[tab.value] ?? 0);
+
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => { setStatusFilter(tab.value); setActivePage(1); }}
+                  className={cx(
+                    'group inline-flex h-[42px] w-max shrink-0 items-center gap-2 rounded-[10px] border px-3 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
+                    tone.button,
+                    isActive ? 'ring-2 ring-[#0b65e5] ring-offset-2 ring-offset-white' : '',
+                  )}
+                >
+                  <span className={cx('grid size-6 shrink-0 place-items-center rounded-[7px]', tone.icon)}>
+                    <Icon className="size-[13px]" />
+                  </span>
+                  <span className="whitespace-nowrap text-[12px] font-extrabold">{tab.label}</span>
+                  <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold', tone.count)}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_124px_140px] xl:items-center">
+        <div className={cx('grid gap-3 xl:items-center', isSiteSurveyPicker ? 'xl:grid-cols-[minmax(0,1fr)_124px_140px]' : 'xl:grid-cols-[minmax(0,1fr)_124px_160px_140px]')}>
           <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
             <Search className="size-4 text-[#7e8fab]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by IVRS no, customer, project name, site, manager, mobile number..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
@@ -12826,6 +12900,17 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
               )}
             </select>
           </label>
+          {!isSiteSurveyPicker ? (
+            <label className="relative flex h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+              <UserRound className="size-4 shrink-0 text-[#0b65e5]" />
+              <select value={managerFilter} onChange={(event) => setManagerFilter(event.target.value)} aria-label="Assigned Manager" className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none">
+                <option value="All">All Managers</option>
+                {managerOptions.filter((name) => name !== 'All').map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {!isSiteSurveyPicker ? (
             <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Project</button>
           ) : null}
@@ -27368,6 +27453,7 @@ function ReportsPage({ onOpenSection, onNotify }) {
   const [analyticsData, setAnalyticsData] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
+  const [incentiveReportOpen, setIncentiveReportOpen] = useState(false);
 
   useEffect(() => {
     setAnalyticsLoading(true);
@@ -27413,17 +27499,32 @@ function ReportsPage({ onOpenSection, onNotify }) {
           { label: 'Reports & Analytics' },
         ]}
         actions={(
-          <button
-            type="button"
-            onClick={() => onNotify(`Report exported for ${formattedRange}`)}
-            data-action="reports-export"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
-          >
-            <Download className="size-4 text-[#0b65e5]" />
-            Export Report
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => onNotify(`Report exported for ${formattedRange}`)}
+              data-action="reports-export"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
+            >
+              <Download className="size-4 text-[#0b65e5]" />
+              Export Report
+            </button>
+            <button
+              type="button"
+              onClick={() => setIncentiveReportOpen(true)}
+              data-action="reports-generate-incentive"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#ef4444] px-4 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(239,68,68,0.22)] transition hover:-translate-y-0.5 hover:bg-[#dc2626]"
+            >
+              <IndianRupee className="size-4" />
+              Generate Incentive Report
+            </button>
+          </>
         )}
       />
+
+      {incentiveReportOpen ? (
+        <IncentiveReportModal onClose={() => setIncentiveReportOpen(false)} onNotify={onNotify} />
+      ) : null}
 
       <section className={`${panelClass} relative z-40 p-4 sm:p-5`}>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.25fr_0.9fr_0.9fr_0.9fr_auto] xl:items-end">
@@ -27529,6 +27630,176 @@ function ReportsPage({ onOpenSection, onNotify }) {
       <DashboardFooter />
     </div>
   );
+}
+
+const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function IncentiveReportModal({ onClose, onNotify }) {
+  const today = new Date();
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [year, setYear] = useState(today.getFullYear());
+  const [manager, setManager] = useState('All');
+  const [ratePerWon, setRatePerWon] = useState('');
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const lastDay = new Date(year, month, 0).getDate();
+    const dateFrom = `${year}-${String(month).padStart(2, '0')}-01`;
+    const dateTo = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    analyticsApi.leads({ date_from: dateFrom, date_to: dateTo })
+      .then((data) => { if (!cancelled) setRows(data?.employee_stats ?? []); })
+      .catch(() => { if (!cancelled) setRows([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [month, year]);
+
+  const managerOptions = useMemo(() => ['All', ...rows.map((r) => r.name)], [rows]);
+  const visibleRows = manager === 'All' ? rows : rows.filter((r) => r.name === manager);
+  const rate = Number(ratePerWon) || 0;
+  const totalWon = visibleRows.reduce((sum, r) => sum + (r.won || 0), 0);
+  const totalIncentive = totalWon * rate;
+  const periodLabel = `${monthNames[month - 1]} ${year}`;
+
+  const handleGenerate = () => {
+    if (!visibleRows.length) {
+      onNotify(`No records found for ${periodLabel}`);
+      return;
+    }
+    const win = window.open('', '_blank');
+    if (!win) { onNotify('Allow pop-ups to generate this report'); return; }
+    win.document.write(buildIncentiveReportHtml(visibleRows, { periodLabel, rate, totalWon, totalIncentive }));
+    win.document.close();
+    win.focus();
+    win.onload = () => { win.print(); };
+    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 600);
+  };
+
+  return (
+    <div className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="modal-pop-in w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-6 py-4">
+          <h2 className="flex items-center gap-2 font-display text-[16px] font-extrabold text-[#111827]">
+            <IndianRupee className="size-5 text-[#ef4444]" />
+            Incentive Report
+          </h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-[7px] text-[#7386a3] hover:bg-[#f1f5fb]">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <ReportSelect label="Month" hideLabel value={String(month)} onChange={(v) => setMonth(Number(v))} options={monthNames.map((_, i) => String(i + 1))} optionLabels={Object.fromEntries(monthNames.map((n, i) => [String(i + 1), n]))} />
+            <ReportSelect label="Year" hideLabel value={String(year)} onChange={(v) => setYear(Number(v))} options={[year - 1, year, year + 1].map(String)} />
+            <ReportSelect label="Manager" hideLabel value={manager} onChange={setManager} options={managerOptions} optionLabels={{ All: 'All Managers' }} />
+          </div>
+
+          <label className="mt-3 block">
+            <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Incentive per Won Lead (₹)</span>
+            <input
+              type="number"
+              min="0"
+              value={ratePerWon}
+              onChange={(event) => setRatePerWon(event.target.value)}
+              placeholder="Enter your incentive rate, e.g. 500"
+              className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] outline-none transition placeholder:text-[#8493ab] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
+          </label>
+
+          <div className="mt-4 flex items-center justify-between text-[12px] font-extrabold text-[#7386a3]">
+            <span>{periodLabel}</span>
+            <span>{visibleRows.length} record{visibleRows.length === 1 ? '' : 's'}</span>
+          </div>
+
+          <div className="mt-2 overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white">
+            {loading ? (
+              <PageLoadingState message="Loading..." className="h-[160px] py-0" compact />
+            ) : visibleRows.length > 0 ? (
+              <table className="crm-table w-full">
+                <thead>
+                  <tr>{['Executive', 'Total Leads', 'Won', 'Conversion', 'Incentive'].map((h) => <th key={h}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {visibleRows.map((row) => (
+                    <tr key={row.name}>
+                      <td className="font-bold text-[#1e3261]">{row.name}</td>
+                      <td>{row.total}</td>
+                      <td>{row.won}</td>
+                      <td>{row.conversion}%</td>
+                      <td className="font-extrabold text-[#0d9f4a]">₹{((row.won || 0) * rate).toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="flex h-[120px] items-center justify-center text-[13px] font-bold text-[#8a98af]">
+                No records found for {periodLabel}
+              </div>
+            )}
+          </div>
+
+          {visibleRows.length > 0 ? (
+            <div className="mt-3 flex items-center justify-between rounded-[10px] border border-[#d9f2e4] bg-[#f4fff8] px-4 py-3 text-[13px] font-extrabold text-[#276747]">
+              <span>Total Won: {totalWon}</span>
+              <span>Total Incentive: ₹{totalIncentive.toLocaleString('en-IN')}</span>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+          <button type="button" onClick={handleGenerate} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#ef4444] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(239,68,68,0.22)] transition hover:bg-[#dc2626]">
+            <FileText className="size-4" />
+            Generate Report
+          </button>
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function buildIncentiveReportHtml(rows, { periodLabel, rate, totalWon, totalIncentive }) {
+  const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const bodyRows = rows.map((row) => `
+    <tr>
+      <td>${esc(row.name)}</td>
+      <td class="n">${esc(row.total)}</td>
+      <td class="n">${esc(row.won)}</td>
+      <td class="n">${esc(row.conversion)}%</td>
+      <td class="n">₹${((row.won || 0) * rate).toLocaleString('en-IN')}</td>
+    </tr>`).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Incentive Report — ${esc(periodLabel)}</title>
+<style>
+  body { font-family: Arial, sans-serif; color: #1e293b; padding: 32px; }
+  h1 { font-size: 20px; margin: 0 0 2px; color: #ef4444; }
+  .sub { font-size: 12px; color: #64748b; margin-bottom: 24px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #e2e8f0; padding: 8px 12px; font-size: 12px; text-align: left; }
+  th { background: #fef2f2; color: #ef4444; }
+  .n { text-align: right; }
+  tfoot td { font-weight: bold; background: #f4fff8; color: #0d9f4a; }
+  .footer { margin-top: 24px; font-size: 11px; color: #94a3b8; }
+</style>
+</head>
+<body>
+  <h1>Malwa Solar Energy</h1>
+  <div class="sub">Incentive Report — ${esc(periodLabel)}${rate ? ` • ₹${esc(rate)} per won lead` : ''}</div>
+  <table>
+    <thead><tr><th>Executive</th><th class="n">Total Leads</th><th class="n">Won</th><th class="n">Conversion</th><th class="n">Incentive</th></tr></thead>
+    <tbody>${bodyRows}</tbody>
+    <tfoot><tr><td colspan="2"></td><td class="n">${esc(totalWon)}</td><td></td><td class="n">₹${totalIncentive.toLocaleString('en-IN')}</td></tr></tfoot>
+  </table>
+  <div class="footer">Generated on ${esc(new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }))}</div>
+</body>
+</html>`;
 }
 
 function ReportDateRangePicker({ open, onToggle, onClose, dateFrom, dateTo, setDateFrom, setDateTo, formattedRange, hideLabel = false }) {
