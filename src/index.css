@@ -689,21 +689,21 @@ a {
 }
 
 .crm-table th {
-  padding: 9px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid #eaf0f7;
   color: #284276;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 600;
   text-align: left;
   white-space: nowrap;
 }
 
 .crm-table td {
-  padding: 9px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid #eef3f8;
   color: #52637f;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -787,13 +787,13 @@ a {
 }
 
 .crm-table--dense th {
-  padding: 11px 10px;
-  font-size: 10.5px;
+  padding: 8px 10px;
+  font-size: 14px;
 }
 
 .crm-table--dense td {
-  padding: 11px 10px;
-  font-size: 12px;
+  padding: 8px 10px;
+  font-size: 14px;
 }
 
 .crm-table--fit {
@@ -802,8 +802,120 @@ a {
 
 .crm-table--fit th,
 .crm-table--fit td {
-  padding: 9px 8px;
+  padding: 8px 8px;
   overflow: hidden;
+}
+
+/* ============================================================
+   GLOBAL DENSITY + TYPOGRAPHY SYSTEM
+   ============================================================ */
+.crm-density {
+  --crm-space-compact-1: 0.5rem;
+  --crm-space-compact-2: 0.75rem;
+  --crm-space-compact-3: 1rem;
+}
+
+.crm-density .space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+.crm-density .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
+.crm-density .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
+.crm-density .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.5rem; }
+
+.crm-density .gap-8 { gap: 1rem; }
+.crm-density .gap-7 { gap: 0.875rem; }
+.crm-density .gap-6 { gap: 0.75rem; }
+.crm-density .gap-5 { gap: 0.625rem; }
+.crm-density .gap-4 { gap: 0.5rem; }
+
+.crm-density .p-6 { padding: 1rem; }
+.crm-density .p-5 { padding: 0.75rem; }
+.crm-density .p-4 { padding: 0.75rem; }
+.crm-density .px-6 { padding-left: 1rem; padding-right: 1rem; }
+.crm-density .py-6 { padding-top: 1rem; padding-bottom: 1rem; }
+.crm-density .py-5 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.crm-density .mt-8 { margin-top: 1rem; }
+.crm-density .mb-8 { margin-bottom: 1rem; }
+
+.crm-density .crm-panel,
+.crm-density .crm-data-panel {
+  border-radius: 12px;
+}
+
+.crm-density .page-heading h1 {
+  letter-spacing: -0.01em;
+}
+
+.crm-density .page-heading-actions button,
+.crm-density .page-heading-actions a {
+  min-height: 40px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.crm-density .sidebar-root nav button > span {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.crm-density .sidebar-root nav .rounded-\[8px\] .space-y-1 button span:last-child {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.crm-density .module-tab-button {
+  min-height: 40px;
+}
+
+.crm-density .module-tab-button span {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.crm-density label,
+.crm-density .crm-panel label,
+.crm-density .crm-data-panel label {
+  font-size: 15px;
+}
+
+.crm-density input,
+.crm-density select,
+.crm-density textarea {
+  font-size: 16px;
+}
+
+.crm-density button {
+  font-weight: 600;
+}
+
+.crm-density [class*="text-[12px]"] {
+  font-size: 13px !important;
+}
+
+.crm-density [class*="text-[13px]"] {
+  font-size: 14px !important;
+}
+
+.crm-density [class*="text-[14px]"] {
+  font-size: 15px !important;
+}
+
+.crm-density [class*="text-[15px]"] {
+  font-size: 15px !important;
+}
+
+.crm-density .crm-table th {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.crm-density .crm-table td {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.crm-density .crm-table .rounded-full,
+.crm-density .crm-table .rounded-\[999px\] {
+  font-size: 13px !important;
+  font-weight: 600 !important;
 }
 
 .crm-table--fit td > span,
@@ -844,7 +956,7 @@ a {
 @media (max-width: 1280px) {
   .crm-table th,
   .crm-table td {
-    padding: 12px 13px;
+    padding: 9px 11px;
   }
 }
 
@@ -869,8 +981,8 @@ a {
 
   .crm-table th,
   .crm-table td {
-    padding: 10px 11px;
-    font-size: 11.5px;
+    padding: 8px 9px;
+    font-size: 14px;
     line-height: 1.35;
   }
 
@@ -883,7 +995,7 @@ a {
   }
 
   .page-heading {
-    gap: 12px;
+    gap: 8px;
   }
 
   .page-heading-actions {
@@ -929,7 +1041,7 @@ a {
 
   .crm-table th,
   .crm-table td {
-    padding: 9px 10px;
+    padding: 8px 8px;
   }
 }
 

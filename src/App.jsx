@@ -1810,10 +1810,10 @@ const recentNotifications = [];
 const unreadWhatsAppMessages = [];
 
 const panelClass =
-  'crm-panel rounded-[14px] border border-[#dbe5f2] bg-white/90 shadow-[0_12px_28px_rgba(24,48,87,0.07)] backdrop-blur-sm';
+  'crm-panel rounded-[12px] border border-[#dbe5f2] bg-white/90 shadow-[0_10px_24px_rgba(24,48,87,0.06)] backdrop-blur-sm';
 
 const dataPanelClass =
-  'crm-data-panel overflow-hidden rounded-[14px] border border-[#dbe5f2] bg-white/75 shadow-[0_14px_32px_rgba(24,48,87,0.08)] backdrop-blur-md';
+  'crm-data-panel overflow-hidden rounded-[12px] border border-[#dbe5f2] bg-white/75 shadow-[0_12px_28px_rgba(24,48,87,0.07)] backdrop-blur-md';
 
 const APP_PREFERENCES_KEY = 'malwa-solar-crm:ui-preferences';
 const availableSections = new Set([
@@ -2409,13 +2409,13 @@ function App() {
   return (
     <div
       className={cx(
-        'box-border min-h-screen max-w-full overflow-x-hidden p-2 sm:p-3 md:p-4 xl:h-screen xl:overflow-hidden',
+        'crm-density box-border min-h-screen max-w-full overflow-x-hidden p-2 sm:p-2.5 md:p-3 xl:h-screen xl:overflow-hidden',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
       )}
     >
-      <div className="mx-auto flex w-full max-w-full gap-3 xl:h-full xl:items-stretch xl:gap-4">
+      <div className="mx-auto flex w-full max-w-full gap-2.5 xl:h-full xl:items-stretch xl:gap-3">
         <div
           className={cx(
             'fixed inset-0 z-40 bg-[#10213d]/45 transition xl:hidden',
@@ -4160,8 +4160,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
   return (
     <div className="space-y-1">
       <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-display text-[16px] font-extrabold text-[#1e3261]">Lead Categories</p>
+        <div className="flex items-center justify-end gap-2">
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
@@ -4782,25 +4781,21 @@ function SettingsNavigationRail({ activeSection, onOpenSection, onNotify }) {
 
   return (
     <section className={`settings-navigation-rail ${panelClass} overflow-hidden p-3 sm:p-4`}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="font-display text-[16px] font-extrabold text-[#1e3261]">{activeGroup.title}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">Only this category's sub-categories are shown here.</p>
-        </div>
+      <div className="mb-2 flex justify-end">
         <button
           type="button"
           onClick={() => {
             handleOpenSection('Settings');
             handleNotify('Settings home opened');
           }}
-          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] sm:w-auto"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"
         >
           <ChevronLeft className="size-4" />
           All Settings
         </button>
       </div>
 
-      <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
         <div className="flex min-w-max gap-3 xl:min-w-0 xl:flex-wrap">
           {activeGroup.items.map((item) => {
             const routeKey = getSettingsRouteKey(item.key);
@@ -8566,20 +8561,11 @@ function getModuleSubnavLabel(item) {
   return item;
 }
 
-function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false, fullLabels = false, hideHeading = false }) {
+function HorizontalModuleTabs({ items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false, fullLabels = false, dense = false }) {
   return (
-    <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
-      {hideHeading ? null : (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-display text-[16px] font-extrabold text-[#1e3261]">{title}</p>
-            <p className="mt-1 text-[12px] font-bold text-[#6f7f98]">{helperText}</p>
-          </div>
-        </div>
-      )}
-
-      <div className={cx('module-tab-scroll -mx-1 overflow-x-auto px-1 pb-2', hideHeading ? 'mt-0' : 'mt-4')}>
-        <div className={cx('flex w-max min-w-full gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
+    <section className={cx(`${panelClass} overflow-hidden`, dense ? 'p-2 sm:p-2.5' : 'p-3 sm:p-4')}>
+      <div className={cx('module-tab-scroll -mx-1 overflow-x-auto px-1', dense ? 'pb-1' : 'pb-2')}>
+        <div className={cx('flex w-max min-w-full', dense ? 'gap-2' : 'gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
           {items.map((item) => {
             const isActive = activeSection === item;
             const label = fullLabels ? item : getModuleSubnavLabel(item);
@@ -8589,7 +8575,8 @@ function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenS
                 type="button"
                 onClick={() => onOpenSection(item)}
                 className={cx(
-                  'module-tab-button inline-flex h-[54px] shrink-0 items-center justify-between gap-3 whitespace-nowrap rounded-[12px] border px-4 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
+                  'module-tab-button inline-flex shrink-0 items-center justify-between gap-3 whitespace-nowrap rounded-[12px] border text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
+                  dense ? 'h-[42px] px-3' : 'h-[54px] px-4',
                   compact ? 'min-w-[152px]' : 'min-w-[170px]',
                   fullLabels && 'min-w-max',
                   wrapOnDesktop && 'xl:min-w-[148px] xl:flex-1',
@@ -8614,8 +8601,6 @@ function HorizontalModuleTabs({ title, helperText, items, activeSection, onOpenS
 function LiaisonSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
-      title="Liaisoning Subcategories"
-      helperText="Switch between module pages here."
       items={liaisonSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8629,8 +8614,6 @@ function LiaisonSubnavTabs({ activeSection, onOpenSection }) {
 function OmSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
-      title="O&M Subcategories"
-      helperText="Switch between O&M module pages."
       items={omSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8644,8 +8627,6 @@ function OmSubnavTabs({ activeSection, onOpenSection }) {
 function EmployeeSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
-      title="Employee Subcategories"
-      helperText="Switch between employee module pages here."
       items={employeeSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8665,7 +8646,7 @@ function ProjectSubnavTabs({ activeSection, onOpenSection }) {
       activeClasses="border-[#cfe8d6] bg-[#f1fff5] text-[#0b8f43] ring-2 ring-[#e3f8eb]"
       activeDotClass="bg-[#14b84c]"
       activeIconClass="text-[#14b84c]"
-      hideHeading
+      dense
     />
   );
 }
@@ -8673,8 +8654,6 @@ function ProjectSubnavTabs({ activeSection, onOpenSection }) {
 function SummarySubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
-      title="Summary Subcategories"
-      helperText="Switch between summary pages here."
       items={summarySubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8689,8 +8668,6 @@ function SummarySubnavTabs({ activeSection, onOpenSection }) {
 function AccountsSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
-      title="Accounts Subcategories"
-      helperText="Switch between accounts module pages here."
       items={accountsSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8704,8 +8681,6 @@ function AccountsSubnavTabs({ activeSection, onOpenSection }) {
 function InventorySubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
-      title="Inventory Subcategories"
-      helperText="Switch between inventory module pages here."
       items={inventorySubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -8719,8 +8694,6 @@ function InventorySubnavTabs({ activeSection, onOpenSection }) {
 function AmcSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
-      title="AMC & Warranty Subcategories"
-      helperText="Switch between AMC module pages here."
       items={amcSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -12824,7 +12797,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       <PageHeading
         title={pageTitle}
         crumbs={pageCrumbs}
@@ -12841,8 +12814,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       {!isSiteSurveyPicker ? (
-        <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
-          <div className="flex flex-wrap items-center gap-2.5">
+        <section className={`${panelClass} overflow-hidden p-2 sm:p-2.5`}>
+          <div className="flex flex-wrap items-center gap-2">
             {projectStatusTabs.map((tab) => {
               const Icon = tab.icon;
               const tone = projectStatusToneClasses[tab.tone];
@@ -12857,7 +12830,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                   type="button"
                   onClick={() => { setStatusFilter(tab.value); setActivePage(1); }}
                   className={cx(
-                    'group inline-flex h-[42px] w-max shrink-0 items-center gap-2 rounded-[10px] border px-3 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
+                    'group inline-flex h-[38px] w-max shrink-0 items-center gap-2 rounded-[10px] border px-2.5 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
                     tone.button,
                     isActive ? 'ring-2 ring-[#0b65e5] ring-offset-2 ring-offset-white' : '',
                   )}
@@ -12874,7 +12847,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         </section>
       ) : null}
 
-      <section className={`${panelClass} p-4 sm:p-5`}>
+      <section className={`${panelClass} p-2.5 sm:p-3`}>
         <div className={cx('grid gap-3 xl:items-center', isSiteSurveyPicker ? 'xl:grid-cols-[minmax(0,1fr)_124px_140px]' : 'xl:grid-cols-[minmax(0,1fr)_124px_160px_140px]')}>
           <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
             <Search className="size-4 text-[#7e8fab]" />
@@ -12917,7 +12890,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         </div>
       </section>
 
-      <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+      <article className={`${panelClass} overflow-hidden p-2 sm:p-2.5`}>
         {loading ? (
           <PageLoadingState message="Loading projects..." />
         ) : (
@@ -12978,9 +12951,9 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           </table>
         </div>
 
-        <div className="space-y-3 lg:hidden">
+        <div className="space-y-2 lg:hidden">
           {pagedProjectRows.map((row) => (
-            <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+            <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-3 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-[15px] font-extrabold text-[#1e3261]">{row.projectName}</p>
@@ -13026,7 +12999,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           ) : null}
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-3 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[13px] font-bold text-[#53647f]">Showing {filteredRows.length === 0 ? 0 : (activePage - 1) * PROJECT_PAGE_SIZE + 1} to {Math.min(activePage * PROJECT_PAGE_SIZE, filteredRows.length)} of {filteredRows.length} entries</p>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <PaginationButton onClick={() => setActivePage((p) => Math.max(1, p - 1))}><ChevronLeft className="size-4" /></PaginationButton>
@@ -32976,10 +32949,10 @@ function ViewFollowUpModal({ lead, onClose, onNotify }) {
 
 function PageHeading({ title, crumbs, actions }) {
   return (
-    <div className="page-heading flex min-w-0 flex-col gap-4 rounded-[14px] bg-white/60 p-2 sm:flex-row sm:items-end sm:justify-between">
+    <div className="page-heading flex min-w-0 flex-col gap-2.5 rounded-[12px] bg-white/60 p-2 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <h1 className="font-display text-[22px] font-extrabold leading-tight text-[#111827] sm:text-[28px]">{title}</h1>
-        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-[12px] font-bold sm:text-[13px]">
+        <h1 className="font-display text-[30px] font-bold leading-[1.08] tracking-[-0.01em] text-[#111827] sm:text-[38px] xl:text-[44px]">{title}</h1>
+        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-semibold sm:text-[14px]">
           {crumbs.map((crumb, index) => (
             <span key={`${crumb.label}-${index}`} className="inline-flex min-w-0 items-center gap-2">
               {crumb.onClick ? <button type="button" onClick={crumb.onClick} className="min-w-0 truncate text-[#0b65e5]">{crumb.label}</button> : <span className="min-w-0 truncate text-[#53647f]">{crumb.label}</span>}
@@ -32988,7 +32961,7 @@ function PageHeading({ title, crumbs, actions }) {
           ))}
         </div>
       </div>
-      {actions ? <div className="page-heading-actions flex w-full flex-col gap-3 min-[460px]:w-auto min-[460px]:flex-row min-[460px]:flex-wrap sm:justify-end">{actions}</div> : null}
+      {actions ? <div className="page-heading-actions flex w-full flex-col gap-2 min-[460px]:w-auto min-[460px]:flex-row min-[460px]:flex-wrap sm:justify-end">{actions}</div> : null}
     </div>
   );
 }

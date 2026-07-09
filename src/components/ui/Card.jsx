@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 
 const basePanelClass =
-  'crm-panel rounded-[14px] border border-[#dbe5f2] bg-white/90 shadow-[0_12px_28px_rgba(24,48,87,0.07)] backdrop-blur-sm ' +
+  'crm-panel rounded-[12px] border border-[#dbe5f2] bg-white/90 shadow-[0_10px_24px_rgba(24,48,87,0.06)] backdrop-blur-sm ' +
   'dark:border-slate-700 dark:bg-slate-900/70';
 
 /**
@@ -19,7 +19,7 @@ function Card({ children, className = '', title, ...rest }) {
       {...rest}
     >
       {title && (
-        <h3 className="mb-3 text-[15px] font-extrabold text-[#163d70] dark:text-slate-100">{title}</h3>
+        <h3 className="mb-2.5 text-[20px] font-semibold text-[#163d70] dark:text-slate-100">{title}</h3>
       )}
       {children}
     </motion.div>
