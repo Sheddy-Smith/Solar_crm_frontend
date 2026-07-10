@@ -46,10 +46,6 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'name', 'mobile', 'role', 'role_name', 'branch', 'branch_name',
             'is_active', 'initials', 'created_at', 'is_super_admin', 'permissions',
         ]
-        extra_kwargs = {
-            'role': {'write_only': True},
-            'branch': {'write_only': True},
-        }
 
     def get_is_super_admin(self, obj):
         return is_super_admin(obj)

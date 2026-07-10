@@ -16,6 +16,7 @@ urlpatterns = [
         path('amc/', include('apps.amc.urls')),
         path('reports/', include('apps.reports.urls')),
         path('dashboard/', include('apps.dashboard.urls')),
+        path('daily-tasks/', include('apps.daily_tasks.urls')),
         path('settings/', include('apps.crm_settings.urls')),
     ])),
 ]

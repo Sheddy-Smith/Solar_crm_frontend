@@ -26,9 +26,27 @@ All **75** tracked bugs have been addressed in code. **20** backend tests pass; 
 | Severity | Count |
 |----------|------:|
 | P0 | 8 |
-| P1 | 37 |
-| P2 | 30 |
-| **Total** | **75** |
+| P1 | 41 |
+| P2 | 35 |
+| **Total** | **84** |
+
+---
+
+## 2026-07-10 follow-up pass (BUG-076 – BUG-084) — all fixed same day
+
+Deep review of the uncommitted Daily Tasks module, Settings hub rework and unified Insights dashboard.
+
+| # | Sev | Area | Bug | Fix |
+|---|-----|------|-----|-----|
+| BUG-076 | P1 | Daily Tasks / Insights | Date defaults used `toISOString()`, which shifts IST to UTC — month-start filter became last day of previous month, and "today" was yesterday before 5:30 AM | Local-date formatter in `dailyTasksPages.jsx` (`toLocalIso`) and `unifiedDashboard.jsx` (`defaultDateRange`) |
+| BUG-077 | P1 | Insights | "Cash Flow Trend" period selector (This/Last Month, Quarter) fabricated different-looking trends from the same period totals — same class as BUG-059/075 | Selector removed; chart now shows an even weekly split of real totals with an explicit "estimated" caption |
+| BUG-078 | P2 | Insights | MIS Intelligence card labelled lead *counts* as "Total Pipeline Value" / "Leads with Follow ups"; StatStrip called won-count "Leads Value" | Relabelled to "Total Leads (period)" / "Won Leads" |
+| BUG-079 | P2 | Insights | Leads-by-Status donut used the same purple for Won and Follow-up | Won now green (`#16a34a`), matching the trend chart |
+| BUG-080 | P1 | Settings / Security | New PIN-lock feature stored the PIN in **plaintext** localStorage and nothing ever read it — dead feature, same class as BUG-015 | PIN stored as hash (`hashPin`, legacy plaintext migrated on read), Disable-PIN action added, and a real `PinLockOverlay` (auto-lock after inactivity + unlock prompt) mounted in `App` |
+| BUG-081 | P2 | Settings / Users | Phone validation rejected `+91 98765 43210` (the placeholder's own format) because the 91 prefix made 12 digits | `normalizeSettingsPhone` strips a `91` country code / leading `0` before the 10-digit check |
+| BUG-082 | P1 | Security / Backend | New `POST /users/verify-password/` had no rate limit — a stolen session could brute-force the account password | Action now throttled with the `login` scope (`get_throttles` on `UserViewSet`) |
+| BUG-083 | P2 | Frontend / Lint | 43 `react/jsx-key` errors (badge/button elements in cell arrays), 24 stale `eslint-disable` directives, and 3 unused `Settings*_OLD` components (BUG-031 leftovers) | Keys added, directives auto-fixed, `_OLD` components deleted — `npm run lint` is now clean |
+| BUG-084 | P2 | Settings / Daily Tasks | Users & Access hub stats used first-page length instead of API `count`; Daily Tasks list silently capped at 100 rows; Material Dispatch `delivery_status` default shown but never saved | Stats use `count`, list requests `page_size=500`, select-field defaults merged into details on save |
 
 ---
 
@@ -908,3 +926,4 @@ All **75** tracked bugs have been addressed in code. **20** backend tests pass; 
 |------|--------|
 | 2026-07-10 | Initial audit — 46 issues documented |
 | 2026-07-10 | Deep-dive follow-up audit (backend apps, frontend, security, data integrity) — 29 more issues added (BUG-047 to BUG-075), total 75 |
+| 2026-07-10 | Follow-up pass on uncommitted Daily Tasks / Settings hub / Insights work — BUG-076 to BUG-084 found **and fixed** (IST date shift, fake cash-flow periods, dead PIN lock, verify-password throttle, lint clean). 28 backend tests + build + lint all green |

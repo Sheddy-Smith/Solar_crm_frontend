@@ -200,11 +200,19 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_permissions(self):
-        if self.action in ('me', 'change_password'):
+        if self.action in ('me', 'change_password', 'verify_password'):
             return [IsAuthenticated()]
         if self.action == 'toggle_active':
             return [IsSuperAdmin()]
         return [HasModulePermission()]
+
+    def get_throttles(self):
+        # verify_password is a password oracle for the caller's own account;
+        # rate-limit it like login so a stolen session can't brute-force it.
+        if self.action == 'verify_password':
+            self.throttle_scope = 'login'
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -215,6 +223,13 @@ class UserViewSet(viewsets.ModelViewSet):
     def me(self, request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='verify-password')
+    def verify_password(self, request):
+        password = request.data.get('password', '')
+        if not request.user.check_password(password):
+            return Response({'detail': 'Incorrect password.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'verified': True})
 
     @action(detail=True, methods=['post'])
     def change_password(self, request, pk=None):

@@ -46,6 +46,7 @@ class RolePermission(models.Model):
         ('O&M', 'O&M'),
         ('Accounts', 'Accounts'),
         ('Inventory', 'Inventory'),
+        ('Daily Tasks', 'Daily Tasks'),
         ('AMC & Warranty', 'AMC & Warranty'),
         ('Reports', 'Reports'),
         ('User Management', 'User Management'),

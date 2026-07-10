@@ -26,7 +26,20 @@ import {
   UnifiedDashboardPage,
   INSIGHTS_LEGACY_TAB_MAP,
   INSIGHTS_LEGACY_PATH_MAP,
+  LEAD_STATUS_FILTER_OPTIONS,
 } from './unifiedDashboard.jsx';
+import { DailyTasksPage } from './dailyTasksPages.jsx';
+import {
+  SETTINGS_PILLARS,
+  SettingsArchitectureTabs,
+  UsersAccessHubPage,
+  SecurityHubPage,
+  BackupDataHubPage,
+  AboutSettingsPage,
+  AdminReauthGate,
+  PinLockOverlay,
+  mapUiPermissionsToApi,
+} from './settingsHubPages.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -45,6 +58,7 @@ import {
   Clock3,
   Cloud,
   ChevronLeft,
+  ClipboardList,
   Copy,
   CreditCard,
   Crosshair,
@@ -182,6 +196,7 @@ const sidebarItems = [
   { label: 'Inventory', icon: Boxes, showChevron: true },
   { label: 'Employee', icon: HardHat, showChevron: true },
   { label: 'Insights', icon: LayoutDashboard },
+  { label: 'Daily Tasks', icon: ClipboardList },
   { label: 'Settings', icon: Settings, showChevron: false },
 ];
 
@@ -240,6 +255,7 @@ const omSubItems = ['Maintenance Tasks', 'Breakdown Tickets', 'Site Visits', 'As
 const omRelatedPages = ['O&M', 'O&M Overview', 'Energy Performance', ...omSubItems];
 const amcSubItems = ['AMC Overview', 'AMC Contracts', 'Warranties', 'Service Requests', 'Visits / Maintenance', 'Renewals', 'Claims', 'AMC Documents'];
 const amcRelatedPages = [...amcSubItems];
+const dailyTasksRelatedPages = ['Daily Tasks'];
 const organizationSettingsPages = ['Company Profile', 'Business Information', 'Branches', 'Financial Year'];
 const settingsCardGroups = [
   {
@@ -328,7 +344,32 @@ const settingsSidebarGroups = settingsCardGroups.map((group) => ({
   items: group.items.map(({ key, label }) => ({ key, label })),
 }));
 const settingsDisplayNameMap = Object.fromEntries(settingsCardGroups.flatMap((group) => group.items.map((item) => [item.key, item.label])));
-const settingsRelatedPages = ['Settings', 'Master Type', ...settingsCardGroups.flatMap((group) => group.items.map((item) => item.key))];
+const settingsHubPageKeys = [
+  'Settings Users Access Hub',
+  'Settings Security Hub',
+  'Settings Backup Hub',
+  'Settings About',
+];
+settingsHubPageKeys.forEach((key) => {
+  settingsDisplayNameMap[key] = key.replace('Settings ', '').replace(' Hub', '');
+});
+const advancedSettingsCardGroups = settingsCardGroups
+  .filter((group) => !['Organization Settings', 'User & Access Management'].includes(group.title))
+  .map((group) => {
+    if (group.title !== 'Other Settings') {
+      return group;
+    }
+    return {
+      ...group,
+      items: group.items.filter((item) => !['Backup & Restore', 'System Maintenance'].includes(item.key)),
+    };
+  });
+const settingsRelatedPages = [
+  'Settings',
+  'Master Type',
+  ...settingsHubPageKeys,
+  ...settingsCardGroups.flatMap((group) => group.items.map((item) => item.key)),
+];
 
 function getSettingsRouteKey(section) {
   if (section === 'Master Type') {
@@ -567,6 +608,7 @@ const sectionRoutes = {
   'O&M': '/om/overview',
   Reports: '/insights?tab=sales',
   Employee: '/employees/details',
+  'Daily Tasks': '/daily-tasks',
 };
 
 function normalizePathname(pathname) {
@@ -1847,6 +1889,7 @@ const availableSections = new Set([
   ...liaisonRelatedPages,
   ...omRelatedPages,
   ...amcRelatedPages,
+  ...dailyTasksRelatedPages,
   ...insightsRelatedPages,
   ...settingsRelatedPages,
   ...summaryRelatedPages,
@@ -2366,6 +2409,12 @@ function App() {
       } else if (state.activeSidebarItem && isKnownSection(state.activeSidebarItem)) {
         setCurrentPage('dashboard');
         setActiveSidebarItem(state.activeSidebarItem);
+        if (insightsRelatedPages.includes(state.activeSidebarItem)) {
+          const tab = new URLSearchParams(window.location.search).get('tab')
+            || INSIGHTS_LEGACY_TAB_MAP[state.activeSidebarItem]
+            || 'overview';
+          setInsightsTab(tab);
+        }
         const leadId = Number(state.selectedLeadId);
         const projectId = Number(state.selectedProjectId);
         setSelectedLead(Number.isFinite(leadId) && leadId > 0 ? { id: leadId } : null);
@@ -2467,6 +2516,7 @@ function App() {
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
       )}
     >
+      <PinLockOverlay />
       <div className="mx-auto flex w-full max-w-full gap-2.5 xl:h-full xl:items-stretch xl:gap-3">
         <div
           className={cx(
@@ -2519,6 +2569,7 @@ function App() {
                   const isOmSection = item.label === 'O&M';
                   const isAmcSection = item.label === 'AMC & Warranty';
                   const isInsightsSection = item.label === 'Insights';
+                  const isDailyTasksSection = item.label === 'Daily Tasks';
                   const isSettingsSection = item.label === 'Settings';
                   const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
                   const isProjectHighlighted = isProjectSection && (activeSidebarItem === 'Project Management' || projectExpandHighlightPages.includes(activeSidebarItem));
@@ -2529,6 +2580,7 @@ function App() {
                   const isOmHighlighted = isOmSection && omRelatedPages.includes(activeSidebarItem);
                   const isAmcHighlighted = isAmcSection && (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem));
                   const isInsightsHighlighted = isInsightsSection && (activeSidebarItem === 'Insights' || insightsRelatedPages.includes(activeSidebarItem));
+                  const isDailyTasksHighlighted = isDailyTasksSection && dailyTasksRelatedPages.includes(activeSidebarItem);
                   const isLeadOpen = isLeadSection && expandedSection === 'Lead';
                   const isProjectOpen = isProjectSection && expandedSection === 'Project Management';
                   const isEmployeeOpen = isEmployeeSection && expandedSection === 'Employee';
@@ -2539,7 +2591,7 @@ function App() {
                   const isAmcOpen = isAmcSection && expandedSection === 'AMC & Warranty';
                   const isSettingsActive = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
                   const isSettingsOpen = isSettingsSection && expandedSection === 'Settings';
-                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isAmcHighlighted || isInsightsHighlighted || isSettingsActive;
+                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isAmcHighlighted || isInsightsHighlighted || isDailyTasksHighlighted || isSettingsActive;
 
                   return (
                     <div key={item.label}>
@@ -2563,8 +2615,25 @@ function App() {
                           if (isInsightsSection) {
                             setExpandedSection(null);
                             setActiveSidebarItem('Insights');
-                            setInsightsTab('overview');
+                            const tabFromUrl = new URLSearchParams(window.location.search).get('tab');
+                            const validTabs = ['overview', 'sales', 'projects', 'finance', 'alerts'];
+                            if (tabFromUrl && validTabs.includes(tabFromUrl)) {
+                              setInsightsTab(tabFromUrl);
+                            } else if (activeSidebarItem === 'Insights' && insightsTab && validTabs.includes(insightsTab)) {
+                              setInsightsTab(insightsTab);
+                            } else if (activeSidebarItem !== 'Insights' && INSIGHTS_LEGACY_TAB_MAP[activeSidebarItem]) {
+                              setInsightsTab(INSIGHTS_LEGACY_TAB_MAP[activeSidebarItem]);
+                            } else {
+                              setInsightsTab('overview');
+                            }
                             notify('Insights opened');
+                            setMobileSidebarOpen(false);
+                            return;
+                          }
+                          if (isDailyTasksSection) {
+                            setExpandedSection(null);
+                            setActiveSidebarItem('Daily Tasks');
+                            notify('Daily Tasks opened');
                             setMobileSidebarOpen(false);
                             return;
                           }
@@ -2935,15 +3004,23 @@ function App() {
             />
 
             {activeSidebarItem === 'Settings Users' ? (
-              <SettingsUsersPage activeSection="Settings Users" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              <AdminReauthGate onNotify={notify}>
+                <SettingsUsersPage activeSection="Settings Users" loggedInUser={loggedInUser} onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              </AdminReauthGate>
             ) : activeSidebarItem === 'Settings Roles & Permissions' ? (
-              <SettingsRolesPermissionsPage activeSection="Settings Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              <AdminReauthGate onNotify={notify}>
+                <SettingsRolesPermissionsPage activeSection="Settings Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              </AdminReauthGate>
             ) : activeSidebarItem === 'Settings User Activity Log' ? (
-              <SettingsUserActivityLogPage activeSection="Settings User Activity Log" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              <AdminReauthGate onNotify={notify}>
+                <SettingsUserActivityLogPage activeSection="Settings User Activity Log" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              </AdminReauthGate>
             ) : activeSidebarItem === 'Settings IP Restrictions' ? (
               <SettingsIpRestrictionsPage activeSection="Settings IP Restrictions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Users' ? (
-              <SettingsUsersPage activeSection="Settings Users" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              <AdminReauthGate onNotify={notify}>
+                <SettingsUsersPage activeSection="Settings Users" loggedInUser={loggedInUser} onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              </AdminReauthGate>
             ) : employeeRelatedPages.includes(activeSidebarItem) ? (
               <EmployeeManagementPage
                 activeSection={activeSidebarItem}
@@ -2954,14 +3031,17 @@ function App() {
                 onNotify={notify}
               />
             ) : activeSidebarItem === 'Roles & Permissions' ? (
-              <SettingsRolesPermissionsPage activeSection="Settings Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              <AdminReauthGate onNotify={notify}>
+                <SettingsRolesPermissionsPage activeSection="Settings Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              </AdminReauthGate>
             ) : activeSidebarItem === 'Activity Logs' ? (
-              <ActivityLogsPage activeSection="Activity Logs" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              <AdminReauthGate onNotify={notify}>
+                <SettingsUserActivityLogPage activeSection="Settings User Activity Log" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
+              </AdminReauthGate>
             ) : insightsRelatedPages.includes(activeSidebarItem) ? (
               <UnifiedDashboardPage
                 activeTab={activeSidebarItem === 'Insights' ? insightsTab : (INSIGHTS_LEGACY_TAB_MAP[activeSidebarItem] || insightsTab)}
                 onTabChange={setInsightsTab}
-                activeSection={activeSidebarItem}
                 onOpenSection={(section) => {
                   if (section === 'Create Lead') {
                     setDashboardCreateLeadOpen(true);
@@ -2978,11 +3058,6 @@ function App() {
                   notify(`${section} opened`);
                 }}
                 onNotify={notify}
-                panelClass={panelClass}
-                cx={cx}
-                PageHeading={PageHeading}
-                DashboardFooter={DashboardFooter}
-                reportKpiToneClasses={reportKpiToneClasses}
                 IncentiveReportModal={IncentiveReportModal}
               />
             ) : projectRelatedPages.includes(activeSidebarItem) ? (
@@ -3006,6 +3081,7 @@ function App() {
             ) : settingsRelatedPages.includes(activeSidebarItem) ? (
               <SettingsMasterPage
                 activeSection={activeSidebarItem}
+                loggedInUser={loggedInUser}
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
@@ -3048,6 +3124,8 @@ function App() {
                 }}
                 onNotify={notify}
               />
+            ) : activeSidebarItem === 'Daily Tasks' ? (
+              <DailyTasksPage onNotify={notify} />
             ) : inventoryRelatedPages.includes(activeSidebarItem) ? (
               <InventoryManagementPage
                 activeSection={activeSidebarItem}
@@ -4663,7 +4741,7 @@ function PaymentModeListPage({ onOpenSection, onNotify }) {
   );
 }
 
-function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
+function SettingsMasterPage({ activeSection, onOpenSection, onNotify, loggedInUser }) {
   if (activeSection === 'Payment Settings') {
     return <PaymentSettingsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
@@ -4705,23 +4783,51 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
   }
 
   if (activeSection === 'Settings Users') {
-    return <SettingsUsersPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return (
+      <AdminReauthGate onNotify={onNotify}>
+        <SettingsUsersPage activeSection={activeSection} loggedInUser={loggedInUser} onOpenSection={onOpenSection} onNotify={onNotify} />
+      </AdminReauthGate>
+    );
   }
 
   if (activeSection === 'Settings Roles & Permissions') {
-    return <SettingsRolesPermissionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return (
+      <AdminReauthGate onNotify={onNotify}>
+        <SettingsRolesPermissionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+      </AdminReauthGate>
+    );
   }
 
   if (activeSection === 'Settings User Activity Log') {
-    return <SettingsUserActivityLogPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return (
+      <AdminReauthGate onNotify={onNotify}>
+        <SettingsUserActivityLogPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+      </AdminReauthGate>
+    );
   }
 
   if (activeSection === 'Settings IP Restrictions') {
     return <SettingsIpRestrictionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
+  if (activeSection === 'Settings Users Access Hub') {
+    return <UsersAccessHubPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Settings Security Hub') {
+    return <SecurityHubPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Settings Backup Hub') {
+    return <BackupDataHubPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Settings About') {
+    return <AboutSettingsPage />;
+  }
+
   if (settingsCardGroups.some((group) => group.items.some((item) => item.key === activeSection))) {
-    return <SettingsStandaloneInlinePage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return <SettingsStandaloneInlinePage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} loggedInUser={loggedInUser} />;
   }
 
   if (activeSection !== 'Settings') {
@@ -4775,10 +4881,10 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify }) {
     'Other Settings': 'bg-[#fff7e8] text-[#ca8a04]',
   };
 
-  return <SettingsSetupPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  return <SettingsSetupPage onOpenSection={onOpenSection} onNotify={onNotify} loggedInUser={loggedInUser} />;
 }
 
-function SettingsStandaloneInlinePage({ activeSection, onOpenSection, onNotify }) {
+function SettingsStandaloneInlinePage({ activeSection, onOpenSection, onNotify, loggedInUser }) {
   const activeGroup = getSettingsGroupForSection(activeSection);
   const title = getSettingsDisplayLabel(activeSection);
 
@@ -4806,7 +4912,7 @@ function SettingsStandaloneInlinePage({ activeSection, onOpenSection, onNotify }
           onSelectSection={(section) => onOpenSection(getSettingsRouteKey(section))}
         />
       ) : null}
-      <SettingsInlineContent activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+      <SettingsInlineContent activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} loggedInUser={loggedInUser} />
 
       <DashboardFooter />
     </div>
@@ -5016,9 +5122,9 @@ function AccountSettingsTabs({ activeSection, onOpenSection }) {
   );
 }
 
-function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, onSelectGroup }) {
+function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, onSelectGroup, groups = settingsCardGroups }) {
   const activeGroup = activeGroupTitle
-    ? settingsCardGroups.find((group) => group.title === activeGroupTitle)
+    ? groups.find((group) => group.title === activeGroupTitle)
     : getSettingsGroupForSection(activeSection);
   const categoryIcons = {
     'Organization Settings': ReceiptText,
@@ -5045,7 +5151,7 @@ function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, 
     <section className={`${panelClass} p-2`}>
       <div className="-mx-1 overflow-x-auto px-1 pb-1 md:mx-0 md:overflow-visible">
         <div className="settings-category-grid flex min-w-max gap-2 md:grid md:min-w-0">
-        {settingsCardGroups.map((group) => {
+        {groups.map((group) => {
           const Icon = categoryIcons[group.title] ?? Settings;
           const active = activeGroup?.title === group.title;
           const firstItem = group.items[0];
@@ -5087,8 +5193,8 @@ function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, 
   );
 }
 
-function SettingsSubcategoryTabs({ groupTitle, activeSection, onSelectSection }) {
-  const group = settingsCardGroups.find((item) => item.title === groupTitle);
+function SettingsSubcategoryTabs({ groupTitle, activeSection, onSelectSection, groups = settingsCardGroups }) {
+  const group = groups.find((item) => item.title === groupTitle);
 
   if (!group) {
     return null;
@@ -5121,20 +5227,117 @@ function SettingsSubcategoryTabs({ groupTitle, activeSection, onSelectSection })
   );
 }
 
-function SettingsSetupPage({ onOpenSection, onNotify }) {
-  const [selectedGroupTitle, setSelectedGroupTitle] = useState('Accounts Settings');
-  const [selectedSection, setSelectedSection] = useState('Payment Settings');
-  const selectedGroup = settingsCardGroups.find((group) => group.title === selectedGroupTitle);
+function SettingsPillarSubTabs({ items, activeSection, onSelectSection }) {
+  if (!items?.length) {
+    return null;
+  }
+
+  return (
+    <section className={`${panelClass} overflow-hidden p-0`}>
+      <div className="overflow-x-auto pb-1">
+        <div className="flex min-w-max md:min-w-0">
+          {items.map((item) => {
+            const active = activeSection === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onSelectSection(item.key)}
+                className={cx(
+                  'relative flex min-h-[54px] min-w-[150px] shrink-0 items-center justify-center whitespace-nowrap border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold leading-4 transition last:border-r-0 md:min-w-0 md:flex-1 md:shrink md:px-5 sm:h-[58px] sm:text-[13px]',
+                  active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
+                )}
+              >
+                {item.label}
+                {active ? <span className="absolute inset-x-0 bottom-0 h-[3px] bg-[#0d9f4a]" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function getPillarNavItems(pillar) {
+  if (!pillar) {
+    return [];
+  }
+  const items = [];
+  if (pillar.hubKey && pillar.id !== 'about') {
+    items.push({ key: pillar.hubKey, label: 'Overview' });
+  }
+  items.push(...(pillar.items || []));
+  return items;
+}
+
+function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
+  const [activePillarId, setActivePillarId] = useState('organization');
+  const [selectedSection, setSelectedSection] = useState('Company Profile');
+  const [advancedGroupTitle, setAdvancedGroupTitle] = useState('General Settings');
+  const activePillar = SETTINGS_PILLARS.find((pillar) => pillar.id === activePillarId);
+  const pillarNavItems = getPillarNavItems(activePillar);
+  const advancedGroup = advancedSettingsCardGroups.find((group) => group.title === advancedGroupTitle);
   const title = getSettingsDisplayLabel(selectedSection);
 
-  const selectGroup = (groupTitle) => {
-    const nextGroup = settingsCardGroups.find((group) => group.title === groupTitle);
-    const firstItem = nextGroup?.items.find((item) => item.key === 'Payment Settings') ?? nextGroup?.items[0];
-
-    setSelectedGroupTitle(groupTitle);
-    if (firstItem) {
-      setSelectedSection(firstItem.key);
+  const selectPillar = (pillarId) => {
+    setActivePillarId(pillarId);
+    if (pillarId === 'advanced') {
+      const firstItem = advancedSettingsCardGroups[0]?.items[0];
+      if (firstItem) {
+        setAdvancedGroupTitle(advancedSettingsCardGroups[0].title);
+        setSelectedSection(firstItem.key);
+      }
+      return;
     }
+    const pillar = SETTINGS_PILLARS.find((item) => item.id === pillarId);
+    const defaultSection = pillar?.hubKey ?? pillar?.items?.[0]?.key ?? 'Settings';
+    setSelectedSection(defaultSection);
+  };
+
+  const renderPillarContent = () => {
+    if (activePillarId === 'advanced') {
+      return (
+        <>
+          <SettingsCategoryTabs
+            activeGroupTitle={advancedGroupTitle}
+            activeSection={selectedSection}
+            onOpenSection={onOpenSection}
+            onSelectGroup={(groupTitle) => {
+              const nextGroup = advancedSettingsCardGroups.find((group) => group.title === groupTitle);
+              const firstItem = nextGroup?.items[0];
+              setAdvancedGroupTitle(groupTitle);
+              if (firstItem) {
+                setSelectedSection(firstItem.key);
+              }
+            }}
+            groups={advancedSettingsCardGroups}
+          />
+          <SettingsSubcategoryTabs
+            groupTitle={advancedGroupTitle}
+            activeSection={selectedSection}
+            onSelectSection={setSelectedSection}
+            groups={advancedSettingsCardGroups}
+          />
+          <SettingsInlineContent activeSection={selectedSection} onOpenSection={onOpenSection} onNotify={onNotify} loggedInUser={loggedInUser} />
+        </>
+      );
+    }
+
+    if (selectedSection === 'Settings Users Access Hub') {
+      return <UsersAccessHubPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+    }
+    if (selectedSection === 'Settings Security Hub') {
+      return <SecurityHubPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+    }
+    if (selectedSection === 'Settings Backup Hub') {
+      return <BackupDataHubPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+    }
+    if (selectedSection === 'Settings About') {
+      return <AboutSettingsPage />;
+    }
+
+    return <SettingsInlineContent activeSection={selectedSection} onOpenSection={onOpenSection} onNotify={onNotify} loggedInUser={loggedInUser} />;
   };
 
   return (
@@ -5144,32 +5347,27 @@ function SettingsSetupPage({ onOpenSection, onNotify }) {
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings' },
-          ...(selectedGroup ? [{ label: selectedGroup.title }] : []),
-          { label: title },
+          ...(activePillar ? [{ label: activePillar.label }] : activePillarId === 'advanced' && advancedGroup ? [{ label: 'Advanced' }, { label: advancedGroup.title }] : []),
+          ...(activePillarId !== 'advanced' || selectedSection !== advancedGroup?.items?.[0]?.key ? [{ label: title }] : []),
         ]}
       />
 
-      <SettingsCategoryTabs
-        activeGroupTitle={selectedGroupTitle}
-        activeSection={selectedSection}
-        onOpenSection={onOpenSection}
-        onSelectGroup={selectGroup}
-      />
-      <SettingsSubcategoryTabs
-        groupTitle={selectedGroupTitle}
-        activeSection={selectedSection}
-        onSelectSection={setSelectedSection}
-      />
-      <SettingsInlineContent
-        activeSection={selectedSection}
-        onOpenSection={onOpenSection}
-        onNotify={onNotify}
-      />
+      <SettingsArchitectureTabs activePillarId={activePillarId} onSelectPillar={selectPillar} />
+
+      {activePillarId !== 'advanced' && pillarNavItems.length > 1 ? (
+        <SettingsPillarSubTabs
+          items={pillarNavItems}
+          activeSection={selectedSection}
+          onSelectSection={setSelectedSection}
+        />
+      ) : null}
+
+      {renderPillarContent()}
     </div>
   );
 }
 
-function SettingsInlineContent({ activeSection, onOpenSection, onNotify }) {
+function SettingsInlineContent({ activeSection, onOpenSection, onNotify, loggedInUser }) {
   if (activeSection === 'Company Profile') {
     return <SettingsInlineDetailFrame><CompanyProfileSettingsPage onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
   }
@@ -5203,15 +5401,33 @@ function SettingsInlineContent({ activeSection, onOpenSection, onNotify }) {
   }
 
   if (activeSection === 'Settings Users') {
-    return <SettingsInlineDetailFrame><SettingsUsersPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+    return (
+      <SettingsInlineDetailFrame>
+        <AdminReauthGate onNotify={onNotify}>
+          <SettingsUsersPage activeSection={activeSection} loggedInUser={loggedInUser} onOpenSection={onOpenSection} onNotify={onNotify} />
+        </AdminReauthGate>
+      </SettingsInlineDetailFrame>
+    );
   }
 
   if (activeSection === 'Settings Roles & Permissions') {
-    return <SettingsInlineDetailFrame><SettingsRolesPermissionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+    return (
+      <SettingsInlineDetailFrame>
+        <AdminReauthGate onNotify={onNotify}>
+          <SettingsRolesPermissionsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+        </AdminReauthGate>
+      </SettingsInlineDetailFrame>
+    );
   }
 
   if (activeSection === 'Settings User Activity Log') {
-    return <SettingsInlineDetailFrame><SettingsUserActivityLogPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} /></SettingsInlineDetailFrame>;
+    return (
+      <SettingsInlineDetailFrame>
+        <AdminReauthGate onNotify={onNotify}>
+          <SettingsUserActivityLogPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+        </AdminReauthGate>
+      </SettingsInlineDetailFrame>
+    );
   }
 
   if (activeSection === 'Settings IP Restrictions') {
@@ -5861,7 +6077,7 @@ function useSettingsCategory(category, defaults, onNotify) {
       })
       .catch(() => onNotify?.(`Could not load ${category} settings.`, 'error'))
       .finally(() => setLoading(false));
-  }, [category]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [category]);  
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const save = async () => {
@@ -6164,7 +6380,7 @@ function SettingsProductCategoriesContent({ onOpenSection, onNotify }) {
         row.code || '—',
         row.metadata?.parent || '—',
         row.metadata?.tax ?? '—',
-        <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} tone={row.is_active ? 'green' : 'amber'} />,
+        <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} tone={row.is_active ? 'green' : 'amber'} />,
         null,
       ]}
       sideTitle="Category Rules"
@@ -6190,7 +6406,7 @@ function SettingsUnitsMeasurementContent({ onOpenSection, onNotify }) {
         row.metadata?.type || '—',
         row.metadata?.precision ?? '—',
         row.metadata?.base ? 'Yes' : 'No',
-        <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />,
+        <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />,
         null,
       ]}
       sideTitle="Conversion Defaults"
@@ -6201,43 +6417,6 @@ function SettingsUnitsMeasurementContent({ onOpenSection, onNotify }) {
     />
   );
 }
-
-function SettingsUnitsMeasurementContent_OLD({ onOpenSection, onNotify }) {
-  const rows = [
-    { unit: 'Nos', name: 'Numbers', type: 'Quantity', precision: '0', base: 'Yes', status: 'Active' },
-    { unit: 'kW', name: 'Kilowatt', type: 'Power', precision: '2', base: 'Yes', status: 'Active' },
-    { unit: 'kWp', name: 'Kilowatt Peak', type: 'Solar Capacity', precision: '2', base: 'Yes', status: 'Active' },
-    { unit: 'Mtr', name: 'Meter', type: 'Length', precision: '2', base: 'Yes', status: 'Active' },
-    { unit: 'Pair', name: 'Pair', type: 'Quantity', precision: '0', base: 'No', status: 'Active' },
-    { unit: 'Lot', name: 'Lot', type: 'Bundle', precision: '0', base: 'No', status: 'Active' },
-  ];
-
-  return (
-    <section className={`${panelClass} p-4 sm:p-5`}>
-      <SettingsContentHeader title="Units of Measurement" note="Configure inventory units, decimal precision and conversion behavior." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Units of measurement saved')} />
-      <SettingsInventoryStats stats={[['Total Units', '18', Wrench, 'green'], ['Base Units', '09', CheckCircle2, 'blue'], ['Conversion Units', '06', RefreshCw, 'purple'], ['Inactive', '00', Minus, 'amber']]} />
-      <SettingsInventoryTable
-        title="Unit Master"
-        searchPlaceholder="Search units..."
-        addLabel="Add Unit"
-        onNotify={onNotify}
-        columns={['Unit', 'Full Name', 'Type', 'Precision', 'Base Unit', 'Status', 'Action']}
-        rows={rows.map((row) => [
-          row.unit,
-          row.name,
-          row.type,
-          row.precision,
-          row.base,
-          <SettingsStatusBadge label={row.status} />,
-          <UserActionButton label={`Open ${row.unit}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.unit} unit opened`)} />,
-        ])}
-        sideTitle="Conversion Defaults"
-        sideRows={[['Decimal Mode', 'Item wise'], ['Rounding', 'Nearest'], ['Purchase UOM', 'Enabled'], ['Sales UOM', 'Enabled']]}
-      />
-    </section>
-  );
-}
-
 
 function SettingsTaxSettingsContent({ onOpenSection, onNotify }) {
   return (
@@ -6252,7 +6431,7 @@ function SettingsTaxSettingsContent({ onOpenSection, onNotify }) {
         row.metadata?.rate ?? '—',
         row.metadata?.type || 'GST',
         row.metadata?.applies || '—',
-        <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />,
+        <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />,
         null,
       ]}
       sideTitle="Tax Configuration"
@@ -6261,41 +6440,6 @@ function SettingsTaxSettingsContent({ onOpenSection, onNotify }) {
       onOpenSection={onOpenSection}
       onNotify={onNotify}
     />
-  );
-}
-
-function SettingsTaxSettingsContent_OLD({ onOpenSection, onNotify }) {
-  const rows = [
-    { tax: 'GST 0%', code: 'GST0', rate: '0%', type: 'GST', applies: 'Exempt Items', status: 'Active' },
-    { tax: 'GST 5%', code: 'GST5', rate: '5%', type: 'GST', applies: 'Selected Goods', status: 'Active' },
-    { tax: 'GST 12%', code: 'GST12', rate: '12%', type: 'GST', applies: 'Solar Panels', status: 'Active' },
-    { tax: 'GST 18%', code: 'GST18', rate: '18%', type: 'GST', applies: 'Inverters & Services', status: 'Active' },
-    { tax: 'IGST 18%', code: 'IGST18', rate: '18%', type: 'IGST', applies: 'Interstate Sales', status: 'Active' },
-  ];
-
-  return (
-    <section className={`${panelClass} p-4 sm:p-5`}>
-      <SettingsContentHeader title="Tax Settings" note="Manage GST slabs, tax codes and item-wise tax mapping for inventory." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Tax settings saved')} />
-      <SettingsInventoryStats stats={[['Tax Slabs', '05', ReceiptText, 'green'], ['GST Enabled', 'Yes', CheckCircle2, 'blue'], ['Default Rate', '18%', IndianRupee, 'purple'], ['Pending Mapping', '02', Hourglass, 'amber']]} />
-      <SettingsInventoryTable
-        title="Tax Rate Master"
-        searchPlaceholder="Search tax slabs..."
-        addLabel="Add Tax"
-        onNotify={onNotify}
-        columns={['Tax Name', 'Code', 'Rate', 'Type', 'Applies To', 'Status', 'Action']}
-        rows={rows.map((row) => [
-          row.tax,
-          row.code,
-          row.rate,
-          row.type,
-          row.applies,
-          <SettingsStatusBadge label={row.status} />,
-          <UserActionButton label={`Open ${row.tax}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.tax} opened`)} />,
-        ])}
-        sideTitle="Tax Configuration"
-        sideRows={[['Default Sale Tax', 'GST 18%'], ['Default Purchase Tax', 'GST 18%'], ['HSN Required', 'Yes'], ['Round Off', 'Nearest Rupee']]}
-      />
-    </section>
   );
 }
 
@@ -6325,47 +6469,13 @@ function SettingsStockSettingsContent({ onOpenSection, onNotify }) {
         row.code || '—',
         row.metadata?.value ?? '—',
         row.metadata?.module || '—',
-        <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />,
+        <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />,
         null,
       ]}
       sideRows={[['Primary Warehouse', 'Indore Main'], ['Approval Required', 'Stock Outward'], ['Auto GRN', 'Enabled'], ['Stock Audit', 'Monthly']]}
       onOpenSection={onOpenSection}
       onNotify={onNotify}
     />
-  );
-}
-
-function SettingsStockSettingsContent_OLD({ onOpenSection, onNotify }) {
-  const rows = [
-    { rule: 'Negative Stock', value: 'Blocked', module: 'All Warehouses', status: 'Active' },
-    { rule: 'Low Stock Alert', value: 'Enabled', module: 'Inventory', status: 'Active' },
-    { rule: 'Reorder Level', value: 'Item Wise', module: 'Products', status: 'Active' },
-    { rule: 'Stock Valuation', value: 'FIFO', module: 'Accounts', status: 'Active' },
-    { rule: 'Batch Tracking', value: 'Optional', module: 'Products', status: 'Active' },
-    { rule: 'Serial Tracking', value: 'Enabled', module: 'Solar Panels', status: 'Active' },
-  ];
-
-  return (
-    <section className={`${panelClass} p-4 sm:p-5`}>
-      <SettingsContentHeader title="Stock Settings" note="Configure inventory control, alerts, valuation and stock movement rules." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Stock settings saved')} />
-      <SettingsInventoryStats stats={[['Warehouses', '08', Boxes, 'green'], ['Stock Alerts', 'Enabled', Bell, 'blue'], ['Valuation', 'FIFO', Database, 'purple'], ['Negative Stock', 'Blocked', ShieldCheck, 'amber']]} />
-      <SettingsInventoryTable
-        title="Stock Control Rules"
-        searchPlaceholder="Search stock rules..."
-        addLabel="Add Rule"
-        onNotify={onNotify}
-        columns={['Rule', 'Value', 'Module', 'Status', 'Action']}
-        rows={rows.map((row) => [
-          row.rule,
-          row.value,
-          row.module,
-          <SettingsStatusBadge label={row.status} />,
-          <UserActionButton label={`Open ${row.rule}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.rule} opened`)} />,
-        ])}
-        sideTitle="Default Stock Policy"
-        sideRows={[['Primary Warehouse', 'Indore Main'], ['Approval Required', 'Stock Outward'], ['Auto GRN', 'Enabled'], ['Stock Audit', 'Monthly']]}
-      />
-    </section>
   );
 }
 
@@ -6455,7 +6565,7 @@ function SettingsProjectStatusContent({ onOpenSection, onNotify }) {
       title="Project Status"
       note="Manage project workflow statuses, stage order and progress mapping."
       columns={['Status Name', 'Code', 'Color', 'Stage', 'Status', 'Action']}
-      mapRow={(row) => [row.name, row.code || '—', row.metadata?.color || '—', row.metadata?.stage || '—', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      mapRow={(row) => [row.name, row.code || '—', row.metadata?.color || '—', row.metadata?.stage || '—', <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />, null]}
       sideTitle="Rules"
       sideRows={[['Auto Sync', 'Enabled'], ['Audit Trail', 'Enabled'], ['Last Update', 'Live'], ['Records', 'API']]}
       addLabel="Add Status"
@@ -6472,7 +6582,7 @@ function SettingsProjectTypesContent({ onOpenSection, onNotify }) {
       title="Project Types"
       note="Configure project type master for residential, commercial and industrial jobs."
       columns={['Type', 'Code', 'Capacity', 'Subsidy', 'Status', 'Action']}
-      mapRow={(row) => [row.name, row.code || '—', row.metadata?.capacity || '—', row.metadata?.subsidy || '—', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      mapRow={(row) => [row.name, row.code || '—', row.metadata?.capacity || '—', row.metadata?.subsidy || '—', <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />, null]}
       sideTitle="Rules"
       sideRows={[['Auto Sync', 'Enabled'], ['Audit Trail', 'Enabled'], ['Last Update', 'Live'], ['Records', 'API']]}
       addLabel="Add Type"
@@ -6489,7 +6599,7 @@ function SettingsTaskPrioritiesContent({ onOpenSection, onNotify }) {
       title="Task Priorities"
       note="Manage task priority levels, SLA and escalation mapping."
       columns={['Priority', 'Code', 'SLA', 'Escalation', 'Status', 'Action']}
-      mapRow={(row) => [row.name, row.code || '—', row.metadata?.sla || '—', row.metadata?.escalation || '—', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      mapRow={(row) => [row.name, row.code || '—', row.metadata?.sla || '—', row.metadata?.escalation || '—', <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />, null]}
       sideTitle="Rules"
       sideRows={[['Auto Sync', 'Enabled'], ['Audit Trail', 'Enabled'], ['Last Update', 'Live'], ['Records', 'API']]}
       addLabel="Add Priority"
@@ -6506,7 +6616,7 @@ function SettingsMilestoneContent({ onOpenSection, onNotify }) {
       title="Milestone Settings"
       note="Configure project milestones, progress weightage and mandatory completion rules."
       columns={['Milestone', 'Code', 'Phase', 'Weightage', 'Status', 'Action']}
-      mapRow={(row) => [row.name, row.code || '—', row.metadata?.phase || '—', row.metadata?.weight || '—', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      mapRow={(row) => [row.name, row.code || '—', row.metadata?.phase || '—', row.metadata?.weight || '—', <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />, null]}
       sideTitle="Rules"
       sideRows={[['Auto Sync', 'Enabled'], ['Audit Trail', 'Enabled'], ['Last Update', 'Live'], ['Records', 'API']]}
       addLabel="Add Milestone"
@@ -6532,7 +6642,7 @@ function SettingsDocumentSettingsContent({ onOpenSection, onNotify }) {
       })
       .catch(() => onNotify('Could not load document series.', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const rows = series.map((item) => [
     item.document_type,
@@ -6561,8 +6671,8 @@ function SettingsDocumentSettingsContent({ onOpenSection, onNotify }) {
             name,
             format,
             fmt,
-            <SettingsStatusBadge label={status} tone={status === 'Inactive' ? 'amber' : 'green'} />,
-            <UserActionButton label={`Open ${name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${name} series opened`)} />,
+            <SettingsStatusBadge key="status" label={status} tone={status === 'Inactive' ? 'amber' : 'green'} />,
+            <UserActionButton key="action" label={`Open ${name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${name} series opened`)} />,
           ])}
           sideTitle="Storage Policy"
           sideRows={[['Storage Provider', 'Cloud'], ['Retention', '5 Years'], ['Compression', 'Enabled'], ['Watermark', 'Enabled']]}
@@ -6595,7 +6705,7 @@ function SettingsApprovalSettingsContent({ onOpenSection, onNotify }) {
         row.code || '—',
         row.metadata?.approver || '—',
         row.metadata?.levels || '1 Level',
-        <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />,
+        <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />,
         null,
       ]}
       sideRows={[['Auto Reminders', 'Enabled'], ['Escalation', 'Enabled'], ['Audit Trail', 'Required'], ['Bulk Approval', 'Disabled']]}
@@ -6618,7 +6728,7 @@ function SettingsBackupRestoreContent({ onOpenSection, onNotify }) {
     .catch(() => onNotify('Could not load backups.', 'error'))
     .finally(() => setLoading(false));
 
-  useEffect(() => { reload(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { reload(); }, []);  
 
   const runBackup = async () => {
     setRunning(true);
@@ -6663,8 +6773,8 @@ function SettingsBackupRestoreContent({ onOpenSection, onNotify }) {
             name,
             created,
             size,
-            <SettingsStatusBadge label={status} tone={status === 'Failed' ? 'amber' : 'green'} />,
-            <UserActionButton label={`Open ${name}`} icon={Download} tone="blue" onClick={() => onNotify(`${name} download opened`)} />,
+            <SettingsStatusBadge key="status" label={status} tone={status === 'Failed' ? 'amber' : 'green'} />,
+            <UserActionButton key="action" label={`Open ${name}`} icon={Download} tone="blue" onClick={() => onNotify(`${name} download opened`)} />,
           ])}
           sideTitle="Restore Safety"
           sideRows={[['Restore Lock', 'Admin Only'], ['Pre-restore Backup', 'Required'], ['Data Validation', 'Enabled'], ['Download Latest', last ? 'Available' : 'None']]}
@@ -6727,8 +6837,8 @@ function SettingsSystemMaintenanceContent({ onOpenSection, onNotify }) {
               label,
               module,
               running === action ? 'Running...' : 'Ready',
-              <SettingsStatusBadge label={running === action ? 'Running' : 'Ready'} tone={running === action ? 'amber' : 'green'} />,
-              <UserActionButton label={`Run ${label}`} icon={RefreshCw} tone="blue" onClick={() => runTask(action, label)} />,
+              <SettingsStatusBadge key="status" label={running === action ? 'Running' : 'Ready'} tone={running === action ? 'amber' : 'green'} />,
+              <UserActionButton key="action" label={`Run ${label}`} icon={RefreshCw} tone="blue" onClick={() => runTask(action, label)} />,
             ])}
             sideTitle="Summary"
             sideRows={[['Tasks', String(tasks.length)], ['Auto Cleanup', form.autoCleanupLogs ? 'Enabled' : 'Disabled'], ['Health Check', form.healthCheckEnabled ? 'Enabled' : 'Disabled'], ['Last Update', 'Live']]}
@@ -6755,7 +6865,7 @@ function SettingsOtherMasterPage({ title, note, stats, configTitle, configFields
       <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
         <div className="space-y-4">
           <SettingsSectionCard title={configTitle} className="shadow-none"><div className="grid gap-4 md:grid-cols-2">{configFields}</div></SettingsSectionCard>
-          <SettingsInventoryTable title={`${title} List`} searchPlaceholder={`Search ${title.toLowerCase()}...`} addLabel={addLabel} onNotify={onNotify} columns={['Name', 'Type / Rule', 'Detail', 'Status', 'Action']} rows={rows.map(([name, type, detail, status]) => [name, type, detail, <SettingsStatusBadge label={status} tone={['Inactive', 'Ready'].includes(status) ? 'amber' : 'green'} />, <UserActionButton label={`Open ${name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${name} opened`)} />])} sideTitle="Summary" sideRows={[['Total Rows', String(rows.length)], ['Active/Ready', String(rows.filter((row) => row[3] !== 'Inactive').length)], ['Audit Trail', 'Enabled'], ['Last Update', 'Today']]} />
+          <SettingsInventoryTable title={`${title} List`} searchPlaceholder={`Search ${title.toLowerCase()}...`} addLabel={addLabel} onNotify={onNotify} columns={['Name', 'Type / Rule', 'Detail', 'Status', 'Action']} rows={rows.map(([name, type, detail, status]) => [name, type, detail, <SettingsStatusBadge key="status" label={status} tone={['Inactive', 'Ready'].includes(status) ? 'amber' : 'green'} />, <UserActionButton key="action" label={`Open ${name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${name} opened`)} />])} sideTitle="Summary" sideRows={[['Total Rows', String(rows.length)], ['Active/Ready', String(rows.filter((row) => row[3] !== 'Inactive').length)], ['Audit Trail', 'Enabled'], ['Last Update', 'Today']]} />
         </div>
         <div className="space-y-4">
           <SettingsSidebarInfoCard title={sideTitle} icon={Info}><div className="space-y-3">{sideRows.map(([label, value]) => <SettingsPreviewRow key={label} label={label} value={value} />)}</div></SettingsSidebarInfoCard>
@@ -6786,7 +6896,7 @@ function SettingsEmailSettingsContent({ onOpenSection, onNotify }) {
       )}
       masterType="document"
       templateColumns={['Template Name', 'Code', 'Channel', 'Status', 'Action']}
-      mapTemplateRow={(row) => [row.name, row.code || '—', row.metadata?.channel || 'Email', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      mapTemplateRow={(row) => [row.name, row.code || '—', row.metadata?.channel || 'Email', <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />, null]}
       stats={[['SMTP Status', 'Live', Mail, 'green'], ['Templates', '—', FileText, 'blue'], ['Channel', 'Email', CheckCircle2, 'purple'], ['API', 'Connected', Database, 'amber']]}
       sideTitle="Email Health"
       sideRows={[['Delivery', 'Configured'], ['Queue', 'Ready'], ['From', 'CRM'], ['Save', 'Enabled']]}
@@ -6814,7 +6924,7 @@ function SettingsSmsSettingsContent({ onOpenSection, onNotify }) {
       )}
       masterType="document"
       templateColumns={['Template Name', 'Code', 'Channel', 'Status', 'Action']}
-      mapTemplateRow={(row) => [row.name, row.code || '—', 'SMS', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      mapTemplateRow={(row) => [row.name, row.code || '—', 'SMS', <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />, null]}
       stats={[['Gateway', 'Live', MessageSquareMore, 'green'], ['Templates', '—', FileText, 'blue'], ['Channel', 'SMS', CheckCircle2, 'purple'], ['API', 'Connected', Database, 'amber']]}
       sideTitle="SMS Balance"
       sideRows={[['Provider', 'Configured'], ['Sender ID', 'Set'], ['Delivery', 'Ready'], ['Retry', 'Enabled']]}
@@ -6842,7 +6952,7 @@ function SettingsWhatsAppSettingsContent({ onOpenSection, onNotify }) {
       )}
       masterType="document"
       templateColumns={['Template Name', 'Code', 'Channel', 'Status', 'Action']}
-      mapTemplateRow={(row) => [row.name, row.code || '—', 'WhatsApp', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      mapTemplateRow={(row) => [row.name, row.code || '—', 'WhatsApp', <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />, null]}
       stats={[['API Status', 'Live', Phone, 'green'], ['Templates', '—', MessageSquareMore, 'blue'], ['Channel', 'WhatsApp', CheckCircle2, 'purple'], ['Webhook', 'Ready', Database, 'amber']]}
       sideTitle="WhatsApp Health"
       sideRows={[['Provider', 'Configured'], ['Token', 'Set'], ['Delivery', 'Ready'], ['Media', 'Enabled']]}
@@ -6873,7 +6983,7 @@ function SettingsNotificationSettingsContent({ onOpenSection, onNotify }) {
       )}
       masterType="approval_workflow"
       templateColumns={['Rule Name', 'Code', 'Detail', 'Status', 'Action']}
-      mapTemplateRow={(row) => [row.name, row.code || '—', row.metadata?.approver || '—', <SettingsStatusBadge label={row.is_active ? 'Active' : 'Inactive'} />, null]}
+      mapTemplateRow={(row) => [row.name, row.code || '—', row.metadata?.approver || '—', <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />, null]}
       stats={[['Events', 'Live', Bell, 'green'], ['Channels', '4', MessageSquareMore, 'blue'], ['Rules', '—', CheckCircle2, 'purple'], ['Escalations', 'On', AlertTriangle, 'amber']]}
       sideTitle="Channel Status"
       sideRows={[['In-app', 'Active'], ['Email', 'Active'], ['SMS', 'Optional'], ['WhatsApp', 'Optional']]}
@@ -6902,8 +7012,8 @@ function SettingsCommunicationPage({ title, note, stats, configTitle, configFiel
               template,
               trigger,
               channel,
-              <SettingsStatusBadge label={status} tone={status === 'Inactive' ? 'amber' : status === 'Pending' ? 'blue' : 'green'} />,
-              <UserActionButton label={`Open ${template}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${template} opened`)} />,
+              <SettingsStatusBadge key="status" label={status} tone={status === 'Inactive' ? 'amber' : status === 'Pending' ? 'blue' : 'green'} />,
+              <UserActionButton key="action" label={`Open ${template}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${template} opened`)} />,
             ])}
             sideTitle="Template Summary"
             sideRows={[['Active Templates', String(rows.filter((row) => row[3] === 'Active').length)], ['Inactive/Pending', String(rows.filter((row) => row[3] !== 'Active').length)], ['Variables', 'Supported'], ['Preview', 'Enabled']]}
@@ -7216,9 +7326,9 @@ function SystemSettingsPage({ onOpenSection, onNotify }) {
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const tabs = ['General', 'Security', 'Email', 'Notifications', 'Backup', 'API Settings', 'Other'];
   const statusRows = [
-    ['System Version', <SettingsStatusBadge label="v2.5.1" tone="green" />],
+    ['System Version', <SettingsStatusBadge key="badge" label="v2.5.1" tone="green" />],
     ['Last Updated', '20 May 2024 08:15 AM'],
-    ['Database Status', <SettingsStatusBadge label="Connected" tone="green" />],
+    ['Database Status', <SettingsStatusBadge key="badge" label="Connected" tone="green" />],
     ['Storage Used', '30% (6.0 GB / 20 GB)'],
     ['Active Users', '42'],
     ['System Uptime', '15d 6h 32m'],
@@ -7347,7 +7457,7 @@ function SystemSettingsExtraTab({ activeTab, onNotify }) {
     Security: {
       title: 'Security Policy',
       sideTitle: 'Security Status',
-      rows: [['2FA Status', <SettingsStatusBadge label="Enabled" />], ['Blocked Attempts', '18'], ['Active Sessions', '12'], ['Last Scan', '20 May 2024']],
+      rows: [['2FA Status', <SettingsStatusBadge key="badge" label="Enabled" />], ['Blocked Attempts', '18'], ['Active Sessions', '12'], ['Last Scan', '20 May 2024']],
       actions: ['View Login History', 'Revoke All Sessions', 'Export Security Logs'],
       fields: (
         <>
@@ -7365,7 +7475,7 @@ function SystemSettingsExtraTab({ activeTab, onNotify }) {
     Email: {
       title: 'SMTP Configuration',
       sideTitle: 'Email Health',
-      rows: [['SMTP Status', <SettingsStatusBadge label="Connected" />], ['Queue Pending', '6'], ['Failed Today', '1'], ['Sent Today', '148']],
+      rows: [['SMTP Status', <SettingsStatusBadge key="badge" label="Connected" />], ['Queue Pending', '6'], ['Failed Today', '1'], ['Sent Today', '148']],
       actions: ['Send Test Email', 'View Email Queue', 'Email Templates'],
       fields: (
         <>
@@ -7384,7 +7494,7 @@ function SystemSettingsExtraTab({ activeTab, onNotify }) {
     Notifications: {
       title: 'Notification Channels',
       sideTitle: 'Delivery Summary',
-      rows: [['Email', <SettingsStatusBadge label="Active" />], ['SMS', <SettingsStatusBadge label="Inactive" tone="amber" />], ['WhatsApp', <SettingsStatusBadge label="Active" />], ['Last Dispatch', 'Today 12:05 PM']],
+      rows: [['Email', <SettingsStatusBadge key="badge" label="Active" />], ['SMS', <SettingsStatusBadge key="badge" label="Inactive" tone="amber" />], ['WhatsApp', <SettingsStatusBadge key="badge" label="Active" />], ['Last Dispatch', 'Today 12:05 PM']],
       actions: ['Preview Notification', 'Send Test Alert', 'Open Templates'],
       fields: (
         <>
@@ -7401,7 +7511,7 @@ function SystemSettingsExtraTab({ activeTab, onNotify }) {
     Backup: {
       title: 'Backup Settings',
       sideTitle: 'Last Backup',
-      rows: [['Status', <SettingsStatusBadge label="Completed" />], ['Date', '20 May 2024'], ['Size', '2.45 GB'], ['Next Run', 'Tomorrow 02:00 AM']],
+      rows: [['Status', <SettingsStatusBadge key="badge" label="Completed" />], ['Date', '20 May 2024'], ['Size', '2.45 GB'], ['Next Run', 'Tomorrow 02:00 AM']],
       actions: ['Run Backup Now', 'Restore Backup', 'Download Latest Backup'],
       fields: (
         <>
@@ -7418,7 +7528,7 @@ function SystemSettingsExtraTab({ activeTab, onNotify }) {
     'API Settings': {
       title: 'API Configuration',
       sideTitle: 'API Usage',
-      rows: [['API Status', <SettingsStatusBadge label="Active" />], ['Requests Today', '428'], ['Errors Today', '3'], ['Last Key Rotation', '10 May 2024']],
+      rows: [['API Status', <SettingsStatusBadge key="badge" label="Active" />], ['Requests Today', '428'], ['Errors Today', '3'], ['Last Key Rotation', '10 May 2024']],
       actions: ['Generate New Key', 'Test Webhook', 'View API Logs'],
       fields: (
         <>
@@ -7435,7 +7545,7 @@ function SystemSettingsExtraTab({ activeTab, onNotify }) {
     Other: {
       title: 'Other System Preferences',
       sideTitle: 'System Tools',
-      rows: [['Cache', <SettingsStatusBadge label="Healthy" />], ['Logs', <SettingsStatusBadge label="Normal" />], ['Disk Cleanup', 'Last run 19 May 2024'], ['Maintenance', <SettingsStatusBadge label="Off" tone="slate" />]],
+      rows: [['Cache', <SettingsStatusBadge key="badge" label="Healthy" />], ['Logs', <SettingsStatusBadge key="badge" label="Normal" />], ['Disk Cleanup', 'Last run 19 May 2024'], ['Maintenance', <SettingsStatusBadge key="badge" label="Off" tone="slate" />]],
       actions: ['Clear Cache', 'Run Cleanup', 'Download Logs'],
       fields: (
         <>
@@ -7891,7 +8001,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
     settingsApi.category('business').get()
       .then((data) => { if (data) setForm((c) => ({ ...c, ...data })); })
       .catch(() => onNotify('Could not load business information.', 'error'));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const saveBusiness = async () => {
     setSaving(true);
@@ -8031,13 +8141,16 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
 function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
   const defaultCompanyForm = {
     companyName: 'Malwa Solar Energy Pvt. Ltd.',
+    shortName: 'Malwa Solar',
     companyType: 'Private Limited',
     gstNumber: '03AAGCM1234A1Z5',
     panNumber: 'AAGCM1234A',
     tanNumber: 'PTLM12345G',
     cin: 'U40106PB2021PTC045678',
     phone: '+91 98765 43210',
+    secondaryPhone: '+91 98765 43211',
     email: 'info@malwasolar.com',
+    altEmail: 'support@malwasolar.com',
     website: 'https://www.malwasolar.com',
     incorporationDate: '01/04/2021',
     startDate: '01/05/2021',
@@ -8073,7 +8186,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
         }
       })
       .catch(() => onNotify('Could not load company profile.', 'error'));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const saveProfile = async () => {
     setSaving(true);
@@ -8186,13 +8299,16 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
 
               <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                 <SettingsInputField label="Company Name" value={form.companyName} onChange={(value) => updateField('companyName', value)} required />
+                <SettingsInputField label="Short Name" value={form.shortName} onChange={(value) => updateField('shortName', value)} />
                 <SettingsSelectField label="Company Type" value={form.companyType} onChange={(value) => updateField('companyType', value)} options={['Private Limited', 'Partnership', 'Proprietorship', 'LLP']} />
                 <SettingsInputField label="GST Number" value={form.gstNumber} onChange={(value) => updateField('gstNumber', value)} required />
                 <SettingsInputField label="PAN Number" value={form.panNumber} onChange={(value) => updateField('panNumber', value)} required />
                 <SettingsInputField label="TAN Number" value={form.tanNumber} onChange={(value) => updateField('tanNumber', value)} />
                 <SettingsInputField label="Corporate Identification Number (CIN)" value={form.cin} onChange={(value) => updateField('cin', value)} />
                 <SettingsInputField label="Phone Number" value={form.phone} onChange={(value) => updateField('phone', value)} required />
+                <SettingsInputField label="Alternate Phone" value={form.secondaryPhone} onChange={(value) => updateField('secondaryPhone', value)} />
                 <SettingsInputField label="Email Address" value={form.email} onChange={(value) => updateField('email', value)} required />
+                <SettingsInputField label="Alternate Email" value={form.altEmail} onChange={(value) => updateField('altEmail', value)} />
                 <SettingsInputField label="Website" value={form.website} onChange={(value) => updateField('website', value)} />
               </div>
             </div>
@@ -8273,7 +8389,7 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
       })
       .catch(() => onNotify('Could not load financial years.', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const filteredRows = rows.filter((row) => [row.year, row.period, row.startDate, row.endDate].some((value) => String(value).toLowerCase().includes(query.toLowerCase())));
   const currentYear = rows.find((row) => row.current) || rows[0] || { year: '—', startDate: '—', endDate: '—', status: '—' };
@@ -8412,7 +8528,7 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
       })
       .catch(() => onNotify('Could not load branches.', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const filteredRows = rows.filter((row) => {
     const queryMatch = [row.name, row.code, row.location, row.email].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
@@ -9049,7 +9165,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     Object.entries(config.lookups || {}).forEach(([key, lk]) => {
       lk.api.list({ page_size: 1000 }).then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) }))).catch(() => {});
     });
-  }, [needsUsers, needsProjects]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [needsUsers, needsProjects]);  
 
   const serverFilterValues = extraFilters.filter((f) => !f.client).map((f) => extraFilterValues[f.key] || '').join('|');
 
@@ -9063,7 +9179,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     config.api.list(params)
       .then((r) => { setRows(normalizeApiRows(r)); setLoading(false); })
       .catch((e) => { setRows([]); setLoading(false); onNotify(e.message || `Could not load ${config.title.toLowerCase()}.`, 'error'); });
-  }, [filterStatus, serverFilterValues]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filterStatus, serverFilterValues]);  
 
   useEffect(() => { loadRows(); }, [loadRows]);
   useEffect(() => { setPage(1); }, [search, filterStatus, extraFilterValues]);
@@ -10672,7 +10788,7 @@ function AccountsOverviewPage({ activeSection, onOpenSection, onNotify }) {
       .then((data) => { if (data) setStats(data); })
       .catch(() => onNotify('Could not load accounts summary.', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const cards = stats ? [
     { label: 'Total Received', value: fmtAccRs(stats.total_received), caption: 'Completed payments in', tone: 'green', icon: TrendingUp, onClick: () => onOpenSection('Cash Receipt') },
@@ -11311,7 +11427,7 @@ function AmcOverviewPage({ activeSection, onOpenSection, onNotify }) {
       .then((data) => { if (data) setStats(data); })
       .catch(() => onNotify('Could not load AMC summary.', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const cards = stats ? [
     { label: 'Active Contracts', value: String(stats.active_contracts ?? 0), caption: 'Live AMC agreements', tone: 'green', icon: FileText, onClick: () => onOpenSection('AMC Contracts') },
@@ -11784,7 +11900,7 @@ function useSummaryData(onNotify) {
       })
       .catch(() => onNotify('Could not load summary data.', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   return { data, loading };
 }
@@ -11896,7 +12012,7 @@ function SummarySalesPage({ activeSection, onOpenSection, onNotify }) {
       .then((data) => { if (data) setAnalytics(data); })
       .catch(() => onNotify('Could not load lead analytics.', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const cards = analytics ? [
     { label: 'Total Leads', value: String(analytics.total ?? 0), tone: 'blue', icon: Users },
@@ -11943,7 +12059,7 @@ function SummaryProjectsPage({ activeSection, onOpenSection, onNotify }) {
       .then((data) => { if (data) setProjects(data); })
       .catch(() => onNotify('Could not load project summary.', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const cards = projects ? [
     { label: 'Total Projects', value: String(projects.total ?? 0), tone: 'blue', icon: FolderKanban },
@@ -14005,7 +14121,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
     } finally {
       setSaving(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [projectId, form]);
 
   // Auto-save draft every 30s while there are unsaved changes.
@@ -24916,26 +25032,42 @@ function SettingsPermissionToggle({ value, onClick, label }) {
 function createSettingsRolePermissions(roleName) {
   const template = [
     { module: 'Dashboard', description: 'View dashboard and analytics' },
-    { module: 'Lead Management', description: 'Manage leads and inquiries' },
-    { module: 'Project Management', description: 'Create and manage projects' },
-    { module: 'Liaisoning & Commissioning', description: 'Manage LC applications and approvals' },
+    { module: 'Leads', description: 'Manage leads and inquiries' },
+    { module: 'Follow-ups', description: 'Follow-up scheduling and tracking' },
+    { module: 'IVRS Management', description: 'IVRS call routing and logs' },
+    { module: 'Approvals', description: 'Approval workflows' },
+    { module: 'Project Management', description: 'Create and manage solar projects' },
+    { module: 'Workforce', description: 'Employees, attendance and payroll' },
+    { module: 'Liaisoning & Commissioning', description: 'LC applications and approvals' },
     { module: 'O&M', description: 'Operation and maintenance activities' },
     { module: 'Accounts', description: 'Invoices, payments and accounting' },
     { module: 'Inventory', description: 'Stock and warehouse management' },
+    { module: 'Daily Tasks', description: 'Site visits, installs and dispatch' },
+    { module: 'AMC & Warranty', description: 'AMC contracts and warranty claims' },
     { module: 'Reports', description: 'View and export reports' },
+    { module: 'User Management', description: 'Manage users and access' },
+    { module: 'Settings', description: 'System configuration' },
   ];
 
   const guestMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: false };
   const viewerMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: true };
   const managerMatrix = {
     Dashboard: { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: true },
-    'Lead Management': { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    Leads: { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    'Follow-ups': { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    'IVRS Management': { View: true, Add: false, Edit: false, Delete: false, Export: true },
+    Approvals: { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: false },
     'Project Management': { View: true, Add: true, Edit: 'partial', Delete: false, Export: true },
+    Workforce: { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: true },
     'Liaisoning & Commissioning': { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: false },
     'O&M': { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: true },
     Accounts: { View: true, Add: 'partial', Edit: false, Delete: false, Export: true },
     Inventory: { View: true, Add: 'partial', Edit: true, Delete: false, Export: true },
+    'Daily Tasks': { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    'AMC & Warranty': { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: true },
     Reports: { View: true, Add: false, Edit: false, Delete: false, Export: true },
+    'User Management': { View: false, Add: false, Edit: false, Delete: false, Export: false },
+    Settings: { View: true, Add: false, Edit: false, Delete: false, Export: false },
   };
 
   return template.map((row, index) => {
@@ -24959,7 +25091,7 @@ function createSettingsRolePermissions(roleName) {
           View: true,
           Add: index === 0 ? false : true,
           Edit: index === 0 ? false : true,
-          Delete: ['Lead Management', 'Project Management', 'Inventory'].includes(row.module),
+          Delete: ['Leads', 'Project Management', 'Inventory', 'Daily Tasks'].includes(row.module),
           Export: true,
         },
       };
@@ -25056,12 +25188,12 @@ function useSettingsMasters(masterType, onNotify) {
       })
       .catch(() => onNotify?.('Could not load master records.', 'error'))
       .finally(() => setLoading(false));
-  }, [masterType]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [masterType]);  
 
   return { rows, loading, setRows };
 }
 
-function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, onNotify }) {
+function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, onNotify, loggedInUser = null }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -25071,6 +25203,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
   const [selectedUser, setSelectedUser] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
+  const canToggleUserStatus = Boolean(loggedInUser?.is_super_admin);
 
   useEffect(() => {
     setLoading(true);
@@ -25081,7 +25214,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       })
       .catch((error) => onNotify?.(error.message || 'Failed to load users', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const filteredUsers = users.filter((user) => {
     const queryMatch = [user.name, user.email, user.phone, user.branch].some((value) => value.toLowerCase().includes(query.toLowerCase()));
@@ -25097,12 +25230,19 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
 
   const saveUser = (payload) => {
     if (editingUser) {
-      userApi.update(payload.id, {
+      const updateData = {
         name: payload.name,
         email: payload.email,
         mobile: payload.phone,
         is_active: payload.status === 'Active',
-      }).then((updated) => {
+      };
+      if (payload.roleId) updateData.role = payload.roleId;
+      if (payload.branchId) updateData.branch = payload.branchId;
+
+      userApi.update(payload.id, updateData).then(async (updated) => {
+        if (payload.password) {
+          await userApi.changePassword(payload.id, { new_password: payload.password });
+        }
         const mapped = mapApiUserToSettingsRow(updated);
         setUsers((current) => current.map((item) => (item.id === mapped.id ? mapped : item)));
         setEditingUser(null);
@@ -25115,7 +25255,9 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       name: payload.name,
       email: payload.email,
       mobile: payload.phone,
-      password: 'ChangeMe123',
+      password: payload.password,
+      role: payload.roleId || undefined,
+      branch: payload.branchId || undefined,
     }).then((created) => {
       const mapped = mapApiUserToSettingsRow(created);
       setUsers((current) => [mapped, ...current]);
@@ -25125,6 +25267,10 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
   };
 
   const toggleUserStatus = (user) => {
+    if (!canToggleUserStatus) {
+      onNotify?.('Only Super Admin can activate or deactivate users', 'error');
+      return;
+    }
     userApi.toggleActive(user.id).then((result) => {
       const nextStatus = result?.is_active ? 'Active' : 'Inactive';
       setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, status: nextStatus } : item)));
@@ -25191,10 +25337,12 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
                 <InfoCell label="Branch" value={user.branch} />
                 <InfoCell label="Last Login" value={user.lastLogin} />
               </div>
-              <div className="mt-4 grid gap-2 min-[420px]:grid-cols-3">
+              <div className={`mt-4 grid gap-2 ${canToggleUserStatus ? 'min-[420px]:grid-cols-3' : 'min-[420px]:grid-cols-2'}`}>
                 <button type="button" onClick={() => setSelectedUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
                 <button type="button" onClick={() => setEditingUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />Edit</button>
-                <button type="button" onClick={() => toggleUserStatus(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#284276]"><RefreshCw className="size-4" />Status</button>
+                {canToggleUserStatus ? (
+                  <button type="button" onClick={() => toggleUserStatus(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#284276]"><RefreshCw className="size-4" />Status</button>
+                ) : null}
               </div>
             </article>
           )) : null}
@@ -25225,7 +25373,9 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
                     <div className="flex items-center justify-end gap-2">
                       <UserActionButton label={`View ${user.name}`} icon={Eye} tone="blue" onClick={() => setSelectedUser(user)} />
                       <UserActionButton label={`Edit ${user.name}`} icon={FileText} tone="blue" onClick={() => setEditingUser(user)} />
-                      <UserActionButton label={`Toggle ${user.name}`} icon={RefreshCw} tone="blue" onClick={() => toggleUserStatus(user)} />
+                      {canToggleUserStatus ? (
+                        <UserActionButton label={`Toggle ${user.name}`} icon={RefreshCw} tone="blue" onClick={() => toggleUserStatus(user)} />
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -25241,38 +25391,104 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
 
       <DashboardFooter />
 
-      {selectedUser ? <SettingsUserProfileModal user={selectedUser} onClose={() => setSelectedUser(null)} onEdit={() => { setEditingUser(selectedUser); setSelectedUser(null); }} onToggleStatus={toggleUserStatus} onNotify={onNotify} /> : null}
-      {addUserOpen ? <SettingsUserFormModal onClose={() => setAddUserOpen(false)} onSave={saveUser} /> : null}
-      {editingUser ? <SettingsUserFormModal initialUser={editingUser} onClose={() => setEditingUser(null)} onSave={saveUser} /> : null}
+      {selectedUser ? (
+        <SettingsUserProfileModal
+          user={selectedUser}
+          onClose={() => setSelectedUser(null)}
+          onEdit={() => { setEditingUser(selectedUser); setSelectedUser(null); }}
+          onToggleStatus={toggleUserStatus}
+          onNotify={onNotify}
+          canResetPassword={canToggleUserStatus}
+          canToggleStatus={canToggleUserStatus}
+        />
+      ) : null}
+      {addUserOpen ? <SettingsUserFormModal onClose={() => setAddUserOpen(false)} onSave={saveUser} onNotify={onNotify} /> : null}
+      {editingUser ? <SettingsUserFormModal initialUser={editingUser} onClose={() => setEditingUser(null)} onSave={saveUser} onNotify={onNotify} /> : null}
     </div>
   );
 }
 
-function SettingsUserFormModal({ initialUser = null, onClose, onSave }) {
-  const [form, setForm] = useState(() => initialUser ?? {
-    id: Date.now(),
-    name: '',
-    email: '',
-    phone: '',
-    role: 'Manager',
-    branch: 'Head Office, Ludhiana',
-    status: 'Active',
-    lastLogin: 'Never',
-    joinedOn: 'Today',
-    assignee: { name: 'New User', initials: 'NU', tone: 'emerald' },
-  });
+function normalizeSettingsPhone(phone) {
+  let digits = String(phone || '').replace(/\D/g, '');
+  // Accept "+91 98765 43210" / "098765 43210" style input and keep the 10-digit core.
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits;
+}
+
+function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }) {
+  const [roles, setRoles] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [form, setForm] = useState(() => ({
+    id: initialUser?.id,
+    name: initialUser?.name || '',
+    email: initialUser?.email || '',
+    phone: initialUser?.phone === '—' ? '' : (initialUser?.phone || ''),
+    roleId: initialUser?.roleId || '',
+    branchId: initialUser?.branchId || '',
+    status: initialUser?.status || 'Active',
+    password: '',
+    confirmPassword: '',
+  }));
+
+  useEffect(() => {
+    Promise.all([roleApi.list(), branchApi.list()])
+      .then(([rolesRes, branchesRes]) => {
+        const roleList = Array.isArray(rolesRes) ? rolesRes : (rolesRes?.results ?? []);
+        const branchList = Array.isArray(branchesRes) ? branchesRes : (branchesRes?.results ?? []);
+        setRoles(roleList);
+        setBranches(branchList);
+        if (!initialUser) {
+          setForm((current) => ({
+            ...current,
+            roleId: current.roleId || roleList[0]?.id || '',
+            branchId: current.branchId || branchList[0]?.id || '',
+          }));
+        }
+      })
+      .catch(() => onNotify?.('Could not load roles or branches', 'error'));
+  }, [initialUser]);  
 
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
   const save = () => {
-    const name = form.name.trim() || 'New User';
-    const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NU';
+    const name = form.name.trim();
+    if (!name) {
+      onNotify?.('User name is required', 'error');
+      return;
+    }
+    if (!form.email.trim()) {
+      onNotify?.('Email is required', 'error');
+      return;
+    }
+    if (!initialUser) {
+      if (form.password.length < 8) {
+        onNotify?.('Password must be at least 8 characters', 'error');
+        return;
+      }
+      if (form.password !== form.confirmPassword) {
+        onNotify?.('Passwords do not match', 'error');
+        return;
+      }
+    } else if (form.password && form.password.length < 8) {
+      onNotify?.('New password must be at least 8 characters', 'error');
+      return;
+    } else if (form.password && form.password !== form.confirmPassword) {
+      onNotify?.('Passwords do not match', 'error');
+      return;
+    }
+
+    const phone = normalizeSettingsPhone(form.phone);
+    if (phone && phone.length !== 10) {
+      onNotify?.('Phone must be exactly 10 digits or left blank', 'error');
+      return;
+    }
+
     onSave({
       ...form,
       name,
-      email: form.email.trim() || `${name.toLowerCase().replace(/\s+/g, '.')}@malwasolar.com`,
-      phone: form.phone.trim() || '+91 90000 00000',
-      assignee: { ...form.assignee, name, initials },
+      email: form.email.trim(),
+      phone,
     });
   };
 
@@ -25287,9 +25503,11 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave }) {
           <ModalTextInput label="User Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Enter user name" />
           <ModalTextInput label="Email" value={form.email} onChange={(value) => updateField('email', value)} placeholder="Enter email address" />
           <ModalTextInput label="Phone Number" value={form.phone} onChange={(value) => updateField('phone', value)} placeholder="+91 98765 43210" />
-          <ReportSelect label="Role" value={form.role} onChange={(value) => updateField('role', value)} options={['Super Admin', 'Admin', 'Manager', 'Engineer', 'Accountant', 'Technician', 'Site Incharge', 'Viewer', 'Guest']} />
-          <ReportSelect label="Branch" value={form.branch} onChange={(value) => updateField('branch', value)} options={['Head Office, Ludhiana', 'Sangrur Branch', 'Chandigarh Branch', 'Jaipur Branch', 'Indore Branch', 'Patiala Branch', 'Bangalore Branch']} />
+          <ReportSelect label="Role" value={String(form.roleId)} onChange={(value) => updateField('roleId', Number(value))} options={roles.map((role) => String(role.id))} optionLabels={Object.fromEntries(roles.map((role) => [String(role.id), role.name]))} />
+          <ReportSelect label="Branch" value={String(form.branchId)} onChange={(value) => updateField('branchId', Number(value))} options={branches.map((branch) => String(branch.id))} optionLabels={Object.fromEntries(branches.map((branch) => [String(branch.id), branch.name]))} />
           <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} />
+          <ModalTextInput label={initialUser ? 'New Password (optional)' : 'Password'} type="password" value={form.password} onChange={(value) => updateField('password', value)} placeholder="Min 8 characters" />
+          <ModalTextInput label="Confirm Password" type="password" value={form.confirmPassword} onChange={(value) => updateField('confirmPassword', value)} placeholder="Re-enter password" />
         </div>
         <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-5 sm:flex-row">
           <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
@@ -25300,7 +25518,35 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave }) {
   );
 }
 
-function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNotify }) {
+function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNotify, canResetPassword = true, canToggleStatus = true }) {
+  const [resetOpen, setResetOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetting, setResetting] = useState(false);
+
+  const submitPasswordReset = async () => {
+    if (newPassword.length < 8) {
+      onNotify('Password must be at least 8 characters', 'error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      onNotify('Passwords do not match', 'error');
+      return;
+    }
+    setResetting(true);
+    try {
+      await userApi.changePassword(user.id, { new_password: newPassword });
+      onNotify(`Password reset for ${user.name}`, 'success');
+      setResetOpen(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      onNotify(error.message || 'Could not reset password', 'error');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
       <div className="w-full max-w-[640px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
@@ -25321,10 +25567,31 @@ function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNot
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <MiniActionButton label="Edit User" icon={FileText} tone="blue" onClick={onEdit} />
-          <MiniActionButton label="Reset Password" icon={LockKeyhole} tone="purple" onClick={() => onNotify(`Password reset sent to ${user.name}`)} />
-          <MiniActionButton label={user.status === 'Active' ? 'Deactivate' : 'Activate'} icon={RefreshCw} tone="amber" onClick={() => onToggleStatus(user)} />
+          {canResetPassword ? (
+            <MiniActionButton label="Reset Password" icon={LockKeyhole} tone="purple" onClick={() => setResetOpen(true)} />
+          ) : null}
+          {canToggleStatus ? (
+            <MiniActionButton label={user.status === 'Active' ? 'Deactivate' : 'Activate'} icon={RefreshCw} tone="amber" onClick={() => onToggleStatus(user)} />
+          ) : null}
         </div>
       </div>
+
+      {resetOpen ? (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4">
+          <div className="w-full max-w-md rounded-[14px] bg-white p-5 shadow-xl">
+            <h3 className="font-display text-[18px] font-extrabold text-[#1e3261]">Reset Password</h3>
+            <p className="mt-1 text-[13px] font-semibold text-[#53647f]">Set a new password for {user.name}.</p>
+            <div className="mt-4 space-y-3">
+              <ModalTextInput label="New Password" type="password" value={newPassword} onChange={setNewPassword} placeholder="Min 8 characters" />
+              <ModalTextInput label="Confirm Password" type="password" value={confirmPassword} onChange={setConfirmPassword} placeholder="Re-enter password" />
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setResetOpen(false)} className="px-4 py-2 text-[13px] font-extrabold text-[#53647f]">Cancel</button>
+              <button type="button" disabled={resetting} onClick={submitPasswordReset} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">{resetting ? 'Saving…' : 'Save Password'}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -25356,7 +25623,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
       })
       .catch((error) => onNotify?.(error.message || 'Failed to load roles', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const filteredRoles = roles.filter((role) => role.name.toLowerCase().includes(query.toLowerCase()));
   const selectedRole = roles.find((role) => role.name === selectedRoleName) ?? roles[0];
@@ -25385,6 +25652,16 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
       const nextValue = currentValue === false ? 'partial' : currentValue === 'partial' ? true : false;
       return { ...row, permissions: { ...row.permissions, [permissionName]: nextValue } };
     }));
+  };
+
+  const savePermissions = () => {
+    if (!selectedRole?.id) {
+      onNotify('Select a role first', 'error');
+      return;
+    }
+    roleApi.setPermissions(selectedRole.id, mapUiPermissionsToApi(permissionRows))
+      .then(() => onNotify(`${selectedRoleName} permissions saved`, 'success'))
+      .catch((error) => onNotify(error.message || 'Failed to save permissions', 'error'));
   };
 
   return (
@@ -25541,8 +25818,13 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
                 </table>
               </div>
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <button type="button" onClick={() => setPermissionRows(createSettingsRolePermissions(selectedRoleName))} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">Cancel</button>
-                <button type="button" onClick={() => onNotify(`${selectedRoleName} permissions saved`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]">Save Permissions</button>
+                <button type="button" onClick={() => {
+                  if (!selectedRole?.id) return;
+                  roleApi.getPermissions(selectedRole.id)
+                    .then((perms) => setPermissionRows(mapApiPermissionsToSettingsRows(perms)))
+                    .catch(() => setPermissionRows(createSettingsRolePermissions(selectedRoleName)));
+                }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">Cancel</button>
+                <button type="button" onClick={savePermissions} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]">Save Permissions</button>
               </div>
             </div>
           )}
@@ -25555,10 +25837,15 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
         <AddRoleModal
           onClose={() => setAddRoleOpen(false)}
           onSave={(roleName) => {
-            const newRole = { id: Date.now(), name: roleName, type: 'Custom Role', users: 0, status: 'Active', tone: 'blue' };
-            setRoles((current) => [...current, newRole]);
-            setAddRoleOpen(false);
-            switchRole(roleName);
+            roleApi.create({ name: roleName, role_type: 'custom' })
+              .then((created) => {
+                const mapped = mapApiRoleToSettingsRow(created);
+                setRoles((current) => [...current, mapped]);
+                setAddRoleOpen(false);
+                switchRole(mapped.name);
+                onNotify(`${mapped.name} role added`, 'success');
+              })
+              .catch((error) => onNotify(error.message || 'Failed to add role', 'error'));
           }}
         />
       ) : null}
@@ -25590,7 +25877,7 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
       })
       .catch(() => onNotify?.('Could not load activity logs.', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const filteredLogs = logs.filter((log) => {
     const queryMatch = [log.user.name, log.action, log.module, log.ip, log.description].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
@@ -25744,7 +26031,7 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
         if (securityRes) setSecurityConfig((current) => ({ ...current, ...securityRes }));
       })
       .catch(() => onNotify('Could not load IP settings.', 'error'));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const filteredRules = rules.filter((rule) => {
     const queryMatch = [rule.name, rule.ipRange, rule.description].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
@@ -27214,11 +27501,11 @@ function UserDetailsPage({ user, onBack, onUpdateUser, onNotify, onOpenSection }
 
   const detailItems = [
     ['Employee ID', `EMP00${String(user.id).padStart(2, '0')}`],
-    ['Role', <EmployeeRoleBadge role={user.role} />],
+    ['Role', <EmployeeRoleBadge key="badge" role={user.role} />],
     ['Date of Joining', user.id === 1 ? '10 Jan 2024' : user.createdOn],
     ['Assigned Branch', user.branch],
     ['Reporting Manager', 'Amit Sharma'],
-    ['Status', <EmployeeStatusBadge status={user.status} />],
+    ['Status', <EmployeeStatusBadge key="badge" status={user.status} />],
     ['Created By', 'Admin User'],
     ['Last Login', '20 May 2024, 10:15 AM'],
     ['Created On', '10 Jan 2024, 09:30 AM'],
@@ -27834,7 +28121,7 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
       })
       .catch(() => onNotify?.('Could not load activity logs.', 'error'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const uniqueUsers = [...new Set(logs.map((log) => log.user.name))];
 
@@ -28171,11 +28458,12 @@ function AddRoleModal({ onClose, onSave }) {
   );
 }
 
-function ModalTextInput({ label, value, onChange, placeholder }) {
+function ModalTextInput({ label, value, onChange, placeholder, type = 'text' }) {
   return (
     <label className="block">
       <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{label}</span>
       <input
+        type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -28356,7 +28644,7 @@ function ReportsPage({ onOpenSection, onNotify }) {
             formattedRange={formattedRange}
           />
           <ReportSelect label="Project Type" value={projectType} onChange={setProjectType} options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']} />
-          <ReportSelect label="Lead Status" value={leadStatus} onChange={setLeadStatus} options={['All', 'New', 'Follow-up', 'Site Visit', 'Quotation Shared', 'Won', 'Lost']} />
+          <ReportSelect label="Lead Status" value={leadStatus} onChange={setLeadStatus} options={LEAD_STATUS_FILTER_OPTIONS} />
           <ReportSelect label="Assigned To" value={assignedTo} onChange={setAssignedTo} options={assigneeOptions} />
           <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[150px] xl:grid-cols-1">
             <button
@@ -32535,7 +32823,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
     return () => { cancelled = true; };
     // onLeadUpdated's identity changes on every App render (not memoized) — keying on it
     // would refetch in a loop. Re-running once per lead id is the intended behavior.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [lead?.id]);
 
   const loadFollowUps = () => {

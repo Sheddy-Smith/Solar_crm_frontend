@@ -129,6 +129,7 @@ export const authApi = {
     return data;
   },
   me: () => request('/users/me/'),
+  verifyPassword: (password) => request('/users/verify-password/', { method: 'POST', body: { password } }),
   logout: () => tokenStore.clear(),
 };
 
@@ -662,6 +663,22 @@ export const omVisitApi = omCrud('site-visits');
 export const omSparePartApi = omCrud('spare-parts');
 export const omReportApi = omCrud('reports');
 export const omDocumentApi = omCrud('documents');
+
+// ─── Daily Tasks ──────────────────────────────────────────────────────────────
+
+export const dailyTasksApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/daily-tasks/tasks/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/daily-tasks/tasks/${id}/`),
+  create: (data) => request('/daily-tasks/tasks/', { method: 'POST', body: data }),
+  update: (id, data) => request(`/daily-tasks/tasks/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/daily-tasks/tasks/${id}/`, { method: 'DELETE' }),
+  summary: () => request('/daily-tasks/tasks/summary/'),
+};
 
 // ─── CRM Settings ─────────────────────────────────────────────────────────────
 

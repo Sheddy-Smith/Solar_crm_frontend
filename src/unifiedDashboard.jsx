@@ -1,30 +1,35 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, BarChart3, Boxes, CheckCircle2, CreditCard, Download, FolderKanban,
-  Hourglass, IndianRupee, LayoutDashboard, ReceiptText, RefreshCw, ShieldCheck,
-  TrendingUp, Trophy, UserPlus, Users, Wrench, XCircle, Zap,
+  ArrowUpRight, BarChart3, Bell, Boxes, Calendar, ChevronRight,
+  ClipboardList, CreditCard, Download, FileText, Filter, FolderKanban, Gauge,
+  Headphones, Heart, Hourglass, IndianRupee, Leaf, LineChart, Package,
+  PackageMinus, PackageX, RefreshCw, Target, Ticket, TrendingUp, Trophy,
+  UserPlus, Users, Wallet, Wrench, XCircle, ArrowLeftRight,
 } from 'lucide-react';
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, CartesianGrid, Cell, Legend, Line, LineChart as ReLineChart,
+  Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { dashboardApi, userApi } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
 
+const CARD = 'rounded-[12px] border border-[#e5eaf2] bg-white shadow-[0_2px_10px_rgba(24,48,87,0.05)]';
+
 const TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'sales', label: 'Sales & Leads' },
-  { id: 'projects', label: 'Projects' },
-  { id: 'finance', label: 'Finance' },
-  { id: 'alerts', label: 'Alerts' },
+  { id: 'overview', label: 'Overview', icon: Gauge },
+  { id: 'sales', label: 'Sales & Leads', icon: LineChart },
+  { id: 'projects', label: 'Projects', icon: FolderKanban },
+  { id: 'finance', label: 'Finance', icon: BarChart3 },
+  { id: 'alerts', label: 'Alerts', icon: Bell },
 ];
 
 const STATUS_COLORS = {
-  New: '#1f7ff0', 'Follow-up': '#36a269', Quotation: '#f8c64d', Won: '#6b55e9', Lost: '#e44d4d',
+  New: '#1f7ff0', 'Follow-up': '#6b55e9', Quotation: '#f8c64d', Won: '#16a34a', Lost: '#e44d4d',
 };
 
 function fmtRs(v) {
-  return v != null && v !== '' ? `Rs ${Number(v).toLocaleString('en-IN')}` : '—';
+  if (v == null || v === '') return '—';
+  return `Rs ${Number(v).toLocaleString('en-IN')}`;
 }
 
 function formatReportDate(value) {
@@ -36,7 +41,8 @@ function defaultDateRange() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const iso = (d) => d.toISOString().slice(0, 10);
+  // Format in local time — toISOString() shifts IST dates back a day.
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   return { from: iso(from), to: iso(to) };
 }
 
@@ -45,92 +51,254 @@ function normalizeUsers(data) {
   return Array.isArray(data) ? data : data.results ?? [];
 }
 
-function DashboardSkeleton({ panelClass }) {
+function kpiFromReports(reports, title) {
+  return reports?.kpis?.find((k) => k.title === title)?.value ?? '0';
+}
+
+// The API only returns period totals (no time series), so this chart shows an
+// even weekly split of the real totals — labelled as an estimate in the UI.
+function buildCashFlowTrend(finance) {
+  const received = Number(finance?.total_received || 0);
+  const made = Number(finance?.total_made || 0);
+  const net = Number(finance?.net_balance || 0);
+  const labels = ['W1', 'W2', 'W3', 'W4'];
+  return labels.map((label) => ({
+    label,
+    inflow: Math.round(received / labels.length),
+    outflow: Math.round(made / labels.length),
+    net: Math.round(net / labels.length),
+  }));
+}
+
+function InsightsHeader({ onOpenSection, onExport, onIncentive }) {
   return (
-    <div className="space-y-4">
-      <div className={`${panelClass} p-6`}>
-        <div className="flex items-center gap-3">
-          <svg className="size-6 animate-spin text-[#0b65e5]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-          </svg>
-          <div>
-            <p className="text-[14px] font-extrabold text-[#1e3261]">Loading business insights…</p>
-            <p className="text-[12px] font-bold text-[#7a8fa6]">Server wake-up can take up to a minute on first load — please wait.</p>
-          </div>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex items-start gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-[10px] bg-[#0d9f4a] text-white shadow-[0_6px_14px_rgba(13,159,74,0.28)]">
+          <BarChart3 className="size-5" />
+        </span>
+        <div>
+          <h1 className="font-display text-[22px] font-extrabold leading-tight text-[#1e3261]">Business Insights</h1>
+          <p className="mt-1 text-[13px] font-semibold">
+            <button type="button" onClick={() => onOpenSection('Dashboard')} className="text-[#0b65e5] hover:underline">Dashboard</button>
+            <span className="mx-1.5 text-[#9aa8bc]">›</span>
+            <span className="text-[#53647f]">Insights</span>
+          </p>
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 animate-pulse">
-        {[1, 2, 3, 4, 5, 6].map((i) => <div key={i} className={`${panelClass} h-28`} />)}
-      </div>
-      <div className="grid gap-4 xl:grid-cols-2 animate-pulse">
-        <div className={`${panelClass} h-72`} />
-        <div className={`${panelClass} h-72`} />
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={onExport} className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] shadow-[0_4px_12px_rgba(17,39,84,0.04)] transition hover:bg-[#f8fbff]">
+          <Download className="size-4 text-[#53647f]" />
+          Export Report
+        </button>
+        <button type="button" onClick={onIncentive} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_8px_18px_rgba(13,159,74,0.28)] transition hover:bg-[#078c3e]">
+          <Trophy className="size-4" />
+          Generate Incentive Report
+        </button>
       </div>
     </div>
   );
 }
 
-function MetricCard({ label, value, caption, tone, icon: Icon, onClick, panelClass, toneClasses }) {
+export const LEAD_STATUS_FILTER_OPTIONS = ['All', 'New', 'Follow-up', 'Quotation', 'Won', 'Lost'];
+
+function FilterBar({ dateFrom, dateTo, projectType, leadStatus, assignedTo, assigneeOptions, formattedRange, onFrom, onTo, onProjectType, onLeadStatus, onAssignedTo, onApply }) {
   return (
-    <button type="button" onClick={onClick} className={`${panelClass} p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[12px] font-bold text-[#7a8fa6]">{label}</p>
-          <p className="mt-2 text-[22px] font-extrabold text-[#1e3261]">{value}</p>
-          {caption ? <p className="mt-1 text-[11px] font-bold text-[#53647f]">{caption}</p> : null}
-        </div>
-        {Icon ? (
-          <span className={`grid size-10 place-items-center rounded-[10px] ${toneClasses[tone] || toneClasses.blue}`}>
-            <Icon className="size-5" />
-          </span>
-        ) : null}
+    <section className={`${CARD} p-4 sm:p-5`}>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {[
+          { label: 'From', el: <input type="date" className="h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={dateFrom} onChange={(e) => onFrom(e.target.value)} /> },
+          { label: 'To', el: <input type="date" className="h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={dateTo} onChange={(e) => onTo(e.target.value)} /> },
+          { label: 'Project Type', el: <select className="h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={projectType} onChange={(e) => onProjectType(e.target.value)}>{['All', 'On-Grid', 'Off-Grid', 'Hybrid'].map((o) => <option key={o}>{o}</option>)}</select> },
+          { label: 'Lead Status', el: <select className="h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={leadStatus} onChange={(e) => onLeadStatus(e.target.value)}>{LEAD_STATUS_FILTER_OPTIONS.map((o) => <option key={o}>{o}</option>)}</select> },
+          { label: 'Assigned To', el: <select className="h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={assignedTo} onChange={(e) => onAssignedTo(e.target.value)}>{assigneeOptions.map((o) => <option key={o}>{o}</option>)}</select> },
+        ].map((f) => (
+          <label key={f.label} className="block text-[12px] font-bold text-[#53647f]">
+            {f.label}
+            <div className="mt-1.5">{f.el}</div>
+          </label>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <button type="button" onClick={onApply} className="inline-flex h-11 min-w-[160px] items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.22)] transition hover:bg-[#078c3e]">
+          <Filter className="size-4" />
+          Apply Filters
+        </button>
+        <p className="flex items-center gap-2 text-[13px] font-bold text-[#0d9f4a]">
+          <Calendar className="size-4" />
+          Active range: {formattedRange}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function TabNav({ tab, alertCount, onTab }) {
+  return (
+    <nav className="flex flex-wrap gap-1 border-b border-[#e5eaf2]">
+      {TABS.map((t) => {
+        const Icon = t.icon;
+        const active = tab === t.id;
+        const alertStyle = t.id === 'alerts' && active;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onTab(t.id)}
+            className={`relative inline-flex items-center gap-2 px-4 py-3 text-[13px] font-extrabold transition ${
+              alertStyle
+                ? 'rounded-[8px] border border-[#0d9f4a] text-[#0d9f4a]'
+                : active
+                  ? 'text-[#0d9f4a]'
+                  : 'text-[#7a8fa6] hover:text-[#53647f]'
+            }`}
+          >
+            <Icon className={`size-4 ${active ? 'text-[#0d9f4a]' : 'text-[#9aa8bc]'}`} />
+            {t.label}
+            {t.id === 'alerts' && alertCount > 0 ? (
+              <span className="ml-0.5 grid size-5 place-items-center rounded-full bg-[#ef4444] text-[10px] font-extrabold text-white">{alertCount}</span>
+            ) : null}
+            {active && !alertStyle ? <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t-full bg-[#0d9f4a]" /> : null}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function KpiCard({ label, value, caption, icon: Icon, iconBg, iconColor, onClick }) {
+  return (
+    <button type="button" onClick={onClick} className={`${CARD} flex w-full items-start justify-between gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md`}>
+      <div className="min-w-0">
+        <p className="text-[12px] font-bold text-[#7a8fa6]">{label}</p>
+        <p className="mt-2 text-[24px] font-extrabold leading-none text-[#1e3261]">{value}</p>
+        {caption ? <p className="mt-2 text-[11px] font-bold text-[#53647f]">{caption}</p> : null}
+      </div>
+      <span className={`grid size-11 shrink-0 place-items-center rounded-full ${iconBg}`}>
+        <Icon className={`size-5 ${iconColor}`} />
+      </span>
+    </button>
+  );
+}
+
+function HorizontalKpiCard({ label, value, icon: Icon, iconBg, iconColor, onClick }) {
+  return (
+    <button type="button" onClick={onClick} className={`${CARD} flex w-full items-center justify-between gap-3 p-4 text-left transition hover:bg-[#f8fbff]`}>
+      <div className="flex items-center gap-3">
+        <span className={`grid size-10 place-items-center rounded-[10px] ${iconBg}`}>
+          <Icon className={`size-5 ${iconColor}`} />
+        </span>
+        <p className="text-[13px] font-extrabold text-[#1e3261]">{label}</p>
+      </div>
+      <p className="text-[28px] font-extrabold leading-none text-[#1e3261]">{value}</p>
+    </button>
+  );
+}
+
+function QuickActionBtn({ label, icon: Icon, iconBg, iconColor, onClick }) {
+  return (
+    <button type="button" onClick={onClick} className={`${CARD} flex w-full items-center justify-between gap-3 p-4 text-left transition hover:bg-[#f8fbff]`}>
+      <div className="flex items-center gap-3">
+        <span className={`grid size-10 place-items-center rounded-[10px] ${iconBg}`}>
+          <Icon className={`size-5 ${iconColor}`} />
+        </span>
+        <span className="text-[14px] font-extrabold text-[#1e3261]">{label}</span>
+      </div>
+      <ChevronRight className="size-5 text-[#b9c4d6]" />
+    </button>
+  );
+}
+
+function FinanceCard({ label, value, caption, icon: Icon, iconBg, iconColor, onClick }) {
+  return (
+    <button type="button" onClick={onClick} className={`${CARD} flex w-full items-center gap-4 p-4 text-left transition hover:bg-[#f8fbff]`}>
+      <span className={`grid size-12 shrink-0 place-items-center rounded-full ${iconBg}`}>
+        <Icon className={`size-5 ${iconColor}`} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[12px] font-bold text-[#7a8fa6]">{label}</p>
+        <p className="mt-1 text-[22px] font-extrabold leading-tight text-[#1e3261]">{value}</p>
+        {caption ? <p className="mt-1 text-[11px] font-bold text-[#53647f]">{caption}</p> : null}
       </div>
     </button>
   );
 }
 
-function LeadsLineChart({ data }) {
-  if (!data?.length) return <div className="flex h-[260px] items-center justify-center text-[13px] font-bold text-[#8a98af]">No data</div>;
+function AlertCard({ label, value, icon: Icon, iconBg, iconColor, onClick }) {
   return (
-    <div className="mt-4 h-[260px]">
+    <button type="button" onClick={onClick} className={`${CARD} flex w-full items-center gap-4 p-4 text-left transition hover:bg-[#fafbff]`}>
+      <span className={`grid size-12 shrink-0 place-items-center rounded-[10px] ${iconBg}`}>
+        <Icon className={`size-6 ${iconColor}`} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[14px] font-extrabold text-[#1e3261]">{label}</p>
+        <p className="text-[12px] font-semibold text-[#7a8fa6]">Needs attention</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[28px] font-extrabold leading-none text-[#ef4444]">{value}</span>
+        <ChevronRight className="size-5 text-[#c5d0e0]" />
+      </div>
+    </button>
+  );
+}
+
+function StatStrip({ items }) {
+  return (
+    <div className={`${CARD} grid grid-cols-2 divide-x divide-[#e7eef7] sm:grid-cols-5`}>
+      {items.map((item) => (
+        <div key={item.label} className="px-4 py-4 text-center">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6]">{item.label}</p>
+          <p className="mt-1 text-[22px] font-extrabold text-[#1e3261]">{item.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LeadsTrendChart({ data }) {
+  const chartData = data?.length ? data : [{ month: '—', new: 0, follow_up: 0, won: 0 }];
+  return (
+    <div className="mt-4 h-[280px]">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data}>
+        <ReLineChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#edf2f8" />
-          <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#53647f' }} />
-          <YAxis tick={{ fontSize: 11, fill: '#53647f' }} />
-          <Tooltip />
-          <Legend />
-          <Area type="monotone" dataKey="new" name="New" stroke="#1f7ff0" fill="#1f7ff033" />
-          <Area type="monotone" dataKey="follow_up" name="Follow-up" stroke="#6b55e9" fill="#6b55e933" />
-          <Area type="monotone" dataKey="won" name="Won" stroke="#36a269" fill="#36a26933" />
-        </AreaChart>
+          <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 700, fill: '#7a8fa6' }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 11, fontWeight: 700, fill: '#7a8fa6' }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #dbe5f2', fontSize: 12, fontWeight: 700 }} />
+          <Legend iconType="diamond" iconSize={8} wrapperStyle={{ fontSize: 12, fontWeight: 700, paddingTop: 12 }} />
+          <Line type="monotone" dataKey="follow_up" name="Follow-up" stroke="#6b55e9" strokeWidth={2} dot={{ r: 3, fill: '#6b55e9' }} />
+          <Line type="monotone" dataKey="new" name="New" stroke="#1f7ff0" strokeWidth={2} dot={{ r: 3, fill: '#1f7ff0' }} />
+          <Line type="monotone" dataKey="won" name="Won" stroke="#16a34a" strokeWidth={2} dot={{ r: 4, fill: '#16a34a' }} />
+        </ReLineChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
 function StatusDonut({ data }) {
-  const chartData = (data || []).map((d) => ({ name: d.status, value: d.count, color: STATUS_COLORS[d.status] || '#94a3b8' }));
+  const chartData = (data || []).map((d) => ({ name: d.status, value: d.count, color: STATUS_COLORS[d.status] || '#6b55e9' }));
   const total = chartData.reduce((s, d) => s + d.value, 0);
-  if (!total) return <div className="flex h-[200px] items-center justify-center text-[13px] font-bold text-[#8a98af]">No data</div>;
   return (
-    <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center">
-      <div className="mx-auto h-[180px] w-[180px]">
+    <div className="mt-4 flex flex-col items-center gap-4 md:flex-row md:items-center">
+      <div className="h-[200px] w-[200px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={chartData} innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={2}>
-              {chartData.map((e, i) => <Cell key={i} fill={e.color} />)}
+            <Pie data={chartData.length ? chartData : [{ name: '—', value: 1, color: '#e5eaf2' }]} cx="50%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={2} dataKey="value">
+              {chartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
             </Pie>
-            <Tooltip />
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex-1 space-y-1">
+      <div className="w-full flex-1 space-y-2">
         {chartData.map((item) => (
-          <div key={item.name} className="flex justify-between text-[13px] font-bold text-[#1e3261]">
-            <span>{item.name}</span>
-            <span>{item.value} ({((item.value / total) * 100).toFixed(1)}%)</span>
+          <div key={item.name} className="flex items-center justify-between rounded-[8px] px-2 py-1.5">
+            <span className="flex items-center gap-2 text-[13px] font-bold text-[#1e3261]">
+              <span className="size-2.5 rounded-[2px]" style={{ backgroundColor: item.color }} />
+              {item.name}
+            </span>
+            <span className="text-[13px] font-extrabold text-[#314a79]">
+              {item.value} ({total ? ((item.value / total) * 100).toFixed(1) : 0}%)
+            </span>
           </div>
         ))}
       </div>
@@ -138,62 +306,161 @@ function StatusDonut({ data }) {
   );
 }
 
-function ProjectDonut({ data, title, panelClass }) {
-  const total = (data || []).reduce((s, d) => s + d.value, 0);
+function CashFlowTrendChart({ data }) {
   return (
-    <article className={`${panelClass} p-4`}>
-      <h3 className="text-[15px] font-extrabold text-[#111827]">{title}</h3>
-      {!total ? <p className="mt-6 text-center text-[13px] text-[#8a98af]">No data</p> : (
-        <div className="mt-3 h-[200px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={data} dataKey="value" nameKey="label" innerRadius={45} outerRadius={75}>
-                {data.map((e, i) => <Cell key={i} fill={e.color} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+    <div className="mt-4 h-[300px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="inflowFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#16a34a" stopOpacity={0.2} /><stop offset="95%" stopColor="#16a34a" stopOpacity={0} /></linearGradient>
+            <linearGradient id="outflowFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} /><stop offset="95%" stopColor="#ef4444" stopOpacity={0} /></linearGradient>
+            <linearGradient id="netFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#1f7ff0" stopOpacity={0.15} /><stop offset="95%" stopColor="#1f7ff0" stopOpacity={0} /></linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#edf2f8" />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#7a8fa6' }} />
+          <YAxis tick={{ fontSize: 11, fill: '#7a8fa6' }} tickFormatter={(v) => `${(v / 100000).toFixed(0)}L`} />
+          <Tooltip formatter={(v) => fmtRs(v)} />
+          <Legend />
+          <Area type="monotone" dataKey="inflow" name="Cash Inflow" stroke="#16a34a" fill="url(#inflowFill)" strokeWidth={2} />
+          <Area type="monotone" dataKey="outflow" name="Cash Outflow" stroke="#ef4444" fill="url(#outflowFill)" strokeWidth={2} />
+          <Area type="monotone" dataKey="net" name="Net Cash Flow" stroke="#1f7ff0" fill="url(#netFill)" strokeWidth={2} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function CashFlowDonut({ finance }) {
+  const received = Number(finance?.total_received || 0);
+  const made = Number(finance?.total_made || 0);
+  const net = Number(finance?.net_balance || 0);
+  const total = received + made + Math.abs(net) || 1;
+  const chartData = [
+    { name: 'Total Received', value: received, color: '#16a34a', pct: ((received / total) * 100).toFixed(1) },
+    { name: 'Total Paid Out', value: made, color: '#ef4444', pct: ((made / total) * 100).toFixed(1) },
+    { name: 'Net Cash Flow', value: Math.abs(net), color: '#1f7ff0', pct: ((Math.abs(net) / total) * 100).toFixed(1) },
+  ];
+  return (
+    <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-center">
+      <div className="mx-auto h-[220px] w-[220px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={chartData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(1)}%`}>
+              {chartData.map((e, i) => <Cell key={i} fill={e.color} />)}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex-1 space-y-3">
+        {chartData.map((row) => (
+          <div key={row.name} className="flex items-start gap-3">
+            <span className="mt-1 size-3 rounded-[2px]" style={{ backgroundColor: row.color }} />
+            <div>
+              <p className="text-[13px] font-extrabold text-[#1e3261]">{row.name}</p>
+              <p className="text-[12px] font-bold text-[#53647f]">{fmtRs(row.value)} ({row.pct}%)</p>
+            </div>
+          </div>
+        ))}
+        <p className="pt-2 text-right text-[11px] font-bold text-[#9aa8bc]">All amounts in INR</p>
+      </div>
+    </div>
+  );
+}
+
+function DataTableCard({ title, headers, rows, actionLabel, onAction }) {
+  return (
+    <article className={`${CARD} flex h-full flex-col p-4 sm:p-5`}>
+      <h2 className="font-display text-[16px] font-extrabold text-[#111827]">{title}</h2>
+      <div className="mt-4 flex-1 overflow-auto rounded-[10px] border border-[#e7eef7]">
+        <table className="crm-table w-full min-w-[280px]">
+          <thead><tr>{headers.map((h) => <th key={h}>{h}</th>)}</tr></thead>
+          <tbody>
+            {rows.length ? rows.map((row) => (
+              <tr key={row[0]}>{row.map((cell, i) => <td key={i} className={i === 0 ? 'font-extrabold text-[#1e3261]' : undefined}>{cell}</td>)}</tr>
+            )) : (
+              <tr><td colSpan={headers.length} className="py-8 text-center text-[#8a98af]">No data</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" onClick={onAction} className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-[8px] bg-[#0d9f4a] text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]">
+        {actionLabel}
+      </button>
     </article>
   );
 }
 
-function ProjectTrendChart({ labels, series, panelClass }) {
-  const chartData = labels.map((label, i) => {
-    const row = { label: label.replace('\n', ' ') };
-    series.forEach((s) => { row[s.label] = s.values[i] || 0; });
-    return row;
-  });
+function MisIntelligenceCard({ sales, onNotify }) {
+  const rows = [
+    ['Total Leads (period)', String(sales?.total ?? 0)],
+    ['Conversion Rate', `${sales?.conversion_rate ?? 0}%`],
+    ['Won Leads', String(sales?.won ?? 0)],
+  ];
   return (
-    <article className={`${panelClass} p-4 xl:col-span-2`}>
-      <h3 className="text-[15px] font-extrabold text-[#111827]">Projects Trend (Monthly)</h3>
-      <div className="mt-3 h-[240px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#edf2f8" />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Legend />
-            {series.map((s) => <Bar key={s.label} dataKey={s.label} fill={s.color} radius={[4, 4, 0, 0]} />)}
-          </BarChart>
-        </ResponsiveContainer>
+    <article className={`${CARD} flex h-full flex-col p-4 sm:p-5`}>
+      <h2 className="flex items-center gap-2 font-display text-[16px] font-extrabold text-[#111827]">
+        <span className="grid size-8 place-items-center rounded-[8px] bg-[#dcfce7] text-[#0d9f4a]"><BarChart3 className="size-4" /></span>
+        MIS Intelligence
+      </h2>
+      <div className="mt-4 flex-1 overflow-hidden rounded-[10px] border border-[#e7eef7] bg-white">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-center justify-between border-b border-[#edf2f8] px-4 py-3 text-[13px] font-extrabold text-[#1e3261] last:border-b-0">
+            <span>{label}</span>
+            <span>{value}</span>
+          </div>
+        ))}
       </div>
+      <button type="button" onClick={() => onNotify('MIS report opened')} className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-[8px] bg-[#0d9f4a] text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]">
+        View Report
+      </button>
     </article>
   );
 }
+
+function InsightsFooter() {
+  return (
+    <footer className="flex flex-col gap-2 border-t border-[#e5eaf2] pt-4 text-[12px] font-semibold text-[#9aa8bc] sm:flex-row sm:items-center sm:justify-between">
+      <p>© 2024 Malwa Solar CRM. All rights reserved.</p>
+      <p className="flex items-center gap-1.5">
+        Made with <Heart className="size-3.5 fill-[#0d9f4a] text-[#0d9f4a]" /> for a Sustainable Future <Leaf className="size-3.5 text-[#0d9f4a]" />
+      </p>
+    </footer>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-4 animate-pulse">
+      <div className={`${CARD} flex items-center gap-3 p-6`}>
+        <div className="size-6 rounded-full bg-[#e8eef6]" />
+        <div className="space-y-2">
+          <div className="h-4 w-48 rounded bg-[#e8eef6]" />
+          <div className="h-3 w-72 rounded bg-[#e8eef6]" />
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        {[1, 2, 3, 4, 5, 6].map((i) => <div key={i} className={`${CARD} h-28`} />)}
+      </div>
+      <p className="text-center text-[13px] font-bold text-[#7a8fa6]">Waking up server — first load may take up to a minute…</p>
+    </div>
+  );
+}
+
+const ALERT_DEFS = [
+  { key: 'low_stock_items', label: 'Low Stock Items', section: 'Products', icon: PackageMinus, iconBg: 'bg-[#ffe4e6]', iconColor: 'text-[#f43f5e]' },
+  { key: 'out_of_stock_items', label: 'Out of Stock', section: 'Stock Inward', icon: PackageX, iconBg: 'bg-[#ede9fe]', iconColor: 'text-[#8b5cf6]' },
+  { key: 'expiring_amc', label: 'Expiring AMC', section: 'AMC Contracts', icon: Hourglass, iconBg: 'bg-[#ffedd5]', iconColor: 'text-[#f59e0b]' },
+  { key: 'pending_tasks', label: 'Pending O&M Tasks', section: 'Maintenance Tasks', icon: Wrench, iconBg: 'bg-[#dbeafe]', iconColor: 'text-[#3b82f6]' },
+  { key: 'open_om_tickets', label: 'Open O&M Tickets', section: 'Breakdown Tickets', icon: Ticket, iconBg: 'bg-[#dcfce7]', iconColor: 'text-[#16a34a]' },
+  { key: 'pending_cheques', label: 'Pending Cheques', section: 'Cheques List', icon: FileText, iconBg: 'bg-[#fef9c3]', iconColor: 'text-[#ca8a04]' },
+  { key: 'stale_stock_items', label: 'Stale Stock (15d+)', section: 'Stock Movements', icon: Boxes, iconBg: 'bg-[#fce7f3]', iconColor: 'text-[#ec4899]' },
+];
 
 export function UnifiedDashboardPage({
   activeTab,
   onTabChange,
   onOpenSection,
   onNotify,
-  panelClass,
-  cx,
-  PageHeading,
-  DashboardFooter,
-  reportKpiToneClasses,
   IncentiveReportModal,
 }) {
   const defaults = useMemo(() => defaultDateRange(), []);
@@ -201,6 +468,7 @@ export function UnifiedDashboardPage({
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState('');
   const [dateFrom, setDateFrom] = useState(defaults.from);
   const [dateTo, setDateTo] = useState(defaults.to);
   const [projectType, setProjectType] = useState('All');
@@ -211,14 +479,11 @@ export function UnifiedDashboardPage({
 
   useEffect(() => {
     if (activeTab && activeTab !== tab) setTab(activeTab);
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab]);  
 
   useEffect(() => {
     userApi.list({ page_size: 500 })
-      .then((d) => {
-        const names = [...new Set(normalizeUsers(d).map((u) => u.name).filter(Boolean))];
-        setAssigneeOptions(['All', ...names]);
-      })
+      .then((d) => setAssigneeOptions(['All', ...new Set(normalizeUsers(d).map((u) => u.name).filter(Boolean))]))
       .catch(() => {});
   }, []);
 
@@ -230,7 +495,12 @@ export function UnifiedDashboardPage({
     if (leadStatus !== 'All') params.status = leadStatus;
     if (assignedTo !== 'All') params.assigned_to = assignedTo;
     dashboardApi.unified(params)
-      .then((res) => { if (res) setData(res); })
+      .then((res) => {
+        if (res) {
+          setData(res);
+          setLastUpdated(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
+        }
+      })
       .catch((e) => {
         setError(e.message || 'Could not load dashboard');
         onNotify(e.message || 'Could not load dashboard', 'error');
@@ -255,168 +525,137 @@ export function UnifiedDashboardPage({
   const projects = data?.projects;
   const finance = data?.finance;
   const alerts = data?.alerts;
+  const reports = data?.reports;
   const kpi = projects?.kpi;
-
-  const alertItems = alerts ? [
-    { label: 'Overdue Follow-ups', value: alerts.overdue_followups, section: 'Lead List', tone: 'amber' },
-    { label: 'Low Stock Items', value: alerts.low_stock_items, section: 'Products', tone: 'amber' },
-    { label: 'Out of Stock', value: alerts.out_of_stock_items, section: 'Stock Inward', tone: 'red' },
-    { label: 'Expiring AMC', value: alerts.expiring_amc, section: 'AMC Contracts', tone: 'red' },
-    { label: 'Pending O&M Tasks', value: alerts.pending_tasks, section: 'Maintenance Tasks', tone: 'purple' },
-    { label: 'Open O&M Tickets', value: alerts.open_om_tickets, section: 'Breakdown Tickets', tone: 'red' },
-    { label: 'Pending Cheques', value: alerts.pending_cheques, section: 'Cheques List', tone: 'cyan' },
-    { label: 'Stale Stock (15d+)', value: alerts.stale_stock_items, section: 'Stock Movements', tone: 'amber' },
-  ].filter((a) => Number(a.value) > 0) : [];
-
   const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+  const cashFlowTrend = useMemo(() => buildCashFlowTrend(finance), [finance]);
+
+  const alertCards = ALERT_DEFS.map((def) => ({
+    ...def,
+    value: Number(alerts?.[def.key] ?? 0),
+  }));
+
+  const alertBadgeCount = alertCards.filter((a) => a.value > 0).length;
 
   return (
     <div className="space-y-4">
-      <PageHeading
-        title="Business Insights"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Insights' },
-        ]}
-        actions={(
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => exportNotifyCsv(onNotify, 'insights-export', ['Metric', 'Value'], (data?.reports?.kpis ?? []).map((k) => [k.title, k.value]))} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#284276]">
-              <Download className="size-4" />Export Report
-            </button>
-            <button type="button" onClick={() => setIncentiveOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#ef4444] px-4 text-[13px] font-extrabold text-white">
-              <IndianRupee className="size-4" />Generate Incentive Report
-            </button>
-          </div>
-        )}
+      <InsightsHeader
+        onOpenSection={onOpenSection}
+        onExport={() => exportNotifyCsv(onNotify, 'insights-export', ['Metric', 'Value'], (reports?.kpis ?? []).map((k) => [k.title, k.value]))}
+        onIncentive={() => setIncentiveOpen(true)}
       />
 
-      <section className={`${panelClass} p-4`}>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
-          <label className="text-[12px] font-bold text-[#53647f]">From<input type="date" className="mt-1 h-10 w-full rounded-[8px] border px-3 text-[13px]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></label>
-          <label className="text-[12px] font-bold text-[#53647f]">To<input type="date" className="mt-1 h-10 w-full rounded-[8px] border px-3 text-[13px]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></label>
-          <label className="text-[12px] font-bold text-[#53647f]">Project Type<select className="mt-1 h-10 w-full rounded-[8px] border px-3 text-[13px]" value={projectType} onChange={(e) => setProjectType(e.target.value)}>{['All', 'On-Grid', 'Off-Grid', 'Hybrid'].map((o) => <option key={o}>{o}</option>)}</select></label>
-          <label className="text-[12px] font-bold text-[#53647f]">Lead Status<select className="mt-1 h-10 w-full rounded-[8px] border px-3 text-[13px]" value={leadStatus} onChange={(e) => setLeadStatus(e.target.value)}>{['All', 'New', 'Follow-up', 'Site Visit', 'Quotation Shared', 'Won', 'Lost'].map((o) => <option key={o}>{o}</option>)}</select></label>
-          <label className="text-[12px] font-bold text-[#53647f]">Assigned To<select className="mt-1 h-10 w-full rounded-[8px] border px-3 text-[13px]" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>{assigneeOptions.map((o) => <option key={o}>{o}</option>)}</select></label>
-          <button type="button" onClick={load} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white xl:mb-0"><RefreshCw className="size-4" />Apply</button>
-        </div>
-        <p className="mt-3 text-[12px] font-bold text-[#7a8fa6]">Active range: {formattedRange}</p>
-      </section>
+      <FilterBar
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        projectType={projectType}
+        leadStatus={leadStatus}
+        assignedTo={assignedTo}
+        assigneeOptions={assigneeOptions}
+        formattedRange={formattedRange}
+        onFrom={setDateFrom}
+        onTo={setDateTo}
+        onProjectType={setProjectType}
+        onLeadStatus={setLeadStatus}
+        onAssignedTo={setAssignedTo}
+        onApply={load}
+      />
 
-      <nav className="flex flex-wrap gap-2 border-b border-[#e5eaf2] pb-1">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTabAndSync(t.id)}
-            className={cx(
-              'rounded-t-[8px] px-4 py-2.5 text-[13px] font-extrabold transition',
-              tab === t.id ? 'bg-[#f2fffb] text-[#0f766e] border border-[#d7f4ea] border-b-white -mb-px' : 'text-[#53647f] hover:bg-[#f8fbff]',
-            )}
-          >
-            {t.label}
-            {t.id === 'alerts' && alertItems.length ? (
-              <span className="ml-2 rounded-full bg-[#ef4444] px-2 py-0.5 text-[10px] text-white">{alertItems.length}</span>
-            ) : null}
-          </button>
-        ))}
-      </nav>
+      <TabNav tab={tab} alertCount={alertBadgeCount} onTab={setTabAndSync} />
 
-      {loading ? <DashboardSkeleton panelClass={panelClass} /> : error ? (
-        <div className={`${panelClass} p-8 text-center`}>
+      {loading ? <DashboardSkeleton /> : error ? (
+        <div className={`${CARD} p-10 text-center`}>
           <p className="text-[14px] font-bold text-[#dc2626]">{error}</p>
-          <button type="button" onClick={load} className="mt-4 rounded-[8px] bg-[#0b65e5] px-4 py-2 text-[13px] font-extrabold text-white">Retry</button>
+          <button type="button" onClick={load} className="mt-4 rounded-[8px] bg-[#0d9f4a] px-5 py-2.5 text-[13px] font-extrabold text-white">Retry</button>
         </div>
       ) : (
         <>
           {tab === 'overview' && overview ? (
             <div className="space-y-4">
-              <p className="text-[14px] font-bold text-[#324871]">Live business snapshot — sales, projects, finance, inventory and AMC in one place.</p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-[14px] font-bold text-[#324871]">Live business snapshot — sales, projects, finance, inventory and AMC in one place.</p>
+                {lastUpdated ? (
+                  <p className="flex items-center gap-2 text-[12px] font-bold text-[#0d9f4a]">
+                    <RefreshCw className="size-3.5" />
+                    Last Updated: {lastUpdated}
+                  </p>
+                ) : null}
+              </div>
+
               <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-                <MetricCard label="Total Leads" value={sales?.total ?? 0} caption="Filtered pipeline" tone="blue" icon={Users} onClick={() => onOpenSection('Lead List')} panelClass={panelClass} toneClasses={reportKpiToneClasses} />
-                <MetricCard label="Active Projects" value={overview.hero?.active_projects ?? 0} caption={`${overview.hero?.total_projects ?? 0} total`} tone="green" icon={FolderKanban} onClick={() => onOpenSection('Project List')} panelClass={panelClass} toneClasses={reportKpiToneClasses} />
-                <MetricCard label="Cash Received" value={fmtRs(overview.hero?.cash_received)} caption="Completed receipts" tone="cyan" icon={IndianRupee} onClick={() => onOpenSection('Payment Received')} panelClass={panelClass} toneClasses={reportKpiToneClasses} />
-                <MetricCard label="Bank Balance" value={fmtRs(overview.hero?.bank_balance)} caption={`${overview.hero?.bank_count ?? 0} accounts`} tone="purple" icon={CreditCard} onClick={() => onOpenSection('Bank Accounts')} panelClass={panelClass} toneClasses={reportKpiToneClasses} />
-                <MetricCard label="Stock Value" value={fmtRs(overview.hero?.stock_value)} caption={`${overview.hero?.stock_items ?? 0} products`} tone="amber" icon={Boxes} onClick={() => onOpenSection('Products')} panelClass={panelClass} toneClasses={reportKpiToneClasses} />
-                <MetricCard label="Active AMC" value={overview.hero?.active_amc ?? 0} caption={`${overview.hero?.open_amc_requests ?? 0} open requests`} tone="sky" icon={ShieldCheck} onClick={() => onOpenSection('AMC Contracts')} panelClass={panelClass} toneClasses={reportKpiToneClasses} />
+                <KpiCard label="Total Leads" value={sales?.total ?? 0} caption="Filtered period" icon={Users} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Lead List')} />
+                <KpiCard label="Active Projects" value={overview.hero?.active_projects ?? 0} caption={`${overview.hero?.total_projects ?? 0} total`} icon={FolderKanban} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Project List')} />
+                <KpiCard label="Cash Received" value={fmtRs(overview.hero?.cash_received)} caption="Completed receipts" icon={IndianRupee} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Payment Received')} />
+                <KpiCard label="Bank Balance" value={fmtRs(overview.hero?.bank_balance)} caption={`${overview.hero?.bank_count ?? 0} accounts`} icon={CreditCard} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => onOpenSection('Bank Accounts')} />
+                <KpiCard label="Stock Value" value={fmtRs(overview.hero?.stock_value)} caption={`${overview.hero?.stock_items ?? 0} products`} icon={Boxes} iconBg="bg-[#ffedd5]" iconColor="text-[#f59e0b]" onClick={() => onOpenSection('Products')} />
+                <KpiCard label="Active AMC" value={overview.hero?.active_amc ?? 0} caption={`${overview.amc?.open_service_requests ?? overview.hero?.open_amc_requests ?? 0} open renewals`} icon={Wallet} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('AMC Contracts')} />
               </section>
+
               <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { label: 'Open O&M Tickets', value: overview.operations?.open_tickets ?? 0 },
-                  { label: 'Pending Tasks', value: overview.operations?.pending_tasks ?? 0 },
-                  { label: 'Low Stock', value: overview.inventory?.low_stock ?? 0 },
-                  { label: 'Expiring AMC', value: overview.amc?.expiring_contracts ?? 0 },
-                ].map((item) => (
-                  <article key={item.label} className={`${panelClass} p-4`}>
-                    <p className="text-[12px] font-bold text-[#7a8fa6]">{item.label}</p>
-                    <p className="mt-2 text-[22px] font-extrabold text-[#1e3261]">{item.value}</p>
-                  </article>
-                ))}
+                <HorizontalKpiCard label="Open O&M Tickets" value={overview.operations?.open_tickets ?? 0} icon={Headphones} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Breakdown Tickets')} />
+                <HorizontalKpiCard label="Pending Tasks" value={overview.operations?.pending_tasks ?? 0} icon={ClipboardList} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Maintenance Tasks')} />
+                <HorizontalKpiCard label="Low Stock" value={overview.inventory?.low_stock ?? 0} icon={PackageMinus} iconBg="bg-[#ffedd5]" iconColor="text-[#f59e0b]" onClick={() => onOpenSection('Products')} />
+                <HorizontalKpiCard label="Expiring AMC" value={overview.amc?.expiring_contracts ?? 0} icon={Calendar} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => onOpenSection('AMC Contracts')} />
               </section>
+
               <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                {[
-                  { label: 'New Lead', section: 'Create Lead', icon: UserPlus, tone: 'green' },
-                  { label: 'Record Payment', section: 'Payment Received', icon: ReceiptText, tone: 'blue' },
-                  { label: 'Stock Inward', section: 'Stock Inward', icon: Download, tone: 'amber' },
-                  { label: 'O&M Tickets', section: 'Breakdown Tickets', icon: Wrench, tone: 'red' },
-                  { label: 'View Alerts', section: null, icon: AlertTriangle, tone: 'purple', action: () => setTabAndSync('alerts') },
-                ].map((link) => (
-                  <button key={link.label} type="button" onClick={() => (link.action ? link.action() : onOpenSection(link.section))} className={`${panelClass} flex items-center gap-3 p-4 text-left hover:bg-[#f8fbff]`}>
-                    <span className={`grid size-10 place-items-center rounded-[10px] ${reportKpiToneClasses[link.tone]}`}><link.icon className="size-5" /></span>
-                    <span className="text-[14px] font-extrabold text-[#1e3261]">{link.label}</span>
-                  </button>
-                ))}
+                <QuickActionBtn label="New Lead" icon={UserPlus} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Create Lead')} />
+                <QuickActionBtn label="Record Payment" icon={CreditCard} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Payment Received')} />
+                <QuickActionBtn label="Stock Inward" icon={Download} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Stock Inward')} />
+                <QuickActionBtn label="O&M Tickets" icon={Wrench} iconBg="bg-[#ccfbf1]" iconColor="text-[#0d9488]" onClick={() => onOpenSection('Breakdown Tickets')} />
+                <QuickActionBtn label="View Alerts" icon={Bell} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => setTabAndSync('alerts')} />
               </section>
             </div>
           ) : null}
 
           {tab === 'sales' && sales ? (
             <div className="space-y-4">
-              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                {[
-                  { label: 'Total Leads', value: sales.total, icon: Users, tone: 'blue' },
-                  { label: 'Won', value: sales.won, icon: Trophy, tone: 'green' },
-                  { label: 'Lost', value: sales.lost, icon: XCircle, tone: 'red' },
-                  { label: 'Conversion', value: `${sales.conversion_rate}%`, icon: TrendingUp, tone: 'purple' },
-                  { label: 'Overdue Follow-ups', value: sales.overdue, icon: Hourglass, tone: 'amber' },
-                ].map((c) => <MetricCard key={c.label} {...c} value={String(c.value)} onClick={() => onOpenSection('Lead List')} panelClass={panelClass} toneClasses={reportKpiToneClasses} />)}
+              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+                <KpiCard label="Total Leads" value={sales.total} caption="Filtered pipeline" icon={Users} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Lead List')} />
+                <KpiCard label="Won" value={sales.won} caption="Won leads" icon={Trophy} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Lead List')} />
+                <KpiCard label="Lost" value={sales.lost} caption="Lost leads" icon={XCircle} iconBg="bg-[#fee2e2]" iconColor="text-[#ef4444]" onClick={() => onOpenSection('Lead List')} />
+                <KpiCard label="Conversion Rate" value={`${sales.conversion_rate}%`} caption="Won / Total Leads" icon={Target} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Lead List')} />
+                <KpiCard label="Quotation Follow ups" value={kpiFromReports(reports, 'Follow-ups')} caption="Pending follow ups" icon={ArrowUpRight} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => onOpenSection('Lead List')} />
+                <KpiCard label="Tasks Pending" value={overview?.operations?.pending_tasks ?? 0} caption="Pending tasks" icon={Hourglass} iconBg="bg-[#ffedd5]" iconColor="text-[#f59e0b]" onClick={() => onOpenSection('Maintenance Tasks')} />
               </section>
-              {(data?.reports?.kpis ?? []).length ? (
-                <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                  {data.reports.kpis.map((kpiItem) => (
-                    <article key={kpiItem.title} className={`${panelClass} p-4`}>
-                      <p className="text-[12px] font-bold text-[#7a8fa6]">{kpiItem.title}</p>
-                      <p className="mt-2 text-[22px] font-extrabold text-[#1e3261]">{kpiItem.value}</p>
-                    </article>
-                  ))}
-                </section>
-              ) : null}
-              <section className="grid gap-4 xl:grid-cols-2">
-                <article className={`${panelClass} p-4`}><h2 className="font-display text-[18px] font-extrabold">Leads Trend</h2><LeadsLineChart data={sales.monthly_trend} /></article>
-                <article className={`${panelClass} p-4`}><h2 className="font-display text-[18px] font-extrabold">Leads by Status</h2><StatusDonut data={sales.status_distribution} /></article>
+
+              <StatStrip
+                items={[
+                  { label: 'Total Contacts', value: sales.total },
+                  { label: 'New Leads', value: kpiFromReports(reports, 'New Leads') },
+                  { label: 'Follow-ups', value: kpiFromReports(reports, 'Follow-ups') },
+                  { label: 'Quotations', value: kpiFromReports(reports, 'Quotations') },
+                  { label: 'Won Leads', value: sales.won },
+                ]}
+              />
+
+              <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+                <article className={`${CARD} p-4 sm:p-5`}>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Leads Trend</h2>
+                  <LeadsTrendChart data={sales.monthly_trend} />
+                </article>
+                <article className={`${CARD} p-4 sm:p-5`}>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Leads by Status</h2>
+                  <StatusDonut data={sales.status_distribution} />
+                </article>
               </section>
+
               <section className="grid gap-4 xl:grid-cols-3">
-                <article className={`${panelClass} p-4 overflow-auto`}>
-                  <h2 className="text-[16px] font-extrabold mb-3">Leads by Project Type</h2>
-                  <table className="crm-table w-full min-w-[400px]">
-                    <thead><tr>{['Type', 'Total', 'Won', 'Conv.'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                    <tbody>{(sales.project_type_stats ?? []).map((p) => <tr key={p.type}><td>{p.type}</td><td>{p.total}</td><td>{p.won}</td><td>{p.conversion}%</td></tr>)}</tbody>
-                  </table>
-                </article>
-                <article className={`${panelClass} p-4 overflow-auto`}>
-                  <h2 className="text-[16px] font-extrabold mb-3">Top Assigned Employees</h2>
-                  <table className="crm-table w-full min-w-[360px]">
-                    <thead><tr>{['Employee', 'Leads', 'Won', 'Conv.'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                    <tbody>{(sales.employee_stats ?? []).map((r) => <tr key={r.name}><td>{r.name}</td><td>{r.total}</td><td>{r.won}</td><td>{r.conversion}%</td></tr>)}</tbody>
-                  </table>
-                </article>
-                <article className={`${panelClass} p-4`}>
-                  <h2 className="flex items-center gap-2 text-[16px] font-extrabold"><ShieldCheck className="size-5 text-[#0d9f4a]" />IVRS Intelligence</h2>
-                  <div className="mt-4 space-y-2 text-[13px] font-bold">
-                    <div className="flex justify-between"><span>Leads with IVRS</span><span>{sales.ivrs_summary?.total_with_ivrs ?? 0}</span></div>
-                    <div className="flex justify-between"><span>Coverage</span><span>{sales.ivrs_summary?.coverage_pct ?? 0}%</span></div>
-                    <div className="flex justify-between"><span>Total (filtered)</span><span>{sales.total}</span></div>
-                  </div>
-                </article>
+                <DataTableCard
+                  title="Leads by Project Type"
+                  headers={['Type', 'Total', 'Won', 'Conv.']}
+                  rows={(sales.project_type_stats ?? []).map((p) => [p.type || 'Unknown', p.total, p.won, `${p.conversion}%`])}
+                  actionLabel="View All"
+                  onAction={() => onOpenSection('Lead List')}
+                />
+                <DataTableCard
+                  title="Top Assigned Employees"
+                  headers={['Employee', 'Leads', 'Won', 'Conv.']}
+                  rows={(sales.employee_stats ?? []).map((r) => [r.name, r.total, r.won, `${r.conversion}%`])}
+                  actionLabel="View All"
+                  onAction={() => onNotify('Employee report opened')}
+                />
+                <MisIntelligenceCard sales={sales} onNotify={onNotify} />
               </section>
             </div>
           ) : null}
@@ -425,49 +664,54 @@ export function UnifiedDashboardPage({
             <div className="space-y-4">
               <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                 {[
-                  { label: 'Total', value: projects.summary?.total },
+                  { label: 'Total Projects', value: projects.summary?.total },
                   { label: 'Active', value: projects.summary?.active },
                   { label: 'Planning', value: projects.summary?.planning },
                   { label: 'On Hold', value: projects.summary?.on_hold },
                   { label: 'Completed', value: projects.summary?.completed },
                 ].map((c) => (
-                  <MetricCard key={c.label} label={c.label} value={String(c.value ?? 0)} onClick={() => onOpenSection('Project List')} panelClass={panelClass} toneClasses={reportKpiToneClasses} tone="blue" icon={FolderKanban} />
+                  <KpiCard key={c.label} label={c.label} value={c.value ?? 0} icon={FolderKanban} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Project List')} />
                 ))}
               </section>
               <div className="flex flex-wrap gap-3">
-                <button type="button" onClick={() => onOpenSection('Project List')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><FolderKanban className="size-4" />View All Projects</button>
+                <button type="button" onClick={() => onOpenSection('Project List')} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_8px_18px_rgba(13,159,74,0.22)]">
+                  <FolderKanban className="size-4" />View All Projects
+                </button>
               </div>
               {kpi ? (
                 <>
-                  <section className="grid gap-4 xl:grid-cols-4">
-                    <ProjectTrendChart labels={kpi.trend_labels} series={kpi.trend_series} panelClass={panelClass} />
-                    <ProjectDonut data={kpi.status_data} title="Projects by Status" panelClass={panelClass} />
-                    <article className={`${panelClass} p-4 flex flex-col items-center justify-center`}>
-                      <p className="text-[12px] font-bold text-[#7a8fa6]">Avg. Completion</p>
-                      <p className="mt-2 text-[36px] font-extrabold text-[#0b65e5]">{kpi.avg_progress}%</p>
+                  <section className="grid gap-4 xl:grid-cols-3">
+                    <article className={`${CARD} p-4 xl:col-span-2`}>
+                      <h2 className="font-display text-[16px] font-extrabold text-[#111827]">Projects Trend (Monthly)</h2>
+                      <LeadsTrendChart data={kpi.trend_labels?.map((label, i) => ({
+                        month: label.replace('\n', ' '),
+                        new: kpi.trend_series?.[0]?.values?.[i] ?? 0,
+                        won: kpi.trend_series?.[1]?.values?.[i] ?? 0,
+                        follow_up: 0,
+                      }))} />
                     </article>
-                  </section>
-                  <section className="grid gap-4 md:grid-cols-2">
-                    <ProjectDonut data={kpi.site_data} title="Projects by Site" panelClass={panelClass} />
-                    <ProjectDonut data={kpi.type_data} title="Projects by Type" panelClass={panelClass} />
+                    <article className={`${CARD} flex flex-col items-center justify-center p-4`}>
+                      <p className="text-[12px] font-bold text-[#7a8fa6]">Avg. Completion</p>
+                      <p className="mt-3 text-[48px] font-extrabold leading-none text-[#0b65e5]">{kpi.avg_progress}%</p>
+                    </article>
                   </section>
                   <section className="grid gap-4 md:grid-cols-3">
                     {[
-                      { label: 'Total Project Value', value: fmtRs(kpi.financial?.total_value) },
-                      { label: 'Avg. Project Value', value: fmtRs(kpi.financial?.avg_value) },
-                      { label: 'Total Capacity (KWp)', value: Number(kpi.financial?.total_capacity_kwp || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+                      { title: 'Total Project Value', value: fmtRs(kpi.financial?.total_value) },
+                      { title: 'Avg. Project Value', value: fmtRs(kpi.financial?.avg_value) },
+                      { title: 'Total Capacity (KWp)', value: Number(kpi.financial?.total_capacity_kwp || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
                     ].map((row) => (
-                      <article key={row.label} className={`${panelClass} p-4`}>
-                        <p className="text-[12px] font-bold text-[#7a8fa6]">{row.label}</p>
-                        <p className="mt-2 text-[20px] font-extrabold text-[#1e3261]">{row.value}</p>
+                      <article key={row.title} className={`${CARD} p-4`}>
+                        <p className="text-[12px] font-bold text-[#7a8fa6]">{row.title}</p>
+                        <p className="mt-2 text-[22px] font-extrabold text-[#1e3261]">{row.value}</p>
                       </article>
                     ))}
                   </section>
                   <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {(kpi.performance_stats ?? []).map((stat) => (
-                      <article key={stat.label} className={`${panelClass} p-4`}>
+                      <article key={stat.label} className={`${CARD} p-4`}>
                         <p className="text-[12px] font-bold text-[#7a8fa6]">{stat.label}</p>
-                        <p className="mt-2 text-[22px] font-extrabold text-[#1e3261]">{stat.value}</p>
+                        <p className="mt-2 text-[24px] font-extrabold text-[#1e3261]">{stat.value}</p>
                         <p className="mt-1 text-[11px] font-bold text-[#53647f]">{stat.note}</p>
                       </article>
                     ))}
@@ -478,47 +722,64 @@ export function UnifiedDashboardPage({
           ) : null}
 
           {tab === 'finance' && finance ? (
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {[
-                { label: 'Total Received', value: fmtRs(finance.total_received), section: 'Payment Received' },
-                { label: 'Total Paid Out', value: fmtRs(finance.total_made), section: 'Payment Made' },
-                { label: 'Net Cash Flow', value: fmtRs(finance.net_balance), section: 'Accounts Overview' },
-                { label: 'Inventory Value', value: fmtRs(finance.inventory_value), section: 'Products' },
-                { label: 'AMC Contract Value', value: fmtRs(finance.amc_contract_value), section: 'AMC Contracts' },
-                { label: 'Pending Cheques', value: String(finance.pending_cheques ?? 0), section: 'Cheques List' },
-              ].map((c) => (
-                <MetricCard key={c.label} label={c.label} value={c.value} onClick={() => onOpenSection(c.section)} panelClass={panelClass} toneClasses={reportKpiToneClasses} tone="blue" icon={IndianRupee} />
-              ))}
-            </section>
+            <div className="space-y-4">
+              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <FinanceCard label="Total Received" value={fmtRs(finance.total_received)} caption="All payments received" icon={IndianRupee} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Payment Received')} />
+                <FinanceCard label="Total Paid Out" value={fmtRs(finance.total_made)} caption="All payments made" icon={CreditCard} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Payment Made')} />
+                <FinanceCard label="Net Cash Flow" value={fmtRs(finance.net_balance)} caption="Inflow - Outflow" icon={ArrowLeftRight} iconBg="bg-[#fef9c3]" iconColor="text-[#ca8a04]" onClick={() => onOpenSection('Accounts Overview')} />
+                <FinanceCard label="Inventory Value" value={fmtRs(finance.inventory_value)} caption="Current stock value" icon={Package} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => onOpenSection('Products')} />
+                <FinanceCard label="AMC Contract Value" value={fmtRs(finance.amc_contract_value)} caption="Total AMC value" icon={FileText} iconBg="bg-[#ccfbf1]" iconColor="text-[#0d9488]" onClick={() => onOpenSection('AMC Contracts')} />
+                <FinanceCard label="Pending Cheques" value={String(finance.pending_cheques ?? 0)} caption="Awaiting clearance" icon={Wallet} iconBg="bg-[#fce7f3]" iconColor="text-[#ec4899]" onClick={() => onOpenSection('Cheques List')} />
+              </section>
+
+              <section className="grid gap-4 xl:grid-cols-2">
+                <article className={`${CARD} p-4 sm:p-5`}>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Cash Flow Trend</h2>
+                  <p className="mt-1 text-[12px] font-bold text-[#9aa8bc]">Estimated weekly split of the filtered period totals.</p>
+                  <CashFlowTrendChart data={cashFlowTrend} />
+                </article>
+                <article className={`${CARD} p-4 sm:p-5`}>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Cash Flow Summary</h2>
+                  <CashFlowDonut finance={finance} />
+                </article>
+              </section>
+            </div>
           ) : null}
 
           {tab === 'alerts' ? (
             <div className="space-y-4">
-              {alertItems.length ? (
-                <section className="grid gap-3 sm:grid-cols-2">
-                  {alertItems.map((item) => (
-                    <button key={item.label} type="button" onClick={() => onOpenSection(item.section)} className={`${panelClass} flex items-center justify-between p-4 text-left hover:bg-[#fff8f8]`}>
-                      <div>
-                        <p className="text-[13px] font-extrabold text-[#1e3261]">{item.label}</p>
-                        <p className="text-[11px] font-bold text-[#7a8fa6]">Needs attention</p>
-                      </div>
-                      <span className="text-[24px] font-extrabold text-[#dc2626]">{item.value}</span>
-                    </button>
-                  ))}
-                </section>
-              ) : (
-                <div className={`${panelClass} p-12 text-center`}>
-                  <CheckCircle2 className="mx-auto size-12 text-[#16a34a]" />
-                  <p className="mt-4 text-[15px] font-extrabold text-[#1e3261]">All clear — no alerts right now</p>
-                </div>
-              )}
+              <section className="grid gap-4 sm:grid-cols-2">
+                {alertCards.map((item) => (
+                  <AlertCard
+                    key={item.label}
+                    label={item.label}
+                    value={item.value}
+                    icon={item.icon}
+                    iconBg={item.iconBg}
+                    iconColor={item.iconColor}
+                    onClick={() => onOpenSection(item.section)}
+                  />
+                ))}
+              </section>
+            </div>
+          ) : null}
+
+          {!['overview', 'sales', 'projects', 'finance', 'alerts'].includes(tab) || (
+            (tab === 'overview' && !overview)
+            || (tab === 'sales' && !sales)
+            || (tab === 'projects' && !projects)
+            || (tab === 'finance' && !finance)
+            || (tab === 'alerts' && data && alerts == null)
+          ) ? (
+            <div className={`${CARD} p-10 text-center`}>
+              <p className="text-[14px] font-bold text-[#53647f]">No data available for this tab.</p>
             </div>
           ) : null}
         </>
       )}
 
       {incentiveOpen && IncentiveReportModal ? <IncentiveReportModal onClose={() => setIncentiveOpen(false)} onNotify={onNotify} /> : null}
-      <DashboardFooter />
+      <InsightsFooter />
     </div>
   );
 }

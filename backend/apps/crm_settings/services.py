@@ -173,6 +173,13 @@ SETTING_CATEGORIES = {
         'loginAlert': True,
         'syncDelay': True,
     },
+    'backup': {
+        'syncFrequency': 'Daily',
+        'backupLocation': 'Server',
+        'liveSync': True,
+        'retentionDays': '30',
+        'autoBackup': True,
+    },
 }
 
 MASTER_TYPE_LABELS = dict(MasterRecord.MASTER_TYPES)
