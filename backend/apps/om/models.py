@@ -1,6 +1,7 @@
 from django.db import models
 from apps.accounts.models import User
 from apps.projects.models import Project
+from malwa_solar.validators import validate_document_extension, validate_upload_size
 
 
 class OmAsset(models.Model):
@@ -167,6 +168,13 @@ class OmSparePart(models.Model):
     unit_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     supplier = models.CharField(max_length=200, blank=True)
     remarks = models.TextField(blank=True)
+    linked_inventory_item = models.ForeignKey(
+        'inventory.InventoryItem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='om_spare_parts',
+    )
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='om_parts_created')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -198,7 +206,7 @@ class OmReport(models.Model):
 
     name = models.CharField(max_length=255)
     report_type = models.CharField(max_length=50, choices=TYPE_CHOICES, default='Other')
-    file = models.FileField(upload_to='om_reports/%Y/%m/', null=True, blank=True)
+    file = models.FileField(upload_to='om_reports/%Y/%m/', null=True, blank=True, validators=[validate_document_extension, validate_upload_size])
     remarks = models.TextField(blank=True)
     generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='om_reports_created')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -223,7 +231,7 @@ class OmDocument(models.Model):
     module = models.CharField(max_length=20, choices=MODULE_CHOICES, default='General')
     related_id = models.IntegerField(null=True, blank=True)
     name = models.CharField(max_length=255)
-    file = models.FileField(upload_to='om_docs/%Y/%m/')
+    file = models.FileField(upload_to='om_docs/%Y/%m/', validators=[validate_document_extension, validate_upload_size])
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='om_documents_uploaded')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 

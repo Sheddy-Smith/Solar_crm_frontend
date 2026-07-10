@@ -422,7 +422,7 @@ class SubsidyApplicationViewSet(viewsets.ModelViewSet):
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['project', 'status']
-    search_fields = ['application_number', 'assigned_employee', 'discom']
+    search_fields = ['application_number', 'assigned_employee__name', 'discom']
 
     def get_queryset(self):
         qs = SubsidyApplication.objects.select_related('project').prefetch_related('documents').all()

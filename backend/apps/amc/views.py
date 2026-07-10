@@ -1,4 +1,6 @@
-from rest_framework import viewsets, filters
+from django.db import transaction
+from django.utils import timezone
+from rest_framework import status, viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
@@ -71,9 +73,44 @@ class AmcRenewalViewSet(AmcBaseViewSet):
     serializer_class = AmcRenewalSerializer
     filterset_fields = ['contract', 'status']
     search_fields = ['contract__customer_name', 'remarks']
+    permission_action_map = {'complete': 'can_edit'}
 
     def get_queryset(self):
         return AmcRenewal.objects.select_related('contract', 'created_by').all()
+
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        renewal = self.get_object()
+
+        if renewal.status == 'Completed':
+            return Response(
+                {'detail': 'This renewal has already been completed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not renewal.new_end_date:
+            return Response(
+                {'detail': 'Renewal has no new_end_date to apply to the contract.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            renewal = AmcRenewal.objects.select_for_update().get(pk=renewal.pk)
+            contract = AmcContract.objects.select_for_update().get(pk=renewal.contract_id)
+
+            renewal.status = 'Completed'
+            renewal.save(update_fields=['status', 'updated_at'])
+
+            contract.end_date = renewal.new_end_date
+            contract.next_renewal_date = renewal.new_end_date
+            today = timezone.now().date()
+            if contract.end_date and contract.end_date < today:
+                contract.status = 'Expired'
+            else:
+                contract.status = 'Active'
+            contract.save(update_fields=['end_date', 'next_renewal_date', 'status', 'updated_at'])
+
+        renewal.refresh_from_db()
+        return Response(self.get_serializer(renewal).data)
 
 
 class AmcClaimViewSet(AmcBaseViewSet):

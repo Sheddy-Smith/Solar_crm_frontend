@@ -15,7 +15,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: ALLOWED_HOSTS
-        value: solar-crm-frontend-0vcw.onrender.com,.onrender.com
+        value: solar-crm-frontend-0vcw.onrender.com
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL

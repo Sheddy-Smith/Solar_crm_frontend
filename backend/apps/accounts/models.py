@@ -30,6 +30,10 @@ class Role(models.Model):
 
 
 class RolePermission(models.Model):
+    # BUG-017 (wired): 'Dashboard' gates `apps.reports.views.ReportsViewSet`
+    # (cross-module reports dashboard). 'IVRS Management' gates duplicate-IVRS
+    # approval *create* on `apps.leads.views.AdminApprovalViewSet`; list/
+    # approve/reject stay under 'Approvals'.
     MODULE_CHOICES = [
         ('Dashboard', 'Dashboard'),
         ('Leads', 'Leads'),
@@ -37,6 +41,7 @@ class RolePermission(models.Model):
         ('IVRS Management', 'IVRS Management'),
         ('Approvals', 'Approvals'),
         ('Project Management', 'Project Management'),
+        ('Workforce', 'Workforce'),
         ('Liaisoning & Commissioning', 'Liaisoning & Commissioning'),
         ('O&M', 'O&M'),
         ('Accounts', 'Accounts'),
@@ -86,7 +91,14 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=200)
-    mobile = models.CharField(max_length=15, blank=True)
+    # BUG-072: real uniqueness on mobile itself — the old
+    # UniqueConstraint(['email', 'mobile']) was vacuous since email is
+    # already globally unique, so it never actually stopped two users
+    # sharing a phone number. null=True (in addition to blank=True) is
+    # required so multiple users who simply have no phone on file don't
+    # collide on '' — a unique index treats '' as a real value but treats
+    # NULL as distinct from every other NULL.
+    mobile = models.CharField(max_length=15, blank=True, null=True, unique=True)
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
     is_active = models.BooleanField(default=True)

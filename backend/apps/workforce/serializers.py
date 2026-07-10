@@ -1,6 +1,10 @@
 from decimal import Decimal
+import re
 
 from rest_framework import serializers
+
+from apps.accounts.permissions import is_super_admin
+from malwa_solar.encryption import display_aadhaar, encrypt_value
 
 from .models import Employee, EmployeeAssignment, EmployeeDocument, EmployeeAttendance, EmployeeVoucher
 from .services import employee_net_balance, hourly_rate_for, payment_for_attendance
@@ -42,10 +46,13 @@ class EmployeeListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Employee
+        # Aadhaar/address/daily_rate are intentionally excluded here (BUG-050) —
+        # this serializer backs the bulk list endpoint; sensitive/pay fields are
+        # only returned via EmployeeDetailSerializer's single-employee retrieve.
         fields = [
             'id', 'employee_id', 'name', 'mobile', 'email',
             'department', 'role', 'skill_trade', 'joining_date', 'status',
-            'aadhaar_number', 'address', 'daily_rate', 'hourly_rate', 'opening_balance', 'net_balance',
+            'hourly_rate', 'net_balance',
             'present_days', 'absent_days', 'leave_balance',
             'current_assignment', 'pending_tasks', 'completed_tasks',
             'created_at',
@@ -99,6 +106,23 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = ['employee_id', 'created_at', 'updated_at']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        reveal = bool(request and is_super_admin(request.user))
+        data['aadhaar_number'] = display_aadhaar(instance.aadhaar_number, reveal_full=reveal)
+        return data
+
+    def validate_aadhaar_number(self, value):
+        if not value:
+            return value
+        if str(value).startswith('XXXX-XXXX-'):
+            raise serializers.ValidationError('Submit the full Aadhaar number to update this field.')
+        digits = re.sub(r'\D', '', str(value))
+        if len(digits) != 12:
+            raise serializers.ValidationError('Aadhaar must be 12 digits.')
+        return encrypt_value(digits)
 
     def get_hourly_rate(self, obj):
         return str(hourly_rate_for(obj))

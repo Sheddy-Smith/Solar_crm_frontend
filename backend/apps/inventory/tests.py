@@ -59,3 +59,34 @@ class StockMovementTests(TestCase):
                 quantity=Decimal('99'),
                 from_warehouse=self.warehouse,
             )
+
+    def test_transfer_movement_updates_item_warehouse(self):
+        other_warehouse = Warehouse.objects.create(name='East Warehouse', location='Bhopal')
+        self.assertEqual(self.item.warehouse_id, self.warehouse.id)
+
+        StockMovement.objects.create(
+            item=self.item,
+            movement_type='Transfer',
+            quantity=Decimal('3'),
+            from_warehouse=self.warehouse,
+            to_warehouse=other_warehouse,
+        )
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.warehouse_id, other_warehouse.id)
+        self.assertEqual(self.item.current_stock, Decimal('10.00'))
+
+    def test_transfer_delete_reverts_warehouse_when_no_later_transfer(self):
+        other_warehouse = Warehouse.objects.create(name='East Warehouse', location='Bhopal')
+        movement = StockMovement.objects.create(
+            item=self.item,
+            movement_type='Transfer',
+            quantity=Decimal('3'),
+            from_warehouse=self.warehouse,
+            to_warehouse=other_warehouse,
+        )
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.warehouse_id, other_warehouse.id)
+
+        movement.delete()
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.warehouse_id, self.warehouse.id)

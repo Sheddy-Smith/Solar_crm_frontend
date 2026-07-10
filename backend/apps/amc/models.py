@@ -2,6 +2,7 @@ from django.db import models
 
 from apps.accounts.models import User
 from apps.projects.models import Project
+from malwa_solar.validators import validate_document_extension, validate_upload_size
 
 
 class AmcContract(models.Model):
@@ -190,7 +191,7 @@ class AmcDocument(models.Model):
     category = models.CharField(max_length=100, blank=True)
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='amc_documents')
     contract = models.ForeignKey(AmcContract, on_delete=models.SET_NULL, null=True, blank=True, related_name='documents')
-    file = models.FileField(upload_to='amc/documents/', blank=True)
+    file = models.FileField(upload_to='amc/documents/', blank=True, validators=[validate_document_extension, validate_upload_size])
     remarks = models.TextField(blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='amc_documents_uploaded')
     created_at = models.DateTimeField(auto_now_add=True)

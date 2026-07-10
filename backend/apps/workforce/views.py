@@ -4,6 +4,7 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.generics import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
@@ -20,16 +21,19 @@ from apps.accounts.permissions import HasModulePermission
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.prefetch_related('assignments', 'documents', 'attendance_records', 'vouchers').all()
     permission_classes = [HasModulePermission]
-    permission_module = 'Project Management'
+    permission_module = 'Workforce'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'department']
     search_fields = ['name', 'employee_id', 'role', 'mobile', 'skill_trade', 'aadhaar_number']
     ordering_fields = ['name', 'created_at', 'status']
 
     def get_serializer_class(self):
-        if self.action == 'retrieve':
-            return EmployeeDetailSerializer
-        return EmployeeListSerializer
+        # Only the bulk `list` action uses the trimmed serializer (BUG-050 — it
+        # excludes Aadhaar/address/pay rate). Every other action, including
+        # create/update, needs the full field set so those fields stay writable.
+        if self.action == 'list':
+            return EmployeeListSerializer
+        return EmployeeDetailSerializer
 
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard(self, request):
@@ -102,14 +106,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             end_date = datetime.strptime(end, '%Y-%m-%d').date()
         except ValueError:
             return Response({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(attendance_ledger_payload(emp, start_date, end_date))
+        return Response(attendance_ledger_payload(emp, start_date, end_date, request.user))
 
 
 class EmployeeAttendanceViewSet(viewsets.ModelViewSet):
     queryset = EmployeeAttendance.objects.select_related('employee').all()
     serializer_class = EmployeeAttendanceSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Project Management'
+    permission_module = 'Workforce'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['employee', 'status', 'date']
     ordering_fields = ['date']
@@ -148,12 +152,46 @@ class EmployeeAttendanceViewSet(viewsets.ModelViewSet):
         serializer.save()
         return Response(serializer.data)
 
+    @action(detail=False, methods=['post'], url_path='mark-by-date')
+    def mark_by_date(self, request):
+        """Upserts attendance by employee+date instead of row id (BUG-001).
+
+        The ledger UI fills date gaps with placeholder rows (id `missing-YYYY-MM-DD`)
+        before the real per-date row has necessarily loaded client-side; this lets
+        the frontend mark/edit those rows without a real id in hand yet."""
+        employee_id = request.data.get('employee')
+        date_str = request.data.get('date')
+        if not employee_id or not date_str:
+            return Response({'detail': 'employee and date are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        employee = get_object_or_404(Employee, pk=employee_id)
+        record, _ = EmployeeAttendance.objects.get_or_create(
+            employee=employee, date=target_date, defaults={'status': 'Not Marked'},
+        )
+        target_status = request.data.get('status', 'Present')
+        serializer = self.get_serializer(record, data={
+            'employee': employee.id,
+            'date': record.date,
+            'status': target_status,
+            'hours': request.data.get('hours', 9 if target_status == 'Present' else 0),
+            'ot_hours': request.data.get('ot_hours', 0),
+            'payment_mode': request.data.get('payment_mode', record.payment_mode),
+            'notes': request.data.get('notes', record.notes),
+        }, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
 
 class EmployeeVoucherViewSet(viewsets.ModelViewSet):
     queryset = EmployeeVoucher.objects.select_related('employee').all()
     serializer_class = EmployeeVoucherSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Project Management'
+    permission_module = 'Workforce'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['employee', 'payment_mode', 'voucher_date']
     ordering_fields = ['voucher_date', 'created_at']
@@ -163,7 +201,7 @@ class EmployeeAssignmentViewSet(viewsets.ModelViewSet):
     queryset = EmployeeAssignment.objects.select_related('employee', 'project').all()
     serializer_class = EmployeeAssignmentSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Project Management'
+    permission_module = 'Workforce'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['employee', 'status', 'priority', 'project']
     search_fields = ['task_name']
@@ -191,7 +229,7 @@ class EmployeeDocumentViewSet(viewsets.ModelViewSet):
     queryset = EmployeeDocument.objects.select_related('employee').all()
     serializer_class = EmployeeDocumentSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Project Management'
+    permission_module = 'Workforce'
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['employee', 'doc_type']

@@ -23,6 +23,17 @@ export const tokenStore = {
   },
 };
 
+// Media files (uploaded documents/photos) are served behind auth (BUG-047) — the
+// backend accepts the JWT access token as a query param since <img>/<a> tags can't
+// send an Authorization header. Wrap every media URL rendered in the UI with this.
+export function getMediaUrl(url) {
+  if (!url) return url;
+  const token = tokenStore.getAccess();
+  if (!token) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}access=${encodeURIComponent(token)}`;
+}
+
 let refreshPromise = null;
 
 async function refreshAccessToken() {
@@ -534,6 +545,7 @@ export const workforceApi = {
   updateAttendance: (id, data) => request(`/workforce/attendance/${id}/`, { method: 'PATCH', body: data }),
   markAttendancePresent: (id, data = {}) => request(`/workforce/attendance/${id}/mark-present/`, { method: 'POST', body: data }),
   markAttendanceAbsent: (id) => request(`/workforce/attendance/${id}/mark-absent/`, { method: 'POST', body: {} }),
+  markAttendanceByDate: (data) => request('/workforce/attendance/mark-by-date/', { method: 'POST', body: data }),
   listVouchers: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/workforce/vouchers/${qs ? '?' + qs : ''}`);

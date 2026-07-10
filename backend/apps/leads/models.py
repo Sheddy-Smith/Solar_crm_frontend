@@ -2,15 +2,42 @@ import datetime
 import uuid
 from decimal import Decimal, InvalidOperation
 from django.core.files.base import ContentFile
-from django.db import models
+from django.db import models, transaction, IntegrityError
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.text import slugify
 from apps.accounts.models import User
+from malwa_solar.validators import validate_image_extension, validate_upload_size
 
 
 def generate_ivrs():
     return f'IVRS{uuid.uuid4().hex[:8].upper()}'
+
+
+class LeadSequenceCounter(models.Model):
+    """Backs atomic, race-free generation of Quotation.quotation_number
+    (BUG-052) with a single locked row per prefix instead of an unlocked
+    `count()+1` read — concurrent saves would otherwise race and can both
+    compute the same number, tripping the field's `unique=True` constraint.
+    Mirrors `apps.workforce.models.EmployeeIdCounter` (BUG-025) and
+    `apps.projects.models.SequenceCounter` (BUG-026/071) — kept local to
+    this app rather than shared, to avoid a leads<->projects import cycle
+    (projects.models already imports apps.leads.models.Lead)."""
+    key = models.CharField(max_length=50, unique=True)
+    value = models.IntegerField(default=0)
+
+    @classmethod
+    def next_value(cls, key, initial=0):
+        for _ in range(2):  # one retry to cover the get_or_create race on first-ever creation
+            try:
+                with transaction.atomic():
+                    counter, _ = cls.objects.select_for_update().get_or_create(key=key, defaults={'value': initial})
+                    counter.value += 1
+                    counter.save(update_fields=['value'])
+                    return counter.value
+            except IntegrityError:
+                continue
+        raise RuntimeError(f'Could not allocate id counter for {key!r}')
 
 
 def lead_survey_photo_upload_path(instance, filename):
@@ -131,6 +158,11 @@ class AdminApproval(models.Model):
     lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='approvals')
     ivrs_number = models.CharField(max_length=50)
     duplicate_of = models.ForeignKey(Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name='duplicate_approvals')
+    # BUG-054: the Lead actually created by approve() from `requested_payload`,
+    # once this request is approved. Nothing wrote this back before — approve()
+    # only flipped `status` — so an approved request was a dead end and the
+    # sales rep's lead never appeared anywhere.
+    created_lead = models.ForeignKey(Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_from_approval')
     requested_customer_name = models.CharField(max_length=255, blank=True)
     requested_mobile_number = models.CharField(max_length=20, blank=True)
     requested_project_name = models.CharField(max_length=255, blank=True)
@@ -302,8 +334,16 @@ class Quotation(models.Model):
     def save(self, *args, **kwargs):
         if not self.quotation_number:
             year = datetime.date.today().year
-            count = Quotation.objects.filter(created_at__year=year).count() + 1
-            self.quotation_number = f'QUO-{year}-{count:04d}'
+            prefix = f'QUO-{year}-'
+            seed = 0
+            last = Quotation.objects.filter(quotation_number__startswith=prefix).order_by('-quotation_number').first()
+            if last:
+                try:
+                    seed = int(last.quotation_number.rsplit('-', 1)[-1])
+                except ValueError:
+                    seed = 0
+            num = LeadSequenceCounter.next_value(prefix, initial=seed)
+            self.quotation_number = f'{prefix}{num:04d}'
         super().save(*args, **kwargs)
 
     def recalculate_totals(self):
@@ -424,7 +464,7 @@ class LeadSiteSurvey(models.Model):
 
 class LeadSurveyPhoto(models.Model):
     survey = models.ForeignKey(LeadSiteSurvey, on_delete=models.CASCADE, related_name='photos')
-    image = models.ImageField(upload_to=lead_survey_photo_upload_path)
+    image = models.ImageField(upload_to=lead_survey_photo_upload_path, validators=[validate_image_extension, validate_upload_size])
     caption = models.CharField(max_length=200, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_survey_photos')
     uploaded_at = models.DateTimeField(auto_now_add=True)

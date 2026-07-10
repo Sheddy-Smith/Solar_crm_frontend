@@ -292,12 +292,13 @@ class SubsidyDocumentSerializer(serializers.ModelSerializer):
 
 class SubsidyApplicationSerializer(serializers.ModelSerializer):
     documents = SubsidyDocumentSerializer(many=True, read_only=True)
+    assigned_employee_name = serializers.CharField(source='assigned_employee.name', read_only=True)
 
     class Meta:
         model = SubsidyApplication
         fields = [
             'id', 'project', 'application_number', 'application_date',
-            'discom', 'status', 'assigned_employee', 'remarks',
+            'discom', 'status', 'assigned_employee', 'assigned_employee_name', 'remarks',
             'documents', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']

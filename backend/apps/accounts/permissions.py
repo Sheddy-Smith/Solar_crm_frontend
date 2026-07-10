@@ -98,11 +98,14 @@ class HasModulePermission(BasePermission):
         if is_super_admin(user):
             return True
 
-        module = getattr(view, 'permission_module', None)
+        action = getattr(view, 'action', None)
+        module_map = getattr(view, 'permission_module_map', {})
+        module = module_map.get(action) if action else None
+        if not module:
+            module = getattr(view, 'permission_module', None)
         if not module:
             return False
 
-        action = getattr(view, 'action', None)
         action_map = {**MODULE_ACTION_FLAGS, **getattr(view, 'permission_action_map', {})}
         flag = action_map.get(action) if action else None
         if not flag:

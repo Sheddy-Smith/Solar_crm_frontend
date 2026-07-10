@@ -59,6 +59,13 @@ class UserSerializer(serializers.ModelSerializer):
             return []
         return RolePermissionSerializer(obj.role.permissions.all(), many=True).data
 
+    def validate_mobile(self, value):
+        # BUG-072: mobile now has a real unique=True (null=True for "no
+        # phone on file"). Normalize '' to None so two users who both leave
+        # mobile blank don't collide on the empty string, which Postgres
+        # treats as a real (non-distinct) value unlike NULL.
+        return value or None
+
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -66,6 +73,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['email', 'name', 'mobile', 'role', 'branch', 'password']
+
+    def validate_mobile(self, value):
+        return value or None
 
     def create(self, validated_data):
         password = validated_data.pop('password')

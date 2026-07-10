@@ -39,8 +39,15 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'malwa_solar.security_headers_middleware.SecurityHeadersMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    # Enforces crm_settings IpAccessRule allow/block rules (BUG-015). Placed
+    # after CorsMiddleware so even a blocked response carries correct CORS
+    # headers; placed before SessionMiddleware so it needs nothing from the
+    # session/auth stack. Fails open on internal errors — see the module
+    # docstring in ip_access_middleware.py.
+    'malwa_solar.ip_access_middleware.IpAccessMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -117,6 +124,10 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Cap in-memory upload buffering (BUG-048) — aligns with malwa_solar.validators.MAX_UPLOAD_SIZE_BYTES.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
@@ -134,8 +145,19 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'malwa_solar.pagination.DefaultPagination',
     'PAGE_SIZE': 100,
     'EXCEPTION_HANDLER': 'malwa_solar.exceptions.custom_exception_handler',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
     'DEFAULT_THROTTLE_RATES': {
         'login': '10/min',
+        # Baseline rate limit for every endpoint (BUG-051) — previously only
+        # 'login' had a scope, so every other endpoint (including the
+        # unauthenticated media route and change_password) had no cap at
+        # all. CustomTokenObtainPairView sets its own throttle_classes/
+        # throttle_scope='login', so it isn't double-throttled by these.
+        'anon': '100/min',
+        'user': '300/min',
     },
 }
 

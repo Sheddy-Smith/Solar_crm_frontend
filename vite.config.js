@@ -34,6 +34,18 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const clientIp = req.socket?.remoteAddress;
+            if (!clientIp) return;
+            const normalized = clientIp.startsWith('::ffff:') ? clientIp.slice(7) : clientIp;
+            const existing = req.headers['x-forwarded-for'];
+            proxyReq.setHeader(
+              'X-Forwarded-For',
+              existing ? `${existing}, ${normalized}` : normalized,
+            );
+          });
+        },
       },
     },
   },

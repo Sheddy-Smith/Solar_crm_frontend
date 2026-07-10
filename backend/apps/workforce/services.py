@@ -5,6 +5,8 @@ from django.db.models import Sum
 from django.db.models.functions import Coalesce
 
 from .models import Employee, EmployeeAttendance, EmployeeVoucher
+from malwa_solar.encryption import display_aadhaar
+from apps.accounts.permissions import is_super_admin
 
 
 WORK_HOURS_PER_DAY = Decimal('9')
@@ -54,6 +56,31 @@ def week_start_for(day):
     return day - timedelta(days=day.weekday())
 
 
+def sync_attendance_voucher_amounts(employee, dates, create_missing=True):
+    """Denormalizes same-day EmployeeVoucher totals onto EmployeeAttendance.voucher_amount
+    for ledger row display (BUG-006). Not summed into ledger totals — see employee_voucher_total.
+
+    `create_missing=False` is used when called from a voucher's post_delete signal: the
+    employee (and its attendance rows) may be mid-cascade-delete at that point, so we must
+    not try to get_or_create a row referencing an employee_id that no longer exists.
+    """
+    for d in dates:
+        if create_missing:
+            record, _ = EmployeeAttendance.objects.get_or_create(
+                employee=employee, date=d, defaults={'status': 'Not Marked'},
+            )
+        else:
+            record = EmployeeAttendance.objects.filter(employee=employee, date=d).first()
+            if not record:
+                continue
+        total = EmployeeVoucher.objects.filter(employee=employee, voucher_date=d).aggregate(
+            total=Coalesce(Sum('amount'), Decimal('0.00'))
+        )['total'] or Decimal('0.00')
+        if record.voucher_amount != total:
+            record.voucher_amount = total
+            record.save(update_fields=['voucher_amount'])
+
+
 def ensure_attendance_range(employee, start_date, end_date):
     records = []
     current = start_date
@@ -68,7 +95,7 @@ def ensure_attendance_range(employee, start_date, end_date):
     return records
 
 
-def attendance_ledger_payload(employee, start_date, end_date):
+def attendance_ledger_payload(employee, start_date, end_date, user=None):
     ensure_attendance_range(employee, start_date, end_date)
     records = employee.attendance_records.filter(date__gte=start_date, date__lte=end_date).order_by('date')
 
@@ -76,9 +103,10 @@ def attendance_ledger_payload(employee, start_date, end_date):
         total=Coalesce(Sum('payment'), Decimal('0.00'))
     )['total'] or Decimal('0.00')
 
-    period_voucher_rows = records.aggregate(total=Coalesce(Sum('voucher_amount'), Decimal('0.00')))
-    period_voucher_from_rows = period_voucher_rows['total'] or Decimal('0.00')
-    period_paid = employee_voucher_total(employee, start_date, end_date) + period_voucher_from_rows
+    # EmployeeVoucher is the single source of truth for payments (BUG-005) — attendance
+    # rows' voucher_amount is a same-day display mirror only (see sync_attendance_voucher_amounts),
+    # so it must not be summed again here or paid totals would be double-counted.
+    period_paid = employee_voucher_total(employee, start_date, end_date)
 
     previous_balance = employee_net_balance(employee, before_date=start_date)
     net_balance = (previous_balance + period_earning - period_paid).quantize(Decimal('0.01'))
@@ -89,7 +117,10 @@ def attendance_ledger_payload(employee, start_date, end_date):
             'id': employee.id,
             'name': employee.name,
             'mobile': employee.mobile,
-            'aadhaar_number': employee.aadhaar_number,
+            'aadhaar_number': display_aadhaar(
+                employee.aadhaar_number,
+                reveal_full=bool(user and is_super_admin(user)),
+            ),
             'skill_trade': employee.skill_trade or employee.role,
             'daily_rate': str(employee.daily_rate or Decimal('0.00')),
             'hourly_rate': str(hourly_rate_for(employee)),

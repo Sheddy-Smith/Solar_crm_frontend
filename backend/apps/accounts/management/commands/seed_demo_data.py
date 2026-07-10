@@ -1,4 +1,5 @@
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 from datetime import timedelta, date
 import random
@@ -7,7 +8,47 @@ import random
 class Command(BaseCommand):
     help = 'Seed database with demo data from the UI'
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--i-know-what-im-doing',
+            action='store_true',
+            dest='confirm_prod',
+            help=(
+                'Required to run this command when DEBUG is False (i.e. a '
+                'production-like settings module). Without it the command aborts.'
+            ),
+        )
+
     def handle(self, *args, **options):
+        # BUG-049: this command sets a single hardcoded password
+        # ('Malwa@2024') on 10 named demo accounts (Branch Manager, Team
+        # Leaders, Sales Executives). That's fine for local/dev DBs seeded
+        # from scratch, but running it against a production database would
+        # silently create (or reset) real-looking accounts protected only by
+        # a password committed in plaintext to the repo. Refuse to run
+        # outside DEBUG unless the operator explicitly opts in.
+        if not settings.DEBUG and not options.get('confirm_prod'):
+            raise CommandError(
+                'Refusing to run seed_demo_data: DEBUG is False (this looks like a '
+                'production/production-like environment). This command creates demo '
+                'accounts with a single hardcoded password ("Malwa@2024") committed to '
+                'the repo — it must not be run against production data. If you are '
+                'absolutely certain this is intended, re-run with '
+                '--i-know-what-im-doing.'
+            )
+
+        self.stdout.write(self.style.WARNING(
+            'WARNING: this command seeds demo accounts (Rohit Singh, Neha Kumari, '
+            'Amit Sharma, and others) with a single shared hardcoded password '
+            '("Malwa@2024"). These are demo/test credentials only — do not rely on '
+            'them for anything resembling production access, and rotate/delete them '
+            'immediately if this is ever run against a real environment.'
+        ))
+        if not settings.DEBUG:
+            self.stdout.write(self.style.WARNING(
+                'DEBUG is False and --i-know-what-im-doing was passed — proceeding anyway.'
+            ))
+
         self.stdout.write('Seeding demo data...')
         self._create_roles_and_branches()
         self._create_role_permissions()

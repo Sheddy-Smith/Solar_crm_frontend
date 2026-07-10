@@ -1,6 +1,7 @@
 from django.db import models
 from apps.accounts.models import User
 from apps.projects.models import Project
+from malwa_solar.validators import validate_document_extension, validate_upload_size
 
 
 class LiaisonApplication(models.Model):
@@ -180,7 +181,7 @@ class LiaisonDocument(models.Model):
     related_id = models.IntegerField(null=True, blank=True)
     doc_type = models.CharField(max_length=50, choices=TYPE_CHOICES, default='Other')
     name = models.CharField(max_length=255)
-    file = models.FileField(upload_to='liaison_docs/%Y/%m/')
+    file = models.FileField(upload_to='liaison_docs/%Y/%m/', validators=[validate_document_extension, validate_upload_size])
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='lc_documents_uploaded')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 

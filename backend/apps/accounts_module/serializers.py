@@ -1,31 +1,12 @@
 from rest_framework import serializers
 from .models import ChartOfAccount, Account, BankAccount, Payment, Cheque, Transaction
+from .services import _default_accounts, account_for_cash_or_bank
 
 
 def _user_name(user):
     if not user:
         return ''
     return user.name or user.email
-
-
-def _default_accounts():
-    """Return default chart-of-account rows, creating them if missing."""
-    defaults = [
-        ('1110', 'Cash in Hand', 'Asset'),
-        ('1120', 'Cash at Bank', 'Asset'),
-        ('1130', 'Accounts Receivable', 'Asset'),
-        ('2110', 'Accounts Payable', 'Liability'),
-        ('4100', 'Sales Revenue', 'Income'),
-        ('5100', 'General Expenses', 'Expense'),
-    ]
-    accounts = {}
-    for code, name, acct_type in defaults:
-        obj, _ = ChartOfAccount.objects.get_or_create(
-            account_code=code,
-            defaults={'account_name': name, 'account_type': acct_type, 'is_active': True},
-        )
-        accounts[code] = obj
-    return accounts
 
 
 class ChartOfAccountSerializer(serializers.ModelSerializer):
@@ -158,9 +139,15 @@ class TransactionSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         defaults = _default_accounts()
         txn_type = validated_data.get('transaction_type')
+        # Map the payment_mode/bank_account actually chosen on this
+        # transaction to its chart-of-account row instead of always assuming
+        # the shared 'Cash at Bank' (1120) bucket (BUG-024).
+        cash_bank = account_for_cash_or_bank(
+            validated_data.get('payment_mode', ''), validated_data.get('bank_account'), defaults,
+        )
         if not validated_data.get('debit_account'):
             if txn_type == 'Payment Received':
-                validated_data['debit_account'] = defaults['1120']
+                validated_data['debit_account'] = cash_bank
             elif txn_type == 'Payment Made':
                 validated_data['debit_account'] = defaults['5100']
             else:
@@ -169,7 +156,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             if txn_type == 'Payment Received':
                 validated_data['credit_account'] = defaults['4100']
             elif txn_type == 'Payment Made':
-                validated_data['credit_account'] = defaults['1120']
+                validated_data['credit_account'] = cash_bank
             else:
                 validated_data['credit_account'] = defaults['2110']
         return super().create(validated_data)

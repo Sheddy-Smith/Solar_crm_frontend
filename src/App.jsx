@@ -13,7 +13,9 @@ import {
   lcApplicationApi, lcApprovalApi, lcInspectionApi, lcCommissioningApi, lcComplianceApi, lcDocumentApi,
   omAssetApi, omMaintenanceApi, omTicketApi, omVisitApi, omSparePartApi, omReportApi, omDocumentApi,
   inventoryApi, amcModuleApi, reportsApi, settingsApi, siteSurveyPhotoApi, siteSurveyApi,
+  getMediaUrl,
 } from './api.js';
+import { exportNotifyCsv } from './lib/utils.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -388,7 +390,7 @@ const projectSubRoutes = {
   'Project Installation': '/projects/installation',
   'Project Team Assignment': '/projects/team-assignment/:projectId',
   'Project Material Planning': '/projects/material-planning/:projectId',
-  'Subsidy': '/projects/Subsidy/:projectId',
+  'Subsidy': '/projects/subsidy/:projectId',
   'Project Work Orders': '/projects/work-orders/:projectId',
   'Project Work Order Create': '/projects/work-orders/create/:projectId',
   'Project Expenses': '/projects/expenses/:projectId',
@@ -559,6 +561,10 @@ function resolveSectionFromPath(pathname) {
   const path = normalizePathname(pathname);
   if (path === '/projects') {
     return { section: 'Project List', params: {} };
+  }
+  const subsidyMatch = path.match(/^\/projects\/[Ss]ubsidy\/(?<projectId>[^/]+)$/);
+  if (subsidyMatch) {
+    return { section: 'Subsidy', params: { projectId: subsidyMatch.groups.projectId } };
   }
 
   for (const [section, template] of Object.entries(sectionRoutes)) {
@@ -1296,45 +1302,6 @@ const reportStatusData = [
   { label: 'Lost', value: 2, percent: '1.3%', color: '#c75b64' },
 ];
 
-const projectTypeReportRows = [
-  ['5kW On-Grid', '78', '10', '12.82%'],
-  ['10kW On-Grid', '42', '5', '11.90%'],
-  ['3kW On-Grid', '24', '1', '4.17%'],
-  ['On-Grid (Other)', '12', '0', '0%'],
-];
-
-const assignedEmployeeRows = [
-  { employee: 'Rohit Singh', leads: '48', won: '8', conversion: '16.67%', assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' } },
-  { employee: 'Amit Sharma', leads: '36', won: '4', conversion: '11.11%', assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' } },
-  { employee: 'Neha Jain', leads: '28', won: '3', conversion: '10.71%', assignee: { name: 'Neha Jain', initials: 'NJ', tone: 'sky' } },
-  { employee: 'Vikram Singh', leads: '22', won: '1', conversion: '4.55%', assignee: { name: 'Vikram Singh', initials: 'VS', tone: 'emerald' } },
-];
-
-const ivrsReportRows = [
-  ['Total Unique IVRS', '142'],
-  ['Duplicate IVRS Found', '14'],
-  ['Duplicate Rate', '9.86%'],
-  ['IVRS Verified Leads', '128 (90.14%)'],
-];
-
-const userManagementRows = [
-  { id: 1, name: 'Rohit Singh', email: 'rohit.singh@malwasolar.com', mobile: '9876543210', role: 'Sales Executive', branch: 'Indore Branch', status: 'Active', createdOn: '10 May 2024', assignee: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' } },
-  { id: 2, name: 'Neha Jain', email: 'neha.jain@malwasolar.com', mobile: '9827456781', role: 'Sales Executive', branch: 'Indore Branch', status: 'Active', createdOn: '11 May 2024', assignee: { name: 'Neha Jain', initials: 'NJ', tone: 'sky' } },
-  { id: 3, name: 'Amit Sharma', email: 'amit.sharma@malwasolar.com', mobile: '9876543211', role: 'Team Leader', branch: 'Indore Branch', status: 'Active', createdOn: '08 May 2024', assignee: { name: 'Amit Sharma', initials: 'AS', tone: 'amber' } },
-  { id: 4, name: 'Vikram Singh', email: 'vikram.singh@malwasolar.com', mobile: '9753124680', role: 'Sales Executive', branch: 'Ujjain Branch', status: 'Active', createdOn: '12 May 2024', assignee: { name: 'Vikram Singh', initials: 'VS', tone: 'emerald' } },
-  { id: 5, name: 'Pooja Verma', email: 'pooja.verma@malwasolar.com', mobile: '9135782469', role: 'Sales Executive', branch: 'Dewas Branch', status: 'Inactive', createdOn: '15 May 2024', assignee: { name: 'Pooja Verma', initials: 'PV', tone: 'sky' } },
-  { id: 6, name: 'Sunil Patidar', email: 'sunil.patidar@malwasolar.com', mobile: '9827456782', role: 'Team Leader', branch: 'Ujjain Branch', status: 'Active', createdOn: '09 May 2024', assignee: { name: 'Sunil Patidar', initials: 'SP', tone: 'amber' } },
-  { id: 7, name: 'Manish Gupta', email: 'manish.gupta@malwasolar.com', mobile: '9222334455', role: 'Branch Manager', branch: 'Indore Branch', status: 'Active', createdOn: '05 May 2024', assignee: { name: 'Manish Gupta', initials: 'MG', tone: 'emerald' } },
-  { id: 8, name: 'Kavita Joshi', email: 'kavita.joshi@malwasolar.com', mobile: '9870098765', role: 'Sales Executive', branch: 'Dewas Branch', status: 'Active', createdOn: '14 May 2024', assignee: { name: 'Kavita Joshi', initials: 'KJ', tone: 'sky' } },
-  { id: 9, name: 'Jatin Agrawal', email: 'jatin.agrawal@malwasolar.com', mobile: '9340011223', role: 'Team Leader', branch: 'Dewas Branch', status: 'Inactive', createdOn: '16 May 2024', assignee: { name: 'Jatin Agrawal', initials: 'JA', tone: 'amber' } },
-  { id: 10, name: 'Admin User', email: 'admin@malwasolar.com', mobile: '9999999991', role: 'Super Admin', branch: 'Head Office', status: 'Active', createdOn: '01 May 2024', assignee: { name: 'Admin User', initials: 'AU', tone: 'emerald' } },
-  { id: 11, name: 'Priya Sharma', email: 'priya.sharma@malwasolar.com', mobile: '9812345671', role: 'Sales Executive', branch: 'Bhopal Branch', status: 'Active', createdOn: '17 May 2024', assignee: { name: 'Priya Sharma', initials: 'PS', tone: 'sky' } },
-  { id: 12, name: 'Rahul Dubey', email: 'rahul.dubey@malwasolar.com', mobile: '9023456782', role: 'Sales Executive', branch: 'Indore Branch', status: 'Active', createdOn: '18 May 2024', assignee: { name: 'Rahul Dubey', initials: 'RD', tone: 'emerald' } },
-  { id: 13, name: 'Anjali Mishra', email: 'anjali.mishra@malwasolar.com', mobile: '8765432190', role: 'Team Leader', branch: 'Bhopal Branch', status: 'Active', createdOn: '03 May 2024', assignee: { name: 'Anjali Mishra', initials: 'AM', tone: 'amber' } },
-  { id: 14, name: 'Dinesh Rawat', email: 'dinesh.rawat@malwasolar.com', mobile: '9678012345', role: 'Sales Executive', branch: 'Gwalior Branch', status: 'Active', createdOn: '19 May 2024', assignee: { name: 'Dinesh Rawat', initials: 'DR', tone: 'sky' } },
-  { id: 15, name: 'Sunita Pal', email: 'sunita.pal@malwasolar.com', mobile: '8890123456', role: 'Sales Executive', branch: 'Jabalpur Branch', status: 'Inactive', createdOn: '20 May 2024', assignee: { name: 'Sunita Pal', initials: 'SP', tone: 'emerald' } },
-];
-
 const userManagementStats = [
   { label: 'Total Users', value: '28', icon: Users, tone: 'primary' },
   { label: 'Active Users', value: '24', icon: CheckCircle2, tone: 'success' },
@@ -1349,24 +1316,6 @@ const roleCards = [
   { name: 'Team Leader', type: 'Custom Role', users: 4, icon: Users, tone: 'amber' },
   { name: 'Sales Executive', type: 'Custom Role', users: 18, icon: Users, tone: 'cyan' },
   { name: 'Viewer', type: 'Custom Role', users: 1, icon: Eye, tone: 'pink' },
-];
-
-const activityLogRows = [
-  { id: 1, time: '20 May 2024, 10:30 AM', user: userManagementRows[0], module: 'Leads', action: 'Created', details: 'Created new lead with name "Amit Sharma" (Lead ID: LEAD12345)', ip: '192.168.1.101' },
-  { id: 2, time: '20 May 2024, 10:15 AM', user: userManagementRows[1], module: 'Follow-ups', action: 'Updated', details: 'Updated follow-up for lead "Amit Sharma" (Follow-up ID: FU1234)', ip: '192.168.1.102' },
-  { id: 3, time: '20 May 2024, 09:45 AM', user: userManagementRows[2], module: 'IVRS Management', action: 'Requested', details: 'Requested new lead with IVRS Number "IVRS123456"', ip: '192.168.1.103' },
-  { id: 4, time: '20 May 2024, 09:30 AM', user: userManagementRows[9], module: 'Approvals', action: 'Approved', details: 'Approved IVRS request for lead "Sunil Patidar" (IVRS Number: IVRS789012)', ip: '192.168.1.101' },
-  { id: 5, time: '19 May 2024, 04:20 PM', user: userManagementRows[4], module: 'Leads', action: 'Edited', details: 'Edited lead "Sunil Patidar" (Lead ID: LEAD78901)', ip: '192.168.1.104' },
-  { id: 6, time: '19 May 2024, 03:10 PM', user: userManagementRows[3], module: 'Users', action: 'Created', details: 'Created new user "Manish Gupta" with role "Team Leader"', ip: '192.168.1.102' },
-  { id: 7, time: '19 May 2024, 11:05 AM', user: userManagementRows[0], module: 'Roles & Permissions', action: 'Updated', details: 'Updated permissions for role "Branch Manager"', ip: '192.168.1.101' },
-  { id: 8, time: '18 May 2024, 05:40 PM', user: userManagementRows[1], module: 'Follow-ups', action: 'Deleted', details: 'Deleted follow-up (Follow-up ID: FU5678) for lead "Kavita Joshi"', ip: '192.168.1.102' },
-  { id: 9, time: '18 May 2024, 02:30 PM', user: userManagementRows[5], module: 'Project Management', action: 'Created', details: 'Created new project "5kW On-Grid - Patidar" (Project ID: PRJ1234)', ip: '192.168.1.105' },
-  { id: 10, time: '18 May 2024, 10:20 AM', user: userManagementRows[9], module: 'Settings', action: 'Updated', details: 'Updated system settings - Follow-up reminder days set to 3', ip: '192.168.1.101' },
-  { id: 11, time: '17 May 2024, 03:15 PM', user: userManagementRows[2], module: 'Leads', action: 'Assigned', details: 'Lead "Geeta Verma" assigned to Rohit Singh (Lead ID: LEAD22345)', ip: '192.168.1.103' },
-  { id: 12, time: '17 May 2024, 01:30 PM', user: userManagementRows[7], module: 'Project Management', action: 'Updated', details: 'Updated project status to "Installation" for "15kW Hybrid - Manish Gupta"', ip: '192.168.1.108' },
-  { id: 13, time: '16 May 2024, 11:45 AM', user: userManagementRows[1], module: 'Follow-ups', action: 'Created', details: 'Created follow-up for lead "Vivek Chouhan" scheduled for 22 May 2024', ip: '192.168.1.102' },
-  { id: 14, time: '16 May 2024, 09:00 AM', user: userManagementRows[9], module: 'Users', action: 'Deactivated', details: 'Deactivated user "Pooja Verma" (User ID: USR0005)', ip: '192.168.1.101' },
-  { id: 15, time: '15 May 2024, 05:20 PM', user: userManagementRows[6], module: 'Accounts', action: 'Created', details: 'Created payment receipt RCPT-2024-0210 for Rs 5,800', ip: '192.168.1.106' },
 ];
 
 const userDetailPermissions = [
@@ -1965,6 +1914,31 @@ function App() {
     const id = Number(initialRoute.params.projectId);
     return Number.isFinite(id) && id > 0 ? { id } : null;
   });
+
+  useEffect(() => {
+    const leadId = selectedLead?.id;
+    if (!leadId || selectedLead?.customer_name) return undefined;
+    const needsLead = leadDetailPages.includes(activeSidebarItem);
+    if (!needsLead) return undefined;
+    let cancelled = false;
+    leadApi.get(leadId)
+      .then((data) => { if (!cancelled && data) setSelectedLead(data); })
+      .catch(() => { if (!cancelled) notify('Could not load lead details.', 'error'); });
+    return () => { cancelled = true; };
+  }, [activeSidebarItem, selectedLead?.id, selectedLead?.customer_name]);
+
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId || selectedProject?.project_name) return undefined;
+    const needsProject = projectDetailPages.includes(activeSidebarItem);
+    if (!needsProject) return undefined;
+    let cancelled = false;
+    projectApi.get(projectId)
+      .then((data) => { if (!cancelled && data) setSelectedProject(data); })
+      .catch(() => { if (!cancelled) notify('Could not load project details.', 'error'); });
+    return () => { cancelled = true; };
+  }, [activeSidebarItem, selectedProject?.id, selectedProject?.project_name]);
+
   const [globalSearch, setGlobalSearch] = useState('');
   const [dashboardStats, setDashboardStats] = useState(() => stats.map((s) => ({ ...s, value: '—', delta: '' })));
   const [dashboardLeadStats, setDashboardLeadStats] = useState({});
@@ -2056,7 +2030,7 @@ function App() {
           return s;
         }),
       );
-    }).catch(() => {});
+    }).catch(() => notify('Dashboard lead stats could not be loaded.', 'error'));
   }, [dashboardPeriod, dashboardPeriodAnchor]);
 
   useEffect(() => {
@@ -2070,7 +2044,7 @@ function App() {
     projectApi.summary().then((data) => {
       if (!data) return;
       setDashboardProjectSummary(data);
-    }).catch(() => {});
+    }).catch(() => notify('Project summary could not be loaded.', 'error'));
 
     accountsModuleApi.summary().then((data) => {
       if (!data) return;
@@ -2081,7 +2055,7 @@ function App() {
             : s,
         ),
       );
-    }).catch(() => {});
+    }).catch(() => notify('Accounts summary could not be loaded.', 'error'));
 
     leadApi.todayFollowUps().then((data) => {
       const rows = Array.isArray(data) ? data : (data?.results ?? []);
@@ -2101,7 +2075,7 @@ function App() {
           nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
         })),
       );
-    }).catch(() => {});
+    }).catch(() => notify('Today\'s follow-ups could not be loaded.', 'error'));
 
     leadApi.recent().then((data) => {
       const rows = Array.isArray(data) ? data : (data?.results ?? []);
@@ -2119,7 +2093,7 @@ function App() {
         createdOn: lead.created_at_display || '—',
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
       })));
-    }).catch(() => {});
+    }).catch(() => notify('Recent leads could not be loaded.', 'error'));
 
     leadApi.overdue().then((data) => {
       const rows = Array.isArray(data) ? data : (data?.results ?? []);
@@ -2133,7 +2107,7 @@ function App() {
           delay: diffDays <= 0 ? 'Today Overdue' : diffDays === 1 ? '1 Day Overdue' : `${diffDays} Days Overdue`,
         };
       }));
-    }).catch(() => {});
+    }).catch(() => notify('Overdue leads could not be loaded.', 'error'));
   }, [currentPage]);
 
   const openDashboardSection = (section, message, lead, tab) => {
@@ -2646,7 +2620,7 @@ function App() {
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
                                     setMobileSidebarOpen(false);
-                                    notify(`${subItem} opened. Route can be connected later.`);
+                                    notify(`${subItem} opened`);
                                   }}
                                   className={cx(
                                     'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
@@ -2954,7 +2928,7 @@ function App() {
             ) : activeSidebarItem === 'Settings IP Restrictions' ? (
               <SettingsIpRestrictionsPage activeSection="Settings IP Restrictions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Users' ? (
-              <UserManagementPage activeSection="Users" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} loggedInUser={loggedInUser} />
+              <SettingsUsersPage activeSection="Settings Users" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : employeeRelatedPages.includes(activeSidebarItem) ? (
               <EmployeeManagementPage
                 activeSection={activeSidebarItem}
@@ -2965,7 +2939,7 @@ function App() {
                 onNotify={notify}
               />
             ) : activeSidebarItem === 'Roles & Permissions' ? (
-              <RolesPermissionsPage activeSection="Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} loggedInUser={loggedInUser} />
+              <SettingsRolesPermissionsPage activeSection="Settings Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Activity Logs' ? (
               <ActivityLogsPage activeSection="Activity Logs" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Reports' ? (
@@ -8723,10 +8697,11 @@ function AccountsSubnavTabs({ activeSection, onOpenSection }) {
 }
 
 function InventorySubnavTabs({ activeSection, onOpenSection }) {
+  const resolvedSection = activeSection === 'Overview' || activeSection === 'Inventory' ? 'Inventory Overview' : activeSection;
   return (
     <HorizontalModuleTabs
       items={inventorySubItems}
-      activeSection={activeSection}
+      activeSection={resolvedSection}
       onOpenSection={onOpenSection}
       activeClasses="border-[#d7f4ea] bg-[#f2fffb] text-[#0f766e] ring-2 ring-[#e7faf8]"
       activeDotClass="bg-[#0f766e]"
@@ -8834,7 +8809,11 @@ function LiaisoningCommissioningPage({ activeSection, onOpenSection, onNotify })
         'compliance-detail': 'Compliance',
         'document-upload': 'Documents',
         'document-preview': 'Documents',
-        reports: 'Applications',
+        // BUG-011: previously resolved to 'Applications', which is a different
+        // concept entirely. There's no dedicated liaison-reports analytics page,
+        // but "reports" here means inspection/commissioning/compliance report
+        // documents, which the real Documents list already shows.
+        reports: 'Documents',
       }[actionType] ?? 'Applications')
     : activeSection;
 
@@ -8860,6 +8839,10 @@ function LiaisoningCommissioningPage({ activeSection, onOpenSection, onNotify })
 
   if (section === 'Documents') {
     return <LiaisonDocumentsPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (section === 'Subsidy') {
+    return <ProjectSubsidyPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   return <OperationsPlaceholderPage moduleTitle="Liaisoning & Commissioning" activeSection={section} items={liaisonSubItems} onOpenSection={onOpenSection} onNotify={onNotify} accent="green" />;
@@ -8959,7 +8942,7 @@ function LcDocumentsSection({ moduleName, relatedId, projectId, onNotify, docApi
           {docs.map((doc) => (
             <div key={doc.id} className="flex items-center gap-2 rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px]">
               <FileText className="size-4 shrink-0 text-[#7a8fa6]" />
-              <a href={doc.file} download target="_blank" rel="noreferrer" className="flex-1 truncate text-[#0b65e5] hover:underline">{doc.name}</a>
+              <a href={getMediaUrl(doc.file)} download target="_blank" rel="noreferrer" className="flex-1 truncate text-[#0b65e5] hover:underline">{doc.name}</a>
               <button
                 type="button"
                 onClick={() => docApi.delete(doc.id).then(() => { loadDocs(); onNotify('Document deleted.', 'success'); }).catch(() => onNotify('Delete failed.', 'error'))}
@@ -9011,6 +8994,7 @@ function LcChecklistSection({ record, api, onNotify, onSaved }) {
 function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const PAGE_SIZE = 10;
   const extraFilters = config.extraFilters || [];
+  const statuses = config.statuses || [];
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [extraFilterValues, setExtraFilterValues] = useState({});
@@ -9051,7 +9035,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     });
     config.api.list(params)
       .then((r) => { setRows(normalizeApiRows(r)); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((e) => { setRows([]); setLoading(false); onNotify(e.message || `Could not load ${config.title.toLowerCase()}.`, 'error'); });
   }, [filterStatus, serverFilterValues]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { loadRows(); }, [loadRows]);
@@ -9243,10 +9227,10 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          {config.statuses.length > 0 && (
+          {statuses.length > 0 && (
             <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
               <option value="">All Statuses</option>
-              {config.statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+              {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           )}
           {extraFilters.map((f) => (
@@ -9865,7 +9849,7 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <button type="button" title="View" onClick={() => { setReplaceFile(null); setViewDoc(doc); }} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3.5" /></button>
-                          <a href={doc.file} download target="_blank" rel="noreferrer" title="Download" className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3.5" /></a>
+                          <a href={getMediaUrl(doc.file)} download target="_blank" rel="noreferrer" title="Download" className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3.5" /></a>
                           <button type="button" title="Delete" onClick={() => confirmDeleteDoc(doc)} className="grid size-7 place-items-center rounded-[6px] border border-[#fecaca] text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
                         </div>
                       </td>
@@ -9927,14 +9911,14 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
           footer={
             <>
               <button type="button" onClick={() => confirmDeleteDoc(viewDoc)} className="h-9 rounded-[8px] border border-[#fecaca] px-4 text-[13px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Delete</button>
-              <a href={viewDoc.file} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
+              <a href={getMediaUrl(viewDoc.file)} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
               <button type="button" onClick={() => setViewDoc(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
             </>
           }
         >
           <div className="space-y-4">
             {isImage(viewDoc.file) ? (
-              <img src={viewDoc.file} alt={viewDoc.name} className="max-h-[320px] w-full rounded-[10px] border border-[#e5eaf2] object-contain bg-[#f8fafc]" />
+              <img src={getMediaUrl(viewDoc.file)} alt={viewDoc.name} className="max-h-[320px] w-full rounded-[10px] border border-[#e5eaf2] object-contain bg-[#f8fafc]" />
             ) : (
               <div className="flex items-center gap-3 rounded-[10px] border border-[#e5eaf2] bg-[#f8fafc] p-4">
                 <FileText className="size-8 shrink-0 text-[#7a8fa6]" />
@@ -10068,7 +10052,12 @@ function OmPage({ activeSection, onOpenSection, onNotify }) {
   if (activeSection === 'O&M Reports') {
     return <OmReportsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
-  // 'Maintenance Tasks' + legacy sections ('O&M Overview', 'Energy Performance') land here
+  if (activeSection === 'Energy Performance') {
+    // Energy performance fields (generated/consumed kWh, PR, specific yield) live on
+    // the Asset record itself (BUG-010) — Asset Management is where they're editable.
+    return <OmAssetManagementPage activeSection="Asset Management" onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  // 'Maintenance Tasks' + legacy section ('O&M Overview') land here
   return <OmMaintenanceTasksPage activeSection="Maintenance Tasks" onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
@@ -10469,7 +10458,7 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
                         <div className="flex items-center gap-1">
                           <button type="button" title="View" onClick={() => setViewItem(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3.5" /></button>
                           {item.file && (
-                            <a href={item.file} download target="_blank" rel="noreferrer" title="Download" className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3.5" /></a>
+                            <a href={getMediaUrl(item.file)} download target="_blank" rel="noreferrer" title="Download" className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3.5" /></a>
                           )}
                           <button type="button" title="Delete" onClick={() => confirmDeleteReport(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#fecaca] text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
                         </div>
@@ -10528,7 +10517,7 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
           footer={
             <>
               {viewItem.file && (
-                <a href={viewItem.file} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
+                <a href={getMediaUrl(viewItem.file)} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
               )}
               <button type="button" onClick={() => confirmDeleteReport(viewItem)} className="h-9 rounded-[8px] border border-[#fecaca] px-4 text-[13px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Delete</button>
               <button type="button" onClick={() => setViewItem(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
@@ -11615,12 +11604,12 @@ function InventoryOverviewPage({ activeSection, onOpenSection, onNotify }) {
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const cards = stats ? [
-    { label: 'Total Products', value: String(stats.total_items ?? 0), caption: 'Active SKUs', tone: 'blue', icon: Boxes, onClick: () => onOpenSection('Products') },
-    { label: 'Low Stock', value: String(stats.low_stock ?? 0), caption: 'Below minimum level', tone: 'amber', icon: AlertTriangle, onClick: () => onOpenSection('Products') },
-    { label: 'Out of Stock', value: String(stats.out_of_stock ?? 0), caption: 'Needs restock', tone: 'red', icon: AlertTriangle, onClick: () => onOpenSection('Stock Inward') },
-    { label: 'Stock Value', value: fmtInvRs(stats.total_value), caption: 'Current inventory value', tone: 'green', icon: IndianRupee, onClick: () => onOpenSection('Products') },
-  ] : [];
+  const cards = [
+    { label: 'Total Products', value: String(stats?.total_items ?? 0), caption: 'Active SKUs', tone: 'blue', icon: Boxes, onClick: () => onOpenSection('Products') },
+    { label: 'Low Stock', value: String(stats?.low_stock ?? 0), caption: 'Below minimum level', tone: 'amber', icon: AlertTriangle, onClick: () => onOpenSection('Products') },
+    { label: 'Out of Stock', value: String(stats?.out_of_stock ?? 0), caption: 'Needs restock', tone: 'red', icon: AlertTriangle, onClick: () => onOpenSection('Stock Inward') },
+    { label: 'Stock Value', value: fmtInvRs(stats?.total_value), caption: 'Current inventory value', tone: 'green', icon: IndianRupee, onClick: () => onOpenSection('Products') },
+  ];
 
   return (
     <div className="space-y-4">
@@ -11669,6 +11658,7 @@ function InventoryOverviewPage({ activeSection, onOpenSection, onNotify }) {
 function InventoryProductsCrudPage({ activeSection, onOpenSection, onNotify }) {
   const config = {
     moduleTitle: 'Inventory', Subnav: InventorySubnavTabs, title: 'Products', recordLabel: 'Product', newLabel: 'Add Product',
+    statuses: [],
     api: inventoryApi.items,
     extraFilters: [
       { key: 'category', label: 'All Categories', options: INV_CATEGORIES, client: false },
@@ -11715,6 +11705,7 @@ function InventoryMovementPage({ movementType, activeSection, onOpenSection, onN
 
   const config = {
     moduleTitle: 'Inventory', Subnav: InventorySubnavTabs, title: titles[movementType], recordLabel: 'Movement', newLabel: `New ${titles[movementType]}`,
+    statuses: [],
     api: inventoryApi.movements, listParams: { movement_type: movementType }, fixedFields: { movement_type: movementType },
     searchKeys: ['reference', 'notes', 'item_name'],
     lookups: {
@@ -11755,6 +11746,7 @@ function InventoryMovementPage({ movementType, activeSection, onOpenSection, onN
 function InventoryWarehousesCrudPage({ activeSection, onOpenSection, onNotify }) {
   const config = {
     moduleTitle: 'Inventory', Subnav: InventorySubnavTabs, title: 'Warehouses', recordLabel: 'Warehouse', newLabel: 'Add Warehouse',
+    statuses: [],
     api: inventoryApi.warehouses, searchKeys: ['name', 'location'],
     columns: [
       { label: 'Code', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
@@ -12051,9 +12043,50 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     );
   }
 
+  // BUG-007: these action routes used to render ProjectActionPage — a static
+  // demo form (hardcoded read-only values, Save just toasted) for ~15 project
+  // sub-actions. Redirect to the real list/detail page for that entity instead,
+  // same pattern already used for 'Project Document Upload' above: the actual
+  // create/edit flows live in tabs/modals on those pages.
   const actionType = projectActionPageTypes[activeSection];
   if (actionType && actionType !== 'document-upload') {
-    return <ProjectActionPage type={actionType} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    const projectScopedTarget = {
+      activity: 'Project Details',
+      note: 'Project Details',
+      'progress-update': 'Project Timeline',
+    }[actionType];
+    if (projectScopedTarget) {
+      if (selectedProject?.id) {
+        if (projectScopedTarget === 'Project Details') {
+          return <ProjectDetailsPage activeSection="Project Details" onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
+        }
+        return <ProjectTimelinePage activeSection="Project Timeline" onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
+      }
+      return <ProjectListPage activeSection="Project List" onOpenSection={onOpenSection} onSelectProject={(project, target = projectScopedTarget) => onSelectProject?.(project, target)} onNotify={onNotify} />;
+    }
+    const directTarget = {
+      create: 'Project List',
+      'team-add': 'Project Team Assignment',
+      'work-order': 'Project Work Orders',
+      'expense-create': 'Project Expenses',
+      'expense-detail': 'Project Expenses',
+      'document-preview': 'Project Documents',
+      'folder-create': 'Project Documents',
+      'approval-create': 'Project Approvals',
+      'approval-detail': 'Project Approvals',
+      'custom-report': 'Project Reports',
+      'report-detail': 'Project Reports',
+      'report-schedule': 'Project Reports',
+    }[actionType] ?? 'Project List';
+    return (
+      <ProjectManagementPage
+        activeSection={directTarget}
+        onOpenSection={onOpenSection}
+        selectedProject={selectedProject}
+        onSelectProject={onSelectProject}
+        onNotify={onNotify}
+      />
+    );
   }
 
   if (activeSection === 'Project Management' || activeSection === 'Project Overview') {
@@ -12121,7 +12154,36 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project Reports') {
-    return <ProjectReportsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    if (selectedProject?.id) {
+      return (
+        <ProjectReportPage
+          activeSection="Project Report View"
+          onOpenSection={onOpenSection}
+          project={selectedProject}
+          onNotify={onNotify}
+        />
+      );
+    }
+    return (
+      <div className="space-y-4">
+        <PageHeading
+          title="Project Reports"
+          crumbs={[
+            { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+            { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+            { label: 'Project Reports' },
+          ]}
+        />
+        <article className={`${panelClass} p-8 text-center`}>
+          <p className="text-[15px] font-extrabold text-[#1e3261]">Select a project to view its report</p>
+          <p className="mt-2 text-[13px] font-bold text-[#53647f]">Open a project from Project List, then return here for the live project report.</p>
+          <button type="button" onClick={() => onOpenSection('Project List')} className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0e9748]">
+            Go to Project List
+          </button>
+        </article>
+        <DashboardFooter />
+      </div>
+    );
   }
 
   return <ProjectModulePlaceholderPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
@@ -13776,7 +13838,7 @@ function SurveyPhotoSlot({ label, optional, photo, uploading, onUpload, onDelete
       </div>
       <div className="mt-2 aspect-square overflow-hidden rounded-[8px] bg-[#f4f7fb]">
         {photo ? (
-          <img src={photo.image} alt={label} className="h-full w-full object-cover" />
+          <img src={getMediaUrl(photo.image)} alt={label} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full items-center justify-center text-[#c3ccdb]">
             <Camera className="size-6" />
@@ -14423,362 +14485,6 @@ function ProjectProgressBar({ value, color, compact = false }) {
       <span className={cx('mt-2 block overflow-hidden rounded-full bg-[#e7eef7]', compact ? 'h-[6px]' : 'h-[7px]')}>
         <span className={cx('block h-full rounded-full', toneClass)} style={{ width: `${Math.max(0, Math.min(value, 100))}%` }} />
       </span>
-    </div>
-  );
-}
-
-function ProjectActionPage({ type, onOpenSection, onNotify }) {
-  const config = {
-    create: {
-      title: 'Create Project',
-      route: projectSubRoutes['Project Create'],
-      icon: FolderKanban,
-      saveLabel: 'Save Project',
-      note: 'Create a new solar project and set the customer, site, capacity and manager details.',
-      fields: [
-        ['Project Name', '20kW On-Grid System'],
-        ['Customer', 'Amit Sharma'],
-        ['Site Location', 'Indore, MP'],
-        ['Project Type', 'On-Grid'],
-        ['Capacity', '20.00 KWp'],
-        ['Project Manager', 'Rohit Singh'],
-      ],
-      textLabel: 'Project Scope',
-      textValue: 'Rooftop on-grid installation with material planning, team assignment and commissioning milestones.',
-    },
-    activity: {
-      title: 'Add Project Activity',
-      route: projectSubRoutes['Project Activity Create'],
-      icon: ClipboardPlus,
-      saveLabel: 'Save Activity',
-      note: 'Add a project activity with its owner and due date.',
-      fields: [
-        ['Activity Type', 'Site Update'],
-        ['Category', 'Execution'],
-        ['Owner', 'Rohit Singh'],
-        ['Status', 'In Progress'],
-        ['Due Date', '20 Jun 2026'],
-        ['Priority', 'Medium'],
-      ],
-      textLabel: 'Activity Notes',
-      textValue: 'Add activity update with next action and owner responsibility.',
-    },
-    note: {
-      title: 'Add Project Note',
-      route: projectSubRoutes['Project Note Create'],
-      icon: MessageSquareMore,
-      saveLabel: 'Save Note',
-      note: 'Add an internal note visible to the project team.',
-      fields: [
-        ['Note Type', 'Internal'],
-        ['Category', 'Execution'],
-        ['Created By', 'Rohit Singh'],
-        ['Priority', 'High'],
-        ['Pinned', 'No'],
-        ['Visibility', 'Project Team'],
-      ],
-      textLabel: 'Note',
-      textValue: 'Customer asked for installation photos and progress update by evening.',
-    },
-    'team-add': {
-      title: 'Add Team Member',
-      route: projectSubRoutes['Project Team Add'],
-      icon: UsersRound,
-      saveLabel: 'Add Member',
-      note: 'Assign a project team member and set their access level.',
-      fields: [
-        ['Employee', 'Amit Sharma'],
-        ['Role', 'Site Engineer'],
-        ['Department', 'Engineering'],
-        ['Access Level', 'Edit Access'],
-        ['Start Date', '20 Jun 2026'],
-        ['Notify Member', 'Yes'],
-      ],
-      textLabel: 'Assignment Note',
-      textValue: 'Please handle site survey closure and installation readiness checklist.',
-    },
-    'progress-update': {
-      title: 'Update Project Progress',
-      route: projectSubRoutes['Project Progress Update'],
-      icon: CheckCircle2,
-      saveLabel: 'Update Progress',
-      note: 'Update milestone progress and maintain the status history.',
-      fields: [
-        ['Current Progress', '58%'],
-        ['New Progress', '65%'],
-        ['Milestone', 'Procurement'],
-        ['Owner', 'Rohit Singh'],
-        ['Updated On', '16 Jun 2026'],
-        ['Notify Customer', 'No'],
-      ],
-      textLabel: 'Progress Remarks',
-      textValue: 'Partial material received. Installation can start after structure dispatch.',
-    },
-    'work-order': {
-      title: 'Create Work Order',
-      route: projectSubRoutes['Project Work Order Create'],
-      icon: ClipboardPlus,
-      saveLabel: 'Save Work Order',
-      note: 'Create a work order for an installation or electrical task.',
-      fields: [
-        ['Work Order ID', 'WO-2024-0006'],
-        ['Task', 'Panel Installation'],
-        ['Category', 'Installation'],
-        ['Assignee', 'Ramesh Yadav'],
-        ['Priority', 'High'],
-        ['Due Date', '20 Jun 2026'],
-      ],
-      textLabel: 'Work Instructions',
-      textValue: 'Complete panel mounting, torque check and site photo upload before marking completed.',
-    },
-    'expense-create': {
-      title: 'Add Project Expense',
-      route: projectSubRoutes['Project Expense Create'],
-      icon: IndianRupee,
-      saveLabel: 'Save Expense',
-      note: 'Add a project expense and capture vendor/payment details.',
-      fields: [
-        ['Expense Category', 'Installation'],
-        ['Vendor', 'EnerTech Solutions'],
-        ['Invoice No.', 'INV-1002'],
-        ['Amount', 'Rs 28,500'],
-        ['Payment Status', 'Pending'],
-        ['Payment Mode', 'Bank Transfer'],
-      ],
-      textLabel: 'Expense Description',
-      textValue: 'Mounting structure and installation consumables for 20kW project.',
-    },
-    'expense-detail': {
-      title: 'Project Expense Details',
-      route: projectSubRoutes['Project Expense Details'],
-      icon: ReceiptText,
-      saveLabel: 'Update Expense',
-      note: 'Review the invoice, payment status and approval details.',
-      fields: [
-        ['Expense ID', 'EXP-2024-0002'],
-        ['Invoice', 'INV-1002.pdf'],
-        ['Vendor', 'EnerTech Solutions'],
-        ['Amount', 'Rs 28,500'],
-        ['Status', 'Paid'],
-        ['Approved By', 'Rohit Singh'],
-      ],
-      textLabel: 'Expense Notes',
-      textValue: 'Invoice verified against work order and material receipt.',
-    },
-    'document-upload': {
-      title: 'Upload Project Document',
-      route: projectSubRoutes['Project Document Upload'],
-      icon: ArrowUpRight,
-      saveLabel: 'Upload Document',
-      note: 'Upload a project document and set its category/access.',
-      fields: [
-        ['Document Type', 'Technical Document'],
-        ['Category', 'Site Survey'],
-        ['Access', 'Project Team'],
-        ['Uploaded By', 'Rohit Singh'],
-        ['Version', 'v1.0'],
-        ['Status', 'Pending Review'],
-      ],
-      textLabel: 'Document Notes',
-      textValue: 'Attach latest signed site survey report and supporting photos.',
-    },
-    'document-preview': {
-      title: 'Project Document Preview',
-      route: projectSubRoutes['Project Document Preview'],
-      icon: FileText,
-      saveLabel: 'Update Document',
-      note: 'Review the document preview, status and access details.',
-      fields: [
-        ['Document', 'Site Survey Report.pdf'],
-        ['Category', 'Project Documents'],
-        ['File Type', 'PDF'],
-        ['Size', '2.45 MB'],
-        ['Access', 'Public'],
-        ['Status', 'Approved'],
-      ],
-      textLabel: 'Document Review Note',
-      textValue: 'Document is ready for project team reference.',
-    },
-    'folder-create': {
-      title: 'Create Project Folder',
-      route: projectSubRoutes['Project Folder Create'],
-      icon: FolderKanban,
-      saveLabel: 'Create Folder',
-      note: 'Create a new folder/category for project documents.',
-      fields: [
-        ['Folder Name', 'Installation Photos'],
-        ['Parent Folder', 'Project Documents'],
-        ['Access', 'Project Team'],
-        ['Owner', 'Rohit Singh'],
-        ['Default Status', 'Active'],
-        ['Retention', 'Project Lifetime'],
-      ],
-      textLabel: 'Folder Notes',
-      textValue: 'Use this folder for day-wise installation photo uploads.',
-    },
-    'approval-create': {
-      title: 'New Project Approval',
-      route: projectSubRoutes['Project Approval Create'],
-      icon: ShieldCheck,
-      saveLabel: 'Submit Approval',
-      note: 'Create an approval request and assign an approver.',
-      fields: [
-        ['Approval Type', 'Technical'],
-        ['Title', 'Installation Plan'],
-        ['Requester', 'Rohit Singh'],
-        ['Approver', 'Amit Joshi'],
-        ['Priority', 'High'],
-        ['Due Date', '22 Jun 2026'],
-      ],
-      textLabel: 'Approval Reason',
-      textValue: 'Installation plan approval required before site execution starts.',
-    },
-    'approval-detail': {
-      title: 'Project Approval Details',
-      route: projectSubRoutes['Project Approval Details'],
-      icon: ShieldCheck,
-      saveLabel: 'Update Approval',
-      note: 'Review the approval status, approver and decision trail.',
-      fields: [
-        ['Approval ID', 'APR-2024-0027'],
-        ['Title', 'Site Survey Report'],
-        ['Category', 'Technical'],
-        ['Status', 'Approved'],
-        ['Requested By', 'Vikram Singh'],
-        ['Approver', 'Amit Joshi'],
-      ],
-      textLabel: 'Approval Notes',
-      textValue: 'Approval completed. Document can be used for next execution step.',
-    },
-    'custom-report': {
-      title: 'Create Custom Report',
-      route: projectSubRoutes['Project Custom Report Create'],
-      icon: BarChart3,
-      saveLabel: 'Create Report',
-      note: 'Open the custom project report builder.',
-      fields: [
-        ['Report Name', 'Custom Site Margin Report'],
-        ['Report Category', 'Custom Reports'],
-        ['Format', 'XLSX'],
-        ['Date Range', 'Jun 2026'],
-        ['Owner', 'Neha Jain'],
-        ['Schedule', 'No'],
-      ],
-      textLabel: 'Report Description',
-      textValue: 'Combine project cost, vendor, milestone and margin data.',
-    },
-    'report-detail': {
-      title: 'Project Report Details',
-      route: projectSubRoutes['Project Report Details'],
-      icon: FileText,
-      saveLabel: 'Regenerate Report',
-      note: 'Review generated report details, download status and ownership.',
-      fields: [
-        ['Report', 'Project Progress Report - Jun 2026'],
-        ['Category', 'Project Reports'],
-        ['Format', 'PDF'],
-        ['Generated By', 'Rohit Singh'],
-        ['Status', 'Completed'],
-        ['Downloads', '28'],
-      ],
-      textLabel: 'Report Notes',
-      textValue: 'Report includes progress, timeline, material and approval summaries.',
-    },
-    'report-schedule': {
-      title: 'Schedule Project Report',
-      route: projectSubRoutes['Project Report Schedule'],
-      icon: CalendarDays,
-      saveLabel: 'Schedule Report',
-      note: 'Set a schedule for project, financial or operational reports.',
-      fields: [
-        ['Report Type', 'Project Progress Report'],
-        ['Frequency', 'Weekly'],
-        ['Format', 'PDF'],
-        ['Recipients', 'Operations Team'],
-        ['Start Date', '20 Jun 2026'],
-        ['Status', 'Active'],
-      ],
-      textLabel: 'Report Notes',
-      textValue: 'Send weekly progress report with milestone, expense and material status.',
-    },
-  }[type];
-
-  const Icon = config.icon;
-  const activeSubcategory = {
-    create: 'Project List',
-    activity: 'Project Details',
-    note: 'Project Details',
-    'team-add': 'Project Team Assignment',
-    'progress-update': 'Project Timeline',
-    'work-order': 'Project Work Orders',
-    'expense-create': 'Project Expenses',
-    'expense-detail': 'Project Expenses',
-    'document-upload': 'Project Documents',
-    'document-preview': 'Project Documents',
-    'folder-create': 'Project Documents',
-    'approval-create': 'Project Approvals',
-    'approval-detail': 'Project Approvals',
-    'custom-report': 'Project Reports',
-    'report-detail': 'Project Reports',
-    'report-schedule': 'Project Reports',
-  }[type] ?? 'Project Overview';
-
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title={config.title}
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: config.title },
-        ]}
-        actions={(
-          <>
-            <button type="button" onClick={() => onOpenSection('Project List')} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><ChevronLeft className="size-4" />Project List</button>
-            <button type="button" onClick={() => onNotify(`${config.title} saved`)} data-route={config.route} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"><Save className="size-4" />{config.saveLabel}</button>
-          </>
-        )}
-      />
-
-      <ProjectSubnavTabs activeSection={activeSubcategory} onOpenSection={onOpenSection} />
-
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <article className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex items-start gap-4 rounded-[12px] border border-[#edf2f8] bg-[#fbfdff] p-4">
-            <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#effbf3] text-[#0d9f4a]"><Icon className="size-5" /></span>
-            <div>
-              <p className="font-display text-[18px] font-extrabold text-[#06135a]">{config.title}</p>
-              <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">{config.note}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {config.fields.map(([label, value]) => <ReadonlyField key={label} label={label} value={value} />)}
-            <label className="block md:col-span-2">
-              <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{config.textLabel}</span>
-              <textarea defaultValue={config.textValue} rows={5} className="w-full rounded-[8px] border border-black/20 bg-white px-4 py-3 text-[13px] font-bold leading-6 text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
-            </label>
-          </div>
-        </article>
-
-        <aside className="space-y-4">
-          <InfoPanel title="Project Summary" icon={FolderKanban} tone="success">
-            <DetailRow label="Project ID" value="PRJ-2024-0001" />
-            <DetailRow label="Customer" value="Amit Sharma" />
-            <DetailRow label="Capacity" value="20.00 KWp" />
-            <DetailRow label="Status" valueNode={<ProjectPhaseBadge label="In Progress" />} />
-          </InfoPanel>
-          <InfoPanel title="Quick Navigation" icon={Zap} tone="primary">
-            <div className="grid gap-3">
-              <MiniActionButton label="Project Details" icon={Eye} tone="blue" onClick={() => onOpenSection('Project Details')} />
-              <MiniActionButton label="Work Orders" icon={ClipboardPlus} tone="green" onClick={() => onOpenSection('Project Work Orders')} />
-              <MiniActionButton label="Reports" icon={BarChart3} tone="purple" onClick={() => onOpenSection('Project Reports')} />
-            </div>
-          </InfoPanel>
-        </aside>
-      </section>
-
-      <DashboardFooter />
     </div>
   );
 }
@@ -17389,7 +17095,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                       <span className="mt-0.5 block text-[11px] font-bold text-[#53647f]">{doc.meta}</span>
                     </span>
                     {doc.file ? (
-                      <a href={doc.file} target="_blank" rel="noreferrer" className="inline-flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5] transition hover:bg-[#f8fbff]" aria-label={`Download ${doc.name}`}>
+                      <a href={getMediaUrl(doc.file)} target="_blank" rel="noreferrer" className="inline-flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5] transition hover:bg-[#f8fbff]" aria-label={`Download ${doc.name}`}>
                         <Download className="size-4" />
                       </a>
                     ) : (
@@ -19286,9 +18992,9 @@ function SiteSurveyDocumentUploads({ projectId, documents = [], categories = SUR
                 {categoryDocs.length === 0 ? (
                   <p className="col-span-3 text-[14px] font-bold text-[#8a98af]">No files uploaded yet.</p>
                 ) : categoryDocs.map((doc) => (
-                  <a key={doc.id} href={doc.file} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-1 rounded-[8px] border border-[#e7eef7] bg-white p-2 text-center transition hover:border-[#0b65e5]">
+                  <a key={doc.id} href={getMediaUrl(doc.file)} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-1 rounded-[8px] border border-[#e7eef7] bg-white p-2 text-center transition hover:border-[#0b65e5]">
                     {isImageFileName(doc.name || doc.file) ? (
-                      <img src={doc.file} alt={doc.name} className="h-14 w-full rounded-[6px] object-cover" />
+                      <img src={getMediaUrl(doc.file)} alt={doc.name} className="h-14 w-full rounded-[6px] object-cover" />
                     ) : (
                       <FileText className="size-6 text-[#7386a3]" />
                     )}
@@ -19498,7 +19204,7 @@ function ProjectDocumentsTable({
                         <Save className="size-4" />
                       </button>
                       {doc.file ? (
-                        <a href={doc.file} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${doc.name}`}>
+                        <a href={getMediaUrl(doc.file)} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#dce6f3] bg-white text-[#0b65e5]" aria-label={`Download ${doc.name}`}>
                           <Download className="size-4" />
                         </a>
                       ) : null}
@@ -19823,7 +19529,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
     { label: 'Pending', value: String(tasksPending), caption: 'Remaining tasks', icon: Hourglass, tone: 'amber' },
     { label: 'Workforce', value: String(workforce), caption: 'Team members', icon: Users, tone: 'cyan' },
     { label: 'Progress', value: `${avgProgress}%`, caption: 'Average task progress', icon: BarChart3, tone: 'purple' },
-    { label: 'Safety Score', value: safetyItems.length ? `${safetyScore}%` : 'â€”', caption: `${safetyDone}/${safetyItems.length} items`, icon: ShieldCheck, tone: 'green' },
+    { label: 'Safety Score', value: safetyItems.length ? `${safetyScore}%` : '—', caption: `${safetyDone}/${safetyItems.length} items`, icon: ShieldCheck, tone: 'green' },
   ];
 
   // â”€â”€ Summary computed â”€â”€
@@ -19899,7 +19605,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                 {selectedProject.capacity_kwp ? (
                   <span className="rounded-full bg-[#eef5ff] px-3 py-1 text-[12px] font-extrabold text-[#0b65e5]">{selectedProject.capacity_kwp} kWp</span>
                 ) : null}
-                <ProjectInfoPill tone={projStatusTone(selectedProject.status)} label={selectedProject.status || 'â€”'} />
+                <ProjectInfoPill tone={projStatusTone(selectedProject.status)} label={selectedProject.status || '—'} />
                 <span className="text-[12px] font-bold text-[#53647f]">Progress: <span className="font-extrabold text-[#111827]">{selectedProject.progress_percent ?? 0}%</span></span>
               </div>
             </div>
@@ -19971,7 +19677,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                             {(m.user_initials || (m.user_name || 'U').slice(0, 2)).toUpperCase()}
                           </span>
                           <div className="min-w-0">
-                            <p className="truncate text-[13px] font-extrabold text-[#111827]">{m.user_name || 'â€”'}</p>
+                            <p className="truncate text-[13px] font-extrabold text-[#111827]">{m.user_name || '—'}</p>
                             <p className="truncate text-[11px] font-bold text-[#53647f]">{m.role_title || 'Team Member'}</p>
                           </div>
                         </div>
@@ -19982,7 +19688,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
 
                   <article className={`${panelClass} p-4`}>
                     <p className="text-[12px] font-extrabold text-[#53647f]">Current Status</p>
-                    <p className="mt-1 text-[15px] font-extrabold text-[#111827]">{projectData?.status || 'â€”'}</p>
+                    <p className="mt-1 text-[15px] font-extrabold text-[#111827]">{projectData?.status || '—'}</p>
                     <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[#edf2f8]">
                       <div className="h-full rounded-full bg-[#0d9f4a] transition-all" style={{ width: `${avgProgress}%` }} />
                     </div>
@@ -20014,9 +19720,9 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                     ) : tasks.map((t) => (
                       <tr key={t.id}>
                         <td className="font-extrabold text-[#111827]">{t.title}</td>
-                        <td>{t.owner_name || 'â€”'}</td>
-                        <td>{t.start_date || 'â€”'}</td>
-                        <td>{t.end_date || 'â€”'}</td>
+                        <td>{t.owner_name || '—'}</td>
+                        <td>{t.start_date || '—'}</td>
+                        <td>{t.end_date || '—'}</td>
                         <td><ProjectInfoPill tone={taskStatusTone(t.status)} label={t.status} /></td>
                         <td>
                           <div className="flex items-center gap-2">
@@ -20064,9 +19770,9 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                       return (
                         <tr key={m.id}>
                           <td className="font-extrabold text-[#111827]">{m.item_name}</td>
-                          <td>{m.required_qty ?? 'â€”'} {m.unit}</td>
-                          <td>{m.issued_qty ?? 'â€”'} {m.unit}</td>
-                          <td>{m.consumed_qty ?? 'â€”'} {m.unit}</td>
+                          <td>{m.required_qty ?? '—'} {m.unit}</td>
+                          <td>{m.issued_qty ?? '—'} {m.unit}</td>
+                          <td>{m.consumed_qty ?? '—'} {m.unit}</td>
                           <td className={cx('font-extrabold', balance > 0 ? 'text-[#c0392b]' : 'text-[#0d9f4a]')}>{balance} {m.unit}</td>
                           <td><ProjectInfoPill tone={matStatusTone(m.status)} label={m.status} /></td>
                           <td>
@@ -20118,14 +19824,14 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                     ) : checklist.map((c) => (
                       <tr key={c.id}>
                         <td className="font-extrabold text-[#111827]">{c.label}</td>
-                        <td>{c.category || 'â€”'}</td>
+                        <td>{c.category || '—'}</td>
                         <td>
                           {c.is_checked
                             ? <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f8eb] px-2.5 py-0.5 text-[11px] font-extrabold text-[#0d9f4a]"><CheckCircle2 className="size-3" />Done</span>
                             : <span className="inline-flex items-center gap-1 rounded-full bg-[#fff5e8] px-2.5 py-0.5 text-[11px] font-extrabold text-[#f59e0b]"><Clock3 className="size-3" />Pending</span>
                           }
                         </td>
-                        <td className="max-w-[180px] truncate text-[12px] text-[#53647f]">{c.notes || 'â€”'}</td>
+                        <td className="max-w-[180px] truncate text-[12px] text-[#53647f]">{c.notes || '—'}</td>
                         <td>
                           <div className="flex items-center gap-1">
                             <UserActionButton label="Update" icon={Pencil} tone="blue" onClick={() => openUpdateQa(c)} />
@@ -20166,13 +19872,13 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                             <span className="font-extrabold text-[#111827]">{doc.name}</span>
                           </div>
                         </td>
-                        <td>{doc.category || 'â€”'}</td>
-                        <td>{doc.uploaded_by_name || doc.uploaded_by || 'â€”'}</td>
-                        <td>{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'â€”'}</td>
+                        <td>{doc.category || '—'}</td>
+                        <td>{doc.uploaded_by_name || doc.uploaded_by || '—'}</td>
+                        <td>{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
                         <td>
                           <div className="flex items-center gap-1">
                             {doc.file ? (
-                              <a href={doc.file} target="_blank" rel="noopener noreferrer" className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5] transition hover:-translate-y-0.5" aria-label="View document">
+                              <a href={getMediaUrl(doc.file)} target="_blank" rel="noopener noreferrer" className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5] transition hover:-translate-y-0.5" aria-label="View document">
                                 <Eye className="size-4" />
                               </a>
                             ) : null}
@@ -20221,7 +19927,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                 <article className={`${panelClass} p-4`}>
                   <h4 className="mb-3 flex items-center gap-2 text-[13px] font-extrabold text-[#111827]"><CheckCircle2 className="size-4 text-[#0d9f4a]" />QA Summary</h4>
                   <div className="space-y-2">
-                    {[['Total QA Items', String(qaItems.length)], ['Completed', String(qaDone)], ['Pending', String(qaItems.filter((c) => !c.is_checked).length)], ['Safety Items', String(safetyItems.length)], ['Safety Score', safetyItems.length ? `${safetyScore}%` : 'â€”']].map(([l, v]) => (
+                    {[['Total QA Items', String(qaItems.length)], ['Completed', String(qaDone)], ['Pending', String(qaItems.filter((c) => !c.is_checked).length)], ['Safety Items', String(safetyItems.length)], ['Safety Score', safetyItems.length ? `${safetyScore}%` : '—']].map(([l, v]) => (
                       <div key={l} className="flex items-center justify-between text-[13px]">
                         <span className="font-bold text-[#53647f]">{l}</span>
                         <span className="font-extrabold text-[#111827]">{v}</span>
@@ -20234,7 +19940,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                 <article className={`${panelClass} p-4`}>
                   <h4 className="mb-3 flex items-center gap-2 text-[13px] font-extrabold text-[#111827]"><Users className="size-4 text-[#f59e0b]" />Team & Documents</h4>
                   <div className="space-y-2">
-                    {[['Team Members', String(workforce)], ['Documents', String(documents.length)], ['Project Status', projectData?.status || 'â€”'], ['Project Type', projectData?.project_type || 'â€”'], ['Capacity', projectData?.capacity_kwp ? `${projectData.capacity_kwp} kWp` : 'â€”']].map(([l, v]) => (
+                    {[['Team Members', String(workforce)], ['Documents', String(documents.length)], ['Project Status', projectData?.status || '—'], ['Project Type', projectData?.project_type || '—'], ['Capacity', projectData?.capacity_kwp ? `${projectData.capacity_kwp} kWp` : '—']].map(([l, v]) => (
                       <div key={l} className="flex items-center justify-between text-[13px]">
                         <span className="font-bold text-[#53647f]">{l}</span>
                         <span className="font-extrabold text-[#111827]">{v}</span>
@@ -20274,9 +19980,9 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
                     {filteredProjects.map((p) => (
                       <tr key={p.id}>
                         <td className="font-extrabold text-[#111827]">{p.project_name}</td>
-                        <td>{p.customer_name || 'â€”'}</td>
-                        <td>{p.capacity_kwp ? `${p.capacity_kwp} kWp` : 'â€”'}</td>
-                        <td><ProjectInfoPill tone={projStatusTone(p.status)} label={p.status || 'â€”'} /></td>
+                        <td>{p.customer_name || '—'}</td>
+                        <td>{p.capacity_kwp ? `${p.capacity_kwp} kWp` : '—'}</td>
+                        <td><ProjectInfoPill tone={projStatusTone(p.status)} label={p.status || '—'} /></td>
                         <td>{p.progress_percent ?? 0}%</td>
                         <td>
                           <button type="button" onClick={() => handleSelectProject(p)} className="rounded-[7px] bg-[#0d9f4a] px-3 py-1.5 text-[11px] font-extrabold text-white transition hover:bg-[#0e9145]">Select</button>
@@ -20351,7 +20057,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
               <button type="button" onClick={() => setViewTask(null)} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
             </div>
             <div className="divide-y divide-[#f1f5fb] p-5">
-              {[['Task Name', viewTask.title], ['Assigned Employee', viewTask.owner_name || 'â€”'], ['Status', viewTask.status], ['Progress', `${viewTask.progress_percent ?? 0}%`], ['Planned Date', viewTask.start_date || 'â€”'], ['Completed Date', viewTask.end_date || 'â€”']].map(([l, v]) => (
+              {[['Task Name', viewTask.title], ['Assigned Employee', viewTask.owner_name || '—'], ['Status', viewTask.status], ['Progress', `${viewTask.progress_percent ?? 0}%`], ['Planned Date', viewTask.start_date || '—'], ['Completed Date', viewTask.end_date || '—']].map(([l, v]) => (
                 <div key={l} className="flex items-center justify-between py-2.5 text-[13px]">
                   <span className="font-bold text-[#53647f]">{l}</span>
                   <span className="font-extrabold text-[#111827]">{v}</span>
@@ -22730,7 +22436,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
                         <div className="flex items-center gap-1.5">
                           <button type="button" onClick={() => setViewDoc(doc)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3" />View</button>
                           <button type="button" onClick={() => openEdit(doc)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#7c3aed] hover:bg-[#f5f3ff]"><Pencil className="size-3" />Edit</button>
-                          <a href={doc.file} download target="_blank" rel="noreferrer" className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3" />Download</a>
+                          <a href={getMediaUrl(doc.file)} download target="_blank" rel="noreferrer" className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#e5eaf2] bg-white px-2 text-[11px] font-bold text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3" />Download</a>
                           <button type="button" onClick={() => confirmDeleteDoc(doc)} className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[#fecaca] bg-white px-2 text-[11px] font-bold text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3" />Delete</button>
                         </div>
                       </td>
@@ -22809,7 +22515,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
             </dl>
             <div className="mt-6 flex justify-end gap-2">
               <button type="button" onClick={() => { confirmDeleteDoc(viewDoc); setViewDoc(null); }} className="h-9 rounded-[8px] border border-[#fecaca] px-4 text-[13px] font-bold text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-4 inline mr-1" />Delete</button>
-              <a href={viewDoc.file} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
+              <a href={getMediaUrl(viewDoc.file)} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
               <button type="button" onClick={() => setViewDoc(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
             </div>
           </div>
@@ -23282,7 +22988,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
                   <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">Documents</h3>
                   <div className="space-y-1.5">
                     {viewItem.documents.map((doc) => (
-                      <a key={doc.id} href={doc.file} download target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px] text-[#0b65e5] hover:bg-[#f8fafc]">
+                      <a key={doc.id} href={getMediaUrl(doc.file)} download target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px] text-[#0b65e5] hover:bg-[#f8fafc]">
                         <FileText className="size-4 shrink-0 text-[#7a8fa6]" />
                         <span className="flex-1 truncate">{doc.name}</span>
                         <Download className="size-3.5 shrink-0" />
@@ -24589,7 +24295,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
                       <tbody>
                         {(editRow.documents || []).map((doc) => (
                           <tr key={doc.id} className="border-t border-[#f3f6fb]">
-                            <td className="px-3 py-2"><a href={doc.file} target="_blank" rel="noreferrer" className="text-[12px] font-extrabold text-[#0b65e5] underline">{doc.name}</a></td>
+                            <td className="px-3 py-2"><a href={getMediaUrl(doc.file)} target="_blank" rel="noreferrer" className="text-[12px] font-extrabold text-[#0b65e5] underline">{doc.name}</a></td>
                             <td className="px-3 py-2"><ProjectInfoPill tone="blue">{doc.doc_type}</ProjectInfoPill></td>
                             <td className="px-3 py-2 text-[11px] font-bold text-[#8a98af]">{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-IN') : '—'}</td>
                             <td className="px-3 py-2"><UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDeleteDoc(doc.id)} /></td>
@@ -24664,11 +24370,11 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
                       <tbody>
                         {viewDocs.map((doc) => (
                           <tr key={doc.id} className="border-t border-[#f3f6fb]">
-                            <td className="px-3 py-2"><a href={doc.file} target="_blank" rel="noreferrer" className="text-[12px] font-extrabold text-[#0b65e5] underline">{doc.name}</a></td>
+                            <td className="px-3 py-2"><a href={getMediaUrl(doc.file)} target="_blank" rel="noreferrer" className="text-[12px] font-extrabold text-[#0b65e5] underline">{doc.name}</a></td>
                             <td className="px-3 py-2"><ProjectInfoPill tone="blue">{doc.doc_type}</ProjectInfoPill></td>
                             <td className="px-3 py-2 text-[11px] font-bold text-[#8a98af]">{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-IN') : '—'}</td>
                             <td className="px-3 py-2">
-                              <a href={doc.file} target="_blank" rel="noreferrer" className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] border border-[#dce6f3] bg-white text-[#0b65e5] transition hover:bg-[#eff6ff]"><Eye className="size-3.5" /></a>
+                              <a href={getMediaUrl(doc.file)} target="_blank" rel="noreferrer" className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] border border-[#dce6f3] bg-white text-[#0b65e5] transition hover:bg-[#eff6ff]"><Eye className="size-3.5" /></a>
                             </td>
                           </tr>
                         ))}
@@ -26322,7 +26028,7 @@ function SettingsCategoryPlaceholderPage({ activeSection, onOpenSection, onNotif
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
           { label: title },
         ]}
-        actions={<button type="button" onClick={() => onNotify(`${title} changes saved`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>}
+        actions={<button type="button" onClick={() => onNotify(`${title} has no backend API yet — nothing was saved.`, 'error')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Save className="size-4" />Save Changes</button>}
       />
 
       <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
@@ -26624,7 +26330,15 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
 
   const handleMarkPresent = async (record) => {
     try {
-      await workforceApi.markAttendancePresent(record.id);
+      if (String(record.id).startsWith('missing-')) {
+        await workforceApi.markAttendanceByDate({
+          employee: selectedEmployeeId,
+          date: record.date,
+          status: 'Present',
+        });
+      } else {
+        await workforceApi.markAttendancePresent(record.id);
+      }
       onNotify('Attendance marked as present');
       loadLedger();
       loadEmployees();
@@ -26635,7 +26349,15 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
 
   const handleMarkAbsent = async (record) => {
     try {
-      await workforceApi.markAttendanceAbsent(record.id);
+      if (String(record.id).startsWith('missing-')) {
+        await workforceApi.markAttendanceByDate({
+          employee: selectedEmployeeId,
+          date: record.date,
+          status: 'Absent',
+        });
+      } else {
+        await workforceApi.markAttendanceAbsent(record.id);
+      }
       onNotify('Attendance marked as absent');
       loadLedger();
     } catch (error) {
@@ -26716,14 +26438,24 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
           { label: isAttendanceView ? 'Employee Ledger' : 'Employee Details' },
         ]}
         actions={(
-          <button
-            type="button"
-            onClick={openCreateEmployee}
-            className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(22,163,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#15803d]"
-          >
-            <Plus className="size-4" />
-            Add Employee
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => onOpenSection('Project List')}
+              className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[15px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
+            >
+              <Users className="size-4 text-[#0b65e5]" />
+              Project Team (per project)
+            </button>
+            <button
+              type="button"
+              onClick={openCreateEmployee}
+              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(22,163,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#15803d]"
+            >
+              <Plus className="size-4" />
+              Add Employee
+            </button>
+          </>
         )}
       />
 
@@ -28101,8 +27833,25 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
   const [user, setUser] = useState('All Users');
   const [moduleName, setModuleName] = useState('All Modules');
   const [action, setAction] = useState('All Actions');
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredLogs = activityLogRows.filter((log) => {
+  // BUG-009: this page used to render a hardcoded mock array; it now shares the
+  // same real API as SettingsUserActivityLogPage instead of a second fake source.
+  useEffect(() => {
+    setLoading(true);
+    settingsApi.activityLogs.list()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setLogs(list.map(mapActivityLogFromApi));
+      })
+      .catch(() => onNotify?.('Could not load activity logs.', 'error'))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const uniqueUsers = [...new Set(logs.map((log) => log.user.name))];
+
+  const filteredLogs = logs.filter((log) => {
     const userMatch = user === 'All Users' || log.user.name === user;
     const moduleMatch = moduleName === 'All Modules' || log.module === moduleName;
     const actionMatch = action === 'All Actions' || log.action === action;
@@ -28138,7 +27887,7 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
       <section className={`${panelClass} relative z-40 p-4 sm:p-5`}>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_0.95fr_1fr_1fr_auto_auto] xl:items-end">
           <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((value) => !value)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={`${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`} />
-          <ReportSelect label="User" value={user} onChange={setUser} options={['All Users', ...userManagementRows.slice(0, 6).map((item) => item.name)]} />
+          <ReportSelect label="User" value={user} onChange={setUser} options={['All Users', ...uniqueUsers]} />
           <ReportSelect label="Module" value={moduleName} onChange={setModuleName} options={['All Modules', 'Leads', 'Follow-ups', 'IVRS Management', 'Approvals', 'Users', 'Roles & Permissions', 'Settings']} />
           <ReportSelect label="Action" value={action} onChange={setAction} options={['All Actions', 'Created', 'Updated', 'Requested', 'Approved', 'Edited', 'Deleted']} />
           <button type="button" onClick={() => onNotify(`Activity filters applied: ${filteredLogs.length} entries`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filters</button>
@@ -28147,7 +27896,13 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
       </section>
 
       <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
-        <div className="space-y-3 lg:hidden">
+        {loading && (
+          <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">Loading activity logs...</div>
+        )}
+        {!loading && filteredLogs.length === 0 && (
+          <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">No activity logs found.</div>
+        )}
+        <div className={cx('space-y-3 lg:hidden', loading && 'hidden')}>
           {filteredLogs.map((log) => (
             <article key={log.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
               <div className="flex items-start justify-between gap-3">
@@ -28156,13 +27911,13 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
               </div>
               <p className="mt-3 text-[12px] font-bold text-[#53647f]">{log.time}</p>
               <div className="mt-3"><ModuleBadge module={log.module} /></div>
-              <p className="mt-3 text-[13px] font-semibold leading-6 text-[#314a79]">{log.details}</p>
+              <p className="mt-3 text-[13px] font-semibold leading-6 text-[#314a79]">{log.description}</p>
               <p className="mt-3 text-[12px] font-bold text-[#6f7f98]">IP: {log.ip}</p>
             </article>
           ))}
         </div>
 
-        <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+        <div className={cx('hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white', !loading && 'lg:block')}>
           <table className="crm-table min-w-[1180px] w-full">
             <thead><tr>{['#', 'Date & Time', 'User', 'Module', 'Action', 'Details', 'IP Address'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
             <tbody>
@@ -28173,7 +27928,7 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
                   <td><AssigneeCell assignee={log.user.assignee} compact /></td>
                   <td><ModuleBadge module={log.module} /></td>
                   <td><ActivityActionBadge action={log.action} /></td>
-                  <td className="max-w-[360px] whitespace-normal leading-5">{log.details}</td>
+                  <td className="max-w-[360px] whitespace-normal leading-5">{log.description}</td>
                   <td>{log.ip}</td>
                 </tr>
               ))}
@@ -28182,7 +27937,7 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
         </div>
 
         <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-          <p>Showing 1 to {filteredLogs.length} of {activityLogRows.length} entries</p>
+          <p>Showing 1 to {filteredLogs.length} of {logs.length} entries</p>
           <div className="flex flex-wrap items-center gap-2">
             <PaginationButton onClick={() => onNotify('Previous activity page selected')}><ChevronLeft className="size-4" /></PaginationButton>
             <PaginationButton active onClick={() => onNotify('Activity page 1 selected')}>1</PaginationButton>
@@ -28501,6 +28256,7 @@ function ReportsPage({ onOpenSection, onNotify }) {
   const [projectType, setProjectType] = useState('All');
   const [leadStatus, setLeadStatus] = useState('All');
   const [assignedTo, setAssignedTo] = useState('All');
+  const [assigneeOptions, setAssigneeOptions] = useState(['All']);
   const [trendView, setTrendView] = useState('Daily');
   const [selectedStatus, setSelectedStatus] = useState('New');
   const [filtersApplied, setFiltersApplied] = useState(false);
@@ -28510,18 +28266,30 @@ function ReportsPage({ onOpenSection, onNotify }) {
   const [incentiveReportOpen, setIncentiveReportOpen] = useState(false);
 
   useEffect(() => {
+    userApi.list({ page_size: 500 })
+      .then((data) => {
+        const names = [...new Set(normalizeApiRows(data).map((user) => user.name).filter(Boolean))];
+        setAssigneeOptions(['All', ...names]);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setAnalyticsLoading(true);
     const params = {};
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
+    if (projectType !== 'All') params.project_type = projectType;
+    if (leadStatus !== 'All') params.status = leadStatus;
+    if (assignedTo !== 'All') params.assigned_to = assignedTo;
     Promise.all([
       analyticsApi.leads(params),
       reportsApi.dashboard(params),
     ]).then(([leads, dashboard]) => {
       if (leads) setAnalyticsData(leads);
       if (dashboard) setDashboardData(dashboard);
-    }).catch(() => {}).finally(() => setAnalyticsLoading(false));
-  }, [dateFrom, dateTo, filtersApplied]);
+    }).catch(() => onNotify('Report data could not be loaded.', 'error')).finally(() => setAnalyticsLoading(false));
+  }, [dateFrom, dateTo, projectType, leadStatus, assignedTo, filtersApplied]);
 
   const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
 
@@ -28556,7 +28324,15 @@ function ReportsPage({ onOpenSection, onNotify }) {
           <>
             <button
               type="button"
-              onClick={() => onNotify(`Report exported for ${formattedRange}`)}
+              onClick={() => {
+                const rows = (analyticsData?.project_type_stats ?? []).map((p) => [
+                  p.type || 'Unknown',
+                  p.total,
+                  p.won,
+                  `${p.conversion}%`,
+                ]);
+                exportNotifyCsv(onNotify, 'reports-analytics', ['Project Type', 'Total', 'Won', 'Conversion'], rows);
+              }}
               data-action="reports-export"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
             >
@@ -28594,7 +28370,7 @@ function ReportsPage({ onOpenSection, onNotify }) {
           />
           <ReportSelect label="Project Type" value={projectType} onChange={setProjectType} options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']} />
           <ReportSelect label="Lead Status" value={leadStatus} onChange={setLeadStatus} options={['All', 'New', 'Follow-up', 'Site Visit', 'Quotation Shared', 'Won', 'Lost']} />
-          <ReportSelect label="Assigned To" value={assignedTo} onChange={setAssignedTo} options={['All', 'Rohit Singh', 'Amit Sharma', 'Neha Jain', 'Vikram Singh']} />
+          <ReportSelect label="Assigned To" value={assignedTo} onChange={setAssignedTo} options={assigneeOptions} />
           <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[150px] xl:grid-cols-1">
             <button
               type="button"
@@ -28674,11 +28450,11 @@ function ReportsPage({ onOpenSection, onNotify }) {
         <ReportTableCard
           title="Leads by Project Type"
           headers={['Project Type', 'Total Leads', 'Won Leads', 'Conversion Rate']}
-          rows={analyticsData?.project_type_stats?.map(p => [p.type || 'Unknown', p.total, p.won, `${p.conversion}%`]) ?? projectTypeReportRows}
+          rows={analyticsData?.project_type_stats?.map((p) => [p.type || 'Unknown', p.total, p.won, `${p.conversion}%`]) ?? []}
           onRowClick={(row) => onNotify(`${row[0]} project report opened`)}
         />
         <ReportEmployeeCard data={analyticsData?.employee_stats ?? []} loading={analyticsLoading} onNotify={onNotify} />
-        <ReportIvrsSummary onNotify={onNotify} />
+        <ReportIvrsSummary analyticsData={analyticsData} onNotify={onNotify} />
       </section>
 
       <DashboardFooter />
@@ -29132,7 +28908,14 @@ function ReportEmployeeCard({ data, loading, onNotify }) {
   );
 }
 
-function ReportIvrsSummary({ onNotify }) {
+function ReportIvrsSummary({ analyticsData, onNotify }) {
+  const ivrs = analyticsData?.ivrs_summary;
+  const rows = ivrs ? [
+    ['Leads with IVRS', String(ivrs.total_with_ivrs ?? 0)],
+    ['IVRS Coverage', `${ivrs.coverage_pct ?? 0}%`],
+    ['Total Leads (filtered)', String(analyticsData?.total ?? 0)],
+  ] : [];
+
   return (
     <article className={`${panelClass} p-4 sm:p-5`}>
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -29142,17 +28925,19 @@ function ReportIvrsSummary({ onNotify }) {
         </h2>
       </div>
       <div className="overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white">
-        {ivrsReportRows.map(([label, value]) => (
+        {rows.length ? rows.map(([label, value]) => (
           <button
             key={label}
             type="button"
-            onClick={() => onNotify(`${label} details opened`)}
+            onClick={() => onNotify(`${label}: ${value}`)}
             className="flex w-full items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3 text-left text-[13px] font-extrabold text-[#1e3261] transition last:border-b-0 hover:bg-[#f8fbff]"
           >
             <span>{label}</span>
             <span>{value}</span>
           </button>
-        ))}
+        )) : (
+          <p className="px-4 py-6 text-center text-[13px] font-bold text-[#8a98af]">No IVRS data for the selected filters.</p>
+        )}
       </div>
     </article>
   );
@@ -29984,7 +29769,7 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
                     <p className="col-span-full text-[12px] font-bold text-[#8a98af]">No photos uploaded yet.</p>
                   ) : survey.photos.map((photo) => (
                     <div key={photo.id} className="group relative overflow-hidden rounded-[8px] border border-[#e7eef7]">
-                      <img src={photo.image} alt="Site" className="h-20 w-full object-cover" />
+                      <img src={getMediaUrl(photo.image)} alt="Site" className="h-20 w-full object-cover" />
                       <button
                         type="button"
                         onClick={() => handleDeletePhoto(photo.id)}
@@ -33870,9 +33655,7 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
           },
         });
       } else {
-        onNotify(`${meta.title} saved (coming soon — API integration pending)`);
-        onClose();
-        return;
+        throw new Error(`Unsupported action type: ${type}`);
       }
       onNotify(`${meta.title} saved successfully!`);
       onClose();

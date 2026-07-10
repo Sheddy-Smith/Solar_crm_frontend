@@ -106,6 +106,7 @@ class OmSparePartSerializer(serializers.ModelSerializer):
     record_no = serializers.SerializerMethodField()
     stock_status = serializers.CharField(read_only=True)
     created_by_name = serializers.SerializerMethodField()
+    linked_inventory_item_name = serializers.CharField(source='linked_inventory_item.name', read_only=True)
 
     def get_record_no(self, obj):
         return f'SP-{obj.id:04d}'
@@ -118,6 +119,7 @@ class OmSparePartSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'record_no', 'name', 'category', 'site', 'stock_qty', 'min_stock',
             'unit', 'unit_cost', 'supplier', 'stock_status', 'remarks',
+            'linked_inventory_item', 'linked_inventory_item_name',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_by', 'created_at', 'updated_at']

@@ -1,9 +1,38 @@
 import datetime
-from django.db import models
+from django.db import models, transaction, IntegrityError
 from django.utils.text import slugify
 from apps.accounts.models import User
 from apps.leads.models import Lead
 from apps.inventory.models import InventoryItem
+from malwa_solar.validators import validate_document_extension, validate_image_extension, validate_upload_size
+
+
+class SequenceCounter(models.Model):
+    """Backs atomic, race-free ID generation for Project.project_id,
+    WorkOrder.order_id and SiteSurvey.survey_id (BUG-026 / BUG-071) with a
+    single locked row per prefix instead of an unlocked `count()+1` read —
+    concurrent saves would otherwise race and can both compute the same id.
+    Mirrors the `EmployeeIdCounter` pattern used for the same class of bug
+    in `apps.workforce.models` (BUG-025)."""
+    key = models.CharField(max_length=50, unique=True)
+    value = models.IntegerField(default=0)
+
+    @classmethod
+    def next_value(cls, key, initial=0):
+        """`initial` only takes effect the first time this key's row is
+        created — pass the current max of any legacy-generated ids so the
+        counter continues from there instead of colliding with ids created
+        before this counter existed."""
+        for _ in range(2):  # one retry to cover the get_or_create race on first-ever creation
+            try:
+                with transaction.atomic():
+                    counter, _ = cls.objects.select_for_update().get_or_create(key=key, defaults={'value': initial})
+                    counter.value += 1
+                    counter.save(update_fields=['value'])
+                    return counter.value
+            except IntegrityError:
+                continue
+        raise RuntimeError(f'Could not allocate id counter for {key!r}')
 
 
 def site_survey_photo_upload_path(instance, filename):
@@ -51,7 +80,7 @@ class Project(models.Model):
     project_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='On-Grid')
     capacity_kwp = models.DecimalField(max_digits=8, decimal_places=2)
     system_type = models.CharField(max_length=100, blank=True, default='Rooftop Solar')
-    project_image = models.ImageField(upload_to='project_images/%Y/%m/', null=True, blank=True)
+    project_image = models.ImageField(upload_to='project_images/%Y/%m/', null=True, blank=True, validators=[validate_image_extension, validate_upload_size])
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Planning')
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='Medium')
@@ -81,8 +110,16 @@ class Project(models.Model):
     def save(self, *args, **kwargs):
         if not self.project_id:
             year = datetime.date.today().year
-            count = Project.objects.filter(created_at__year=year).count() + 1
-            self.project_id = f'PRJ-{year}-{count:04d}'
+            prefix = f'PRJ-{year}-'
+            seed = 0
+            last = Project.objects.filter(project_id__startswith=prefix).order_by('-project_id').first()
+            if last:
+                try:
+                    seed = int(last.project_id.rsplit('-', 1)[-1])
+                except ValueError:
+                    seed = 0
+            num = SequenceCounter.next_value(prefix, initial=seed)
+            self.project_id = f'{prefix}{num:04d}'
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -153,7 +190,7 @@ class ProjectNote(models.Model):
 class ProjectDocument(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='documents')
     name = models.CharField(max_length=200)
-    file = models.FileField(upload_to='project_documents/%Y/%m/')
+    file = models.FileField(upload_to='project_documents/%Y/%m/', validators=[validate_document_extension, validate_upload_size])
     category = models.CharField(max_length=100, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_documents')
     uploaded_at = models.DateTimeField(auto_now_add=True)
@@ -187,7 +224,11 @@ class ProjectExpense(models.Model):
         ('RTGS', 'RTGS'),
     ]
 
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='expenses')
+    # BUG-057: PROTECT instead of CASCADE — deleting a Project must not
+    # silently wipe recorded expense history. Block the delete instead
+    # (malwa_solar/exceptions.py translates the resulting ProtectedError
+    # into a clean 400 response).
+    project = models.ForeignKey(Project, on_delete=models.PROTECT, related_name='expenses')
     category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
     description = models.CharField(max_length=200)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
@@ -217,7 +258,7 @@ class ProjectExpenseDocument(models.Model):
     expense = models.ForeignKey(ProjectExpense, on_delete=models.CASCADE, related_name='expense_documents')
     doc_type = models.CharField(max_length=20, choices=DOC_TYPE_CHOICES, default='Other')
     name = models.CharField(max_length=200)
-    file = models.FileField(upload_to='expense_docs/%Y/%m/')
+    file = models.FileField(upload_to='expense_docs/%Y/%m/', validators=[validate_document_extension, validate_upload_size])
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -234,7 +275,9 @@ class ProjectPayment(models.Model):
         ('RTGS', 'RTGS'),
     ]
 
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='payments')
+    # BUG-057: PROTECT instead of CASCADE — deleting a Project must not
+    # silently wipe recorded customer payment history.
+    project = models.ForeignKey(Project, on_delete=models.PROTECT, related_name='payments')
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     payment_mode = models.CharField(max_length=30, choices=MODE_CHOICES, default='Bank Transfer')
     payment_date = models.DateField()
@@ -274,8 +317,16 @@ class WorkOrder(models.Model):
     def save(self, *args, **kwargs):
         if not self.order_id:
             year = datetime.date.today().year
-            count = WorkOrder.objects.filter(created_at__year=year).count() + 1
-            self.order_id = f'WO-{year}-{count:04d}'
+            prefix = f'WO-{year}-'
+            seed = 0
+            last = WorkOrder.objects.filter(order_id__startswith=prefix).order_by('-order_id').first()
+            if last:
+                try:
+                    seed = int(last.order_id.rsplit('-', 1)[-1])
+                except ValueError:
+                    seed = 0
+            num = SequenceCounter.next_value(prefix, initial=seed)
+            self.order_id = f'{prefix}{num:04d}'
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -479,8 +530,16 @@ class SiteSurvey(models.Model):
     def save(self, *args, **kwargs):
         if not self.survey_id:
             year = datetime.date.today().year
-            count = SiteSurvey.objects.filter(created_at__year=year).count() + 1
-            self.survey_id = f'SS-{year}-{count:04d}'
+            prefix = f'SS-{year}-'
+            seed = 0
+            last = SiteSurvey.objects.filter(survey_id__startswith=prefix).order_by('-survey_id').first()
+            if last:
+                try:
+                    seed = int(last.survey_id.rsplit('-', 1)[-1])
+                except ValueError:
+                    seed = 0
+            num = SequenceCounter.next_value(prefix, initial=seed)
+            self.survey_id = f'{prefix}{num:04d}'
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -510,7 +569,7 @@ class SiteSurveyPhoto(models.Model):
 
     survey = models.ForeignKey(SiteSurvey, on_delete=models.CASCADE, related_name='photos')
     slot = models.CharField(max_length=30, choices=SLOT_CHOICES)
-    image = models.ImageField(upload_to=site_survey_photo_upload_path)
+    image = models.ImageField(upload_to=site_survey_photo_upload_path, validators=[validate_image_extension, validate_upload_size])
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_site_survey_photos')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
@@ -609,7 +668,13 @@ class SubsidyApplication(models.Model):
     application_date = models.DateField(null=True, blank=True)
     discom = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
-    assigned_employee = models.CharField(max_length=200, blank=True)
+    # BUG-041: real FK to the workforce Employee record instead of a
+    # free-text name, so the assignment is actually linked to a person
+    # instead of a string that can drift/typo out of sync.
+    assigned_employee = models.ForeignKey(
+        'workforce.Employee', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='subsidy_applications',
+    )
     remarks = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -633,7 +698,7 @@ class SubsidyDocument(models.Model):
     subsidy = models.ForeignKey(SubsidyApplication, on_delete=models.CASCADE, related_name='documents')
     doc_type = models.CharField(max_length=50, choices=DOC_TYPE_CHOICES, default='Other')
     name = models.CharField(max_length=200)
-    file = models.FileField(upload_to='subsidy_docs/%Y/%m/')
+    file = models.FileField(upload_to='subsidy_docs/%Y/%m/', validators=[validate_document_extension, validate_upload_size])
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -690,7 +755,7 @@ class ProjectApproval(models.Model):
 class ProjectApprovalDocument(models.Model):
     approval = models.ForeignKey(ProjectApproval, on_delete=models.CASCADE, related_name='documents')
     name = models.CharField(max_length=200)
-    file = models.FileField(upload_to='approval_docs/%Y/%m/')
+    file = models.FileField(upload_to='approval_docs/%Y/%m/', validators=[validate_document_extension, validate_upload_size])
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

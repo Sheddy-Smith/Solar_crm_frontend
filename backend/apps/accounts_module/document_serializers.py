@@ -213,9 +213,14 @@ class PaymentVoucherSerializer(serializers.ModelSerializer):
 
 
 class PurchaseChallanLineSerializer(serializers.ModelSerializer):
+    inventory_item_name = serializers.CharField(source='inventory_item.name', read_only=True)
+
     class Meta:
         model = PurchaseChallanLine
-        fields = ['id', 'material_name', 'category', 'quantity', 'unit', 'rate', 'line_total', 'sort_order']
+        fields = [
+            'id', 'inventory_item', 'inventory_item_name', 'material_name', 'category',
+            'quantity', 'unit', 'rate', 'line_total', 'sort_order',
+        ]
         read_only_fields = ['id', 'line_total']
 
 
@@ -238,12 +243,19 @@ class PurchaseChallanSerializer(serializers.ModelSerializer):
         return _user_name(obj.created_by)
 
     def _save_lines(self, challan, lines_data):
+        for existing in challan.lines.select_related('stock_movement').all():
+            if existing.stock_movement_id:
+                movement = existing.stock_movement
+                existing.stock_movement = None
+                existing.save(update_fields=['stock_movement'])
+                movement.delete()
         challan.lines.all().delete()
         for idx, line in enumerate(lines_data):
             qty = line.get('quantity', 1)
             rate = line.get('rate', 0)
             PurchaseChallanLine.objects.create(
                 challan=challan,
+                inventory_item=line.get('inventory_item'),
                 material_name=line.get('material_name', ''),
                 category=line.get('category', ''),
                 quantity=qty,

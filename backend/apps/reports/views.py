@@ -8,8 +8,12 @@ from .services import reports_dashboard
 
 
 class ReportsViewSet(viewsets.ViewSet):
+    # BUG-017: this viewset only serves the cross-module reports dashboard
+    # (`/reports/dashboard/`). Gate it with the 'Dashboard' matrix module so
+    # the Dashboard permission row actually applies; detailed report exports
+    # would use 'Reports' if added later as separate endpoints.
     permission_classes = [HasModulePermission]
-    permission_module = 'Reports'
+    permission_module = 'Dashboard'
     permission_action_map = {'dashboard': 'can_view'}
 
     @action(detail=False, methods=['get'])

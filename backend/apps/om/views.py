@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import viewsets, filters
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
@@ -10,6 +12,20 @@ from .serializers import (
     OmSiteVisitSerializer, OmSparePartSerializer, OmReportSerializer, OmDocumentSerializer,
 )
 from apps.accounts.permissions import HasModulePermission
+from apps.inventory.models import InventoryItem
+
+
+def _sync_inventory_requested(value):
+    return str(value).lower() in ('1', 'true', 'yes')
+
+
+def _maybe_sync_linked_inventory(spare_part, sync=False):
+    """When requested, mirror spare-part stock onto the linked inventory row (BUG-069)."""
+    if not sync or not spare_part.linked_inventory_item_id:
+        return
+    InventoryItem.objects.filter(pk=spare_part.linked_inventory_item_id).update(
+        current_stock=Decimal(spare_part.stock_qty),
+    )
 
 
 class OmBaseViewSet(viewsets.ModelViewSet):
@@ -64,7 +80,17 @@ class OmSparePartViewSet(OmBaseViewSet):
     search_fields = ['name', 'site', 'supplier', 'category']
 
     def get_queryset(self):
-        return OmSparePart.objects.select_related('created_by').all()
+        return OmSparePart.objects.select_related('created_by', 'linked_inventory_item').all()
+
+    def perform_create(self, serializer):
+        sync = _sync_inventory_requested(self.request.data.get('sync_inventory', False))
+        spare_part = serializer.save(created_by=self.request.user)
+        _maybe_sync_linked_inventory(spare_part, sync)
+
+    def perform_update(self, serializer):
+        sync = _sync_inventory_requested(self.request.data.get('sync_inventory', False))
+        spare_part = serializer.save()
+        _maybe_sync_linked_inventory(spare_part, sync)
 
 
 class OmReportViewSet(viewsets.ModelViewSet):

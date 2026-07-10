@@ -138,7 +138,11 @@ class StockMovement(models.Model):
                 old_item.current_stock = reverted_old_stock
                 old_item.save(update_fields=['current_stock'])
             item.current_stock = updated_stock
-            item.save(update_fields=['current_stock'])
+            update_fields = ['current_stock']
+            if self.movement_type == 'Transfer' and self.to_warehouse_id:
+                item.warehouse_id = self.to_warehouse_id
+                update_fields.append('warehouse')
+            item.save(update_fields=update_fields)
 
     def delete(self, *args, **kwargs):
         with transaction.atomic():
@@ -153,7 +157,23 @@ class StockMovement(models.Model):
 
             super().delete(*args, **kwargs)
             item.current_stock = updated_stock
-            item.save(update_fields=['current_stock'])
+            update_fields = ['current_stock']
+            # Revert item.warehouse back to the source of this transfer, but
+            # only if no later transfer has since moved it elsewhere -- this
+            # movement's to_warehouse would no longer be the item's current
+            # location, and blindly reverting could clobber a more recent
+            # transfer's destination.
+            if (
+                self.movement_type == 'Transfer'
+                and self.from_warehouse_id
+                and item.warehouse_id == self.to_warehouse_id
+                and not StockMovement.objects.filter(
+                    item_id=self.item_id, movement_type='Transfer', created_at__gt=self.created_at,
+                ).exists()
+            ):
+                item.warehouse_id = self.from_warehouse_id
+                update_fields.append('warehouse')
+            item.save(update_fields=update_fields)
 
     class Meta:
         ordering = ['-created_at']

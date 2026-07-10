@@ -39,18 +39,19 @@ class AdminApprovalSerializer(serializers.ModelSerializer):
     lead_customer_name = serializers.CharField(source='lead.customer_name', read_only=True)
     lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
     lead_project_type = serializers.CharField(source='lead.project_type', read_only=True)
+    created_lead_ivrs_number = serializers.CharField(source='created_lead.ivrs_number', read_only=True)
 
     class Meta:
         model = AdminApproval
         fields = [
             'id', 'lead', 'lead_customer_name', 'lead_mobile_number', 'lead_project_type',
-            'ivrs_number', 'duplicate_of',
+            'ivrs_number', 'duplicate_of', 'created_lead', 'created_lead_ivrs_number',
             'requested_customer_name', 'requested_mobile_number', 'requested_project_name',
             'requested_project_type', 'requested_payload',
             'requested_by', 'requested_by_name', 'approved_by', 'approved_by_name',
             'status', 'reason', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['requested_by', 'approved_by', 'created_at', 'updated_at']
+        read_only_fields = ['requested_by', 'approved_by', 'created_lead', 'created_at', 'updated_at']
 
 
 class QuotationItemSerializer(serializers.ModelSerializer):

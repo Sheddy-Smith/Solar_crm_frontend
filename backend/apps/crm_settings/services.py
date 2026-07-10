@@ -216,8 +216,15 @@ def get_category_settings(category):
 
 
 def update_category_settings(category, data: dict):
-    if category not in SETTING_CATEGORIES and category not in ('company',):
-        pass
+    if category not in SETTING_CATEGORIES:
+        # Call sites (CategorySettingsView and the hardcoded 'system'/'payment'/
+        # 'accounts' aliases) already pre-validate against SETTING_CATEGORIES,
+        # so this should never actually trigger in normal use — but it's a
+        # real guard now instead of a no-op `pass` (BUG-070). Raising Django's
+        # ValidationError lets malwa_solar.exceptions.custom_exception_handler
+        # turn it into a clean 400 instead of an unhandled 500.
+        from django.core.exceptions import ValidationError
+        raise ValidationError(f'Unknown settings category: {category!r}')
     for key, value in data.items():
         AppSetting.objects.update_or_create(
             category=category,
@@ -404,6 +411,12 @@ def seed_setting_defaults():
         )
 
     if not IpAccessRule.objects.exists():
+        IpAccessRule.objects.create(
+            name='Local Development',
+            ip_range='127.0.0.1',
+            rule_type='Allow',
+            description='Loopback for Vite/API proxy during local dev',
+        )
         IpAccessRule.objects.create(
             name='Office Network',
             ip_range='192.168.1.0/24',

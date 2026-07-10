@@ -4,6 +4,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q, Count
 from django.db.models.functions import TruncMonth
@@ -118,10 +119,19 @@ class LeadViewSet(viewsets.ModelViewSet):
         qs = self.get_queryset()
         date_from = request.query_params.get('date_from')
         date_to = request.query_params.get('date_to')
+        project_type = request.query_params.get('project_type')
+        status_filter = request.query_params.get('status')
+        assigned_to = request.query_params.get('assigned_to')
         if date_from:
             qs = qs.filter(created_at__date__gte=date_from)
         if date_to:
             qs = qs.filter(created_at__date__lte=date_to)
+        if project_type and project_type != 'All':
+            qs = qs.filter(project_type=project_type)
+        if status_filter and status_filter != 'All':
+            qs = qs.filter(status=status_filter)
+        if assigned_to and assigned_to != 'All':
+            qs = qs.filter(assigned_to__name__icontains=assigned_to)
 
         status_dist = list(qs.values('status').annotate(count=Count('id')).order_by('status'))
 
@@ -176,6 +186,7 @@ class LeadViewSet(viewsets.ModelViewSet):
 
         total = qs.count()
         won = qs.filter(status='Won').count()
+        with_ivrs = qs.exclude(ivrs_number='').count()
         return Response({
             'total': total,
             'won': won,
@@ -188,6 +199,10 @@ class LeadViewSet(viewsets.ModelViewSet):
             'project_type_stats': project_type_stats,
             'priority_stats': priority_stats,
             'source_stats': source_stats,
+            'ivrs_summary': {
+                'total_with_ivrs': with_ivrs,
+                'coverage_pct': round((with_ivrs / total * 100), 1) if total else 0,
+            },
         })
 
     @action(detail=False, methods=['get'])
@@ -256,17 +271,40 @@ class FollowUpViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         follow_up = serializer.save(created_by=self.request.user)
-        # Sync lead's next_follow_up with scheduled follow-ups
-        if follow_up.status == 'Scheduled':
-            follow_up.lead.next_follow_up = follow_up.scheduled_at
-            follow_up.lead.save(update_fields=['next_follow_up'])
+        self._sync_lead_next_follow_up(follow_up.lead)
+
+    def perform_update(self, serializer):
+        # BUG-053: without this override, PATCHing an existing follow-up's
+        # status to Completed/Missed never touched `lead.next_follow_up` —
+        # only `perform_create` synced it, so a lead kept showing as
+        # overdue/due-today forever after the rep actually completed the
+        # follow-up. Recompute from the lead's remaining state on every save.
+        follow_up = serializer.save()
+        self._sync_lead_next_follow_up(follow_up.lead)
+
+    @staticmethod
+    def _sync_lead_next_follow_up(lead):
+        """Set `lead.next_follow_up` to the earliest remaining `Scheduled`
+        follow-up's `scheduled_at`, or null if none remain."""
+        next_scheduled = (
+            lead.follow_ups.filter(status='Scheduled')
+            .order_by('scheduled_at')
+            .values_list('scheduled_at', flat=True)
+            .first()
+        )
+        if lead.next_follow_up != next_scheduled:
+            lead.next_follow_up = next_scheduled
+            lead.save(update_fields=['next_follow_up'])
 
 
 class AdminApprovalViewSet(viewsets.ModelViewSet):
     queryset = AdminApproval.objects.select_related('lead', 'requested_by', 'approved_by').all()
     serializer_class = AdminApprovalSerializer
     permission_classes = [HasModulePermission]
+    # BUG-017: duplicate-IVRS approval *requests* are an IVRS Management
+    # action; reviewing/approving/rejecting them is Approvals.
     permission_module = 'Approvals'
+    permission_module_map = {'create': 'IVRS Management'}
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status']
     search_fields = [
@@ -285,12 +323,32 @@ class AdminApprovalViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
+        # BUG-054: this used to only flip `status` to 'Approved' — the Lead
+        # requested via `requested_payload` (the duplicate-IVRS lead blocked
+        # at creation time by LeadCreateSerializer.validate_ivrs_number) was
+        # never actually created, so approving a request was a dead end.
         approval = self.get_object()
-        approval.status = 'Approved'
-        approval.approved_by = request.user
-        approval.reason = request.data.get('reason', '')
-        approval.save()
-        return Response({'status': 'Approved'})
+        with transaction.atomic():
+            if not approval.created_lead_id:
+                payload = dict(approval.requested_payload or {})
+                # This request exists specifically because the originally
+                # submitted ivrs_number collided with an existing Lead.
+                # Approving is an explicit override to create the lead
+                # anyway — don't reuse the colliding number (it would just
+                # fail the same unique constraint); let the model mint a
+                # fresh one via its `default=generate_ivrs`.
+                payload.pop('ivrs_number', None)
+                payload.pop('id', None)
+                payload.pop('created_at', None)
+                serializer = LeadCreateSerializer(data=payload)
+                serializer.is_valid(raise_exception=True)
+                lead = serializer.save(created_by=approval.requested_by)
+                approval.created_lead = lead
+            approval.status = 'Approved'
+            approval.approved_by = request.user
+            approval.reason = request.data.get('reason', '')
+            approval.save()
+        return Response(AdminApprovalSerializer(approval).data)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
