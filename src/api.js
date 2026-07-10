@@ -217,8 +217,21 @@ const inventoryCrud = (base) => ({
 });
 
 export const inventoryApi = {
-  items: inventoryCrud('items'),
-  movements: inventoryCrud('movements'),
+  items: {
+    ...inventoryCrud('items'),
+    summary: () => request('/inventory/items/summary/'),
+    quickAdjust: (id, data) => request(`/inventory/items/${id}/quick-adjust/`, { method: 'POST', body: data }),
+  },
+  movements: {
+    ...inventoryCrud('movements'),
+    analytics: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+      ).toString();
+      return request(`/inventory/movements/analytics/${qs ? '?' + qs : ''}`);
+    },
+  },
+  categories: inventoryCrud('categories'),
   warehouses: inventoryCrud('warehouses'),
   summary: () => request('/inventory/items/summary/'),
 };

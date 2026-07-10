@@ -16,6 +16,12 @@ import {
   getMediaUrl,
 } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
+import {
+  InventoryOverviewPageEnhanced,
+  InventoryProductsPage,
+  InventoryStockMovementsPage,
+  InventoryCategoriesPage,
+} from './inventoryPages.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -220,7 +226,7 @@ const accountsSubItems = [
   'GST Ledger',
 ];
 const accountsRelatedPages = [...new Set([...accountsSubItems, ...accountsLegacyPages])];
-const inventorySubItems = ['Inventory Overview', 'Products', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
+const inventorySubItems = ['Inventory Overview', 'Products', 'Stock Movements', 'Categories', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
 const inventoryRelatedPages = ['Inventory', ...inventorySubItems];
 const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents', 'Subsidy'];
 const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
@@ -449,6 +455,8 @@ const accountsSubRoutes = {
 const inventorySubRoutes = {
   'Inventory Overview': '/inventory/overview',
   Products: '/inventory/products',
+  'Stock Movements': '/inventory/stock-movements',
+  Categories: '/inventory/categories',
   'Stock Inward': '/inventory/stock-inward',
   'Stock Outward': '/inventory/stock-outward',
   'Stock Transfer': '/inventory/stock-transfer',
@@ -9074,8 +9082,19 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   const requiredOk = config.fields.every((f) => !f.required || form[f.name]);
 
+  function validateForm() {
+    if (config.validateForm) {
+      const msg = config.validateForm(form);
+      if (msg) {
+        onNotify(msg, 'error');
+        return false;
+      }
+    }
+    return true;
+  }
+
   function handleCreate() {
-    if (!requiredOk) return;
+    if (!requiredOk || !validateForm()) return;
     setSaving(true);
     config.api.create(buildBody(form))
       .then(() => { onNotify(`${config.recordLabel} created.`, 'success'); setShowNew(false); setForm(config.defaults); loadRows(); })
@@ -9094,6 +9113,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   }
 
   function handleEditSave() {
+    if (!validateForm()) return;
     setSaving(true);
     config.api.update(editItem.id, buildBody(form))
       .then(() => { onNotify(`${config.recordLabel} updated.`, 'success'); setEditItem(null); setForm(config.defaults); loadRows(); })
@@ -9103,7 +9123,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   function confirmDeleteRow(item) {
     setDeleteConfirm({
-      message: `${item.record_no} (${item.project_name || ''})`,
+      message: `${item.record_no} (${item.project_name || item.item_name || item.name || ''})`,
       onConfirm: () => {
         config.api.delete(item.id)
           .then(() => { onNotify(`${config.recordLabel} deleted.`, 'success'); setDeleteConfirm(null); loadRows(); })
@@ -9340,7 +9360,9 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
               <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
                 {needsProjects && <div><dt className={lcLabelCls}>Project</dt><dd className="font-semibold text-[#1e2a38]">{viewItem.project_name || '—'}</dd></div>}
                 {'customer_name' in viewItem && <div><dt className={lcLabelCls}>Customer</dt><dd className="font-semibold text-[#1e2a38]">{viewItem.customer_name || '—'}</dd></div>}
-                <div><dt className={lcLabelCls}>Status</dt><dd><LcStatusBadge status={viewItem.status || viewItem.stock_status} /></dd></div>
+                {!config.hideStatusInView && (viewItem.status || viewItem.stock_status) ? (
+                  <div><dt className={lcLabelCls}>Status</dt><dd><LcStatusBadge status={viewItem.status || viewItem.stock_status} /></dd></div>
+                ) : null}
                 <div><dt className={lcLabelCls}>Created By</dt><dd className="font-semibold text-[#1e2a38]">{viewItem.created_by_name || '—'}</dd></div>
                 {config.detailRows.map(([label, render, wide]) => (
                   <div key={label} className={wide || label === 'Description' || label === 'Remarks' ? 'col-span-2' : ''}>
@@ -11565,15 +11587,43 @@ function AmcDocumentsCrudPage({ activeSection, onOpenSection, onNotify }) {
 
 // ── Inventory (popup-based module) ────────────────────────────────────────────
 
-const INV_CATEGORIES = ['Solar Panel', 'Inverter', 'Battery', 'Structure', 'Cable & Wire', 'ACDB/DCDB', 'Other'];
-const INV_UNITS = ['Nos', 'Meter', 'Kg', 'Roll', 'Set'];
+const INV_MOVEMENT_REF_TYPES = ['Manual', 'Purchase Invoice', 'Purchase Challan', 'Sell Challan', 'Jobs', 'Opening Stock'];
 
 function InventoryManagementPage({ activeSection, onOpenSection, onNotify }) {
+  const invCommon = {
+    activeSection,
+    onOpenSection,
+    onNotify,
+    Subnav: InventorySubnavTabs,
+    panelClass,
+    cx,
+    PageHeading,
+    DashboardFooter,
+  };
+
   if (activeSection === 'Inventory Overview' || activeSection === 'Inventory' || activeSection === 'Overview') {
-    return <InventoryOverviewPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return (
+      <InventoryOverviewPageEnhanced
+        {...invCommon}
+        reportKpiToneClasses={reportKpiToneClasses}
+        Boxes={Boxes}
+        AlertTriangle={AlertTriangle}
+        IndianRupee={IndianRupee}
+        Download={Download}
+        Upload={Upload}
+        RefreshCw={RefreshCw}
+        Plus={Plus}
+      />
+    );
   }
   if (activeSection === 'Products') {
-    return <InventoryProductsCrudPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return <InventoryProductsPage {...invCommon} />;
+  }
+  if (activeSection === 'Stock Movements') {
+    return <InventoryStockMovementsPage {...invCommon} />;
+  }
+  if (activeSection === 'Categories') {
+    return <InventoryCategoriesPage {...invCommon} />;
   }
   if (activeSection === 'Stock Inward') {
     return <InventoryMovementPage movementType="Inward" activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
@@ -11590,110 +11640,20 @@ function InventoryManagementPage({ activeSection, onOpenSection, onNotify }) {
   if (activeSection === 'Warehouses') {
     return <InventoryWarehousesCrudPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
-  return <InventoryOverviewPage activeSection="Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
-
-function InventoryOverviewPage({ activeSection, onOpenSection, onNotify }) {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    inventoryApi.summary()
-      .then((data) => { if (data) setStats(data); })
-      .catch(() => onNotify('Could not load inventory summary.', 'error'))
-      .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const cards = [
-    { label: 'Total Products', value: String(stats?.total_items ?? 0), caption: 'Active SKUs', tone: 'blue', icon: Boxes, onClick: () => onOpenSection('Products') },
-    { label: 'Low Stock', value: String(stats?.low_stock ?? 0), caption: 'Below minimum level', tone: 'amber', icon: AlertTriangle, onClick: () => onOpenSection('Products') },
-    { label: 'Out of Stock', value: String(stats?.out_of_stock ?? 0), caption: 'Needs restock', tone: 'red', icon: AlertTriangle, onClick: () => onOpenSection('Stock Inward') },
-    { label: 'Stock Value', value: fmtInvRs(stats?.total_value), caption: 'Current inventory value', tone: 'green', icon: IndianRupee, onClick: () => onOpenSection('Products') },
-  ];
-
   return (
-    <div className="space-y-4">
-      <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Overview' }]} />
-      <InventorySubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-      {loading ? (
-        <div className={cx(panelClass, 'flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]')}>Loading overview...</div>
-      ) : (
-        <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {cards.map((card) => (
-              <button key={card.label} type="button" onClick={card.onClick} className={cx(panelClass, 'p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg')}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[12px] font-bold text-[#7a8fa6]">{card.label}</p>
-                    <p className="mt-2 text-[22px] font-extrabold text-[#1e3261]">{card.value}</p>
-                    <p className="mt-1 text-[11px] font-bold text-[#53647f]">{card.caption}</p>
-                  </div>
-                  <span className={cx('grid size-10 place-items-center rounded-[10px]', reportKpiToneClasses[card.tone] || reportKpiToneClasses.blue)}>
-                    <card.icon className="size-5" />
-                  </span>
-                </div>
-              </button>
-            ))}
-          </section>
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { label: 'Stock Inward', section: 'Stock Inward', icon: Download, tone: 'green' },
-              { label: 'Stock Outward', section: 'Stock Outward', icon: Upload, tone: 'red' },
-              { label: 'Transfer Stock', section: 'Stock Transfer', icon: RefreshCw, tone: 'blue' },
-              { label: 'Add Product', section: 'Products', icon: Plus, tone: 'purple' },
-            ].map((action) => (
-              <button key={action.label} type="button" onClick={() => onOpenSection(action.section)} className={cx(panelClass, 'flex items-center gap-3 p-4 text-left transition hover:bg-[#f8fbff]')}>
-                <span className={cx('grid size-10 place-items-center rounded-[10px]', reportKpiToneClasses[action.tone])}><action.icon className="size-5" /></span>
-                <span className="text-[14px] font-extrabold text-[#1e3261]">{action.label}</span>
-              </button>
-            ))}
-          </section>
-        </>
-      )}
-      <DashboardFooter />
-    </div>
+    <InventoryOverviewPageEnhanced
+      {...invCommon}
+      activeSection="Inventory Overview"
+      reportKpiToneClasses={reportKpiToneClasses}
+      Boxes={Boxes}
+      AlertTriangle={AlertTriangle}
+      IndianRupee={IndianRupee}
+      Download={Download}
+      Upload={Upload}
+      RefreshCw={RefreshCw}
+      Plus={Plus}
+    />
   );
-}
-
-function InventoryProductsCrudPage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    moduleTitle: 'Inventory', Subnav: InventorySubnavTabs, title: 'Products', recordLabel: 'Product', newLabel: 'Add Product',
-    statuses: [],
-    api: inventoryApi.items,
-    extraFilters: [
-      { key: 'category', label: 'All Categories', options: INV_CATEGORIES, client: false },
-      { key: 'stock_status', label: 'All Status', options: ['In Stock', 'Low Stock', 'Out of Stock'], client: true },
-    ],
-    searchKeys: ['name', 'hsn_code'],
-    lookups: { warehouses: { api: inventoryApi.warehouses, label: (w) => w.name } },
-    columns: [
-      { label: 'Product', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.name}</span> },
-      { label: 'Category', render: (r) => r.category },
-      { label: 'HSN', render: (r) => r.hsn_code || '—' },
-      { label: 'Stock', render: (r) => r.current_stock },
-      { label: 'Rate', render: (r) => fmtInvRs(r.rate) },
-      { label: 'Warehouse', render: (r) => r.warehouse_name || '—' },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.stock_status} /> },
-    ],
-    fields: [
-      { name: 'name', label: 'Product Name', type: 'text', required: true },
-      { name: 'category', label: 'Category', type: 'select', options: INV_CATEGORIES },
-      { name: 'unit', label: 'Unit', type: 'select', options: INV_UNITS },
-      { name: 'hsn_code', label: 'HSN Code', type: 'text' },
-      { name: 'rate', label: 'Rate (Rs)', type: 'number' },
-      { name: 'current_stock', label: 'Opening Stock', type: 'number' },
-      { name: 'minimum_stock', label: 'Minimum Stock', type: 'number' },
-      { name: 'warehouse', label: 'Warehouse', type: 'lookup', lookup: 'warehouses' },
-      { name: 'is_active', label: 'Status', type: 'activeFlag' },
-    ],
-    defaults: { name: '', category: 'Other', unit: 'Nos', hsn_code: '', rate: '', current_stock: '', minimum_stock: '', warehouse: '', is_active: 'Active' },
-    detailRows: [
-      ['Product No', (r) => r.record_no], ['Name', (r) => r.name], ['Category', (r) => r.category],
-      ['Unit', (r) => r.unit], ['HSN', (r) => r.hsn_code || '—'], ['Stock', (r) => r.current_stock],
-      ['Min Stock', (r) => r.minimum_stock], ['Rate', (r) => fmtInvRs(r.rate)], ['Warehouse', (r) => r.warehouse_name || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
 function InventoryMovementPage({ movementType, activeSection, onOpenSection, onNotify }) {
@@ -11718,6 +11678,8 @@ function InventoryMovementPage({ movementType, activeSection, onOpenSection, onN
       { label: 'Qty', render: (r) => r.quantity },
       { label: 'From', render: (r) => r.from_warehouse_name || '—' },
       { label: 'To', render: (r) => r.to_warehouse_name || '—' },
+      { label: 'Ref Type', render: (r) => r.reference_type || '—' },
+      { label: 'Ref #', render: (r) => r.reference_no || r.reference || '—' },
       { label: 'Date', render: (r) => lcFormatDate(r.created_at) },
     ],
     fields: [
@@ -11730,15 +11692,21 @@ function InventoryMovementPage({ movementType, activeSection, onOpenSection, onN
         { name: 'from_warehouse', label: 'From Warehouse', type: 'lookup', lookup: 'warehouses', required: true },
         { name: 'to_warehouse', label: 'To Warehouse', type: 'lookup', lookup: 'warehouses', required: true },
       ] : []),
-      { name: 'reference', label: 'Reference / PO No', type: 'text' },
+      { name: 'reference_type', label: 'Reference Type', type: 'select', options: INV_MOVEMENT_REF_TYPES },
+      { name: 'reference_no', label: 'Reference / Challan No', type: 'text' },
+      { name: 'reference', label: 'Legacy Reference', type: 'text' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
     ],
-    defaults: { item: '', quantity: '', rate: '', from_warehouse: '', to_warehouse: '', reference: '', notes: '' },
+    defaults: { item: '', quantity: '', rate: '', from_warehouse: '', to_warehouse: '', reference_type: 'Manual', reference_no: '', reference: '', notes: '' },
     detailRows: [
       ['Ref No', (r) => r.record_no], ['Item', (r) => r.item_name], ['Quantity', (r) => r.quantity],
       ['From', (r) => r.from_warehouse_name || '—'], ['To', (r) => r.to_warehouse_name || '—'],
-      ['Reference', (r) => r.reference || '—'], ['Notes', (r) => r.notes || '—', true],
+      ['Ref Type', (r) => r.reference_type || '—'], ['Ref #', (r) => r.reference_no || r.reference || '—'], ['Notes', (r) => r.notes || '—', true],
     ],
+    hideStatusInView: true,
+    validateForm: isAdjustment
+      ? (f) => (!f.from_warehouse && !f.to_warehouse ? 'Select at least one warehouse (from or to) for adjustment.' : null)
+      : undefined,
   };
   return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }

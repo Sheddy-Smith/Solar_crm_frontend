@@ -15,38 +15,50 @@ class Warehouse(models.Model):
         return self.name
 
 
+class InventoryCategory(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = 'Inventory Categories'
+
+    def __str__(self):
+        return self.name
+
+
 class InventoryItem(models.Model):
-    CATEGORY_CHOICES = [
-        ('Solar Panel', 'Solar Panel'),
-        ('Inverter', 'Inverter'),
-        ('Battery', 'Battery'),
-        ('Structure', 'Structure'),
-        ('Cable & Wire', 'Cable & Wire'),
-        ('ACDB/DCDB', 'ACDB/DCDB'),
-        ('Other', 'Other'),
-    ]
     UNIT_CHOICES = [
         ('Nos', 'Nos'),
+        ('pcs', 'pcs'),
         ('Meter', 'Meter'),
         ('Kg', 'Kg'),
+        ('kg', 'kg'),
+        ('Ltr', 'Ltr'),
+        ('ltr', 'ltr'),
         ('Roll', 'Roll'),
         ('Set', 'Set'),
     ]
 
+    item_code = models.CharField(max_length=30, unique=True, blank=True, null=True)
     name = models.CharField(max_length=200)
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='Other')
+    category = models.CharField(max_length=100, default='Other')
     unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default='Nos')
     hsn_code = models.CharField(max_length=20, blank=True)
     rate = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    selling_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     current_stock = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     minimum_stock = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    location = models.CharField(max_length=200, blank=True)
     warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.name
+        return self.name or self.item_code
 
     class Meta:
         ordering = ['name']
@@ -58,6 +70,14 @@ class StockMovement(models.Model):
         ('Outward', 'Outward'),
         ('Transfer', 'Transfer'),
         ('Adjustment', 'Adjustment'),
+    ]
+    REFERENCE_TYPE_CHOICES = [
+        ('Manual', 'Manual'),
+        ('Purchase Invoice', 'Purchase Invoice'),
+        ('Purchase Challan', 'Purchase Challan'),
+        ('Sell Challan', 'Sell Challan'),
+        ('Jobs', 'Jobs'),
+        ('Opening Stock', 'Opening Stock'),
     ]
 
     item = models.ForeignKey(InventoryItem, on_delete=models.CASCADE, related_name='movements')
@@ -78,6 +98,8 @@ class StockMovement(models.Model):
         blank=True,
         related_name='incoming',
     )
+    reference_type = models.CharField(max_length=30, choices=REFERENCE_TYPE_CHOICES, default='Manual', blank=True)
+    reference_no = models.CharField(max_length=100, blank=True)
     reference = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
@@ -114,8 +136,6 @@ class StockMovement(models.Model):
                 previous.to_warehouse_id, previous.from_warehouse_id,
             )
 
-            # If the movement was re-pointed at a different item, the old
-            # delta must be reverted on the OLD item, not subtracted here.
             old_item = None
             if previous is not None and previous.item_id != self.item_id:
                 old_item = InventoryItem.objects.select_for_update().get(pk=previous.item_id)
@@ -158,11 +178,6 @@ class StockMovement(models.Model):
             super().delete(*args, **kwargs)
             item.current_stock = updated_stock
             update_fields = ['current_stock']
-            # Revert item.warehouse back to the source of this transfer, but
-            # only if no later transfer has since moved it elsewhere -- this
-            # movement's to_warehouse would no longer be the item's current
-            # location, and blindly reverting could clobber a more recent
-            # transfer's destination.
             if (
                 self.movement_type == 'Transfer'
                 and self.from_warehouse_id

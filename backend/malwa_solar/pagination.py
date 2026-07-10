@@ -6,4 +6,4 @@ class DefaultPagination(PageNumberPagination):
     silently ignoring them and truncating every list at PAGE_SIZE."""
     page_size = 100
     page_size_query_param = 'page_size'
-    max_page_size = 1000
+    max_page_size = 2500
