@@ -22,6 +22,11 @@ import {
   InventoryStockMovementsPage,
   InventoryCategoriesPage,
 } from './inventoryPages.jsx';
+import {
+  UnifiedDashboardPage,
+  INSIGHTS_LEGACY_TAB_MAP,
+  INSIGHTS_LEGACY_PATH_MAP,
+} from './unifiedDashboard.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -176,9 +181,7 @@ const sidebarItems = [
   { label: 'Accounts', icon: ReceiptText, showChevron: true },
   { label: 'Inventory', icon: Boxes, showChevron: true },
   { label: 'Employee', icon: HardHat, showChevron: true },
-  { label: 'Reports', icon: BarChart3 },
-  { label: 'AMC & Warranty', icon: ShieldCheck, showChevron: true },
-  { label: 'Summary', icon: LayoutDashboard, showChevron: true },
+  { label: 'Insights', icon: LayoutDashboard },
   { label: 'Settings', icon: Settings, showChevron: false },
 ];
 
@@ -200,14 +203,16 @@ const projectActionPages = ['Project Create', 'Project Activity Create', 'Projec
 const projectLegacyOnlyPages = ['Subsidy', 'Project Documents', 'Project Approvals'];
 const projectRelatedPages = ['Project Management', 'Project Overview', 'Project KPI Analytics', 'Project Reports', ...projectActionPages, ...projectSubItems, ...projectLegacyOnlyPages, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
 const projectExpandHighlightPages = projectRelatedPages.filter((p) => !projectLegacyOnlyPages.includes(p));
-const summarySubItems = ['Executive Summary', 'Sales Pipeline', 'Projects & Delivery', 'Finance & Operations'];
-
-const summarySubRoutes = {
-  'Executive Summary': '/summary/executive',
-  'Sales Pipeline': '/summary/sales',
-  'Projects & Delivery': '/summary/projects',
-  'Finance & Operations': '/summary/finance',
-};
+const summarySubItems = [];
+const insightsRelatedPages = [
+  'Insights',
+  'Executive Summary',
+  'Sales Pipeline',
+  'Projects & Delivery',
+  'Finance & Operations',
+  'Reports',
+  'Project KPI Analytics',
+];
 const summaryRelatedPages = [...summarySubItems];
 // Pages jinhe ek selected project chahiye — refresh/restore pe selectedProject null hota hai, isliye inhe Project List se replace karo
 const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Report View'];
@@ -363,6 +368,15 @@ function normalizeApiRows(data) {
   return Array.isArray(data) ? data : (data?.results ?? []);
 }
 
+const summarySubRoutes = {
+  'Executive Summary': '/insights?tab=overview',
+  'Sales Pipeline': '/insights?tab=sales',
+  'Projects & Delivery': '/insights?tab=projects',
+  'Finance & Operations': '/insights?tab=finance',
+  Reports: '/insights?tab=sales',
+  'Project KPI Analytics': '/insights?tab=projects',
+};
+
 const leadSubRoutes = {
   'Lead List': '/lead/list',
   'Lead Edit': '/lead/edit/:leadId',
@@ -383,7 +397,7 @@ const employeeSubRoutes = {
 
 const projectSubRoutes = {
   'Project Create': '/projects/create',
-  'Project KPI Analytics': '/projects/kpi-analytics',
+  'Project KPI Analytics': '/insights?tab=projects',
   'Project List': '/projects/list',
   'Survey Dashboard': '/projects/survey-dashboard',
   'Project Details': '/projects/details/:projectId',
@@ -537,6 +551,7 @@ const sectionRoutes = {
   ...omSubRoutes,
   ...amcSubRoutes,
   ...summarySubRoutes,
+  Insights: '/insights',
   Dashboard: '/dashboard',
   Lead: '/lead/list',
   'Project Management': '/projects/list',
@@ -546,11 +561,11 @@ const sectionRoutes = {
   Inventory: '/inventory/overview',
   'Liaisoning & Commissioning': '/liaisoning/applications',
   'AMC & Warranty': '/amc/overview',
-  Summary: '/summary/executive',
+  Summary: '/insights?tab=overview',
   Settings: '/settings',
   Quotation: '/quotation',
   'O&M': '/om/overview',
-  Reports: '/reports',
+  Reports: '/insights?tab=sales',
   Employee: '/employees/details',
 };
 
@@ -567,6 +582,14 @@ function routeTemplateToRegex(template) {
 
 function resolveSectionFromPath(pathname) {
   const path = normalizePathname(pathname);
+  if (INSIGHTS_LEGACY_PATH_MAP[path]) {
+    const tab = (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab')) || INSIGHTS_LEGACY_PATH_MAP[path];
+    return { section: 'Insights', params: { tab } };
+  }
+  if (path === '/insights') {
+    const tab = (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab')) || 'overview';
+    return { section: 'Insights', params: { tab } };
+  }
   if (path === '/projects') {
     return { section: 'Project List', params: {} };
   }
@@ -586,7 +609,15 @@ function resolveSectionFromPath(pathname) {
   return { section: null, params: {} };
 }
 
-function buildPathForSection(section, { selectedLead, selectedProject } = {}) {
+function buildPathForSection(section, { selectedLead, selectedProject, insightsTab } = {}) {
+  if (section === 'Insights') {
+    const tab = insightsTab || INSIGHTS_LEGACY_TAB_MAP[section] || 'overview';
+    return `/insights?tab=${tab}`;
+  }
+  const legacyTab = INSIGHTS_LEGACY_TAB_MAP[section];
+  if (legacyTab) {
+    return `/insights?tab=${legacyTab}`;
+  }
   const template = sectionRoutes[section];
   if (!template) return '/';
 
@@ -1816,6 +1847,7 @@ const availableSections = new Set([
   ...liaisonRelatedPages,
   ...omRelatedPages,
   ...amcRelatedPages,
+  ...insightsRelatedPages,
   ...settingsRelatedPages,
   ...summaryRelatedPages,
 ]);
@@ -1892,8 +1924,12 @@ function App() {
     if (leadDetailPages.includes(preferred) && !initialRoute.params.leadId) return 'Lead List';
     // Refresh pe selectedProject null hota hai, isliye project-specific page ki jagah Project List dikhao
     if (projectDetailPages.includes(preferred) && !initialRoute.params.projectId) return 'Project List';
+    if (insightsRelatedPages.includes(preferred) && preferred !== 'Insights') return 'Insights';
     return preferred;
   });
+  const [insightsTab, setInsightsTab] = useState(
+    initialRoute.params?.tab || INSIGHTS_LEGACY_TAB_MAP[initialRoute.section] || 'overview',
+  );
   const [expandedSection, setExpandedSection] = useState(() => {
     const item = isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard';
     if (item === 'Lead' || leadRelatedPages.includes(item)) return 'Lead';
@@ -1904,7 +1940,7 @@ function App() {
     if (item === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(item)) return 'Liaisoning & Commissioning';
     if (omRelatedPages.includes(item)) return 'O&M';
     if (item === 'AMC & Warranty' || amcRelatedPages.includes(item)) return 'AMC & Warranty';
-    if (summaryRelatedPages.includes(item)) return 'Summary';
+    if (insightsRelatedPages.includes(item)) return null;
     return null;
   });
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -2239,7 +2275,7 @@ function App() {
     if (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Liaisoning & Commissioning'); return; }
     if (omRelatedPages.includes(activeSidebarItem)) { setExpandedSection('O&M'); return; }
     if (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem)) { setExpandedSection('AMC & Warranty'); return; }
-    if (summaryRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Summary'); return; }
+    if (insightsRelatedPages.includes(activeSidebarItem)) return;
   }, [activeSidebarItem]);
 
   useEffect(() => {
@@ -2271,8 +2307,8 @@ function App() {
   // Uses prevNavStateRef to deduplicate — prevents StrictMode double-push on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const nextPath = buildPathForSection(activeSidebarItem, { selectedLead, selectedProject });
-    const navKey = `${currentPage}::${activeSidebarItem}::${selectedLead?.id ?? ''}::${selectedProject?.id ?? ''}::${nextPath}`;
+    const nextPath = buildPathForSection(activeSidebarItem, { selectedLead, selectedProject, insightsTab });
+    const navKey = `${currentPage}::${activeSidebarItem}::${selectedLead?.id ?? ''}::${selectedProject?.id ?? ''}::${insightsTab}::${nextPath}`;
     const historyState = {
       activeSidebarItem,
       currentPage,
@@ -2303,7 +2339,7 @@ function App() {
     // Genuine navigation — push new history entry
     prevNavStateRef.current = navKey;
     window.history.pushState(historyState, '', nextPath);
-  }, [activeSidebarItem, currentPage, selectedLead?.id, selectedProject?.id]);
+  }, [activeSidebarItem, currentPage, selectedLead?.id, selectedProject?.id, insightsTab]);
 
   // Handle browser back / forward buttons
   useEffect(() => {
@@ -2316,6 +2352,7 @@ function App() {
           isPopStateRef.current = true;
           setCurrentPage('dashboard');
           setActiveSidebarItem(resolved.section);
+          if (resolved.params?.tab) setInsightsTab(resolved.params.tab);
           const leadId = Number(resolved.params.leadId);
           const projectId = Number(resolved.params.projectId);
           setSelectedLead(Number.isFinite(leadId) && leadId > 0 ? { id: leadId } : null);
@@ -2481,7 +2518,7 @@ function App() {
                   const isLiaisonSection = item.label === 'Liaisoning & Commissioning';
                   const isOmSection = item.label === 'O&M';
                   const isAmcSection = item.label === 'AMC & Warranty';
-                  const isSummarySection = item.label === 'Summary';
+                  const isInsightsSection = item.label === 'Insights';
                   const isSettingsSection = item.label === 'Settings';
                   const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
                   const isProjectHighlighted = isProjectSection && (activeSidebarItem === 'Project Management' || projectExpandHighlightPages.includes(activeSidebarItem));
@@ -2491,7 +2528,7 @@ function App() {
                   const isLiaisonHighlighted = isLiaisonSection && (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem));
                   const isOmHighlighted = isOmSection && omRelatedPages.includes(activeSidebarItem);
                   const isAmcHighlighted = isAmcSection && (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem));
-                  const isSummaryHighlighted = isSummarySection && (activeSidebarItem === 'Summary' || summaryRelatedPages.includes(activeSidebarItem));
+                  const isInsightsHighlighted = isInsightsSection && (activeSidebarItem === 'Insights' || insightsRelatedPages.includes(activeSidebarItem));
                   const isLeadOpen = isLeadSection && expandedSection === 'Lead';
                   const isProjectOpen = isProjectSection && expandedSection === 'Project Management';
                   const isEmployeeOpen = isEmployeeSection && expandedSection === 'Employee';
@@ -2500,10 +2537,9 @@ function App() {
                   const isLiaisonOpen = isLiaisonSection && expandedSection === 'Liaisoning & Commissioning';
                   const isOmOpen = isOmSection && expandedSection === 'O&M';
                   const isAmcOpen = isAmcSection && expandedSection === 'AMC & Warranty';
-                  const isSummaryOpen = isSummarySection && expandedSection === 'Summary';
                   const isSettingsActive = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
                   const isSettingsOpen = isSettingsSection && expandedSection === 'Settings';
-                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isAmcHighlighted || isSummaryHighlighted || isSettingsActive;
+                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isAmcHighlighted || isInsightsHighlighted || isSettingsActive;
 
                   return (
                     <div key={item.label}>
@@ -2524,13 +2560,21 @@ function App() {
                             setMobileSidebarOpen(false);
                             return;
                           }
-                          const sectionKey = isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : isSummarySection ? 'Summary' : null;
+                          if (isInsightsSection) {
+                            setExpandedSection(null);
+                            setActiveSidebarItem('Insights');
+                            setInsightsTab('overview');
+                            notify('Insights opened');
+                            setMobileSidebarOpen(false);
+                            return;
+                          }
+                          const sectionKey = isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : null;
                           if (sectionKey) {
                             if (expandedSection === sectionKey) {
                               setExpandedSection(null);
                             } else {
                               setExpandedSection(sectionKey);
-                              const nextItem = isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isAmcSection ? 'AMC Overview' : 'Executive Summary';
+                              const nextItem = isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isAmcSection ? 'AMC Overview' : 'Project List';
                               setActiveSidebarItem(nextItem);
                               notify(`${nextItem} section selected`);
                             }
@@ -2561,7 +2605,7 @@ function App() {
                           {item.label}
                         </span>
                         {item.showChevron && !desktopSidebarCollapsed ? (
-                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSummaryOpen || isSettingsOpen) && '-rotate-90')} />
+                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsOpen) && '-rotate-90')} />
                         ) : null}
                         {item.disabled && !desktopSidebarCollapsed ? (
                           <span className="rounded-[6px] bg-white/16 px-2 py-1 text-[9px] font-extrabold text-white/90">
@@ -2844,43 +2888,6 @@ function App() {
                         </motion.div>
                       )}
                       </AnimatePresence>
-                      <AnimatePresence>
-                      {isSummaryOpen && !desktopSidebarCollapsed && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
-                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
-                        >
-                          <div className="space-y-1">
-                            {summarySubItems.map((subItem) => {
-                              const isSubActive = activeSidebarItem === subItem;
-
-                              return (
-                                <button
-                                  key={subItem}
-                                  type="button"
-                                  data-route={summarySubRoutes[subItem]}
-                                  onClick={() => {
-                                    setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
-                                    notify(`${subItem} opened`);
-                                  }}
-                                  className={cx(
-                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
-                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
-                                  )}
-                                >
-                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
-                                  <span>{getModuleSubnavLabel(subItem)}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </motion.div>
-                      )}
-                      </AnimatePresence>
                       {null /* Settings subcategories shown on page only */}
                     </div>
                   );
@@ -2950,10 +2957,10 @@ function App() {
               <SettingsRolesPermissionsPage activeSection="Settings Roles & Permissions" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
             ) : activeSidebarItem === 'Activity Logs' ? (
               <ActivityLogsPage activeSection="Activity Logs" onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
-            ) : activeSidebarItem === 'Reports' ? (
-              <ReportsPage onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
-            ) : summaryRelatedPages.includes(activeSidebarItem) ? (
-              <SummaryPage
+            ) : insightsRelatedPages.includes(activeSidebarItem) ? (
+              <UnifiedDashboardPage
+                activeTab={activeSidebarItem === 'Insights' ? insightsTab : (INSIGHTS_LEGACY_TAB_MAP[activeSidebarItem] || insightsTab)}
+                onTabChange={setInsightsTab}
                 activeSection={activeSidebarItem}
                 onOpenSection={(section) => {
                   if (section === 'Create Lead') {
@@ -2961,10 +2968,22 @@ function App() {
                     notify('Create Lead opened');
                     return;
                   }
+                  if (INSIGHTS_LEGACY_TAB_MAP[section]) {
+                    setInsightsTab(INSIGHTS_LEGACY_TAB_MAP[section]);
+                    setActiveSidebarItem('Insights');
+                    notify('Insights opened');
+                    return;
+                  }
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
                 }}
                 onNotify={notify}
+                panelClass={panelClass}
+                cx={cx}
+                PageHeading={PageHeading}
+                DashboardFooter={DashboardFooter}
+                reportKpiToneClasses={reportKpiToneClasses}
+                IncentiveReportModal={IncentiveReportModal}
               />
             ) : projectRelatedPages.includes(activeSidebarItem) ? (
               <ProjectManagementPage
@@ -11812,7 +11831,7 @@ function SummaryExecutivePage({ activeSection, onOpenSection, onNotify }) {
     { label: 'Record Payment', section: 'Payment Received', icon: ReceiptText, tone: 'blue' },
     { label: 'Stock Inward', section: 'Stock Inward', icon: Download, tone: 'amber' },
     { label: 'O&M Tickets', section: 'Breakdown Tickets', icon: Wrench, tone: 'red' },
-    { label: 'Full Reports', section: 'Reports', icon: BarChart3, tone: 'purple' },
+    { label: 'Full Reports', section: 'Insights', icon: BarChart3, tone: 'purple' },
   ];
 
   return (

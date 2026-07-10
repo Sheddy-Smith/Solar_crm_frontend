@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'apps.om',
     'apps.amc',
     'apps.reports',
+    'apps.dashboard',
     'apps.crm_settings',
 ]
 

@@ -260,6 +260,15 @@ export const amcModuleApi = {
   summary: () => request('/amc/contracts/summary/'),
 };
 
+export const dashboardApi = {
+  unified: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null && v !== 'All'))
+    ).toString();
+    return request(`/dashboard/unified/${qs ? '?' + qs : ''}`, { timeoutMs: 120000 });
+  },
+};
+
 export const reportsApi = {
   dashboard: (params = {}) => {
     const qs = new URLSearchParams(
