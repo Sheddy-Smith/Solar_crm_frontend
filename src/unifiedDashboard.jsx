@@ -453,7 +453,7 @@ const ALERT_DEFS = [
   { key: 'pending_tasks', label: 'Pending O&M Tasks', section: 'Maintenance Tasks', icon: Wrench, iconBg: 'bg-[#dbeafe]', iconColor: 'text-[#3b82f6]' },
   { key: 'open_om_tickets', label: 'Open O&M Tickets', section: 'Breakdown Tickets', icon: Ticket, iconBg: 'bg-[#dcfce7]', iconColor: 'text-[#16a34a]' },
   { key: 'pending_cheques', label: 'Pending Cheques', section: 'Cheques List', icon: FileText, iconBg: 'bg-[#fef9c3]', iconColor: 'text-[#ca8a04]' },
-  { key: 'stale_stock_items', label: 'Stale Stock (15d+)', section: 'Stock Movements', icon: Boxes, iconBg: 'bg-[#fce7f3]', iconColor: 'text-[#ec4899]' },
+  { key: 'stale_stock_items', label: 'Stale Stock (15d+)', section: 'Products', icon: Boxes, iconBg: 'bg-[#fce7f3]', iconColor: 'text-[#ec4899]' },
 ];
 
 export function UnifiedDashboardPage({

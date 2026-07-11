@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle, Boxes, Download, IndianRupee, Pencil, Plus, RefreshCw,
-  Search, Trash2, Upload,
+  Search, Tags, Trash2, Upload,
 } from 'lucide-react';
 import { inventoryApi } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
 
 const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'kg', 'Ltr', 'ltr', 'Roll', 'Set'];
 const STOCK_STATUS_OPTIONS = ['All Stock', 'In Stock', 'Low Stock', 'Out of Stock'];
-const MOVEMENT_TYPES = ['All', 'Inward', 'Outward', 'Transfer', 'Adjustment'];
-const REFERENCE_TYPES = ['All', 'Manual', 'Purchase Invoice', 'Purchase Challan', 'Sell Challan', 'Jobs', 'Opening Stock'];
 
 export function fmtInvRs(v) {
   return v != null && v !== '' ? `Rs ${Number(v).toLocaleString('en-IN')}` : '—';
@@ -71,8 +69,8 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
     { label: 'Low Stock', value: String(stats?.low_stock ?? 0), caption: 'Below reorder level', tone: 'amber', icon: AlertIcon, onClick: () => onOpenSection('Products') },
     { label: 'Out of Stock', value: String(stats?.out_of_stock ?? 0), caption: 'Needs restock', tone: 'red', icon: AlertIcon, onClick: () => onOpenSection('Stock Inward') },
     { label: 'Stock Value', value: fmtInvRs(stats?.total_value), caption: 'At cost price', tone: 'green', icon: RupeeIcon, onClick: () => onOpenSection('Products') },
-    { label: 'Total Movements', value: String(stats?.total_movements ?? 0), caption: 'All time', tone: 'purple', icon: RefreshIcon, onClick: () => onOpenSection('Stock Movements') },
-    { label: 'Stale Stock (15d+)', value: String(stats?.stale_stock_items ?? 0), caption: 'No recent movement', tone: 'red', icon: AlertIcon, onClick: () => onOpenSection('Stock Movements') },
+    { label: 'Total Movements', value: String(stats?.total_movements ?? 0), caption: 'All time', tone: 'purple', icon: RefreshIcon, onClick: () => onOpenSection('Stock Inward') },
+    { label: 'Stale Stock (15d+)', value: String(stats?.stale_stock_items ?? 0), caption: 'No recent movement', tone: 'red', icon: AlertIcon, onClick: () => onOpenSection('Products') },
   ];
 
   return (
@@ -115,11 +113,10 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
               </div>
             </div>
           </section>
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { label: 'Stock Inward', section: 'Stock Inward', icon: DownloadIcon, tone: 'green' },
-              { label: 'Stock Outward', section: 'Stock Outward', icon: UploadIcon, tone: 'red' },
-              { label: 'Stock Movements', section: 'Stock Movements', icon: RefreshIcon, tone: 'blue' },
+              { label: 'Products', section: 'Products', icon: Boxes, tone: 'green' },
+              { label: 'Categories', section: 'Categories', icon: Tags, tone: 'amber' },
               { label: 'Add Product', section: 'Products', icon: PlusIcon, tone: 'purple' },
             ].map((action) => (
               <button key={action.label} type="button" onClick={() => onOpenSection(action.section)} className={cx(panelClass, 'flex items-center gap-3 p-4 text-left transition hover:bg-[#f8fbff]')}>
@@ -325,110 +322,6 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
           </div>
         </InvModal>
       ) : null}
-    </div>
-  );
-}
-
-export function InventoryStockMovementsPage({ activeSection, onOpenSection, onNotify, Subnav, panelClass, cx, PageHeading, DashboardFooter }) {
-  const [rows, setRows] = useState([]);
-  const [analytics, setAnalytics] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [movementType, setMovementType] = useState('All');
-  const [referenceType, setReferenceType] = useState('All');
-
-  useEffect(() => {
-    const timer = setTimeout(() => setSearch(searchInput), 350);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    const params = { page_size: 2000 };
-    if (movementType !== 'All') params.movement_type = movementType;
-    if (referenceType !== 'All') params.reference_type = referenceType;
-    if (dateFrom) params.date_from = dateFrom;
-    if (dateTo) params.date_to = dateTo;
-    if (search.trim()) params.search = search.trim();
-    const analyticsParams = {
-      search: search.trim() || undefined,
-      date_from: dateFrom || undefined,
-      date_to: dateTo || undefined,
-      movement_type: movementType,
-      reference_type: referenceType,
-    };
-    Promise.all([
-      inventoryApi.movements.list(params),
-      inventoryApi.movements.analytics(analyticsParams),
-    ]).then(([list, stats]) => {
-      setRows(normalizeRows(list));
-      setAnalytics(stats);
-    }).catch((e) => onNotify(e.message || 'Failed to load movements', 'error'))
-      .finally(() => setLoading(false));
-  }, [search, dateFrom, dateTo, movementType, referenceType, onNotify]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const filtered = rows;
-
-  const kpi = [
-    { label: 'Total Movements', value: String(analytics?.total_movements ?? 0), tone: 'blue' },
-    { label: 'Stock IN', value: unitSummary(analytics?.stock_in_by_unit), tone: 'green' },
-    { label: 'Stock OUT', value: unitSummary(analytics?.stock_out_by_unit), tone: 'amber' },
-    { label: 'Stale IN (15d+)', value: String(analytics?.stale_inward_items ?? 0), tone: 'red' },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Stock Movements' }]}
-        actions={<button type="button" onClick={() => exportNotifyCsv(onNotify, 'stock-movements', ['Date', 'Item', 'Category', 'Type', 'Qty', 'Reference', 'Ref No', 'Notes'], filtered.map((r) => [new Date(r.created_at).toLocaleDateString('en-IN'), r.item_name, r.item_category, r.movement_direction, r.quantity, r.reference_type, r.reference_no, r.notes]))} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold"><Download className="size-4" />Export CSV</button>}
-      />
-      <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {kpi.map((c) => (
-          <article key={c.label} className={cx(panelClass, 'p-4')}>
-            <p className="text-[12px] font-bold text-[#7a8fa6]">{c.label}</p>
-            <p className="mt-2 text-[18px] font-extrabold text-[#1e3261]">{c.value}</p>
-          </article>
-        ))}
-      </section>
-      <div className={cx(panelClass, 'space-y-4 p-4')}>
-        <div className="flex flex-wrap gap-3">
-          <input className="h-10 min-w-[180px] flex-1 rounded-[8px] border px-3 text-[13px]" placeholder="Search item or category..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
-          <input type="date" className="h-10 rounded-[8px] border px-3 text-[13px]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          <input type="date" className="h-10 rounded-[8px] border px-3 text-[13px]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          <select className="h-10 rounded-[8px] border px-3 text-[13px]" value={movementType} onChange={(e) => setMovementType(e.target.value)}>{MOVEMENT_TYPES.map((o) => <option key={o}>{o}</option>)}</select>
-          <select className="h-10 rounded-[8px] border px-3 text-[13px]" value={referenceType} onChange={(e) => setReferenceType(e.target.value)}>{REFERENCE_TYPES.map((o) => <option key={o}>{o}</option>)}</select>
-          <button type="button" onClick={load} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><RefreshCw className="size-4" />Apply</button>
-        </div>
-        {loading ? <p className="py-12 text-center text-[#7a8fa6]">Loading...</p> : (
-          <div className="overflow-auto rounded-[12px] border border-[#e5eaf2]">
-            <table className="w-full min-w-[960px] text-left text-[13px]">
-              <thead><tr className="bg-[#f8fafc] text-[11px] font-extrabold uppercase text-[#7a8fa6]">
-                {['Date', 'Item', 'Category', 'Type', 'Qty', 'Reference', 'Ref No', 'Notes'].map((h) => <th key={h} className="px-3 py-3">{h}</th>)}
-              </tr></thead>
-              <tbody className="divide-y divide-[#f1f5f9]">
-                {filtered.map((r) => (
-                  <tr key={r.id}>
-                    <td className="px-3 py-2">{new Date(r.created_at).toLocaleDateString('en-IN')}</td>
-                    <td className="px-3 py-2 font-semibold">{r.item_name}</td>
-                    <td className="px-3 py-2">{r.item_category || '—'}</td>
-                    <td className="px-3 py-2"><InvStatusBadge status={r.movement_direction} /></td>
-                    <td className="px-3 py-2">{r.quantity} {r.item_unit}</td>
-                    <td className="px-3 py-2">{r.reference_type || r.reference || '—'}</td>
-                    <td className="px-3 py-2">{r.reference_no || '—'}</td>
-                    <td className="px-3 py-2 max-w-[200px] truncate">{r.notes || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      <DashboardFooter />
     </div>
   );
 }

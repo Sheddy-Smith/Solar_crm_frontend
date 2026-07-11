@@ -19,7 +19,6 @@ import { exportNotifyCsv } from './lib/utils.js';
 import {
   InventoryOverviewPageEnhanced,
   InventoryProductsPage,
-  InventoryStockMovementsPage,
   InventoryCategoriesPage,
 } from './inventoryPages.jsx';
 import {
@@ -250,7 +249,9 @@ const accountsSubItems = [
   'GST Ledger',
 ];
 const accountsRelatedPages = [...new Set([...accountsSubItems, ...accountsLegacyPages])];
-const inventorySubItems = ['Inventory Overview', 'Products', 'Stock Movements', 'Categories', 'Stock Inward', 'Stock Outward', 'Stock Transfer', 'Adjustments', 'Warehouses'];
+// Stock Movements / Stock Transfer / Adjustments pages hata diye gaye hain —
+// movements data/API abhi bhi Overview cards aur Stock Inward/Outward use karte hain.
+const inventorySubItems = ['Inventory Overview', 'Products', 'Categories', 'Stock Inward', 'Stock Outward', 'Warehouses'];
 const inventoryRelatedPages = ['Inventory', ...inventorySubItems];
 const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents', 'Subsidy'];
 const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
@@ -514,14 +515,14 @@ const accountsSubRoutes = {
 const inventorySubRoutes = {
   'Inventory Overview': '/inventory/overview',
   Products: '/inventory/products',
-  'Stock Movements': '/inventory/stock-movements',
   Categories: '/inventory/categories',
   'Stock Inward': '/inventory/stock-inward',
   'Stock Outward': '/inventory/stock-outward',
-  'Stock Transfer': '/inventory/stock-transfer',
-  Adjustments: '/inventory/adjustments',
   Warehouses: '/inventory/warehouses',
 };
+
+// Removed inventory pages — old bookmarks/links redirect to the Overview.
+const REMOVED_INVENTORY_PATHS = ['/inventory/stock-movements', '/inventory/stock-transfer', '/inventory/adjustments'];
 
 const liaisonSubRoutes = {
   Applications: '/liaisoning/applications',
@@ -638,6 +639,9 @@ function resolveSectionFromPath(pathname) {
   }
   if (path === '/projects') {
     return { section: 'Project List', params: {} };
+  }
+  if (REMOVED_INVENTORY_PATHS.includes(path)) {
+    return { section: 'Inventory Overview', params: {} };
   }
   const subsidyMatch = path.match(/^\/projects\/[Ss]ubsidy\/(?<projectId>[^/]+)$/);
   if (subsidyMatch) {
@@ -1637,14 +1641,6 @@ const recentStockInwardRows = [
   { productName: 'DC Cable 6 sqmm', warehouse: 'Ujjain Warehouse', date: '17 May 2024' },
 ];
 
-const inventoryQuickActions = [
-  { label: 'Add Stock Inward', description: 'Add new stock to inventory', icon: ClipboardPlus, tone: 'green' },
-  { label: 'Stock Outward', description: 'Issue stock to project/site', icon: UserPlus, tone: 'amber' },
-  { label: 'Stock Transfer', description: 'Transfer between warehouses', icon: RefreshCw, tone: 'purple' },
-  { label: 'Adjust Stock', description: 'Update stock manually', icon: ShieldCheck, tone: 'blue' },
-  { label: 'View All Products', description: 'Manage all products', icon: Boxes, tone: 'purple' },
-];
-
 const inventoryProductMeta = {
   'SP-550W': { brand: 'Waaree', unit: 'Nos', sellingPrice: 18500 },
   'INV-5KW': { brand: 'Growatt', unit: 'Nos', sellingPrice: 45000 },
@@ -1718,54 +1714,6 @@ const stockOutwardTopParties = [
   ['Bright Solar Pvt. Ltd.', '7 Orders'],
   ['Ravi Electricals', '6 Orders'],
   ['Others', '24 Orders'],
-];
-
-const stockTransferRows = [
-  { id: 1, transferNo: 'ST-2024-047', transferDate: '20 May 2024', fromWarehouse: 'Indore Warehouse', toWarehouse: 'Bhopal Warehouse', items: 8, quantity: 320, value: 187500, status: 'Completed' },
-  { id: 2, transferNo: 'ST-2024-046', transferDate: '19 May 2024', fromWarehouse: 'Ujjain Warehouse', toWarehouse: 'Indore Warehouse', items: 5, quantity: 85, value: 435000, status: 'Completed' },
-  { id: 3, transferNo: 'ST-2024-045', transferDate: '18 May 2024', fromWarehouse: 'Indore Warehouse', toWarehouse: 'Ujjain Warehouse', items: 6, quantity: 150, value: 980000, status: 'Completed' },
-  { id: 4, transferNo: 'ST-2024-044', transferDate: '17 May 2024', fromWarehouse: 'Bhopal Warehouse', toWarehouse: 'Indore Warehouse', items: 10, quantity: 450, value: 2240000, status: 'In Transit' },
-  { id: 5, transferNo: 'ST-2024-043', transferDate: '16 May 2024', fromWarehouse: 'Indore Warehouse', toWarehouse: 'Gwalior Warehouse', items: 4, quantity: 120, value: 610000, status: 'In Transit' },
-  { id: 6, transferNo: 'ST-2024-042', transferDate: '15 May 2024', fromWarehouse: 'Jabalpur Warehouse', toWarehouse: 'Bhopal Warehouse', items: 3, quantity: 60, value: 275000, status: 'Pending' },
-  { id: 7, transferNo: 'ST-2024-041', transferDate: '14 May 2024', fromWarehouse: 'Indore Warehouse', toWarehouse: 'Jabalpur Warehouse', items: 7, quantity: 200, value: 860000, status: 'Pending' },
-  { id: 8, transferNo: 'ST-2024-040', transferDate: '13 May 2024', fromWarehouse: 'Ujjain Warehouse', toWarehouse: 'Gwalior Warehouse', items: 2, quantity: 25, value: 115540, status: 'Cancelled' },
-  { id: 9, transferNo: 'ST-2024-039', transferDate: '12 May 2024', fromWarehouse: 'Bhopal Warehouse', toWarehouse: 'Jabalpur Warehouse', items: 5, quantity: 140, value: 672000, status: 'Completed' },
-  { id: 10, transferNo: 'ST-2024-038', transferDate: '11 May 2024', fromWarehouse: 'Indore Warehouse', toWarehouse: 'Ratlam Warehouse', items: 4, quantity: 85, value: 385000, status: 'Completed' },
-  { id: 11, transferNo: 'ST-2024-037', transferDate: '10 May 2024', fromWarehouse: 'Gwalior Warehouse', toWarehouse: 'Bhopal Warehouse', items: 3, quantity: 60, value: 280000, status: 'In Transit' },
-  { id: 12, transferNo: 'ST-2024-036', transferDate: '09 May 2024', fromWarehouse: 'Ujjain Warehouse', toWarehouse: 'Indore Warehouse', items: 6, quantity: 200, value: 945000, status: 'Completed' },
-  { id: 13, transferNo: 'ST-2024-035', transferDate: '08 May 2024', fromWarehouse: 'Jabalpur Warehouse', toWarehouse: 'Sagar Warehouse', items: 2, quantity: 30, value: 124500, status: 'Pending' },
-];
-
-const stockTransferTopWarehouses = [
-  ['Indore Warehouse', '18 Transfers'],
-  ['Ujjain Warehouse', '9 Transfers'],
-  ['Bhopal Warehouse', '8 Transfers'],
-  ['Jabalpur Warehouse', '6 Transfers'],
-  ['Others', '6 Transfers'],
-];
-
-const inventoryAdjustmentRows = [
-  { id: 1, adjustmentNo: 'ADJ-2024-038', date: '20 May 2024', type: 'Stock Increase', reason: 'Stock Found', warehouse: 'Indore Warehouse', items: 6, quantity: 320, value: 1875000, status: 'Completed' },
-  { id: 2, adjustmentNo: 'ADJ-2024-037', date: '19 May 2024', type: 'Stock Decrease', reason: 'Damaged Goods', warehouse: 'Bhopal Warehouse', items: 4, quantity: -85, value: 435000, status: 'Completed' },
-  { id: 3, adjustmentNo: 'ADJ-2024-036', date: '18 May 2024', type: 'Stock Increase', reason: 'Counting Difference', warehouse: 'Ujjain Warehouse', items: 5, quantity: 150, value: 980000, status: 'Completed' },
-  { id: 4, adjustmentNo: 'ADJ-2024-035', date: '17 May 2024', type: 'Stock Decrease', reason: 'Expired Items', warehouse: 'Indore Warehouse', items: 3, quantity: -120, value: 610000, status: 'Completed' },
-  { id: 5, adjustmentNo: 'ADJ-2024-034', date: '16 May 2024', type: 'Stock Increase', reason: 'Return Accepted', warehouse: 'Gwalior Warehouse', items: 4, quantity: 200, value: 860000, status: 'In Review' },
-  { id: 6, adjustmentNo: 'ADJ-2024-033', date: '15 May 2024', type: 'Stock Decrease', reason: 'Wrong Item', warehouse: 'Jabalpur Warehouse', items: 2, quantity: -60, value: 275000, status: 'Pending' },
-  { id: 7, adjustmentNo: 'ADJ-2024-032', date: '14 May 2024', type: 'Stock Increase', reason: 'Manufacturer Bonus', warehouse: 'Indore Warehouse', items: 6, quantity: 300, value: 1245000, status: 'Completed' },
-  { id: 8, adjustmentNo: 'ADJ-2024-031', date: '13 May 2024', type: 'Stock Decrease', reason: 'Theft / Loss', warehouse: 'Bhopal Warehouse', items: 2, quantity: -25, value: 115540, status: 'Cancelled' },
-  { id: 9, adjustmentNo: 'ADJ-2024-030', date: '12 May 2024', type: 'Stock Increase', reason: 'Stock Found', warehouse: 'Ujjain Warehouse', items: 3, quantity: 60, value: 285000, status: 'Completed' },
-  { id: 10, adjustmentNo: 'ADJ-2024-029', date: '11 May 2024', type: 'Stock Decrease', reason: 'Damaged Goods', warehouse: 'Gwalior Warehouse', items: 2, quantity: -15, value: 75000, status: 'Completed' },
-  { id: 11, adjustmentNo: 'ADJ-2024-028', date: '10 May 2024', type: 'Stock Increase', reason: 'Counting Difference', warehouse: 'Indore Warehouse', items: 4, quantity: 120, value: 540000, status: 'Completed' },
-  { id: 12, adjustmentNo: 'ADJ-2024-027', date: '09 May 2024', type: 'Stock Decrease', reason: 'Expired Items', warehouse: 'Bhopal Warehouse', items: 1, quantity: -8, value: 36000, status: 'In Review' },
-  { id: 13, adjustmentNo: 'ADJ-2024-026', date: '08 May 2024', type: 'Stock Increase', reason: 'Return Accepted', warehouse: 'Jabalpur Warehouse', items: 5, quantity: 200, value: 875000, status: 'Pending' },
-];
-
-const inventoryTopReasons = [
-  ['Stock Found', '12 Adjustments'],
-  ['Damaged Goods', '8 Adjustments'],
-  ['Counting Difference', '6 Adjustments'],
-  ['Expired Items', '5 Adjustments'],
-  ['Others', '7 Adjustments'],
 ];
 
 const warehouseRows = [
@@ -11839,9 +11787,6 @@ function InventoryManagementPage({ activeSection, onOpenSection, onNotify }) {
   if (activeSection === 'Products') {
     return <InventoryProductsPage {...invCommon} />;
   }
-  if (activeSection === 'Stock Movements') {
-    return <InventoryStockMovementsPage {...invCommon} />;
-  }
   if (activeSection === 'Categories') {
     return <InventoryCategoriesPage {...invCommon} />;
   }
@@ -11850,12 +11795,6 @@ function InventoryManagementPage({ activeSection, onOpenSection, onNotify }) {
   }
   if (activeSection === 'Stock Outward') {
     return <InventoryMovementPage movementType="Outward" activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'Stock Transfer') {
-    return <InventoryMovementPage movementType="Transfer" activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'Adjustments') {
-    return <InventoryMovementPage movementType="Adjustment" activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
   if (activeSection === 'Warehouses') {
     return <InventoryWarehousesCrudPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
@@ -11877,11 +11816,9 @@ function InventoryManagementPage({ activeSection, onOpenSection, onNotify }) {
 }
 
 function InventoryMovementPage({ movementType, activeSection, onOpenSection, onNotify }) {
-  const titles = { Inward: 'Stock Inward', Outward: 'Stock Outward', Transfer: 'Stock Transfer', Adjustment: 'Adjustments' };
+  const titles = { Inward: 'Stock Inward', Outward: 'Stock Outward' };
   const isInward = movementType === 'Inward';
   const isOutward = movementType === 'Outward';
-  const isTransfer = movementType === 'Transfer';
-  const isAdjustment = movementType === 'Adjustment';
 
   const config = {
     moduleTitle: 'Inventory', Subnav: InventorySubnavTabs, title: titles[movementType], recordLabel: 'Movement', newLabel: `New ${titles[movementType]}`,
@@ -11906,12 +11843,8 @@ function InventoryMovementPage({ movementType, activeSection, onOpenSection, onN
       { name: 'item', label: 'Product', type: 'lookup', lookup: 'items', required: true },
       { name: 'quantity', label: 'Quantity', type: 'number', required: true },
       { name: 'rate', label: 'Rate (Rs)', type: 'number' },
-      ...(isInward || isAdjustment ? [{ name: 'to_warehouse', label: isAdjustment ? 'Adjust To Warehouse' : 'To Warehouse', type: 'lookup', lookup: 'warehouses', required: isInward }] : []),
-      ...(isOutward || isAdjustment ? [{ name: 'from_warehouse', label: isAdjustment ? 'Adjust From Warehouse' : 'From Warehouse', type: 'lookup', lookup: 'warehouses', required: isOutward }] : []),
-      ...(isTransfer ? [
-        { name: 'from_warehouse', label: 'From Warehouse', type: 'lookup', lookup: 'warehouses', required: true },
-        { name: 'to_warehouse', label: 'To Warehouse', type: 'lookup', lookup: 'warehouses', required: true },
-      ] : []),
+      ...(isInward ? [{ name: 'to_warehouse', label: 'To Warehouse', type: 'lookup', lookup: 'warehouses', required: true }] : []),
+      ...(isOutward ? [{ name: 'from_warehouse', label: 'From Warehouse', type: 'lookup', lookup: 'warehouses', required: true }] : []),
       { name: 'reference_type', label: 'Reference Type', type: 'select', options: INV_MOVEMENT_REF_TYPES },
       { name: 'reference_no', label: 'Reference / Challan No', type: 'text' },
       { name: 'reference', label: 'Legacy Reference', type: 'text' },
@@ -11924,9 +11857,6 @@ function InventoryMovementPage({ movementType, activeSection, onOpenSection, onN
       ['Ref Type', (r) => r.reference_type || '—'], ['Ref #', (r) => r.reference_no || r.reference || '—'], ['Notes', (r) => r.notes || '—', true],
     ],
     hideStatusInView: true,
-    validateForm: isAdjustment
-      ? (f) => (!f.from_warehouse && !f.to_warehouse ? 'Select at least one warehouse (from or to) for adjustment.' : null)
-      : undefined,
   };
   return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
