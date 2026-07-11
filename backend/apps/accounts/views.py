@@ -230,6 +230,15 @@ class UserViewSet(viewsets.ModelViewSet):
             return UserCreateSerializer
         return UserSerializer
 
+    def create(self, request, *args, **kwargs):
+        # UserCreateSerializer has no id/role_name/branch_name, so echo the
+        # full read serializer back — the frontend renders the new row from
+        # this response and otherwise ends up with an id-less entry.
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
     @action(detail=False, methods=['get'])
     def me(self, request):
         serializer = UserSerializer(request.user)
