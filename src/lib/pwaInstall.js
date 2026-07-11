@@ -9,6 +9,7 @@
 
 let deferredPrompt = null;
 let installedThisSession = false;
+let installedAppDetected = false;
 const subscribers = new Set();
 
 function isRunningStandalone() {
@@ -34,17 +35,36 @@ if (typeof window !== 'undefined') {
     deferredPrompt = null;
     notify();
   });
+
+  // Chrome/Edge don't fire beforeinstallprompt when the PWA is ALREADY
+  // installed — without this check the button would wrongly report "browser
+  // doesn't support installation". Requires `related_applications` with a
+  // "webapp" entry in the manifest. Fails silently where unsupported.
+  if ('getInstalledRelatedApps' in navigator) {
+    navigator
+      .getInstalledRelatedApps()
+      .then((apps) => {
+        if (Array.isArray(apps) && apps.length > 0) {
+          installedAppDetected = true;
+          notify();
+        }
+      })
+      .catch(() => {});
+  }
 }
 
 export function getInstallState() {
   const standalone = isRunningStandalone();
+  const alreadyInstalled = (installedThisSession || installedAppDetected) && !standalone;
   return {
     // Already running as the installed app — nothing to prompt for.
     isStandalone: standalone,
-    // Installed at some point this session but still viewing it in a browser tab.
-    justInstalled: installedThisSession && !standalone,
+    // App is installed on this device but currently viewed in a browser tab.
+    justInstalled: alreadyInstalled,
     // A native install prompt is ready to fire on click.
     canPromptInstall: Boolean(deferredPrompt),
+    // Chromium-style browser that supports the native install flow at all.
+    supportsNativePrompt: typeof window !== 'undefined' && 'onbeforeinstallprompt' in window,
   };
 }
 

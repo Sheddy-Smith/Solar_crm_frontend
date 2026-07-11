@@ -41,6 +41,7 @@ import {
   mapUiPermissionsToApi,
 } from './settingsHubPages.jsx';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
+import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -2976,7 +2977,7 @@ function App() {
                       type="button"
                       onClick={async () => {
                         if (pwaInstall.justInstalled) {
-                          notify('Already installed — open it from your desktop or home screen.');
+                          notify("Already installed — open it via the 'Open in app' icon in the address bar, or from your desktop / home screen.");
                           return;
                         }
                         if (pwaInstall.canPromptInstall) {
@@ -2984,6 +2985,10 @@ function App() {
                           if (choice.outcome === 'accepted') {
                             notify('Malwa Solar CRM installed!', 'success');
                           }
+                          return;
+                        }
+                        if (pwaInstall.supportsNativePrompt) {
+                          notify("If the app is already installed, open it via the 'Open in app' icon in the address bar. Otherwise use the browser menu (⋮) and choose 'Install app'.");
                           return;
                         }
                         notify("Your browser doesn't support automatic installation. Please use your browser menu and choose 'Add to Home Screen'.");
@@ -3020,7 +3025,7 @@ function App() {
           </div>
         </aside>
 
-        <main className="main-scroll-area min-w-0 flex-1 w-full xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
+        <main className="main-scroll-area min-w-0 flex-1 w-full pb-16 md:pb-0 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
           <div className="space-y-2.5 xl:pb-3">
             <AppHeader
               notify={notify}
@@ -3250,7 +3255,31 @@ function App() {
                 onNotify={notify}
               />
             ) : (
-              <div className="space-y-1.5">
+              <>
+              <div className="md:hidden">
+                <MobileDashboardPage
+                  userName={loggedInUser?.name || 'Admin'}
+                  rangeLabel={dashboardRange.start && dashboardRange.end ? formatDashboardRange(dashboardRange.start, dashboardRange.end) : ''}
+                  stats={dashboardStats.map((stat) => ({ ...stat }))}
+                  workflowStages={dashboardWorkflowStages}
+                  recentLeads={dashboardRecentLeads}
+                  overdue={dashboardOverdue}
+                  followUps={dashboardFollowUps}
+                  projectSummary={dashboardProjectSummary}
+                  onOpenSection={(section, message, lead) => openDashboardSection(section, message, lead)}
+                  onQuickAction={(action) => {
+                    if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
+                      setDashboardCreateLeadOpen(true);
+                      return;
+                    }
+                    if (action.label === 'Add Follow-up') setAutoOpenFollowUps(true);
+                    if (action.label === 'Create Quotation') setAutoOpenQuotation(true);
+                    openDashboardSection(action.target, `${action.label} opened`);
+                  }}
+                  onOpenMenu={() => setMobileSidebarOpen(true)}
+                />
+              </div>
+              <div className="hidden space-y-1.5 md:block">
             <Card className="p-3.5">
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div>
@@ -3504,10 +3533,20 @@ function App() {
               </p>
             </footer>
               </div>
+              </>
             )}
           </div>
         </main>
       </div>
+
+      <MobileBottomNav
+        activeSection={activeSidebarItem}
+        onNavigate={(item) => {
+          if (item.followUps) setAutoOpenFollowUps(true);
+          openDashboardSection(item.section, `${item.label} opened`);
+        }}
+        onMore={() => setMobileSidebarOpen(true)}
+      />
 
       {dashboardCreateLeadOpen ? (
         <LeadFormModal

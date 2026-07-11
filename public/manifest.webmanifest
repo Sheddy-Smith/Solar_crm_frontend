@@ -13,6 +13,13 @@
   "categories": ["business", "productivity"],
   "lang": "en",
   "dir": "ltr",
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://solar-crm-frontend-bay.vercel.app/manifest.webmanifest"
+    }
+  ],
   "icons": [
     { "src": "/icons/icon-72.png", "sizes": "72x72", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png", "purpose": "any" },
