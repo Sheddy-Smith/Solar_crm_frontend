@@ -20,10 +20,42 @@ Design notes:
 
 import ipaddress
 import logging
+import time
 
+from django.db.models.signals import post_delete, post_save
 from django.http import JsonResponse
 
 logger = logging.getLogger(__name__)
+
+# Active rules are cached in-process so the middleware doesn't hit the
+# (remote) database on every request. Saving/deleting a rule invalidates the
+# cache in the worker that handled the write via the signals below; other
+# gunicorn workers pick the change up when their TTL lapses (<= 30s). Rule
+# evaluation itself is unchanged.
+_RULES_TTL_SECONDS = 30
+_rules_cache = {'expires': 0.0, 'rules': None}
+
+
+def _invalidate_rules_cache(**kwargs):
+    _rules_cache['rules'] = None
+    _rules_cache['expires'] = 0.0
+
+
+# String senders are resolved lazily, so this is safe at import time.
+post_save.connect(_invalidate_rules_cache, sender='crm_settings.IpAccessRule', weak=False)
+post_delete.connect(_invalidate_rules_cache, sender='crm_settings.IpAccessRule', weak=False)
+
+
+def _get_active_rules():
+    now = time.monotonic()
+    if _rules_cache['rules'] is None or now >= _rules_cache['expires']:
+        from apps.crm_settings.models import IpAccessRule
+
+        _rules_cache['rules'] = list(
+            IpAccessRule.objects.filter(is_active=True).only('name', 'rule_type', 'ip_range')
+        )
+        _rules_cache['expires'] = now + _RULES_TTL_SECONDS
+    return _rules_cache['rules']
 
 
 def get_client_ip(request):
@@ -72,7 +104,6 @@ class IpAccessMiddleware:
 
     def _check(self, request):
         from django.conf import settings
-        from apps.crm_settings.models import IpAccessRule
 
         ip = get_client_ip(request)
         # In DEBUG, never block loopback or private LAN addresses (10.x,
@@ -89,7 +120,8 @@ class IpAccessMiddleware:
             except ValueError:
                 pass
 
-        allow_rules = list(IpAccessRule.objects.filter(is_active=True, rule_type='Allow'))
+        active_rules = _get_active_rules()
+        allow_rules = [rule for rule in active_rules if rule.rule_type == 'Allow']
         if not allow_rules:
             # No allow-list configured — enforcement is effectively off.
             return False, ''
@@ -99,7 +131,7 @@ class IpAccessMiddleware:
         if not ip:
             return False, ''
 
-        block_rules = IpAccessRule.objects.filter(is_active=True, rule_type='Block')
+        block_rules = [rule for rule in active_rules if rule.rule_type == 'Block']
         for rule in block_rules:
             if _ip_matches(ip, rule.ip_range):
                 return True, f'Blocked by rule: {rule.name}'

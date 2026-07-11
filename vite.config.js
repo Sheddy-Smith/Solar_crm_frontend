@@ -16,6 +16,16 @@ export default defineConfig({
             return 'icons';
           }
 
+          // Big libraries get their own chunk so a change in one doesn't
+          // invalidate the browser cache for the others.
+          if (id.includes('recharts') || id.includes('d3-')) {
+            return 'charts';
+          }
+
+          if (id.includes('framer-motion') || id.includes('motion-')) {
+            return 'motion';
+          }
+
           if (id.includes('react')) {
             return 'react';
           }

@@ -40,6 +40,12 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # First so it compresses every response below it. Large JSON list
+    # responses shrink ~80%. Django >= 4.2 mitigates BREACH by injecting
+    # random bytes into the gzip stream, and responses that already carry a
+    # Content-Encoding (e.g. WhiteNoise's pre-compressed static files) are
+    # skipped automatically.
+    'django.middleware.gzip.GZipMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'malwa_solar.security_headers_middleware.SecurityHeadersMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -83,6 +89,15 @@ AUTH_USER_MODEL = 'accounts.User'
 DATABASES = {
     'default': env.db('DATABASE_URL')
 }
+# Persistent DB connections — without this every request pays a fresh TCP+TLS
+# handshake to the remote Postgres (Neon), which dominates API latency.
+# Health checks make Django transparently replace a connection the server
+# dropped, so a pooled-but-dead connection can never surface as a 500.
+# Postgres only: holding SQLite connections open across requests invites
+# "database is locked" errors in threaded local dev.
+if 'postgresql' in DATABASES['default']['ENGINE']:
+    DATABASES['default']['CONN_MAX_AGE'] = env.int('DB_CONN_MAX_AGE', default=60)
+    DATABASES['default']['CONN_HEALTH_CHECKS'] = True
 
 _redis_url = env('REDIS_URL', default='redis://127.0.0.1:6379/1')
 _redis_options = {
