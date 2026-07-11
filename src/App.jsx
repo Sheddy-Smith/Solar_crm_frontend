@@ -63,6 +63,7 @@ import {
   CreditCard,
   Crosshair,
   Eye,
+  EyeOff,
   Database,
   Download,
   Flag,
@@ -2077,7 +2078,9 @@ function App() {
     }
 
     notify(`${action} selected`);
+    
   };
+
 
   // Auto-logout on 401
   useEffect(() => {
@@ -25503,8 +25506,8 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
           <ModalTextInput label="User Name" value={form.name} onChange={(value) => updateField('name', value)} placeholder="Enter user name" />
           <ModalTextInput label="Email" value={form.email} onChange={(value) => updateField('email', value)} placeholder="Enter email address" />
           <ModalTextInput label="Phone Number" value={form.phone} onChange={(value) => updateField('phone', value)} placeholder="+91 98765 43210" />
-          <ReportSelect label="Role" value={String(form.roleId)} onChange={(value) => updateField('roleId', Number(value))} options={roles.map((role) => String(role.id))} optionLabels={Object.fromEntries(roles.map((role) => [String(role.id), role.name]))} />
-          <ReportSelect label="Branch" value={String(form.branchId)} onChange={(value) => updateField('branchId', Number(value))} options={branches.map((branch) => String(branch.id))} optionLabels={Object.fromEntries(branches.map((branch) => [String(branch.id), branch.name]))} />
+          <ReportSelect label="Role" value={String(form.roleId || '')} onChange={(value) => updateField('roleId', value ? Number(value) : '')} options={['', ...roles.map((role) => String(role.id))]} optionLabels={{ '': roles.length ? 'Select role' : 'No roles available', ...Object.fromEntries(roles.map((role) => [String(role.id), role.name])) }} />
+          <ReportSelect label="Branch" value={String(form.branchId || '')} onChange={(value) => updateField('branchId', value ? Number(value) : '')} options={['', ...branches.map((branch) => String(branch.id))]} optionLabels={{ '': branches.length ? 'Select branch' : 'No branches available', ...Object.fromEntries(branches.map((branch) => [String(branch.id), branch.name])) }} />
           <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} />
           <ModalTextInput label={initialUser ? 'New Password (optional)' : 'Password'} type="password" value={form.password} onChange={(value) => updateField('password', value)} placeholder="Min 8 characters" />
           <ModalTextInput label="Confirm Password" type="password" value={form.confirmPassword} onChange={(value) => updateField('confirmPassword', value)} placeholder="Re-enter password" />
@@ -28459,16 +28462,33 @@ function AddRoleModal({ onClose, onSave }) {
 }
 
 function ModalTextInput({ label, value, onChange, placeholder, type = 'text' }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === 'password';
   return (
     <label className="block">
       <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{label}</span>
-      <input
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] transition placeholder:text-[#8493ab] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-      />
+      <div className="relative">
+        <input
+          type={isPassword && showPassword ? 'text' : type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          className={cx(
+            'h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] transition placeholder:text-[#8493ab] focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
+            isPassword && 'pr-11',
+          )}
+        />
+        {isPassword ? (
+          <button
+            type="button"
+            onClick={() => setShowPassword((current) => !current)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            className="absolute right-1.5 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-[6px] text-[#7a8fa6] transition hover:bg-[#f3f7fc] hover:text-[#30466d]"
+          >
+            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        ) : null}
+      </div>
     </label>
   );
 }
