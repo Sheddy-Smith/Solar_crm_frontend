@@ -25206,7 +25206,9 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
   const [selectedUser, setSelectedUser] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
-  const canToggleUserStatus = Boolean(loggedInUser?.is_super_admin);
+  // Every user-management action (view details, add, edit, delete,
+  // activate/deactivate) is Super Admin only — the backend enforces the same.
+  const canManageUsers = Boolean(loggedInUser?.is_super_admin);
 
   useEffect(() => {
     setLoading(true);
@@ -25270,7 +25272,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
   };
 
   const toggleUserStatus = (user) => {
-    if (!canToggleUserStatus) {
+    if (!canManageUsers) {
       onNotify?.('Only Super Admin can activate or deactivate users', 'error');
       return;
     }
@@ -25279,6 +25281,22 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, status: nextStatus } : item)));
       onNotify(`${user.name} marked ${nextStatus}`);
     }).catch((error) => onNotify(error.message || 'Failed to update status', 'error'));
+  };
+
+  const deleteUser = (user) => {
+    if (!canManageUsers) {
+      onNotify?.('Only Super Admin can delete users', 'error');
+      return;
+    }
+    if (loggedInUser && user.id === loggedInUser.id) {
+      onNotify?.('You cannot delete your own account', 'error');
+      return;
+    }
+    if (!window.confirm(`Delete user "${user.name}"? This cannot be undone.`)) return;
+    userApi.delete(user.id).then(() => {
+      setUsers((current) => current.filter((item) => item.id !== user.id));
+      onNotify(`${user.name} deleted`);
+    }).catch((error) => onNotify(error.message || 'Failed to delete user', 'error'));
   };
 
   return (
@@ -25291,7 +25309,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
           { label: 'User & Access Management', onClick: () => onNotify('User & Access Management opened') },
           { label: 'Users' },
         ]}
-        actions={<button type="button" onClick={() => setAddUserOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add New User</button>}
+        actions={canManageUsers ? <button type="button" onClick={() => setAddUserOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add New User</button> : null}
       />
 
       <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
@@ -25340,13 +25358,14 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
                 <InfoCell label="Branch" value={user.branch} />
                 <InfoCell label="Last Login" value={user.lastLogin} />
               </div>
-              <div className={`mt-4 grid gap-2 ${canToggleUserStatus ? 'min-[420px]:grid-cols-3' : 'min-[420px]:grid-cols-2'}`}>
-                <button type="button" onClick={() => setSelectedUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
-                <button type="button" onClick={() => setEditingUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />Edit</button>
-                {canToggleUserStatus ? (
+              {canManageUsers ? (
+                <div className="mt-4 grid grid-cols-2 gap-2 min-[420px]:grid-cols-4">
+                  <button type="button" onClick={() => setSelectedUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
+                  <button type="button" onClick={() => setEditingUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Pencil className="size-4" />Edit</button>
                   <button type="button" onClick={() => toggleUserStatus(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#284276]"><RefreshCw className="size-4" />Status</button>
-                ) : null}
-              </div>
+                  <button type="button" onClick={() => deleteUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#ffd5d5] bg-[#fff8f8] text-[12px] font-extrabold text-[#ef4444]"><Trash2 className="size-4" />Delete</button>
+                </div>
+              ) : null}
             </article>
           )) : null}
         </div>
@@ -25373,13 +25392,16 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
                   <td><SettingsResultBadge status={user.status} /></td>
                   <td>{user.lastLogin}</td>
                   <td>
-                    <div className="flex items-center justify-end gap-2">
-                      <UserActionButton label={`View ${user.name}`} icon={Eye} tone="blue" onClick={() => setSelectedUser(user)} />
-                      <UserActionButton label={`Edit ${user.name}`} icon={FileText} tone="blue" onClick={() => setEditingUser(user)} />
-                      {canToggleUserStatus ? (
-                        <UserActionButton label={`Toggle ${user.name}`} icon={RefreshCw} tone="blue" onClick={() => toggleUserStatus(user)} />
-                      ) : null}
-                    </div>
+                    {canManageUsers ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <UserActionButton label={`View ${user.name}`} icon={Eye} tone="blue" onClick={() => setSelectedUser(user)} />
+                        <UserActionButton label={`Edit ${user.name}`} icon={Pencil} tone="blue" onClick={() => setEditingUser(user)} />
+                        <UserActionButton label={`Toggle status for ${user.name}`} icon={RefreshCw} tone="blue" onClick={() => toggleUserStatus(user)} />
+                        <UserActionButton label={`Delete ${user.name}`} icon={Trash2} tone="red" onClick={() => deleteUser(user)} />
+                      </div>
+                    ) : (
+                      <span className="block text-right text-[12px] font-bold text-[#8a98af]">—</span>
+                    )}
                   </td>
                 </tr>
               )) : null}
@@ -25401,8 +25423,8 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
           onEdit={() => { setEditingUser(selectedUser); setSelectedUser(null); }}
           onToggleStatus={toggleUserStatus}
           onNotify={onNotify}
-          canResetPassword={canToggleUserStatus}
-          canToggleStatus={canToggleUserStatus}
+          canResetPassword={canManageUsers}
+          canToggleStatus={canManageUsers}
         />
       ) : null}
       {addUserOpen ? <SettingsUserFormModal onClose={() => setAddUserOpen(false)} onSave={saveUser} onNotify={onNotify} /> : null}

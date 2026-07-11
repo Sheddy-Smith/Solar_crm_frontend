@@ -202,9 +202,20 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('me', 'change_password', 'verify_password'):
             return [IsAuthenticated()]
-        if self.action == 'toggle_active':
+        # Account mutations (add/edit/delete/activate) are Super Admin only;
+        # list/retrieve stay on the User Management module permission.
+        if self.action in ('toggle_active', 'create', 'update', 'partial_update', 'destroy'):
             return [IsSuperAdmin()]
         return [HasModulePermission()]
+
+    def destroy(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user == request.user:
+            return Response(
+                {'detail': 'You cannot delete your own account.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
 
     def get_throttles(self):
         # verify_password is a password oracle for the caller's own account;
