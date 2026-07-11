@@ -16,7 +16,12 @@ CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'malwa-dev',
-    }
+    },
+    # Same alias production defines — DRF throttles read caches['throttling'].
+    'throttling': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'drf-throttling',
+    },
 }
 
 LOGGING = {

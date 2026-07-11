@@ -101,7 +101,15 @@ CACHES = {
         'BACKEND': 'django_redis.cache.RedisCache',
         'LOCATION': _redis_url,
         'OPTIONS': _redis_options,
-    }
+    },
+    # In-process cache for DRF throttle counters (malwa_solar.throttling).
+    # Request handling must never depend on the shared Redis — a cache
+    # failure outside django-redis's ignored connection errors previously
+    # 500'd every throttled endpoint (2026-07-11 outage).
+    'throttling': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'drf-throttling',
+    },
 }
 
 DJANGO_REDIS_IGNORE_EXCEPTIONS = True
@@ -147,9 +155,12 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'malwa_solar.pagination.DefaultPagination',
     'PAGE_SIZE': 100,
     'EXCEPTION_HANDLER': 'malwa_solar.exceptions.custom_exception_handler',
+    # Safe variants: LocMem-backed + fail-open (see malwa_solar/throttling.py).
+    # The stock DRF classes hit the shared Redis on every request and 500'd
+    # the entire API when a cache error wasn't an ignored connection error.
     'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle',
+        'malwa_solar.throttling.SafeAnonRateThrottle',
+        'malwa_solar.throttling.SafeUserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
         'login': '10/min',

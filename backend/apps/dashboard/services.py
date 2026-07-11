@@ -121,9 +121,19 @@ def build_unified_dashboard(params=None):
 def get_unified_dashboard(params=None):
     params = {k: v for k, v in (params or {}).items() if v not in (None, '')}
     key = _cache_key(params)
-    cached = cache.get(key)
+    # The Redis cache is an optimization only — any failure (including ones
+    # django-redis doesn't classify as ignorable connection errors, e.g.
+    # stale-entry deserialization after a library upgrade) must degrade to a
+    # cache miss, never a 500 on the dashboard.
+    try:
+        cached = cache.get(key)
+    except Exception:
+        cached = None
     if cached is not None:
         return cached
     payload = build_unified_dashboard(params)
-    cache.set(key, payload, CACHE_TTL_SECONDS)
+    try:
+        cache.set(key, payload, CACHE_TTL_SECONDS)
+    except Exception:
+        pass
     return payload

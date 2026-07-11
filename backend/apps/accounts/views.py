@@ -6,8 +6,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.exceptions import Throttled
+from malwa_solar.throttling import SafeScopedRateThrottle
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -76,7 +76,7 @@ _login_throttle_fallback = _InMemoryLoginThrottle()
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [SafeScopedRateThrottle]
     throttle_scope = 'login'
 
     def check_throttles(self, request):
@@ -211,7 +211,7 @@ class UserViewSet(viewsets.ModelViewSet):
         # rate-limit it like login so a stolen session can't brute-force it.
         if self.action == 'verify_password':
             self.throttle_scope = 'login'
-            return [ScopedRateThrottle()]
+            return [SafeScopedRateThrottle()]
         return super().get_throttles()
 
     def get_serializer_class(self):
