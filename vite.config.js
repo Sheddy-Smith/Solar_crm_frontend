@@ -1,13 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import basicSsl from '@vitejs/plugin-basic-ssl';
 
-// `npm run dev` → plain HTTP (unchanged workflow).
-// `npm run dev:https` → self-signed HTTPS, needed to test PWA install from
-// other LAN devices (browsers only allow install on HTTPS or localhost).
-export default defineConfig(({ mode }) => ({
-  plugins: [react(), tailwindcss(), ...(mode === 'https' ? [basicSsl()] : [])],
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
   build: {
     rollupOptions: {
       output: {
@@ -53,4 +49,4 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-}));
+});

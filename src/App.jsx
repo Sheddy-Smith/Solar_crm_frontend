@@ -2986,10 +2986,6 @@ function App() {
                           }
                           return;
                         }
-                        if (!pwaInstall.isSecureContext) {
-                          notify('Install needs a secure connection (HTTPS or localhost). Open the app via https:// or on this PC use http://localhost:5173, then try again.', 'error');
-                          return;
-                        }
                         notify("Your browser doesn't support automatic installation. Please use your browser menu and choose 'Add to Home Screen'.");
                       }}
                       className={cx(

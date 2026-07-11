@@ -45,10 +45,6 @@ export function getInstallState() {
     justInstalled: installedThisSession && !standalone,
     // A native install prompt is ready to fire on click.
     canPromptInstall: Boolean(deferredPrompt),
-    // Browsers only allow PWA install on HTTPS or localhost. On an insecure
-    // origin (e.g. http://192.168.x.x over LAN) beforeinstallprompt never
-    // fires, so we surface a targeted message instead of the generic one.
-    isSecureContext: typeof window !== 'undefined' ? window.isSecureContext : true,
   };
 }
 
