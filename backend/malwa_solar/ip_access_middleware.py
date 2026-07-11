@@ -75,10 +75,19 @@ class IpAccessMiddleware:
         from apps.crm_settings.models import IpAccessRule
 
         ip = get_client_ip(request)
-        # Vite/webpack dev proxy forwards API calls as 127.0.0.1 — must not
-        # block local development when an office LAN allow-list is configured.
-        if settings.DEBUG and ip in ('127.0.0.1', '::1'):
-            return False, ''
+        # In DEBUG, never block loopback or private LAN addresses (10.x,
+        # 172.16-31.x, 192.168.x). The Vite proxy forwards the developer's
+        # LAN IP via X-Forwarded-For, and office/home networks change subnets
+        # (DHCP, hotspot, new router) — a stale allow-list must not be able
+        # to lock developers out of their own machine. Production (DEBUG off)
+        # enforces rules exactly as configured.
+        if settings.DEBUG and ip:
+            try:
+                addr = ipaddress.ip_address(ip)
+                if addr.is_loopback or addr.is_private:
+                    return False, ''
+            except ValueError:
+                pass
 
         allow_rules = list(IpAccessRule.objects.filter(is_active=True, rule_type='Allow'))
         if not allow_rules:
