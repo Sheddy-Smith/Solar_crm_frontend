@@ -77,4 +77,12 @@ let swRegistrationStarted = false;
 export function registerServiceWorker() {
   if (swRegistrationStarted) return;
   swRegistrationStarted = true;
-  if (typeof navigator === 
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Non-fatal — the app works fully without the offline fallback the
+      // service worker provides; we just quietly skip it.
+    });
+  });
+}
