@@ -2,11 +2,16 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { startKeepAlive } from './lib/keepAlive.js';
+import { registerServiceWorker } from './lib/pwaInstall.js';
 import './index.css';
 
 // Backend keep-alive: silent 14-min ping so the Render backend never sleeps.
 // Started once at app boot, entirely outside React — zero UI impact.
 startKeepAlive();
+
+// PWA: register the service worker so the app is installable (desktop +
+// mobile "Add to Home Screen") and gets a minimal offline fallback.
+registerServiceWorker();
 
 class ErrorBoundary extends React.Component {
   constructor(props) {

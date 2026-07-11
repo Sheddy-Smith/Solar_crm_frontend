@@ -258,6 +258,15 @@ export function AdminReauthGate({ children, onNotify, fallback }) {
   const [verified, setVerified] = useState(isAdminReauthValid());
   const [modalOpen, setModalOpen] = useState(!verified);
 
+  // Re-lock when the 15-minute re-auth window expires while the page stays open.
+  useEffect(() => {
+    if (!verified) return undefined;
+    const timer = setInterval(() => {
+      if (!isAdminReauthValid()) setVerified(false);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [verified]);
+
   if (verified) return children;
 
   return (

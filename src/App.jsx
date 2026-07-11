@@ -40,6 +40,7 @@ import {
   PinLockOverlay,
   mapUiPermissionsToApi,
 } from './settingsHubPages.jsx';
+import { usePwaInstall } from './hooks/usePwaInstall.js';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -87,6 +88,7 @@ import {
   Menu,
   MessageSquareMore,
   Minus,
+  MonitorSmartphone,
   MoreVertical,
   PauseCircle,
   Pencil,
@@ -1949,6 +1951,7 @@ function formatCapacityKw(value) {
 }
 
 function App() {
+  const pwaInstall = usePwaInstall();
   const initialPreferencesRef = useRef(readStoredPreferences());
   const initialRouteRef = useRef(resolveSectionFromPath(typeof window !== 'undefined' ? window.location.pathname : '/'));
   const isPopStateRef = useRef(false);
@@ -2967,17 +2970,50 @@ function App() {
               </nav>
 
               {!desktopSidebarCollapsed ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentPage('signin');
-                    notify('Logged out');
-                  }}
-                  className="mt-12 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]"
-                >
-                  <LogOut className="size-[17px] shrink-0" />
-                  <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">Logout</span>
-                </button>
+                <>
+                  {!pwaInstall.isStandalone ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (pwaInstall.justInstalled) {
+                          notify('Already installed — open it from your desktop or home screen.');
+                          return;
+                        }
+                        if (pwaInstall.canPromptInstall) {
+                          const choice = await pwaInstall.promptInstall();
+                          if (choice.outcome === 'accepted') {
+                            notify('Malwa Solar CRM installed!', 'success');
+                          }
+                          return;
+                        }
+                        notify("Your browser doesn't support automatic installation. Please use your browser menu and choose 'Add to Home Screen'.");
+                      }}
+                      className={cx(
+                        'mt-12 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]',
+                        pwaInstall.justInstalled && 'opacity-80',
+                      )}
+                    >
+                      <MonitorSmartphone className="size-[17px] shrink-0" />
+                      <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">
+                        {pwaInstall.justInstalled ? 'Already Installed' : 'Add to Home Screen'}
+                      </span>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentPage('signin');
+                      notify('Logged out');
+                    }}
+                    className={cx(
+                      'flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]',
+                      pwaInstall.isStandalone ? 'mt-12' : 'mt-2',
+                    )}
+                  >
+                    <LogOut className="size-[17px] shrink-0" />
+                    <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">Logout</span>
+                  </button>
+                </>
               ) : null}
             </div>
 
