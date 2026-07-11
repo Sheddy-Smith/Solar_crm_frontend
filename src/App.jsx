@@ -4555,17 +4555,24 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         ) : null}
 
         {!leadsLoading && pagedLeadRows.length > 0 && (
-        <div className="space-y-3 lg:hidden">
-          {pagedLeadRows.map((lead, index) => (
-            <LeadListMobileCard
-              key={lead.id}
-              index={(safePage - 1) * LEAD_PAGE_SIZE + index + 1}
-              lead={lead}
-              onOpenLead={onOpenLead}
-              onOpenSurvey={() => setSurveyLead(lead)}
-              onNotify={onNotify}
-            />
-          ))}
+        <div className="overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:hidden">
+          <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_30px] items-center gap-1.5 border-b border-[#eef2f8] bg-[#f8fafd] px-3 py-2.5 text-[10px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+            <span>Customer Name</span>
+            <span>Status</span>
+            <span>Next Follow-up</span>
+            <span aria-hidden="true" />
+          </div>
+          <div className="divide-y divide-[#eef2f8]">
+            {pagedLeadRows.map((lead) => (
+              <LeadListMobileRow
+                key={lead.id}
+                lead={lead}
+                onOpenLead={onOpenLead}
+                onOpenSurvey={() => setSurveyLead(lead)}
+                onEditLead={() => setEditLeadId(lead.id)}
+              />
+            ))}
+          </div>
         </div>
         )}
 
@@ -33163,7 +33170,45 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
         )}
       />
 
-      <div className="flex flex-col gap-3 rounded-[12px] border border-[#f4cf83] bg-[#fff8e8] p-4 text-[13px] font-extrabold text-[#a76200] sm:flex-row sm:items-center sm:justify-between">
+      {/* Mobile hero card (mockup style) — avatar, call/WhatsApp, key info grid */}
+      <section className="rounded-[16px] border border-[#e4ebf4] bg-white p-4 shadow-[0_6px_18px_rgba(21,43,83,0.06)] lg:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className={cx('grid size-11 shrink-0 place-items-center rounded-full text-[13px] font-extrabold text-white', mobileAvatarTone(lead.customer))}>
+              {(lead.customer || 'NA').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="truncate text-[15px] font-extrabold text-[#1e3261]">{lead.customer}</p>
+                <StatusBadge status={lead.status} />
+              </div>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#8895ab]">Lead ID: LEAD-{String(lead.id).padStart(4, '0')}</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <a href={`tel:${lead.mobile}`} aria-label={`Call ${lead.customer}`} className="grid size-9 place-items-center rounded-full bg-[#e9f8ec] text-[#0d9f4a]">
+              <Phone className="size-4" />
+            </a>
+            <a href={`https://wa.me/91${String(lead.mobile || '').replace(/\D/g, '').slice(-10)}`} target="_blank" rel="noreferrer" aria-label={`WhatsApp ${lead.customer}`} className="grid size-9 place-items-center rounded-full bg-[#e9f8ec] text-[#0d9f4a]">
+              <MessageSquareMore className="size-4" />
+            </a>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 border-t border-[#eef2f8] pt-3">
+          <InfoCell label="Project" value={`${lead.capacity && lead.capacity !== '—' ? `${lead.capacity} ` : ''}${lead.type || '—'}`} />
+          <InfoCell label="Mobile" value={lead.mobile} />
+          <InfoCell label="Source" value={lead.source || '—'} />
+          <InfoCell label="IVRS Number" value={lead.ivrs || '—'} />
+          {lead.assignedTo ? (
+            <InfoCell label="Assigned To" valueNode={<AssigneeCell assignee={lead.assignedTo} compact />} />
+          ) : (
+            <InfoCell label="Assigned To" value="—" />
+          )}
+          <InfoCell label="Next Follow-up" value={lead.nextFollowUp || '—'} valueClass="text-[#d97706]" />
+        </div>
+      </section>
+
+      <div className="hidden gap-3 rounded-[12px] border border-[#f4cf83] bg-[#fff8e8] p-4 text-[13px] font-extrabold text-[#a76200] lg:flex lg:items-center lg:justify-between">
         <span className="inline-flex items-center gap-2"><AlertTriangle className="size-4" /> IVRS Number: {lead?.ivrs || '—'}</span>
         <span className="rounded-[8px] bg-[#fff0cf] px-3 py-1">Duplicate Check: Unique</span>
         <span className="rounded-[8px] bg-[#dff6e7] px-3 py-1 text-[#087a39]">Status: {lead?.status || '—'}</span>
@@ -34290,48 +34335,74 @@ function PaginationButton({ active = false, children, onClick }) {
   );
 }
 
-function LeadListMobileCard({ index, lead, onOpenLead, onOpenSurvey, onNotify }) {
-  const surveyButtonLabel = lead.surveyStatus === 'Completed' ? 'View Survey' : lead.surveyStatus === 'In Progress' ? 'Continue Survey' : 'Start Survey';
+const MOBILE_AVATAR_TONES = [
+  'bg-[#f59e0b]', 'bg-[#0ea5e9]', 'bg-[#22c55e]', 'bg-[#ef4444]',
+  'bg-[#8b5cf6]', 'bg-[#0d9488]', 'bg-[#ec4899]', 'bg-[#6366f1]',
+];
+
+function mobileAvatarTone(name) {
+  const code = String(name || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  return MOBILE_AVATAR_TONES[code % MOBILE_AVATAR_TONES.length];
+}
+
+// Compact phone-app style row for the Lead List (mockup: avatar | status | follow-up | kebab)
+function LeadListMobileRow({ lead, onOpenLead, onOpenSurvey, onEditLead }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const initials = (lead.customer || 'NA').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  const surveyLabel = lead.surveyStatus === 'Completed' ? 'View Survey' : lead.surveyStatus === 'In Progress' ? 'Continue Survey' : 'Start Survey';
 
   return (
-    <article className="rounded-[14px] border border-[#e5edf6] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[12px] font-extrabold text-[#8a98af]">#{index}</p>
-          <p className="mt-1 text-[15px] font-extrabold text-[#233a6b]">{lead.customer}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#53647f]">{lead.project}</p>
-        </div>
-        <StatusBadge status={lead.status} />
-      </div>
-      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
-        <InfoCell label="Mobile" value={lead.mobile} />
-        <InfoCell label="IVRS" value={lead.ivrs} />
-        <InfoCell label="Project Type" value={lead.type} />
-        <InfoCell label="Next Follow-up" value={lead.nextFollowUp} valueClass={index <= 2 ? 'text-[#f04438]' : undefined} />
-        <InfoCell label="Assigned To" valueNode={<AssigneeCell assignee={lead.assignedTo} compact />} />
-        <InfoCell label="Survey Status" valueNode={<SurveyStatusBadge status={lead.surveyStatus} />} />
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
+    <div className="relative">
+      <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_30px] items-center gap-1.5 px-3 py-2.5">
+        <button type="button" onClick={() => onOpenLead(lead)} className="flex min-w-0 items-center gap-2.5 text-left">
+          <span className={cx('grid size-9 shrink-0 place-items-center rounded-full text-[11px] font-extrabold text-white', mobileAvatarTone(lead.customer))}>
+            {initials}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{lead.customer}</span>
+            <span className="block truncate text-[11px] font-semibold text-[#8895ab]">{lead.type}</span>
+          </span>
+        </button>
+        <span className="min-w-0">
+          <span className={cx(
+            'inline-block max-w-full truncate whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-extrabold leading-none',
+            lead.surveyStatus === 'Completed' ? 'bg-[#e8f8eb] text-[#18a34a]' : lead.surveyStatus === 'In Progress' ? 'bg-[#fff4df] text-[#b45309]' : 'bg-[#ffe9e6] text-[#e2594c]',
+          )}
+          >
+            {lead.surveyStatus || 'Pending'}
+          </span>
+        </span>
+        <span className="truncate text-[11px] font-bold text-[#53647f]">{lead.nextFollowUp}</span>
         <button
           type="button"
-          onClick={() => onOpenLead(lead)}
-          data-action="lead-view-mobile"
-          className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#d8e4f4] bg-white px-3 py-2 text-[12px] font-extrabold text-[#2d67e1]"
+          onClick={() => setMenuOpen((open) => !open)}
+          aria-label={`Actions for ${lead.customer}`}
+          className="grid size-8 place-items-center rounded-[8px] text-[#7b88a2] transition hover:bg-[#f3f7fc]"
         >
-          View Lead
-          <Eye className="size-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={onOpenSurvey}
-          data-action="lead-survey-mobile"
-          className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#e3d6fb] bg-white px-3 py-2 text-[12px] font-extrabold text-[#7c3aed]"
-        >
-          {surveyButtonLabel}
-          <MapPin className="size-3.5" />
+          <MoreVertical className="size-4" />
         </button>
       </div>
-    </article>
+
+      {menuOpen ? (
+        <>
+          <button type="button" aria-label="Close menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setMenuOpen(false)} />
+          <div className="absolute right-2 top-11 z-50 w-[170px] overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white shadow-[0_18px_38px_rgba(17,39,84,0.16)]">
+            <button type="button" onClick={() => { setMenuOpen(false); onOpenLead(lead); }} className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
+              <Eye className="size-4" />
+              View Lead
+            </button>
+            <button type="button" onClick={() => { setMenuOpen(false); onOpenSurvey(); }} className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12px] font-extrabold text-[#7c3aed] transition hover:bg-[#f8fbff]">
+              <MapPin className="size-4" />
+              {surveyLabel}
+            </button>
+            <button type="button" onClick={() => { setMenuOpen(false); onEditLead(); }} className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12px] font-extrabold text-[#0d9f4a] transition hover:bg-[#f8fbff]">
+              <Pencil className="size-4" />
+              Edit Lead
+            </button>
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }
 
