@@ -131,6 +131,7 @@ class QuotationSerializer(serializers.ModelSerializer):
 
 class LeadListSerializer(serializers.ModelSerializer):
     assigned_to_name = serializers.CharField(source='assigned_to.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
     created_at_display = serializers.SerializerMethodField()
     survey_status = serializers.SerializerMethodField()
 
@@ -140,7 +141,7 @@ class LeadListSerializer(serializers.ModelSerializer):
             'id', 'customer_name', 'mobile_number', 'ivrs_number',
             'project_name', 'project_type', 'estimated_capacity',
             'status', 'priority', 'category', 'remarks',
-            'assigned_to', 'assigned_to_name',
+            'assigned_to', 'assigned_to_name', 'created_by', 'created_by_name',
             'next_follow_up', 'created_at', 'created_at_display', 'survey_status',
         ]
 
@@ -182,6 +183,7 @@ class LeadCreateSerializer(serializers.ModelSerializer):
             'status', 'next_follow_up', 'assigned_to', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']
+        extra_kwargs = {'status': {'required': True}}
 
     def validate_ivrs_number(self, value):
         if value and Lead.objects.filter(ivrs_number=value).exists():

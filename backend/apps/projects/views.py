@@ -20,7 +20,7 @@ from .serializers import (
     MaterialPlanSerializer, SubsidyApplicationSerializer, SubsidyDocumentSerializer,
     ProjectExpenseDocumentSerializer, ProjectApprovalSerializer, ProjectApprovalDocumentSerializer,
 )
-from apps.accounts.permissions import HasModulePermission, is_lead_scoped
+from apps.accounts.permissions import HasModulePermission, is_lead_scoped, lead_owner_filter
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -47,8 +47,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'milestones__children__owner',
         ).all()
         # Sales / Tele Sales Executives see only projects born from their own leads
-        if is_lead_scoped(self.request.user):
-            qs = qs.filter(lead__assigned_to=self.request.user)
+        filt = lead_owner_filter(self.request.user, prefix='lead__')
+        if filt:
+            qs = qs.filter(**filt)
         return qs
 
     def get_serializer_class(self):
@@ -108,7 +109,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 
 class ProjectActivityViewSet(viewsets.ModelViewSet):
-    queryset = ProjectActivity.objects.select_related('project', 'assigned_to', 'created_by').all()
     serializer_class = ProjectActivitySerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
@@ -116,12 +116,16 @@ class ProjectActivityViewSet(viewsets.ModelViewSet):
     filterset_fields = ['project', 'status', 'activity_type', 'assigned_to']
     ordering = ['-created_at']
 
+    def get_queryset(self):
+        qs = ProjectActivity.objects.select_related('project', 'assigned_to', 'created_by').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
+
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
 
 class ProjectNoteViewSet(viewsets.ModelViewSet):
-    queryset = ProjectNote.objects.select_related('project', 'created_by').all()
     serializer_class = ProjectNoteSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
@@ -129,17 +133,26 @@ class ProjectNoteViewSet(viewsets.ModelViewSet):
     filterset_fields = ['project', 'is_pinned']
     ordering = ['-is_pinned', '-created_at']
 
+    def get_queryset(self):
+        qs = ProjectNote.objects.select_related('project', 'created_by').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
+
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
 
 class ProjectDocumentViewSet(viewsets.ModelViewSet):
-    queryset = ProjectDocument.objects.select_related('project', 'uploaded_by').all()
     serializer_class = ProjectDocumentSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'category']
+
+    def get_queryset(self):
+        qs = ProjectDocument.objects.select_related('project', 'uploaded_by').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
 
     def perform_create(self, serializer):
         serializer.save(uploaded_by=self.request.user)
@@ -224,6 +237,9 @@ class ProjectExpenseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ProjectExpense.objects.select_related('project', 'created_by').prefetch_related('expense_documents').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        if filt:
+            qs = qs.filter(**filt)
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
         if date_from:
@@ -269,7 +285,6 @@ class ProjectExpenseViewSet(viewsets.ModelViewSet):
 
 
 class ProjectExpenseDocumentViewSet(viewsets.ModelViewSet):
-    queryset = ProjectExpenseDocument.objects.select_related('expense').all()
     serializer_class = ProjectExpenseDocumentSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
@@ -277,15 +292,24 @@ class ProjectExpenseDocumentViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['expense', 'doc_type']
 
+    def get_queryset(self):
+        qs = ProjectExpenseDocument.objects.select_related('expense').all()
+        filt = lead_owner_filter(self.request.user, prefix='expense__project__lead__')
+        return qs.filter(**filt) if filt else qs
+
 
 class ProjectPaymentViewSet(viewsets.ModelViewSet):
-    queryset = ProjectPayment.objects.select_related('project', 'created_by').all()
     serializer_class = ProjectPaymentSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['project', 'payment_mode']
     ordering = ['-payment_date']
+
+    def get_queryset(self):
+        qs = ProjectPayment.objects.select_related('project', 'created_by').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
 
     def perform_create(self, serializer):
         project_payment = serializer.save(created_by=self.request.user)
@@ -304,7 +328,6 @@ class ProjectPaymentViewSet(viewsets.ModelViewSet):
 
 
 class WorkOrderViewSet(viewsets.ModelViewSet):
-    queryset = WorkOrder.objects.select_related('project', 'assignee', 'created_by').all()
     serializer_class = WorkOrderSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
@@ -313,12 +336,16 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
     search_fields = ['task', 'order_id', 'category']
     ordering = ['-created_at']
 
+    def get_queryset(self):
+        qs = WorkOrder.objects.select_related('project', 'assignee', 'created_by').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
+
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
 
 class ProjectTeamMemberViewSet(viewsets.ModelViewSet):
-    queryset = ProjectTeamMember.objects.select_related('project', 'user').all()
     serializer_class = ProjectTeamMemberSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
@@ -326,10 +353,15 @@ class ProjectTeamMemberViewSet(viewsets.ModelViewSet):
     filterset_fields = ['project', 'user', 'status']
     search_fields = ['user__name', 'role_title']
 
+    def get_queryset(self):
+        qs = ProjectTeamMember.objects.select_related('project', 'user').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
+
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
         project_id = request.query_params.get('project')
-        qs = ProjectTeamMember.objects.all()
+        qs = self.get_queryset()
         if project_id:
             qs = qs.filter(project_id=project_id)
         return Response({
@@ -342,7 +374,6 @@ class ProjectTeamMemberViewSet(viewsets.ModelViewSet):
 
 
 class ProjectMilestoneViewSet(viewsets.ModelViewSet):
-    queryset = ProjectMilestone.objects.select_related('project', 'owner', 'parent').all()
     serializer_class = ProjectMilestoneSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
@@ -350,14 +381,23 @@ class ProjectMilestoneViewSet(viewsets.ModelViewSet):
     filterset_fields = ['project', 'status', 'parent']
     ordering = ['sequence', 'start_date']
 
+    def get_queryset(self):
+        qs = ProjectMilestone.objects.select_related('project', 'owner', 'parent').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
+
 
 class ProjectChecklistItemViewSet(viewsets.ModelViewSet):
-    queryset = ProjectChecklistItem.objects.select_related('project', 'checked_by').all()
     serializer_class = ProjectChecklistItemSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'phase', 'is_checked']
+
+    def get_queryset(self):
+        qs = ProjectChecklistItem.objects.select_related('project', 'checked_by').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
 
     def perform_update(self, serializer):
         if serializer.validated_data.get('is_checked'):
@@ -367,12 +407,16 @@ class ProjectChecklistItemViewSet(viewsets.ModelViewSet):
 
 
 class InstallationMaterialViewSet(viewsets.ModelViewSet):
-    queryset = InstallationMaterial.objects.select_related('project', 'inventory_item').all()
     serializer_class = InstallationMaterialSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'status']
+
+    def get_queryset(self):
+        qs = InstallationMaterial.objects.select_related('project', 'inventory_item').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
 
 
 class MaterialPlanViewSet(viewsets.ModelViewSet):
@@ -386,6 +430,9 @@ class MaterialPlanViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = MaterialPlan.objects.select_related('project').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        if filt:
+            qs = qs.filter(**filt)
         project_id = self.request.query_params.get('project')
         if project_id:
             qs = qs.filter(project_id=project_id)
@@ -413,6 +460,9 @@ class MaterialPlanViewSet(viewsets.ModelViewSet):
 
     def _filtered_qs(self, request):
         qs = MaterialPlan.objects.all()
+        filt = lead_owner_filter(request.user, prefix='project__lead__')
+        if filt:
+            qs = qs.filter(**filt)
         project_id = request.query_params.get('project')
         if project_id:
             qs = qs.filter(project_id=project_id)
@@ -420,7 +470,6 @@ class MaterialPlanViewSet(viewsets.ModelViewSet):
 
 
 class SubsidyApplicationViewSet(viewsets.ModelViewSet):
-    queryset = SubsidyApplication.objects.select_related('project').prefetch_related('documents').all()
     serializer_class = SubsidyApplicationSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
@@ -430,6 +479,9 @@ class SubsidyApplicationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = SubsidyApplication.objects.select_related('project').prefetch_related('documents').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        if filt:
+            qs = qs.filter(**filt)
         project_id = self.request.query_params.get('project')
         if project_id:
             qs = qs.filter(project_id=project_id)
@@ -438,7 +490,7 @@ class SubsidyApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard(self, request):
         project_id = request.query_params.get('project')
-        qs = SubsidyApplication.objects.all()
+        qs = self.get_queryset()
         if project_id:
             qs = qs.filter(project_id=project_id)
         return Response({
@@ -452,13 +504,17 @@ class SubsidyApplicationViewSet(viewsets.ModelViewSet):
 
 
 class SubsidyDocumentViewSet(viewsets.ModelViewSet):
-    queryset = SubsidyDocument.objects.select_related('subsidy').all()
     serializer_class = SubsidyDocumentSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['subsidy', 'doc_type']
+
+    def get_queryset(self):
+        qs = SubsidyDocument.objects.select_related('subsidy').all()
+        filt = lead_owner_filter(self.request.user, prefix='subsidy__project__lead__')
+        return qs.filter(**filt) if filt else qs
 
 
 class ProjectApprovalViewSet(viewsets.ModelViewSet):
@@ -471,9 +527,11 @@ class ProjectApprovalViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return ProjectApproval.objects.select_related(
+        qs = ProjectApproval.objects.select_related(
             'project', 'created_by', 'assigned_to', 'approved_by'
         ).prefetch_related('documents').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -500,10 +558,14 @@ class ProjectApprovalViewSet(viewsets.ModelViewSet):
 
 
 class ProjectApprovalDocumentViewSet(viewsets.ModelViewSet):
-    queryset = ProjectApprovalDocument.objects.select_related('approval').all()
     serializer_class = ProjectApprovalDocumentSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['approval']
+
+    def get_queryset(self):
+        qs = ProjectApprovalDocument.objects.select_related('approval').all()
+        filt = lead_owner_filter(self.request.user, prefix='approval__project__lead__')
+        return qs.filter(**filt) if filt else qs

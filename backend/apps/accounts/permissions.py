@@ -12,6 +12,34 @@ def is_lead_scoped(user):
     return getattr(getattr(user, 'role', None), 'name', '') in LEAD_SCOPED_ROLES
 
 
+def lead_owner_filter(user, prefix=''):
+    """Queryset filter kwargs scoping to this user's own leads, keyed by role.
+
+    A Sales Executive owns whatever leads are assigned to them; a Tele Sales
+    Executive owns whatever leads they personally added (leads are no longer
+    auto-assigned to their creator — see LeadViewSet.perform_create). Returns
+    None if the user isn't lead-scoped (i.e. they see everything)."""
+    role = getattr(getattr(user, 'role', None), 'name', '')
+    if role == 'Sales Executive':
+        return {f'{prefix}assigned_to': user}
+    if role == 'Tele Sales Executive':
+        return {f'{prefix}created_by': user}
+    return None
+
+
+def is_own_lead(user, lead):
+    """True if `lead` belongs to this (Tele) Sales Executive per their role's
+    ownership field. For object-level guards (e.g. attaching a follow-up or
+    quotation to a lead) where lead_owner_filter's queryset kwargs don't
+    directly apply. Non-scoped roles always own everything."""
+    role = getattr(getattr(user, 'role', None), 'name', '')
+    if role == 'Sales Executive':
+        return lead.assigned_to_id == user.id
+    if role == 'Tele Sales Executive':
+        return lead.created_by_id == user.id
+    return True
+
+
 def is_super_admin(user):
     if not user or not user.is_authenticated:
         return False

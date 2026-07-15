@@ -470,9 +470,13 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const todayFollowUps = scheduledFollowUps.filter((item) => new Date(item.scheduled_at).toDateString() === todayKey);
   const overdueFollowUps = scheduledFollowUps.filter((item) => new Date(item.scheduled_at) < new Date() && new Date(item.scheduled_at).toDateString() !== todayKey);
 
+  // `leadRows` is every tele-sourced lead (needed for the "My Leads" holder
+  // filter, which lets a tele exec browse everyone's added leads). Dashboard
+  // stats and Reports stay personal — scoped to leads this account added.
   const leadRows = leads ?? [];
-  const wonCount = leadRows.filter((lead) => lead.status === 'Won').length;
-  const lostCount = leadRows.filter((lead) => lead.status === 'Lost').length;
+  const ownLeadRows = leadRows.filter((lead) => lead.created_by === me?.id);
+  const wonCount = ownLeadRows.filter((lead) => lead.status === 'Won').length;
+  const lostCount = ownLeadRows.filter((lead) => lead.status === 'Lost').length;
 
   const openFollowUpForm = (lead = null) => setFollowUpModal({ lead });
 
@@ -493,13 +497,14 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       case 'Dashboard':
         return (
           <TeleDashboard
-            leads={leadRows}
+            leads={ownLeadRows}
             leadsLoaded={leads !== null}
             todayFollowUps={todayFollowUps}
             scheduledFollowUps={scheduledFollowUps}
             overdueCount={overdueFollowUps.length}
             wonCount={wonCount}
             lostCount={lostCount}
+            currentUserId={me?.id}
             onView={setHistoryLead}
             onEdit={setEditLead}
             onDelete={setDeleteLead}
@@ -512,6 +517,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
           <TeleLeadsPage
             leads={leadRows}
             leadsLoaded={leads !== null}
+            currentUserId={me?.id}
             onView={setHistoryLead}
             onEdit={setEditLead}
             onDelete={setDeleteLead}
@@ -535,7 +541,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       case 'Reminders':
         return <TeleRemindersPage scheduledFollowUps={scheduledFollowUps} loaded={followUps !== null} />;
       case 'Reports':
-        return <TeleReportsPage leads={leadRows} followUps={followUps ?? []} />;
+        return <TeleReportsPage leads={ownLeadRows} followUps={followUps ?? []} />;
       case 'Settings':
         return <TeleSettingsPage me={me} />;
       default:
@@ -731,20 +737,32 @@ function TeleStatCards({ cards }) {
 
 // ─── Leads table (shared: Dashboard + My Leads) ───────────────────────────────
 
-function TeleLeadsTable({ leads, leadsLoaded, onView, onEdit, onDelete, onAddFollowUp, onAddLead, title = 'My Leads' }) {
+function TeleLeadsTable({ leads, leadsLoaded, currentUserId, onView, onEdit, onDelete, onAddFollowUp, onAddLead, title = 'My Leads' }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [holderFilter, setHolderFilter] = useState('All');
   const [page, setPage] = useState(1);
+
+  const holderOptions = useMemo(() => {
+    const map = new Map();
+    leads.forEach((lead) => {
+      if (lead.created_by && !map.has(lead.created_by)) {
+        map.set(lead.created_by, lead.created_by_name || `User #${lead.created_by}`);
+      }
+    });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [leads]);
 
   const filteredLeads = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return leads.filter((lead) => {
       if (statusFilter !== 'All' && teleDisplayStatus(lead) !== statusFilter) return false;
+      if (holderFilter !== 'All' && String(lead.created_by) !== holderFilter) return false;
       if (!query) return true;
       return [lead.customer_name, lead.mobile_number, lead.project_name]
         .some((field) => String(field || '').toLowerCase().includes(query));
     });
-  }, [leads, searchQuery, statusFilter]);
+  }, [leads, searchQuery, statusFilter, holderFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / TELE_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -781,6 +799,19 @@ function TeleLeadsTable({ leads, leadsLoaded, onView, onEdit, onDelete, onAddFol
               <option key={option} value={option}>{option === 'All' ? 'All Status' : option}</option>
             ))}
           </select>
+          {holderOptions.length > 1 && (
+            <select
+              value={holderFilter}
+              onChange={(e) => { setHolderFilter(e.target.value); setPage(1); }}
+              className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
+              aria-label="Filter by lead holder"
+            >
+              <option value="All">All Lead Holders</option>
+              {holderOptions.map((holder) => (
+                <option key={holder.id} value={String(holder.id)}>{holder.name}</option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
             onClick={() => onAddFollowUp(null)}
@@ -808,6 +839,7 @@ function TeleLeadsTable({ leads, leadsLoaded, onView, onEdit, onDelete, onAddFol
               <th className="px-3 py-3">Customer Name</th>
               <th className="px-3 py-3">Mobile No.</th>
               <th className="px-3 py-3">Project Name</th>
+              <th className="px-3 py-3">Added By</th>
               <th className="px-3 py-3">Status</th>
               <th className="px-3 py-3">Next Follow-up</th>
               <th className="px-3 py-3">Remarks</th>
@@ -816,12 +848,14 @@ function TeleLeadsTable({ leads, leadsLoaded, onView, onEdit, onDelete, onAddFol
           </thead>
           <tbody>
             {!leadsLoaded && (
-              <tr><td colSpan={8} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading leads...</td></tr>
+              <tr><td colSpan={9} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading leads...</td></tr>
             )}
             {leadsLoaded && pageLeads.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No leads assigned to you yet.</td></tr>
+              <tr><td colSpan={9} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</td></tr>
             )}
-            {pageLeads.map((lead, index) => (
+            {pageLeads.map((lead, index) => {
+              const isOwnLead = currentUserId != null && lead.created_by === currentUserId;
+              return (
               <tr
                 key={lead.id}
                 onDoubleClick={() => onView(lead)}
@@ -832,21 +866,27 @@ function TeleLeadsTable({ leads, leadsLoaded, onView, onEdit, onDelete, onAddFol
                 <td className="px-3 py-3.5 font-extrabold text-[#1e3261]">{lead.customer_name}</td>
                 <td className="px-3 py-3.5">{lead.mobile_number || '—'}</td>
                 <td className="px-3 py-3.5">{lead.project_name || '—'}</td>
+                <td className="px-3 py-3.5">{lead.created_by_name || '—'}</td>
                 <td className="px-3 py-3.5"><StatusPill value={teleDisplayStatus(lead)} /></td>
                 <td className="px-3 py-3.5 whitespace-nowrap">{formatDateTime(lead.next_follow_up)}</td>
                 <td className="max-w-[200px] truncate px-3 py-3.5" title={lead.remarks || ''}>{lead.remarks || '—'}</td>
                 <td className="px-3 py-3.5">
-                  <div className="flex items-center gap-1.5">
-                    <button type="button" onClick={() => onEdit(lead)} className="grid size-8 place-items-center rounded-[8px] text-[#53647f] transition hover:bg-[#f3f7fd]" aria-label={`Edit ${lead.customer_name}`}>
-                      <Pencil className="size-4" />
-                    </button>
-                    <button type="button" onClick={() => onDelete(lead)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] transition hover:bg-[#feecec]" aria-label={`Delete ${lead.customer_name}`}>
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
+                  {isOwnLead ? (
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" onClick={() => onEdit(lead)} className="grid size-8 place-items-center rounded-[8px] text-[#53647f] transition hover:bg-[#f3f7fd]" aria-label={`Edit ${lead.customer_name}`}>
+                        <Pencil className="size-4" />
+                      </button>
+                      <button type="button" onClick={() => onDelete(lead)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] transition hover:bg-[#feecec]" aria-label={`Delete ${lead.customer_name}`}>
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-[#a5b1c7]">View only</span>
+                  )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -901,7 +941,7 @@ function TeleLeadsTable({ leads, leadsLoaded, onView, onEdit, onDelete, onAddFol
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function TeleDashboard({ leads, leadsLoaded, todayFollowUps, scheduledFollowUps, overdueCount, wonCount, lostCount, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
+function TeleDashboard({ leads, leadsLoaded, todayFollowUps, scheduledFollowUps, overdueCount, wonCount, lostCount, currentUserId, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
   const cards = [
     { title: 'Total Leads', value: leadsLoaded ? leads.length : undefined, note: 'All assigned leads', icon: Users, tone: 'bg-[#e7efff] text-[#1d4ed8]' },
     { title: "Today's Follow-ups", value: leadsLoaded ? todayFollowUps.length : undefined, note: 'Scheduled for today', icon: CalendarDays, tone: 'bg-[#e8f8eb] text-[#0d9f4a]' },
@@ -924,6 +964,7 @@ function TeleDashboard({ leads, leadsLoaded, todayFollowUps, scheduledFollowUps,
         <TeleLeadsTable
           leads={leads}
           leadsLoaded={leadsLoaded}
+          currentUserId={currentUserId}
           onView={onView}
           onEdit={onEdit}
           onDelete={onDelete}
@@ -978,11 +1019,12 @@ function TeleDashboard({ leads, leadsLoaded, todayFollowUps, scheduledFollowUps,
   );
 }
 
-function TeleLeadsPage({ leads, leadsLoaded, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
+function TeleLeadsPage({ leads, leadsLoaded, currentUserId, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
   return (
     <TeleLeadsTable
       leads={leads}
       leadsLoaded={leadsLoaded}
+      currentUserId={currentUserId}
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}

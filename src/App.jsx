@@ -4277,6 +4277,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
         priority: lead.priority || '',
         source: lead.source || '',
         assignedTo: { id: lead.assigned_to || null, name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
+        createdByName: lead.created_by_name || '—',
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
         nextFollowUpRaw: lead.next_follow_up || null,
         surveyStatus: lead.survey_status || 'Pending',
@@ -4297,6 +4298,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
     'Project Type',
     'Status',
     'Assigned To',
+    'Added By',
     'Next Follow-up',
     'Survey Status',
     'Action',
@@ -4604,16 +4606,17 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
           <table className="crm-table crm-table--fit w-full">
             <colgroup>
               <col style={{ width: '4%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '7%' }} />
-              <col style={{ width: '7%' }} />
               <col style={{ width: '11%' }} />
               <col style={{ width: '8%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '6%' }} />
               <col style={{ width: '10%' }} />
-              <col style={{ width: '14%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '13%' }} />
             </colgroup>
               <thead>
                 <tr>
@@ -4639,6 +4642,7 @@ function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead
                     <td>
                       <AssigneeCell assignee={lead.assignedTo} compact />
                     </td>
+                    <td title={lead.createdByName}><span className="block truncate">{lead.createdByName}</span></td>
                     <td className={cx('font-extrabold', isFollowUpOverdue(lead.nextFollowUp) ? 'text-[#f04438]' : 'text-[#233a6b]')}>
                       <span className="block truncate">{lead.nextFollowUp}</span>
                     </td>
@@ -34366,6 +34370,9 @@ function LeadListMobileRow({ lead, onOpenLead, onOpenSurvey, onEditLead }) {
           <span className="min-w-0">
             <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{lead.customer}</span>
             <span className="block truncate text-[11px] font-semibold text-[#8895ab]">{lead.type}</span>
+            {lead.createdByName && lead.createdByName !== '—' && (
+              <span className="block truncate text-[10px] font-semibold text-[#a5b1c7]">Added by {lead.createdByName}</span>
+            )}
           </span>
         </button>
         <span className="min-w-0">

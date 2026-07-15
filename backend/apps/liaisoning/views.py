@@ -12,7 +12,7 @@ from .serializers import (
     LiaisonApplicationSerializer, LiaisonApprovalSerializer, LiaisonInspectionSerializer,
     LiaisonCommissioningSerializer, LiaisonComplianceSerializer, LiaisonDocumentSerializer,
 )
-from apps.accounts.permissions import HasModulePermission
+from apps.accounts.permissions import HasModulePermission, lead_owner_filter
 
 
 class LiaisonBaseViewSet(viewsets.ModelViewSet):
@@ -24,6 +24,12 @@ class LiaisonBaseViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    def _scope(self, qs, prefix='project__lead__'):
+        # Sales / Tele Sales Executives only see liaisoning records tied to
+        # their own leads' projects.
+        filt = lead_owner_filter(self.request.user, prefix=prefix)
+        return qs.filter(**filt) if filt else qs
+
 
 class LiaisonApplicationViewSet(LiaisonBaseViewSet):
     serializer_class = LiaisonApplicationSerializer
@@ -31,7 +37,7 @@ class LiaisonApplicationViewSet(LiaisonBaseViewSet):
     search_fields = ['application_number', 'discom', 'project__project_name', 'project__customer_name']
 
     def get_queryset(self):
-        return LiaisonApplication.objects.select_related('project', 'created_by').all()
+        return self._scope(LiaisonApplication.objects.select_related('project', 'created_by').all())
 
 
 class LiaisonApprovalViewSet(LiaisonBaseViewSet):
@@ -40,7 +46,7 @@ class LiaisonApprovalViewSet(LiaisonBaseViewSet):
     search_fields = ['approval_type', 'project__project_name', 'project__customer_name']
 
     def get_queryset(self):
-        return LiaisonApproval.objects.select_related('project', 'created_by', 'assigned_to', 'approved_by').all()
+        return self._scope(LiaisonApproval.objects.select_related('project', 'created_by', 'assigned_to', 'approved_by').all())
 
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
@@ -69,7 +75,7 @@ class LiaisonInspectionViewSet(LiaisonBaseViewSet):
     search_fields = ['inspector', 'project__project_name', 'project__customer_name']
 
     def get_queryset(self):
-        return LiaisonInspection.objects.select_related('project', 'created_by').all()
+        return self._scope(LiaisonInspection.objects.select_related('project', 'created_by').all())
 
 
 class LiaisonCommissioningViewSet(LiaisonBaseViewSet):
@@ -78,7 +84,7 @@ class LiaisonCommissioningViewSet(LiaisonBaseViewSet):
     search_fields = ['engineer', 'project__project_name', 'project__customer_name']
 
     def get_queryset(self):
-        return LiaisonCommissioning.objects.select_related('project', 'created_by').all()
+        return self._scope(LiaisonCommissioning.objects.select_related('project', 'created_by').all())
 
 
 class LiaisonComplianceViewSet(LiaisonBaseViewSet):
@@ -87,7 +93,7 @@ class LiaisonComplianceViewSet(LiaisonBaseViewSet):
     search_fields = ['compliance_type', 'project__project_name', 'project__customer_name']
 
     def get_queryset(self):
-        return LiaisonCompliance.objects.select_related('project', 'created_by').all()
+        return self._scope(LiaisonCompliance.objects.select_related('project', 'created_by').all())
 
 
 class LiaisonDocumentViewSet(viewsets.ModelViewSet):
@@ -100,7 +106,9 @@ class LiaisonDocumentViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'project__project_name']
 
     def get_queryset(self):
-        return LiaisonDocument.objects.select_related('project', 'uploaded_by').all()
+        qs = LiaisonDocument.objects.select_related('project', 'uploaded_by').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        return qs.filter(**filt) if filt else qs
 
     def perform_create(self, serializer):
         serializer.save(uploaded_by=self.request.user)

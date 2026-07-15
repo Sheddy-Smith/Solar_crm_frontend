@@ -11,7 +11,7 @@ from .serializers import (
     OmAssetSerializer, OmMaintenanceTaskSerializer, OmBreakdownTicketSerializer,
     OmSiteVisitSerializer, OmSparePartSerializer, OmReportSerializer, OmDocumentSerializer,
 )
-from apps.accounts.permissions import HasModulePermission
+from apps.accounts.permissions import HasModulePermission, lead_owner_filter
 from apps.inventory.models import InventoryItem
 
 
@@ -37,6 +37,12 @@ class OmBaseViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    def _scope(self, qs, prefix='project__lead__'):
+        # Sales / Tele Sales Executives only see O&M records tied to their
+        # own leads' projects.
+        filt = lead_owner_filter(self.request.user, prefix=prefix)
+        return qs.filter(**filt) if filt else qs
+
 
 class OmAssetViewSet(OmBaseViewSet):
     serializer_class = OmAssetSerializer
@@ -44,7 +50,7 @@ class OmAssetViewSet(OmBaseViewSet):
     search_fields = ['name', 'site', 'manufacturer', 'project__project_name']
 
     def get_queryset(self):
-        return OmAsset.objects.select_related('project', 'created_by').all()
+        return self._scope(OmAsset.objects.select_related('project', 'created_by').all())
 
 
 class OmMaintenanceTaskViewSet(OmBaseViewSet):
@@ -53,7 +59,7 @@ class OmMaintenanceTaskViewSet(OmBaseViewSet):
     search_fields = ['title', 'site', 'engineer', 'project__project_name']
 
     def get_queryset(self):
-        return OmMaintenanceTask.objects.select_related('project', 'created_by').all()
+        return self._scope(OmMaintenanceTask.objects.select_related('project', 'created_by').all())
 
 
 class OmBreakdownTicketViewSet(OmBaseViewSet):
@@ -62,7 +68,7 @@ class OmBreakdownTicketViewSet(OmBaseViewSet):
     search_fields = ['subject', 'site', 'project__project_name', 'asset__name']
 
     def get_queryset(self):
-        return OmBreakdownTicket.objects.select_related('project', 'asset', 'assigned_to', 'created_by').all()
+        return self._scope(OmBreakdownTicket.objects.select_related('project', 'asset', 'assigned_to', 'created_by').all())
 
 
 class OmSiteVisitViewSet(OmBaseViewSet):
@@ -71,7 +77,7 @@ class OmSiteVisitViewSet(OmBaseViewSet):
     search_fields = ['site', 'purpose', 'engineer', 'project__project_name']
 
     def get_queryset(self):
-        return OmSiteVisit.objects.select_related('project', 'created_by').all()
+        return self._scope(OmSiteVisit.objects.select_related('project', 'created_by').all())
 
 
 class OmSparePartViewSet(OmBaseViewSet):

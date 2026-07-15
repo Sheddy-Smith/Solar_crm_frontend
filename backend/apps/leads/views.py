@@ -15,7 +15,7 @@ from .serializers import (
     FollowUpSerializer, AdminApprovalSerializer, QuotationSerializer,
     LeadSiteSurveySerializer, LeadSurveyPhotoSerializer,
 )
-from apps.accounts.permissions import HasModulePermission, is_lead_scoped
+from apps.accounts.permissions import HasModulePermission, is_lead_scoped, lead_owner_filter, is_own_lead
 
 
 class LeadViewSet(viewsets.ModelViewSet):
@@ -30,9 +30,15 @@ class LeadViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = Lead.objects.select_related('assigned_to', 'created_by', 'site_survey')
-        # Sales / Tele Sales Executives see only their own assigned leads
-        if is_lead_scoped(user):
+        role = getattr(getattr(user, 'role', None), 'name', '')
+        if role == 'Sales Executive':
+            # Sales Executives see only leads assigned to them
             qs = qs.filter(assigned_to=user)
+        elif role == 'Tele Sales Executive':
+            # Tele Sales Executives can browse every tele-sourced lead (for the
+            # "lead holder" filter), not just their own — edit/delete stays
+            # restricted to their own in perform_update/perform_destroy.
+            qs = qs.filter(created_by__role__name='Tele Sales Executive')
         return qs
 
     def get_serializer_class(self):
@@ -43,21 +49,33 @@ class LeadViewSet(viewsets.ModelViewSet):
         return LeadListSerializer
 
     def perform_create(self, serializer):
-        # Scoped executives can only create leads assigned to themselves —
-        # anything else would instantly vanish from their own view.
+        # Newly created leads are never auto-assigned to their creator —
+        # they land unassigned in the Manager/Super Admin pool until
+        # explicitly handed out via the `assign` action.
         if is_lead_scoped(self.request.user):
-            serializer.save(created_by=self.request.user, assigned_to=self.request.user)
+            serializer.save(created_by=self.request.user, assigned_to=None)
         else:
             serializer.save(created_by=self.request.user)
 
     def perform_update(self, serializer):
+        user = self.request.user
+        role = getattr(getattr(user, 'role', None), 'name', '')
+        if role == 'Tele Sales Executive' and serializer.instance.created_by_id != user.id:
+            raise PermissionDenied('You can only edit leads you added.')
         # Scoped executives cannot reassign leads via PATCH — assignment is an
         # admin action, and giving a lead away would also drop it out of the
         # executive's own scoped view.
-        if is_lead_scoped(self.request.user):
+        if is_lead_scoped(user):
             serializer.save(assigned_to=serializer.instance.assigned_to)
         else:
             serializer.save()
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        role = getattr(getattr(user, 'role', None), 'name', '')
+        if role == 'Tele Sales Executive' and instance.created_by_id != user.id:
+            raise PermissionDenied('You can only delete leads you added.')
+        instance.delete()
 
     @action(detail=False, methods=['get'])
     def overdue(self, request):
@@ -210,14 +228,15 @@ class FollowUpViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         # Sales / Tele Sales Executives see only follow-ups on their own leads
-        if is_lead_scoped(self.request.user):
-            qs = qs.filter(lead__assigned_to=self.request.user)
+        filt = lead_owner_filter(self.request.user, prefix='lead__')
+        if filt:
+            qs = qs.filter(**filt)
         return qs
 
     def perform_create(self, serializer):
         lead = serializer.validated_data.get('lead')
-        if is_lead_scoped(self.request.user) and lead and lead.assigned_to_id != self.request.user.id:
-            raise PermissionDenied('You can only add follow-ups to your own assigned leads.')
+        if is_lead_scoped(self.request.user) and lead and not is_own_lead(self.request.user, lead):
+            raise PermissionDenied('You can only add follow-ups to your own leads.')
         follow_up = serializer.save(created_by=self.request.user)
         self._sync_lead_next_follow_up(follow_up.lead)
 
@@ -225,8 +244,8 @@ class FollowUpViewSet(viewsets.ModelViewSet):
         # A scoped executive must not be able to re-point their follow-up at
         # another executive's lead (the `lead` field is writable on PATCH too).
         lead = serializer.validated_data.get('lead')
-        if is_lead_scoped(self.request.user) and lead and lead.assigned_to_id != self.request.user.id:
-            raise PermissionDenied('You can only move follow-ups to your own assigned leads.')
+        if is_lead_scoped(self.request.user) and lead and not is_own_lead(self.request.user, lead):
+            raise PermissionDenied('You can only move follow-ups to your own leads.')
         # BUG-053: without this override, PATCHing an existing follow-up's
         # status to Completed/Missed never touched `lead.next_follow_up` —
         # only `perform_create` synced it, so a lead kept showing as
@@ -337,20 +356,21 @@ class QuotationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         # Sales / Tele Sales Executives see only quotations on their own leads
-        if is_lead_scoped(self.request.user):
-            qs = qs.filter(lead__assigned_to=self.request.user)
+        filt = lead_owner_filter(self.request.user, prefix='lead__')
+        if filt:
+            qs = qs.filter(**filt)
         return qs
 
     def perform_create(self, serializer):
         lead = serializer.validated_data.get('lead')
-        if is_lead_scoped(self.request.user) and lead and lead.assigned_to_id != self.request.user.id:
-            raise PermissionDenied('You can only create quotations for your own assigned leads.')
+        if is_lead_scoped(self.request.user) and lead and not is_own_lead(self.request.user, lead):
+            raise PermissionDenied('You can only create quotations for your own leads.')
         serializer.save(created_by=self.request.user)
 
     def perform_update(self, serializer):
         # Same rule on PATCH: the `lead` field is writable, so block scoped
         # executives from re-pointing a quotation at someone else's lead.
         lead = serializer.validated_data.get('lead')
-        if is_lead_scoped(self.request.user) and lead and lead.assigned_to_id != self.request.user.id:
-            raise PermissionDenied('You can only move quotations to your own assigned leads.')
+        if is_lead_scoped(self.request.user) and lead and not is_own_lead(self.request.user, lead):
+            raise PermissionDenied('You can only move quotations to your own leads.')
         serializer.save()
