@@ -1,5 +1,16 @@
 from rest_framework.permissions import BasePermission
 
+# Roles whose record visibility is restricted to their own assigned leads —
+# a (Tele) Sales Executive must never see another executive's leads, projects,
+# follow-ups or quotations.
+LEAD_SCOPED_ROLES = ('Sales Executive', 'Tele Sales Executive')
+
+
+def is_lead_scoped(user):
+    if not user or not user.is_authenticated:
+        return False
+    return getattr(getattr(user, 'role', None), 'name', '') in LEAD_SCOPED_ROLES
+
 
 def is_super_admin(user):
     if not user or not user.is_authenticated:

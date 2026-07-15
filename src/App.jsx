@@ -16,6 +16,7 @@ import {
   getMediaUrl,
 } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
+import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME } from './telePortal.jsx';
 import {
   InventoryOverviewPageEnhanced,
   InventoryProductsPage,
@@ -1907,9 +1908,13 @@ function App() {
   const prevNavStateRef = useRef(null);
   const initialPreferences = initialPreferencesRef.current;
   const initialRoute = initialRouteRef.current;
-  const [currentPage, setCurrentPage] = useState(
-    initialPreferences.currentPage === 'dashboard' && Boolean(localStorage.getItem('malwa_access')) ? 'dashboard' : 'signin',
-  );
+  const [currentPage, setCurrentPage] = useState(() => {
+    const hasToken = Boolean(localStorage.getItem('malwa_access'));
+    if (hasToken && initialPreferences.currentPage === 'dashboard') return 'dashboard';
+    if (hasToken && initialPreferences.currentPage === 'tele') return 'tele';
+    // Not logged in: always land on the portal chooser first
+    return 'portal';
+  });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
   const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
@@ -2024,7 +2029,7 @@ function App() {
 
     if (action === 'Logout') {
       authApi.logout();
-      setCurrentPage('signin');
+      setCurrentPage('portal');
       notify('Logged out');
       return;
     }
@@ -2037,7 +2042,7 @@ function App() {
   // Auto-logout on 401
   useEffect(() => {
     const handler = () => {
-      setCurrentPage('signin');
+      setCurrentPage('portal');
       setLoggedInUser(null);
       notify('Session expired — please login again');
     };
@@ -2297,7 +2302,13 @@ function App() {
       return;
     }
 
-    const pageLabel = currentPage === 'signin' ? 'Sign In' : activeSidebarItem;
+    const authPageTitles = {
+      signin: 'Sign In',
+      portal: 'Choose Portal',
+      'tele-signin': 'Tele Executive Login',
+      tele: 'Tele Executive',
+    };
+    const pageLabel = authPageTitles[currentPage] || activeSidebarItem;
     document.title = `${pageLabel} | Malwa Solar CRM`;
   }, [activeSidebarItem, currentPage]);
 
@@ -2359,8 +2370,8 @@ function App() {
         return;
       }
       isPopStateRef.current = true;
-      if (state.currentPage === 'signin') {
-        setCurrentPage('signin');
+      if (['signin', 'portal', 'tele-signin', 'tele'].includes(state.currentPage)) {
+        setCurrentPage(state.currentPage);
       } else if (state.activeSidebarItem && isKnownSection(state.activeSidebarItem)) {
         setCurrentPage('dashboard');
         setActiveSidebarItem(state.activeSidebarItem);
@@ -2447,6 +2458,52 @@ function App() {
     };
   }, [messageMenuOpen, notificationMenuOpen, profileMenuOpen]);
 
+  if (currentPage === 'portal') {
+    return (
+      <>
+        <PortalSelectPage
+          onSelectCrm={() => setCurrentPage('signin')}
+          onSelectTele={() => setCurrentPage('tele-signin')}
+        />
+        <Toast toast={toast} />
+      </>
+    );
+  }
+
+  if (currentPage === 'tele-signin') {
+    return (
+      <>
+        <TeleSignInPage
+          onLogin={() => {
+            setCurrentPage('tele');
+            notify('Tele Executive portal opened');
+          }}
+          onBack={() => setCurrentPage('portal')}
+          onNotify={notify}
+        />
+        <Toast toast={toast} />
+      </>
+    );
+  }
+
+  if (currentPage === 'tele') {
+    return (
+      <>
+        <TeleExecutivePortal
+          onLogout={() => {
+            authApi.logout();
+            setCurrentPage('portal');
+            notify('Logged out');
+          }}
+          onNotify={notify}
+          isDark={isDarkMode}
+          onToggleTheme={() => setTheme(isDarkMode ? 'light' : 'dark')}
+        />
+        <Toast toast={toast} />
+      </>
+    );
+  }
+
   if (currentPage === 'signin') {
     return (
       <>
@@ -2455,6 +2512,7 @@ function App() {
             setCurrentPage('dashboard');
             notify('Dashboard opened');
           }}
+          onBack={() => setCurrentPage('portal')}
           onNotify={notify}
         />
         <Toast toast={toast} />
@@ -2955,7 +3013,8 @@ function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      setCurrentPage('signin');
+                      authApi.logout();
+                      setCurrentPage('portal');
                       notify('Logged out');
                     }}
                     className={cx(
@@ -3855,7 +3914,7 @@ function WhatsAppMessageMenu({ onOpenMessage, onOpenWhatsApp }) {
   );
 }
 
-function SignInPage({ onLogin, onNotify }) {
+function SignInPage({ onLogin, onBack, onNotify }) {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -3873,6 +3932,12 @@ function SignInPage({ onLogin, onNotify }) {
     try {
       const data = await authApi.login(email.trim(), password);
       if (data?.access) {
+        // Tele Sales Executives only get the Tele Executive portal — never CRM Operations.
+        if (data?.user?.role_name === TELE_ROLE_NAME) {
+          authApi.logout();
+          setLoginError('This account is for the Tele Executive portal. Please login from the Tele Executive portal.');
+          return;
+        }
         onLogin();
       } else {
         setLoginError('Login failed. Please try again.');
@@ -3965,6 +4030,16 @@ function SignInPage({ onLogin, onNotify }) {
 
         <section className="flex items-center justify-center bg-white px-4 py-8 sm:px-10 sm:py-12 lg:px-[5vw]">
           <div className="w-full max-w-[720px] lg:max-w-[560px] 2xl:max-w-[680px]">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#5c6676] transition hover:text-[#0d9f4a]"
+              >
+                <ChevronLeft className="size-4" />
+                Choose different portal
+              </button>
+            )}
             <div>
               <h2 className="font-display text-[30px] font-extrabold text-[#102446] sm:text-[36px] lg:text-[38px]">
                 Welcome Back!

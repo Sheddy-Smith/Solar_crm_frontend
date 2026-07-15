@@ -20,7 +20,7 @@ from .serializers import (
     MaterialPlanSerializer, SubsidyApplicationSerializer, SubsidyDocumentSerializer,
     ProjectExpenseDocumentSerializer, ProjectApprovalSerializer, ProjectApprovalDocumentSerializer,
 )
-from apps.accounts.permissions import HasModulePermission
+from apps.accounts.permissions import HasModulePermission, is_lead_scoped
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -33,7 +33,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return Project.objects.select_related('manager', 'site_engineer', 'lead', 'created_by', 'site_survey', 'site_survey__surveyed_by').prefetch_related(
+        qs = Project.objects.select_related('manager', 'site_engineer', 'lead', 'created_by', 'site_survey', 'site_survey__surveyed_by').prefetch_related(
             'activities__assigned_to',
             'notes__created_by',
             'documents__uploaded_by',
@@ -46,6 +46,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'milestones__owner',
             'milestones__children__owner',
         ).all()
+        # Sales / Tele Sales Executives see only projects born from their own leads
+        if is_lead_scoped(self.request.user):
+            qs = qs.filter(lead__assigned_to=self.request.user)
+        return qs
 
     def get_serializer_class(self):
         if self.action in ('retrieve', 'update', 'partial_update'):

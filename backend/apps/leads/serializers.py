@@ -26,10 +26,17 @@ class LeadSiteSurveySerializer(serializers.ModelSerializer):
 
 class FollowUpSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    lead_customer_name = serializers.CharField(source='lead.customer_name', read_only=True)
+    lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
+    lead_project_name = serializers.CharField(source='lead.project_name', read_only=True)
 
     class Meta:
         model = FollowUp
-        fields = ['id', 'lead', 'follow_up_type', 'scheduled_at', 'completed_at', 'status', 'notes', 'created_by', 'created_by_name', 'created_at']
+        fields = [
+            'id', 'lead', 'follow_up_type', 'scheduled_at', 'completed_at', 'status', 'notes',
+            'reminder', 'status_after', 'created_by', 'created_by_name', 'created_at',
+            'lead_customer_name', 'lead_mobile_number', 'lead_project_name',
+        ]
         read_only_fields = ['created_by', 'created_at']
 
 
@@ -132,7 +139,7 @@ class LeadListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'customer_name', 'mobile_number', 'ivrs_number',
             'project_name', 'project_type', 'estimated_capacity',
-            'status', 'priority', 'category',
+            'status', 'priority', 'category', 'remarks',
             'assigned_to', 'assigned_to_name',
             'next_follow_up', 'created_at', 'created_at_display', 'survey_status',
         ]

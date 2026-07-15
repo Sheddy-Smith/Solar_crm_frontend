@@ -138,6 +138,11 @@ class FollowUp(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Scheduled')
     notes = models.TextField(blank=True)
+    # Tele Executive portal fields: reminder preference for the scheduled
+    # follow-up, and the lead status set as a result of this interaction
+    # (kept per-record so the follow-up history timeline can show it).
+    reminder = models.CharField(max_length=30, blank=True)
+    status_after = models.CharField(max_length=20, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='follow_ups')
     created_at = models.DateTimeField(auto_now_add=True)
 

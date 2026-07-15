@@ -314,6 +314,12 @@ export const accountsModuleApi = {
 
 export const followUpApi = {
   list: (leadId) => request(`/follow-ups/?lead=${leadId}`),
+  listAll: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/follow-ups/${qs ? '?' + qs : ''}`);
+  },
   create: (data) => request('/follow-ups/', { method: 'POST', body: data }),
   update: (id, data) => request(`/follow-ups/${id}/`, { method: 'PATCH', body: data }),
 };

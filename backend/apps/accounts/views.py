@@ -257,6 +257,13 @@ class UserViewSet(viewsets.ModelViewSet):
         is_self = user == request.user
         if not is_self and not is_super_admin(request.user):
             return Response({'detail': 'Not allowed.'}, status=status.HTTP_403_FORBIDDEN)
+        # Tele Sales Executives have no credential authority at all — even for
+        # their own account. Password resets go through the Super Admin.
+        if is_self and getattr(request.user.role, 'name', '') == 'Tele Sales Executive':
+            return Response(
+                {'detail': 'Password changes for Tele Executive accounts are managed by the Super Admin.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         serializer = ChangePasswordSerializer(data=request.data)
         if not serializer.is_valid():
