@@ -34,7 +34,7 @@ class FollowUpSerializer(serializers.ModelSerializer):
         model = FollowUp
         fields = [
             'id', 'lead', 'follow_up_type', 'scheduled_at', 'completed_at', 'status', 'notes',
-            'reminder', 'status_after', 'created_by', 'created_by_name', 'created_at',
+            'reminder', 'status_after', 'outcome', 'created_by', 'created_by_name', 'created_at',
             'lead_customer_name', 'lead_mobile_number', 'lead_project_name',
         ]
         read_only_fields = ['created_by', 'created_at']

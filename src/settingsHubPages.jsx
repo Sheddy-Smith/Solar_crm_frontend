@@ -567,7 +567,7 @@ export function mapUiPermissionsToApi(permissionRows) {
   return permissionRows.map((row) => {
     const entry = { module: row.module };
     Object.entries(fieldMap).forEach(([uiKey, apiKey]) => {
-      entry[apiKey] = row.permissions[uiKey] === true || row.permissions[uiKey] === 'partial';
+      entry[apiKey] = row.permissions[uiKey] === true;
     });
     entry.full_access = Object.keys(fieldMap).every((k) => row.permissions[k] === true);
     return entry;

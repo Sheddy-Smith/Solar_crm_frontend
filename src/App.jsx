@@ -1985,6 +1985,7 @@ function App() {
   }, [activeSidebarItem, selectedProject?.id, selectedProject?.project_name]);
 
   const [globalSearch, setGlobalSearch] = useState('');
+  const [globalSearchNonce, setGlobalSearchNonce] = useState(0);
   const [dashboardStats, setDashboardStats] = useState(() => stats.map((s) => ({ ...s, value: '—', delta: '' })));
   const [dashboardLeadStats, setDashboardLeadStats] = useState({});
   const [dashboardProjectSummary, setDashboardProjectSummary] = useState({});
@@ -3032,7 +3033,7 @@ function App() {
           </div>
         </aside>
 
-        <main className="main-scroll-area min-w-0 flex-1 w-full pb-16 md:pb-0 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
+        <main className="main-scroll-area scroll-soft min-w-0 flex-1 w-full pb-16 md:pb-0 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
           <div className="space-y-2.5 xl:pb-3">
             <AppHeader
               notify={notify}
@@ -3189,6 +3190,8 @@ function App() {
             ) : activeSidebarItem === 'Lead List' ? (
               <LeadListPage
                 activeSection="Lead List"
+                initialSearch={globalSearch}
+                searchNonce={globalSearchNonce}
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
@@ -3694,6 +3697,7 @@ function AppHeader({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && globalSearch.trim()) {
                 setActiveSidebarItem('Lead List');
+                setGlobalSearchNonce((n) => n + 1);
                 notify(`Searching: ${globalSearch.trim()}`);
               }
             }}
@@ -3924,7 +3928,7 @@ function SignInPage({ onLogin, onBack, onNotify }) {
   const handleLogin = async (event) => {
     event.preventDefault();
     if (!email.trim() || !password.trim()) {
-      setLoginError('Email aur password dono bharo.');
+      setLoginError('Please enter both email and password.');
       return;
     }
     setLoading(true);
@@ -4126,7 +4130,7 @@ function SignInPage({ onLogin, onBack, onNotify }) {
               </button>
 
               <p className="text-center text-[13px] font-bold text-[#6a7586]">
-                Protected access for sales, project, liaisoning aur service teams.
+                Protected access for sales, project, liaisoning, and service teams.
               </p>
 
               <p className="pt-2 text-center text-[13px] font-semibold text-[#8a98af]">
@@ -4166,8 +4170,13 @@ function LoginFeature({ feature }) {
   );
 }
 
-function LeadListPage({ activeSection = 'Lead List', onOpenSection, onCreateLead, onOpenLead, autoOpenFollowUps = false, onConsumeAutoOpenFollowUps, onNotify }) {
-  const [searchQuery, setSearchQuery] = useState('');
+function LeadListPage({ activeSection = 'Lead List', initialSearch = '', searchNonce, onOpenSection, onCreateLead, onOpenLead, autoOpenFollowUps = false, onConsumeAutoOpenFollowUps, onNotify }) {
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
+
+  useEffect(() => {
+    if (searchNonce) setSearchQuery(initialSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchNonce]);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [projectTypeFilter, setProjectTypeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -7360,43 +7369,15 @@ function formatCurrencyPreview(amount, config) {
     : `${signedNumber} ${config.currencySymbol}`;
 }
 
-function getLanguagePreviewRows(defaultLanguage) {
-  const rows = {
-    English: [
-      ['Dashboard', 'Welcome to Malwa Solar Energy CRM'],
-      ['Leads', 'Leads'],
-      ['Projects', 'Projects'],
-      ['Accounts', 'Accounts'],
-      ['Reports', 'Reports'],
-      ['Settings', 'Settings'],
-    ],
-    'Hindi (हिंदी)': [
-      ['Dashboard', 'मालवा सोलर एनर्जी CRM में आपका स्वागत है'],
-      ['Leads', 'लीड्स'],
-      ['Projects', 'प्रोजेक्ट्स'],
-      ['Accounts', 'अकाउंट्स'],
-      ['Reports', 'रिपोर्ट्स'],
-      ['Settings', 'सेटिंग्स'],
-    ],
-    'Punjabi (ਪੰਜਾਬੀ)': [
-      ['Dashboard', 'ਮਲਵਾ ਸੋਲਰ ਐਨਰਜੀ CRM ਵਿੱਚ ਤੁਹਾਡਾ ਸੁਆਗਤ ਹੈ'],
-      ['Leads', 'ਲੀਡਸ'],
-      ['Projects', 'ਪ੍ਰੋਜੈਕਟਸ'],
-      ['Accounts', 'ਅਕਾਊਂਟਸ'],
-      ['Reports', 'ਰਿਪੋਰਟਸ'],
-      ['Settings', 'ਸੈਟਿੰਗਸ'],
-    ],
-    'Gujarati (ગુજરાતી)': [
-      ['Dashboard', 'માલવા સોલર એનર્જી CRM માં આપનું સ્વાગત છે'],
-      ['Leads', 'લીડ્સ'],
-      ['Projects', 'પ્રોજેક્ટ્સ'],
-      ['Accounts', 'એકાઉન્ટ્સ'],
-      ['Reports', 'રિપોર્ટ્સ'],
-      ['Settings', 'સેટિંગ્સ'],
-    ],
-  };
-
-  return rows[defaultLanguage] ?? rows.English;
+function getLanguagePreviewRows() {
+  return [
+    ['Dashboard', 'Welcome to Malwa Solar Energy CRM'],
+    ['Leads', 'Leads'],
+    ['Projects', 'Projects'],
+    ['Accounts', 'Accounts'],
+    ['Reports', 'Reports'],
+    ['Settings', 'Settings'],
+  ];
 }
 
 function SystemSettingsPage({ onOpenSection, onNotify }) {
@@ -7505,7 +7486,7 @@ function SystemSettingsPage({ onOpenSection, onNotify }) {
               <SettingsInputField label="Company Phone" value={form.companyPhone} onChange={(value) => updateField('companyPhone', value)} />
               <SettingsSelectField label="Items Per Page" value={form.itemsPerPage} onChange={(value) => updateField('itemsPerPage', value)} options={['10', '25', '50', '100']} />
               <SettingsSelectField label="Default Time Zone" value={form.defaultTimeZone} onChange={(value) => updateField('defaultTimeZone', value)} options={['(GMT +05:30) Asia/Kolkata', '(GMT +04:00) Dubai', '(GMT +00:00) UTC']} />
-              <SettingsSelectField label="Default Language" value={form.defaultLanguage} onChange={(value) => updateField('defaultLanguage', value)} options={['English', 'Hindi (हिंदी)', 'Punjabi (ਪੰਜਾਬੀ)', 'Gujarati (ગુજરાતી)']} />
+              <SettingsSelectField label="Default Language" value={form.defaultLanguage} onChange={(value) => updateField('defaultLanguage', value)} options={['English']} />
             </div>
           </SettingsSectionCard>
 
@@ -7949,11 +7930,8 @@ function LanguageSettingsPage({ onOpenSection, onNotify }) {
   const [saving, setSaving] = useState(false);
   const languages = [
     { name: 'English', code: 'en', status: 'Default', tone: 'blue' },
-    { name: 'Hindi (हिंदी)', code: 'hi', status: 'Active', tone: 'green' },
-    { name: 'Punjabi (ਪੰਜਾਬੀ)', code: 'pa', status: 'Active', tone: 'green' },
-    { name: 'Gujarati (ગુજરાતી)', code: 'gu', status: 'Inactive', tone: 'red' },
   ];
-  const previewRows = getLanguagePreviewRows(defaultLanguage);
+  const previewRows = getLanguagePreviewRows();
 
   useEffect(() => {
     settingsApi.category('language').get()
@@ -7981,17 +7959,13 @@ function LanguageSettingsPage({ onOpenSection, onNotify }) {
         <SettingsSectionCard title="Default Language">
           <div className="space-y-5">
             <div>
-              <SettingsSelectField label="System Default Language" value={defaultLanguage} onChange={setDefaultLanguage} options={['English', 'Hindi (हिंदी)', 'Punjabi (ਪੰਜਾਬੀ)', 'Gujarati (ગુજરાતી)']} />
-              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Select the default language for the system.</p>
+              <SettingsSelectField label="System Default Language" value={defaultLanguage} onChange={setDefaultLanguage} options={['English']} />
+              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">The interface is available in English only.</p>
             </div>
 
             <div>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="text-[14px] font-extrabold text-[#1e3261]">Available Languages</h3>
-                <button type="button" onClick={() => onNotify('Add language opened')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-4 text-[12px] font-extrabold text-white transition hover:bg-[#067832]">
-                  <Plus className="size-4" />
-                  Add Language
-                </button>
               </div>
 
               <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
@@ -8623,8 +8597,11 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
   const [status, setStatus] = useState('All Status');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [formTarget, setFormTarget] = useState(null); // 'add' | branch row | null
+  const [viewBranch, setViewBranch] = useState(null);
+  const [deleteBranch, setDeleteBranch] = useState(null);
 
-  useEffect(() => {
+  const loadBranches = () => {
     branchApi.list()
       .then((res) => {
         const list = Array.isArray(res) ? res : (res?.results ?? []);
@@ -8632,21 +8609,36 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
           id: row.id,
           name: row.name,
           code: `BR-${String(row.id).padStart(3, '0')}`,
+          city: row.city || '',
+          address: row.address || '',
           location: [row.city, row.address].filter(Boolean).join(', ') || row.city || '—',
           contact: '—',
           email: '—',
+          isActive: row.is_active,
           status: row.is_active ? 'Active' : 'Inactive',
         })));
       })
       .catch(() => onNotify('Could not load branches.', 'error'))
       .finally(() => setLoading(false));
-  }, []);  
+  };
+
+  useEffect(() => { loadBranches(); }, []);
 
   const filteredRows = rows.filter((row) => {
     const queryMatch = [row.name, row.code, row.location, row.email].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
     const statusMatch = status === 'All Status' || row.status === status;
     return queryMatch && statusMatch;
   });
+
+  const handleDeleteBranch = () => {
+    branchApi.delete(deleteBranch.id)
+      .then(() => {
+        onNotify(`${deleteBranch.name} branch deleted`, 'success');
+        setDeleteBranch(null);
+        loadBranches();
+      })
+      .catch((error) => onNotify(error.message || 'Failed to delete branch', 'error'));
+  };
 
   return (
     <div className="space-y-4">
@@ -8658,7 +8650,6 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
           { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
           { label: 'Branch Management' },
         ]}
-        actions={<button type="button" onClick={() => onNotify('Add branch flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add Branch</button>}
       />
 
       <section className="space-y-4">
@@ -8670,7 +8661,7 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
               <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Branches List</h2>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">Manage all branches and their locations</p>
             </div>
-            <button type="button" onClick={() => onNotify('Branches exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+            <button type="button" onClick={() => setFormTarget('add')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add Branch</button>
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
@@ -8696,7 +8687,7 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
                   <InfoCell label="Contact Number" value={row.contact} />
                   <InfoCell label="Email" value={row.email} />
                 </div>
-                <button type="button" onClick={() => onNotify(`${row.name} branch opened`)} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />View Branch</button>
+                <button type="button" onClick={() => setViewBranch(row)} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><FileText className="size-4" />View Branch</button>
               </article>
             ))}
           </div>
@@ -8716,7 +8707,13 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
                     <td>{row.contact}</td>
                     <td>{row.email}</td>
                     <td><AccountStatusBadge status={row.status} /></td>
-                    <td><UserActionButton label={`Open ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.name} branch opened`)} /></td>
+                    <td>
+                      <div className="flex items-center justify-end gap-2">
+                        <UserActionButton label={`View ${row.name}`} icon={Eye} tone="blue" onClick={() => setViewBranch(row)} />
+                        <UserActionButton label={`Edit ${row.name}`} icon={Pencil} tone="blue" onClick={() => setFormTarget(row)} />
+                        <UserActionButton label={`Delete ${row.name}`} icon={Trash2} tone="red" onClick={() => setDeleteBranch(row)} />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -8728,6 +8725,88 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
       </section>
 
       <DashboardFooter />
+
+      {formTarget ? (
+        <BranchFormModal
+          branch={formTarget === 'add' ? null : formTarget}
+          onClose={() => setFormTarget(null)}
+          onSave={(data) => {
+            const request = formTarget === 'add' ? branchApi.create(data) : branchApi.update(formTarget.id, data);
+            request
+              .then(() => {
+                onNotify(formTarget === 'add' ? 'Branch added' : 'Branch updated', 'success');
+                setFormTarget(null);
+                loadBranches();
+              })
+              .catch((error) => onNotify(error.message || 'Failed to save branch', 'error'));
+          }}
+        />
+      ) : null}
+
+      {viewBranch ? <BranchViewModal branch={viewBranch} onClose={() => setViewBranch(null)} /> : null}
+
+      {deleteBranch ? (
+        <ConfirmDeleteModal message={deleteBranch.name} onCancel={() => setDeleteBranch(null)} onConfirm={handleDeleteBranch} />
+      ) : null}
+    </div>
+  );
+}
+
+function BranchFormModal({ branch, onClose, onSave }) {
+  const [name, setName] = useState(branch?.name || '');
+  const [city, setCity] = useState(branch?.city || '');
+  const [address, setAddress] = useState(branch?.address || '');
+  const [isActive, setIsActive] = useState(branch ? branch.isActive : true);
+
+  return (
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{branch ? 'Edit Branch' : 'Add Branch'}</h2>
+          <button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="mt-5 space-y-4">
+          <ModalTextInput label="Branch Name" value={name} onChange={setName} placeholder="Enter branch name" />
+          <ModalTextInput label="City" value={city} onChange={setCity} placeholder="Enter city" />
+          <ModalTextInput label="Address" value={address} onChange={setAddress} placeholder="Enter address" />
+          <label className="flex items-center gap-2.5 text-[13px] font-extrabold text-[#34466c]">
+            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="size-4 rounded" />
+            Active
+          </label>
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+          <button
+            type="button"
+            onClick={() => onSave({ name: name.trim(), city: city.trim(), address: address.trim(), is_active: isActive })}
+            className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white"
+          >
+            {branch ? 'Save Changes' : 'Add Branch'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BranchViewModal({ branch, onClose }) {
+  return (
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{branch.name}</h2>
+          <button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="mt-5 grid gap-3 text-[12px] sm:grid-cols-2">
+          <InfoCell label="Branch Code" value={branch.code} />
+          <InfoCell label="Status" valueNode={<AccountStatusBadge status={branch.status} />} />
+          <InfoCell label="City" value={branch.city || '—'} />
+          <InfoCell label="Address" value={branch.address || '—'} />
+        </div>
+        <div className="mt-6 flex justify-end">
+          <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -12061,7 +12140,7 @@ function SummaryExecutivePage({ activeSection, onOpenSection, onNotify }) {
       ) : (
         <>
           <p className="text-[14px] font-bold text-[#324871]">
-            Malwa Solar CRM ka live business snapshot — sales, projects, finance, inventory aur AMC ek jagah.
+            Malwa Solar CRM live business snapshot — sales, projects, finance, inventory, and AMC in one place.
           </p>
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
@@ -23647,6 +23726,7 @@ function ProjectReportPage({ onOpenSection, project: projectProp, onNotify }) {
 
 function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
   const [activeReportTab, setActiveReportTab] = useState('All Reports');
+  const [searchQuery, setSearchQuery] = useState('');
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('2024-05-01');
   const [dateTo, setDateTo] = useState('2024-05-31');
@@ -23720,7 +23800,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
     'Project Reports': {
       icon: FolderKanban,
       title: 'Project Reports',
-      note: 'Progress, installation, timeline aur project execution reports ka complete view.',
+      note: 'Complete view of progress, installation, timeline, and project execution reports.',
       metrics: [
         ['Generated', '42'],
         ['Scheduled', '5'],
@@ -23737,7 +23817,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
     'Financial Reports': {
       icon: IndianRupee,
       title: 'Financial Reports',
-      note: 'Budget, expense, margin, payment aur project finance tracking reports.',
+      note: 'Budget, expense, margin, payment, and project finance tracking reports.',
       metrics: [
         ['Generated', '36'],
         ['Scheduled', '3'],
@@ -23754,7 +23834,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
     'Operational Reports': {
       icon: Wrench,
       title: 'Operational Reports',
-      note: 'Work orders, material usage, vendor performance aur daily operations reports.',
+      note: 'Work orders, material usage, vendor performance, and daily operations reports.',
       metrics: [
         ['Generated', '24'],
         ['Scheduled', '2'],
@@ -23771,7 +23851,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
     'Compliance Reports': {
       icon: ShieldCheck,
       title: 'Compliance Reports',
-      note: 'Safety, approval, documentation aur statutory compliance reports.',
+      note: 'Safety, approval, documentation, and statutory compliance reports.',
       metrics: [
         ['Generated', '16'],
         ['Scheduled', '2'],
@@ -23788,7 +23868,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
     'Custom Reports': {
       icon: UsersRound,
       title: 'Custom Reports',
-      note: 'User-defined report builder, saved templates aur custom export formats.',
+      note: 'User-defined report builder, saved templates, and custom export formats.',
       metrics: [
         ['Created', '14'],
         ['Shared', '8'],
@@ -23804,7 +23884,13 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
     },
   };
 
-  const filteredReports = activeReportTab === 'All Reports' ? reports : reports.filter((item) => item.category === activeReportTab);
+  const filteredReports = reports
+    .filter((item) => activeReportTab === 'All Reports' || item.category === activeReportTab)
+    .filter((item) => {
+      const query = searchQuery.trim().toLowerCase();
+      if (!query) return true;
+      return [item.name, item.category, item.generatedBy?.name].some((field) => String(field || '').toLowerCase().includes(query));
+    });
   const activeReportDetail = reportTabDetails[activeReportTab];
 
   const openReportStat = (label) => {
@@ -23867,7 +23953,13 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
             </div>
             <label className="relative lg:min-w-[220px]">
               <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8ca8]" />
-              <input type="text" placeholder="Search reports..." className="h-11 w-full rounded-[10px] border border-[#dce6f3] bg-white pl-11 pr-4 text-[14px] font-bold text-[#1e3261] outline-none placeholder:text-[#8090aa]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search reports..."
+                className="h-11 w-full rounded-[10px] border border-[#dce6f3] bg-white pl-11 pr-4 text-[14px] font-bold text-[#1e3261] outline-none placeholder:text-[#8090aa]"
+              />
             </label>
           </div>
         </div>
@@ -25112,10 +25204,6 @@ function SettingsPermissionToggle({ value, onClick, label }) {
         <span className="grid size-5 place-items-center rounded-[5px] bg-[#0d9f4a] text-white">
           <CheckCircle2 className="size-4" />
         </span>
-      ) : value === 'partial' ? (
-        <span className="grid size-5 place-items-center rounded-[5px] bg-[#fff0dc] text-[#f59e0b]">
-          <Minus className="size-4" />
-        </span>
       ) : (
         <span className="size-5 rounded-[5px] border border-[#cbd5e1] bg-white" />
       )}
@@ -25146,19 +25234,19 @@ function createSettingsRolePermissions(roleName) {
   const guestMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: false };
   const viewerMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: true };
   const managerMatrix = {
-    Dashboard: { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: true },
+    Dashboard: { View: true, Add: true, Edit: true, Delete: false, Export: true },
     Leads: { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    'Follow-ups': { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    'Follow-ups': { View: true, Add: true, Edit: true, Delete: true, Export: true },
     'IVRS Management': { View: true, Add: false, Edit: false, Delete: false, Export: true },
-    Approvals: { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: false },
-    'Project Management': { View: true, Add: true, Edit: 'partial', Delete: false, Export: true },
-    Workforce: { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: true },
-    'Liaisoning & Commissioning': { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: false },
-    'O&M': { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: true },
-    Accounts: { View: true, Add: 'partial', Edit: false, Delete: false, Export: true },
-    Inventory: { View: true, Add: 'partial', Edit: true, Delete: false, Export: true },
+    Approvals: { View: true, Add: true, Edit: true, Delete: false, Export: false },
+    'Project Management': { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    Workforce: { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    'Liaisoning & Commissioning': { View: true, Add: true, Edit: true, Delete: false, Export: false },
+    'O&M': { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    Accounts: { View: true, Add: true, Edit: false, Delete: false, Export: true },
+    Inventory: { View: true, Add: true, Edit: true, Delete: false, Export: true },
     'Daily Tasks': { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    'AMC & Warranty': { View: true, Add: 'partial', Edit: 'partial', Delete: false, Export: true },
+    'AMC & Warranty': { View: true, Add: true, Edit: true, Delete: false, Export: true },
     Reports: { View: true, Add: false, Edit: false, Delete: false, Export: true },
     'User Management': { View: false, Add: false, Edit: false, Delete: false, Export: false },
     Settings: { View: true, Add: false, Edit: false, Delete: false, Export: false },
@@ -25168,13 +25256,7 @@ function createSettingsRolePermissions(roleName) {
     if (roleName === 'Super Admin') {
       return {
         ...row,
-        permissions: {
-          View: true,
-          Add: index === 0 ? 'partial' : true,
-          Edit: index === 0 ? 'partial' : true,
-          Delete: index === 0 ? false : true,
-          Export: true,
-        },
+        permissions: { View: true, Add: true, Edit: true, Delete: true, Export: true },
       };
     }
 
@@ -25721,6 +25803,10 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
   const [permissionRows, setPermissionRows] = useState([]);
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [openRoleMenuId, setOpenRoleMenuId] = useState(null);
+  const [roleMenuAnchor, setRoleMenuAnchor] = useState(null);
+  const [editRoleTarget, setEditRoleTarget] = useState(null);
+  const [deleteRoleTarget, setDeleteRoleTarget] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -25742,6 +25828,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
   }, []);  
 
   const filteredRoles = roles.filter((role) => role.name.toLowerCase().includes(query.toLowerCase()));
+
   const selectedRole = roles.find((role) => role.name === selectedRoleName) ?? roles[0];
   const selectedRoleUsers = selectedRole ? users.filter((user) => user.role === selectedRole.name) : [];
 
@@ -25764,8 +25851,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
         return row;
       }
 
-      const currentValue = row.permissions[permissionName];
-      const nextValue = currentValue === false ? 'partial' : currentValue === 'partial' ? true : false;
+      const nextValue = !row.permissions[permissionName];
       return { ...row, permissions: { ...row.permissions, [permissionName]: nextValue } };
     }));
   };
@@ -25778,6 +25864,28 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
     roleApi.setPermissions(selectedRole.id, mapUiPermissionsToApi(permissionRows))
       .then(() => onNotify(`${selectedRoleName} permissions saved`, 'success'))
       .catch((error) => onNotify(error.message || 'Failed to save permissions', 'error'));
+  };
+
+  const setAllPermissions = (value) => {
+    setPermissionRows((current) => current.map((row) => ({
+      ...row,
+      permissions: Object.fromEntries(Object.keys(row.permissions).map((key) => [key, value])),
+    })));
+  };
+
+  const handleDeleteRole = (role) => {
+    roleApi.delete(role.id)
+      .then(() => {
+        setRoles((current) => current.filter((item) => item.id !== role.id));
+        setDeleteRoleTarget(null);
+        if (selectedRoleName === role.name) {
+          const remaining = roles.filter((item) => item.id !== role.id);
+          if (remaining.length) switchRole(remaining[0].name);
+          else { setSelectedRoleName(''); setPermissionRows([]); }
+        }
+        onNotify(`${role.name} role deleted`, 'success');
+      })
+      .catch((error) => onNotify(error.message || 'Failed to delete role', 'error'));
   };
 
   return (
@@ -25815,7 +25923,6 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
         <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Roles List</h2>
-            <button type="button" onClick={() => onNotify('Role list exported')} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[12px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
           </div>
 
           <div className="mt-4 space-y-3 xl:hidden">
@@ -25856,20 +25963,35 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
                     </td>
                     <td>{role.users}</td>
                     <td><SettingsResultBadge status={role.status} /></td>
-                    <td><div className="flex items-center justify-end gap-2"><UserActionButton label={`Open ${role.name}`} icon={Eye} tone="blue" onClick={() => switchRole(role.name)} /><UserActionButton label={`More actions for ${role.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${role.name} actions opened`)} /></div></td>
+                    <td>
+                      <div className="flex items-center justify-end gap-2">
+                        <UserActionButton label={`Open ${role.name}`} icon={Eye} tone="blue" onClick={() => switchRole(role.name)} />
+                        <UserActionButton
+                          label={`More actions for ${role.name}`}
+                          icon={MoreVertical}
+                          tone="blue"
+                          onClick={(event) => {
+                            if (openRoleMenuId === role.id) {
+                              setOpenRoleMenuId(null);
+                              setRoleMenuAnchor(null);
+                              return;
+                            }
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            const menuHeight = 96;
+                            const openUp = rect.bottom + menuHeight > window.innerHeight - 12;
+                            setRoleMenuAnchor({
+                              top: openUp ? rect.top - menuHeight - 6 : rect.bottom + 6,
+                              left: Math.max(12, rect.right - 160),
+                            });
+                            setOpenRoleMenuId(role.id);
+                          }}
+                        />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-
-          <div className="flex flex-col gap-4 px-1 pt-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-            <p>Showing 1 to {filteredRoles.length} of {roles.length} entries</p>
-            <div className="flex items-center gap-2">
-              <PaginationButton onClick={() => onNotify('Previous role page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-              <PaginationButton active onClick={() => onNotify('Roles page 1 selected')}>1</PaginationButton>
-              <PaginationButton onClick={() => onNotify('Next role page selected')}><ChevronRight className="size-4" /></PaginationButton>
-            </div>
           </div>
         </article>
 
@@ -25913,10 +26035,13 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
             </div>
           ) : (
             <div className="mt-5">
-              <div className="mb-4 flex flex-wrap items-center gap-5 text-[12px] font-extrabold text-[#30466d]">
-                <span className="inline-flex items-center gap-2"><span className="grid size-5 place-items-center rounded-[5px] bg-[#0d9f4a] text-white"><CheckCircle2 className="size-4" /></span>Full Access</span>
-                <span className="inline-flex items-center gap-2"><span className="grid size-5 place-items-center rounded-[5px] bg-[#fff0dc] text-[#f59e0b]"><Minus className="size-4" /></span>Partial Access</span>
-                <span className="inline-flex items-center gap-2"><span className="size-5 rounded-[5px] border border-[#cbd5e1] bg-white" />No Access</span>
+              <div className="mb-4 flex flex-wrap items-center gap-3 text-[12px] font-extrabold text-[#30466d]">
+                <button type="button" onClick={() => setAllPermissions(true)} className="inline-flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-[#f0fdf4]">
+                  <span className="grid size-5 place-items-center rounded-[5px] bg-[#0d9f4a] text-white"><CheckCircle2 className="size-4" /></span>Full Access
+                </button>
+                <button type="button" onClick={() => setAllPermissions(false)} className="inline-flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-[#fef2f2]">
+                  <span className="size-5 rounded-[5px] border border-[#cbd5e1] bg-white" />No Access
+                </button>
               </div>
               <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
                 <table className="crm-table min-w-[880px] w-full">
@@ -25949,6 +26074,57 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
 
       <DashboardFooter />
 
+      {openRoleMenuId && roleMenuAnchor && typeof document !== 'undefined' ? createPortal(
+        (() => {
+          const menuRole = filteredRoles.find((role) => role.id === openRoleMenuId);
+          if (!menuRole) return null;
+          const canDeleteRole = menuRole.name !== 'Super Admin';
+          return (
+            <>
+              <button
+                type="button"
+                aria-label="Close menu"
+                className="fixed inset-0 z-190 cursor-default"
+                onClick={() => { setOpenRoleMenuId(null); setRoleMenuAnchor(null); }}
+              />
+              <div
+                className="fixed z-200 w-[160px] overflow-hidden rounded-[10px] border border-[#e7eef7] bg-white shadow-[0_18px_38px_rgba(17,39,84,0.16)]"
+                style={{ top: roleMenuAnchor.top, left: roleMenuAnchor.left }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenRoleMenuId(null);
+                    setRoleMenuAnchor(null);
+                    setEditRoleTarget(menuRole);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]"
+                >
+                  <Pencil className="size-4" />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  disabled={!canDeleteRole}
+                  title={!canDeleteRole ? 'The Super Admin role cannot be deleted' : undefined}
+                  onClick={() => {
+                    if (!canDeleteRole) return;
+                    setOpenRoleMenuId(null);
+                    setRoleMenuAnchor(null);
+                    setDeleteRoleTarget(menuRole);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12px] font-extrabold text-[#dc2626] transition hover:bg-[#fff5f5] disabled:cursor-not-allowed disabled:text-[#c3ccd9] disabled:hover:bg-transparent"
+                >
+                  <Trash2 className="size-4" />
+                  Delete
+                </button>
+              </div>
+            </>
+          );
+        })(),
+        document.body,
+      ) : null}
+
       {addRoleOpen ? (
         <AddRoleModal
           onClose={() => setAddRoleOpen(false)}
@@ -25963,6 +26139,32 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
               })
               .catch((error) => onNotify(error.message || 'Failed to add role', 'error'));
           }}
+        />
+      ) : null}
+
+      {editRoleTarget ? (
+        <EditRoleModal
+          role={editRoleTarget}
+          onClose={() => setEditRoleTarget(null)}
+          onSave={(roleName) => {
+            roleApi.update(editRoleTarget.id, { name: roleName })
+              .then((updated) => {
+                const mapped = mapApiRoleToSettingsRow(updated);
+                setRoles((current) => current.map((item) => (item.id === mapped.id ? mapped : item)));
+                if (selectedRoleName === editRoleTarget.name) setSelectedRoleName(mapped.name);
+                setEditRoleTarget(null);
+                onNotify(`${mapped.name} role updated`, 'success');
+              })
+              .catch((error) => onNotify(error.message || 'Failed to update role', 'error'));
+          }}
+        />
+      ) : null}
+
+      {deleteRoleTarget ? (
+        <ConfirmDeleteModal
+          message={deleteRoleTarget.name}
+          onCancel={() => setDeleteRoleTarget(null)}
+          onConfirm={() => handleDeleteRole(deleteRoleTarget)}
         />
       ) : null}
     </div>
@@ -28574,6 +28776,27 @@ function AddRoleModal({ onClose, onSave }) {
   );
 }
 
+function EditRoleModal({ role, onClose, onSave }) {
+  const [roleName, setRoleName] = useState(role.name);
+  return (
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Edit Role</h2>
+          <button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="mt-5">
+          <ModalTextInput label="Role Name" value={roleName} onChange={setRoleName} placeholder="Enter role name" />
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+          <button type="button" onClick={() => onSave(roleName.trim() || role.name)} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ModalTextInput({ label, value, onChange, placeholder, type = 'text' }) {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === 'password';
@@ -29658,7 +29881,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
               </div>
               <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." name="requirement_details" defaultValue={d.requirement_details} />
               <div className="grid gap-4 lg:grid-cols-2">
-                <LeadSelect label="Source" placeholder="Select source" options={['Website', 'Referral', 'Walk-in', 'Campaign']} name="source" defaultValue={d.source} />
+                <LeadSelect label="Source" placeholder="Select source" options={['Instagram', 'Justdial', 'Google', 'Facebook']} name="source" defaultValue={d.source} />
                 <LeadInput label="Estimated Capacity (kW)" icon={Zap} type="number" placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" defaultValue={d.estimated_capacity} />
               </div>
             </LeadFormSection>
@@ -30516,67 +30739,157 @@ function LeadFollowUpsOverviewModal({ leads, onClose, onViewLead }) {
 function LeadViewModal({ leadId, onClose, onEdit, onNotify }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [followUps, setFollowUps] = useState(null);
   const [addFollowUpOpen, setAddFollowUpOpen] = useState(false);
+  const [editFollowUp, setEditFollowUp] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  useEffect(() => {
+  const loadDetail = () => {
     setLoading(true);
     leadApi.get(leadId).then((data) => setDetail(data)).catch(() => setDetail(null)).finally(() => setLoading(false));
+  };
+
+  const loadFollowUps = () => {
+    if (!leadId) { setFollowUps([]); return; }
+    followUpApi.list(leadId)
+      .then((data) => {
+        const rows = Array.isArray(data) ? data : (data?.results ?? []);
+        setFollowUps(rows.sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at)));
+      })
+      .catch(() => setFollowUps([]));
+  };
+
+  useEffect(() => {
+    loadDetail();
+    setFollowUps(null);
+    loadFollowUps();
   }, [leadId]);
 
+  const leadForActions = detail
+    ? { id: leadId, customer: detail.customer_name, mobile: detail.mobile_number, ivrs: detail.ivrs_number }
+    : null;
+
   return (
-    <div
-      className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/50 p-4"
-      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
-    >
-      <div className="modal-pop-in scroll-soft flex max-h-[90vh] w-full max-w-[640px] flex-col overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-        <div className="flex items-start justify-between gap-4">
-          <h2 className="font-display text-[19px] font-extrabold text-[#111827]">Lead Details</h2>
-          <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+    <>
+      <div
+        className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/50 p-4"
+        onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      >
+        <div className="modal-pop-in scroll-soft flex max-h-[90vh] w-full max-w-[720px] flex-col overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+          <div className="flex items-start justify-between gap-4">
+            <h2 className="font-display text-[19px] font-extrabold text-[#111827]">Lead Details</h2>
+            <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+          </div>
+          {loading ? (
+            <PageLoadingState message="Loading lead details..." compact />
+          ) : !detail ? (
+            <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Lead not found.</p>
+          ) : (
+            <>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <InfoCell large label="Customer Name" value={detail.customer_name} />
+                <InfoCell large label="Mobile Number" value={detail.mobile_number} />
+                <InfoCell large label="IVRS Number" value={detail.ivrs_number || '—'} />
+                <InfoCell large label="Email" value={detail.email || '—'} />
+                <InfoCell large label="Project Name" value={detail.project_name || '—'} />
+                <InfoCell large label="Project Type" value={detail.project_type || '—'} />
+                <InfoCell large label="Estimated Capacity" value={detail.estimated_capacity ? `${formatCapacityKw(detail.estimated_capacity).trim()}` : '—'} />
+                <InfoCell large label="Status" valueNode={<StatusBadge status={detail.status} />} />
+                <InfoCell large label="Assigned To" value={detail.assigned_to_detail?.name || 'Unassigned'} />
+                <InfoCell large label="Next Follow-up" value={detail.next_follow_up ? new Date(detail.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
+                <InfoCell large label="Source" value={detail.source || '—'} />
+              </div>
+              {detail.address ? (
+                <div className="mt-4"><InfoCell large label="Address" value={detail.address} /></div>
+              ) : null}
+              {detail.remarks ? (
+                <div className="mt-4"><InfoCell large label="Remarks" value={detail.remarks} /></div>
+              ) : null}
+
+              <div className="mt-6 border-t border-[#edf2f8] pt-5">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-[15px] font-extrabold text-[#1e3261]">Follow-up History</h3>
+                    <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">
+                      Full conversation timeline — including calls logged before this lead was assigned.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[#eef2f8] px-3 py-1 text-[11px] font-extrabold text-[#53647f]">
+                    {followUps === null ? '…' : `${followUps.length} entr${followUps.length === 1 ? 'y' : 'ies'}`}
+                  </span>
+                </div>
+                <div className="max-h-[340px] space-y-3 overflow-y-auto pr-1">
+                  {followUps === null ? (
+                    <PageLoadingState message="Loading follow-ups..." compact />
+                  ) : followUps.length === 0 ? (
+                    <p className="rounded-[10px] bg-[#f8fbff] px-3 py-6 text-center text-[13px] font-bold text-[#53647f]">
+                      No follow-ups yet. Every call or WhatsApp note will appear here.
+                    </p>
+                  ) : followUps.map((item) => (
+                    <FollowUpHistoryCard
+                      key={item.id}
+                      item={item}
+                      onEdit={() => setEditFollowUp(item)}
+                      onDelete={() => setDeleteConfirm({
+                        message: `this ${item.follow_up_type || 'follow-up'} entry`,
+                        onConfirm: async () => {
+                          try {
+                            await followUpApi.delete(item.id);
+                            onNotify?.('Follow-up deleted.');
+                            setDeleteConfirm(null);
+                            loadFollowUps();
+                            loadDetail();
+                          } catch (err) {
+                            onNotify?.(err.message || 'Could not delete follow-up.', 'error');
+                            setDeleteConfirm(null);
+                          }
+                        },
+                      })}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap justify-end gap-3">
+                <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Close</button>
+                <button type="button" onClick={() => setAddFollowUpOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><Plus className="size-4" />Add Follow-up</button>
+                <button type="button" onClick={onEdit} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]"><Pencil className="size-4" />Edit Lead</button>
+              </div>
+            </>
+          )}
         </div>
-        {loading ? (
-          <PageLoadingState message="Loading lead details..." compact />
-        ) : !detail ? (
-          <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Lead not found.</p>
-        ) : (
-          <>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <InfoCell large label="Customer Name" value={detail.customer_name} />
-              <InfoCell large label="Mobile Number" value={detail.mobile_number} />
-              <InfoCell large label="IVRS Number" value={detail.ivrs_number || '—'} />
-              <InfoCell large label="Email" value={detail.email || '—'} />
-              <InfoCell large label="Project Name" value={detail.project_name || '—'} />
-              <InfoCell large label="Project Type" value={detail.project_type || '—'} />
-              <InfoCell large label="Estimated Capacity" value={detail.estimated_capacity ? `${formatCapacityKw(detail.estimated_capacity).trim()}` : '—'} />
-              <InfoCell large label="Status" valueNode={<StatusBadge status={detail.status} />} />
-              <InfoCell large label="Assigned To" value={detail.assigned_to_detail?.name || 'Unassigned'} />
-              <InfoCell large label="Next Follow-up" value={detail.next_follow_up ? new Date(detail.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
-              <InfoCell large label="Source" value={detail.source || '—'} />
-            </div>
-            {detail.address ? (
-              <div className="mt-4"><InfoCell large label="Address" value={detail.address} /></div>
-            ) : null}
-            {detail.remarks ? (
-              <div className="mt-4"><InfoCell large label="Remarks" value={detail.remarks} /></div>
-            ) : null}
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Close</button>
-              <button type="button" onClick={() => setAddFollowUpOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><Plus className="size-4" />Add Follow-up</button>
-              <button type="button" onClick={onEdit} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]"><Pencil className="size-4" />Edit Lead</button>
-            </div>
-          </>
-        )}
       </div>
 
-      {addFollowUpOpen && detail ? (
+      {addFollowUpOpen && leadForActions ? (
         <LeadQuickActionModal
           type="follow-up"
-          lead={{ id: leadId, customer: detail.customer_name, mobile: detail.mobile_number, ivrs: detail.ivrs_number }}
+          lead={leadForActions}
           onClose={() => setAddFollowUpOpen(false)}
-          onSaved={() => setAddFollowUpOpen(false)}
+          onSaved={() => {
+            setAddFollowUpOpen(false);
+            loadFollowUps();
+            loadDetail();
+          }}
           onNotify={onNotify}
         />
       ) : null}
-    </div>
+      {editFollowUp && leadForActions ? (
+        <CrmFollowUpEditModal
+          followUp={editFollowUp}
+          lead={leadForActions}
+          onClose={() => setEditFollowUp(null)}
+          onSaved={() => {
+            setEditFollowUp(null);
+            loadFollowUps();
+            loadDetail();
+          }}
+          onNotify={onNotify}
+        />
+      ) : null}
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
+    </>
   );
 }
 
@@ -32918,6 +33231,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
   const [activeTab, setActiveTab] = useState(initialTab);
   const [followUps, setFollowUps] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
+  const [editFollowUp, setEditFollowUp] = useState(null);
   const [linkedLeads, setLinkedLeads] = useState(null);
 
   // Always hydrate from the API by id — callers (Dashboard cards, Lead List, Overdue widget, etc.)
@@ -33019,6 +33333,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
   if (!lead?.id) return <NoLeadSelected title="Lead Details" onGoToList={onBackToList} />;
 
   const quickDetailActions = [
+    { label: 'Log Follow-up', icon: Phone, tone: 'green', onClick: () => setActiveModal('follow-up') },
     { label: 'Schedule Site Visit', icon: CalendarDays, tone: 'blue', onClick: () => setActiveModal('site-visit') },
     { label: 'Create Quotation', icon: FilePlus2, tone: 'blue', onClick: () => setActiveTab('quotation') },
     { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => setActiveModal('assign') },
@@ -33026,17 +33341,7 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
     { label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => setActiveModal('note') },
   ];
 
-  const toneForStatus = { Completed: 'success', Missed: 'danger', Scheduled: 'primary' };
-  const iconForType = { Call: Phone, WhatsApp: MessageSquareMore, 'Site Visit': Users, Email: Phone, Note: Flag };
-  const fullTimeline = (followUps ?? []).map((item) => ({
-    id: item.id,
-    title: `${item.follow_up_type || 'Follow-up'} ${item.status || ''}`.trim(),
-    tag: item.status || 'Scheduled',
-    text: item.notes || '—',
-    date: item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + '\n' + new Date(item.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—',
-    tone: toneForStatus[item.status] || 'primary',
-    icon: iconForType[item.follow_up_type] || Phone,
-  }));
+  const sortedFollowUps = [...(followUps ?? [])].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at));
   const completedCount = (followUps ?? []).filter((f) => f.status === 'Completed').length;
   const scheduledCount = (followUps ?? []).filter((f) => f.status === 'Scheduled').length;
   const missedCount = (followUps ?? []).filter((f) => f.status === 'Missed').length;
@@ -33270,12 +33575,13 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
                 {followUps === null ? (
                   <PageLoadingState message="Loading follow-ups..." compact />
                 ) : followUps.length === 0 ? (
-                  <p className="text-[13px] font-bold text-[#53647f]">No follow-ups yet.</p>
-                ) : followUps.slice(0, 3).map((item) => (
+                  <p className="text-[13px] font-bold text-[#53647f]">No follow-ups yet. Every call/WhatsApp note will appear here.</p>
+                ) : sortedFollowUps.slice(0, 3).map((item) => (
                   <TimelineItem
                     key={item.id}
-                    title={item.status === 'Completed' ? 'Follow-up Completed' : item.status === 'Missed' ? 'Follow-up Missed' : 'Follow-up Scheduled'}
-                    text={item.notes || item.follow_up_type}
+                    title={`${item.follow_up_type || 'Follow-up'}${item.outcome ? ` · ${item.outcome}` : ''} · ${item.status}`}
+                    text={item.notes || 'No conversation note saved.'}
+                    by={item.created_by_name}
                     date={item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                     tone={item.status === 'Completed' ? 'success' : item.status === 'Missed' ? 'slate' : 'primary'}
                   />
@@ -33315,23 +33621,44 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
         </section>
       ) : activeTab === 'follow-ups' ? (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <InfoPanel title="Follow-up Timeline" icon={ShieldCheck}>
+          <InfoPanel title="Follow-up Timeline" icon={ShieldCheck} actionLabel="Log Follow-up" onAction={() => setActiveModal('follow-up')}>
+            <p className="mb-5 text-[12px] font-semibold text-[#7585a2]">Newest first. Every saved call stays in this timeline — nothing overwrites older history.</p>
             <div className="space-y-8">
               {followUps === null ? (
                 <PageLoadingState message="Loading follow-ups..." compact />
-              ) : fullTimeline.length === 0 ? (
+              ) : sortedFollowUps.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center">
                   <span className="grid size-12 place-items-center rounded-full bg-[#eef2f7] text-[#7585a2]"><Phone className="size-6" /></span>
                   <div>
                     <p className="font-display text-[14px] font-extrabold text-[#1e3261]">No follow-ups yet</p>
-                    <p className="mt-1 text-[12px] font-semibold text-[#53647f]">Schedule the first follow-up to start tracking this lead's history.</p>
+                    <p className="mt-1 text-[12px] font-semibold text-[#53647f]">Log the first conversation to start this lead's history.</p>
                   </div>
                   <button type="button" onClick={() => setActiveModal('follow-up')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
                     <Plus className="size-4" />
-                    Add Follow-up
+                    Log Follow-up
                   </button>
                 </div>
-              ) : fullTimeline.map((item) => <HistoryItem key={item.id} item={item} />)}
+              ) : sortedFollowUps.map((item) => (
+                <FollowUpHistoryCard
+                  key={item.id}
+                  item={item}
+                  onEdit={() => setEditFollowUp(item)}
+                  onDelete={() => setDeleteConfirm({
+                    message: `this ${item.follow_up_type || 'follow-up'} entry`,
+                    onConfirm: async () => {
+                      try {
+                        await followUpApi.delete(item.id);
+                        onNotify?.('Follow-up deleted.');
+                        setDeleteConfirm(null);
+                        loadFollowUps();
+                      } catch (err) {
+                        onNotify?.(err.message || 'Could not delete follow-up.', 'error');
+                        setDeleteConfirm(null);
+                      }
+                    },
+                  })}
+                />
+              ))}
             </div>
           </InfoPanel>
 
@@ -33628,6 +33955,15 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
           onClose={() => setActiveModal(null)}
           onSaved={loadFollowUps}
           onLeadUpdated={onLeadUpdated}
+          onNotify={onNotify}
+        />
+      ) : null}
+      {editFollowUp ? (
+        <CrmFollowUpEditModal
+          followUp={editFollowUp}
+          lead={lead}
+          onClose={() => setEditFollowUp(null)}
+          onSaved={() => { setEditFollowUp(null); loadFollowUps(); }}
           onNotify={onNotify}
         />
       ) : null}
@@ -34044,6 +34380,8 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [employeeOptions, setEmployeeOptions] = useState([]);
+  const [reminderChoice, setReminderChoice] = useState('');
+  const [customReminderDate, setCustomReminderDate] = useState('');
 
   useEffect(() => {
     if (type !== 'assign') return;
@@ -34062,6 +34400,14 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
   }[type];
   const Icon = meta.icon;
 
+  const resolveReminderValue = () => {
+    if (reminderChoice === 'Custom Date...') {
+      return customReminderDate ? `On ${customReminderDate}` : '';
+    }
+    if (!reminderChoice || reminderChoice === 'No Reminder') return '';
+    return reminderChoice;
+  };
+
   const handleSave = async (event) => {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
@@ -34074,13 +34420,37 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
           throw new Error('Select a follow-up date');
         }
         const timeVal = fd.get('time') || '10:00';
+        const notes = String(fd.get('notes') || '').trim();
+        if (type === 'follow-up' && !notes) {
+          throw new Error('Write what happened in this conversation');
+        }
+        if (reminderChoice === 'Custom Date...' && !customReminderDate) {
+          throw new Error('Select a custom reminder date');
+        }
+        const happenedAt = dateVal ? `${dateVal}T${timeVal}:00` : new Date().toISOString();
+        const outcome = String(fd.get('outcome') || '').trim();
+        const nextDate = String(fd.get('next_date') || '').trim();
+        const nextTime = String(fd.get('next_time') || '10:00');
         await followUpApi.create({
           lead: lead.id,
           follow_up_type: type === 'site-visit' ? 'Site Visit' : type === 'note' ? 'Note' : (fd.get('follow_up_type') || 'Call'),
-          scheduled_at: dateVal ? `${dateVal}T${timeVal}:00` : new Date().toISOString(),
-          status: type === 'note' ? 'Completed' : 'Scheduled',
-          notes: fd.get('notes') || '',
+          scheduled_at: happenedAt,
+          completed_at: type === 'note' || type === 'follow-up' ? happenedAt : null,
+          status: type === 'note' || type === 'follow-up' ? 'Completed' : 'Scheduled',
+          notes,
+          outcome: type === 'follow-up' ? outcome : '',
+          reminder: resolveReminderValue(),
         });
+        if (type === 'follow-up' && nextDate) {
+          await followUpApi.create({
+            lead: lead.id,
+            follow_up_type: fd.get('follow_up_type') || 'Call',
+            scheduled_at: `${nextDate}T${nextTime}:00`,
+            status: 'Scheduled',
+            notes: outcome ? `Next follow-up planned after: ${outcome}` : 'Next follow-up scheduled',
+            reminder: resolveReminderValue(),
+          });
+        }
         onSaved?.();
       } else if (type === 'status') {
         const newStatus = fd.get('new_status');
@@ -34112,15 +34482,49 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
     }
   };
 
+  const reminderField = (
+    <label className="block min-w-0">
+      <LeadLabel label="Reminder" />
+      <span className="mt-2 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+        <Bell className="size-4 shrink-0 text-[#8391a8]" />
+        <select
+          value={reminderChoice}
+          onChange={(event) => {
+            setReminderChoice(event.target.value);
+            if (event.target.value !== 'Custom Date...') setCustomReminderDate('');
+          }}
+          className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#53647f] outline-none"
+        >
+          <option value="">Select reminder</option>
+          {['2 Hours Before', '1 Day Before', 'Same Day Morning', 'No Reminder', 'Custom Date...'].map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+      </span>
+      {reminderChoice === 'Custom Date...' ? (
+        <input
+          type="date"
+          value={customReminderDate}
+          onChange={(event) => setCustomReminderDate(event.target.value)}
+          className="mt-2 h-11 w-full rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          aria-label="Custom reminder date"
+        />
+      ) : null}
+    </label>
+  );
+
   const renderFields = () => {
     if (type === 'follow-up') return (
       <>
         <LeadSelect label="Follow-up Type" name="follow_up_type" required icon={Phone} placeholder="Select type" options={['Call', 'WhatsApp', 'Site Visit', 'Email', 'Note']} />
         <LeadDateInput label="Follow-up Date" name="date" required />
         <LeadInput label="Follow-up Time" name="time" icon={Clock3} type="time" placeholder="e.g. 11:00" />
-        <LeadSelect label="Reminder" name="reminder" icon={Bell} placeholder="Select reminder" options={['2 Hours Before', '1 Day Before', 'Same Day Morning', 'No Reminder']} />
+        <LeadSelect label="Outcome" name="outcome" icon={Flag} placeholder="Select outcome" options={['Interested', 'Thinking', 'Busy', 'Not Reachable', 'Call Back Later', 'Site Visit Fixed', 'Not Interested', 'Wrong Number', 'Other']} />
+        {reminderField}
+        <LeadDateInput label="Next Follow-up Date" name="next_date" />
+        <LeadInput label="Next Follow-up Time" name="next_time" icon={Clock3} type="time" placeholder="e.g. 10:00" />
         <div className="md:col-span-2">
-          <LeadTextarea label="Follow-up Notes" name="notes" icon={FileText} placeholder="What was discussed with the customer..." />
+          <LeadTextarea label="What Happened *" name="notes" icon={FileText} placeholder="Write the conversation details. This stays in history forever..." />
         </div>
       </>
     );
@@ -34129,7 +34533,7 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
         <LeadDateInput label="Visit Date" name="date" required />
         <LeadInput label="Visit Time" name="time" icon={Clock3} type="time" placeholder="e.g. 10:30" />
         <LeadSelect label="Visit Type" name="visit_type" icon={Users} placeholder="Select visit type" options={['Residential Survey', 'Commercial Survey', 'Industrial Survey', 'Re-visit']} />
-        <LeadSelect label="Reminder" name="reminder" icon={Bell} placeholder="Select reminder" options={['2 Hours Before', '1 Day Before', 'Same Day Morning', 'No Reminder']} />
+        {reminderField}
         <div className="md:col-span-2">
           <LeadTextarea label="Visit Instructions" name="notes" icon={FileText} placeholder="Shadow area check, roof access, meter room, earthing point..." />
         </div>
@@ -34195,6 +34599,8 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
 function ViewFollowUpModal({ lead, onClose, onNotify }) {
   const [followUps, setFollowUps] = useState(null);
   const [addFollowUpOpen, setAddFollowUpOpen] = useState(false);
+  const [editFollowUp, setEditFollowUp] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const loadFollowUps = () => {
     if (!lead?.id) { setFollowUps([]); return; }
@@ -34209,7 +34615,7 @@ function ViewFollowUpModal({ lead, onClose, onNotify }) {
   return (
     <>
       <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
-        <div className="max-h-[88vh] w-full max-w-[560px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="max-h-[88vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
           <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-6 py-5">
             <div className="min-w-0">
               <h2 className="flex items-center gap-3 font-display text-[18px] font-extrabold text-[#111827]"><Phone className="size-5 text-[#0b65e5]" /> Follow-up History</h2>
@@ -34223,18 +34629,31 @@ function ViewFollowUpModal({ lead, onClose, onNotify }) {
               <button type="button" onClick={onClose} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
             </div>
           </div>
-          <div className="space-y-5 p-6">
+          <div className="space-y-4 p-6">
+            <p className="text-[12px] font-semibold text-[#7585a2]">Full conversation history for this lead — including calls logged by Tele. Newest first.</p>
             {followUps === null ? (
               <PageLoadingState message="Loading follow-ups..." compact />
             ) : followUps.length === 0 ? (
               <p className="text-[13px] font-bold text-[#53647f]">No follow-ups yet.</p>
-            ) : followUps.map((item) => (
-              <TimelineItem
+            ) : [...followUps].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at)).map((item) => (
+              <FollowUpHistoryCard
                 key={item.id}
-                title={item.status === 'Completed' ? 'Follow-up Completed' : item.status === 'Missed' ? 'Follow-up Missed' : 'Follow-up Scheduled'}
-                text={item.notes || item.follow_up_type}
-                date={item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                tone={item.status === 'Completed' ? 'success' : item.status === 'Missed' ? 'slate' : 'primary'}
+                item={item}
+                onEdit={() => setEditFollowUp(item)}
+                onDelete={() => setDeleteConfirm({
+                  message: `this ${item.follow_up_type || 'follow-up'} entry`,
+                  onConfirm: async () => {
+                    try {
+                      await followUpApi.delete(item.id);
+                      onNotify?.('Follow-up deleted.');
+                      setDeleteConfirm(null);
+                      loadFollowUps();
+                    } catch (err) {
+                      onNotify?.(err.message || 'Could not delete follow-up.', 'error');
+                      setDeleteConfirm(null);
+                    }
+                  },
+                })}
               />
             ))}
           </div>
@@ -34252,6 +34671,18 @@ function ViewFollowUpModal({ lead, onClose, onNotify }) {
           }}
           onNotify={onNotify}
         />
+      ) : null}
+      {editFollowUp ? (
+        <CrmFollowUpEditModal
+          followUp={editFollowUp}
+          lead={lead}
+          onClose={() => setEditFollowUp(null)}
+          onSaved={() => { setEditFollowUp(null); loadFollowUps(); }}
+          onNotify={onNotify}
+        />
+      ) : null}
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
     </>
   );
@@ -34288,6 +34719,153 @@ function DetailRow({ label, value, valueNode }) {
 function TimelineItem({ title, text, date, tone, by }) {
   const toneClass = { success: 'bg-[#e8f8eb] text-[#0d9f4a]', primary: 'bg-[#e8f2ff] text-[#0b65e5]', slate: 'bg-[#eef2f7] text-[#7585a2]' }[tone] ?? 'bg-[#eef2f7] text-[#7585a2]';
   return <div className="flex gap-4"><span className={`grid size-10 shrink-0 place-items-center rounded-full ${toneClass}`}><Phone className="size-4" /></span><div className="min-w-0 flex-1"><div className="flex flex-col gap-1 sm:flex-row sm:justify-between"><p className="font-extrabold text-[#1e3261]">{title}</p><p className="text-[12px] font-bold text-[#53647f]">{date}</p></div>{by ? <p className="mt-1 text-[12px] font-bold text-[#53647f]">By {by}</p> : null}<p className="mt-1 text-[13px] font-semibold text-[#53647f]">{text}</p></div></div>;
+}
+
+function FollowUpHistoryCard({ item, onEdit, onDelete }) {
+  const iconForType = { Call: Phone, WhatsApp: MessageSquareMore, 'Site Visit': Users, Email: Phone, Note: Flag };
+  const Icon = iconForType[item.follow_up_type] || Phone;
+  const toneClass = {
+    Completed: 'bg-[#0d9f4a]',
+    Missed: 'bg-[#ef4444]',
+    Scheduled: 'bg-[#0b65e5]',
+  }[item.status] || 'bg-[#7585a2]';
+  const when = item.scheduled_at
+    ? new Date(item.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
+
+  return (
+    <div className="grid gap-4 rounded-[12px] border border-[#edf2f8] bg-[#fbfcfe] p-4 sm:grid-cols-[40px_1fr_auto]">
+      <span className={`grid size-10 place-items-center rounded-full text-white ${toneClass}`}><Icon className="size-5" /></span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-extrabold text-[#1e3261]">
+            {item.follow_up_type || 'Follow-up'}
+            <span className="ml-2 text-[12px] font-bold text-[#7585a2]">{when}</span>
+          </p>
+          <span className="rounded-[7px] bg-[#e8f8eb] px-2 py-1 text-[11px] font-extrabold text-[#0d9f4a]">{item.status || 'Scheduled'}</span>
+          {item.outcome ? (
+            <span className="rounded-[7px] bg-[#eef2ff] px-2 py-1 text-[11px] font-extrabold text-[#3730a3]">{item.outcome}</span>
+          ) : null}
+          {item.status_after ? (
+            <span className="rounded-[7px] bg-[#fff4df] px-2 py-1 text-[11px] font-extrabold text-[#b45309]">{item.status_after}</span>
+          ) : null}
+        </div>
+        {item.notes ? (
+          <p className="mt-2 text-[13px] font-semibold leading-6 text-[#53647f]">
+            <span className="font-extrabold text-[#33456b]">What happened: </span>
+            {item.notes}
+          </p>
+        ) : (
+          <p className="mt-2 text-[13px] font-semibold text-[#53647f]">No conversation note saved.</p>
+        )}
+        <p className="mt-2 text-[12px] font-bold text-[#8a98af]">
+          Logged by {item.created_by_name || '—'}
+          {item.reminder ? ` · Reminder: ${item.reminder}` : ''}
+        </p>
+      </div>
+      <div className="flex items-start gap-2 sm:justify-end">
+        {onEdit ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dbe4f0] bg-white text-[#0b65e5] transition hover:bg-[#f8fbff]"
+            title="Edit"
+            aria-label="Edit follow-up"
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        ) : null}
+        {onDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffd5d5] bg-[#fff8f8] text-[#dc2626] transition hover:bg-[#feecec]"
+            title="Delete"
+            aria-label="Delete follow-up"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CrmFollowUpEditModal({ followUp, lead, onClose, onSaved, onNotify }) {
+  const when = followUp.scheduled_at ? new Date(followUp.scheduled_at) : new Date();
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  const handleSave = async (event) => {
+    event.preventDefault();
+    const fd = new FormData(event.currentTarget);
+    const notes = String(fd.get('notes') || '').trim();
+    const dateVal = fd.get('date');
+    const timeVal = fd.get('time') || '10:00';
+    if (!notes) {
+      setSaveError('Write what happened in this conversation');
+      return;
+    }
+    if (!dateVal) {
+      setSaveError('Select a follow-up date');
+      return;
+    }
+    setSaving(true);
+    setSaveError('');
+    const happenedAt = new Date(`${dateVal}T${timeVal}`).toISOString();
+    const status = fd.get('status') || followUp.status || 'Completed';
+    try {
+      await followUpApi.update(followUp.id, {
+        follow_up_type: fd.get('follow_up_type') || followUp.follow_up_type || 'Call',
+        scheduled_at: happenedAt,
+        completed_at: status === 'Completed' ? (followUp.completed_at || happenedAt) : null,
+        status,
+        notes,
+        outcome: String(fd.get('outcome') || '').trim(),
+        reminder: String(fd.get('reminder') || '').trim() === 'No Reminder' ? '' : String(fd.get('reminder') || '').trim(),
+        status_after: String(fd.get('status_after') || '').trim(),
+      });
+      onNotify?.('Follow-up updated.');
+      onSaved?.();
+    } catch (err) {
+      setSaveError(err.message || 'Could not update follow-up.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
+          <h2 className="flex items-center gap-3 font-display text-[18px] font-extrabold text-[#111827]"><Pencil className="size-5 text-[#0b65e5]" /> Edit Follow-up</h2>
+          <button type="button" onClick={onClose} className="text-[#7585a2] hover:text-[#111827]"><X className="size-5" /></button>
+        </div>
+        <form onSubmit={handleSave}>
+          <div className="p-6">
+            <p className="mb-4 text-[13px] font-bold text-[#53647f]">{lead?.customer} • {lead?.mobile} • IVRS {lead?.ivrs}</p>
+            {saveError ? <p className="mb-4 rounded-[8px] bg-[#ffe9e6] px-4 py-2 text-[13px] font-bold text-[#e3342f]">{saveError}</p> : null}
+            <div className="grid gap-4 md:grid-cols-2">
+              <LeadSelect label="Follow-up Type" name="follow_up_type" required icon={Phone} placeholder="Select type" options={['Call', 'WhatsApp', 'Site Visit', 'Email', 'Note']} defaultValue={followUp.follow_up_type || 'Call'} />
+              <LeadSelect label="Status" name="status" required icon={Clock3} placeholder="Select status" options={['Completed', 'Scheduled', 'Missed']} defaultValue={followUp.status || 'Completed'} />
+              <LeadDateInput label="Follow-up Date" name="date" required defaultValue={Number.isNaN(when.getTime()) ? '' : when.toISOString().slice(0, 10)} />
+              <LeadInput label="Follow-up Time" name="time" icon={Clock3} type="time" defaultValue={Number.isNaN(when.getTime()) ? '10:00' : when.toTimeString().slice(0, 5)} />
+              <LeadSelect label="Outcome" name="outcome" icon={Flag} placeholder="Select outcome" options={['Interested', 'Thinking', 'Busy', 'Not Reachable', 'Call Back Later', 'Site Visit Fixed', 'Not Interested', 'Wrong Number', 'Other']} defaultValue={followUp.outcome || ''} />
+              <LeadSelect label="Lead Status After" name="status_after" icon={Flag} placeholder="Optional" options={['New', 'Follow-up', 'Quotation', 'Won', 'Lost']} defaultValue={followUp.status_after || ''} />
+              <LeadSelect label="Reminder" name="reminder" icon={Bell} placeholder="Select reminder" options={['2 Hours Before', '1 Day Before', 'Same Day Morning', 'No Reminder']} defaultValue={followUp.reminder || 'No Reminder'} />
+              <div className="md:col-span-2">
+                <LeadTextarea label="What Happened *" name="notes" icon={FileText} placeholder="Conversation details..." defaultValue={followUp.notes || ''} />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
+            <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+            <button type="submit" disabled={saving} className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save Changes'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 function HistoryItem({ item }) {

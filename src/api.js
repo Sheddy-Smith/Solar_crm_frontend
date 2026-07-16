@@ -313,7 +313,7 @@ export const accountsModuleApi = {
 // ─── Follow-ups ──────────────────────────────────────────────────────────────
 
 export const followUpApi = {
-  list: (leadId) => request(`/follow-ups/?lead=${leadId}`),
+  list: (leadId) => request(`/follow-ups/?lead=${leadId}&page_size=500&ordering=-scheduled_at`),
   listAll: (params = {}) => {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
@@ -322,6 +322,7 @@ export const followUpApi = {
   },
   create: (data) => request('/follow-ups/', { method: 'POST', body: data }),
   update: (id, data) => request(`/follow-ups/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/follow-ups/${id}/`, { method: 'DELETE' }),
 };
 
 // ─── Admin Approvals ─────────────────────────────────────────────────────────

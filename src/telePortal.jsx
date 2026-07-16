@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Clock3,
   Eye,
   EyeOff,
@@ -88,6 +89,26 @@ const TELE_STATUS_TONES = {
 
 const FOLLOW_UP_TYPES = ['Call', 'WhatsApp', 'Site Visit', 'Email', 'Note'];
 
+const FOLLOW_UP_OUTCOMES = [
+  'Interested',
+  'Thinking',
+  'Busy',
+  'Not Reachable',
+  'Call Back Later',
+  'Site Visit Fixed',
+  'Not Interested',
+  'Wrong Number',
+  'Other',
+];
+
+const FOLLOW_UP_HISTORY_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: '7d', label: '7 Days', days: 7 },
+  { id: '1m', label: '1 Month', days: 30 },
+  { id: '6m', label: '6 Months', days: 182 },
+  { id: '1y', label: '1 Year', days: 365 },
+];
+
 const FOLLOW_UP_TYPE_ICONS = {
   Call: PhoneCall,
   WhatsApp: MessageCircle,
@@ -100,8 +121,62 @@ const REMINDER_OPTIONS = [
   'No reminder', '15 minutes before', '30 minutes before', '1 hour before',
   '2 hours before', '1 day before', '2 days before',
 ];
+const REMINDER_CUSTOM = '__custom_date__';
 
-const LEAD_SOURCES = ['Website', 'Referral', 'Facebook', 'Google Ads', 'Just Dial', 'IndiaMART', 'Walk-in', 'Exhibition', 'Other'];
+function extractReminderDate(value) {
+  if (!value) return '';
+  const iso = String(value).match(/(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  const parsed = new Date(String(value).replace(/^On\s+/i, ''));
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return '';
+}
+
+function isPresetReminder(value) {
+  return !value || REMINDER_OPTIONS.includes(value);
+}
+
+function TeleReminderField({ value, onChange, label = 'Reminder' }) {
+  const custom = Boolean(value) && !isPresetReminder(value);
+  const selectValue = custom ? REMINDER_CUSTOM : (value || 'No reminder');
+  const dateValue = custom ? (extractReminderDate(value) || '') : '';
+
+  return (
+    <TeleField label={label}>
+      <select
+        value={selectValue}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (next === REMINDER_CUSTOM) {
+            onChange(`On ${dateValue || new Date().toISOString().slice(0, 10)}`);
+            return;
+          }
+          onChange(next);
+        }}
+        className={teleInputClass}
+      >
+        {REMINDER_OPTIONS.map((option) => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+        <option value={REMINDER_CUSTOM}>Custom date...</option>
+      </select>
+      {custom ? (
+        <input
+          type="date"
+          value={dateValue}
+          onChange={(event) => {
+            const nextDate = event.target.value;
+            onChange(nextDate ? `On ${nextDate}` : 'No reminder');
+          }}
+          className={cx(teleInputClass, 'mt-2')}
+          aria-label="Custom reminder date"
+        />
+      ) : null}
+    </TeleField>
+  );
+}
+
+const LEAD_SOURCES = ['Instagram', 'Justdial', 'Google', 'Facebook'];
 
 function StatusPill({ value }) {
   return (
@@ -127,6 +202,32 @@ function formatDateTime(value) {
   const dateLabel = formatDate(value);
   const timeLabel = formatTime(value);
   return dateLabel === '—' ? '—' : `${dateLabel}, ${timeLabel}`;
+}
+
+function followUpAgeLabel(value) {
+  if (!value) return '';
+  const when = new Date(value);
+  if (Number.isNaN(when.getTime())) return '';
+  const days = Math.floor((Date.now() - when.getTime()) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 30) return `${days} days ago`;
+  if (days < 365) {
+    const months = Math.max(1, Math.round(days / 30));
+    return months === 1 ? '1 month ago' : `${months} months ago`;
+  }
+  const years = Math.max(1, Math.round(days / 365));
+  return years === 1 ? '1 year ago' : `${years} years ago`;
+}
+
+function filterFollowUpsByRange(rows, filterId) {
+  const filter = FOLLOW_UP_HISTORY_FILTERS.find((item) => item.id === filterId);
+  if (!filter?.days) return rows;
+  const cutoff = Date.now() - filter.days * 86400000;
+  return rows.filter((item) => {
+    const when = new Date(item.scheduled_at || item.created_at).getTime();
+    return Number.isFinite(when) && when >= cutoff;
+  });
 }
 
 function TeleModal({ title, onClose, children, wide = false }) {
@@ -433,6 +534,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const [me, setMe] = useState(null);
   const [leads, setLeads] = useState(null);
   const [followUps, setFollowUps] = useState(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   // Modals
   const [historyLead, setHistoryLead] = useState(null);
@@ -458,6 +560,28 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
     loadLeads();
     loadFollowUps();
   }, []);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (!(event.target instanceof Element && event.target.closest('[data-tele-profile-menu="true"]'))) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [profileMenuOpen]);
+
+  const handleProfileAction = (action) => {
+    setProfileMenuOpen(false);
+    if (action === 'Logout') {
+      onLogout?.();
+      return;
+    }
+    if (action === 'My Profile') {
+      setActiveNav('Settings');
+    }
+  };
 
   const refreshData = () => { loadLeads(); loadFollowUps(); };
 
@@ -498,6 +622,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
         return (
           <TeleDashboard
             leads={ownLeadRows}
+            allLeads={leadRows}
             leadsLoaded={leads !== null}
             todayFollowUps={todayFollowUps}
             scheduledFollowUps={scheduledFollowUps}
@@ -505,6 +630,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             wonCount={wonCount}
             lostCount={lostCount}
             currentUserId={me?.id}
+            isSuperAdmin={Boolean(me?.is_super_admin)}
             onView={setHistoryLead}
             onEdit={setEditLead}
             onDelete={setDeleteLead}
@@ -518,6 +644,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             leads={leadRows}
             leadsLoaded={leads !== null}
             currentUserId={me?.id}
+            isSuperAdmin={Boolean(me?.is_super_admin)}
             onView={setHistoryLead}
             onEdit={setEditLead}
             onDelete={setDeleteLead}
@@ -623,22 +750,46 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                 {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
             )}
-            <div className="flex items-center gap-2.5">
-              <span className="grid size-10 place-items-center rounded-full bg-[#e7efff] text-[13px] font-extrabold text-[#1d4ed8]">
-                {(me?.initials || me?.name?.slice(0, 2) || 'TE').toUpperCase()}
-              </span>
-              <div className="hidden sm:block">
-                <p className="text-[13px] font-extrabold leading-tight text-[#1e3261]">{me?.name || 'Tele Executive'}</p>
-                <p className="text-[11px] font-semibold text-[#7585a2]">{me?.role_name || TELE_ROLE_NAME}</p>
-              </div>
+            <div className="relative" data-tele-profile-menu="true">
               <button
                 type="button"
-                onClick={onLogout}
-                className="grid size-10 place-items-center rounded-[10px] border border-[#f3d2d2] bg-white text-[#dc2626] transition hover:bg-[#feecec] lg:hidden"
-                aria-label="Logout"
+                onClick={() => setProfileMenuOpen((open) => !open)}
+                className="flex items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#f5f9ff]"
+                aria-label="Open profile menu"
+                aria-expanded={profileMenuOpen}
               >
-                <LogOut className="size-4" />
+                <span className="grid size-10 place-items-center rounded-full border border-[#d4af37]/55 bg-[#123c8f] text-[13px] font-extrabold text-white">
+                  {(me?.initials || me?.name?.slice(0, 2) || 'TE').toUpperCase()}
+                </span>
+                <div className="hidden sm:block">
+                  <p className="text-[13px] font-extrabold leading-tight text-[#1e3261]">{me?.name || 'Tele Executive'}</p>
+                  <p className="text-[11px] font-semibold text-[#7585a2]">{me?.role_name || TELE_ROLE_NAME}</p>
+                </div>
+                <ChevronDown
+                  className={cx(
+                    'size-4 text-[#7a8aa4] transition',
+                    profileMenuOpen && 'rotate-180 text-[#1d4ed8]',
+                  )}
+                />
               </button>
+
+              {profileMenuOpen ? (
+                <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                  {['My Profile', 'Logout'].map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => handleProfileAction(item)}
+                      className={cx(
+                        'block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff]',
+                        item === 'Logout' ? 'text-[#e03434]' : 'text-[#263d72]',
+                      )}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         </header>
@@ -663,7 +814,15 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       </div>
 
       {historyLead && (
-        <TeleFollowUpHistoryModal lead={historyLead} onClose={() => setHistoryLead(null)} onNotify={onNotify} />
+        <TeleFollowUpHistoryModal
+          lead={historyLead}
+          onClose={() => setHistoryLead(null)}
+          onNotify={onNotify}
+          onAddFollowUp={(lead) => {
+            setHistoryLead(null);
+            openFollowUpForm(lead);
+          }}
+        />
       )}
       {editLead && (
         <TeleLeadEditModal
@@ -737,7 +896,7 @@ function TeleStatCards({ cards }) {
 
 // ─── Leads table (shared: Dashboard + My Leads) ───────────────────────────────
 
-function TeleLeadsTable({ leads, leadsLoaded, currentUserId, onView, onEdit, onDelete, onAddFollowUp, onAddLead, title = 'My Leads' }) {
+function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onView, onEdit, onDelete, onAddFollowUp, onAddLead, title = 'My Leads' }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [holderFilter, setHolderFilter] = useState('All');
@@ -854,7 +1013,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, onView, onEdit, onD
               <tr><td colSpan={9} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</td></tr>
             )}
             {pageLeads.map((lead, index) => {
-              const isOwnLead = currentUserId != null && lead.created_by === currentUserId;
+              const isOwnLead = isSuperAdmin || (currentUserId != null && lead.created_by === currentUserId);
               return (
               <tr
                 key={lead.id}
@@ -941,7 +1100,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, onView, onEdit, onD
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function TeleDashboard({ leads, leadsLoaded, todayFollowUps, scheduledFollowUps, overdueCount, wonCount, lostCount, currentUserId, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
+function TeleDashboard({ leads, allLeads, leadsLoaded, todayFollowUps, scheduledFollowUps, overdueCount, wonCount, lostCount, currentUserId, isSuperAdmin, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
   const cards = [
     { title: 'Total Leads', value: leadsLoaded ? leads.length : undefined, note: 'All assigned leads', icon: Users, tone: 'bg-[#e7efff] text-[#1d4ed8]' },
     { title: "Today's Follow-ups", value: leadsLoaded ? todayFollowUps.length : undefined, note: 'Scheduled for today', icon: CalendarDays, tone: 'bg-[#e8f8eb] text-[#0d9f4a]' },
@@ -962,9 +1121,10 @@ function TeleDashboard({ leads, leadsLoaded, todayFollowUps, scheduledFollowUps,
       )}
       <div className="grid gap-5 xl:grid-cols-[1fr_320px]">
         <TeleLeadsTable
-          leads={leads}
+          leads={allLeads}
           leadsLoaded={leadsLoaded}
           currentUserId={currentUserId}
+          isSuperAdmin={isSuperAdmin}
           onView={onView}
           onEdit={onEdit}
           onDelete={onDelete}
@@ -1019,12 +1179,13 @@ function TeleDashboard({ leads, leadsLoaded, todayFollowUps, scheduledFollowUps,
   );
 }
 
-function TeleLeadsPage({ leads, leadsLoaded, currentUserId, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
+function TeleLeadsPage({ leads, leadsLoaded, currentUserId, isSuperAdmin, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
   return (
     <TeleLeadsTable
       leads={leads}
       leadsLoaded={leadsLoaded}
       currentUserId={currentUserId}
+      isSuperAdmin={isSuperAdmin}
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}
@@ -1038,26 +1199,56 @@ function TeleLeadsPage({ leads, leadsLoaded, currentUserId, onView, onEdit, onDe
 
 function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
   const now = new Date();
+  const todayKey = now.toDateString();
+  const [tab, setTab] = useState('today');
+  const [search, setSearch] = useState('');
+
   const completed = followUps.filter((item) => item.status === 'Completed');
   const scheduled = followUps.filter((item) => item.status === 'Scheduled');
-  const overdue = scheduled.filter((item) => new Date(item.scheduled_at) < now);
+  const overdue = scheduled.filter((item) => new Date(item.scheduled_at) < now && new Date(item.scheduled_at).toDateString() !== todayKey);
+  const today = scheduled.filter((item) => new Date(item.scheduled_at).toDateString() === todayKey);
 
   const cards = [
-    { title: 'Total Follow-ups', value: loaded ? followUps.length : undefined, note: 'All follow-ups', icon: Phone, tone: 'bg-[#e7efff] text-[#1d4ed8]' },
-    { title: 'Completed', value: loaded ? completed.length : undefined, note: 'Contact done', icon: CheckCircle2, tone: 'bg-[#e8f8eb] text-[#0d9f4a]' },
-    { title: 'Pending', value: loaded ? scheduled.length : undefined, note: 'Still scheduled', icon: Clock3, tone: 'bg-[#fff4e0] text-[#c07a06]' },
-    { title: 'Overdue', value: loaded ? overdue.length : undefined, note: 'Past their time', icon: XCircle, tone: 'bg-[#feecec] text-[#dc2626]' },
+    { id: 'today', title: "Today's Calls", value: loaded ? today.length : undefined, note: 'Due today', icon: CalendarDays, tone: 'bg-[#e7efff] text-[#1d4ed8]' },
+    { id: 'overdue', title: 'Overdue', value: loaded ? overdue.length : undefined, note: 'Missed schedule', icon: XCircle, tone: 'bg-[#feecec] text-[#dc2626]' },
+    { id: 'completed', title: 'Completed', value: loaded ? completed.length : undefined, note: 'Saved history', icon: CheckCircle2, tone: 'bg-[#e8f8eb] text-[#0d9f4a]' },
+    { id: 'all', title: 'All Follow-ups', value: loaded ? followUps.length : undefined, note: 'Full record', icon: Phone, tone: 'bg-[#fff4e0] text-[#c07a06]' },
   ];
 
-  const rows = [...followUps].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at));
+  const filtered = useMemo(() => {
+    let rows = followUps;
+    if (tab === 'today') rows = today;
+    else if (tab === 'overdue') rows = overdue;
+    else if (tab === 'completed') rows = completed;
+    const query = search.trim().toLowerCase();
+    if (query) {
+      rows = rows.filter((item) => [
+        item.lead_customer_name,
+        item.lead_mobile_number,
+        item.notes,
+        item.outcome,
+        item.follow_up_type,
+      ].some((value) => String(value || '').toLowerCase().includes(query)));
+    }
+    return [...rows].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at));
+  }, [followUps, tab, search, today, overdue, completed]);
 
   return (
     <>
       <section className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => {
           const Icon = card.icon;
+          const active = tab === card.id;
           return (
-            <article key={card.title} className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.05)]">
+            <button
+              key={card.id}
+              type="button"
+              onClick={() => setTab(card.id)}
+              className={cx(
+                'rounded-[14px] border bg-white p-4 text-left shadow-[0_10px_26px_rgba(23,43,77,0.05)] transition',
+                active ? 'border-[#1d4ed8] ring-4 ring-[#dbeafe]' : 'border-[#e2e9f3] hover:border-[#c7d7f0]',
+              )}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[12px] font-extrabold text-[#7585a2]">{card.title}</p>
@@ -1068,75 +1259,117 @@ function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
                   <Icon className="size-5" />
                 </span>
               </div>
-            </article>
+            </button>
           );
         })}
       </section>
 
       <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-display text-[17px] font-extrabold text-[#102446]">Follow-up History</h2>
-          <button
-            type="button"
-            onClick={() => onAddFollowUp(null)}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#1d4ed8] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
-          >
-            <Plus className="size-4" />
-            Add Follow-up
-          </button>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="font-display text-[17px] font-extrabold text-[#102446]">Follow-up Diary</h2>
+            <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">Every call and WhatsApp note is saved here. Nothing overwrites old history.</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="flex h-10 min-w-[220px] items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3">
+              <Search className="size-4 text-[#7585a2]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search customer, note, outcome..."
+                className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[#1f2d44] outline-none"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => onAddFollowUp(null)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#1d4ed8] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
+            >
+              <Plus className="size-4" />
+              Log Follow-up
+            </button>
+          </div>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-[#e8eef6] text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#7585a2]">
-                <th className="px-3 py-3">Customer</th>
-                <th className="px-3 py-3">Type</th>
-                <th className="px-3 py-3">Date & Time</th>
-                <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3">Reminder</th>
-                <th className="px-3 py-3">Summary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!loaded && (
-                <tr><td colSpan={6} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading follow-ups...</td></tr>
-              )}
-              {loaded && rows.length === 0 && (
-                <tr><td colSpan={6} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No follow-ups yet. Add your first follow-up.</td></tr>
-              )}
-              {rows.map((item) => {
-                const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
-                return (
-                  <tr
-                    key={item.id}
-                    onDoubleClick={() => onViewLead(item.lead)}
-                    title="Double-click to view follow-up history"
-                    className="cursor-pointer border-b border-[#f1f5fa] text-[13px] font-bold text-[#33456b] transition hover:bg-[#f8fbff]"
-                  >
-                    <td className="px-3 py-3.5 font-extrabold text-[#1e3261]">{item.lead_customer_name}</td>
-                    <td className="px-3 py-3.5">
-                      <span className="inline-flex items-center gap-2">
-                        <Icon className="size-4 text-[#1d4ed8]" />
+        <div className="mt-4 space-y-3">
+          {!loaded && (
+            <p className="rounded-[12px] bg-[#f8fbff] px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading follow-ups...</p>
+          )}
+          {loaded && filtered.length === 0 && (
+            <p className="rounded-[12px] bg-[#f8fbff] px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">
+              No follow-ups in this view. Tap “Log Follow-up” after your next call.
+            </p>
+          )}
+          {filtered.map((item) => {
+            const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
+            return (
+              <article
+                key={item.id}
+                className="rounded-[14px] border border-[#e8eef6] bg-[#fbfdff] p-4 transition hover:border-[#c7d7f0] hover:bg-white"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 gap-3">
+                    <span className={cx(
+                      'mt-0.5 grid size-11 shrink-0 place-items-center rounded-full',
+                      item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
+                    )}>
+                      <Icon className="size-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-display text-[15px] font-extrabold text-[#102446]">{item.lead_customer_name || 'Lead'}</p>
+                        <span className="text-[12px] font-bold text-[#7585a2]">{item.lead_mobile_number || ''}</span>
+                      </div>
+                      <p className="mt-1 text-[12px] font-bold text-[#53647f]">
+                        {formatDateTime(item.scheduled_at)}
+                        <span className="mx-1.5 text-[#c3ccd9]">·</span>
                         {item.follow_up_type}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3.5">{formatDateTime(item.scheduled_at)}</td>
-                    <td className="px-3 py-3.5">
-                      <span className={cx(
-                        'inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold',
-                        item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
-                      )}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3.5">{item.reminder || '—'}</td>
-                    <td className="max-w-[220px] truncate px-3 py-3.5" title={item.notes || ''}>{item.notes || '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        <span className="mx-1.5 text-[#c3ccd9]">·</span>
+                        {followUpAgeLabel(item.scheduled_at)}
+                      </p>
+                      {item.outcome ? (
+                        <p className="mt-2 inline-flex rounded-full bg-[#eef2ff] px-2.5 py-1 text-[11px] font-extrabold text-[#3730a3]">
+                          Outcome: {item.outcome}
+                        </p>
+                      ) : null}
+                      {item.notes ? (
+                        <p className="mt-2 text-[13px] font-semibold leading-6 text-[#33456b]">
+                          <span className="font-extrabold text-[#1e3261]">What happened: </span>
+                          {item.notes}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-[12px] font-semibold text-[#8a98af]">No conversation note saved.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
+                    <span className={cx(
+                      'inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold',
+                      item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
+                    )}>
+                      {item.status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onViewLead(item.lead)}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe4f0] bg-white px-3 text-[12px] font-extrabold text-[#1d4ed8] transition hover:bg-[#f8fbff]"
+                    >
+                      <Eye className="size-3.5" />
+                      Full Timeline
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onAddFollowUp({ id: item.lead, customer_name: item.lead_customer_name, mobile_number: item.lead_mobile_number })}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#1d4ed8] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
+                    >
+                      <Plus className="size-3.5" />
+                      Log Next
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
     </>
@@ -1407,6 +1640,7 @@ function TeleFollowUpCreateModal({ leads, initialLead, onClose, onSaved, onNotif
     type: 'Call',
     date: todayIso,
     time: new Date().toTimeString().slice(0, 5),
+    outcome: 'Interested',
     reminder: 'No reminder',
     summary: '',
     nextDate: '',
@@ -1426,6 +1660,7 @@ function TeleFollowUpCreateModal({ leads, initialLead, onClose, onSaved, onNotif
     event.preventDefault();
     if (!form.leadId) { onNotify('Please select a lead.', 'error'); return; }
     if (!form.date) { onNotify('Please select the follow-up date.', 'error'); return; }
+    if (!form.summary.trim()) { onNotify('Please write what happened in this conversation.', 'error'); return; }
     if (form.nextDate && new Date(`${form.nextDate}T${form.nextTime || '10:00'}`) < new Date()) {
       onNotify('Next follow-up must be in the future.', 'error');
       return;
@@ -1434,30 +1669,31 @@ function TeleFollowUpCreateModal({ leads, initialLead, onClose, onSaved, onNotif
     const leadId = Number(form.leadId);
     const happenedAt = new Date(`${form.date}T${form.time || '09:00'}`).toISOString();
     try {
-      // The interaction that just happened, logged as completed.
+      // Completed interaction — permanent history entry (never overwritten).
       await followUpApi.create({
         lead: leadId,
         follow_up_type: form.type,
         scheduled_at: happenedAt,
         completed_at: happenedAt,
         status: 'Completed',
-        notes: form.summary,
+        notes: form.summary.trim(),
+        outcome: form.outcome,
         reminder: form.reminder === 'No reminder' ? '' : form.reminder,
         status_after: form.leadStatus,
       });
-      // The next scheduled follow-up (drives lead.next_follow_up + reminders).
+      // Optional next scheduled follow-up for reminders / today list.
       if (form.nextDate) {
         await followUpApi.create({
           lead: leadId,
           follow_up_type: form.type,
           scheduled_at: new Date(`${form.nextDate}T${form.nextTime || '10:00'}`).toISOString(),
           status: 'Scheduled',
+          notes: `Next follow-up planned after: ${form.outcome}`,
           reminder: form.reminder === 'No reminder' ? '' : form.reminder,
         });
       }
-      // Reflect the outcome on the lead itself.
       await leadApi.update(leadId, mapTeleStatusToApi(form.leadStatus));
-      onNotify('Follow-up saved.', 'success');
+      onNotify('Follow-up saved to lead history.', 'success');
       onSaved();
     } catch (err) {
       onNotify(err.message || 'Could not save follow-up.', 'error');
@@ -1467,19 +1703,378 @@ function TeleFollowUpCreateModal({ leads, initialLead, onClose, onSaved, onNotif
   };
 
   return (
-    <TeleModal title="Add Follow-up" onClose={onClose} wide>
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <TeleField label="Lead / Customer">
-          <select value={form.leadId} onChange={(e) => handleLeadChange(e.target.value)} className={teleInputClass}>
-            <option value="">Select lead...</option>
-            {leads.map((lead) => (
-              <option key={lead.id} value={lead.id}>{lead.customer_name} — {lead.mobile_number}</option>
-            ))}
-          </select>
-        </TeleField>
+    <TeleModal title="Log Follow-up" onClose={onClose} wide>
+      <form className="space-y-5" onSubmit={handleSubmit}>
+        <div className="rounded-[12px] border border-[#dbeafe] bg-[#eff6ff] px-4 py-3 text-[12px] font-semibold leading-5 text-[#1e3a8a]">
+          Save every call or WhatsApp note as a new entry. Old follow-ups stay in the timeline forever.
+        </div>
 
+        <section className="space-y-3">
+          <p className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#7585a2]">1. Who did you contact?</p>
+          <TeleField label="Lead / Customer">
+            <select value={form.leadId} onChange={(e) => handleLeadChange(e.target.value)} className={teleInputClass}>
+              <option value="">Select lead...</option>
+              {leads.map((lead) => (
+                <option key={lead.id} value={lead.id}>{lead.customer_name} — {lead.mobile_number}</option>
+              ))}
+            </select>
+          </TeleField>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <TeleField label="Contact Type">
+              <select value={form.type} onChange={(e) => updateField('type', e.target.value)} className={teleInputClass}>
+                {FOLLOW_UP_TYPES.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </TeleField>
+            <TeleField label="Date">
+              <input type="date" value={form.date} onChange={(e) => updateField('date', e.target.value)} className={teleInputClass} />
+            </TeleField>
+            <TeleField label="Time">
+              <input type="time" value={form.time} onChange={(e) => updateField('time', e.target.value)} className={teleInputClass} />
+            </TeleField>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <p className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#7585a2]">2. What happened?</p>
+          <TeleField label="Conversation Summary *">
+            <textarea
+              value={form.summary}
+              onChange={(e) => updateField('summary', e.target.value)}
+              placeholder="Example: Customer asked about 5kW price and subsidy. Will decide after salary."
+              rows={4}
+              className="w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 py-2.5 text-[14px] font-semibold text-[#1f2d44] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
+          </TeleField>
+          <TeleField label="Outcome">
+            <div className="flex flex-wrap gap-2">
+              {FOLLOW_UP_OUTCOMES.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => updateField('outcome', option)}
+                  className={cx(
+                    'rounded-full border px-3 py-1.5 text-[12px] font-extrabold transition',
+                    form.outcome === option
+                      ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white'
+                      : 'border-[#dbe4f0] bg-white text-[#53647f] hover:bg-[#f8fbff]',
+                  )}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </TeleField>
+          <TeleField label="Lead Status After This Call">
+            <div className="flex flex-wrap gap-2">
+              {TELE_LEAD_STATUSES.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => updateField('leadStatus', option)}
+                  className={cx(
+                    'rounded-full border px-4 py-2 text-[12px] font-extrabold transition',
+                    form.leadStatus === option
+                      ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white'
+                      : 'border-[#dbe4f0] bg-white text-[#53647f] hover:bg-[#f8fbff]',
+                  )}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </TeleField>
+        </section>
+
+        <section className="space-y-3">
+          <p className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#7585a2]">3. Next plan (optional)</p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <TeleField label="Next Follow-up Date">
+              <input type="date" value={form.nextDate} min={todayIso} onChange={(e) => updateField('nextDate', e.target.value)} className={teleInputClass} />
+            </TeleField>
+            <TeleField label="Next Follow-up Time">
+              <input type="time" value={form.nextTime} onChange={(e) => updateField('nextTime', e.target.value)} className={teleInputClass} />
+            </TeleField>
+            <TeleReminderField value={form.reminder} onChange={(value) => updateField('reminder', value)} />
+          </div>
+        </section>
+
+        <div className="flex justify-end gap-2.5 border-t border-[#edf2f8] pt-4">
+          <button type="button" onClick={onClose} className="h-11 rounded-[9px] border border-[#dbe4f0] px-4 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">
+            Cancel
+          </button>
+          <button type="submit" disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[9px] bg-[#1d4ed8] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#1a3fb0] disabled:opacity-60">
+            <Plus className="size-4" />
+            {saving ? 'Saving...' : 'Save to History'}
+          </button>
+        </div>
+      </form>
+    </TeleModal>
+  );
+}
+
+// ─── Follow-up history modal ──────────────────────────────────────────────────
+
+function TeleFollowUpHistoryModal({ lead, onClose, onNotify, onAddFollowUp }) {
+  const [history, setHistory] = useState(null);
+  const [range, setRange] = useState('all');
+  const [editTarget, setEditTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const loadHistory = () => {
+    followUpApi.list(lead.id).then((data) => {
+      const rows = Array.isArray(data) ? data : (data?.results ?? []);
+      setHistory(rows.sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at)));
+    }).catch(() => { setHistory([]); onNotify('Could not load follow-up history.', 'error'); });
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, [lead.id]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget?.id) return;
+    setDeleting(true);
+    try {
+      await followUpApi.delete(deleteTarget.id);
+      onNotify('Follow-up deleted.', 'success');
+      setDeleteTarget(null);
+      loadHistory();
+    } catch (err) {
+      onNotify(err.message || 'Could not delete follow-up.', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const visible = filterFollowUpsByRange(history ?? [], range);
+  const completedCount = (history ?? []).filter((item) => item.status === 'Completed').length;
+  const nextPending = (history ?? [])
+    .filter((item) => item.status === 'Scheduled')
+    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))[0];
+
+  return (
+    <>
+      <TeleModal title={`Follow-up Timeline — ${lead.customer_name}`} onClose={onClose} wide>
+        <div className="grid gap-3 rounded-[12px] border border-[#e8eef6] bg-[#f8fbff] p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-[11px] font-extrabold text-[#7585a2]">Customer</p>
+            <p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">{lead.customer_name}</p>
+            <p className="text-[12px] font-bold text-[#53647f]">{lead.mobile_number || '—'}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-extrabold text-[#7585a2]">Lead Status</p>
+            <div className="mt-1"><StatusPill value={teleDisplayStatus(lead)} /></div>
+          </div>
+          <div>
+            <p className="text-[11px] font-extrabold text-[#7585a2]">Total Entries</p>
+            <p className="mt-1 font-display text-[22px] font-extrabold text-[#102446]">{history === null ? '…' : history.length}</p>
+            <p className="text-[11px] font-semibold text-[#8a98af]">{completedCount} completed</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-extrabold text-[#7585a2]">Next Follow-up</p>
+            <p className="mt-1 text-[13px] font-extrabold text-[#1e3261]">
+              {nextPending ? formatDateTime(nextPending.scheduled_at) : 'Not scheduled'}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {FOLLOW_UP_HISTORY_FILTERS.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setRange(filter.id)}
+                className={cx(
+                  'rounded-full border px-3 py-1.5 text-[12px] font-extrabold transition',
+                  range === filter.id
+                    ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white'
+                    : 'border-[#dbe4f0] bg-white text-[#53647f] hover:bg-[#f8fbff]',
+                )}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+          {onAddFollowUp ? (
+            <button
+              type="button"
+              onClick={() => onAddFollowUp(lead)}
+              className="inline-flex h-10 items-center gap-2 rounded-[9px] bg-[#1d4ed8] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
+            >
+              <Plus className="size-4" />
+              Log Follow-up
+            </button>
+          ) : null}
+        </div>
+
+        <div className="relative mt-5 space-y-0 pl-2">
+          {history === null && (
+            <p className="rounded-[10px] bg-[#f8fbff] px-3 py-6 text-center text-[12px] font-bold text-[#7585a2]">Loading timeline...</p>
+          )}
+          {history !== null && visible.length === 0 && (
+            <p className="rounded-[10px] bg-[#f8fbff] px-3 py-6 text-center text-[12px] font-bold text-[#7585a2]">
+              No follow-ups in this period. Log the first conversation to start the timeline.
+            </p>
+          )}
+          {visible.map((item, index) => {
+            const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
+            return (
+              <article key={item.id} className="relative flex gap-4 pb-5">
+                {index < visible.length - 1 ? (
+                  <span className="absolute left-[19px] top-11 bottom-0 w-px bg-[#dbe4f0]" aria-hidden="true" />
+                ) : null}
+                <span className={cx(
+                  'relative z-10 mt-0.5 grid size-10 shrink-0 place-items-center rounded-full border-2 border-white shadow-sm',
+                  item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
+                )}>
+                  <Icon className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1 rounded-[12px] border border-[#e8eef6] bg-white p-3.5">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[13px] font-extrabold text-[#1e3261]">
+                        {formatDateTime(item.scheduled_at)}
+                        <span className="ml-2 font-bold text-[#7585a2]">· {item.follow_up_type}</span>
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-bold text-[#8a98af]">{followUpAgeLabel(item.scheduled_at)}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {item.outcome ? (
+                        <span className="inline-flex rounded-full bg-[#eef2ff] px-2.5 py-1 text-[10px] font-extrabold text-[#3730a3]">
+                          {item.outcome}
+                        </span>
+                      ) : null}
+                      {item.status_after ? <StatusPill value={item.status_after} /> : null}
+                      <span className={cx(
+                        'inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold',
+                        item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
+                      )}>
+                        {item.status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditTarget(item)}
+                        className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dbe4f0] bg-white text-[#1d4ed8] transition hover:bg-[#f8fbff]"
+                        aria-label="Edit follow-up"
+                        title="Edit"
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(item)}
+                        className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffd5d5] bg-[#fff8f8] text-[#dc2626] transition hover:bg-[#feecec]"
+                        aria-label="Delete follow-up"
+                        title="Delete"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  {item.notes ? (
+                    <p className="mt-2 text-[13px] font-semibold leading-6 text-[#53647f]">
+                      <span className="font-extrabold text-[#33456b]">What happened: </span>
+                      {item.notes}
+                    </p>
+                  ) : null}
+                  <p className="mt-2 text-[11px] font-semibold text-[#8a98af]">
+                    Logged by {item.created_by_name || '—'}
+                    {item.reminder ? ` · Reminder: ${item.reminder}` : ''}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="mt-2 flex justify-end border-t border-[#edf2f8] pt-4">
+          <button type="button" onClick={onClose} className="h-10 rounded-[9px] border border-[#dbe4f0] px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">
+            Close
+          </button>
+        </div>
+      </TeleModal>
+
+      {editTarget ? (
+        <TeleFollowUpEditModal
+          followUp={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => { setEditTarget(null); loadHistory(); }}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {deleteTarget ? (
+        <TeleModal title="Delete Follow-up" onClose={() => setDeleteTarget(null)}>
+          <p className="text-[14px] font-semibold leading-6 text-[#53647f]">
+            Delete this follow-up for <span className="font-extrabold text-[#1e3261]">{lead.customer_name}</span>?
+            This removes it from the timeline permanently.
+          </p>
+          <p className="mt-3 rounded-[10px] bg-[#fff5f5] px-3 py-2 text-[12px] font-bold text-[#b91c1c]">
+            {formatDateTime(deleteTarget.scheduled_at)} · {deleteTarget.follow_up_type}
+            {deleteTarget.notes ? ` — ${deleteTarget.notes.slice(0, 80)}${deleteTarget.notes.length > 80 ? '…' : ''}` : ''}
+          </p>
+          <div className="mt-5 flex justify-end gap-2.5 border-t border-[#edf2f8] pt-4">
+            <button type="button" onClick={() => setDeleteTarget(null)} className="h-10 rounded-[9px] border border-[#dbe4f0] px-4 text-[13px] font-extrabold text-[#53647f]">
+              Cancel
+            </button>
+            <button type="button" disabled={deleting} onClick={handleDelete} className="h-10 rounded-[9px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+              {deleting ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </TeleModal>
+      ) : null}
+    </>
+  );
+}
+
+function TeleFollowUpEditModal({ followUp, onClose, onSaved, onNotify }) {
+  const when = followUp.scheduled_at ? new Date(followUp.scheduled_at) : new Date();
+  const [form, setForm] = useState({
+    type: followUp.follow_up_type || 'Call',
+    date: Number.isNaN(when.getTime()) ? '' : when.toISOString().slice(0, 10),
+    time: Number.isNaN(when.getTime()) ? '10:00' : when.toTimeString().slice(0, 5),
+    outcome: followUp.outcome || '',
+    status: followUp.status || 'Completed',
+    summary: followUp.notes || '',
+    reminder: followUp.reminder || 'No reminder',
+    statusAfter: followUp.status_after || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!form.summary.trim()) { onNotify('Please write what happened in this conversation.', 'error'); return; }
+    if (!form.date) { onNotify('Please select the follow-up date.', 'error'); return; }
+    setSaving(true);
+    const happenedAt = new Date(`${form.date}T${form.time || '09:00'}`).toISOString();
+    try {
+      await followUpApi.update(followUp.id, {
+        follow_up_type: form.type,
+        scheduled_at: happenedAt,
+        completed_at: form.status === 'Completed' ? (followUp.completed_at || happenedAt) : null,
+        status: form.status,
+        notes: form.summary.trim(),
+        outcome: form.outcome,
+        reminder: form.reminder === 'No reminder' ? '' : form.reminder,
+        status_after: form.statusAfter,
+      });
+      onNotify('Follow-up updated.', 'success');
+      onSaved();
+    } catch (err) {
+      onNotify(err.message || 'Could not update follow-up.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <TeleModal title="Edit Follow-up" onClose={onClose} wide>
+      <form className="space-y-4" onSubmit={handleSubmit}>
         <div className="grid gap-4 sm:grid-cols-3">
-          <TeleField label="Follow-up Type">
+          <TeleField label="Contact Type">
             <select value={form.type} onChange={(e) => updateField('type', e.target.value)} className={teleInputClass}>
               {FOLLOW_UP_TYPES.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
@@ -1492,40 +2087,31 @@ function TeleFollowUpCreateModal({ leads, initialLead, onClose, onSaved, onNotif
           </TeleField>
         </div>
 
-        <TeleField label="Conversation Summary">
+        <TeleField label="Status">
+          <select value={form.status} onChange={(e) => updateField('status', e.target.value)} className={teleInputClass}>
+            {['Completed', 'Scheduled', 'Missed'].map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </TeleField>
+
+        <TeleField label="Conversation Summary *">
           <textarea
             value={form.summary}
             onChange={(e) => updateField('summary', e.target.value)}
-            placeholder="What did the customer say?"
-            rows={3}
+            rows={4}
             className="w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 py-2.5 text-[14px] font-semibold text-[#1f2d44] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
           />
         </TeleField>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <TeleField label="Next Follow-up Date">
-            <input type="date" value={form.nextDate} min={todayIso} onChange={(e) => updateField('nextDate', e.target.value)} className={teleInputClass} />
-          </TeleField>
-          <TeleField label="Next Follow-up Time">
-            <input type="time" value={form.nextTime} onChange={(e) => updateField('nextTime', e.target.value)} className={teleInputClass} />
-          </TeleField>
-          <TeleField label="Reminder">
-            <select value={form.reminder} onChange={(e) => updateField('reminder', e.target.value)} className={teleInputClass}>
-              {REMINDER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-          </TeleField>
-        </div>
-
-        <TeleField label="Lead Status">
+        <TeleField label="Outcome">
           <div className="flex flex-wrap gap-2">
-            {TELE_LEAD_STATUSES.map((option) => (
+            {FOLLOW_UP_OUTCOMES.map((option) => (
               <button
                 key={option}
                 type="button"
-                onClick={() => updateField('leadStatus', option)}
+                onClick={() => updateField('outcome', option)}
                 className={cx(
-                  'rounded-full border px-4 py-2 text-[12px] font-extrabold transition',
-                  form.leadStatus === option
+                  'rounded-full border px-3 py-1.5 text-[12px] font-extrabold transition',
+                  form.outcome === option
                     ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white'
                     : 'border-[#dbe4f0] bg-white text-[#53647f] hover:bg-[#f8fbff]',
                 )}
@@ -1536,124 +2122,23 @@ function TeleFollowUpCreateModal({ leads, initialLead, onClose, onSaved, onNotif
           </div>
         </TeleField>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TeleField label="Lead Status After Call">
+            <select value={form.statusAfter} onChange={(e) => updateField('statusAfter', e.target.value)} className={teleInputClass}>
+              <option value="">—</option>
+              {TELE_LEAD_STATUSES.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </TeleField>
+          <TeleReminderField value={form.reminder || 'No reminder'} onChange={(value) => updateField('reminder', value)} />
+        </div>
+
         <div className="flex justify-end gap-2.5 border-t border-[#edf2f8] pt-4">
-          <button type="button" onClick={onClose} className="h-11 rounded-[9px] border border-[#dbe4f0] px-4 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">
-            Cancel
-          </button>
-          <button type="submit" disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[9px] bg-[#1d4ed8] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#1a3fb0] disabled:opacity-60">
-            <Plus className="size-4" />
-            {saving ? 'Saving...' : 'Save Follow-up'}
+          <button type="button" onClick={onClose} className="h-11 rounded-[9px] border border-[#dbe4f0] px-4 text-[13px] font-extrabold text-[#53647f]">Cancel</button>
+          <button type="submit" disabled={saving} className="h-11 rounded-[9px] bg-[#1d4ed8] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </form>
-    </TeleModal>
-  );
-}
-
-// ─── Follow-up history modal ──────────────────────────────────────────────────
-
-function TeleFollowUpHistoryModal({ lead, onClose, onNotify }) {
-  const [history, setHistory] = useState(null);
-
-  useEffect(() => {
-    followUpApi.list(lead.id).then((data) => {
-      const rows = Array.isArray(data) ? data : (data?.results ?? []);
-      // Chronological timeline: earliest first.
-      setHistory(rows.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)));
-    }).catch(() => { setHistory([]); onNotify('Could not load follow-up history.', 'error'); });
-  }, [lead.id]);
-
-  return (
-    <TeleModal title={`Follow-up History — ${lead.customer_name}`} onClose={onClose} wide>
-      <div className="grid gap-3 rounded-[12px] border border-[#e8eef6] bg-[#f8fbff] p-4 sm:grid-cols-2">
-        <div className="flex items-center gap-2.5">
-          <UserRound className="size-4 shrink-0 text-[#7585a2]" />
-          <div>
-            <p className="text-[11px] font-extrabold text-[#7585a2]">Customer Name</p>
-            <p className="text-[13px] font-extrabold text-[#1e3261]">{lead.customer_name}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2.5">
-          <Phone className="size-4 shrink-0 text-[#7585a2]" />
-          <div>
-            <p className="text-[11px] font-extrabold text-[#7585a2]">Mobile No.</p>
-            <p className="text-[13px] font-extrabold text-[#1e3261]">{lead.mobile_number || '—'}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2.5">
-          <StickyNote className="size-4 shrink-0 text-[#7585a2]" />
-          <div>
-            <p className="text-[11px] font-extrabold text-[#7585a2]">Project Name</p>
-            <p className="text-[13px] font-extrabold text-[#1e3261]">{lead.project_name || '—'}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2.5">
-          <ShieldCheck className="size-4 shrink-0 text-[#7585a2]" />
-          <div>
-            <p className="text-[11px] font-extrabold text-[#7585a2]">Lead Status</p>
-            <StatusPill value={teleDisplayStatus(lead)} />
-          </div>
-        </div>
-      </div>
-
-      <p className="mt-4 text-[13px] font-extrabold text-[#33456b]">
-        Total Follow-ups: {history === null ? '…' : history.length}
-      </p>
-
-      <div className="mt-3 space-y-3">
-        {history === null && (
-          <p className="rounded-[10px] bg-[#f8fbff] px-3 py-6 text-center text-[12px] font-bold text-[#7585a2]">Loading history...</p>
-        )}
-        {history !== null && history.length === 0 && (
-          <p className="rounded-[10px] bg-[#f8fbff] px-3 py-6 text-center text-[12px] font-bold text-[#7585a2]">No follow-ups recorded for this lead yet.</p>
-        )}
-        {(history ?? []).map((item) => {
-          const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
-          return (
-            <article key={item.id} className="flex gap-3 rounded-[12px] border border-[#e8eef6] p-3.5">
-              <span className={cx(
-                'mt-0.5 grid size-10 shrink-0 place-items-center rounded-full',
-                item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
-              )}>
-                <Icon className="size-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-[13px] font-extrabold text-[#1e3261]">
-                    {formatDateTime(item.scheduled_at)}
-                    <span className="ml-2 font-bold text-[#7585a2]">· {item.follow_up_type}</span>
-                  </p>
-                  <div className="flex items-center gap-2">
-                    {item.status_after && <StatusPill value={item.status_after} />}
-                    <span className={cx(
-                      'inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold',
-                      item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
-                    )}>
-                      {item.status}
-                    </span>
-                  </div>
-                </div>
-                {item.notes && (
-                  <p className="mt-1.5 text-[13px] font-semibold leading-6 text-[#53647f]">
-                    <span className="font-extrabold text-[#33456b]">Conversation Summary: </span>
-                    {item.notes}
-                  </p>
-                )}
-                <p className="mt-1.5 text-[11px] font-semibold text-[#8a98af]">
-                  Followed up by {item.created_by_name || '—'}
-                  {item.reminder ? ` · Reminder: ${item.reminder}` : ''}
-                </p>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      <div className="mt-4 flex justify-end border-t border-[#edf2f8] pt-4">
-        <button type="button" onClick={onClose} className="h-10 rounded-[9px] border border-[#dbe4f0] px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">
-          Close
-        </button>
-      </div>
     </TeleModal>
   );
 }
@@ -1835,11 +2320,7 @@ function TeleLeadCreateModal({ onClose, onSaved, onNotify }) {
           <TeleField label="First Follow-up Time">
             <input type="time" value={form.nextTime} onChange={(e) => updateField('nextTime', e.target.value)} className={teleInputClass} />
           </TeleField>
-          <TeleField label="Reminder">
-            <select value={form.reminder} onChange={(e) => updateField('reminder', e.target.value)} className={teleInputClass}>
-              {REMINDER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-          </TeleField>
+          <TeleReminderField value={form.reminder} onChange={(value) => updateField('reminder', value)} />
         </div>
 
         <div className="flex justify-end gap-2.5 border-t border-[#edf2f8] pt-4">

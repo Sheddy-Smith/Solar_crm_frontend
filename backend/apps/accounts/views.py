@@ -6,7 +6,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import Throttled
+from rest_framework.exceptions import Throttled, ValidationError
 from malwa_solar.throttling import SafeScopedRateThrottle
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.conf import settings
@@ -154,6 +154,14 @@ class RoleViewSet(viewsets.ModelViewSet):
     permission_classes = [IsSuperAdmin]
     search_fields = ['name']
     ordering = ['name']
+
+    def perform_destroy(self, instance):
+        # There must always be exactly one Super Admin role — never deletable,
+        # regardless of who's calling (client-side guard is defense-in-depth,
+        # this is the real enforcement).
+        if instance.name == 'Super Admin':
+            raise ValidationError('The Super Admin role cannot be deleted.')
+        instance.delete()
 
     @action(detail=True, methods=['get', 'put'])
     def permissions(self, request, pk=None):

@@ -143,6 +143,8 @@ class FollowUp(models.Model):
     # (kept per-record so the follow-up history timeline can show it).
     reminder = models.CharField(max_length=30, blank=True)
     status_after = models.CharField(max_length=20, blank=True)
+    # Call/WhatsApp outcome for long-running lead timelines (1.5yr+ history).
+    outcome = models.CharField(max_length=40, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='follow_ups')
     created_at = models.DateTimeField(auto_now_add=True)
 
