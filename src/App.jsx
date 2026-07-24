@@ -33,6 +33,7 @@ import {
   SETTINGS_PILLARS,
   SettingsArchitectureTabs,
   UsersAccessHubPage,
+  SecurityOverviewPage,
   SecurityHubPage,
   BackupDataHubPage,
   AboutSettingsPage,
@@ -360,10 +361,23 @@ const settingsDisplayNameMap = Object.fromEntries(settingsCardGroups.flatMap((gr
 const settingsHubPageKeys = [
   'Settings Users Access Hub',
   'Settings Security Hub',
+  'Settings App Security',
   'Settings Backup Hub',
   'Settings About',
 ];
 settingsHubPageKeys.forEach((key) => {
+  if (key === 'Settings App Security') {
+    settingsDisplayNameMap[key] = 'App Security';
+    return;
+  }
+  if (key === 'Settings Backup Hub') {
+    settingsDisplayNameMap[key] = 'Backup Dashboard';
+    return;
+  }
+  if (key === 'Settings Security Hub' || key === 'Settings Users Access Hub') {
+    settingsDisplayNameMap[key] = 'Overview';
+    return;
+  }
   settingsDisplayNameMap[key] = key.replace('Settings ', '').replace(' Hub', '');
 });
 const advancedSettingsCardGroups = settingsCardGroups
@@ -374,7 +388,7 @@ const advancedSettingsCardGroups = settingsCardGroups
     }
     return {
       ...group,
-      items: group.items.filter((item) => !['Backup & Restore', 'System Maintenance'].includes(item.key)),
+      items: group.items.filter((item) => !['Backup & Restore', 'System Maintenance', 'Recycle Bin'].includes(item.key)),
     };
   });
 const settingsRelatedPages = [
@@ -4232,6 +4246,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const [projectTypeFilter, setProjectTypeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [assignedToFilter, setAssignedToFilter] = useState('All');
+  const [addByFilter, setAddByFilter] = useState('All');
   const [followUpDate, setFollowUpDate] = useState('');
   const [activeLeadCategory, setActiveLeadCategory] = useState(null);
   const [activePage, setActivePage] = useState(1);
@@ -4350,6 +4365,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         priority: lead.priority || '',
         source: lead.source || '',
         assignedTo: { id: lead.assigned_to || null, name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
+        createdById: lead.created_by || null,
         createdByName: lead.created_by_name || '—',
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
         nextFollowUpRaw: lead.next_follow_up || null,
@@ -4419,7 +4435,22 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     ];
   }, [executiveList]);
 
-  const activeFilterCount = [projectTypeFilter, statusFilter, assignedToFilter].filter((v) => v !== 'All').length + (followUpDate ? 1 : 0);
+  const addByOptions = useMemo(() => {
+    const map = new Map();
+    (apiLeads || []).forEach((lead) => {
+      if (lead.createdById != null && !map.has(String(lead.createdById))) {
+        map.set(String(lead.createdById), lead.createdByName || `User #${lead.createdById}`);
+      }
+    });
+    const fromLeads = Array.from(map, ([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return [
+      { value: 'All', label: 'Add By: All' },
+      ...fromLeads.map((opt) => ({ value: opt.value, label: `Add By: ${opt.label}` })),
+    ];
+  }, [apiLeads]);
+
+  const activeFilterCount = [projectTypeFilter, statusFilter, assignedToFilter, addByFilter].filter((v) => v !== 'All').length + (followUpDate ? 1 : 0);
 
   const visibleLeadRows = useMemo(() => {
     if (!apiLeads) return [];
@@ -4433,7 +4464,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
     return source.filter((lead) => {
       const query = searchQuery.trim().toLowerCase();
-      const queryMatch = !query || [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name].some((value) => String(value).toLowerCase().includes(query));
+      const queryMatch = !query || [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name, lead.createdByName].some((value) => String(value).toLowerCase().includes(query));
       const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
       const statusMatch = statusFilter === 'All' || lead.status === statusFilter;
       const assignedMatch =
@@ -4442,10 +4473,11 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           : assignedToFilter === '__unassigned__'
             ? !lead.assignedTo.id
             : String(lead.assignedTo.id) === assignedToFilter;
+      const addByMatch = addByFilter === 'All' || String(lead.createdById) === String(addByFilter);
       const followUpMatch = !followUpDate || (lead.nextFollowUpRaw && lead.nextFollowUpRaw.slice(0, 10) === followUpDate);
-      return queryMatch && projectTypeMatch && statusMatch && assignedMatch && followUpMatch;
+      return queryMatch && projectTypeMatch && statusMatch && assignedMatch && addByMatch && followUpMatch;
     });
-  }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, followUpDate]);
+  }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, addByFilter, followUpDate]);
 
   const LEAD_PAGE_SIZE = 10;
   const totalLeadPages = Math.max(1, Math.ceil(visibleLeadRows.length / LEAD_PAGE_SIZE));
@@ -4570,6 +4602,20 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             </select>
           </label>
 
+          <label className="flex h-11 shrink-0 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] sm:w-[200px]">
+            <UserRound className="size-4 shrink-0 text-[#7386a3]" />
+            <select
+              value={addByFilter}
+              onChange={(event) => { setAddByFilter(event.target.value); setActivePage(1); }}
+              aria-label="Add By"
+              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none"
+            >
+              {addByOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+
           <div className="relative" data-lead-filters-popover="true">
             <button
               type="button"
@@ -4638,6 +4684,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               setProjectTypeFilter('All');
               setStatusFilter('All');
               setAssignedToFilter('All');
+              setAddByFilter('All');
               setFollowUpDate('');
               setActiveLeadCategory(null);
               setActivePage(1);
@@ -5096,6 +5143,10 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify, loggedInUs
   }
 
   if (activeSection === 'Settings Security Hub') {
+    return <SecurityOverviewPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  if (activeSection === 'Settings App Security') {
     return <SecurityHubPage onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
@@ -5517,21 +5568,21 @@ function SettingsPillarSubTabs({ items, activeSection, onSelectSection }) {
   return (
     <section className={`${panelClass} overflow-hidden p-0`}>
       <div className="overflow-x-auto pb-1">
-        <div className="flex min-w-max md:min-w-0">
+        <div className="flex min-w-max gap-0 md:min-w-0 md:flex-wrap">
           {items.map((item) => {
             const active = activeSection === item.key;
             return (
               <button
-                key={item.key}
+                key={`${item.key}::${item.label}`}
                 type="button"
                 onClick={() => onSelectSection(item.key)}
                 className={cx(
-                  'relative flex min-h-[54px] min-w-[150px] shrink-0 items-center justify-center whitespace-nowrap border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold leading-4 transition last:border-r-0 md:min-w-0 md:flex-1 md:shrink md:px-5 sm:h-[58px] sm:text-[13px]',
+                  'relative flex min-h-[54px] min-w-[140px] shrink-0 items-center justify-center px-4 text-center text-[12px] font-extrabold leading-4 transition sm:h-[58px] sm:min-w-[160px] sm:px-5 sm:text-[13px] md:flex-1',
                   active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
                 )}
               >
-                {item.label}
-                {active ? <span className="absolute inset-x-0 bottom-0 h-[3px] bg-[#0d9f4a]" /> : null}
+                <span className="truncate">{item.label}</span>
+                {active ? <span className="absolute inset-x-4 bottom-0 h-[3px] rounded-full bg-[#0d9f4a]" /> : null}
               </button>
             );
           })}
@@ -5546,10 +5597,26 @@ function getPillarNavItems(pillar) {
     return [];
   }
   const items = [];
+  const seenKeys = new Set();
+  const seenLabels = new Set();
+
+  const pushUnique = (item) => {
+    if (!item?.key || !item?.label) return;
+    if (seenKeys.has(item.key) || seenLabels.has(item.label)) return;
+    seenKeys.add(item.key);
+    seenLabels.add(item.label);
+    items.push(item);
+  };
+
   if (pillar.hubKey && pillar.id !== 'about') {
-    items.push({ key: pillar.hubKey, label: 'Overview' });
+    pushUnique({
+      key: pillar.hubKey,
+      label: pillar.hubLabel || 'Overview',
+    });
   }
-  items.push(...(pillar.items || []));
+  for (const item of pillar.items || []) {
+    pushUnique(item);
+  }
   return items;
 }
 
@@ -5561,6 +5628,17 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
   const pillarNavItems = getPillarNavItems(activePillar);
   const advancedGroup = advancedSettingsCardGroups.find((group) => group.title === advancedGroupTitle);
   const title = getSettingsDisplayLabel(selectedSection);
+
+  // Keep content in sync with the active pillar (prevents Security page under Backup tabs).
+  useEffect(() => {
+    if (activePillarId === 'advanced') return;
+    const allowed = new Set(pillarNavItems.map((item) => item.key));
+    if (allowed.size === 0) return;
+    if (!allowed.has(selectedSection)) {
+      const fallback = activePillar?.hubKey ?? activePillar?.items?.[0]?.key ?? 'Company Profile';
+      setSelectedSection(fallback);
+    }
+  }, [activePillarId, activePillar, pillarNavItems, selectedSection]);
 
   const selectPillar = (pillarId) => {
     setActivePillarId(pillarId);
@@ -5607,13 +5685,16 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
     }
 
     if (selectedSection === 'Settings Users Access Hub') {
-      return <UsersAccessHubPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+      return <UsersAccessHubPage onOpenSection={setSelectedSection} onNotify={onNotify} />;
     }
     if (selectedSection === 'Settings Security Hub') {
-      return <SecurityHubPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+      return <SecurityOverviewPage onOpenSection={setSelectedSection} onNotify={onNotify} />;
+    }
+    if (selectedSection === 'Settings App Security') {
+      return <SecurityHubPage onOpenSection={setSelectedSection} onNotify={onNotify} />;
     }
     if (selectedSection === 'Settings Backup Hub') {
-      return <BackupDataHubPage onOpenSection={onOpenSection} onNotify={onNotify} />;
+      return <BackupDataHubPage onOpenSection={setSelectedSection} onNotify={onNotify} />;
     }
     if (selectedSection === 'Settings About') {
       return <AboutSettingsPage />;
@@ -5791,7 +5872,7 @@ function SettingsInlineContent({ activeSection, onOpenSection, onNotify, loggedI
   if (activeSection === 'Recycle Bin') {
     return (
       <SettingsInlineDetailFrame>
-        <SettingsRecycleBinPage onNotify={onNotify} />
+        <SettingsRecycleBinPage onNotify={onNotify} loggedInUser={loggedInUser} />
       </SettingsInlineDetailFrame>
     );
   }
@@ -26266,8 +26347,32 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
           <ReportSelect label="Role" value={String(form.roleId || '')} onChange={(value) => updateField('roleId', value ? Number(value) : '')} options={['', ...roles.map((role) => String(role.id))]} optionLabels={{ '': roles.length ? 'Select role' : 'No roles available', ...Object.fromEntries(roles.map((role) => [String(role.id), role.name])) }} />
           <ReportSelect label="Branch" value={String(form.branchId || '')} onChange={(value) => updateField('branchId', value ? Number(value) : '')} options={['', ...branches.map((branch) => String(branch.id))]} optionLabels={{ '': branches.length ? 'Select branch' : 'No branches available', ...Object.fromEntries(branches.map((branch) => [String(branch.id), branch.name])) }} />
           <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} />
-          <ModalTextInput label={initialUser ? 'New Password (optional)' : 'Password'} type="password" value={form.password} onChange={(value) => updateField('password', value)} placeholder="Min 8 characters" />
-          <ModalTextInput label="Confirm Password" type="password" value={form.confirmPassword} onChange={(value) => updateField('confirmPassword', value)} placeholder="Re-enter password" />
+          <div className="sm:col-span-2">
+            <p className="mb-2 text-[12px] font-extrabold text-[#53647f]">
+              {initialUser ? 'Password reset (optional)' : 'Password'}
+            </p>
+            {initialUser ? (
+              <p className="mb-3 text-[11px] font-semibold text-[#8a98af]">
+                Current password cannot be shown. Leave blank to keep it, or enter a new password below to reset.
+              </p>
+            ) : null}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ModalTextInput
+                label={initialUser ? 'New Password' : 'Password'}
+                type="password"
+                value={form.password}
+                onChange={(value) => updateField('password', value)}
+                placeholder={initialUser ? 'Leave blank to keep current' : 'Min 8 characters'}
+              />
+              <ModalTextInput
+                label="Confirm Password"
+                type="password"
+                value={form.confirmPassword}
+                onChange={(value) => updateField('confirmPassword', value)}
+                placeholder={initialUser ? 'Re-enter only if resetting' : 'Re-enter password'}
+              />
+            </div>
+          </div>
         </div>
         <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-5 sm:flex-row">
           <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
@@ -26831,17 +26936,25 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
       </section>
 
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.25fr_0.82fr_0.82fr_0.82fr_0.82fr_auto_auto] xl:items-end">
-          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-            <Search className="size-4 text-[#7386a3]" />
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex h-11 min-w-[220px] flex-[1.4] items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+            <Search className="size-4 shrink-0 text-[#7386a3]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by user, action, module, ip..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
           </label>
-          <ReportSelect label="User" value={user} onChange={setUser} options={['All Users', ...uniqueUsers]} hideLabel />
-          <ReportSelect label="Action" value={action} onChange={setAction} options={['All Actions', ...uniqueActions]} hideLabel />
-          <ReportSelect label="Module" value={moduleName} onChange={setModuleName} options={['All Modules', ...uniqueModules]} hideLabel />
-          <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Success', 'Failed']} hideLabel />
-          <label className="block"><input type="text" readOnly value={`${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`} className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]" /></label>
-          <button type="button" onClick={() => { setQuery(''); setUser('All Users'); setAction('All Actions'); setModuleName('All Modules'); setStatus('All Status'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('Activity log filters reset'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
+          <ReportSelect className="min-w-[140px] flex-1" label="User" value={user} onChange={setUser} options={['All Users', ...uniqueUsers]} hideLabel />
+          <ReportSelect className="min-w-[140px] flex-1" label="Action" value={action} onChange={setAction} options={['All Actions', ...uniqueActions]} hideLabel />
+          <ReportSelect className="min-w-[140px] flex-1" label="Module" value={moduleName} onChange={setModuleName} options={['All Modules', ...uniqueModules]} hideLabel />
+          <ReportSelect className="min-w-[140px] flex-1" label="Status" value={status} onChange={setStatus} options={['All Status', 'Success', 'Failed']} hideLabel />
+          <label className="block min-w-[220px] flex-[1.1]">
+            <input
+              type="text"
+              readOnly
+              value={`${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`}
+              title={`${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`}
+              className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]"
+            />
+          </label>
+          <button type="button" onClick={() => { setQuery(''); setUser('All Users'); setAction('All Actions'); setModuleName('All Modules'); setStatus('All Status'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('Activity log filters reset'); }} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
         </div>
       </section>
 
@@ -26868,7 +26981,18 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
         </div>
 
         <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
-          <table className="crm-table min-w-[1380px] w-full">
+          <table className="crm-table min-w-[1180px] w-full table-fixed">
+            <colgroup>
+              <col className="w-[48px]" />
+              <col className="w-[160px]" />
+              <col className="w-[140px]" />
+              <col className="w-[120px]" />
+              <col className="w-[130px]" />
+              <col />
+              <col className="w-[130px]" />
+              <col className="w-[100px]" />
+              <col className="w-[72px]" />
+            </colgroup>
             <thead><tr>{['#', 'Date & Time', 'User', 'Action', 'Module', 'Description', 'IP Address', 'Status', 'Details'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
             <tbody>
               {!loading ? filteredLogs.map((log, index) => (
@@ -26878,8 +27002,12 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
                   <td><AssigneeCell assignee={log.user.assignee} compact /></td>
                   <td><SettingsActionBadge action={log.action} /></td>
                   <td>{log.module}</td>
-                  <td className="max-w-[320px] whitespace-normal leading-5">{log.description}</td>
-                  <td>{log.ip}</td>
+                  <td>
+                    <div className="max-w-full whitespace-normal break-words leading-5" title={log.description}>
+                      {log.description}
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap">{log.ip}</td>
                   <td><SettingsResultBadge status={log.status} /></td>
                   <td><UserActionButton label={`Open log ${log.id}`} icon={Eye} tone="blue" onClick={() => onNotify(`Activity log ${log.id} opened`)} /></td>
                 </tr>
@@ -29113,8 +29241,12 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
                   <td><AssigneeCell assignee={log.user.assignee} compact /></td>
                   <td><ModuleBadge module={log.module} /></td>
                   <td><ActivityActionBadge action={log.action} /></td>
-                  <td className="max-w-[360px] whitespace-normal leading-5">{log.description}</td>
-                  <td>{log.ip}</td>
+                  <td>
+                    <div className="max-w-[360px] whitespace-normal break-words leading-5" title={log.description}>
+                      {log.description}
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap">{log.ip}</td>
                 </tr>
               ))}
             </tbody>

@@ -750,5 +750,6 @@ export const settingsApi = {
     restore: (data) => request('/settings/recycle-bin/restore/', { method: 'POST', body: data }),
     permanentDelete: (id) => request(`/settings/recycle-bin/${id}/`, { method: 'DELETE' }),
     purge: () => request('/settings/recycle-bin/purge/', { method: 'POST', body: {} }),
+    empty: () => request('/settings/recycle-bin/empty/', { method: 'POST', body: {} }),
   },
 };

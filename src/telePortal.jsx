@@ -863,14 +863,12 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const refreshData = () => { loadLeads(); loadFollowUps(); };
 
   // `leadRows` / full `followUps` are every tele-sourced record (needed for the
-  // "All Lead Holders" filter on My Leads + Follow-ups). Dashboard, Reminders
-  // and Reports stay personal — leads this account added or was assigned.
+  // "Add By" filter on My Leads + Follow-ups). Dashboard, Reminders and Reports
+  // stay personal — leads this account added.
   const leadRows = leads ?? [];
   const sameId = (a, b) => a != null && b != null && String(a) === String(b);
   const isSuperAdminUser = Boolean(me?.is_super_admin);
-  const isOwnLeadRow = (lead) => (
-    sameId(lead?.created_by, me?.id) || sameId(lead?.assigned_to, me?.id)
-  );
+  const isOwnLeadRow = (lead) => sameId(lead?.created_by, me?.id);
   const ownLeadRows = leadRows.filter(isOwnLeadRow);
   const ownLeadIds = useMemo(
     () => new Set(ownLeadRows.map((lead) => String(lead.id))),
@@ -1258,17 +1256,23 @@ function TeleStatCards({ cards }) {
 function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onView, onEdit, onDelete, onAddFollowUp, onAddLead, title = 'My Leads' }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [holderFilter, setHolderFilter] = useState('All');
+  // Default: logged-in tele executive's own added leads ("Add By" = me).
+  const [addByFilter, setAddByFilter] = useState(() => (
+    currentUserId != null && !isSuperAdmin ? String(currentUserId) : 'All'
+  ));
   const [page, setPage] = useState(1);
 
-  const holderOptions = useMemo(() => {
+  useEffect(() => {
+    if (isSuperAdmin) return;
+    if (currentUserId == null) return;
+    setAddByFilter((prev) => (prev === 'All' || prev == null ? String(currentUserId) : prev));
+  }, [currentUserId, isSuperAdmin]);
+
+  const addByOptions = useMemo(() => {
     const map = new Map();
     leads.forEach((lead) => {
       if (lead.created_by != null && !map.has(String(lead.created_by))) {
         map.set(String(lead.created_by), lead.created_by_name || `User #${lead.created_by}`);
-      }
-      if (lead.assigned_to != null && !map.has(String(lead.assigned_to))) {
-        map.set(String(lead.assigned_to), lead.assigned_to_name || `User #${lead.assigned_to}`);
       }
     });
     return Array.from(map, ([id, name]) => ({ id, name }));
@@ -1278,16 +1282,12 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
     const query = searchQuery.trim().toLowerCase();
     return leads.filter((lead) => {
       if (statusFilter !== 'All' && teleDisplayStatus(lead) !== statusFilter) return false;
-      if (
-        holderFilter !== 'All'
-        && String(lead.created_by) !== holderFilter
-        && String(lead.assigned_to) !== holderFilter
-      ) return false;
+      if (addByFilter !== 'All' && String(lead.created_by) !== String(addByFilter)) return false;
       if (!query) return true;
       return [lead.customer_name, lead.mobile_number, lead.project_name]
         .some((field) => String(field || '').toLowerCase().includes(query));
     });
-  }, [leads, searchQuery, statusFilter, holderFilter]);
+  }, [leads, searchQuery, statusFilter, addByFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / TELE_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -1324,19 +1324,19 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
               <option key={option} value={option}>{option === 'All' ? 'All Status' : option}</option>
             ))}
           </select>
-          {holderOptions.length > 1 && (
-            <select
-              value={holderFilter}
-              onChange={(e) => { setHolderFilter(e.target.value); setPage(1); }}
-              className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
-              aria-label="Filter by lead holder"
-            >
-              <option value="All">All Lead Holders</option>
-              {holderOptions.map((holder) => (
-                <option key={holder.id} value={String(holder.id)}>{holder.name}</option>
-              ))}
-            </select>
-          )}
+          <select
+            value={addByFilter}
+            onChange={(e) => { setAddByFilter(e.target.value); setPage(1); }}
+            className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
+            aria-label="Filter by Add By"
+          >
+            <option value="All">Add By: All</option>
+            {addByOptions.map((person) => (
+              <option key={person.id} value={String(person.id)}>
+                Add By: {person.name}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={() => onAddFollowUp(null)}
@@ -1379,9 +1379,9 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
               <tr><td colSpan={9} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</td></tr>
             )}
             {pageLeads.map((lead, index) => {
+              // Tele may edit/delete only leads they personally added.
               const isOwnLead = isSuperAdmin || (
-                currentUserId != null
-                && (String(lead.created_by) === String(currentUserId) || String(lead.assigned_to) === String(currentUserId))
+                currentUserId != null && String(lead.created_by) === String(currentUserId)
               );
               return (
               <tr
@@ -1584,11 +1584,20 @@ function TeleFollowUpsPage({
 }) {
   const [tab, setTab] = useState(initialTab || 'today');
   const [search, setSearch] = useState('');
-  const [holderFilter, setHolderFilter] = useState('All');
+  // Default: follow-ups on leads this tele user added ("Add By" = me).
+  const [addByFilter, setAddByFilter] = useState(() => (
+    currentUserId != null && !isSuperAdmin ? String(currentUserId) : 'All'
+  ));
 
   useEffect(() => {
     if (initialTab) setTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (isSuperAdmin) return;
+    if (currentUserId == null) return;
+    setAddByFilter((prev) => (prev === 'All' || prev == null ? String(currentUserId) : prev));
+  }, [currentUserId, isSuperAdmin]);
 
   const leadById = useMemo(() => {
     const map = new Map();
@@ -1596,42 +1605,38 @@ function TeleFollowUpsPage({
     return map;
   }, [leads]);
 
-  const holderOptions = useMemo(() => {
+  const addByOptions = useMemo(() => {
     const map = new Map();
     leads.forEach((lead) => {
       if (lead.created_by != null && !map.has(String(lead.created_by))) {
         map.set(String(lead.created_by), lead.created_by_name || `User #${lead.created_by}`);
       }
-      if (lead.assigned_to != null && !map.has(String(lead.assigned_to))) {
-        map.set(String(lead.assigned_to), lead.assigned_to_name || `User #${lead.assigned_to}`);
-      }
     });
     return Array.from(map, ([id, name]) => ({ id, name }));
   }, [leads]);
 
-  const matchesHolder = useCallback((item) => {
-    if (holderFilter === 'All') return true;
+  const matchesAddBy = useCallback((item) => {
+    if (addByFilter === 'All') return true;
     const lead = leadById.get(String(item.lead));
     if (lead) {
-      return String(lead.created_by) === holderFilter || String(lead.assigned_to) === holderFilter;
+      return String(lead.created_by) === String(addByFilter);
     }
-    return String(item.created_by) === holderFilter;
-  }, [holderFilter, leadById]);
+    return String(item.created_by) === String(addByFilter);
+  }, [addByFilter, leadById]);
 
   const canOperateFollowUp = useCallback((item) => {
     if (isSuperAdmin) return true;
     if (currentUserId == null) return false;
     const lead = leadById.get(String(item.lead));
     if (lead) {
-      return String(lead.created_by) === String(currentUserId)
-        || String(lead.assigned_to) === String(currentUserId);
+      return String(lead.created_by) === String(currentUserId);
     }
     return String(item.created_by) === String(currentUserId);
   }, [isSuperAdmin, currentUserId, leadById]);
 
   const holderFollowUps = useMemo(
-    () => followUps.filter(matchesHolder),
-    [followUps, matchesHolder],
+    () => followUps.filter(matchesAddBy),
+    [followUps, matchesAddBy],
   );
 
   const completed = useMemo(
@@ -1761,19 +1766,19 @@ function TeleFollowUpsPage({
                 className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[#1f2d44] outline-none"
               />
             </label>
-            {holderOptions.length > 1 && (
-              <select
-                value={holderFilter}
-                onChange={(e) => setHolderFilter(e.target.value)}
-                className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
-                aria-label="Filter by lead holder"
-              >
-                <option value="All">All Lead Holders</option>
-                {holderOptions.map((holder) => (
-                  <option key={holder.id} value={String(holder.id)}>{holder.name}</option>
-                ))}
-              </select>
-            )}
+            <select
+              value={addByFilter}
+              onChange={(e) => setAddByFilter(e.target.value)}
+              className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
+              aria-label="Filter by Add By"
+            >
+              <option value="All">Add By: All</option>
+              {addByOptions.map((person) => (
+                <option key={person.id} value={String(person.id)}>
+                  Add By: {person.name}
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={() => onAddFollowUp(null)}

@@ -381,6 +381,14 @@ class Quotation(models.Model):
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='quotations')
+
+    # Soft delete → CRM Settings Recycle Bin
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    deleted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deleted_quotations',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -16,13 +16,14 @@ function formatWhen(iso) {
   });
 }
 
-export function SettingsRecycleBinPage({ onNotify }) {
+export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
   const [rows, setRows] = useState([]);
   const [retentionDays, setRetentionDays] = useState(30);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [entityFilter, setEntityFilter] = useState('All');
   const [busyId, setBusyId] = useState(null);
+  const canPermanentDelete = Boolean(loggedInUser?.is_super_admin);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +65,10 @@ export function SettingsRecycleBinPage({ onNotify }) {
   };
 
   const permanentDelete = async (row) => {
+    if (!canPermanentDelete) {
+      onNotify?.('Only Super Admin can permanently delete items.', 'error');
+      return;
+    }
     if (!window.confirm(`Permanently delete "${row.title}"? This cannot be undone.`)) return;
     setBusyId(row.id);
     try {
@@ -78,16 +83,48 @@ export function SettingsRecycleBinPage({ onNotify }) {
   };
 
   const purgeExpired = async () => {
+    if (!canPermanentDelete) {
+      onNotify?.('Only Super Admin can purge expired items.', 'error');
+      return;
+    }
     setBusyId('purge');
     try {
       const data = await settingsApi.recycleBin.purge();
       onNotify?.(
-        `Purged ${data?.leads ?? 0} lead(s) and ${data?.follow_ups ?? 0} follow-up(s).`,
+        `Purged ${data?.leads ?? 0} lead(s), ${data?.follow_ups ?? 0} follow-up(s), ${data?.quotations ?? 0} quotation(s), ${data?.projects ?? 0} project(s).`,
         'success',
       );
       await load();
     } catch (err) {
       onNotify?.(err.message || 'Purge failed.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const emptyList = async () => {
+    if (!canPermanentDelete) {
+      onNotify?.('Only Super Admin can empty the recycle bin.', 'error');
+      return;
+    }
+    if (rows.length === 0) {
+      onNotify?.('Recycle bin is already empty.', 'info');
+      return;
+    }
+    if (!window.confirm(
+      `Empty recycle bin? This will permanently delete all ${rows.length} item(s). This cannot be undone.`,
+    )) return;
+    setBusyId('empty');
+    try {
+      const data = await settingsApi.recycleBin.empty();
+      const total = (data?.leads ?? 0) + (data?.follow_ups ?? 0) + (data?.quotations ?? 0) + (data?.projects ?? 0);
+      onNotify?.(
+        `Recycle bin emptied. Deleted ${total} item(s) permanently.`,
+        'success',
+      );
+      await load();
+    } catch (err) {
+      onNotify?.(err.message || 'Could not empty recycle bin.', 'error');
     } finally {
       setBusyId(null);
     }
@@ -99,8 +136,9 @@ export function SettingsRecycleBinPage({ onNotify }) {
         <div>
           <h2 className="font-display text-[18px] font-extrabold text-[#102446]">Recycle Bin</h2>
           <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">
-            Deleted leads and follow-ups from CRM and Tele Executive land here.
+            Soft-deleted leads, follow-ups, quotations and projects land here.
             Items auto-delete after {retentionDays} days.
+            {canPermanentDelete ? '' : ' Permanent delete is Super Admin only.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -112,15 +150,28 @@ export function SettingsRecycleBinPage({ onNotify }) {
             <RefreshCw className="size-3.5" />
             Refresh
           </button>
-          <button
-            type="button"
-            onClick={purgeExpired}
-            disabled={busyId === 'purge'}
-            className="inline-flex h-10 items-center gap-2 rounded-[9px] border border-[#fecaca] bg-white px-3 text-[12px] font-extrabold text-[#dc2626] disabled:opacity-50"
-          >
-            <Trash2 className="size-3.5" />
-            Purge expired
-          </button>
+          {canPermanentDelete ? (
+            <>
+              <button
+                type="button"
+                onClick={purgeExpired}
+                disabled={busyId === 'purge' || busyId === 'empty'}
+                className="inline-flex h-10 items-center gap-2 rounded-[9px] border border-[#fecaca] bg-white px-3 text-[12px] font-extrabold text-[#dc2626] disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" />
+                Purge expired
+              </button>
+              <button
+                type="button"
+                onClick={emptyList}
+                disabled={busyId === 'empty' || busyId === 'purge' || rows.length === 0}
+                className="inline-flex h-10 items-center gap-2 rounded-[9px] bg-[#dc2626] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#b91c1c] disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" />
+                Empty List
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -139,7 +190,7 @@ export function SettingsRecycleBinPage({ onNotify }) {
           onChange={(e) => setEntityFilter(e.target.value)}
           className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold outline-none"
         >
-          {['All', 'Lead', 'Follow-up'].map((option) => (
+          {['All', 'Lead', 'Follow-up', 'Quotation', 'Project'].map((option) => (
             <option key={option} value={option}>{option === 'All' ? 'All types' : option}</option>
           ))}
         </select>
@@ -208,16 +259,18 @@ export function SettingsRecycleBinPage({ onNotify }) {
                         <RotateCcw className="size-3.5" />
                         Restore
                       </button>
-                      <button
-                        type="button"
-                        disabled={busyId === row.id}
-                        onClick={() => permanentDelete(row)}
-                        className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-2.5 text-[11px] font-extrabold text-[#b91c1c] disabled:opacity-50"
-                        aria-label={`Permanently delete ${row.title}`}
-                      >
-                        <Trash2 className="size-3.5" />
-                        Delete
-                      </button>
+                      {canPermanentDelete ? (
+                        <button
+                          type="button"
+                          disabled={busyId === row.id}
+                          onClick={() => permanentDelete(row)}
+                          className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-2.5 text-[11px] font-extrabold text-[#b91c1c] disabled:opacity-50"
+                          aria-label={`Permanently delete ${row.title}`}
+                        >
+                          <Trash2 className="size-3.5" />
+                          Delete
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

@@ -1,4 +1,4 @@
-"""CRM Settings → Recycle Bin API (soft-deleted leads & follow-ups)."""
+"""CRM Settings → Recycle Bin API (soft-deleted CRM records)."""
 from datetime import timedelta
 
 from django.db.models import Q
@@ -7,14 +7,18 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.accounts.permissions import HasModulePermission
-from apps.leads.models import FollowUp, Lead
+from apps.accounts.permissions import HasModulePermission, is_super_admin
+from apps.leads.models import FollowUp, Lead, Quotation
 from apps.leads.recycle import (
     RECYCLE_RETENTION_DAYS,
+    empty_recycle_bin,
     purge_expired_recycle_items,
     restore_follow_up,
     restore_lead,
+    restore_project,
+    restore_quotation,
 )
+from apps.projects.models import Project
 
 
 class SettingsPermissionMixin:
@@ -28,6 +32,7 @@ class SettingsPermissionMixin:
         'partial_update': 'can_edit',
         'destroy': 'can_delete',
         'purge': 'can_delete',
+        'empty': 'can_delete',
         'restore': 'can_edit',
     }
 
@@ -46,6 +51,15 @@ def _deleted_source(user):
     if role == 'Tele Sales Executive':
         return 'Tele Portal'
     return 'CRM'
+
+
+def _require_super_admin(request):
+    if not is_super_admin(request.user):
+        return Response(
+            {'detail': 'Only Super Admin can permanently delete recycle bin items.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return None
 
 
 def _serialize_lead(lead):
@@ -89,12 +103,54 @@ def _serialize_follow_up(item):
     }
 
 
+def _serialize_quotation(item):
+    lead = item.lead
+    return {
+        'id': f'quotation-{item.id}',
+        'entity_type': 'Quotation',
+        'object_id': item.id,
+        'title': item.quotation_number or f'Quotation #{item.id}',
+        'subtitle': getattr(lead, 'customer_name', '') or item.company_name or '',
+        'meta': {
+            'status': item.status,
+            'grand_total': str(item.grand_total or 0),
+            'lead_id': lead.id if lead else None,
+        },
+        'deleted_at': item.deleted_at.isoformat() if item.deleted_at else None,
+        'deleted_by': item.deleted_by_id,
+        'deleted_by_name': getattr(item.deleted_by, 'name', None) or '—',
+        'days_left': _days_left(item.deleted_at),
+        'source': _deleted_source(item.deleted_by),
+    }
+
+
+def _serialize_project(item):
+    return {
+        'id': f'project-{item.id}',
+        'entity_type': 'Project',
+        'object_id': item.id,
+        'title': item.project_name or item.project_id or f'Project #{item.id}',
+        'subtitle': item.customer_name or item.project_id or '',
+        'meta': {
+            'status': item.status,
+            'project_id': item.project_id or '',
+            'capacity_kwp': str(item.capacity_kwp or 0),
+        },
+        'deleted_at': item.deleted_at.isoformat() if item.deleted_at else None,
+        'deleted_by': item.deleted_by_id,
+        'deleted_by_name': getattr(item.deleted_by, 'name', None) or '—',
+        'days_left': _days_left(item.deleted_at),
+        'source': _deleted_source(item.deleted_by),
+    }
+
+
 class RecycleBinViewSet(SettingsPermissionMixin, viewsets.ViewSet):
     """List / restore / permanently delete soft-deleted CRM records."""
 
     permission_action_map = {
         **SettingsPermissionMixin.permission_action_map,
         'purge': 'can_delete',
+        'empty': 'can_delete',
         'restore': 'can_edit',
     }
 
@@ -129,6 +185,32 @@ class RecycleBinViewSet(SettingsPermissionMixin, viewsets.ViewSet):
                     | Q(follow_up_type__icontains=search)
                 )
             items.extend(_serialize_follow_up(item) for item in follow_ups)
+
+        if entity in ('', 'Quotation', 'All'):
+            quotations = Quotation.objects.filter(is_deleted=True).select_related(
+                'deleted_by', 'deleted_by__role', 'lead',
+            )
+            if search:
+                quotations = quotations.filter(
+                    Q(quotation_number__icontains=search)
+                    | Q(company_name__icontains=search)
+                    | Q(lead__customer_name__icontains=search)
+                    | Q(lead__mobile_number__icontains=search)
+                )
+            items.extend(_serialize_quotation(item) for item in quotations)
+
+        if entity in ('', 'Project', 'All'):
+            projects = Project.objects.filter(is_deleted=True).select_related(
+                'deleted_by', 'deleted_by__role',
+            )
+            if search:
+                projects = projects.filter(
+                    Q(project_name__icontains=search)
+                    | Q(customer_name__icontains=search)
+                    | Q(project_id__icontains=search)
+                    | Q(site__icontains=search)
+                )
+            items.extend(_serialize_project(item) for item in projects)
 
         items.sort(key=lambda row: row.get('deleted_at') or '', reverse=True)
         return Response({
@@ -169,10 +251,35 @@ class RecycleBinViewSet(SettingsPermissionMixin, viewsets.ViewSet):
             restore_follow_up(item)
             return Response({'detail': 'Follow-up restored.', 'id': f'followup-{item.id}'})
 
+        if entity_type == 'Quotation':
+            try:
+                item = Quotation.objects.get(pk=object_id, is_deleted=True)
+            except Quotation.DoesNotExist:
+                return Response({'detail': 'Quotation not found in recycle bin.'}, status=status.HTTP_404_NOT_FOUND)
+            if item.lead_id and Lead.objects.filter(pk=item.lead_id, is_deleted=True).exists():
+                return Response(
+                    {'detail': 'Restore the parent lead first, then this quotation.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            restore_quotation(item)
+            return Response({'detail': 'Quotation restored.', 'id': f'quotation-{item.id}'})
+
+        if entity_type == 'Project':
+            try:
+                item = Project.objects.get(pk=object_id, is_deleted=True)
+            except Project.DoesNotExist:
+                return Response({'detail': 'Project not found in recycle bin.'}, status=status.HTTP_404_NOT_FOUND)
+            restore_project(item)
+            return Response({'detail': 'Project restored.', 'id': f'project-{item.id}'})
+
         return Response({'detail': 'Unsupported entity_type.'}, status=status.HTTP_400_BAD_REQUEST)
 
     def destroy(self, request, pk=None):
-        """Permanent delete: pk format `lead-<id>` or `followup-<id>`."""
+        """Permanent delete — Super Admin only. pk format `lead-<id>` / `followup-<id>` / …"""
+        denied = _require_super_admin(request)
+        if denied:
+            return denied
+
         key = pk or ''
         if key.startswith('lead-'):
             try:
@@ -192,9 +299,39 @@ class RecycleBinViewSet(SettingsPermissionMixin, viewsets.ViewSet):
             item.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+        if key.startswith('quotation-'):
+            try:
+                q_id = int(key.split('-', 1)[1])
+                item = Quotation.objects.get(pk=q_id, is_deleted=True)
+            except (ValueError, Quotation.DoesNotExist):
+                return Response({'detail': 'Quotation not found in recycle bin.'}, status=status.HTTP_404_NOT_FOUND)
+            item.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        if key.startswith('project-'):
+            try:
+                p_id = int(key.split('-', 1)[1])
+                item = Project.objects.get(pk=p_id, is_deleted=True)
+            except (ValueError, Project.DoesNotExist):
+                return Response({'detail': 'Project not found in recycle bin.'}, status=status.HTTP_404_NOT_FOUND)
+            item.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
         return Response({'detail': 'Invalid recycle bin item id.'}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'])
     def purge(self, request):
+        denied = _require_super_admin(request)
+        if denied:
+            return denied
         result = purge_expired_recycle_items()
         return Response({'detail': 'Expired items purged.', **result})
+
+    @action(detail=False, methods=['post'])
+    def empty(self, request):
+        """Permanently delete all recycle-bin items — Super Admin only."""
+        denied = _require_super_admin(request)
+        if denied:
+            return denied
+        result = empty_recycle_bin()
+        return Response({'detail': 'Recycle bin emptied.', **result})

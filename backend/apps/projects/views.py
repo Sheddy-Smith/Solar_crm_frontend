@@ -21,6 +21,7 @@ from .serializers import (
     ProjectExpenseDocumentSerializer, ProjectApprovalSerializer, ProjectApprovalDocumentSerializer,
 )
 from apps.accounts.permissions import HasModulePermission, is_lead_scoped, lead_owner_filter
+from apps.leads.recycle import soft_delete_project
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -45,7 +46,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'installation_materials__inventory_item',
             'milestones__owner',
             'milestones__children__owner',
-        ).all()
+        ).filter(is_deleted=False).filter(Q(lead__isnull=True) | Q(lead__is_deleted=False))
         # Sales / Tele Sales Executives see only projects born from their own leads
         filt = lead_owner_filter(self.request.user, prefix='lead__')
         if filt:
@@ -59,6 +60,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    def perform_destroy(self, instance):
+        soft_delete_project(instance, self.request.user)
 
     @action(detail=True, methods=['post'])
     def update_progress(self, request, pk=None):

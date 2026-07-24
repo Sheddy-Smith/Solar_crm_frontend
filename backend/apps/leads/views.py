@@ -18,7 +18,7 @@ from .serializers import (
 from apps.accounts.permissions import (
     HasModulePermission, is_lead_scoped, lead_owner_filter, is_own_lead, can_manage_leads,
 )
-from .recycle import soft_delete_follow_up, soft_delete_lead
+from .recycle import soft_delete_follow_up, soft_delete_lead, soft_delete_quotation
 
 
 class LeadViewSet(viewsets.ModelViewSet):
@@ -382,7 +382,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().filter(is_deleted=False, lead__is_deleted=False)
         # Sales / Tele Sales Executives see only quotations on their own leads
         filt = lead_owner_filter(self.request.user, prefix='lead__')
         if filt:
@@ -402,3 +402,6 @@ class QuotationViewSet(viewsets.ModelViewSet):
         if is_lead_scoped(self.request.user) and lead and not is_own_lead(self.request.user, lead):
             raise PermissionDenied('You can only move quotations to your own leads.')
         serializer.save()
+
+    def perform_destroy(self, instance):
+        soft_delete_quotation(instance, self.request.user)

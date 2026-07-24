@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Activity, Cloud, Database, Download, HardDrive, Info, LockKeyhole, RefreshCw,
-  ShieldCheck, UserPlus, Users, Wrench, X, CheckCircle2, AlertCircle, Clock3,
+  ShieldCheck, Trash2, UserPlus, Users, Wrench, X, CheckCircle2, AlertCircle, Clock3,
 } from 'lucide-react';
 import { authApi, roleApi, settingsApi, userApi } from './api.js';
 
@@ -25,6 +25,7 @@ export const SETTINGS_PILLARS = [
     id: 'users-access',
     label: 'Users & Access',
     hubKey: 'Settings Users Access Hub',
+    hubLabel: 'Overview',
     protected: true,
     items: [
       { key: 'Settings Users', label: 'Users' },
@@ -36,8 +37,9 @@ export const SETTINGS_PILLARS = [
     id: 'security',
     label: 'Security',
     hubKey: 'Settings Security Hub',
+    hubLabel: 'Overview',
     items: [
-      { key: 'Settings Security Hub', label: 'App Security' },
+      { key: 'Settings App Security', label: 'App Security' },
       { key: 'Settings IP Restrictions', label: 'IP Restrictions' },
     ],
   },
@@ -45,9 +47,11 @@ export const SETTINGS_PILLARS = [
     id: 'backup-data',
     label: 'Backup & Data',
     hubKey: 'Settings Backup Hub',
+    // One dashboard tab only — do not also label this "Overview".
+    hubLabel: 'Backup Dashboard',
     items: [
-      { key: 'Settings Backup Hub', label: 'Backup Dashboard' },
       { key: 'Backup & Restore', label: 'Backup & Restore' },
+      { key: 'Recycle Bin', label: 'Recycle Bin' },
       { key: 'System Maintenance', label: 'System Maintenance' },
     ],
   },
@@ -358,6 +362,58 @@ export function UsersAccessHubPage({ onOpenSection, onNotify }) {
   );
 }
 
+export function SecurityOverviewPage({ onOpenSection, onNotify }) {
+  const prefs = readSecurityPrefs();
+
+  return (
+    <div className="space-y-4">
+      <article className={`${CARD} bg-linear-to-r from-[#eff6ff] to-[#f5f3ff] p-5`}>
+        <h2 className="flex items-center gap-2 font-display text-[18px] font-extrabold text-[#1e3261]">
+          <ShieldCheck className="size-5 text-[#2563eb]" />
+          Security Overview
+        </h2>
+        <p className="mt-1 text-[13px] font-semibold text-[#53647f]">
+          Review lock status and jump to PIN settings or IP rules.
+        </p>
+      </article>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <HubStat
+          label="PIN Lock"
+          value={prefs.pinEnabled ? 'Enabled' : 'Off'}
+          icon={LockKeyhole}
+          tone={prefs.pinEnabled ? 'green' : 'amber'}
+        />
+        <HubStat
+          label="Auto-lock"
+          value={prefs.autoLockMinutes === 0 ? 'Never' : `${prefs.autoLockMinutes} min`}
+          icon={Clock3}
+          tone="blue"
+        />
+        <HubStat label="IP Rules" value="Manage" icon={ShieldCheck} tone="purple" />
+      </section>
+
+      <article className={`${CARD} p-5`}>
+        <h3 className="text-[15px] font-extrabold text-[#1e3261]">Quick actions</h3>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <QuickActionBtn
+            label="App Security"
+            icon={LockKeyhole}
+            tone="green"
+            onClick={() => onOpenSection?.('Settings App Security')}
+          />
+          <QuickActionBtn
+            label="IP Restrictions"
+            icon={ShieldCheck}
+            tone="blue"
+            onClick={() => onOpenSection?.('Settings IP Restrictions')}
+          />
+        </div>
+      </article>
+    </div>
+  );
+}
+
 export function SecurityHubPage({ onOpenSection, onNotify }) {
   const [prefs, setPrefs] = useState(readSecurityPrefs);
   const [pinInput, setPinInput] = useState('');
@@ -505,6 +561,7 @@ export function BackupDataHubPage({ onOpenSection, onNotify, BackupContent }) {
           <QuickActionBtn label="Restore Last" icon={RefreshCw} tone="blue" onClick={() => onNotify('Restore requires admin confirmation — open Backup & Restore', 'error')} />
           <QuickActionBtn label="Save Config" icon={Cloud} tone="purple" onClick={saveConfig} />
           <QuickActionBtn label="Full Backup Page" icon={Database} tone="slate" onClick={() => onOpenSection('Backup & Restore')} />
+          <QuickActionBtn label="Recycle Bin" icon={Trash2} tone="amber" onClick={() => onOpenSection('Recycle Bin')} />
         </div>
       </article>
 

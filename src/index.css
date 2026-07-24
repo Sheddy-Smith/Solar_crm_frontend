@@ -849,6 +849,14 @@ a {
   font-size: 15px;
   font-weight: 500;
   white-space: nowrap;
+  vertical-align: top;
+}
+
+/* Long description/details text must wrap — .crm-table td nowrap otherwise overlaps next column */
+.crm-table td .whitespace-normal {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .page-heading-actions > * {
@@ -928,6 +936,12 @@ a {
 .responsive-scroll > .crm-table,
 .overflow-x-auto > .crm-table {
   min-width: max-content;
+}
+
+.responsive-scroll > .crm-table.table-fixed,
+.overflow-x-auto > .crm-table.table-fixed {
+  min-width: 100%;
+  width: 100%;
 }
 
 .crm-table--dense th {
