@@ -9,16 +9,16 @@ const sizeClasses = {
 const variantClasses = {
   primary:
     'bg-[#0b65e5] text-white hover:bg-[#0954c2] focus-visible:ring-[#0b65e5]/40 ' +
-    'dark:bg-[#1c7ff0] dark:hover:bg-[#0b65e5]',
+    'dark:bg-gradient-to-r dark:from-[#ffd873] dark:via-[#f5a623] dark:to-[#d9820f] dark:text-[#211404] dark:hover:brightness-105 dark:focus-visible:ring-[#f59e0b]/40',
   secondary:
     'bg-white text-[#20345f] border border-[#d4d9e7] hover:bg-[#f4f7ff] focus-visible:ring-[#0b65e5]/30 ' +
     'dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700',
   ghost:
     'bg-transparent text-[#0b65e5] hover:bg-[#eaf2ff] focus-visible:ring-[#0b65e5]/20 ' +
-    'dark:text-sky-300 dark:hover:bg-slate-800',
+    'dark:text-[#fbbf24] dark:hover:bg-[rgba(245,158,11,0.10)]',
   success:
     'bg-[#0d9f4a] text-white hover:bg-[#0b8a3f] focus-visible:ring-[#0d9f4a]/40 ' +
-    'dark:bg-[#12b357] dark:hover:bg-[#0d9f4a]',
+    'dark:bg-gradient-to-r dark:from-[#ffd873] dark:via-[#f5a623] dark:to-[#d9820f] dark:text-[#211404] dark:hover:brightness-105 dark:focus-visible:ring-[#f59e0b]/40',
   danger:
     'bg-[#ea5a4c] text-white hover:bg-[#d94435] focus-visible:ring-[#ea5a4c]/40 ' +
     'dark:bg-[#f0685a] dark:hover:bg-[#ea5a4c]',

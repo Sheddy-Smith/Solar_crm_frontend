@@ -214,7 +214,7 @@ function TaskModal({
   };
 
   return (
-    <div className="fixed inset-0 z-120 flex items-center justify-center bg-[#0f1f3d]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-120 flex items-center justify-center bg-[#0f1f3d]/45 p-4">
       <div className="w-full max-w-[680px] rounded-[14px] border border-[#dbe5f2] bg-white shadow-[0_24px_60px_rgba(15,31,61,0.22)]">
         <div className="flex items-center justify-between border-b border-[#e7eef7] px-5 py-4">
           <h2 className="font-display text-[18px] font-extrabold text-[#1e3261]">{title}</h2>

@@ -481,8 +481,8 @@ export function MobileBottomNav({ activeSection, onNavigate, onMore }) {
   })();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-60 border-t border-[#e4ebf4] bg-white/97 shadow-[0_-8px_24px_rgba(21,43,83,0.08)] backdrop-blur-[6px] md:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-5">
+    <nav className="app-mobile-bottom-nav fixed inset-x-0 bottom-0 z-60 border-t border-[#e4ebf4] bg-white/98 shadow-[0_-10px_28px_rgba(21,43,83,0.12)] backdrop-blur-[10px] md:hidden dark:border-slate-700 dark:bg-slate-950/96">
+      <div className="mx-auto grid max-w-lg grid-cols-5 px-1 pt-1">
         {BOTTOM_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = item.label === activeLabel;
@@ -492,13 +492,18 @@ export function MobileBottomNav({ activeSection, onNavigate, onMore }) {
               type="button"
               onClick={() => (item.more ? onMore() : onNavigate(item))}
               className={cx(
-                'flex flex-col items-center gap-0.5 py-2 pb-[max(8px,env(safe-area-inset-bottom))] transition',
-                active ? 'text-[#0d9f4a]' : 'text-[#7b88a2]',
+                'flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 pb-[max(10px,env(safe-area-inset-bottom))] transition active:scale-95',
+                active ? 'text-[#0d9f4a]' : 'text-[#7b88a2] dark:text-slate-400',
               )}
             >
-              <Icon className="size-[19px]" />
-              <span className="text-[10px] font-extrabold">{item.label}</span>
-              <span className={cx('h-[3px] w-8 rounded-full', active ? 'bg-[#0d9f4a]' : 'bg-transparent')} />
+              <span className={cx(
+                'grid size-9 place-items-center rounded-full transition',
+                active ? 'bg-[#e8f8eb] text-[#0d9f4a] dark:bg-emerald-950' : 'bg-transparent',
+              )}
+              >
+                <Icon className="size-[20px]" strokeWidth={active ? 2.4 : 2} />
+              </span>
+              <span className="text-[10px] font-extrabold leading-none">{item.label}</span>
             </button>
           );
         })}

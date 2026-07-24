@@ -99,10 +99,17 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get', 'put'])
     def site_survey(self, request, pk=None):
         project = self.get_object()
-        survey, _ = SiteSurvey.objects.get_or_create(project=project)
+        survey, created = SiteSurvey.objects.get_or_create(project=project)
+        if created:
+            survey.material_checklist = SiteSurvey.default_material_checklist()
+            survey.save(update_fields=['material_checklist'])
         if request.method == 'GET':
             return Response(SiteSurveySerializer(survey).data)
-        serializer = SiteSurveySerializer(survey, data=request.data, partial=True)
+        # Avoid wiping ImageField when client sends JSON without a file.
+        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        if not request.FILES.get('site_drawing'):
+            data.pop('site_drawing', None)
+        serializer = SiteSurveySerializer(survey, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)

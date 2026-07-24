@@ -142,6 +142,24 @@ class SiteSurveySerializer(serializers.ModelSerializer):
         lead = obj.project.lead
         return lead.mobile_number if lead else ''
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        lead = instance.project.lead
+        if lead:
+            if not data.get('ivrs_number'):
+                data['ivrs_number'] = lead.ivrs_number or ''
+            if not data.get('email_id'):
+                data['email_id'] = getattr(lead, 'email', '') or ''
+            if not data.get('alternate_mobile'):
+                data['alternate_mobile'] = getattr(lead, 'alternate_number', '') or ''
+            if not data.get('purpose') and lead.project_type:
+                data['purpose'] = lead.project_type
+            if not data.get('capacity_required_kw') and lead.estimated_capacity:
+                data['capacity_required_kw'] = str(lead.estimated_capacity)
+        if not data.get('material_checklist'):
+            data['material_checklist'] = SiteSurvey.default_material_checklist()
+        return data
+
 
 SURVEY_SAFETY_FIELD_NAMES = [
     'safety_roof_safe', 'safety_shadow_checked', 'safety_earthing_finalized', 'safety_meter_verified',

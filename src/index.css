@@ -53,9 +53,25 @@ html.dark .sidebar-root {
 }
 
 /* Sidebar brand header */
-html.dark .sidebar-root > div:first-child {
-  border-bottom-color: rgba(255, 255, 255, 0.05);
+html.dark .sidebar-root > div:first-child,
+html.dark .sidebar-brand {
+  border-bottom-color: rgba(245, 158, 11, 0.14);
   background: rgba(10, 10, 16, 0.98);
+}
+
+/* Transparent product logo — no plate / no white box */
+html.dark .sidebar-brand-lockup,
+html.dark .sidebar-brand-mark {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+html.dark .sidebar-brand-lockup img,
+html.dark .sidebar-brand-mark img {
+  filter: none;
 }
 
 /* Sidebar gradient menu container — override the green→blue gradient */
@@ -74,8 +90,11 @@ html.dark .sidebar-root nav button[aria-current="page"] {
   background: linear-gradient(90deg, #ffd873 0%, #f5a623 50%, #d9820f 100%) !important;
   color: #211404 !important;
   border-color: transparent !important;
-  border-radius: 9999px !important;
-  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.35), 0 0 24px rgba(245, 158, 11, 0.18);
+  border-radius: 12px !important;
+  box-shadow:
+    0 8px 22px rgba(245, 158, 11, 0.42),
+    0 0 28px rgba(245, 158, 11, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 html.dark .sidebar-root nav button[aria-current="page"]:hover {
   filter: brightness(1.05);
@@ -203,8 +222,9 @@ html.dark .search-input button {
 /* ---------- HEADER / TOOLBAR ---------- */
 html.dark .header-toolbar {
   background: linear-gradient(180deg, rgba(12, 12, 18, 0.98), rgba(9, 9, 14, 0.96)) !important;
-  border-color: rgba(245, 158, 11, 0.08) !important;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35) !important;
+  border-color: rgba(245, 158, 11, 0.10) !important;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.40) !important;
+  border-radius: 16px;
 }
 
 html.dark .header-toolbar button {
@@ -360,10 +380,10 @@ html.dark [class^="border-[#dbe5f1]"], html.dark [class*=" border-[#dbe5f1]"] {
   border-color: rgba(245, 158, 11, 0.08) !important;
 }
 
-/* ---------- GREEN CTA BUTTONS / TOGGLES / CHECKBOXES → GOLDEN ----------
+/* ---------- GREEN + BLUE CTA BUTTONS → NAVBAR GOLDEN ----------
    Matches the same golden gradient used for the active sidebar item and
-   Logout pill, so every green "primary action" button in the app carries
-   the one accent color in dark mode instead of clashing with green. */
+   Logout pill. In dark mode every primary green/blue action button (and
+   chip) uses that one accent instead of clashing with green/blue. */
 html.dark [class^="bg-[#0d9f4a]"], html.dark [class*=" bg-[#0d9f4a]"],
 html.dark [class^="bg-[#078c3e]"], html.dark [class*=" bg-[#078c3e]"],
 html.dark [class^="bg-[#067832]"], html.dark [class*=" bg-[#067832]"],
@@ -373,7 +393,27 @@ html.dark [class^="bg-[#10a64e]"], html.dark [class*=" bg-[#10a64e]"],
 html.dark [class^="bg-[#16a34a]"], html.dark [class*=" bg-[#16a34a]"],
 html.dark [class^="bg-[#15803d]"], html.dark [class*=" bg-[#15803d]"],
 html.dark [class^="bg-[#11a650]"], html.dark [class*=" bg-[#11a650]"],
-html.dark [class^="bg-[#0e9748]"], html.dark [class*=" bg-[#0e9748]"] {
+html.dark [class^="bg-[#0e9748]"], html.dark [class*=" bg-[#0e9748]"],
+html.dark [class^="bg-[#14b84c]"], html.dark [class*=" bg-[#14b84c]"],
+html.dark [class^="bg-[#0b8f43]"], html.dark [class*=" bg-[#0b8f43]"],
+html.dark [class^="bg-[#18a34a]"], html.dark [class*=" bg-[#18a34a]"],
+html.dark [class^="bg-[#0b65e5]"], html.dark [class*=" bg-[#0b65e5]"],
+html.dark [class^="bg-[#0954c2]"], html.dark [class*=" bg-[#0954c2]"],
+html.dark [class^="bg-[#084fc0]"], html.dark [class*=" bg-[#084fc0]"],
+html.dark [class^="bg-[#1578ff]"], html.dark [class*=" bg-[#1578ff]"],
+html.dark [class^="bg-[#2f80ff]"], html.dark [class*=" bg-[#2f80ff]"],
+html.dark [class^="bg-[#3480ff]"], html.dark [class*=" bg-[#3480ff]"],
+html.dark [class^="bg-[#2563eb]"], html.dark [class*=" bg-[#2563eb]"],
+html.dark [class^="bg-[#1d4ed8]"], html.dark [class*=" bg-[#1d4ed8]"],
+html.dark [class^="bg-[#1c7ff0]"], html.dark [class*=" bg-[#1c7ff0]"],
+html.dark [class^="bg-[#3538cd]"], html.dark [class*=" bg-[#3538cd]"],
+html.dark [class^="bg-[#3170e0]"], html.dark [class*=" bg-[#3170e0]"],
+html.dark [class^="bg-blue-600"], html.dark [class*=" bg-blue-600"],
+html.dark [class^="bg-blue-500"], html.dark [class*=" bg-blue-500"],
+html.dark [class^="bg-emerald-600"], html.dark [class*=" bg-emerald-600"],
+html.dark [class^="bg-emerald-500"], html.dark [class*=" bg-emerald-500"],
+html.dark [class^="bg-green-600"], html.dark [class*=" bg-green-600"],
+html.dark [class^="bg-green-500"], html.dark [class*=" bg-green-500"] {
   background: linear-gradient(90deg, #ffd873 0%, #f5a623 50%, #d9820f 100%) !important;
   color: #211404 !important;
   border-color: transparent !important;
@@ -389,8 +429,58 @@ html.dark [class^="bg-[#10a64e]"]:hover, html.dark [class*=" bg-[#10a64e]"]:hove
 html.dark [class^="bg-[#16a34a]"]:hover, html.dark [class*=" bg-[#16a34a]"]:hover,
 html.dark [class^="bg-[#15803d]"]:hover, html.dark [class*=" bg-[#15803d]"]:hover,
 html.dark [class^="bg-[#11a650]"]:hover, html.dark [class*=" bg-[#11a650]"]:hover,
-html.dark [class^="bg-[#0e9748]"]:hover, html.dark [class*=" bg-[#0e9748]"]:hover {
+html.dark [class^="bg-[#0e9748]"]:hover, html.dark [class*=" bg-[#0e9748]"]:hover,
+html.dark [class^="bg-[#14b84c]"]:hover, html.dark [class*=" bg-[#14b84c]"]:hover,
+html.dark [class^="bg-[#0b8f43]"]:hover, html.dark [class*=" bg-[#0b8f43]"]:hover,
+html.dark [class^="bg-[#18a34a]"]:hover, html.dark [class*=" bg-[#18a34a]"]:hover,
+html.dark [class^="bg-[#0b65e5]"]:hover, html.dark [class*=" bg-[#0b65e5]"]:hover,
+html.dark [class^="bg-[#0954c2]"]:hover, html.dark [class*=" bg-[#0954c2]"]:hover,
+html.dark [class^="bg-[#084fc0]"]:hover, html.dark [class*=" bg-[#084fc0]"]:hover,
+html.dark [class^="bg-[#1578ff]"]:hover, html.dark [class*=" bg-[#1578ff]"]:hover,
+html.dark [class^="bg-[#2f80ff]"]:hover, html.dark [class*=" bg-[#2f80ff]"]:hover,
+html.dark [class^="bg-[#3480ff]"]:hover, html.dark [class*=" bg-[#3480ff]"]:hover,
+html.dark [class^="bg-[#2563eb]"]:hover, html.dark [class*=" bg-[#2563eb]"]:hover,
+html.dark [class^="bg-[#1d4ed8]"]:hover, html.dark [class*=" bg-[#1d4ed8]"]:hover,
+html.dark [class^="bg-[#1c7ff0]"]:hover, html.dark [class*=" bg-[#1c7ff0]"]:hover,
+html.dark [class^="bg-[#3538cd]"]:hover, html.dark [class*=" bg-[#3538cd]"]:hover,
+html.dark [class^="bg-[#3170e0]"]:hover, html.dark [class*=" bg-[#3170e0]"]:hover,
+html.dark [class^="bg-blue-600"]:hover, html.dark [class*=" bg-blue-600"]:hover,
+html.dark [class^="bg-blue-500"]:hover, html.dark [class*=" bg-blue-500"]:hover,
+html.dark [class^="bg-emerald-600"]:hover, html.dark [class*=" bg-emerald-600"]:hover,
+html.dark [class^="bg-emerald-500"]:hover, html.dark [class*=" bg-emerald-500"]:hover,
+html.dark [class^="bg-green-600"]:hover, html.dark [class*=" bg-green-600"]:hover,
+html.dark [class^="bg-green-500"]:hover, html.dark [class*=" bg-green-500"]:hover {
   filter: brightness(1.06);
+}
+
+/* Tiny green/blue dots & underlines (active tabs, subnav) → golden */
+html.dark [class^="bg-[#14b84c]"].size-1\.5,
+html.dark [class*=" bg-[#14b84c]"].size-1\.5,
+html.dark [class^="bg-[#14b84c]"].size-2,
+html.dark [class*=" bg-[#14b84c]"].size-2,
+html.dark [class^="bg-[#0b65e5]"].size-1\.5,
+html.dark [class*=" bg-[#0b65e5]"].size-1\.5,
+html.dark [class^="bg-[#0b65e5]"].size-2,
+html.dark [class*=" bg-[#0b65e5]"].size-2 {
+  background: #f59e0b !important;
+  box-shadow: none !important;
+  color: transparent !important;
+}
+
+/* Active green/blue tab borders → golden */
+html.dark [class^="border-[#0d9f4a]"], html.dark [class*=" border-[#0d9f4a]"],
+html.dark [class^="border-[#14b84c]"], html.dark [class*=" border-[#14b84c]"],
+html.dark [class^="border-[#0b8f43]"], html.dark [class*=" border-[#0b8f43]"],
+html.dark [class^="border-[#cfe8d6]"], html.dark [class*=" border-[#cfe8d6]"],
+html.dark [class^="border-[#0b65e5]"], html.dark [class*=" border-[#0b65e5]"],
+html.dark [class^="border-[#2563eb]"], html.dark [class*=" border-[#2563eb]"] {
+  border-color: rgba(245, 158, 11, 0.55) !important;
+}
+
+html.dark [class^="ring-[#0b65e5]"], html.dark [class*=" ring-[#0b65e5]"],
+html.dark [class^="ring-[#e3f8eb]"], html.dark [class*=" ring-[#e3f8eb]"],
+html.dark [class^="ring-[#cfe8d6]"], html.dark [class*=" ring-[#cfe8d6]"] {
+  --tw-ring-color: rgba(245, 158, 11, 0.35) !important;
 }
 
 /* ---------- RETINT LIGHT TEXT → DARK ---------- */
@@ -408,15 +498,68 @@ html.dark [class^="text-[#7a8aa4]"], html.dark [class*=" text-[#7a8aa4]"] {
   color: #b8bcc6 !important;
 }
 
-/* Accent text colors → golden/amber tones */
+/* Accent text colors → navbar golden/amber (blue + green accents) */
 html.dark [class^="text-[#0b65e5]"], html.dark [class*=" text-[#0b65e5]"],
+html.dark [class^="text-[#0954c2]"], html.dark [class*=" text-[#0954c2]"],
+html.dark [class^="text-[#084fc0]"], html.dark [class*=" text-[#084fc0]"],
+html.dark [class^="text-[#1578ff]"], html.dark [class*=" text-[#1578ff]"],
+html.dark [class^="text-[#2f80ff]"], html.dark [class*=" text-[#2f80ff]"],
+html.dark [class^="text-[#3480ff]"], html.dark [class*=" text-[#3480ff]"],
+html.dark [class^="text-[#2563eb]"], html.dark [class*=" text-[#2563eb]"],
+html.dark [class^="text-[#1d4ed8]"], html.dark [class*=" text-[#1d4ed8]"],
+html.dark [class^="text-[#1c7ff0]"], html.dark [class*=" text-[#1c7ff0]"],
+html.dark [class^="text-[#3538cd]"], html.dark [class*=" text-[#3538cd]"],
+html.dark [class^="text-[#3170e0]"], html.dark [class*=" text-[#3170e0]"],
 html.dark [class^="text-[#0d9f4a]"], html.dark [class*=" text-[#0d9f4a]"],
-html.dark [class^="text-[#ea5a4c]"], html.dark [class*=" text-[#ea5a4c]"],
+html.dark [class^="text-[#078c3e]"], html.dark [class*=" text-[#078c3e]"],
+html.dark [class^="text-[#067832]"], html.dark [class*=" text-[#067832]"],
+html.dark [class^="text-[#14b84c]"], html.dark [class*=" text-[#14b84c]"],
+html.dark [class^="text-[#0b8f43]"], html.dark [class*=" text-[#0b8f43]"],
+html.dark [class^="text-[#18a34a]"], html.dark [class*=" text-[#18a34a]"],
+html.dark [class^="text-[#16a34a]"], html.dark [class*=" text-[#16a34a]"],
+html.dark [class^="text-[#15803d]"], html.dark [class*=" text-[#15803d]"],
+html.dark [class^="text-[#12a54f]"], html.dark [class*=" text-[#12a54f]"],
+html.dark [class^="text-[#0e9145]"], html.dark [class*=" text-[#0e9145]"],
+html.dark [class^="text-[#10a64e]"], html.dark [class*=" text-[#10a64e]"],
+html.dark [class^="text-[#11a650]"], html.dark [class*=" text-[#11a650]"],
+html.dark [class^="text-[#0e9748]"], html.dark [class*=" text-[#0e9748]"],
+html.dark [class^="text-[#0e582a]"], html.dark [class*=" text-[#0e582a]"],
 html.dark [class^="text-[#0d3b21]"], html.dark [class*=" text-[#0d3b21]"],
 html.dark [class^="text-[#087532]"], html.dark [class*=" text-[#087532]"],
 html.dark [class^="text-[#1e3261]"], html.dark [class*=" text-[#1e3261]"],
-html.dark [class^="text-[#234069]"], html.dark [class*=" text-[#234069]"] {
-  color: #f59e0b !important;
+html.dark [class^="text-[#234069]"], html.dark [class*=" text-[#234069]"],
+html.dark [class^="text-emerald-400"], html.dark [class*=" text-emerald-400"],
+html.dark [class^="text-emerald-500"], html.dark [class*=" text-emerald-500"],
+html.dark [class^="text-green-400"], html.dark [class*=" text-green-400"],
+html.dark [class^="text-green-500"], html.dark [class*=" text-green-500"] {
+  color: #fbbf24 !important;
+}
+
+/* Theme toggle active pill keeps cool blue (not gold CTA wash) */
+html.dark .theme-toggle-pill {
+  background: #0ea5e9 !important;
+  color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 10px rgba(14, 165, 233, 0.35) !important;
+}
+
+/* Keep destructive/error red as red (do not gold-wash alerts) */
+html.dark [class^="text-[#ea5a4c]"], html.dark [class*=" text-[#ea5a4c]"],
+html.dark [class^="text-[#ef4444]"], html.dark [class*=" text-[#ef4444]"],
+html.dark [class^="text-[#e03434]"], html.dark [class*=" text-[#e03434]"],
+html.dark [class^="text-[#f04438]"], html.dark [class*=" text-[#f04438]"],
+html.dark [class^="text-[#e2594c]"], html.dark [class*=" text-[#e2594c]"] {
+  color: #f87171 !important;
+}
+
+/* Soft green/blue active-tab fills → warm golden tint */
+html.dark [class^="bg-[#f1fff5]"], html.dark [class*=" bg-[#f1fff5]"],
+html.dark [class^="bg-[#eef6ff]"], html.dark [class*=" bg-[#eef6ff]"],
+html.dark [class^="bg-[#eaf2ff]"], html.dark [class*=" bg-[#eaf2ff]"],
+html.dark [class^="bg-[#e3efff]"], html.dark [class*=" bg-[#e3efff]"],
+html.dark [class^="bg-[#e8f2ff]"], html.dark [class*=" bg-[#e8f2ff]"],
+html.dark [class^="bg-[#f6fbff]"], html.dark [class*=" bg-[#f6fbff]"] {
+  background-color: rgba(245, 158, 11, 0.10) !important;
 }
 
 /* Additional muted secondary/caption text tones seen across module pages
@@ -937,6 +1080,15 @@ a {
 
 .modal-overlay {
   animation: modal-overlay-fade-in 160ms ease-out;
+  /* Never blur the page behind modals / dialogs */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Project-wide: full-screen overlays must stay sharp (no backdrop blur) */
+.fixed.inset-0 {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .modal-pop-in {
@@ -1095,8 +1247,23 @@ html.dark .tele-sidebar-root {
 }
 
 html.dark .tele-sidebar-brand {
-  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
+  border-bottom-color: rgba(56, 189, 248, 0.16) !important;
   background: rgba(10, 10, 16, 0.98) !important;
+}
+
+html.dark .tele-sidebar-brand .sidebar-brand-lockup {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+html.dark .tele-sidebar-brand .sidebar-brand-lockup img {
+  filter: none;
+}
+
+html.dark .tele-sidebar-brand .sidebar-brand-lockup p {
+  color: #7dd3fc !important;
 }
 
 /* Menu container — override the blue gradient with near-black */
@@ -1115,8 +1282,11 @@ html.dark .tele-sidebar-root nav button {
 html.dark .tele-sidebar-root nav button[aria-current="page"] {
   background: linear-gradient(90deg, #a5e3ff 0%, #38bdf8 50%, #0284c7 100%) !important;
   color: #04121f !important;
-  border-radius: 9999px !important;
-  box-shadow: 0 6px 18px rgba(56, 189, 248, 0.35), 0 0 24px rgba(56, 189, 248, 0.18);
+  border-radius: 12px !important;
+  box-shadow:
+    0 8px 22px rgba(56, 189, 248, 0.42),
+    0 0 28px rgba(56, 189, 248, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 html.dark .tele-sidebar-root nav button[aria-current="page"]:hover {
   filter: brightness(1.05);
@@ -1192,9 +1362,43 @@ html.dark .tele-portal [class^="text-[#172648]"], html.dark .tele-portal [class*
   color: #e8ecf4 !important;
 }
 
-/* Blue accent text stays blue in dark (not golden) */
-html.dark .tele-portal [class^="text-[#1d4ed8]"], html.dark .tele-portal [class*=" text-[#1d4ed8]"] {
+/* Blue accent text stays cool sky in Tele (not CRM gold) */
+html.dark .tele-portal [class^="text-[#1d4ed8]"], html.dark .tele-portal [class*=" text-[#1d4ed8]"],
+html.dark .tele-portal [class^="text-[#0b65e5]"], html.dark .tele-portal [class*=" text-[#0b65e5]"],
+html.dark .tele-portal [class^="text-[#2563eb]"], html.dark .tele-portal [class*=" text-[#2563eb]"] {
   color: #7dd3fc !important;
+}
+/* Green accent text stays emerald in Tele */
+html.dark .tele-portal [class^="text-[#0d9f4a]"], html.dark .tele-portal [class*=" text-[#0d9f4a]"],
+html.dark .tele-portal [class^="text-[#14b84c]"], html.dark .tele-portal [class*=" text-[#14b84c]"],
+html.dark .tele-portal [class^="text-[#0b8f43]"], html.dark .tele-portal [class*=" text-[#0b8f43]"],
+html.dark .tele-portal [class^="text-[#16a34a]"], html.dark .tele-portal [class*=" text-[#16a34a]"] {
+  color: #34d399 !important;
+}
+
+/* Tele primary blue/green buttons keep sky/emerald (CRM gold remap must not win) */
+html.dark .tele-portal [class^="bg-[#0b65e5]"], html.dark .tele-portal [class*=" bg-[#0b65e5]"],
+html.dark .tele-portal [class^="bg-[#0954c2]"], html.dark .tele-portal [class*=" bg-[#0954c2]"],
+html.dark .tele-portal [class^="bg-[#084fc0]"], html.dark .tele-portal [class*=" bg-[#084fc0]"],
+html.dark .tele-portal [class^="bg-[#2563eb]"], html.dark .tele-portal [class*=" bg-[#2563eb]"],
+html.dark .tele-portal [class^="bg-[#1d4ed8]"], html.dark .tele-portal [class*=" bg-[#1d4ed8]"],
+html.dark .tele-portal [class^="bg-[#1c7ff0]"], html.dark .tele-portal [class*=" bg-[#1c7ff0]"],
+html.dark .tele-portal [class^="bg-blue-600"], html.dark .tele-portal [class*=" bg-blue-600"],
+html.dark .tele-portal [class^="bg-blue-500"], html.dark .tele-portal [class*=" bg-blue-500"] {
+  background: linear-gradient(90deg, #38bdf8 0%, #0ea5e9 55%, #0284c7 100%) !important;
+  color: #041018 !important;
+  border-color: transparent !important;
+  box-shadow: 0 10px 22px rgba(14, 165, 233, 0.28) !important;
+}
+html.dark .tele-portal [class^="bg-[#0d9f4a]"], html.dark .tele-portal [class*=" bg-[#0d9f4a]"],
+html.dark .tele-portal [class^="bg-[#14b84c]"], html.dark .tele-portal [class*=" bg-[#14b84c]"],
+html.dark .tele-portal [class^="bg-[#16a34a]"], html.dark .tele-portal [class*=" bg-[#16a34a]"],
+html.dark .tele-portal [class^="bg-emerald-600"], html.dark .tele-portal [class*=" bg-emerald-600"],
+html.dark .tele-portal [class^="bg-green-600"], html.dark .tele-portal [class*=" bg-green-600"] {
+  background: linear-gradient(90deg, #34d399 0%, #10b981 55%, #059669 100%) !important;
+  color: #04140f !important;
+  border-color: transparent !important;
+  box-shadow: 0 10px 22px rgba(16, 185, 129, 0.28) !important;
 }
 
 /* Light-blue chips / hover tints */
@@ -1222,4 +1426,83 @@ html.dark .tele-portal [class*="hover:bg-[#e7efff]"]:hover {
 }
 html.dark .tele-portal [class*="hover:bg-[#feecec]"]:hover {
   background-color: rgba(220, 38, 38, 0.14) !important;
+}
+
+/* ============================================================
+   MOBILE APP SHELL — Android / PWA standalone feel
+   ============================================================ */
+
+html,
+body,
+#root {
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
+body {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.app-mobile-shell {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+@media (max-width: 767px) {
+  .app-mobile-shell {
+    background: #eef3f7;
+  }
+
+  html.dark .app-mobile-shell {
+    background: #07070d;
+  }
+
+  .app-mobile-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    border-radius: 0 !important;
+    box-shadow: 0 8px 20px rgba(15, 39, 92, 0.08);
+  }
+
+  html.dark .app-mobile-topbar {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  }
+
+  .main-scroll-area section,
+  .main-scroll-area article {
+    max-width: 100%;
+  }
+
+  .main-scroll-area .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Installed PWA / Android “Add to Home Screen” fullscreen */
+@media (display-mode: standalone), (display-mode: minimal-ui) {
+  html,
+  body {
+    overscroll-behavior: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"] {
+    user-select: text;
+  }
+
+  .app-mobile-shell {
+    min-height: 100dvh;
+  }
+}
+
+@supports (padding: max(0px)) {
+  .app-mobile-bottom-nav {
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
 }

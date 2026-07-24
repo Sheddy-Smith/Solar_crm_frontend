@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowRight,
   BarChart3,
   Bell,
@@ -13,7 +14,6 @@ import {
   EyeOff,
   Headset,
   Home,
-  KeyRound,
   LockKeyhole,
   LogIn,
   LogOut,
@@ -27,7 +27,6 @@ import {
   PhoneCall,
   Plus,
   Search,
-  Settings,
   ShieldCheck,
   StickyNote,
   Sun,
@@ -37,26 +36,69 @@ import {
   Users,
   X,
   XCircle,
+  Zap,
 } from 'lucide-react';
 import { cx } from './lib/utils.js';
 import { authApi, leadApi, followUpApi } from './api.js';
+import { PwaInstallBanner, PwaInstallIconButton } from './components/mobile/PwaInstallControls.jsx';
 
 export const TELE_ROLE_NAME = 'Tele Sales Executive';
 
+/** Accept exact name plus common plural / typo variants from admin UI. */
+export function isTeleExecutiveRole(roleName) {
+  const n = String(roleName || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return (
+    n === 'tele sales executive' ||
+    n === 'tele sales executives' ||
+    n === 'tele sales exccutives' ||
+    n === 'telecaller'
+  );
+}
+
 // ─── Shared bits ──────────────────────────────────────────────────────────────
 
-function TeleBrandMark() {
+const BRAND_LOGO_SRC = '/brand/malwa-logo-wordmark-light.png';
+const BRAND_LOGO_DARK_SRC = '/brand/malwa-logo-wordmark-dark.png';
+const BRAND_MARK_SRC = '/brand/malwa-logo-mark-light.png';
+const BRAND_MARK_DARK_SRC = '/brand/malwa-logo-mark-dark.png';
+
+function TeleBrandLockup() {
   return (
-    <div className="grid size-[46px] shrink-0 place-items-center">
-      <svg viewBox="0 0 44 44" className="size-9" aria-hidden="true">
-        <circle cx="16" cy="15" r="8.5" fill="#ffc928" />
-        <path
-          d="M8.5 24.5c6.7 0 11.5 3.7 12.8 10.1-6.3 1.6-10.6 1.1-13.4-1.3-2.1-1.8-3.1-4.7-3.1-8.8h3.7z"
-          fill="#16c957"
-        />
-        <path d="M31.8 16.8c-2.6 10.1-8.9 16.9-18.6 20.4 2.8-8.7 9-15.5 18.6-20.4z" fill="#0eb84d" />
-        <path d="M11.5 11.2l-3-4.4M20.6 8.1V3.6M29.4 11.1l2.8-4.2M6.8 18.6l-4.6-1" stroke="#ffc928" strokeLinecap="round" strokeWidth="2.4" />
-      </svg>
+    <div className="sidebar-brand-lockup relative -mt-0.5 flex w-full min-w-0 flex-col items-center justify-start">
+      <img
+        src={BRAND_LOGO_SRC}
+        alt="Malwa Solar Energy"
+        className="h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain dark:hidden"
+        draggable={false}
+      />
+      <img
+        src={BRAND_LOGO_DARK_SRC}
+        alt="Malwa Solar Energy"
+        className="hidden h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain dark:block"
+        draggable={false}
+      />
+      <p className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.18em] text-[#1d4ed8]">Tele Executive</p>
+    </div>
+  );
+}
+
+function TeleBrandMark({ size = 'md' }) {
+  const boxClass = size === 'lg' ? 'size-[52px]' : size === 'sm' ? 'size-12' : 'size-[46px]';
+  const imgClass = size === 'lg' ? 'size-12' : size === 'sm' ? 'size-11' : 'size-10';
+  return (
+    <div className={cx('sidebar-brand-mark relative grid shrink-0 place-items-center overflow-visible bg-transparent', boxClass)} aria-hidden="true">
+      <img
+        src={BRAND_MARK_SRC}
+        alt=""
+        className={cx(imgClass, 'select-none object-contain dark:hidden')}
+        draggable={false}
+      />
+      <img
+        src={BRAND_MARK_DARK_SRC}
+        alt=""
+        className={cx(imgClass, 'hidden select-none object-contain dark:block')}
+        draggable={false}
+      />
     </div>
   );
 }
@@ -220,6 +262,240 @@ function followUpAgeLabel(value) {
   return years === 1 ? '1 year ago' : `${years} years ago`;
 }
 
+function startOfLocalDay(date = new Date()) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function toLocalIsoDate(date = new Date()) {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseLocalIsoDate(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+function formatLocalIsoLabel(iso) {
+  const date = parseLocalIsoDate(iso);
+  if (!date) return iso || '—';
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/** Split scheduled follow-ups into today's (high alert) vs overdue (extra high). */
+function splitFollowUpAlerts(scheduledRows) {
+  const todayStart = startOfLocalDay();
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const today = [];
+  const overdue = [];
+  for (const item of scheduledRows || []) {
+    const when = new Date(item.scheduled_at);
+    if (Number.isNaN(when.getTime())) continue;
+    if (when < todayStart) overdue.push(item);
+    else if (when < tomorrowStart) today.push(item);
+  }
+  today.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+  overdue.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+  return { today, overdue };
+}
+
+function TeleFollowUpAlertRow({ item, level, onCall, onView }) {
+  const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
+  const isExtra = level === 'extra';
+  return (
+    <div
+      className={cx(
+        'flex items-center gap-3 rounded-[12px] border px-3 py-2.5',
+        isExtra
+          ? 'border-[#fecaca] bg-[#fff5f5]'
+          : 'border-[#fde68a] bg-[#fffbeb]',
+      )}
+    >
+      <span
+        className={cx(
+          'grid size-10 shrink-0 place-items-center rounded-full',
+          isExtra ? 'bg-[#fee2e2] text-[#dc2626]' : 'bg-[#fef3c7] text-[#d97706]',
+        )}
+      >
+        <Icon className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{item.lead_customer_name || 'Customer'}</p>
+          <span
+            className={cx(
+              'inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide',
+              isExtra ? 'bg-[#dc2626] text-white' : 'bg-[#f59e0b] text-white',
+            )}
+          >
+            {isExtra ? 'Extra High' : 'High Alert'}
+          </span>
+        </div>
+        <p className="mt-0.5 text-[11px] font-semibold text-[#7585a2]">
+          {isExtra ? formatDateTime(item.scheduled_at) : formatTime(item.scheduled_at)}
+          {' · '}
+          {item.follow_up_type || 'Call'}
+          {isExtra ? ` · Pending ${followUpAgeLabel(item.scheduled_at)}` : ''}
+        </p>
+        {item.lead_mobile_number ? (
+          <p className="mt-0.5 text-[11px] font-bold text-[#53647f]">{item.lead_mobile_number}</p>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
+        {onView ? (
+          <button
+            type="button"
+            onClick={() => onView(item)}
+            className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#e2e9f3] bg-white px-2.5 text-[11px] font-extrabold text-[#1d4ed8]"
+          >
+            View
+          </button>
+        ) : null}
+        {onCall ? (
+          <button
+            type="button"
+            onClick={() => onCall(item)}
+            className={cx(
+              'inline-flex h-8 items-center justify-center gap-1 rounded-[8px] px-2.5 text-[11px] font-extrabold text-white',
+              isExtra ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : 'bg-[#f59e0b] hover:bg-[#d97706]',
+            )}
+          >
+            <Phone className="size-3.5" />
+            Call
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function TeleFollowUpAlertsPanel({
+  todayFollowUps,
+  overdueFollowUps,
+  loaded = true,
+  compact = false,
+  onOpenToday,
+  onOpenOverdue,
+  onCall,
+  onView,
+}) {
+  const todayCount = todayFollowUps?.length || 0;
+  const overdueCount = overdueFollowUps?.length || 0;
+  const todayPreview = (todayFollowUps || []).slice(0, compact ? 4 : 8);
+  const overduePreview = (overdueFollowUps || []).slice(0, compact ? 4 : 8);
+
+  return (
+    <div className={cx('grid gap-4', compact ? '' : 'xl:grid-cols-2')}>
+      {/* High Alert — today's follow-ups */}
+      <section
+        className={cx(
+          'overflow-hidden rounded-[16px] border-2 border-[#f59e0b]/55 bg-white shadow-[0_12px_28px_rgba(245,158,11,0.12)]',
+          todayCount > 0 && 'ring-2 ring-[#fde68a]/80',
+        )}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-[#fde68a] bg-[linear-gradient(90deg,#fff7ed_0%,#fffbeb_100%)] px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid size-10 place-items-center rounded-full bg-[#f59e0b] text-white shadow-[0_6px_14px_rgba(245,158,11,0.35)]">
+              <Zap className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[14px] font-extrabold text-[#92400e]">High Alert · Today's Follow-ups</p>
+              <p className="text-[11px] font-semibold text-[#b45309]">Follow-ups due today</p>
+            </div>
+          </div>
+          <span className="inline-flex min-w-[36px] items-center justify-center rounded-full bg-[#f59e0b] px-2.5 py-1 text-[14px] font-extrabold text-white">
+            {loaded ? todayCount : '—'}
+          </span>
+        </div>
+        <div className="space-y-2 p-3.5">
+          {!loaded && <p className="py-6 text-center text-[12px] font-bold text-[#7585a2]">Loading...</p>}
+          {loaded && todayCount === 0 && (
+            <p className="rounded-[10px] bg-[#fffbeb] px-3 py-5 text-center text-[12px] font-bold text-[#92400e]/80">
+              No follow-ups due today. Good work!
+            </p>
+          )}
+          {todayPreview.map((item) => (
+            <TeleFollowUpAlertRow
+              key={item.id}
+              item={item}
+              level="high"
+              onCall={onCall}
+              onView={onView}
+            />
+          ))}
+          {loaded && todayCount > todayPreview.length && onOpenToday ? (
+            <button
+              type="button"
+              onClick={onOpenToday}
+              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#fde68a] bg-[#fffbeb] py-2.5 text-[12px] font-extrabold text-[#b45309] transition hover:bg-[#fef3c7]"
+            >
+              View all {todayCount} follow-ups due today
+              <ArrowRight className="size-3.5" />
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      {/* Extra High Alert — overdue / missed schedule */}
+      <section
+        className={cx(
+          'overflow-hidden rounded-[16px] border-2 border-[#ef4444]/50 bg-white shadow-[0_12px_28px_rgba(220,38,38,0.12)]',
+          overdueCount > 0 && 'ring-2 ring-[#fecaca]/90',
+        )}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-[#fecaca] bg-[linear-gradient(90deg,#fef2f2_0%,#fff5f5_100%)] px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid size-10 place-items-center rounded-full bg-[#dc2626] text-white shadow-[0_6px_14px_rgba(220,38,38,0.35)]">
+              <AlertTriangle className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[14px] font-extrabold text-[#991b1b]">Extra High Alert · Pending</p>
+              <p className="text-[11px] font-semibold text-[#b91c1c]">Missed earlier — still pending</p>
+            </div>
+          </div>
+          <span className="inline-flex min-w-[36px] items-center justify-center rounded-full bg-[#dc2626] px-2.5 py-1 text-[14px] font-extrabold text-white">
+            {loaded ? overdueCount : '—'}
+          </span>
+        </div>
+        <div className="space-y-2 p-3.5">
+          {!loaded && <p className="py-6 text-center text-[12px] font-bold text-[#7585a2]">Loading...</p>}
+          {loaded && overdueCount === 0 && (
+            <p className="rounded-[10px] bg-[#fef2f2] px-3 py-5 text-center text-[12px] font-bold text-[#991b1b]/75">
+              No overdue pending follow-ups.
+            </p>
+          )}
+          {overduePreview.map((item) => (
+            <TeleFollowUpAlertRow
+              key={item.id}
+              item={item}
+              level="extra"
+              onCall={onCall}
+              onView={onView}
+            />
+          ))}
+          {loaded && overdueCount > overduePreview.length && onOpenOverdue ? (
+            <button
+              type="button"
+              onClick={onOpenOverdue}
+              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#fecaca] bg-[#fef2f2] py-2.5 text-[12px] font-extrabold text-[#b91c1c] transition hover:bg-[#fee2e2]"
+            >
+              View all {overdueCount} pending follow-ups
+              <ArrowRight className="size-3.5" />
+            </button>
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function filterFollowUpsByRange(rows, filterId) {
   const filter = FOLLOW_UP_HISTORY_FILTERS.find((item) => item.id === filterId);
   if (!filter?.days) return rows;
@@ -293,18 +569,18 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
   ];
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#eef3f7] px-3 py-4 text-[#172648] sm:px-6 sm:py-6">
-      <main className="mx-auto flex w-full max-w-[1080px] flex-1 flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.14)]">
-        <div className="flex items-center gap-3 px-5 pt-6 sm:px-9 sm:pt-8">
-          <TeleBrandMark />
+    <div className="flex min-h-[100dvh] flex-col bg-[#eef3f7] px-3 py-3 text-[#172648] sm:px-6 sm:py-6 md:min-h-screen">
+      <main className="mx-auto flex w-full max-w-[1080px] flex-1 flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.14)] md:rounded-[20px]">
+        <div className="flex items-center gap-3 px-4 pt-5 sm:px-9 sm:pt-8">
+          <TeleBrandMark size="lg" />
           <div>
             <p className="font-display text-[18px] font-extrabold leading-tight text-[#087532] sm:text-[22px]">Malwa Solar Energy</p>
             <p className="text-[11px] font-extrabold uppercase tracking-[0.24em] text-[#252b35] sm:text-[13px]">CRM System</p>
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-5 py-12 sm:px-10 sm:py-16">
-          <h1 className="text-center font-display text-[32px] font-extrabold leading-tight text-[#102446] sm:text-[44px]">
+        <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-10 sm:py-16">
+          <h1 className="text-center font-display text-[28px] font-extrabold leading-tight text-[#102446] sm:text-[44px]">
             Welcome to <span className="text-[#0d9f4a]">Solar CRM</span>
           </h1>
           <p className="mt-4 text-center text-[15px] font-semibold text-[#5c6676] sm:text-[18px]">
@@ -373,7 +649,7 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
       const isSuperAdmin = Boolean(data?.user?.is_super_admin);
       // Only Tele Sales Executives (plus Super Admin for administration)
       // may enter the Tele Executive portal.
-      if (roleName !== TELE_ROLE_NAME && !isSuperAdmin) {
+      if (!isTeleExecutiveRole(roleName) && !isSuperAdmin) {
         authApi.logout();
         setLoginError('This portal is only for Tele Sales Executives. Please use the CRM Operations portal.');
         return;
@@ -395,7 +671,7 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
           <div className="absolute -right-10 top-10 size-40 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
           <div className="absolute bottom-8 left-4 size-36 rounded-full bg-[#60a5fa]/25 blur-3xl" aria-hidden="true" />
           <div className="relative z-10 flex items-center gap-3">
-            <TeleBrandMark />
+            <TeleBrandMark size="lg" />
             <div>
               <p className="font-display text-[18px] font-extrabold leading-tight text-white">Malwa Solar Energy</p>
               <p className="text-[10px] font-extrabold uppercase tracking-[0.24em] text-white/75">CRM System</p>
@@ -524,13 +800,14 @@ const TELE_NAV_ITEMS = [
   { label: 'Follow-ups', icon: Phone },
   { label: 'Reminders', icon: Bell },
   { label: 'Reports', icon: BarChart3 },
-  { label: 'Settings', icon: Settings },
+  { label: 'Profile Details', icon: UserRound },
 ];
 
 const TELE_PAGE_SIZE = 10;
 
 export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme }) {
   const [activeNav, setActiveNav] = useState('Dashboard');
+  const [followUpsTab, setFollowUpsTab] = useState('today');
   const [me, setMe] = useState(null);
   const [leads, setLeads] = useState(null);
   const [followUps, setFollowUps] = useState(null);
@@ -578,31 +855,69 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       onLogout?.();
       return;
     }
-    if (action === 'My Profile') {
-      setActiveNav('Settings');
+    if (action === 'Profile Details') {
+      setActiveNav('Profile Details');
     }
   };
 
   const refreshData = () => { loadLeads(); loadFollowUps(); };
 
+  // `leadRows` / full `followUps` are every tele-sourced record (needed for the
+  // "All Lead Holders" filter on My Leads + Follow-ups). Dashboard, Reminders
+  // and Reports stay personal — leads this account added or was assigned.
+  const leadRows = leads ?? [];
+  const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+  const isSuperAdminUser = Boolean(me?.is_super_admin);
+  const isOwnLeadRow = (lead) => (
+    sameId(lead?.created_by, me?.id) || sameId(lead?.assigned_to, me?.id)
+  );
+  const ownLeadRows = leadRows.filter(isOwnLeadRow);
+  const ownLeadIds = useMemo(
+    () => new Set(ownLeadRows.map((lead) => String(lead.id))),
+    [ownLeadRows],
+  );
+  const scopedFollowUps = useMemo(() => {
+    const rows = followUps ?? [];
+    if (isSuperAdminUser) return rows;
+    return rows.filter((item) => (
+      ownLeadIds.has(String(item.lead)) || sameId(item.created_by, me?.id)
+    ));
+  }, [followUps, ownLeadIds, isSuperAdminUser, me?.id]);
+  const reportLeadRows = isSuperAdminUser ? leadRows : ownLeadRows;
+  const reportFollowUps = scopedFollowUps;
+  const wonCount = ownLeadRows.filter((lead) => lead.status === 'Won' || teleDisplayStatus(lead) === 'Won').length;
+  const lostCount = ownLeadRows.filter((lead) => lead.status === 'Lost' || teleDisplayStatus(lead) === 'Lost').length;
+
   const scheduledFollowUps = useMemo(
-    () => (followUps ?? []).filter((item) => item.status === 'Scheduled').sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)),
-    [followUps],
+    () => scopedFollowUps.filter((item) => item.status === 'Scheduled').sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)),
+    [scopedFollowUps],
   );
 
-  const todayKey = new Date().toDateString();
-  const todayFollowUps = scheduledFollowUps.filter((item) => new Date(item.scheduled_at).toDateString() === todayKey);
-  const overdueFollowUps = scheduledFollowUps.filter((item) => new Date(item.scheduled_at) < new Date() && new Date(item.scheduled_at).toDateString() !== todayKey);
-
-  // `leadRows` is every tele-sourced lead (needed for the "My Leads" holder
-  // filter, which lets a tele exec browse everyone's added leads). Dashboard
-  // stats and Reports stay personal — scoped to leads this account added.
-  const leadRows = leads ?? [];
-  const ownLeadRows = leadRows.filter((lead) => lead.created_by === me?.id);
-  const wonCount = ownLeadRows.filter((lead) => lead.status === 'Won').length;
-  const lostCount = ownLeadRows.filter((lead) => lead.status === 'Lost').length;
+  const { today: todayFollowUps, overdue: overdueFollowUps } = useMemo(
+    () => splitFollowUpAlerts(scheduledFollowUps),
+    [scheduledFollowUps],
+  );
 
   const openFollowUpForm = (lead = null) => setFollowUpModal({ lead });
+
+  const openFollowUpsTab = (tab) => {
+    setFollowUpsTab(tab);
+    setActiveNav('Follow-ups');
+  };
+
+  const handleAlertCall = (item) => {
+    openFollowUpForm({
+      id: item.lead,
+      customer_name: item.lead_customer_name,
+      mobile_number: item.lead_mobile_number,
+    });
+  };
+
+  const handleAlertView = (item) => {
+    const lead = leadRows.find((row) => row.id === item.lead)
+      || { id: item.lead, customer_name: item.lead_customer_name, mobile_number: item.lead_mobile_number };
+    setHistoryLead(lead);
+  };
 
   const handleDeleteLead = async () => {
     if (!deleteLead) return;
@@ -625,8 +940,9 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             allLeads={leadRows}
             leadsLoaded={leads !== null}
             todayFollowUps={todayFollowUps}
+            overdueFollowUps={overdueFollowUps}
             scheduledFollowUps={scheduledFollowUps}
-            overdueCount={overdueFollowUps.length}
+            followUpsLoaded={followUps !== null}
             wonCount={wonCount}
             lostCount={lostCount}
             currentUserId={me?.id}
@@ -636,6 +952,10 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             onDelete={setDeleteLead}
             onAddFollowUp={openFollowUpForm}
             onAddLead={() => setAddLeadOpen(true)}
+            onOpenToday={() => openFollowUpsTab('today')}
+            onOpenOverdue={() => openFollowUpsTab('overdue')}
+            onAlertCall={handleAlertCall}
+            onAlertView={handleAlertView}
           />
         );
       case 'My Leads':
@@ -658,36 +978,52 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             followUps={followUps ?? []}
             loaded={followUps !== null}
             leads={leadRows}
+            currentUserId={me?.id}
+            isSuperAdmin={isSuperAdminUser}
+            initialTab={followUpsTab}
             onAddFollowUp={openFollowUpForm}
             onViewLead={(leadId) => {
               const lead = leadRows.find((row) => row.id === leadId);
               if (lead) setHistoryLead(lead);
             }}
+            onAlertCall={handleAlertCall}
+            onAlertView={handleAlertView}
           />
         );
       case 'Reminders':
-        return <TeleRemindersPage scheduledFollowUps={scheduledFollowUps} loaded={followUps !== null} />;
+        return (
+          <TeleRemindersPage
+            scheduledFollowUps={scheduledFollowUps}
+            loaded={followUps !== null}
+            onAlertCall={handleAlertCall}
+            onAlertView={handleAlertView}
+            onAddFollowUp={openFollowUpForm}
+            onOpenFollowUps={() => openFollowUpsTab('today')}
+          />
+        );
       case 'Reports':
-        return <TeleReportsPage leads={ownLeadRows} followUps={followUps ?? []} />;
-      case 'Settings':
-        return <TeleSettingsPage me={me} />;
+        return (
+          <TeleReportsPage
+            leads={reportLeadRows}
+            followUps={reportFollowUps}
+            loaded={leads !== null && followUps !== null}
+          />
+        );
+      case 'Profile Details':
+        return <TeleProfileDetailsPage me={me} />;
       default:
         return null;
     }
   };
 
   return (
-    <div className="tele-portal flex h-dvh overflow-hidden bg-[#eef3f7] text-[#172648]">
+    <div className="tele-portal app-mobile-shell flex h-dvh overflow-hidden bg-[#eef3f7] text-[#172648]">
       {/* Same floating-card sidebar treatment as the CRM shell: white brand
           header on top, gradient menu area with the moving shine below —
           tele portal carries it in blue/white instead of green/blue. */}
       <aside className="tele-sidebar-root my-2 ml-2 hidden w-[232px] shrink-0 flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] lg:flex">
-        <div className="tele-sidebar-brand flex shrink-0 items-center gap-2.5 border-b border-[#e8eef6] bg-white px-4 py-4">
-          <TeleBrandMark />
-          <div>
-            <p className="font-display text-[15px] font-extrabold leading-tight text-[#087532]">Malwa Solar</p>
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#1d4ed8]">Tele Executive</p>
-          </div>
+        <div className="tele-sidebar-brand flex shrink-0 items-start justify-center border-b border-[#e8eef6] bg-white px-3 pt-3 pb-2.5">
+          <TeleBrandLockup />
         </div>
         <div className="tele-sidebar-grad relative min-h-0 flex-1 overflow-hidden rounded-t-[14px] bg-[linear-gradient(180deg,#123c8f_0%,#1d4ed8_52%,#3b82f6_100%)]">
           <div className="sidebar-shine tele-sidebar-shine" aria-hidden="true" />
@@ -728,33 +1064,35 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e2e9f3] bg-white px-4 py-3.5 sm:px-6">
+        <header className="app-mobile-topbar flex shrink-0 items-center justify-between gap-2 border-b border-[#e2e9f3] bg-white px-3 py-2.5 sm:px-6 sm:py-3.5">
           <div className="min-w-0">
-            <h1 className="truncate font-display text-[18px] font-extrabold text-[#102446] sm:text-[22px]">
-              {activeNav === 'Dashboard' ? 'Tele Executive Dashboard' : activeNav}
+            <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#7585a2] lg:hidden">Malwa Solar</p>
+            <h1 className="truncate font-display text-[17px] font-extrabold text-[#102446] sm:text-[22px]">
+              {activeNav === 'Dashboard' ? 'Tele Dashboard' : activeNav}
             </h1>
             <p className="hidden text-[12px] font-semibold text-[#7585a2] sm:block">Manage your leads, follow-ups and reminders.</p>
           </div>
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             <span className="hidden items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3 py-2 text-[12px] font-extrabold text-[#53647f] md:inline-flex">
               <CalendarDays className="size-4 text-[#1d4ed8]" />
               {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', weekday: 'long' })}
             </span>
-            {onToggleTheme && (
+            <PwaInstallIconButton notify={onNotify} />
+            {onToggleTheme ? (
               <button
                 type="button"
                 onClick={onToggleTheme}
-                className="grid size-10 place-items-center rounded-[10px] border border-[#dbe4f0] bg-white text-[#53647f] transition hover:bg-[#f3f7fd]"
+                className="grid size-10 place-items-center rounded-[10px] border border-[#dbe4f0] bg-white text-[#53647f] transition hover:bg-[#f3f7fd] dark:border-slate-600 dark:bg-slate-800"
                 aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
-            )}
+            ) : null}
             <div className="relative" data-tele-profile-menu="true">
               <button
                 type="button"
                 onClick={() => setProfileMenuOpen((open) => !open)}
-                className="flex items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#f5f9ff]"
+                className="flex items-center gap-2.5 rounded-[12px] px-1.5 py-1 text-left transition hover:bg-[#f5f9ff] sm:px-2 sm:py-1.5"
                 aria-label="Open profile menu"
                 aria-expanded={profileMenuOpen}
               >
@@ -767,7 +1105,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                 </div>
                 <ChevronDown
                   className={cx(
-                    'size-4 text-[#7a8aa4] transition',
+                    'hidden size-4 text-[#7a8aa4] transition sm:block',
                     profileMenuOpen && 'rotate-180 text-[#1d4ed8]',
                   )}
                 />
@@ -775,7 +1113,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
 
               {profileMenuOpen ? (
                 <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
-                  {['My Profile', 'Logout'].map((item) => (
+                  {['Profile Details', 'Logout'].map((item) => (
                     <button
                       key={item}
                       type="button"
@@ -794,23 +1132,44 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
           </div>
         </header>
 
-        <nav className="flex shrink-0 gap-2 overflow-x-auto border-b border-[#e2e9f3] bg-white px-4 py-2.5 lg:hidden">
-          {TELE_NAV_ITEMS.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => setActiveNav(item.label)}
-              className={cx(
-                'shrink-0 rounded-full px-4 py-2 text-[12px] font-extrabold transition',
-                activeNav === item.label ? 'bg-[#1d4ed8] text-white' : 'bg-[#f3f7fd] text-[#53647f]',
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
+        <div className="px-3 pt-2 lg:hidden">
+          <PwaInstallBanner notify={onNotify} />
+        </div>
 
-        <main className="scroll-soft flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-6">{pageContent()}</main>
+        <main className="scroll-soft flex-1 space-y-5 overflow-y-auto px-3 py-4 pb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-5">
+          {pageContent()}
+        </main>
+
+        <nav className="app-mobile-bottom-nav fixed inset-x-0 bottom-0 z-60 border-t border-[#e2e9f3] bg-white/98 shadow-[0_-10px_28px_rgba(21,43,83,0.12)] backdrop-blur-[10px] lg:hidden dark:border-slate-700 dark:bg-slate-950/96">
+          <div className="mx-auto grid max-w-lg grid-cols-6 gap-0.5 px-1 pt-1">
+            {TELE_NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const active = activeNav === item.label;
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => setActiveNav(item.label)}
+                  className={cx(
+                    'flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 pb-[max(10px,env(safe-area-inset-bottom))] transition active:scale-95',
+                    active ? 'text-[#1d4ed8]' : 'text-[#7b88a2]',
+                  )}
+                >
+                  <span className={cx(
+                    'grid size-8 place-items-center rounded-full',
+                    active ? 'bg-[#e7efff] text-[#1d4ed8]' : 'bg-transparent',
+                  )}
+                  >
+                    <Icon className="size-[18px]" strokeWidth={active ? 2.4 : 2} />
+                  </span>
+                  <span className="max-w-full truncate px-0.5 text-[9px] font-extrabold leading-none">
+                    {item.label === 'Profile Details' ? 'Profile' : item.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
       </div>
 
       {historyLead && (
@@ -850,7 +1209,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       )}
       {followUpModal && (
         <TeleFollowUpCreateModal
-          leads={leadRows}
+          leads={isSuperAdminUser ? leadRows : ownLeadRows}
           initialLead={followUpModal.lead}
           onClose={() => setFollowUpModal(null)}
           onSaved={() => { setFollowUpModal(null); refreshData(); }}
@@ -905,8 +1264,11 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
   const holderOptions = useMemo(() => {
     const map = new Map();
     leads.forEach((lead) => {
-      if (lead.created_by && !map.has(lead.created_by)) {
-        map.set(lead.created_by, lead.created_by_name || `User #${lead.created_by}`);
+      if (lead.created_by != null && !map.has(String(lead.created_by))) {
+        map.set(String(lead.created_by), lead.created_by_name || `User #${lead.created_by}`);
+      }
+      if (lead.assigned_to != null && !map.has(String(lead.assigned_to))) {
+        map.set(String(lead.assigned_to), lead.assigned_to_name || `User #${lead.assigned_to}`);
       }
     });
     return Array.from(map, ([id, name]) => ({ id, name }));
@@ -916,7 +1278,11 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
     const query = searchQuery.trim().toLowerCase();
     return leads.filter((lead) => {
       if (statusFilter !== 'All' && teleDisplayStatus(lead) !== statusFilter) return false;
-      if (holderFilter !== 'All' && String(lead.created_by) !== holderFilter) return false;
+      if (
+        holderFilter !== 'All'
+        && String(lead.created_by) !== holderFilter
+        && String(lead.assigned_to) !== holderFilter
+      ) return false;
       if (!query) return true;
       return [lead.customer_name, lead.mobile_number, lead.project_name]
         .some((field) => String(field || '').toLowerCase().includes(query));
@@ -1013,7 +1379,10 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
               <tr><td colSpan={9} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</td></tr>
             )}
             {pageLeads.map((lead, index) => {
-              const isOwnLead = isSuperAdmin || (currentUserId != null && lead.created_by === currentUserId);
+              const isOwnLead = isSuperAdmin || (
+                currentUserId != null
+                && (String(lead.created_by) === String(currentUserId) || String(lead.assigned_to) === String(currentUserId))
+              );
               return (
               <tr
                 key={lead.id}
@@ -1100,11 +1469,32 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function TeleDashboard({ leads, allLeads, leadsLoaded, todayFollowUps, scheduledFollowUps, overdueCount, wonCount, lostCount, currentUserId, isSuperAdmin, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
+function TeleDashboard({
+  leads,
+  allLeads,
+  leadsLoaded,
+  todayFollowUps,
+  overdueFollowUps,
+  scheduledFollowUps,
+  followUpsLoaded,
+  wonCount,
+  lostCount,
+  currentUserId,
+  isSuperAdmin,
+  onView,
+  onEdit,
+  onDelete,
+  onAddFollowUp,
+  onAddLead,
+  onOpenToday,
+  onOpenOverdue,
+  onAlertCall,
+  onAlertView,
+}) {
   const cards = [
     { title: 'Total Leads', value: leadsLoaded ? leads.length : undefined, note: 'All assigned leads', icon: Users, tone: 'bg-[#e7efff] text-[#1d4ed8]' },
-    { title: "Today's Follow-ups", value: leadsLoaded ? todayFollowUps.length : undefined, note: 'Scheduled for today', icon: CalendarDays, tone: 'bg-[#e8f8eb] text-[#0d9f4a]' },
-    { title: 'Pending Follow-ups', value: leadsLoaded ? scheduledFollowUps.length : undefined, note: 'Yet to be contacted', icon: Clock3, tone: 'bg-[#fff4e0] text-[#c07a06]' },
+    { title: 'High Alert · Today', value: followUpsLoaded ? todayFollowUps.length : undefined, note: 'Follow-ups due today', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]' },
+    { title: 'Extra High · Pending', value: followUpsLoaded ? overdueFollowUps.length : undefined, note: 'Missed earlier — still pending', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]' },
     { title: 'Won Leads', value: leadsLoaded ? wonCount : undefined, note: 'Converted leads', icon: Trophy, tone: 'bg-[#f0e9ff] text-[#7c3aed]' },
     { title: 'Lost Leads', value: leadsLoaded ? lostCount : undefined, note: 'Closed as lost', icon: XCircle, tone: 'bg-[#feecec] text-[#dc2626]' },
   ];
@@ -1114,11 +1504,18 @@ function TeleDashboard({ leads, allLeads, leadsLoaded, todayFollowUps, scheduled
   return (
     <>
       <TeleStatCards cards={cards} />
-      {overdueCount > 0 && (
-        <p className="rounded-[12px] border border-[#f6caca] bg-[#fef4f4] px-4 py-3 text-[13px] font-bold text-[#b42318]">
-          {overdueCount} follow-up{overdueCount === 1 ? '' : 's'} overdue — please contact these customers as soon as possible.
-        </p>
-      )}
+
+      <TeleFollowUpAlertsPanel
+        todayFollowUps={todayFollowUps}
+        overdueFollowUps={overdueFollowUps}
+        loaded={followUpsLoaded}
+        compact={false}
+        onOpenToday={onOpenToday}
+        onOpenOverdue={onOpenOverdue}
+        onCall={onAlertCall}
+        onView={onAlertView}
+      />
+
       <div className="grid gap-5 xl:grid-cols-[1fr_320px]">
         <TeleLeadsTable
           leads={allLeads}
@@ -1131,49 +1528,25 @@ function TeleDashboard({ leads, allLeads, leadsLoaded, todayFollowUps, scheduled
           onAddFollowUp={onAddFollowUp}
           onAddLead={onAddLead}
         />
-        <div className="space-y-5">
-          <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
-            <h2 className="font-display text-[15px] font-extrabold text-[#102446]">Today's Follow-ups</h2>
-            <div className="mt-3 space-y-2.5">
-              {todayFollowUps.length === 0 && (
-                <p className="rounded-[10px] bg-[#f8fbff] px-3 py-4 text-center text-[12px] font-bold text-[#7585a2]">No follow-ups scheduled for today.</p>
-              )}
-              {todayFollowUps.slice(0, 6).map((item) => {
-                const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
-                return (
-                  <div key={item.id} className="flex items-center gap-3 rounded-[10px] border border-[#eef2f8] px-3 py-2.5">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#e8f8eb] text-[#0d9f4a]">
-                      <Icon className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{item.lead_customer_name}</p>
-                      <p className="text-[11px] font-semibold text-[#7585a2]">{formatTime(item.scheduled_at)} · {item.follow_up_type}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-          <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
-            <h2 className="font-display text-[15px] font-extrabold text-[#102446]">Reminders</h2>
-            <div className="mt-3 space-y-2.5">
-              {upcomingReminders.length === 0 && (
-                <p className="rounded-[10px] bg-[#f8fbff] px-3 py-4 text-center text-[12px] font-bold text-[#7585a2]">No reminders set.</p>
-              )}
-              {upcomingReminders.map((item) => (
-                <div key={item.id} className="flex items-start gap-3 rounded-[10px] border border-[#eef2f8] px-3 py-2.5">
-                  <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[#fff4e0] text-[#c07a06]">
-                    <Bell className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{item.lead_customer_name}</p>
-                    <p className="text-[11px] font-semibold text-[#7585a2]">{formatDateTime(item.scheduled_at)} · {item.reminder}</p>
-                  </div>
+        <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
+          <h2 className="font-display text-[15px] font-extrabold text-[#102446]">Reminders</h2>
+          <div className="mt-3 space-y-2.5">
+            {upcomingReminders.length === 0 && (
+              <p className="rounded-[10px] bg-[#f8fbff] px-3 py-4 text-center text-[12px] font-bold text-[#7585a2]">No reminders set.</p>
+            )}
+            {upcomingReminders.map((item) => (
+              <div key={item.id} className="flex items-start gap-3 rounded-[10px] border border-[#eef2f8] px-3 py-2.5">
+                <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[#fff4e0] text-[#c07a06]">
+                  <Bell className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{item.lead_customer_name}</p>
+                  <p className="text-[11px] font-semibold text-[#7585a2]">{formatDateTime(item.scheduled_at)} · {item.reminder}</p>
                 </div>
-              ))}
-            </div>
-          </section>
-        </div>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </>
   );
@@ -1197,26 +1570,89 @@ function TeleLeadsPage({ leads, leadsLoaded, currentUserId, isSuperAdmin, onView
 
 // ─── Follow-ups page ──────────────────────────────────────────────────────────
 
-function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
-  const now = new Date();
-  const todayKey = now.toDateString();
-  const [tab, setTab] = useState('today');
+function TeleFollowUpsPage({
+  followUps,
+  loaded,
+  leads = [],
+  currentUserId,
+  isSuperAdmin = false,
+  initialTab = 'today',
+  onAddFollowUp,
+  onViewLead,
+  onAlertCall,
+  onAlertView,
+}) {
+  const [tab, setTab] = useState(initialTab || 'today');
   const [search, setSearch] = useState('');
+  const [holderFilter, setHolderFilter] = useState('All');
 
-  const completed = followUps.filter((item) => item.status === 'Completed');
-  const scheduled = followUps.filter((item) => item.status === 'Scheduled');
-  const overdue = scheduled.filter((item) => new Date(item.scheduled_at) < now && new Date(item.scheduled_at).toDateString() !== todayKey);
-  const today = scheduled.filter((item) => new Date(item.scheduled_at).toDateString() === todayKey);
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
+
+  const leadById = useMemo(() => {
+    const map = new Map();
+    for (const lead of leads) map.set(String(lead.id), lead);
+    return map;
+  }, [leads]);
+
+  const holderOptions = useMemo(() => {
+    const map = new Map();
+    leads.forEach((lead) => {
+      if (lead.created_by != null && !map.has(String(lead.created_by))) {
+        map.set(String(lead.created_by), lead.created_by_name || `User #${lead.created_by}`);
+      }
+      if (lead.assigned_to != null && !map.has(String(lead.assigned_to))) {
+        map.set(String(lead.assigned_to), lead.assigned_to_name || `User #${lead.assigned_to}`);
+      }
+    });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [leads]);
+
+  const matchesHolder = useCallback((item) => {
+    if (holderFilter === 'All') return true;
+    const lead = leadById.get(String(item.lead));
+    if (lead) {
+      return String(lead.created_by) === holderFilter || String(lead.assigned_to) === holderFilter;
+    }
+    return String(item.created_by) === holderFilter;
+  }, [holderFilter, leadById]);
+
+  const canOperateFollowUp = useCallback((item) => {
+    if (isSuperAdmin) return true;
+    if (currentUserId == null) return false;
+    const lead = leadById.get(String(item.lead));
+    if (lead) {
+      return String(lead.created_by) === String(currentUserId)
+        || String(lead.assigned_to) === String(currentUserId);
+    }
+    return String(item.created_by) === String(currentUserId);
+  }, [isSuperAdmin, currentUserId, leadById]);
+
+  const holderFollowUps = useMemo(
+    () => followUps.filter(matchesHolder),
+    [followUps, matchesHolder],
+  );
+
+  const completed = useMemo(
+    () => holderFollowUps.filter((item) => item.status === 'Completed'),
+    [holderFollowUps],
+  );
+  const scheduled = useMemo(
+    () => holderFollowUps.filter((item) => item.status === 'Scheduled'),
+    [holderFollowUps],
+  );
+  const { today, overdue } = useMemo(() => splitFollowUpAlerts(scheduled), [scheduled]);
 
   const cards = [
-    { id: 'today', title: "Today's Calls", value: loaded ? today.length : undefined, note: 'Due today', icon: CalendarDays, tone: 'bg-[#e7efff] text-[#1d4ed8]' },
-    { id: 'overdue', title: 'Overdue', value: loaded ? overdue.length : undefined, note: 'Missed schedule', icon: XCircle, tone: 'bg-[#feecec] text-[#dc2626]' },
-    { id: 'completed', title: 'Completed', value: loaded ? completed.length : undefined, note: 'Saved history', icon: CheckCircle2, tone: 'bg-[#e8f8eb] text-[#0d9f4a]' },
-    { id: 'all', title: 'All Follow-ups', value: loaded ? followUps.length : undefined, note: 'Full record', icon: Phone, tone: 'bg-[#fff4e0] text-[#c07a06]' },
+    { id: 'today', title: 'High Alert · Today', value: loaded ? today.length : undefined, note: 'Follow-ups due today', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]', activeRing: 'border-[#f59e0b] ring-4 ring-[#fde68a]' },
+    { id: 'overdue', title: 'Extra High · Pending', value: loaded ? overdue.length : undefined, note: 'Missed earlier — still pending', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]', activeRing: 'border-[#dc2626] ring-4 ring-[#fecaca]' },
+    { id: 'completed', title: 'Completed', value: loaded ? completed.length : undefined, note: 'Saved history', icon: CheckCircle2, tone: 'bg-[#e8f8eb] text-[#0d9f4a]', activeRing: 'border-[#0d9f4a] ring-4 ring-[#bbf7d0]' },
+    { id: 'all', title: 'All Follow-ups', value: loaded ? holderFollowUps.length : undefined, note: 'Full record', icon: Phone, tone: 'bg-[#e7efff] text-[#1d4ed8]', activeRing: 'border-[#1d4ed8] ring-4 ring-[#dbeafe]' },
   ];
 
   const filtered = useMemo(() => {
-    let rows = followUps;
+    let rows = holderFollowUps;
     if (tab === 'today') rows = today;
     else if (tab === 'overdue') rows = overdue;
     else if (tab === 'completed') rows = completed;
@@ -1230,11 +1666,48 @@ function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
         item.follow_up_type,
       ].some((value) => String(value || '').toLowerCase().includes(query)));
     }
-    return [...rows].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at));
-  }, [followUps, tab, search, today, overdue, completed]);
+    const sorted = [...rows].sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+    if (tab === 'completed' || tab === 'all') sorted.reverse();
+    return sorted;
+  }, [holderFollowUps, tab, search, today, overdue, completed]);
 
   return (
     <>
+      {(today.length > 0 || overdue.length > 0) && loaded ? (
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => setTab('today')}
+            className={cx(
+              'flex flex-1 items-center gap-3 rounded-[12px] border-2 px-4 py-3 text-left transition',
+              tab === 'today' ? 'border-[#f59e0b] bg-[#fffbeb]' : 'border-[#fde68a]/80 bg-white hover:bg-[#fffbeb]',
+            )}
+          >
+            <span className="grid size-9 place-items-center rounded-full bg-[#f59e0b] text-white"><Zap className="size-4" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-extrabold text-[#92400e]">High Alert · Today</p>
+              <p className="text-[11px] font-semibold text-[#b45309]">{today.length} follow-up{today.length === 1 ? '' : 's'} due today</p>
+            </div>
+            <span className="text-[20px] font-extrabold text-[#f59e0b]">{today.length}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('overdue')}
+            className={cx(
+              'flex flex-1 items-center gap-3 rounded-[12px] border-2 px-4 py-3 text-left transition',
+              tab === 'overdue' ? 'border-[#dc2626] bg-[#fef2f2]' : 'border-[#fecaca]/80 bg-white hover:bg-[#fef2f2]',
+            )}
+          >
+            <span className="grid size-9 place-items-center rounded-full bg-[#dc2626] text-white"><AlertTriangle className="size-4" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-extrabold text-[#991b1b]">Extra High · Pending</p>
+              <p className="text-[11px] font-semibold text-[#b91c1c]">{overdue.length} overdue pending</p>
+            </div>
+            <span className="text-[20px] font-extrabold text-[#dc2626]">{overdue.length}</span>
+          </button>
+        </div>
+      ) : null}
+
       <section className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => {
           const Icon = card.icon;
@@ -1246,7 +1719,7 @@ function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
               onClick={() => setTab(card.id)}
               className={cx(
                 'rounded-[14px] border bg-white p-4 text-left shadow-[0_10px_26px_rgba(23,43,77,0.05)] transition',
-                active ? 'border-[#1d4ed8] ring-4 ring-[#dbeafe]' : 'border-[#e2e9f3] hover:border-[#c7d7f0]',
+                active ? card.activeRing : 'border-[#e2e9f3] hover:border-[#c7d7f0]',
               )}
             >
               <div className="flex items-start justify-between gap-3">
@@ -1267,8 +1740,16 @@ function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
       <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="font-display text-[17px] font-extrabold text-[#102446]">Follow-up Diary</h2>
-            <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">Every call and WhatsApp note is saved here. Nothing overwrites old history.</p>
+            <h2 className="font-display text-[17px] font-extrabold text-[#102446]">
+              {tab === 'today' ? "High Alert · Today's Follow-ups" : tab === 'overdue' ? 'Extra High Alert · Pending' : 'Follow-up Diary'}
+            </h2>
+            <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">
+              {tab === 'today'
+                ? 'These customers need a call or follow-up today.'
+                : tab === 'overdue'
+                  ? 'These follow-ups were due earlier and are still pending. Clear them first.'
+                  : 'Every call and WhatsApp note is saved here. Nothing overwrites old history.'}
+            </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="flex h-10 min-w-[220px] items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3">
@@ -1280,6 +1761,19 @@ function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
                 className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[#1f2d44] outline-none"
               />
             </label>
+            {holderOptions.length > 1 && (
+              <select
+                value={holderFilter}
+                onChange={(e) => setHolderFilter(e.target.value)}
+                className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
+                aria-label="Filter by lead holder"
+              >
+                <option value="All">All Lead Holders</option>
+                {holderOptions.map((holder) => (
+                  <option key={holder.id} value={String(holder.id)}>{holder.name}</option>
+                ))}
+              </select>
+            )}
             <button
               type="button"
               onClick={() => onAddFollowUp(null)}
@@ -1302,16 +1796,34 @@ function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
           )}
           {filtered.map((item) => {
             const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
+            const isTodayAlert = tab === 'today';
+            const isExtraAlert = tab === 'overdue';
+            const canOperate = canOperateFollowUp(item);
             return (
               <article
                 key={item.id}
-                className="rounded-[14px] border border-[#e8eef6] bg-[#fbfdff] p-4 transition hover:border-[#c7d7f0] hover:bg-white"
+                className={cx(
+                  'rounded-[14px] border p-4 transition',
+                  isExtraAlert
+                    ? 'border-[#fecaca] bg-[#fff5f5] hover:border-[#f87171]'
+                    : isTodayAlert
+                      ? 'border-[#fde68a] bg-[#fffbeb] hover:border-[#fbbf24]'
+                      : 'border-[#e8eef6] bg-[#fbfdff] hover:border-[#c7d7f0] hover:bg-white',
+                )}
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 gap-3">
                     <span className={cx(
                       'mt-0.5 grid size-11 shrink-0 place-items-center rounded-full',
-                      item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
+                      item.status === 'Completed'
+                        ? 'bg-[#e8f8eb] text-[#0d9f4a]'
+                        : isExtraAlert
+                          ? 'bg-[#fee2e2] text-[#dc2626]'
+                          : isTodayAlert
+                            ? 'bg-[#fef3c7] text-[#d97706]'
+                            : item.status === 'Missed'
+                              ? 'bg-[#feecec] text-[#dc2626]'
+                              : 'bg-[#e7efff] text-[#1d4ed8]',
                     )}>
                       <Icon className="size-5" />
                     </span>
@@ -1319,6 +1831,12 @@ function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-display text-[15px] font-extrabold text-[#102446]">{item.lead_customer_name || 'Lead'}</p>
                         <span className="text-[12px] font-bold text-[#7585a2]">{item.lead_mobile_number || ''}</span>
+                        {isTodayAlert ? (
+                          <span className="inline-flex rounded-full bg-[#f59e0b] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">High Alert</span>
+                        ) : null}
+                        {isExtraAlert ? (
+                          <span className="inline-flex rounded-full bg-[#dc2626] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">Extra High</span>
+                        ) : null}
                       </div>
                       <p className="mt-1 text-[12px] font-bold text-[#53647f]">
                         {formatDateTime(item.scheduled_at)}
@@ -1357,14 +1875,34 @@ function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
                       <Eye className="size-3.5" />
                       Full Timeline
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => onAddFollowUp({ id: item.lead, customer_name: item.lead_customer_name, mobile_number: item.lead_mobile_number })}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#1d4ed8] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
-                    >
-                      <Plus className="size-3.5" />
-                      Log Next
-                    </button>
+                    {canOperate ? (
+                      (isTodayAlert || isExtraAlert) && onAlertCall ? (
+                        <button
+                          type="button"
+                          onClick={() => onAlertCall(item)}
+                          className={cx(
+                            'inline-flex h-9 items-center gap-1.5 rounded-[8px] px-3 text-[12px] font-extrabold text-white transition',
+                            isExtraAlert ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : 'bg-[#f59e0b] hover:bg-[#d97706]',
+                          )}
+                        >
+                          <Phone className="size-3.5" />
+                          Call Now
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onAddFollowUp({ id: item.lead, customer_name: item.lead_customer_name, mobile_number: item.lead_mobile_number })}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#1d4ed8] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
+                        >
+                          <Plus className="size-3.5" />
+                          Log Next
+                        </button>
+                      )
+                    ) : (
+                      <span className="inline-flex h-9 items-center rounded-[8px] px-3 text-[11px] font-bold uppercase tracking-wide text-[#a5b1c7]">
+                        View only
+                      </span>
+                    )}
                   </div>
                 </div>
               </article>
@@ -1378,33 +1916,129 @@ function TeleFollowUpsPage({ followUps, loaded, onAddFollowUp, onViewLead }) {
 
 // ─── Reminders page ───────────────────────────────────────────────────────────
 
-function TeleRemindersPage({ scheduledFollowUps, loaded }) {
-  const now = new Date();
-  const todayKey = now.toDateString();
-  const in3Days = new Date(now.getTime() + 3 * 86400000);
-  const in7Days = new Date(now.getTime() + 7 * 86400000);
+function TeleRemindersPage({
+  scheduledFollowUps,
+  loaded,
+  onAlertCall,
+  onAlertView,
+  onAddFollowUp,
+  onOpenFollowUps,
+}) {
+  const [tab, setTab] = useState('today');
+  const [search, setSearch] = useState('');
+
+  const { today, overdue, upcoming, withReminder } = useMemo(() => {
+    const now = new Date();
+    const todayStart = startOfLocalDay(now);
+    const tomorrow = new Date(todayStart);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const weekEnd = new Date(todayStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    const todayRows = [];
+    const overdueRows = [];
+    const upcomingRows = [];
+    const reminderRows = [];
+
+    for (const item of scheduledFollowUps || []) {
+      const when = new Date(item.scheduled_at);
+      if (Number.isNaN(when.getTime())) continue;
+      if (item.reminder && item.reminder !== 'No reminder') reminderRows.push(item);
+      if (when < todayStart) overdueRows.push(item);
+      else if (when < tomorrow) todayRows.push(item);
+      else if (when < weekEnd) upcomingRows.push(item);
+    }
+
+    const byTime = (a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at);
+    return {
+      today: todayRows.sort(byTime),
+      overdue: overdueRows.sort(byTime),
+      upcoming: upcomingRows.sort(byTime),
+      withReminder: reminderRows.sort(byTime),
+    };
+  }, [scheduledFollowUps]);
+
+  const cards = [
+    { id: 'today', title: 'Due Today', value: loaded ? today.length : undefined, note: 'Reminders for today', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]', activeRing: 'border-[#f59e0b] ring-4 ring-[#fde68a]' },
+    { id: 'overdue', title: 'Overdue', value: loaded ? overdue.length : undefined, note: 'Missed reminder time', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]', activeRing: 'border-[#dc2626] ring-4 ring-[#fecaca]' },
+    { id: 'upcoming', title: 'Next 7 Days', value: loaded ? upcoming.length : undefined, note: 'Coming up this week', icon: CalendarDays, tone: 'bg-[#e7efff] text-[#1d4ed8]', activeRing: 'border-[#1d4ed8] ring-4 ring-[#dbeafe]' },
+    { id: 'reminders', title: 'Reminder Set', value: loaded ? withReminder.length : undefined, note: 'Alert preference saved', icon: Bell, tone: 'bg-[#e8f8eb] text-[#0d9f4a]', activeRing: 'border-[#0d9f4a] ring-4 ring-[#bbf7d0]' },
+  ];
+
+  const filtered = useMemo(() => {
+    let rows = scheduledFollowUps || [];
+    if (tab === 'today') rows = today;
+    else if (tab === 'overdue') rows = overdue;
+    else if (tab === 'upcoming') rows = upcoming;
+    else if (tab === 'reminders') rows = withReminder;
+    const query = search.trim().toLowerCase();
+    if (query) {
+      rows = rows.filter((item) => [
+        item.lead_customer_name,
+        item.lead_mobile_number,
+        item.lead_project_name,
+        item.follow_up_type,
+        item.reminder,
+      ].some((value) => String(value || '').toLowerCase().includes(query)));
+    }
+    return rows;
+  }, [scheduledFollowUps, tab, search, today, overdue, upcoming, withReminder]);
 
   const dueState = (item) => {
-    const at = new Date(item.scheduled_at);
-    if (at.toDateString() === todayKey) return 'Due Today';
-    if (at < now) return 'Overdue';
+    const when = new Date(item.scheduled_at);
+    const todayStart = startOfLocalDay();
+    const tomorrow = new Date(todayStart);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    if (when < todayStart) return 'Overdue';
+    if (when < tomorrow) return 'Due Today';
     return 'Upcoming';
   };
 
-  const cards = [
-    { title: "Today's Reminders", value: loaded ? scheduledFollowUps.filter((i) => new Date(i.scheduled_at).toDateString() === todayKey).length : undefined, note: 'Follow-ups due today', icon: CalendarDays, tone: 'bg-[#e7efff] text-[#1d4ed8]' },
-    { title: 'Within 3 Days', value: loaded ? scheduledFollowUps.filter((i) => { const d = new Date(i.scheduled_at); return d > now && d <= in3Days; }).length : undefined, note: 'Due in next 3 days', icon: Clock3, tone: 'bg-[#e8f8eb] text-[#0d9f4a]' },
-    { title: 'This Week', value: loaded ? scheduledFollowUps.filter((i) => { const d = new Date(i.scheduled_at); return d > now && d <= in7Days; }).length : undefined, note: 'Due in this week', icon: Bell, tone: 'bg-[#fff4e0] text-[#c07a06]' },
-    { title: 'Overdue', value: loaded ? scheduledFollowUps.filter((i) => new Date(i.scheduled_at) < now && new Date(i.scheduled_at).toDateString() !== todayKey).length : undefined, note: 'Reminders overdue', icon: XCircle, tone: 'bg-[#feecec] text-[#dc2626]' },
-  ];
-
   return (
     <>
+      <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="font-display text-[18px] font-extrabold text-[#102446]">Reminders</h2>
+            <p className="mt-1 text-[13px] font-semibold text-[#7585a2]">
+              Stay on top of scheduled follow-ups. Overdue and today items need action first.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onOpenFollowUps}
+              className="inline-flex h-10 items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-4 text-[13px] font-extrabold text-[#1d4ed8] transition hover:bg-[#f8fbff]"
+            >
+              <Phone className="size-4" />
+              Open Follow-ups
+            </button>
+            <button
+              type="button"
+              onClick={() => onAddFollowUp?.(null)}
+              className="inline-flex h-10 items-center gap-2 rounded-[9px] bg-[#1d4ed8] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
+            >
+              <Plus className="size-4" />
+              Schedule Reminder
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => {
           const Icon = card.icon;
+          const active = tab === card.id;
           return (
-            <article key={card.title} className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.05)]">
+            <button
+              key={card.id}
+              type="button"
+              onClick={() => setTab(card.id)}
+              className={cx(
+                'rounded-[14px] border bg-white p-4 text-left shadow-[0_10px_26px_rgba(23,43,77,0.05)] transition',
+                active ? card.activeRing : 'border-[#e2e9f3] hover:border-[#c7d7f0]',
+              )}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[12px] font-extrabold text-[#7585a2]">{card.title}</p>
@@ -1415,57 +2049,508 @@ function TeleRemindersPage({ scheduledFollowUps, loaded }) {
                   <Icon className="size-5" />
                 </span>
               </div>
-            </article>
+            </button>
           );
         })}
       </section>
 
       <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-5">
-        <h2 className="font-display text-[17px] font-extrabold text-[#102446]">Upcoming Reminders</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="font-display text-[16px] font-extrabold text-[#102446]">
+              {tab === 'today' ? "Today's Reminders" : tab === 'overdue' ? 'Overdue Reminders' : tab === 'upcoming' ? 'Upcoming This Week' : tab === 'reminders' ? 'Reminders With Alert Set' : 'All Scheduled'}
+            </h3>
+            <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">
+              {filtered.length} item{filtered.length === 1 ? '' : 's'} in this view
+            </p>
+          </div>
+          <label className="flex h-10 min-w-[240px] items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3">
+            <Search className="size-4 text-[#7585a2]" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search customer, mobile, project..."
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[#1f2d44] outline-none"
+            />
+          </label>
+        </div>
+
+        <div className="mt-4 space-y-2.5">
+          {!loaded && (
+            <p className="rounded-[12px] bg-[#f8fbff] px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading reminders...</p>
+          )}
+          {loaded && filtered.length === 0 && (
+            <div className="rounded-[12px] border border-dashed border-[#dbe4f0] bg-[#f8fbff] px-4 py-10 text-center">
+              <Bell className="mx-auto size-8 text-[#94a3b8]" />
+              <p className="mt-3 text-[14px] font-extrabold text-[#1e3261]">No reminders in this view</p>
+              <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">Schedule a follow-up with a reminder to see it here.</p>
+            </div>
+          )}
+          {filtered.map((item) => {
+            const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
+            const state = dueState(item);
+            return (
+              <article
+                key={item.id}
+                className={cx(
+                  'flex flex-col gap-3 rounded-[14px] border p-4 transition sm:flex-row sm:items-center sm:justify-between',
+                  state === 'Overdue'
+                    ? 'border-[#fecaca] bg-[#fff5f5]'
+                    : state === 'Due Today'
+                      ? 'border-[#fde68a] bg-[#fffbeb]'
+                      : 'border-[#e8eef6] bg-[#fbfdff] hover:border-[#c7d7f0]',
+                )}
+              >
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className={cx(
+                    'mt-0.5 grid size-11 shrink-0 place-items-center rounded-full',
+                    state === 'Overdue' ? 'bg-[#fee2e2] text-[#dc2626]' : state === 'Due Today' ? 'bg-[#fef3c7] text-[#d97706]' : 'bg-[#e7efff] text-[#1d4ed8]',
+                  )}>
+                    <Icon className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-display text-[15px] font-extrabold text-[#102446]">{item.lead_customer_name || 'Customer'}</p>
+                      <span className={cx(
+                        'inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase',
+                        state === 'Overdue' ? 'bg-[#dc2626] text-white' : state === 'Due Today' ? 'bg-[#f59e0b] text-white' : 'bg-[#e7efff] text-[#1d4ed8]',
+                      )}>
+                        {state}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[12px] font-bold text-[#53647f]">
+                      {formatDateTime(item.scheduled_at)}
+                      <span className="mx-1.5 text-[#c3ccd9]">·</span>
+                      {item.follow_up_type || 'Call'}
+                      <span className="mx-1.5 text-[#c3ccd9]">·</span>
+                      {item.reminder && item.reminder !== 'No reminder' ? item.reminder : 'No reminder set'}
+                    </p>
+                    <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">
+                      {item.lead_mobile_number || 'No mobile'}
+                      {item.lead_project_name ? ` · ${item.lead_project_name}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => onAlertView?.(item)}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe4f0] bg-white px-3 text-[12px] font-extrabold text-[#1d4ed8] transition hover:bg-[#f8fbff]"
+                  >
+                    <Eye className="size-3.5" />
+                    View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAlertCall?.(item)}
+                    className={cx(
+                      'inline-flex h-9 items-center gap-1.5 rounded-[8px] px-3 text-[12px] font-extrabold text-white transition',
+                      state === 'Overdue' ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : 'bg-[#1d4ed8] hover:bg-[#1a3fb0]',
+                    )}
+                  >
+                    <Phone className="size-3.5" />
+                    Call Now
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </>
+  );
+}
+
+// ─── Reports page ─────────────────────────────────────────────────────────────
+
+function TeleReportsPage({ leads, followUps, loaded = true }) {
+  const PERIOD_OPTIONS = [
+    { id: 'today', label: 'Today' },
+    { id: 'week', label: 'This Week' },
+    { id: 'month', label: 'This Month' },
+    { id: 'all', label: 'All Time' },
+    { id: 'custom', label: 'Custom' },
+  ];
+  const [period, setPeriod] = useState('month');
+  const [customFrom, setCustomFrom] = useState(() => {
+    const now = new Date();
+    return toLocalIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
+  });
+  const [customTo, setCustomTo] = useState(() => toLocalIsoDate(new Date()));
+
+  const { start: periodStart, end: periodEnd } = useMemo(() => {
+    const now = new Date();
+    const todayStart = startOfLocalDay(now);
+    if (period === 'today') {
+      const end = new Date(todayStart);
+      end.setDate(end.getDate() + 1);
+      return { start: todayStart, end };
+    }
+    if (period === 'week') {
+      const start = startOfLocalDay(now);
+      const day = start.getDay();
+      const mondayOffset = day === 0 ? 6 : day - 1;
+      start.setDate(start.getDate() - mondayOffset);
+      return { start, end: null };
+    }
+    if (period === 'month') {
+      return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: null };
+    }
+    if (period === 'custom') {
+      let from = parseLocalIsoDate(customFrom);
+      let to = parseLocalIsoDate(customTo);
+      if (!from && !to) return { start: null, end: null };
+      if (!from) from = to;
+      if (!to) to = from;
+      if (from > to) {
+        const tmp = from;
+        from = to;
+        to = tmp;
+      }
+      const end = new Date(to);
+      end.setDate(end.getDate() + 1);
+      return { start: from, end };
+    }
+    return { start: null, end: null };
+  }, [period, customFrom, customTo]);
+
+  const inRange = useCallback((value, start, end) => {
+    if (!start && !end) return true;
+    if (!value) return false;
+    const time = new Date(value).getTime();
+    if (!Number.isFinite(time)) return false;
+    if (start && time < start.getTime()) return false;
+    if (end && time >= end.getTime()) return false;
+    return true;
+  }, []);
+
+  const pipelineLeads = leads || [];
+  const allFollowUps = followUps || [];
+  const activePeriodLabel = useMemo(() => {
+    if (period === 'custom') {
+      if (!customFrom && !customTo) return 'Custom Range';
+      return `${formatLocalIsoLabel(customFrom || customTo)} – ${formatLocalIsoLabel(customTo || customFrom)}`;
+    }
+    return PERIOD_OPTIONS.find((item) => item.id === period)?.label || 'All Time';
+  }, [period, customFrom, customTo]);
+
+  const selectPeriod = (id) => {
+    setPeriod(id);
+    if (id === 'custom') {
+      if (!customFrom) {
+        const now = new Date();
+        setCustomFrom(toLocalIsoDate(new Date(now.getFullYear(), now.getMonth(), 1)));
+      }
+      if (!customTo) setCustomTo(toLocalIsoDate(new Date()));
+    }
+  };
+
+  const periodFollowUps = useMemo(
+    () => allFollowUps.filter((item) => {
+      const stamp = item.status === 'Completed'
+        ? (item.completed_at || item.scheduled_at || item.created_at)
+        : (item.scheduled_at || item.created_at);
+      return inRange(stamp, periodStart, periodEnd);
+    }),
+    [allFollowUps, periodStart, periodEnd, inRange],
+  );
+
+  const periodLeadIds = useMemo(() => {
+    const ids = new Set();
+    for (const item of periodFollowUps) {
+      if (item.lead != null) ids.add(String(item.lead));
+    }
+    return ids;
+  }, [periodFollowUps]);
+
+  // Leads created in period OR touched by follow-up activity in period
+  const periodLeads = useMemo(
+    () => pipelineLeads.filter((lead) => (
+      inRange(lead.created_at, periodStart, periodEnd) || periodLeadIds.has(String(lead.id))
+    )),
+    [pipelineLeads, periodStart, periodEnd, periodLeadIds, inRange],
+  );
+
+  const completedInPeriod = useMemo(
+    () => periodFollowUps.filter((item) => item.status === 'Completed'),
+    [periodFollowUps],
+  );
+  const scheduledInPeriod = useMemo(
+    () => periodFollowUps.filter((item) => item.status === 'Scheduled'),
+    [periodFollowUps],
+  );
+  const { today: todayDue, overdue } = useMemo(
+    () => splitFollowUpAlerts(scheduledInPeriod),
+    [scheduledInPeriod],
+  );
+
+  // For Today/Week/Month overdue card: if period is "today", show all still-overdue
+  // from full queue so the filter still feels actionable.
+  const liveScheduled = useMemo(
+    () => allFollowUps.filter((item) => item.status === 'Scheduled'),
+    [allFollowUps],
+  );
+  const liveAlerts = useMemo(() => splitFollowUpAlerts(liveScheduled), [liveScheduled]);
+  const dueTodayCount = period === 'all' || period === 'today' || period === 'week' || period === 'month'
+    ? liveAlerts.today.length
+    : todayDue.length;
+  const overdueCount = liveAlerts.overdue.length;
+
+  const totalLeads = periodLeads.length;
+  const won = periodLeads.filter((lead) => teleDisplayStatus(lead) === 'Won').length;
+  const lost = periodLeads.filter((lead) => teleDisplayStatus(lead) === 'Lost').length;
+  const newLeads = pipelineLeads.filter((lead) => inRange(lead.created_at, periodStart, periodEnd)).length;
+  const conversion = totalLeads > 0 ? Math.round((won / totalLeads) * 100) : 0;
+  const completion = periodFollowUps.length > 0
+    ? Math.round((completedInPeriod.length / periodFollowUps.length) * 100)
+    : 0;
+
+  const statusCounts = TELE_LEAD_STATUSES.map((statusName) => ({
+    name: statusName,
+    count: periodLeads.filter((lead) => teleDisplayStatus(lead) === statusName).length,
+  }));
+  const maxStatus = Math.max(1, ...statusCounts.map((row) => row.count));
+
+  const outcomeCounts = useMemo(() => {
+    const map = new Map();
+    for (const item of completedInPeriod) {
+      const key = String(item.outcome || '').trim() || 'No outcome logged';
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return [...map.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [completedInPeriod]);
+
+  const typeCounts = FOLLOW_UP_TYPES.map((typeName) => ({
+    name: typeName,
+    count: periodFollowUps.filter((item) => item.follow_up_type === typeName).length,
+  })).filter((row) => row.count > 0);
+
+  const recentActivity = useMemo(() => (
+    [...periodFollowUps]
+      .sort((a, b) => new Date(b.completed_at || b.scheduled_at || b.created_at) - new Date(a.completed_at || a.scheduled_at || a.created_at))
+      .slice(0, 10)
+  ), [periodFollowUps]);
+
+  const statusBarTones = {
+    New: 'bg-[#1d4ed8]', Hot: 'bg-[#ea7c1c]', Cool: 'bg-[#7c3aed]', Won: 'bg-[#0d9f4a]', Lost: 'bg-[#dc2626]',
+  };
+
+  const cards = [
+    { title: 'Leads', value: loaded ? totalLeads : undefined, note: `${newLeads} created · ${activePeriodLabel}`, icon: Users, tone: 'bg-[#e7efff] text-[#1d4ed8]' },
+    { title: 'Won Leads', value: loaded ? won : undefined, note: `${conversion}% win rate`, icon: Trophy, tone: 'bg-[#f0e9ff] text-[#7c3aed]' },
+    { title: 'Follow-ups Done', value: loaded ? completedInPeriod.length : undefined, note: `${completion}% completion`, icon: CheckCircle2, tone: 'bg-[#e8f8eb] text-[#0d9f4a]' },
+    { title: 'Due Today', value: loaded ? dueTodayCount : undefined, note: 'High alert now', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]' },
+    { title: 'Overdue', value: loaded ? overdueCount : undefined, note: 'Extra high now', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]' },
+  ];
+
+  return (
+    <>
+      <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="font-display text-[18px] font-extrabold text-[#102446]">Performance Reports</h2>
+            <p className="mt-1 text-[13px] font-semibold text-[#7585a2]">
+              Showing report data for <span className="font-extrabold text-[#1d4ed8]">{activePeriodLabel}</span>
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Report period">
+              {PERIOD_OPTIONS.map((option) => {
+                const active = period === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => selectPeriod(option.id)}
+                    className={cx(
+                      'inline-flex h-9 shrink-0 items-center rounded-full px-4 text-[12px] font-extrabold transition',
+                      active
+                        ? 'bg-[#1d4ed8] text-white shadow-[0_8px_18px_rgba(29,78,216,0.28)]'
+                        : 'border border-[#dbe4f0] bg-white text-[#53647f] hover:bg-[#f8fbff]',
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            {period === 'custom' ? (
+              <div className="flex flex-col gap-2 rounded-[12px] border border-[#dbe4f0] bg-[#f8fbff] p-3 sm:flex-row sm:items-end">
+                <label className="min-w-0 flex-1">
+                  <span className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">From</span>
+                  <input
+                    type="date"
+                    value={customFrom}
+                    max={customTo || undefined}
+                    onChange={(e) => {
+                      setCustomFrom(e.target.value);
+                      setPeriod('custom');
+                    }}
+                    className="h-10 w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#1d4ed8]"
+                  />
+                </label>
+                <label className="min-w-0 flex-1">
+                  <span className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">To</span>
+                  <input
+                    type="date"
+                    value={customTo}
+                    min={customFrom || undefined}
+                    onChange={(e) => {
+                      setCustomTo(e.target.value);
+                      setPeriod('custom');
+                    }}
+                    className="h-10 w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#1d4ed8]"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    setCustomFrom(toLocalIsoDate(new Date(now.getFullYear(), now.getMonth(), 1)));
+                    setCustomTo(toLocalIsoDate(now));
+                    setPeriod('custom');
+                  }}
+                  className="inline-flex h-10 items-center justify-center rounded-[9px] border border-[#dbe4f0] bg-white px-4 text-[12px] font-extrabold text-[#1d4ed8] transition hover:bg-white"
+                >
+                  This Month
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <TeleStatCards cards={cards} />
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-5 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-display text-[16px] font-extrabold text-[#102446]">Lead Status Mix</h3>
+            <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[11px] font-extrabold text-[#53647f]">
+              {totalLeads} lead{totalLeads === 1 ? '' : 's'} · {activePeriodLabel}
+            </span>
+          </div>
+          <div className="mt-4 space-y-3.5">
+            {!loaded && <p className="py-6 text-center text-[12px] font-bold text-[#7585a2]">Loading...</p>}
+            {loaded && totalLeads === 0 && (
+              <p className="rounded-[10px] bg-[#f8fbff] px-3 py-6 text-center text-[12px] font-bold text-[#7585a2]">
+                No leads found for {activePeriodLabel.toLowerCase()}.
+              </p>
+            )}
+            {statusCounts.map((row) => (
+              <div key={row.name}>
+                <div className="flex items-center justify-between text-[13px] font-bold text-[#33456b]">
+                  <span>{row.name}</span>
+                  <span className="font-extrabold text-[#102446]">
+                    {row.count}{totalLeads > 0 ? ` (${Math.round((row.count / totalLeads) * 100)}%)` : ''}
+                  </span>
+                </div>
+                <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-[#eef2f8]">
+                  <div
+                    className={cx('h-full rounded-full transition-all', statusBarTones[row.name])}
+                    style={{ width: `${totalLeads ? (row.count / maxStatus) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="grid grid-cols-3 gap-2 border-t border-[#edf2f8] pt-3 text-[12px] font-bold">
+              <div className="rounded-[10px] bg-[#eff6ff] px-3 py-2 text-[#1d4ed8]">Created: {newLeads}</div>
+              <div className="rounded-[10px] bg-[#f0fdf4] px-3 py-2 text-[#166534]">Won: {won}</div>
+              <div className="rounded-[10px] bg-[#fef2f2] px-3 py-2 text-[#991b1b]">Lost: {lost}</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-5 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-display text-[16px] font-extrabold text-[#102446]">Call Outcomes</h3>
+            <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[11px] font-extrabold text-[#53647f]">
+              {completedInPeriod.length} completed · {activePeriodLabel}
+            </span>
+          </div>
+          <div className="mt-4 space-y-2.5">
+            {outcomeCounts.length === 0 && (
+              <p className="rounded-[10px] bg-[#f8fbff] px-3 py-6 text-center text-[12px] font-bold text-[#7585a2]">
+                No completed follow-ups with outcomes for {activePeriodLabel.toLowerCase()}.
+              </p>
+            )}
+            {outcomeCounts.map((row) => (
+              <div key={row.name} className="flex items-center justify-between rounded-[10px] border border-[#eef2f8] px-3.5 py-3">
+                <p className="text-[13px] font-extrabold text-[#1e3261]">{row.name}</p>
+                <p className="text-[13px] font-extrabold text-[#102446]">{row.count}</p>
+              </div>
+            ))}
+          </div>
+          {typeCounts.length > 0 ? (
+            <div className="mt-5 border-t border-[#edf2f8] pt-4">
+              <p className="text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">By Channel</p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {typeCounts.map((row) => {
+                  const Icon = FOLLOW_UP_TYPE_ICONS[row.name] || PhoneCall;
+                  return (
+                    <span key={row.name} className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe4f0] bg-[#f8fbff] px-3 py-1.5 text-[12px] font-extrabold text-[#1e3261]">
+                      <Icon className="size-3.5 text-[#1d4ed8]" />
+                      {row.name}: {row.count}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      </div>
+
+      <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-display text-[16px] font-extrabold text-[#102446]">Recent Activity</h3>
+          <span className="text-[12px] font-semibold text-[#7585a2]">
+            {recentActivity.length} item{recentActivity.length === 1 ? '' : 's'} · {activePeriodLabel}
+          </span>
+        </div>
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left">
+          <table className="w-full min-w-[720px] border-collapse text-left">
             <thead>
               <tr className="border-b border-[#e8eef6] text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#7585a2]">
                 <th className="px-3 py-3">Customer</th>
-                <th className="px-3 py-3">Mobile No.</th>
-                <th className="px-3 py-3">Project</th>
                 <th className="px-3 py-3">Type</th>
-                <th className="px-3 py-3">Follow-up Date & Time</th>
-                <th className="px-3 py-3">Reminder</th>
+                <th className="px-3 py-3">When</th>
                 <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3">Outcome</th>
               </tr>
             </thead>
             <tbody>
               {!loaded && (
-                <tr><td colSpan={7} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading reminders...</td></tr>
+                <tr><td colSpan={5} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading activity...</td></tr>
               )}
-              {loaded && scheduledFollowUps.length === 0 && (
-                <tr><td colSpan={7} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No upcoming reminders.</td></tr>
+              {loaded && recentActivity.length === 0 && (
+                <tr><td colSpan={5} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No follow-up activity for {activePeriodLabel.toLowerCase()}.</td></tr>
               )}
-              {scheduledFollowUps.map((item) => {
-                const state = dueState(item);
+              {recentActivity.map((item) => {
                 const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
                 return (
                   <tr key={item.id} className="border-b border-[#f1f5fa] text-[13px] font-bold text-[#33456b] transition hover:bg-[#f8fbff]">
-                    <td className="px-3 py-3.5 font-extrabold text-[#1e3261]">{item.lead_customer_name}</td>
-                    <td className="px-3 py-3.5">{item.lead_mobile_number || '—'}</td>
-                    <td className="px-3 py-3.5">{item.lead_project_name || '—'}</td>
+                    <td className="px-3 py-3.5 font-extrabold text-[#1e3261]">{item.lead_customer_name || '—'}</td>
                     <td className="px-3 py-3.5">
                       <span className="inline-flex items-center gap-2">
                         <Icon className="size-4 text-[#1d4ed8]" />
                         {item.follow_up_type}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3.5">{formatDateTime(item.scheduled_at)}</td>
-                    <td className="px-3 py-3.5">{item.reminder || 'No reminder'}</td>
+                    <td className="whitespace-nowrap px-3 py-3.5">{formatDateTime(item.completed_at || item.scheduled_at || item.created_at)}</td>
                     <td className="px-3 py-3.5">
                       <span className={cx(
                         'inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold',
-                        state === 'Due Today' ? 'bg-[#feecec] text-[#dc2626]' : state === 'Overdue' ? 'bg-[#fff1e0] text-[#ea7c1c]' : 'bg-[#e7efff] text-[#1d4ed8]',
+                        item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
                       )}>
-                        {state === 'Due Today' ? 'Due Now' : state}
+                        {item.status}
                       </span>
                     </td>
+                    <td className="px-3 py-3.5">{item.outcome || '—'}</td>
                   </tr>
                 );
               })}
@@ -1477,157 +2562,79 @@ function TeleRemindersPage({ scheduledFollowUps, loaded }) {
   );
 }
 
-// ─── Reports page ─────────────────────────────────────────────────────────────
+// ─── Profile Details page ─────────────────────────────────────────────────────
 
-function TeleReportsPage({ leads, followUps }) {
-  const now = new Date();
-  const total = leads.length;
-  const won = leads.filter((lead) => lead.status === 'Won').length;
-  const lost = leads.filter((lead) => lead.status === 'Lost').length;
-  const completed = followUps.filter((item) => item.status === 'Completed').length;
-  const pendingTasks = followUps.filter((item) => item.status === 'Scheduled').length;
-  const overdue = followUps.filter((item) => item.status === 'Scheduled' && new Date(item.scheduled_at) < now).length;
-  const conversion = total > 0 ? Math.round((won / total) * 100) : 0;
-  const completion = followUps.length > 0 ? Math.round((completed / followUps.length) * 100) : 0;
-
-  const statusCounts = TELE_LEAD_STATUSES.map((statusName) => ({
-    name: statusName,
-    count: leads.filter((lead) => teleDisplayStatus(lead) === statusName).length,
-  }));
-  const maxStatus = Math.max(1, ...statusCounts.map((row) => row.count));
-
-  const typeCounts = FOLLOW_UP_TYPES.map((typeName) => ({
-    name: typeName,
-    count: followUps.filter((item) => item.follow_up_type === typeName).length,
-  })).filter((row) => row.count > 0);
-
-  const statusBarTones = {
-    New: 'bg-[#1d4ed8]', Hot: 'bg-[#ea7c1c]', Cool: 'bg-[#7c3aed]', Won: 'bg-[#0d9f4a]', Lost: 'bg-[#dc2626]',
-  };
-
-  const cards = [
-    { title: 'My Leads', value: total, note: 'Assigned to me', icon: Users, tone: 'bg-[#e7efff] text-[#1d4ed8]' },
-    { title: 'My Follow-ups', value: followUps.length, note: `${completed} completed`, icon: Phone, tone: 'bg-[#e8f8eb] text-[#0d9f4a]' },
-    { title: 'My Conversions', value: won, note: `${conversion}% conversion rate`, icon: Trophy, tone: 'bg-[#f0e9ff] text-[#7c3aed]' },
-    { title: 'My Performance', value: `${completion}%`, note: 'Follow-up completion', icon: BarChart3, tone: 'bg-[#fff4e0] text-[#c07a06]' },
-    { title: 'My Pending Tasks', value: pendingTasks, note: `${overdue} overdue`, icon: Clock3, tone: 'bg-[#feecec] text-[#dc2626]' },
+function TeleProfileDetailsPage({ me }) {
+  const displayName = me?.name || 'Tele Executive';
+  const initials = (me?.initials || displayName.slice(0, 2) || 'TE').toUpperCase();
+  const profileFields = [
+    { label: 'Full Name', value: me?.name, icon: UserRound },
+    { label: 'Email Address', value: me?.email, icon: Mail },
+    { label: 'Mobile Number', value: me?.mobile, icon: Phone },
+    { label: 'Role', value: me?.role_name || TELE_ROLE_NAME, icon: ShieldCheck },
+    { label: 'Branch', value: me?.branch_name, icon: MapPin },
   ];
 
   return (
     <>
-      <TeleStatCards cards={cards} />
-      <div className="grid gap-5 xl:grid-cols-2">
-        <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-5 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
-          <h2 className="font-display text-[16px] font-extrabold text-[#102446]">Lead Status Summary</h2>
-          <div className="mt-4 space-y-3.5">
-            {statusCounts.map((row) => (
-              <div key={row.name}>
-                <div className="flex items-center justify-between text-[13px] font-bold text-[#33456b]">
-                  <span>{row.name}</span>
-                  <span className="font-extrabold text-[#102446]">
-                    {row.count} {total > 0 ? `(${Math.round((row.count / total) * 100)}%)` : ''}
-                  </span>
-                </div>
-                <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-[#eef2f8]">
-                  <div className={cx('h-full rounded-full', statusBarTones[row.name])} style={{ width: `${(row.count / maxStatus) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-            <p className="border-t border-[#edf2f8] pt-3 text-[13px] font-extrabold text-[#102446]">Total Leads: {total}</p>
-          </div>
-        </section>
-
-        <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-5 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
-          <h2 className="font-display text-[16px] font-extrabold text-[#102446]">Follow-up Type Distribution</h2>
-          <div className="mt-4 space-y-2.5">
-            {typeCounts.length === 0 && (
-              <p className="rounded-[10px] bg-[#f8fbff] px-3 py-6 text-center text-[12px] font-bold text-[#7585a2]">No follow-ups recorded yet.</p>
-            )}
-            {typeCounts.map((row) => {
-              const Icon = FOLLOW_UP_TYPE_ICONS[row.name] || PhoneCall;
-              return (
-                <div key={row.name} className="flex items-center gap-3 rounded-[10px] border border-[#eef2f8] px-3.5 py-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#e7efff] text-[#1d4ed8]">
-                    <Icon className="size-4" />
-                  </span>
-                  <p className="flex-1 text-[13px] font-extrabold text-[#1e3261]">{row.name}</p>
-                  <p className="text-[13px] font-extrabold text-[#102446]">
-                    {row.count}
-                    <span className="ml-2 font-bold text-[#7585a2]">({Math.round((row.count / followUps.length) * 100)}%)</span>
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-          <p className="mt-4 text-[12px] font-semibold text-[#8a98af]">Reports cover only your own leads and follow-ups.</p>
-        </section>
-      </div>
-    </>
-  );
-}
-
-// ─── Settings page ────────────────────────────────────────────────────────────
-
-function TeleSettingsPage({ me }) {
-  const profileFields = [
-    { label: 'Full Name', value: me?.name },
-    { label: 'Email Address', value: me?.email },
-    { label: 'Mobile Number', value: me?.mobile },
-    { label: 'Role', value: me?.role_name },
-    { label: 'Branch', value: me?.branch_name },
-  ];
-
-  return (
-    <div className="grid gap-5 xl:grid-cols-2">
-      <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-5 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
-        <div className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-full bg-[#e7efff] text-[#1d4ed8]">
-            <UserRound className="size-5" />
-          </span>
-          <div>
-            <h2 className="font-display text-[16px] font-extrabold text-[#102446]">My Profile</h2>
-            <p className="text-[12px] font-semibold text-[#7585a2]">Your account information.</p>
-          </div>
-        </div>
-        <div className="mt-5 space-y-4">
-          {profileFields.map((field) => (
-            <div key={field.label}>
-              <p className="text-[12px] font-extrabold text-[#7585a2]">{field.label}</p>
-              <p className="mt-1 rounded-[9px] border border-[#eef2f8] bg-[#f8fbff] px-3.5 py-2.5 text-[14px] font-bold text-[#1e3261]">
-                {field.value || '—'}
+      <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-5 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <span className="grid size-16 place-items-center rounded-full border border-[#d4af37]/55 bg-[#123c8f] text-[18px] font-extrabold text-white shadow-[0_10px_22px_rgba(18,60,143,0.28)]">
+              {initials}
+            </span>
+            <div>
+              <p className="text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Profile Details</p>
+              <h2 className="font-display text-[22px] font-extrabold leading-tight text-[#102446]">{displayName}</h2>
+              <p className="mt-0.5 text-[13px] font-semibold text-[#53647f]">
+                {me?.role_name || TELE_ROLE_NAME}
+                {me?.branch_name ? ` · ${me.branch_name}` : ''}
               </p>
             </div>
-          ))}
+          </div>
+          <p className="inline-flex items-center gap-2 rounded-full bg-[#eff6ff] px-3.5 py-2 text-[12px] font-extrabold text-[#1d4ed8]">
+            <ShieldCheck className="size-4" />
+            View only
+          </p>
         </div>
-        <p className="mt-4 inline-flex items-center gap-2 text-[12px] font-semibold text-[#8a98af]">
-          <ShieldCheck className="size-4 text-[#0d9f4a]" />
-          Profile details are managed by your administrator.
-        </p>
       </section>
 
-      <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-5 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
-        <div className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-full bg-[#fff4e0] text-[#c07a06]">
-            <KeyRound className="size-5" />
-          </span>
-          <div>
-            <h2 className="font-display text-[16px] font-extrabold text-[#102446]">Account & Password</h2>
-            <p className="text-[12px] font-semibold text-[#7585a2]">Managed by your administrator.</p>
-          </div>
+      <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-5 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-6">
+        <div className="mb-5">
+          <h3 className="font-display text-[16px] font-extrabold text-[#102446]">Personal Information</h3>
+          <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">
+            These details are linked to your Tele Executive account.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {profileFields.map((field) => {
+            const Icon = field.icon;
+            return (
+              <div
+                key={field.label}
+                className="rounded-[12px] border border-[#eef2f8] bg-[#f8fbff] px-4 py-3.5"
+              >
+                <div className="mb-2 flex items-center gap-2 text-[#7585a2]">
+                  <Icon className="size-3.5" />
+                  <p className="text-[11px] font-extrabold uppercase tracking-wide">{field.label}</p>
+                </div>
+                <p className="text-[14px] font-extrabold text-[#1e3261]">{field.value || '—'}</p>
+              </div>
+            );
+          })}
         </div>
         <div className="mt-5 rounded-[12px] border border-[#e8eef6] bg-[#f8fbff] p-4">
-          <p className="text-[13px] font-semibold leading-6 text-[#53647f]">
-            Tele Executive accounts do not have permission to change login credentials.
-            Account creation, password resets, deactivation and lead/project assignment
-            are handled exclusively by the Super Admin.
+          <p className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#102446]">
+            <LockKeyhole className="size-4 text-[#1d4ed8]" />
+            Account updates
           </p>
-          <p className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#1d4ed8]">
-            <LockKeyhole className="size-4" />
-            Need a password reset? Contact your Super Admin.
+          <p className="mt-2 text-[13px] font-semibold leading-6 text-[#53647f]">
+            Profile details and login credentials are managed by Super Admin.
+            Contact your administrator if name, mobile, branch, or password needs to be updated.
           </p>
         </div>
       </section>
-    </div>
+    </>
   );
 }
 

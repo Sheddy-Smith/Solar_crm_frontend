@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+from .recycle_views import RecycleBinViewSet
 from .views import (
     AccountsSettingsSummaryView,
     CategorySettingsView,
@@ -28,6 +29,7 @@ router.register('activity-logs', UserActivityLogViewSet, basename='activity-log'
 router.register('ip-rules', IpAccessRuleViewSet, basename='ip-rule')
 router.register('ip-blocked-attempts', IpBlockedAttemptViewSet, basename='ip-blocked-attempt')
 router.register('document-series', DocumentNumberSeriesViewSet, basename='document-series')
+router.register('recycle-bin', RecycleBinViewSet, basename='recycle-bin')
 
 urlpatterns = [
     path('dashboard/', SettingsDashboardView.as_view(), name='settings-dashboard'),

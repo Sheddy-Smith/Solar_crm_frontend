@@ -740,4 +740,15 @@ export const settingsApi = {
   ipRules: settingsCrud('ip-rules'),
   ipBlockedAttempts: settingsCrud('ip-blocked-attempts'),
   documentSeries: settingsCrud('document-series'),
+  recycleBin: {
+    list: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null)),
+      ).toString();
+      return request(`/settings/recycle-bin/${qs ? `?${qs}` : ''}`);
+    },
+    restore: (data) => request('/settings/recycle-bin/restore/', { method: 'POST', body: data }),
+    permanentDelete: (id) => request(`/settings/recycle-bin/${id}/`, { method: 'DELETE' }),
+    purge: () => request('/settings/recycle-bin/purge/', { method: 'POST', body: {} }),
+  },
 };

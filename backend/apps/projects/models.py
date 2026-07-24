@@ -432,10 +432,60 @@ class SiteSurvey(models.Model):
         ('Metal Roof', 'Metal Roof'),
         ('Ground Mount', 'Ground Mount'),
     ]
+    PROJECT_CATEGORY_CHOICES = [
+        ('Residential', 'Residential'),
+        ('Commercial', 'Commercial'),
+        ('Industrial', 'Industrial'),
+        ('Other', 'Other'),
+    ]
+    PURPOSE_CHOICES = [
+        ('On-Grid', 'On-Grid'),
+        ('Off-Grid', 'Off-Grid'),
+        ('Hybrid', 'Hybrid'),
+    ]
+    ROOF_CONDITION_CHOICES = [
+        ('Excellent', 'Excellent'),
+        ('Good', 'Good'),
+        ('Average', 'Average'),
+        ('Poor', 'Poor'),
+    ]
+    ROOF_DIRECTION_CHOICES = [
+        ('North', 'North'),
+        ('South', 'South'),
+        ('East', 'East'),
+        ('West', 'West'),
+    ]
+    STRUCTURE_TYPE_CHOICES = [
+        ('GP', 'GP'),
+        ('GL', 'GL'),
+        ('CGL', 'CGL'),
+        ('ZM', 'ZM'),
+    ]
+    TERMINATION_POINT_CHOICES = [
+        ('MCB', 'MCB'),
+        ('Cutout', 'Cutout'),
+        ('Need to Install', 'Need to Install'),
+        ('Other', 'Other'),
+    ]
     INVERTER_PLACEMENT_CHOICES = [('Indoor', 'Indoor'), ('Outdoor', 'Outdoor')]
     INVERTER_MOUNTING_CHOICES = [('Wall Mounted', 'Wall Mounted'), ('Floor Mounted', 'Floor Mounted')]
     METER_PHASE_CHOICES = [('Single Phase', 'Single Phase'), ('Three Phase', 'Three Phase')]
     MODULE_ORIENTATION_CHOICES = [('Portrait', 'Portrait'), ('Landscape', 'Landscape')]
+
+    @staticmethod
+    def default_material_checklist():
+        return [
+            {'item': 'Solar Panels (Wattage)', 'qty': ''},
+            {'item': 'Inverter Capacity', 'qty': ''},
+            {'item': 'DC Cable', 'qty': ''},
+            {'item': 'AC Cable', 'qty': ''},
+            {'item': 'MC4 Connector', 'qty': ''},
+            {'item': 'ACDB / DCDB', 'qty': ''},
+            {'item': 'Structure', 'qty': ''},
+            {'item': 'Earthing Kit', 'qty': ''},
+            {'item': 'Lightning Arrestor', 'qty': ''},
+            {'item': 'Other Material', 'qty': ''},
+        ]
 
     project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='site_survey')
     survey_id = models.CharField(max_length=50, unique=True, editable=False)
@@ -462,6 +512,70 @@ class SiteSurvey(models.Model):
     tree_nearby = models.BooleanField(default=False)
     obstacle_present = models.BooleanField(default=False)
     roof_remarks = models.TextField(blank=True)
+    roof_condition = models.CharField(max_length=20, choices=ROOF_CONDITION_CHOICES, blank=True)
+    roof_direction = models.CharField(max_length=20, choices=ROOF_DIRECTION_CHOICES, blank=True)
+    roof_tilt_angle = models.CharField(max_length=20, blank=True)
+
+    # Client form — Consumer / Project commercial details (snapshot on survey)
+    alternate_mobile = models.CharField(max_length=20, blank=True)
+    email_id = models.EmailField(blank=True)
+    ivrs_number = models.CharField(max_length=50, blank=True)
+    project_category = models.CharField(max_length=30, choices=PROJECT_CATEGORY_CHOICES, blank=True)
+    capacity_required_kw = models.CharField(max_length=30, blank=True)
+    purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES, blank=True)
+    existing_connection = models.BooleanField(default=False)
+    sanction_load_kw = models.CharField(max_length=30, blank=True)
+    extend_sanction_load_kw = models.CharField(max_length=30, blank=True)
+    meter_location = models.CharField(max_length=200, blank=True)
+    main_supply_from = models.CharField(max_length=200, blank=True)
+    tariff_category = models.CharField(max_length=100, blank=True)
+    average_monthly_bill = models.CharField(max_length=50, blank=True)
+    supply_voltage = models.CharField(max_length=20, choices=METER_PHASE_CHOICES, blank=True)
+
+    # Client form — Shadow Analysis
+    shadow_morning_from = models.CharField(max_length=20, blank=True)
+    shadow_morning_to = models.CharField(max_length=20, blank=True)
+    shadow_morning_percent = models.CharField(max_length=20, blank=True)
+    shadow_afternoon_from = models.CharField(max_length=20, blank=True)
+    shadow_afternoon_to = models.CharField(max_length=20, blank=True)
+    shadow_afternoon_percent = models.CharField(max_length=20, blank=True)
+    shadow_evening_from = models.CharField(max_length=20, blank=True)
+    shadow_evening_to = models.CharField(max_length=20, blank=True)
+    shadow_evening_percent = models.CharField(max_length=20, blank=True)
+    obstacle_mobile_tower = models.BooleanField(default=False)
+    obstacle_building = models.BooleanField(default=False)
+    obstacle_electric_pole = models.BooleanField(default=False)
+    obstacle_other = models.BooleanField(default=False)
+    obstacle_other_text = models.CharField(max_length=200, blank=True)
+    shadow_analysis_remarks = models.TextField(blank=True)
+
+    # Client form — Structure extras
+    structure_type = models.CharField(max_length=10, choices=STRUCTURE_TYPE_CHOICES, blank=True)
+    front_leg_height_ft = models.CharField(max_length=20, blank=True)
+    back_leg_height_ft = models.CharField(max_length=20, blank=True)
+    no_of_sets = models.CharField(max_length=20, blank=True)
+    panels_in_one_row = models.CharField(max_length=20, blank=True)
+
+    # Client form — Electrical extras
+    main_db_location = models.CharField(max_length=200, blank=True)
+    cable_route_distance_m = models.CharField(max_length=30, blank=True)
+    last_termination_point = models.CharField(max_length=30, choices=TERMINATION_POINT_CHOICES, blank=True)
+    ac_cable_entry_point = models.CharField(max_length=200, blank=True)
+    la_wire_length_m = models.CharField(max_length=30, blank=True)
+
+    # Client form — Material checklist + sign-off + drawing
+    material_checklist = models.JSONField(default=list, blank=True)
+    additional_observations = models.TextField(blank=True)
+    customer_confirmation_name = models.CharField(max_length=150, blank=True)
+    customer_confirmation_date = models.DateField(null=True, blank=True)
+    survey_engineer_name = models.CharField(max_length=150, blank=True)
+    survey_engineer_date = models.DateField(null=True, blank=True)
+    site_drawing = models.ImageField(
+        upload_to='site_survey_drawings/%Y/%m/',
+        blank=True,
+        null=True,
+        validators=[validate_image_extension, validate_upload_size],
+    )
 
     # Section 4 — Earthing Details
     earthing_required = models.BooleanField(default=False)
@@ -561,6 +675,14 @@ class SiteSurveyPhoto(models.Model):
         ('Inverter Location', 'Inverter Location'),
         ('Meter', 'Meter'),
         ('Cable Route', 'Cable Route'),
+        # Client paper form checklist
+        ('Front View', 'Front View'),
+        ('Roof View', 'Roof View'),
+        ('Main DB Photo', 'Main DB Photo'),
+        ('Consumer Bill', 'Consumer Bill'),
+        ('Shadow Area Photo', 'Shadow Area Photo'),
+        ('GPS Location', 'GPS Location'),
+        ('Site Drawing', 'Site Drawing'),
     ]
     REQUIRED_SLOTS = [
         'North Side', 'South Side', 'East Side', 'West Side', 'Overall Roof',

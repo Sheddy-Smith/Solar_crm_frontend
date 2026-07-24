@@ -185,7 +185,7 @@ export function PinLockOverlay() {
   };
 
   return (
-    <div className="fixed inset-0 z-200 flex items-center justify-center bg-[#0f1f3d]/80 p-4 backdrop-blur-[6px]">
+    <div className="fixed inset-0 z-200 flex items-center justify-center bg-[#0f1f3d]/80 p-4">
       <form onSubmit={submit} className="w-full max-w-sm rounded-[14px] border border-[#dbe5f2] bg-white p-6 text-center shadow-xl">
         <LockKeyhole className="mx-auto size-10 text-[#0d9f4a]" />
         <h2 className="mt-3 font-display text-[18px] font-extrabold text-[#1e3261]">App Locked</h2>
@@ -230,7 +230,7 @@ export function AdminReauthModal({ open, onClose, onVerified, onNotify }) {
   };
 
   return (
-    <div className="fixed inset-0 z-120 flex items-center justify-center bg-[#0f1f3d]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-120 flex items-center justify-center bg-[#0f1f3d]/45 p-4">
       <div className="w-full max-w-md rounded-[14px] border border-[#dbe5f2] bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-[#e7eef7] px-5 py-4">
           <h2 className="font-display text-[18px] font-extrabold text-[#1e3261]">Admin Access Verification</h2>

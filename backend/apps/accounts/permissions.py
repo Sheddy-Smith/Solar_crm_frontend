@@ -16,8 +16,8 @@ def lead_owner_filter(user, prefix=''):
     """Queryset filter kwargs scoping to this user's own leads, keyed by role.
 
     A Sales Executive owns whatever leads are assigned to them; a Tele Sales
-    Executive owns whatever leads they personally added (leads are no longer
-    auto-assigned to their creator — see LeadViewSet.perform_create). Returns
+    Executive owns leads they personally added. (Assigned tele leads are also
+    operable via `is_own_lead` / Q filters where an OR is needed.) Returns
     None if the user isn't lead-scoped (i.e. they see everything)."""
     role = getattr(getattr(user, 'role', None), 'name', '')
     if role == 'Sales Executive':
@@ -36,7 +36,7 @@ def is_own_lead(user, lead):
     if role == 'Sales Executive':
         return lead.assigned_to_id == user.id
     if role == 'Tele Sales Executive':
-        return lead.created_by_id == user.id
+        return lead.created_by_id == user.id or lead.assigned_to_id == user.id
     return True
 
 
@@ -46,6 +46,22 @@ def is_super_admin(user):
     if user.is_superuser:
         return True
     return getattr(user.role, 'name', '') == 'Super Admin'
+
+
+# Roles allowed to delete a Won lead and to (re)assign leads: the management
+# tier only. A Sales Executive receives Won leads but can never delete them or
+# change their status.
+LEAD_MANAGER_ROLES = ('Admin', 'Branch Manager')
+
+
+def can_manage_leads(user):
+    """True for the management tier (Super Admin / Admin / Branch Manager) that
+    may assign leads and delete Won leads."""
+    if not user or not user.is_authenticated:
+        return False
+    if is_super_admin(user):
+        return True
+    return getattr(getattr(user, 'role', None), 'name', '') in LEAD_MANAGER_ROLES
 
 
 class IsAdminOrSuperAdmin(BasePermission):

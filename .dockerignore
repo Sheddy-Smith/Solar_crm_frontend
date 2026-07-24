@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.vercel
+.claude
+.venv
+venv
+Data
+*.md
+.env
+.env.*
+!.env.example
+docker-compose.override.yml

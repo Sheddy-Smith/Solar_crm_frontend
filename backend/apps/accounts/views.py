@@ -276,8 +276,11 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = ChangePasswordSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        if is_self and not user.check_password(serializer.validated_data['old_password']):
-            return Response({'old_password': 'Wrong password.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Super Admin resetting from Users UI never needs old_password (including own
+        # account). Non-admin users changing their own password must prove old_password.
+        if is_self and not is_super_admin(request.user):
+            if not user.check_password(serializer.validated_data.get('old_password') or ''):
+                return Response({'old_password': 'Wrong password.'}, status=status.HTTP_400_BAD_REQUEST)
         user.set_password(serializer.validated_data['new_password'])
         user.save()
         return Response({'message': 'Password changed successfully.'})

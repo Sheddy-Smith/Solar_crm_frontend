@@ -1,0 +1,19 @@
+# Malwa Solar CRM — Frontend Docker (production)
+# Domain: crm.ecomalwa.com
+# Hostinger Docker / Compose from URL:
+#   https://raw.githubusercontent.com/sheddysmithlab-dot/solar_crm_frontend/main/docker-compose.yml
+#
+# Build with API URL (required):
+#   docker compose build --build-arg VITE_API_URL=https://api.crm.ecomalwa.com/api/v1
+#   docker compose up -d
+
+services:
+  frontend:
+    build:
+      context: .
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.crm.ecomalwa.com/api/v1}
+    container_name: crm-ecomalwa-frontend
+    ports:
+      - "8080:80"
+    restart: unless-stopped

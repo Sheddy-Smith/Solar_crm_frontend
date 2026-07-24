@@ -73,6 +73,7 @@ class QuotationSerializer(serializers.ModelSerializer):
     sales_executive_name = serializers.CharField(source='sales_executive.name', read_only=True)
     lead_customer_name = serializers.CharField(source='lead.customer_name', read_only=True)
     lead_ivrs_number = serializers.CharField(source='lead.ivrs_number', read_only=True)
+    lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
     cost_per_watt = serializers.ReadOnlyField()
     estimated_annual_savings = serializers.ReadOnlyField()
     roi_percent = serializers.ReadOnlyField()
@@ -81,7 +82,7 @@ class QuotationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quotation
         fields = [
-            'id', 'lead', 'lead_customer_name', 'lead_ivrs_number', 'items',
+            'id', 'lead', 'lead_customer_name', 'lead_ivrs_number', 'lead_mobile_number', 'items',
             'quotation_number', 'template', 'quotation_date', 'valid_till',
             'sales_executive', 'sales_executive_name',
             'company_name', 'alternate_number', 'email', 'gst_number', 'aadhaar_number', 'address', 'city', 'state', 'pincode',
@@ -97,6 +98,12 @@ class QuotationSerializer(serializers.ModelSerializer):
             'liaisoning_charges', 'net_metering_charges', 'other_charges',
             'subsidy_applicable', 'subsidy_amount', 'customer_contribution',
             'subtotal', 'gst_percent', 'gst_amount', 'discount', 'grand_total',
+            'subject', 'cover_letter', 'tilt_angle_range', 'net_meter_details', 'infra_items',
+            'govt_liasoning_details', 'structure_spec_details',
+            'monthly_production_units', 'tariff_rate_per_unit', 'annual_saving_amount', 'plant_life_years',
+            'use_split_gst', 'project_cost_with_gst', 'taxable_value', 'gst_5_amount', 'gst_18_amount',
+            'net_metering_including', 'lt_panel_including', 'walkway_including', 'cleaning_solution_including',
+            'payment_terms_text', 'validity_text', 'terms_and_conditions',
             'advance_percent', 'material_dispatch_percent', 'installation_percent', 'commissioning_percent',
             'panel_warranty', 'inverter_warranty', 'structure_warranty', 'workmanship_warranty',
             'special_instructions', 'scope_of_work', 'exclusions', 'notes',
@@ -105,7 +112,8 @@ class QuotationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'created_by', 'quotation_number', 'subtotal', 'gst_amount', 'grand_total',
-            'customer_contribution', 'total_dc_capacity', 'created_at', 'updated_at',
+            'customer_contribution', 'total_dc_capacity', 'taxable_value', 'gst_5_amount', 'gst_18_amount',
+            'created_at', 'updated_at',
         ]
 
     def create(self, validated_data):
@@ -156,7 +164,7 @@ class LeadListSerializer(serializers.ModelSerializer):
 class LeadDetailSerializer(serializers.ModelSerializer):
     assigned_to_detail = UserSerializer(source='assigned_to', read_only=True)
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
-    follow_ups = FollowUpSerializer(many=True, read_only=True)
+    follow_ups = serializers.SerializerMethodField()
     quotations = QuotationSerializer(many=True, read_only=True)
     approvals = AdminApprovalSerializer(many=True, read_only=True)
     site_survey = LeadSiteSurveySerializer(read_only=True)
@@ -169,6 +177,10 @@ class LeadDetailSerializer(serializers.ModelSerializer):
 
     def get_created_at_display(self, obj):
         return obj.created_at.strftime('%d %b %Y') if obj.created_at else '—'
+
+    def get_follow_ups(self, obj):
+        qs = obj.follow_ups.filter(is_deleted=False)
+        return FollowUpSerializer(qs, many=True).data
 
 
 class LeadCreateSerializer(serializers.ModelSerializer):

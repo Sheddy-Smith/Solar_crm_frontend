@@ -107,6 +107,13 @@ class Lead(models.Model):
     # Follow-up
     next_follow_up = models.DateTimeField(null=True, blank=True)
 
+    # Soft delete → CRM Settings Recycle Bin (CRM + Tele deletes)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    deleted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deleted_leads',
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -147,6 +154,13 @@ class FollowUp(models.Model):
     outcome = models.CharField(max_length=40, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='follow_ups')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # Soft delete → CRM Settings Recycle Bin
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    deleted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deleted_follow_ups',
+    )
 
     def __str__(self):
         return f'{self.lead.customer_name} — {self.follow_up_type} — {self.scheduled_at:%d %b %Y}'
@@ -315,6 +329,38 @@ class Quotation(models.Model):
     discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
+    # Client proposal PDF — subject / specs / performance / split GST
+    subject = models.CharField(max_length=255, blank=True, default='Comprehensive proposal for grid tied')
+    cover_letter = models.TextField(blank=True)
+    tilt_angle_range = models.CharField(max_length=50, blank=True)
+    net_meter_details = models.TextField(blank=True)
+    infra_items = models.TextField(blank=True)
+    govt_liasoning_details = models.CharField(max_length=255, blank=True)
+    structure_spec_details = models.TextField(blank=True)
+    monthly_production_units = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    tariff_rate_per_unit = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, default=Decimal('7.50'))
+    annual_saving_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    plant_life_years = models.PositiveIntegerField(null=True, blank=True, default=30)
+    use_split_gst = models.BooleanField(default=True)
+    project_cost_with_gst = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    taxable_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    gst_5_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    gst_18_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_metering_including = models.BooleanField(default=True)
+    lt_panel_including = models.BooleanField(default=True)
+    walkway_including = models.BooleanField(default=True)
+    cleaning_solution_including = models.BooleanField(default=True)
+    payment_terms_text = models.TextField(
+        blank=True,
+        default='Payment terms 50% advance, 30% after structure deliver & 20% after plant installed',
+    )
+    validity_text = models.CharField(
+        max_length=255,
+        blank=True,
+        default='Quotation validity is till availability of material/10 days',
+    )
+    terms_and_conditions = models.TextField(blank=True)
+
     # L. Payment Terms
     advance_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     material_dispatch_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
@@ -338,37 +384,81 @@ class Quotation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    @staticmethod
+    def fy_quote_prefix(today=None):
+        today = today or datetime.date.today()
+        if today.month >= 4:
+            start, end = today.year % 100, (today.year + 1) % 100
+        else:
+            start, end = (today.year - 1) % 100, today.year % 100
+        return f'MSE/{start:02d}-{end:02d}/'
+
     def save(self, *args, **kwargs):
         if not self.quotation_number:
-            year = datetime.date.today().year
-            prefix = f'QUO-{year}-'
+            prefix = self.fy_quote_prefix()
             seed = 0
             last = Quotation.objects.filter(quotation_number__startswith=prefix).order_by('-quotation_number').first()
             if last:
                 try:
-                    seed = int(last.quotation_number.rsplit('-', 1)[-1])
+                    seed = int(str(last.quotation_number).rsplit('/', 1)[-1])
                 except ValueError:
                     seed = 0
             num = LeadSequenceCounter.next_value(prefix, initial=seed)
-            self.quotation_number = f'{prefix}{num:04d}'
+            self.quotation_number = f'{prefix}{num}'
         super().save(*args, **kwargs)
 
     def recalculate_totals(self):
-        items_total = sum(item.amount for item in self.items.all())
-        self.subtotal = (
+        items_total = sum(item.amount for item in self.items.all()) if self.pk else Decimal('0')
+        cost_subtotal = (
             items_total + self.material_cost + self.structure_cost + self.installation_cost
             + self.transportation_cost + self.liaisoning_charges + self.net_metering_charges + self.other_charges
         )
-        self.gst_amount = self.subtotal * self.gst_percent / 100
-        self.grand_total = self.subtotal + self.gst_amount - self.discount
-        self.customer_contribution = self.grand_total - self.subsidy_amount if self.subsidy_applicable else self.grand_total
+
         if self.number_of_panels and self.panel_wattage:
             self.total_dc_capacity = (Decimal(self.number_of_panels) * self.panel_wattage) / Decimal('1000')
             if not self.plant_capacity_kw:
                 self.plant_capacity_kw = self.total_dc_capacity
+
+        # Auto plant performance when capacity is known
+        if self.plant_capacity_kw and not self.monthly_production_units:
+            self.monthly_production_units = (self.plant_capacity_kw * Decimal('120')).quantize(Decimal('0.01'))
+        if self.monthly_production_units and not self.estimated_annual_generation:
+            self.estimated_annual_generation = (self.monthly_production_units * Decimal('12')).quantize(Decimal('0.01'))
+        if self.estimated_annual_generation and self.tariff_rate_per_unit and not self.annual_saving_amount:
+            self.annual_saving_amount = (self.estimated_annual_generation * self.tariff_rate_per_unit).quantize(Decimal('0.01'))
+
+        if self.use_split_gst and self.project_cost_with_gst:
+            # Solar plant GST: 5% on 70% + 18% on 30% ⇒ effective 8.9%
+            total = Decimal(self.project_cost_with_gst)
+            taxable = (total / Decimal('1.089')).quantize(Decimal('0.01'))
+            gst5 = (taxable * Decimal('0.70') * Decimal('0.05')).quantize(Decimal('0.01'))
+            gst18 = (taxable * Decimal('0.30') * Decimal('0.18')).quantize(Decimal('0.01'))
+            gst_total = gst5 + gst18
+            # Keep grand total exact to entered project cost
+            drift = total - (taxable + gst_total)
+            if drift:
+                gst18 = (gst18 + drift).quantize(Decimal('0.01'))
+                gst_total = gst5 + gst18
+            self.taxable_value = taxable
+            self.gst_5_amount = gst5
+            self.gst_18_amount = gst18
+            self.gst_amount = gst_total
+            self.gst_percent = Decimal('8.90')
+            self.subtotal = taxable
+            self.grand_total = total - Decimal(self.discount or 0)
+        else:
+            self.subtotal = cost_subtotal
+            self.gst_amount = (self.subtotal * self.gst_percent / 100).quantize(Decimal('0.01'))
+            self.grand_total = self.subtotal + self.gst_amount - self.discount
+            self.taxable_value = self.subtotal
+            self.gst_5_amount = Decimal('0')
+            self.gst_18_amount = Decimal('0')
+
+        self.customer_contribution = self.grand_total - self.subsidy_amount if self.subsidy_applicable else self.grand_total
         self.save(update_fields=[
-            'subtotal', 'gst_amount', 'grand_total', 'customer_contribution',
-            'total_dc_capacity', 'plant_capacity_kw',
+            'subtotal', 'gst_amount', 'gst_percent', 'grand_total', 'customer_contribution',
+            'total_dc_capacity', 'plant_capacity_kw', 'taxable_value', 'gst_5_amount', 'gst_18_amount',
+            'monthly_production_units', 'estimated_annual_generation', 'annual_saving_amount',
         ])
 
     @property

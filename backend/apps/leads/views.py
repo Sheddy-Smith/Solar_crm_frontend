@@ -15,7 +15,10 @@ from .serializers import (
     FollowUpSerializer, AdminApprovalSerializer, QuotationSerializer,
     LeadSiteSurveySerializer, LeadSurveyPhotoSerializer,
 )
-from apps.accounts.permissions import HasModulePermission, is_lead_scoped, lead_owner_filter, is_own_lead
+from apps.accounts.permissions import (
+    HasModulePermission, is_lead_scoped, lead_owner_filter, is_own_lead, can_manage_leads,
+)
+from .recycle import soft_delete_follow_up, soft_delete_lead
 
 
 class LeadViewSet(viewsets.ModelViewSet):
@@ -29,7 +32,7 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        qs = Lead.objects.select_related('assigned_to', 'created_by', 'site_survey')
+        qs = Lead.objects.select_related('assigned_to', 'created_by', 'site_survey').filter(is_deleted=False)
         role = getattr(getattr(user, 'role', None), 'name', '')
         if role == 'Sales Executive':
             # Sales Executives see only leads assigned to them
@@ -66,7 +69,12 @@ class LeadViewSet(viewsets.ModelViewSet):
         # admin action, and giving a lead away would also drop it out of the
         # executive's own scoped view.
         if is_lead_scoped(user):
-            serializer.save(assigned_to=serializer.instance.assigned_to)
+            locked = {'assigned_to': serializer.instance.assigned_to}
+            # A Sales Executive can update lead details/follow-ups but must never
+            # change the pipeline status — a Won lead stays Won in their account.
+            if role == 'Sales Executive':
+                locked['status'] = serializer.instance.status
+            serializer.save(**locked)
         else:
             serializer.save()
 
@@ -75,7 +83,14 @@ class LeadViewSet(viewsets.ModelViewSet):
         role = getattr(getattr(user, 'role', None), 'name', '')
         if role == 'Tele Sales Executive' and instance.created_by_id != user.id:
             raise PermissionDenied('You can only delete leads you added.')
-        instance.delete()
+        # Won leads may only be deleted by the management tier (Super Admin /
+        # Admin / Branch Manager). A Sales Executive can never delete a lead.
+        if role == 'Sales Executive':
+            raise PermissionDenied('Sales Executives cannot delete leads.')
+        if instance.status == 'Won' and not can_manage_leads(user):
+            raise PermissionDenied('Only a Manager or Super Admin can delete a Won lead.')
+        # Soft-delete → CRM Settings Recycle Bin (auto-purge after 30 days).
+        soft_delete_lead(instance, user)
 
     @action(detail=False, methods=['get'])
     def overdue(self, request):
@@ -166,6 +181,14 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None):
+        # A Sales Executive must never change a lead's pipeline status — the
+        # status their manager set (e.g. Won) stays fixed in their account.
+        role = getattr(getattr(request.user, 'role', None), 'name', '')
+        if role == 'Sales Executive':
+            return Response(
+                {'error': 'Sales Executives cannot change lead status.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         lead = self.get_object()
         new_status = request.data.get('status')
         if new_status not in dict(Lead.STATUS_CHOICES):
@@ -226,9 +249,15 @@ class FollowUpViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        # Sales / Tele Sales Executives see only follow-ups on their own leads
-        filt = lead_owner_filter(self.request.user, prefix='lead__')
+        qs = super().get_queryset().filter(is_deleted=False, lead__is_deleted=False)
+        user = self.request.user
+        role = getattr(getattr(user, 'role', None), 'name', '')
+        # Tele Sales Executives can browse every tele-sourced lead's follow-ups
+        # (for the "lead holder" filter), matching LeadViewSet. Create/update
+        # still restricted to own leads via is_own_lead.
+        if role == 'Tele Sales Executive':
+            return qs.filter(lead__created_by__role__name='Tele Sales Executive')
+        filt = lead_owner_filter(user, prefix='lead__')
         if filt:
             qs = qs.filter(**filt)
         return qs
@@ -260,10 +289,9 @@ class FollowUpViewSet(viewsets.ModelViewSet):
             self._sync_lead_next_follow_up(old_lead)
 
     def perform_destroy(self, instance):
-        # Deleting a Scheduled follow-up must also resync the lead, or the
-        # lead keeps a next_follow_up that no longer exists.
+        # Soft-delete → Recycle Bin; resync lead next_follow_up afterwards.
         lead = instance.lead
-        super().perform_destroy(instance)
+        soft_delete_follow_up(instance, self.request.user)
         self._sync_lead_next_follow_up(lead)
 
     @staticmethod
@@ -271,7 +299,7 @@ class FollowUpViewSet(viewsets.ModelViewSet):
         """Set `lead.next_follow_up` to the earliest remaining `Scheduled`
         follow-up's `scheduled_at`, or null if none remain."""
         next_scheduled = (
-            lead.follow_ups.filter(status='Scheduled')
+            lead.follow_ups.filter(status='Scheduled', is_deleted=False)
             .order_by('scheduled_at')
             .values_list('scheduled_at', flat=True)
             .first()

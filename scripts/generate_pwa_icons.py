@@ -1,92 +1,106 @@
-"""Generate PWA icon set (any + maskable) from the source logo artwork.
-
-Run once (or whenever the source logo changes):
-    python scripts/generate_pwa_icons.py
-"""
+"""Generate PWA icons: full sun + panel, transparent background (no white plate)."""
+from __future__ import annotations
 
 from pathlib import Path
+
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "src" / "assets" / "app-icon-source.png"
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "public" / "brand" / "malwa-app-icon-source.png"
 OUT_DIR = ROOT / "public" / "icons"
-BG_COLOR = (240, 250, 240, 255)  # matches generated logo's pale mint background
+LIGHT_FAV = ROOT / "public" / "brand" / "light"
 
-ANY_SIZES = [72, 96, 128, 144, 152, 180, 192, 384, 512]
-MASKABLE_SIZES = [192, 512]
+SIZES = [72, 96, 128, 144, 152, 180, 192, 384, 512]
+FAVICON_SIZES = [16, 32, 48]
 
 
-def trimmed_logo():
-    """Chroma-key the flat background to transparent, then crop to content bbox."""
-    im = Image.open(SOURCE).convert("RGBA")
-    bg = im.getpixel((0, 0))
-    br, bgc, bb, _ba = bg
-    pixels = im.load()
-    w, h = im.size
-    min_x, min_y, max_x, max_y = w, h, 0, 0
+def punch_black(img: Image.Image, threshold: int = 42) -> Image.Image:
+    out = img.convert("RGBA")
+    px = out.load()
+    w, h = out.size
     for y in range(h):
         for x in range(w):
-            r, g, b, a = pixels[x, y]
-            dist = abs(r - br) + abs(g - bgc) + abs(b - bb)
-            if dist <= 24:
-                pixels[x, y] = (r, g, b, 0)
-                continue
-            if x < min_x:
-                min_x = x
-            if x > max_x:
-                max_x = x
-            if y < min_y:
-                min_y = y
-            if y > max_y:
-                max_y = y
-    if max_x <= min_x or max_y <= min_y:
-        return im
-    pad = int(max(w, h) * 0.03)
-    box = (
-        max(0, min_x - pad),
-        max(0, min_y - pad),
-        min(w, max_x + pad),
-        min(h, max_y + pad),
-    )
-    return im.crop(box)
+            r, g, b, a = px[x, y]
+            if a and r <= threshold and g <= threshold and b <= threshold:
+                px[x, y] = (0, 0, 0, 0)
+    return out
 
 
-def square_canvas(content, canvas_size, content_ratio, bg=BG_COLOR):
-    """Paste `content` centered on a square canvas, scaled to `content_ratio`."""
-    canvas = Image.new("RGBA", (canvas_size, canvas_size), bg)
-    target = int(canvas_size * content_ratio)
-
-    cw, ch = content.size
-    scale = target / max(cw, ch)
-    new_size = (max(1, round(cw * scale)), max(1, round(ch * scale)))
-    resized = content.resize(new_size, Image.LANCZOS)
-
-    offset = ((canvas_size - new_size[0]) // 2, (canvas_size - new_size[1]) // 2)
-    canvas.paste(resized, offset, resized)
-    return canvas
+def punch_near_white(img: Image.Image, threshold: int = 248) -> Image.Image:
+    """Remove any leftover near-white plate pixels."""
+    out = img.convert("RGBA")
+    px = out.load()
+    w, h = out.size
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a and r >= threshold and g >= threshold and b >= threshold:
+                px[x, y] = (0, 0, 0, 0)
+    return out
 
 
-def main():
+def trim(img: Image.Image, pad: int = 24) -> Image.Image:
+    bbox = img.getbbox()
+    if not bbox:
+        return img
+    l, t, r, b = bbox
+    content = img.crop((l, t, r, b))
+    padded = Image.new("RGBA", (content.width + pad * 2, content.height + pad * 2), (0, 0, 0, 0))
+    padded.alpha_composite(content, (pad, pad))
+    return padded
+
+
+def contain_square(mark: Image.Image, size: int, fill: float = 0.72) -> Image.Image:
+    """Fit entire logo on a transparent square — nothing cropped, no plate."""
+    plate = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    target = max(1, int(size * fill))
+    fitted = mark.copy()
+    fitted.thumbnail((target, target), Image.Resampling.LANCZOS)
+    x = (size - fitted.width) // 2
+    y = (size - fitted.height) // 2
+    plate.alpha_composite(fitted, (x, y))
+    return plate
+
+
+def save_png(img: Image.Image, path: Path) -> None:
+    img.save(path, format="PNG", optimize=True)
+
+
+def main() -> None:
+    if not SOURCE.exists():
+        raise FileNotFoundError(SOURCE)
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    content = trimmed_logo()
+    LIGHT_FAV.mkdir(parents=True, exist_ok=True)
 
-    # "any" purpose icons: logo fills most of the canvas (small breathing margin).
-    for size in ANY_SIZES:
-        icon = square_canvas(content, size, content_ratio=0.82)
-        icon.save(OUT_DIR / f"icon-{size}.png")
+    mark = trim(punch_near_white(punch_black(Image.open(SOURCE))))
 
-    # "maskable" icons: keep artwork inside the ~80% safe zone Android uses,
-    # background fills edge-to-edge so OS masks (circle/squircle/etc) don't clip it.
-    for size in MASKABLE_SIZES:
-        icon = square_canvas(content, size, content_ratio=0.6)
-        icon.save(OUT_DIR / f"maskable-{size}.png")
+    for size in SIZES:
+        save_png(contain_square(mark, size), OUT_DIR / f"icon-{size}.png")
+        print(f"wrote icon-{size}.png")
 
-    # Favicons.
-    for size in (16, 32, 48):
-        icon = square_canvas(content, size, content_ratio=0.86)
-        icon.save(OUT_DIR / f"favicon-{size}.png")
+    for size in (192, 512):
+        save_png(contain_square(mark, size), OUT_DIR / f"maskable-{size}.png")
+        print(f"wrote maskable-{size}.png")
 
-    print(f"Wrote {len(ANY_SIZES) + len(MASKABLE_SIZES) + 3} icons to {OUT_DIR}")
+    for size in FAVICON_SIZES:
+        icon = contain_square(mark, size, fill=0.78)
+        save_png(icon, OUT_DIR / f"favicon-{size}.png")
+        save_png(icon, LIGHT_FAV / f"favicon-{size}.png")
+        print(f"wrote favicon-{size}.png")
+
+    ico_sizes = [16, 32, 48, 64, 128, 256]
+    icos = [contain_square(mark, s) for s in ico_sizes]
+    icos[0].save(
+        OUT_DIR / "favicon.ico",
+        format="ICO",
+        sizes=[(s, s) for s in ico_sizes],
+        append_images=icos[1:],
+    )
+    print("wrote favicon.ico")
+
+    save_png(contain_square(mark, 512), ROOT / "public" / "brand" / "malwa-app-icon-512.png")
+    print("done (transparent, local only)")
 
 
 if __name__ == "__main__":

@@ -49,7 +49,8 @@ LOGGING = {
 }
 
 # In local development, use SQLite for test runs so `manage.py test` works
-# even when the configured PostgreSQL user lacks CREATE DATABASE privileges.
+# even when the configured MySQL user lacks CREATE DATABASE privileges.
+# Runtime stack matches Hostinger: MySQL via DATABASE_URL + REDIS_URL=disabled.
 if 'test' in sys.argv:
     DATABASES = {
         'default': {

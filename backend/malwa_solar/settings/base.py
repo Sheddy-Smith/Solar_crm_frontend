@@ -95,37 +95,63 @@ DATABASES = {
 # dropped, so a pooled-but-dead connection can never surface as a 500.
 # Postgres only: holding SQLite connections open across requests invites
 # "database is locked" errors in threaded local dev.
-if 'postgresql' in DATABASES['default']['ENGINE']:
+if 'postgresql' in DATABASES['default']['ENGINE'] or 'mysql' in DATABASES['default']['ENGINE']:
     DATABASES['default']['CONN_MAX_AGE'] = env.int('DB_CONN_MAX_AGE', default=60)
     DATABASES['default']['CONN_HEALTH_CHECKS'] = True
+# PyMySQL as MySQLdb drop-in when DATABASE_URL uses mysql://
+if 'mysql' in DATABASES['default']['ENGINE']:
+    import pymysql
+    pymysql.install_as_MySQLdb()
+    DATABASES['default'].setdefault('OPTIONS', {})
+    DATABASES['default']['OPTIONS'].setdefault('charset', 'utf8mb4')
 
-_redis_url = env('REDIS_URL', default='redis://127.0.0.1:6379/1')
-_redis_options = {
-    'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-    # Redis (Upstash free tier) backs throttling/caching only — it must
-    # never be able to take down request handling (e.g. login, which is
-    # throttled) if the connection is briefly unreachable or misconfigured.
-    # A failed cache call falls back to "no rate data" instead of a 500.
-    'IGNORE_EXCEPTIONS': True,
-}
-if _redis_url.startswith('rediss://'):
-    _redis_options['CONNECTION_POOL_KWARGS'] = {'ssl_cert_reqs': None}
+_redis_url = (env('REDIS_URL', default='') or '').strip()
+_redis_disabled = _redis_url.lower() in ('', 'none', 'disabled', 'off', 'false', '0')
 
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': _redis_url,
-        'OPTIONS': _redis_options,
-    },
-    # In-process cache for DRF throttle counters (malwa_solar.throttling).
-    # Request handling must never depend on the shared Redis — a cache
-    # failure outside django-redis's ignored connection errors previously
-    # 500'd every throttled endpoint (2026-07-11 outage).
-    'throttling': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'drf-throttling',
-    },
-}
+if _redis_disabled:
+    # Production on Hostinger MySQL only — no Redis/Upstash for CRM data or cache.
+    # Throttling + short-lived cache stay in-process (LocMem).
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'malwa-default',
+        },
+        'throttling': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'drf-throttling',
+        },
+    }
+    CELERY_BROKER_URL = 'memory://'
+    CELERY_RESULT_BACKEND = 'cache+memory://'
+else:
+    _redis_options = {
+        'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        # Redis (Upstash free tier) backs throttling/caching only — it must
+        # never be able to take down request handling (e.g. login, which is
+        # throttled) if the connection is briefly unreachable or misconfigured.
+        # A failed cache call falls back to "no rate data" instead of a 500.
+        'IGNORE_EXCEPTIONS': True,
+    }
+    if _redis_url.startswith('rediss://'):
+        _redis_options['CONNECTION_POOL_KWARGS'] = {'ssl_cert_reqs': None}
+
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': _redis_url,
+            'OPTIONS': _redis_options,
+        },
+        # In-process cache for DRF throttle counters (malwa_solar.throttling).
+        # Request handling must never depend on the shared Redis — a cache
+        # failure outside django-redis's ignored connection errors previously
+        # 500'd every throttled endpoint (2026-07-11 outage).
+        'throttling': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'drf-throttling',
+        },
+    }
+    CELERY_BROKER_URL = _redis_url
+    CELERY_RESULT_BACKEND = _redis_url
 
 DJANGO_REDIS_IGNORE_EXCEPTIONS = True
 DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = True
@@ -213,6 +239,4 @@ EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='Malwa Solar CRM <noreply@malwasolar.com>')
 
-CELERY_BROKER_URL = env('REDIS_URL', default='redis://127.0.0.1:6379/0')
-CELERY_RESULT_BACKEND = env('REDIS_URL', default='redis://127.0.0.1:6379/0')
 CELERY_TIMEZONE = 'Asia/Kolkata'

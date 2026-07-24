@@ -16,7 +16,7 @@ import {
   getMediaUrl,
 } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
-import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME } from './telePortal.jsx';
+import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME, isTeleExecutiveRole } from './telePortal.jsx';
 import {
   InventoryOverviewPageEnhanced,
   InventoryProductsPage,
@@ -41,7 +41,9 @@ import {
   mapUiPermissionsToApi,
 } from './settingsHubPages.jsx';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
+import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide } from './components/mobile/PwaInstallControls.jsx';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
+import { SettingsRecycleBinPage } from './recycleBinPage.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -61,7 +63,6 @@ import {
   Cloud,
   ChevronLeft,
   ClipboardList,
-  Copy,
   CreditCard,
   Crosshair,
   Eye,
@@ -189,6 +190,11 @@ function compressImageFile(file, { maxDimension = 1600, quality = 0.8 } = {}) {
   });
 }
 
+const BRAND_LOGO_SRC = '/brand/malwa-logo-wordmark-light.png';
+const BRAND_LOGO_DARK_SRC = '/brand/malwa-logo-wordmark-dark.png';
+const BRAND_MARK_SRC = '/brand/malwa-logo-mark-light.png';
+const BRAND_MARK_DARK_SRC = '/brand/malwa-logo-mark-dark.png';
+
 const sidebarItems = [
   { label: 'Dashboard', icon: Home, active: true },
   { label: 'Lead', icon: Users },
@@ -210,7 +216,7 @@ const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', '
 const employeeSubItems = ['Employee Details', 'Employee Ledger'];
 const employeeRelatedPages = ['Employee', ...employeeSubItems];
 const legacyEmployeeAdminPages = ['Users', 'Roles & Permissions', 'Activity Logs'];
-const projectSubItems = ['Project List', 'Survey Dashboard', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Project Installation', 'Project Expenses'];
+const projectSubItems = ['Project List', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Project Installation', 'Project Expenses'];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
 // 'Subsidy', 'Project Documents', 'Project Approvals' ab Project Management ke sidebar submenu me nahi —
 // unke sidebar entries Liaisoning & Commissioning me move ho gaye (Subsidy seedha, Documents/Approvals
@@ -340,6 +346,7 @@ const settingsCardGroups = [
     items: [
       { key: 'Document Settings', label: 'Document Settings', note: 'Manage document numbering' },
       { key: 'Approval Settings', label: 'Approval Settings', note: 'Configure approval workflows' },
+      { key: 'Recycle Bin', label: 'Recycle Bin', note: 'Restore or permanently delete removed items' },
       { key: 'Backup & Restore', label: 'Backup & Restore', note: 'Backup and restore system data' },
       { key: 'System Maintenance', label: 'System Maintenance', note: 'System cleanup and maintenance' },
     ],
@@ -446,7 +453,6 @@ const projectSubRoutes = {
   'Project Create': '/projects/create',
   'Project KPI Analytics': '/insights?tab=projects',
   'Project List': '/projects/list',
-  'Survey Dashboard': '/projects/survey-dashboard',
   'Project Details': '/projects/details/:projectId',
   'Project Activity Create': '/projects/activities/create/:projectId',
   'Project Note Create': '/projects/notes/create/:projectId',
@@ -1902,6 +1908,7 @@ function formatCapacityKw(value) {
 
 function App() {
   const pwaInstall = usePwaInstall();
+  const [pwaGuideOpen, setPwaGuideOpen] = useState(false);
   const initialPreferencesRef = useRef(readStoredPreferences());
   const initialRouteRef = useRef(resolveSectionFromPath(typeof window !== 'undefined' ? window.location.pathname : '/'));
   const isPopStateRef = useRef(false);
@@ -2020,6 +2027,23 @@ function App() {
     setToast({ id: Date.now(), message, type });
   };
 
+  const handlePwaInstall = async () => {
+    if (pwaInstall.isStandalone) {
+      notify('Already running from your home screen.', 'success');
+      return;
+    }
+    if (pwaInstall.justInstalled) {
+      notify("Already installed — open Malwa Solar from your home screen.");
+      return;
+    }
+    if (pwaInstall.canPromptInstall) {
+      const choice = await pwaInstall.promptInstall();
+      if (choice.outcome === 'accepted') notify('Malwa Solar CRM installed!', 'success');
+      return;
+    }
+    setPwaGuideOpen(true);
+  };
+
   const handleProfileAction = (action) => {
     setProfileMenuOpen(false);
     if (action === 'Sign in') {
@@ -2051,15 +2075,18 @@ function App() {
     return () => window.removeEventListener('auth:logout', handler);
   }, []);
 
-  // Fetch logged-in user info when on dashboard
+  // Fetch logged-in user info once we're authenticated (any page). Role/flags
+  // from this profile gate lead actions (assign, delete, status) across the app,
+  // so it must be available beyond just the dashboard.
   useEffect(() => {
     if (currentPage !== 'dashboard') return;
+    if (loggedInUser) return;
     authApi.me().then((data) => {
       if (data) setLoggedInUser(data);
     }).catch(() => {
       notify('Could not load profile — session may have expired', 'error');
     });
-  }, [currentPage]);
+  }, [currentPage, loggedInUser]);
 
   // Lead stats are scoped to the Month/Year/Week toggle + the picked anchor
   // date, so they get their own effect/callback — everything else on the
@@ -2259,6 +2286,11 @@ function App() {
     }
 
     document.documentElement.classList.toggle('dark', isDarkMode);
+    const themeMeta = document.querySelector('meta[name="theme-color"]:not([media])')
+      || document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) {
+      themeMeta.setAttribute('content', isDarkMode ? '#07070d' : '#0d9f4a');
+    }
   }, [isDarkMode]);
 
   // Keep 'system' theme in sync if the OS-level color scheme changes while the app is open.
@@ -2462,10 +2494,15 @@ function App() {
   if (currentPage === 'portal') {
     return (
       <>
-        <PortalSelectPage
-          onSelectCrm={() => setCurrentPage('signin')}
-          onSelectTele={() => setCurrentPage('tele-signin')}
-        />
+        <div className="app-mobile-shell min-h-dvh">
+          <div className="px-3 pt-[max(10px,env(safe-area-inset-top))] md:hidden">
+            <PwaInstallBanner notify={notify} />
+          </div>
+          <PortalSelectPage
+            onSelectCrm={() => setCurrentPage('signin')}
+            onSelectTele={() => setCurrentPage('tele-signin')}
+          />
+        </div>
         <Toast toast={toast} />
       </>
     );
@@ -2509,7 +2546,8 @@ function App() {
     return (
       <>
         <SignInPage
-          onLogin={() => {
+          onLogin={(user) => {
+            if (user) setLoggedInUser(user);
             setCurrentPage('dashboard');
             notify('Dashboard opened');
           }}
@@ -2524,7 +2562,7 @@ function App() {
   return (
     <div
       className={cx(
-        'crm-density box-border min-h-screen max-w-full overflow-x-hidden p-2 sm:p-2.5 md:p-3 xl:h-screen xl:overflow-hidden',
+        'crm-density app-mobile-shell box-border min-h-dvh max-w-full overflow-x-hidden p-0 md:p-2.5 xl:h-dvh xl:overflow-hidden xl:p-3',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
@@ -2549,23 +2587,22 @@ function App() {
         >
           <div
             className={cx(
-              'relative shrink-0 border-b border-[#e8eef6] bg-white',
-              desktopSidebarCollapsed ? 'px-3 py-4' : 'px-4 py-3',
+              'sidebar-brand relative shrink-0 border-b border-[#e8eef6] bg-white',
+              desktopSidebarCollapsed ? 'px-2.5 py-3' : 'px-3 pt-3 pb-2.5',
             )}
           >
-            <div className={cx('flex items-center', desktopSidebarCollapsed ? 'h-[58px] justify-center' : 'h-[58px]')}>
-              {desktopSidebarCollapsed ? <MiniBrandMark compact /> : <BrandLockup />}
+            <div className={cx('flex items-start justify-center', desktopSidebarCollapsed ? 'min-h-[44px]' : 'min-h-[48px]')}>
+              {desktopSidebarCollapsed ? <MiniBrandMark compact plain /> : <BrandLockup />}
             </div>
 
             <button
               type="button"
               onClick={() => setMobileSidebarOpen(false)}
-              className="absolute right-3 top-4 inline-flex size-9 items-center justify-center rounded-[12px] border border-[#e4ebf4] bg-white/95 text-[#52637f] shadow-[0_6px_14px_rgba(17,39,84,0.08)] xl:hidden"
+              className="absolute right-3 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-[12px] border border-[#e4ebf4] bg-white/95 text-[#52637f] shadow-[0_6px_14px_rgba(17,39,84,0.08)] xl:hidden"
               aria-label="Close sidebar"
             >
               <X className="size-4" />
             </button>
-
           </div>
 
           <div className="relative min-h-0 flex-1 overflow-hidden rounded-t-[14px] bg-[linear-gradient(180deg,#09b83f_0%,#0799a7_42%,#075fc2_100%)]">
@@ -2977,64 +3014,49 @@ function App() {
                 })}
               </nav>
 
-              {!desktopSidebarCollapsed ? (
-                <>
-                  {!pwaInstall.isStandalone ? (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (pwaInstall.justInstalled) {
-                          notify("Already installed — open it via the 'Open in app' icon in the address bar, or from your desktop / home screen.");
-                          return;
-                        }
-                        if (pwaInstall.canPromptInstall) {
-                          const choice = await pwaInstall.promptInstall();
-                          if (choice.outcome === 'accepted') {
-                            notify('Malwa Solar CRM installed!', 'success');
-                          }
-                          return;
-                        }
-                        if (pwaInstall.supportsNativePrompt) {
-                          notify("If the app is already installed, open it via the 'Open in app' icon in the address bar. Otherwise use the browser menu (⋮) and choose 'Install app'.");
-                          return;
-                        }
-                        notify("Your browser doesn't support automatic installation. Please use your browser menu and choose 'Add to Home Screen'.");
-                      }}
-                      className={cx(
-                        'mt-12 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]',
-                        pwaInstall.justInstalled && 'opacity-80',
-                      )}
-                    >
-                      <MonitorSmartphone className="size-[17px] shrink-0" />
-                      <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">
-                        {pwaInstall.justInstalled ? 'Already Installed' : 'Add to Home Screen'}
-                      </span>
-                    </button>
-                  ) : null}
+              <>
+                {!pwaInstall.isStandalone ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      authApi.logout();
-                      setCurrentPage('portal');
-                      notify('Logged out');
-                    }}
+                    onClick={handlePwaInstall}
                     className={cx(
-                      'flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]',
-                      pwaInstall.isStandalone ? 'mt-12' : 'mt-2',
+                      'mt-8 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]',
+                      desktopSidebarCollapsed && 'xl:hidden',
+                      pwaInstall.justInstalled && 'opacity-80',
                     )}
                   >
-                    <LogOut className="size-[17px] shrink-0" />
-                    <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">Logout</span>
+                    <MonitorSmartphone className="size-[17px] shrink-0" />
+                    <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">
+                      {pwaInstall.justInstalled ? 'Already Installed' : 'Add to Home Screen'}
+                    </span>
                   </button>
-                </>
-              ) : null}
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    authApi.logout();
+                    setCurrentPage('portal');
+                    notify('Logged out');
+                  }}
+                  className={cx(
+                    'flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]',
+                    desktopSidebarCollapsed && 'xl:justify-center xl:px-0',
+                    pwaInstall.isStandalone ? 'mt-8' : 'mt-2',
+                  )}
+                >
+                  <LogOut className="size-[17px] shrink-0" />
+                  <span className={cx('min-w-0 flex-1 text-[13px] font-bold leading-tight', desktopSidebarCollapsed && 'xl:hidden')}>
+                    Logout
+                  </span>
+                </button>
+              </>
             </div>
 
           </div>
         </aside>
 
-        <main className="main-scroll-area scroll-soft min-w-0 flex-1 w-full pb-16 md:pb-0 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
-          <div className="space-y-2.5 xl:pb-3">
+        <main className="main-scroll-area scroll-soft min-w-0 w-full flex-1 px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
+          <div className="space-y-2.5 px-2.5 md:px-0 xl:pb-3">
             <AppHeader
               notify={notify}
               setMobileSidebarOpen={setMobileSidebarOpen}
@@ -3054,6 +3076,9 @@ function App() {
               setTheme={setTheme}
               loggedInUser={loggedInUser}
             />
+            <div className="px-3 pt-2 md:hidden">
+              <PwaInstallBanner notify={notify} />
+            </div>
 
             {activeSidebarItem === 'Settings Users' ? (
               <AdminReauthGate onNotify={notify}>
@@ -3190,6 +3215,7 @@ function App() {
             ) : activeSidebarItem === 'Lead List' ? (
               <LeadListPage
                 activeSection="Lead List"
+                loggedInUser={loggedInUser}
                 initialSearch={globalSearch}
                 searchNonce={globalSearchNonce}
                 onOpenSection={(section) => {
@@ -3219,6 +3245,7 @@ function App() {
             ) : activeSidebarItem === 'Lead Details' ? (
               <LeadDetailsPage
                 lead={selectedLead}
+                loggedInUser={loggedInUser}
                 initialTab={leadDetailsTab}
                 onLeadUpdated={updateSelectedLead}
                 onOpenSection={(section) => {
@@ -3582,6 +3609,11 @@ function App() {
         />
       ) : null}
 
+      <PwaInstallGuide
+        open={pwaGuideOpen}
+        onClose={() => setPwaGuideOpen(false)}
+        ios={typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))}
+      />
       <Toast toast={toast} />
     </div>
   );
@@ -3599,16 +3631,16 @@ function AppHeader({
   theme, setTheme, loggedInUser,
 }) {
   return (
-    <header className={`${panelClass} header-toolbar relative z-30 overflow-visible px-3 py-3 sm:px-4`}>
-      <div className="grid gap-3 lg:grid-cols-[44px_minmax(0,1fr)] xl:grid-cols-[44px_326px_minmax(0,1fr)_auto] xl:items-center">
-        <div className="flex items-center justify-between gap-3 lg:contents">
+    <header className={`${panelClass} header-toolbar app-mobile-topbar relative z-30 overflow-visible rounded-none border-x-0 border-t-0 px-3 py-2.5 md:rounded-[16px] md:border md:px-4 md:py-3`}>
+      <div className="grid gap-2.5 lg:grid-cols-[40px_minmax(0,1fr)] xl:grid-cols-[40px_minmax(280px,320px)_minmax(0,1fr)_auto] xl:items-center xl:gap-4">
+        <div className="flex items-center justify-between gap-2 lg:contents">
           <button
             type="button"
             onClick={() => {
               setMobileSidebarOpen(true);
               notify('Sidebar opened');
             }}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-[12px] border border-[#dfe7f2] bg-white text-[#52637f] transition hover:border-[#cfdbee] hover:text-[#2158d6] xl:hidden"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-[12px] border border-[#dfe7f2] bg-white text-[#52637f] shadow-[0_4px_12px_rgba(15,39,92,0.06)] transition hover:border-[#cfdbee] hover:text-[#2158d6] xl:hidden dark:border-slate-600 dark:bg-slate-800"
             aria-label="Open sidebar"
           >
             <Menu className="size-5" />
@@ -3623,13 +3655,23 @@ function AppHeader({
                 return next;
               });
             }}
-            className="hidden size-10 shrink-0 items-center justify-center rounded-[8px] bg-transparent text-[#52637f] transition hover:bg-[#f7faff] hover:text-[#244c7e] xl:inline-flex"
+            className="hidden size-10 shrink-0 items-center justify-center rounded-[12px] bg-transparent text-[#52637f] transition hover:bg-[#f7faff] hover:text-[#244c7e] xl:inline-flex"
             aria-label="Toggle sidebar menu"
           >
             <Menu className="size-[21px]" />
           </button>
 
-          <div className="flex flex-wrap items-center justify-end gap-3 lg:hidden">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 lg:hidden">
+            <ThemeToggle
+              theme={theme}
+              compact
+              layoutId="theme-toggle-mobile"
+              onChange={(next) => {
+                setTheme(next);
+                notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
+              }}
+            />
+            <PwaInstallIconButton notify={notify} />
             {actionIcons.map((action) => {
               const Icon = action.icon;
 
@@ -3667,17 +3709,17 @@ function AppHeader({
                 aria-label="Open profile menu"
                 aria-expanded={profileMenuOpen}
               >
-                <AdminAvatar />
+                <AdminAvatar name={loggedInUser?.name} />
               </button>
 
               {profileMenuOpen ? (
-                <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+                <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[200px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)] dark:border-slate-600 dark:bg-slate-900">
                   {['My Profile', 'Logout'].map((item) => (
                     <button
                       key={`mobile-${item}`}
                       type="button"
                       onClick={() => handleProfileAction(item)}
-                      className={`block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff] ${item === 'Logout' ? 'text-[#e03434]' : 'text-[#263d72]'}`}
+                      className={`block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff] dark:hover:bg-slate-800 ${item === 'Logout' ? 'text-[#e03434]' : 'text-[#263d72] dark:text-slate-200'}`}
                     >
                       {item}
                     </button>
@@ -3688,8 +3730,8 @@ function AppHeader({
           </div>
         </div>
 
-        <label className="search-input flex h-11 min-w-0 items-center rounded-[10px] border border-black/20 bg-[#fbfcff] px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 lg:col-span-1 xl:col-span-1">
-          <Search className="size-4 text-[#7486a3]" />
+        <label className="search-input flex h-11 min-w-0 items-center rounded-[12px] border border-black/15 bg-[#fbfcff] px-3 shadow-[0_4px_12px_rgba(15,39,92,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 md:h-12 md:px-4 lg:col-span-1 xl:col-span-1 dark:border-slate-600 dark:bg-slate-800">
+          <Search className="size-4 shrink-0 text-[#7486a3]" />
           <input
             type="search"
             value={globalSearch}
@@ -3702,23 +3744,23 @@ function AppHeader({
               }
             }}
             placeholder="Search leads, customers, projects..."
-            className="h-full min-w-0 w-full bg-transparent px-3 text-[14px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba]"
+            className="h-full min-w-0 w-full bg-transparent px-3 text-[14px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba] dark:text-slate-200"
           />
           {globalSearch && (
             <button type="button" onClick={() => setGlobalSearch('')} className="ml-1 text-[#8ea0ba] hover:text-[#e03434]">✕</button>
           )}
         </label>
 
-        <div className="header-banner relative min-w-0 w-full overflow-hidden rounded-[10px] border border-[#dce8f5] bg-[#eef8fb] lg:col-span-2 xl:col-span-1">
+        <div className="header-banner relative hidden min-w-0 w-full overflow-hidden rounded-[12px] border border-[#dce8f5] bg-[#eef8fb] shadow-[0_6px_16px_rgba(15,39,92,0.08)] lg:col-span-2 lg:block xl:col-span-1">
           <img
             src={navBarImage}
             alt="Solar header"
             decoding="async"
-            className="nav-banner-image h-[58px] w-full object-cover sm:h-[64px]"
+            className="nav-banner-image h-[56px] w-full object-cover sm:h-[60px]"
           />
         </div>
 
-        <div className="hidden flex-wrap items-center justify-between gap-3 lg:col-span-2 lg:flex xl:col-span-1 xl:justify-end">
+        <div className="hidden flex-wrap items-center justify-end gap-2 lg:col-span-2 lg:flex xl:col-span-1 xl:gap-3">
           {actionIcons.map((action) => {
             const Icon = action.icon;
 
@@ -3751,8 +3793,11 @@ function AppHeader({
             );
           })}
 
+          <PwaInstallIconButton notify={notify} className="hidden xl:inline-flex" />
+
           <ThemeToggle
             theme={theme}
+            layoutId="theme-toggle-desktop"
             onChange={(next) => {
               setTheme(next);
               notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
@@ -3812,7 +3857,7 @@ function Toast({ toast }) {
     <div
       key={toast.id}
       className={cx(
-        'fixed bottom-5 left-4 right-4 z-80 rounded-[12px] border px-4 py-3 text-center text-[13px] font-extrabold shadow-[0_16px_34px_rgba(21,43,83,0.16)] sm:left-auto sm:right-5 sm:max-w-[360px] sm:text-left',
+        'fixed bottom-5 left-4 right-4 z-[220] rounded-[12px] border px-4 py-3 text-center text-[13px] font-extrabold shadow-[0_16px_34px_rgba(21,43,83,0.16)] sm:left-auto sm:right-5 sm:max-w-[360px] sm:text-left',
         isError
           ? 'border-[#fecaca] bg-[#fff1f1] text-[#b91c1c]'
           : 'border-[#dce7f5] bg-white text-[#223768]',
@@ -3937,12 +3982,12 @@ function SignInPage({ onLogin, onBack, onNotify }) {
       const data = await authApi.login(email.trim(), password);
       if (data?.access) {
         // Tele Sales Executives only get the Tele Executive portal — never CRM Operations.
-        if (data?.user?.role_name === TELE_ROLE_NAME) {
+        if (isTeleExecutiveRole(data?.user?.role_name)) {
           authApi.logout();
           setLoginError('This account is for the Tele Executive portal. Please login from the Tele Executive portal.');
           return;
         }
-        onLogin();
+        onLogin(data.user);
       } else {
         setLoginError('Login failed. Please try again.');
       }
@@ -4170,7 +4215,13 @@ function LoginFeature({ feature }) {
   );
 }
 
-function LeadListPage({ activeSection = 'Lead List', initialSearch = '', searchNonce, onOpenSection, onCreateLead, onOpenLead, autoOpenFollowUps = false, onConsumeAutoOpenFollowUps, onNotify }) {
+function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initialSearch = '', searchNonce, onOpenSection, onCreateLead, onOpenLead, autoOpenFollowUps = false, onConsumeAutoOpenFollowUps, onNotify }) {
+  // Role-based gating for lead actions. The management tier (Super Admin /
+  // Admin / Branch Manager) can assign leads and delete Won leads; a Sales
+  // Executive can neither delete nor change status.
+  const currentRole = loggedInUser?.role_name || '';
+  const isLeadManager = Boolean(loggedInUser?.is_super_admin) || ['Admin', 'Branch Manager'].includes(currentRole);
+  const isSalesExecutive = currentRole === 'Sales Executive';
   const [searchQuery, setSearchQuery] = useState(initialSearch);
 
   useEffect(() => {
@@ -4195,6 +4246,19 @@ function LeadListPage({ activeSection = 'Lead List', initialSearch = '', searchN
   const [viewLeadId, setViewLeadId] = useState(null);
   const [followUpsOverviewOpen, setFollowUpsOverviewOpen] = useState(false);
   const [surveyLead, setSurveyLead] = useState(null);
+  // Active users that leads can be assigned to (drives both the "All Executives"
+  // filter dropdown and the Assign popup). Fetched once — the earlier bug used
+  // only names that already appeared on loaded leads, so executives with no
+  // leads never showed up and the filter felt broken.
+  const [executiveList, setExecutiveList] = useState([]);
+  const [assignLead, setAssignLead] = useState(null);
+
+  useEffect(() => {
+    userApi.list({ is_active: true }).then((data) => {
+      const users = Array.isArray(data) ? data : (data?.results ?? []);
+      setExecutiveList(users.map((u) => ({ id: u.id, name: u.name || u.email, role: u.role_name || '' })));
+    }).catch(() => setExecutiveList([]));
+  }, []);
 
   // Dashboard's "Add Follow-up" quick action lands here and asks us to open
   // the View Follow-up popup immediately, instead of just landing on the list.
@@ -4344,10 +4408,16 @@ function LeadListPage({ activeSection = 'Lead List', initialSearch = '', searchN
   }, [apiLeads]);
 
   const assigneeOptions = useMemo(() => {
-    if (!apiLeads) return ['All'];
-    const names = [...new Set(apiLeads.map(l => l.assignedTo.name).filter(n => n && n !== 'Unassigned'))].sort();
-    return ['All', ...names];
-  }, [apiLeads]);
+    const execs = [...executiveList]
+      .filter((e) => e.name)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((e) => ({ value: String(e.id), label: e.name }));
+    return [
+      { value: 'All', label: 'All Executives' },
+      { value: '__unassigned__', label: 'Unassigned' },
+      ...execs,
+    ];
+  }, [executiveList]);
 
   const activeFilterCount = [projectTypeFilter, statusFilter, assignedToFilter].filter((v) => v !== 'All').length + (followUpDate ? 1 : 0);
 
@@ -4366,7 +4436,12 @@ function LeadListPage({ activeSection = 'Lead List', initialSearch = '', searchN
       const queryMatch = !query || [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name].some((value) => String(value).toLowerCase().includes(query));
       const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
       const statusMatch = statusFilter === 'All' || lead.status === statusFilter;
-      const assignedMatch = assignedToFilter === 'All' || lead.assignedTo.name === assignedToFilter;
+      const assignedMatch =
+        assignedToFilter === 'All'
+          ? true
+          : assignedToFilter === '__unassigned__'
+            ? !lead.assignedTo.id
+            : String(lead.assignedTo.id) === assignedToFilter;
       const followUpMatch = !followUpDate || (lead.nextFollowUpRaw && lead.nextFollowUpRaw.slice(0, 10) === followUpDate);
       return queryMatch && projectTypeMatch && statusMatch && assignedMatch && followUpMatch;
     });
@@ -4489,8 +4564,8 @@ function LeadListPage({ activeSection = 'Lead List', initialSearch = '', searchN
               aria-label="Assigned To"
               className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none"
             >
-              {assigneeOptions.map((name) => (
-                <option key={name} value={name}>{name === 'All' ? 'All Executives' : name}</option>
+              {assigneeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </label>
@@ -4690,16 +4765,30 @@ function LeadListPage({ activeSection = 'Lead List', initialSearch = '', searchN
                         >
                           <MapPin className="size-4" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteLead(lead)}
-                          data-action="lead-delete"
-                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffd5d5] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]"
-                          aria-label={`Delete ${lead.customer}`}
-                          title="Delete"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
+                        {isLeadManager ? (
+                          <button
+                            type="button"
+                            onClick={() => setAssignLead(lead)}
+                            data-action="lead-assign"
+                            className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dbe4ff] bg-white text-[#3538cd] transition hover:bg-[#f2f4ff]"
+                            aria-label={`Assign ${lead.customer}`}
+                            title="Assign to executive"
+                          >
+                            <Users className="size-4" />
+                          </button>
+                        ) : null}
+                        {!isSalesExecutive && (lead.status !== 'Won' || isLeadManager) ? (
+                          <button
+                            type="button"
+                            onClick={() => deleteLead(lead)}
+                            data-action="lead-delete"
+                            className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffd5d5] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]"
+                            aria-label={`Delete ${lead.customer}`}
+                            title="Delete"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -4811,6 +4900,77 @@ function LeadListPage({ activeSection = 'Lead List', initialSearch = '', searchN
       {deleteConfirm ? (
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
+
+      {assignLead ? (
+        <LeadAssignModal
+          lead={assignLead}
+          executives={executiveList}
+          onClose={() => setAssignLead(null)}
+          onAssigned={() => { setAssignLead(null); setRefreshKey((key) => key + 1); }}
+          onNotify={onNotify}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+
+// Compact assign popup for the Lead list: Managers / Super Admin hand a lead to
+// a Sales Executive straight from the row's Action column.
+function LeadAssignModal({ lead, executives = [], onClose, onAssigned, onNotify }) {
+  const [selected, setSelected] = useState(lead?.assignedTo?.id ? String(lead.assignedTo.id) : '');
+  const [saving, setSaving] = useState(false);
+  // Prefer Sales Executives, but fall back to all active users if none exist yet.
+  const salesExecs = executives.filter((e) => e.role === 'Sales Executive');
+  const options = salesExecs.length ? salesExecs : executives;
+
+  const save = () => {
+    if (!selected) {
+      onNotify?.('Select an executive to assign', 'error');
+      return;
+    }
+    setSaving(true);
+    leadApi.assign(lead.id, selected)
+      .then(() => {
+        onNotify?.(`${lead.customer} assigned successfully`);
+        onAssigned?.();
+      })
+      .catch((err) => onNotify?.((err && err.message) ? err.message : 'Failed to assign lead', 'error'))
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
+      <div className="w-full max-w-[440px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
+          <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Assign Lead</h2>
+          <button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="space-y-4 p-6">
+          <div className="rounded-[10px] bg-[#f5f8fd] px-4 py-3">
+            <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">Lead</p>
+            <p className="font-display text-[15px] font-extrabold text-[#223768]">{lead.customer}</p>
+            <p className="text-[12px] font-bold text-[#7386a3]">{lead.mobile} · {lead.status}</p>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[12px] font-extrabold text-[#334666]">Assign to Executive</label>
+            <select
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+              className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#233a6b] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            >
+              <option value="">{options.length ? 'Select executive' : 'No active executives found'}</option>
+              {options.map((e) => (
+                <option key={e.id} value={String(e.id)}>{e.name}{e.role ? ` (${e.role})` : ''}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5">
+          <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-6 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+          <button type="button" onClick={save} disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#3538cd] px-6 text-[13px] font-extrabold text-white disabled:opacity-60"><Users className="size-4" />{saving ? 'Assigning…' : 'Assign Lead'}</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -4987,6 +5147,7 @@ function SettingsMasterPage({ activeSection, onOpenSection, onNotify, loggedInUs
     'Notification Settings': Bell,
     'Document Settings': FileText,
     'Approval Settings': ShieldCheck,
+    'Recycle Bin': Trash2,
     'Backup & Restore': RefreshCw,
     'System Maintenance': Wrench,
   };
@@ -5627,6 +5788,14 @@ function SettingsInlineContent({ activeSection, onOpenSection, onNotify, loggedI
     return <SettingsApprovalSettingsContent onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
+  if (activeSection === 'Recycle Bin') {
+    return (
+      <SettingsInlineDetailFrame>
+        <SettingsRecycleBinPage onNotify={onNotify} />
+      </SettingsInlineDetailFrame>
+    );
+  }
+
   if (activeSection === 'Backup & Restore') {
     return <SettingsBackupRestoreContent onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
@@ -6221,7 +6390,7 @@ function SettingsMasterFormModal({ title, initial = null, onClose, onSave }) {
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{initial ? `Edit ${title}` : `Add ${title}`}</h2>
@@ -8226,39 +8395,39 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
 
 function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
   const defaultCompanyForm = {
-    companyName: 'Malwa Solar Energy Pvt. Ltd.',
-    shortName: 'Malwa Solar',
-    companyType: 'Private Limited',
-    gstNumber: '03AAGCM1234A1Z5',
-    panNumber: 'AAGCM1234A',
-    tanNumber: 'PTLM12345G',
-    cin: 'U40106PB2021PTC045678',
-    phone: '+91 98765 43210',
-    secondaryPhone: '+91 98765 43211',
-    email: 'info@malwasolar.com',
-    altEmail: 'support@malwasolar.com',
-    website: 'https://www.malwasolar.com',
-    incorporationDate: '01/04/2021',
-    startDate: '01/05/2021',
-    companySize: '51-100 Employees',
+    companyName: 'MALWA SOLAR ENERGY',
+    shortName: 'Malwa Solar Energy',
+    companyType: 'Proprietorship',
+    gstNumber: '23CTTPM3966P1ZN',
+    panNumber: 'CTTPM3966P',
+    tanNumber: '',
+    cin: '',
+    phone: '822-3000-822',
+    secondaryPhone: '822-3000-824',
+    email: 'malwasolarenergy@gmail.com',
+    altEmail: 'malwasolarenergy@gmail.com',
+    website: 'https://www.malwasolarenergy.com',
+    incorporationDate: '',
+    startDate: '',
+    companySize: '11-50 Employees',
     industryType: 'Solar Energy',
     currency: 'INR (Rs)',
     timezone: '(GMT +05:30) Asia/Kolkata',
-    address1: '123, Industrial Area, Phase 1',
-    address2: 'Near Transport Nagar',
-    city: 'Ludhiana',
-    state: 'Punjab',
-    pinCode: '141003',
+    address1: '11/4, Fawara Chowk',
+    address2: '',
+    city: 'Ujjain',
+    state: 'Madhya Pradesh',
+    pinCode: '456001',
     country: 'India',
-    bankName: 'HDFC Bank',
-    accountNumber: '50200012345678',
-    ifsc: 'HDFC0005020',
-    branch: 'Ludhiana - Industrial Area',
-    contactName: 'Amanpreet Singh',
-    designation: 'Managing Director',
-    contactPhone: '+91 98765 43210',
-    contactEmail: 'amanpreet@malwasolar.com',
-    notes: 'Company notes...',
+    bankName: 'AU SMALL FINANCE BANK LIMITED',
+    accountNumber: '2402231963220487',
+    ifsc: 'AUBL0002319',
+    branch: 'Freeganj, Ujjain',
+    contactName: 'Malwa Solar Energy',
+    designation: 'Office',
+    contactPhone: '822-3000-822',
+    contactEmail: 'malwasolarenergy@gmail.com',
+    notes: 'Official quotation company details from client PDF.',
   };
 
   const [form, setForm] = useState(defaultCompanyForm);
@@ -8759,7 +8928,7 @@ function BranchFormModal({ branch, onClose, onSave }) {
   const [isActive, setIsActive] = useState(branch ? branch.isActive : true);
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{branch ? 'Edit Branch' : 'Add Branch'}</h2>
@@ -8791,7 +8960,7 @@ function BranchFormModal({ branch, onClose, onSave }) {
 
 function BranchViewModal({ branch, onClose }) {
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{branch.name}</h2>
@@ -12377,8 +12546,10 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     return <ProjectListPage activeSection={activeSection} onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
+  // 'Survey Dashboard' category was merged into 'Site Survey' — the survey
+  // stats now live on the Site Survey page. Redirect any old link/bookmark.
   if (activeSection === 'Survey Dashboard') {
-    return <SurveyDashboardPage onNotify={onNotify} />;
+    return <ProjectSiteSurveyPage activeSection="Project Site Survey" onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Details') {
@@ -13020,17 +13191,59 @@ function buildSiteSurveyViewHtml(row, detail) {
     <section><table>${kvPairs(survey.site_details)}</table></section>
   </div>
 
+  <h2 class="section-title">Project Details</h2>
+  <div class="grid">
+    <section><table>
+      ${infoRow('Category', survey.project_category)}
+      ${infoRow('Capacity Required (kW)', survey.capacity_required_kw)}
+      ${infoRow('Purpose', survey.purpose)}
+      ${infoRow('Sanction Load (kW)', survey.sanction_load_kw)}
+      ${infoRow('Tariff Category', survey.tariff_category)}
+      ${infoRow('Avg Monthly Bill', survey.average_monthly_bill)}
+    </table></section>
+    <section><table>
+      ${infoRow('IVRS', survey.ivrs_number)}
+      ${infoRow('Alternate Mobile', survey.alternate_mobile)}
+      ${infoRow('Email', survey.email_id)}
+      ${infoRow('Meter Location', survey.meter_location)}
+      ${infoRow('Main Supply From', survey.main_supply_from)}
+      ${infoRow('Supply Voltage', survey.supply_voltage)}
+    </table></section>
+  </div>
+
   <h2 class="section-title">Roof &amp; Electrical</h2>
   <div class="grid">
     <section><table>
       ${infoRow('Building Type', survey.building_type)}
       ${infoRow('Floor Count', survey.floor_count)}
       ${infoRow('Roof Type', survey.roof_type)}
+      ${infoRow('Roof Condition', survey.roof_condition)}
+      ${infoRow('Roof Direction', survey.roof_direction)}
+      ${infoRow('Roof Tilt', survey.roof_tilt_angle)}
       ${(survey.roof_stats || []).map((s) => infoRow(s.label, s.value)).join('')}
     </table></section>
-    <section><table>${kvPairs(survey.roof_details)}</table></section>
+    <section><table>
+      ${infoRow('Structure Type', survey.structure_type)}
+      ${infoRow('Front / Back Leg (ft)', [survey.front_leg_height_ft, survey.back_leg_height_ft].filter(Boolean).join(' / '))}
+      ${infoRow('Main DB Location', survey.main_db_location)}
+      ${infoRow('Termination Point', survey.last_termination_point)}
+      ${infoRow('LA Wire Length (m)', survey.la_wire_length_m)}
+      ${kvPairs(survey.roof_details)}
+    </table></section>
   </div>
+  <section class="full"><p class="sub">Shadow Analysis</p><table>
+    ${infoRow('Morning', [survey.shadow_morning_from, survey.shadow_morning_to, survey.shadow_morning_percent].filter(Boolean).join(' → ') || '-')}
+    ${infoRow('Afternoon', [survey.shadow_afternoon_from, survey.shadow_afternoon_to, survey.shadow_afternoon_percent].filter(Boolean).join(' → ') || '-')}
+    ${infoRow('Evening', [survey.shadow_evening_from, survey.shadow_evening_to, survey.shadow_evening_percent].filter(Boolean).join(' → ') || '-')}
+    ${infoRow('Remarks', survey.shadow_analysis_remarks)}
+  </table></section>
   <section class="full"><p class="sub">Electrical Details</p><table>${kvPairs(survey.electrical_details)}</table></section>
+  <section class="full"><p class="sub">Material Checklist</p>${listTable(['Material', 'Qty / Spec'], (Array.isArray(survey.material_checklist) ? survey.material_checklist : []).map((r) => `<tr><td>${esc(r.item)}</td><td>${esc(r.qty || '-')}</td></tr>`))}</section>
+  <section class="full"><table>
+    ${infoRow('Additional Observations', survey.additional_observations)}
+    ${infoRow('Customer Confirmation', [survey.customer_confirmation_name, survey.customer_confirmation_date].filter(Boolean).join(' — '))}
+    ${infoRow('Survey Engineer', [survey.survey_engineer_name, survey.survey_engineer_date].filter(Boolean).join(' — '))}
+  </table></section>
 
   <h2 class="section-title">System Details</h2>
   <div class="grid">
@@ -13211,6 +13424,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const [actionMenu, setActionMenu] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [surveySummary, setSurveySummary] = useState(null);
   const deferredQuery = useDeferredValue(query);
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
@@ -13231,6 +13445,24 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   }, [refreshKey]);
 
   const isSiteSurveyPicker = activeSection === 'Project Site Survey';
+
+  // Survey stat cards (Total / Pending / In Progress / Completed) — previously
+  // their own "Survey Dashboard" tab, now merged into the Site Survey page.
+  useEffect(() => {
+    if (!isSiteSurveyPicker) return;
+    let cancelled = false;
+    siteSurveyApi.summary()
+      .then((data) => { if (!cancelled) setSurveySummary(data); })
+      .catch(() => { if (!cancelled) setSurveySummary(null); });
+    return () => { cancelled = true; };
+  }, [isSiteSurveyPicker, refreshKey]);
+
+  const surveyStatCards = [
+    { label: 'Total Surveys', value: surveySummary?.total ?? '—', toneClass: 'bg-linear-to-br from-[#1578ff] to-[#0a9ff5]', icon: ClipboardPlus },
+    { label: 'Pending', value: surveySummary?.pending ?? '—', toneClass: 'bg-linear-to-br from-[#ef4444] to-[#f87171]', icon: Clock3 },
+    { label: 'In Progress', value: surveySummary?.in_progress ?? '—', toneClass: 'bg-linear-to-br from-[#f59e0b] to-[#fb923c]', icon: RefreshCw },
+    { label: 'Completed', value: surveySummary?.completed ?? '—', toneClass: 'bg-linear-to-br from-[#10b981] to-[#059669]', icon: CheckCircle2 },
+  ];
 
   const handleOpenProject = (row) => {
     onSelectProject?.({ id: row.id });
@@ -13383,6 +13615,25 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       />
 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      {isSiteSurveyPicker ? (
+        <section className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+          {surveyStatCards.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <article key={stat.label} className={`${panelClass} flex items-center gap-3 p-4`}>
+                <span className={cx('grid size-11 shrink-0 place-items-center rounded-full text-white', stat.toneClass)}>
+                  <Icon className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-extrabold uppercase text-[#7b88a2]">{stat.label}</p>
+                  <p className="font-display text-[21px] font-extrabold text-[#223768]">{stat.value}</p>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      ) : null}
 
       {!isSiteSurveyPicker ? (
         <section className={`${panelClass} overflow-hidden p-2 sm:p-2.5`}>
@@ -13736,7 +13987,7 @@ function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject }) {
   const feasibilityTone = survey.feasibility === 'Feasible' ? 'green' : survey.feasibility === 'Not Feasible' ? 'red' : survey.feasibility ? 'amber' : 'slate';
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-[#0b1226]/55 p-4 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-[#0b1226]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="flex max-h-[92vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_36px_80px_rgba(11,18,38,0.32)]">
         <div className="flex items-start justify-between gap-4 border-b border-[#e7eef7] px-5 py-4 sm:px-6">
           <div className="flex items-start gap-3">
@@ -14039,13 +14290,38 @@ const SURVEY_ROOF_PHOTO_SLOTS = [
   { slot: 'Water Tank', required: true },
   { slot: 'Obstacle', required: true },
   { slot: 'Drone Photo', required: false },
+  { slot: 'Front View', required: false },
+  { slot: 'Roof View', required: false },
+  { slot: 'Main DB Photo', required: false },
+  { slot: 'Consumer Bill', required: false },
+  { slot: 'Shadow Area Photo', required: false },
+  { slot: 'GPS Location', required: false },
+  { slot: 'Site Drawing', required: false },
 ];
 const SURVEY_ROOF_TYPE_OPTIONS = ['RCC', 'Tin Shed', 'Metal Roof', 'Ground Mount'];
+const SURVEY_PROJECT_CATEGORY_OPTIONS = ['Residential', 'Commercial', 'Industrial', 'Other'];
+const SURVEY_PURPOSE_OPTIONS = ['On-Grid', 'Off-Grid', 'Hybrid'];
+const SURVEY_ROOF_CONDITION_OPTIONS = ['Excellent', 'Good', 'Average', 'Poor'];
+const SURVEY_ROOF_DIRECTION_OPTIONS = ['North', 'South', 'East', 'West'];
+const SURVEY_STRUCTURE_TYPE_OPTIONS = ['GP', 'GL', 'CGL', 'ZM'];
+const SURVEY_TERMINATION_POINT_OPTIONS = ['MCB', 'Cutout', 'Need to Install', 'Other'];
 const SURVEY_INVERTER_PLACEMENT_OPTIONS = ['Indoor', 'Outdoor'];
 const SURVEY_INVERTER_MOUNTING_OPTIONS = ['Wall Mounted', 'Floor Mounted'];
 const SURVEY_METER_PHASE_OPTIONS = ['Single Phase', 'Three Phase'];
 const SURVEY_MODULE_ORIENTATION_OPTIONS = ['Portrait', 'Landscape'];
 const SURVEY_ADDITIONAL_DOC_CATEGORIES = ['Images', 'Videos', 'PDF', 'Other Documents'];
+const SURVEY_DEFAULT_MATERIAL_CHECKLIST = [
+  { item: 'Solar Panels (Wattage)', qty: '' },
+  { item: 'Inverter Capacity', qty: '' },
+  { item: 'DC Cable', qty: '' },
+  { item: 'AC Cable', qty: '' },
+  { item: 'MC4 Connector', qty: '' },
+  { item: 'ACDB / DCDB', qty: '' },
+  { item: 'Structure', qty: '' },
+  { item: 'Earthing Kit', qty: '' },
+  { item: 'Lightning Arrestor', qty: '' },
+  { item: 'Other Material', qty: '' },
+];
 const SURVEY_SAFETY_ITEMS = [
   { key: 'safety_roof_safe', label: 'Roof Safe' },
   { key: 'safety_shadow_checked', label: 'Shadow Checked' },
@@ -14060,9 +14336,26 @@ const SURVEY_SAFETY_ITEMS = [
 ];
 const SURVEY_EMPTY_FORM = {
   survey_date: '', surveyed_by: '', status: 'Pending', latitude: '', longitude: '',
+  alternate_mobile: '', email_id: '', ivrs_number: '',
+  project_category: '', capacity_required_kw: '', purpose: '', existing_connection: false,
+  sanction_load_kw: '', extend_sanction_load_kw: '', meter_location: '', main_supply_from: '',
+  tariff_category: '', average_monthly_bill: '', supply_voltage: '',
   building_type: '', floor_count: '', roof_type: '', roof_height_ft: '', rooftop_area_sqft: '',
   roof_length_ft: '', roof_width_ft: '', shadow_free_area_sqft: '', available_area_sqft: '',
   shadow_present: false, water_tank_present: false, tree_nearby: false, obstacle_present: false, roof_remarks: '',
+  roof_condition: '', roof_direction: '', roof_tilt_angle: '',
+  shadow_morning_from: '', shadow_morning_to: '', shadow_morning_percent: '',
+  shadow_afternoon_from: '', shadow_afternoon_to: '', shadow_afternoon_percent: '',
+  shadow_evening_from: '', shadow_evening_to: '', shadow_evening_percent: '',
+  obstacle_mobile_tower: false, obstacle_building: false, obstacle_electric_pole: false,
+  obstacle_other: false, obstacle_other_text: '', shadow_analysis_remarks: '',
+  structure_type: '', front_leg_height_ft: '', back_leg_height_ft: '', no_of_sets: '', panels_in_one_row: '',
+  main_db_location: '', cable_route_distance_m: '', last_termination_point: '',
+  ac_cable_entry_point: '', la_wire_length_m: '',
+  material_checklist: SURVEY_DEFAULT_MATERIAL_CHECKLIST.map((r) => ({ ...r })),
+  additional_observations: '',
+  customer_confirmation_name: '', customer_confirmation_date: '',
+  survey_engineer_name: '', survey_engineer_date: '',
   earthing_required: false, earthing_count: '', earthing_type: '', earthing_location: '', earthing_remarks: '',
   inverter_placement: '', inverter_mounting: '', inverter_location_description: '', inverter_distance_from_roof: '',
   meter_type: '', meter_phase: '', meter_capacity: '', existing_mcb: '', connection_point_after_commissioning: '', meter_remarks: '',
@@ -14182,11 +14475,26 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
       skipDirtyRef.current = true;
       setSurvey(data);
       setForm({
+        ...SURVEY_EMPTY_FORM,
         survey_date: data.survey_date || '',
         surveyed_by: data.surveyed_by ? String(data.surveyed_by) : '',
         status: data.status || 'Pending',
         latitude: data.latitude || '',
         longitude: data.longitude || '',
+        alternate_mobile: data.alternate_mobile || '',
+        email_id: data.email_id || '',
+        ivrs_number: data.ivrs_number || '',
+        project_category: data.project_category || '',
+        capacity_required_kw: data.capacity_required_kw || '',
+        purpose: data.purpose || '',
+        existing_connection: Boolean(data.existing_connection),
+        sanction_load_kw: data.sanction_load_kw || '',
+        extend_sanction_load_kw: data.extend_sanction_load_kw || '',
+        meter_location: data.meter_location || '',
+        main_supply_from: data.main_supply_from || '',
+        tariff_category: data.tariff_category || '',
+        average_monthly_bill: data.average_monthly_bill || '',
+        supply_voltage: data.supply_voltage || '',
         building_type: data.building_type || '',
         floor_count: data.floor_count || '',
         roof_type: data.roof_type || '',
@@ -14201,6 +14509,42 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
         tree_nearby: Boolean(data.tree_nearby),
         obstacle_present: Boolean(data.obstacle_present),
         roof_remarks: data.roof_remarks || '',
+        roof_condition: data.roof_condition || '',
+        roof_direction: data.roof_direction || '',
+        roof_tilt_angle: data.roof_tilt_angle || '',
+        shadow_morning_from: data.shadow_morning_from || '',
+        shadow_morning_to: data.shadow_morning_to || '',
+        shadow_morning_percent: data.shadow_morning_percent || '',
+        shadow_afternoon_from: data.shadow_afternoon_from || '',
+        shadow_afternoon_to: data.shadow_afternoon_to || '',
+        shadow_afternoon_percent: data.shadow_afternoon_percent || '',
+        shadow_evening_from: data.shadow_evening_from || '',
+        shadow_evening_to: data.shadow_evening_to || '',
+        shadow_evening_percent: data.shadow_evening_percent || '',
+        obstacle_mobile_tower: Boolean(data.obstacle_mobile_tower),
+        obstacle_building: Boolean(data.obstacle_building),
+        obstacle_electric_pole: Boolean(data.obstacle_electric_pole),
+        obstacle_other: Boolean(data.obstacle_other),
+        obstacle_other_text: data.obstacle_other_text || '',
+        shadow_analysis_remarks: data.shadow_analysis_remarks || '',
+        structure_type: data.structure_type || '',
+        front_leg_height_ft: data.front_leg_height_ft || '',
+        back_leg_height_ft: data.back_leg_height_ft || '',
+        no_of_sets: data.no_of_sets || '',
+        panels_in_one_row: data.panels_in_one_row || '',
+        main_db_location: data.main_db_location || '',
+        cable_route_distance_m: data.cable_route_distance_m || '',
+        last_termination_point: data.last_termination_point || '',
+        ac_cable_entry_point: data.ac_cable_entry_point || '',
+        la_wire_length_m: data.la_wire_length_m || '',
+        material_checklist: Array.isArray(data.material_checklist) && data.material_checklist.length
+          ? data.material_checklist.map((r) => ({ item: r.item || '', qty: r.qty || '' }))
+          : SURVEY_DEFAULT_MATERIAL_CHECKLIST.map((r) => ({ ...r })),
+        additional_observations: data.additional_observations || '',
+        customer_confirmation_name: data.customer_confirmation_name || '',
+        customer_confirmation_date: data.customer_confirmation_date || '',
+        survey_engineer_name: data.survey_engineer_name || '',
+        survey_engineer_date: data.survey_engineer_date || '',
         earthing_required: Boolean(data.earthing_required),
         earthing_count: data.earthing_count || '',
         earthing_type: data.earthing_type || '',
@@ -14276,7 +14620,20 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
     ...form,
     survey_date: form.survey_date || null,
     surveyed_by: form.surveyed_by || null,
+    email_id: form.email_id || '',
+    customer_confirmation_date: form.customer_confirmation_date || null,
+    survey_engineer_date: form.survey_engineer_date || null,
+    material_checklist: Array.isArray(form.material_checklist) ? form.material_checklist : [],
   });
+
+  const updateMaterialQty = (index, qty) => {
+    setForm((f) => {
+      const list = [...(f.material_checklist || [])];
+      list[index] = { ...list[index], qty };
+      return { ...f, material_checklist: list };
+    });
+    setDirty(true);
+  };
 
   const handleSave = useCallback(async (nextStatus) => {
     setSaving(true);
@@ -14435,6 +14792,15 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyField label="Address (Auto)" optional>
                 <input value={survey?.address || ''} disabled className={`${surveyFieldClass} bg-[#f4f7fb] text-[#7386a3]`} />
               </SurveyField>
+              <SurveyField label="Alternate Mobile" optional>
+                <input value={form.alternate_mobile} onChange={(e) => updateField('alternate_mobile', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Email ID" optional>
+                <input type="email" value={form.email_id} onChange={(e) => updateField('email_id', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="IVRS Number" optional>
+                <input value={form.ivrs_number} onChange={(e) => updateField('ivrs_number', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
             </div>
 
             <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
@@ -14461,13 +14827,84 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={2} title="Roof Details">
+          <SurveySection number={2} title="Project Details">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SurveyField label="Project Category">
+                <select value={form.project_category} onChange={(e) => updateField('project_category', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_PROJECT_CATEGORY_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="Capacity Required (kW)" optional>
+                <input value={form.capacity_required_kw} onChange={(e) => updateField('capacity_required_kw', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Purpose">
+                <select value={form.purpose} onChange={(e) => updateField('purpose', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_PURPOSE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="Existing Connection">
+                <select value={form.existing_connection ? 'yes' : 'no'} onChange={(e) => updateField('existing_connection', e.target.value === 'yes')} className={surveyFieldClass}>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </SurveyField>
+              <SurveyField label="Sanction Load (kW)" optional>
+                <input value={form.sanction_load_kw} onChange={(e) => updateField('sanction_load_kw', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Extend Sanction Load (kW)" optional>
+                <input value={form.extend_sanction_load_kw} onChange={(e) => updateField('extend_sanction_load_kw', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Meter Location" optional>
+                <input value={form.meter_location} onChange={(e) => updateField('meter_location', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Main Supply From" optional>
+                <input value={form.main_supply_from} onChange={(e) => updateField('main_supply_from', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Tariff Category" optional>
+                <input value={form.tariff_category} onChange={(e) => updateField('tariff_category', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Average Monthly Bill" optional>
+                <input value={form.average_monthly_bill} onChange={(e) => updateField('average_monthly_bill', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Supply Voltage / Phase" optional>
+                <select value={form.supply_voltage} onChange={(e) => updateField('supply_voltage', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_METER_PHASE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+            </div>
+          </SurveySection>
+
+          <SurveySection number={3} title="Roof Details">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SurveyField label="Building Type" optional>
+                <input value={form.building_type} onChange={(e) => updateField('building_type', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Floor Count" optional>
+                <input value={form.floor_count} onChange={(e) => updateField('floor_count', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
               <SurveyField label="Roof Type">
                 <select value={form.roof_type} onChange={(e) => updateField('roof_type', e.target.value)} className={surveyFieldClass}>
                   <option value="">Select roof type</option>
                   {SURVEY_ROOF_TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
+              </SurveyField>
+              <SurveyField label="Roof Condition" optional>
+                <select value={form.roof_condition} onChange={(e) => updateField('roof_condition', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_ROOF_CONDITION_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="Roof Direction" optional>
+                <select value={form.roof_direction} onChange={(e) => updateField('roof_direction', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_ROOF_DIRECTION_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="Roof Tilt Angle" optional>
+                <input value={form.roof_tilt_angle} onChange={(e) => updateField('roof_tilt_angle', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Roof Height (ft)" optional>
                 <input value={form.roof_height_ft} onChange={(e) => updateField('roof_height_ft', e.target.value)} className={surveyFieldClass} />
@@ -14484,6 +14921,9 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyField label="Shadow-free Area (sq.ft)" optional>
                 <input value={form.shadow_free_area_sqft} onChange={(e) => updateField('shadow_free_area_sqft', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
+              <SurveyField label="Available Area (sq.ft)" optional>
+                <input value={form.available_area_sqft} onChange={(e) => updateField('available_area_sqft', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <SurveyCheckbox label="Shadow Present" checked={form.shadow_present} onChange={(v) => updateField('shadow_present', v)} />
@@ -14496,7 +14936,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </SurveyField>
           </SurveySection>
 
-          <SurveySection number={3} title="Roof Photo Checklist">
+          <SurveySection number={4} title="Roof / Site Photo Checklist">
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
               {SURVEY_ROOF_PHOTO_SLOTS.map(({ slot, required }) => (
                 <SurveyPhotoSlot
@@ -14513,7 +14953,50 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             {!survey?.id ? <p className="mt-2 text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
           </SurveySection>
 
-          <SurveySection number={4} title="Earthing Details">
+          <SurveySection number={5} title="Shadow Analysis">
+            <div className="overflow-x-auto rounded-[10px] border border-[#e7eef7]">
+              <table className="w-full min-w-[520px] text-left text-[12px]">
+                <thead className="bg-[#f8fafc] text-[11px] font-extrabold text-[#7386a3]">
+                  <tr>
+                    <th className="px-3 py-2">Time</th>
+                    <th className="px-3 py-2">From</th>
+                    <th className="px-3 py-2">To</th>
+                    <th className="px-3 py-2">Shadow %</th>
+                  </tr>
+                </thead>
+                <tbody className="font-bold text-[#1e3261]">
+                  {[
+                    { label: 'Morning', from: 'shadow_morning_from', to: 'shadow_morning_to', pct: 'shadow_morning_percent' },
+                    { label: 'Afternoon', from: 'shadow_afternoon_from', to: 'shadow_afternoon_to', pct: 'shadow_afternoon_percent' },
+                    { label: 'Evening', from: 'shadow_evening_from', to: 'shadow_evening_to', pct: 'shadow_evening_percent' },
+                  ].map((row) => (
+                    <tr key={row.label} className="border-t border-[#eef2f8]">
+                      <td className="px-3 py-2">{row.label}</td>
+                      <td className="px-2 py-1.5"><input value={form[row.from]} onChange={(e) => updateField(row.from, e.target.value)} placeholder="e.g. 8:00" className={surveyFieldClass} /></td>
+                      <td className="px-2 py-1.5"><input value={form[row.to]} onChange={(e) => updateField(row.to, e.target.value)} placeholder="e.g. 11:00" className={surveyFieldClass} /></td>
+                      <td className="px-2 py-1.5"><input value={form[row.pct]} onChange={(e) => updateField(row.pct, e.target.value)} placeholder="%" className={surveyFieldClass} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <SurveyCheckbox label="Mobile Tower" checked={form.obstacle_mobile_tower} onChange={(v) => updateField('obstacle_mobile_tower', v)} />
+              <SurveyCheckbox label="Building" checked={form.obstacle_building} onChange={(v) => updateField('obstacle_building', v)} />
+              <SurveyCheckbox label="Electric Pole" checked={form.obstacle_electric_pole} onChange={(v) => updateField('obstacle_electric_pole', v)} />
+              <SurveyCheckbox label="Other Obstacle" checked={form.obstacle_other} onChange={(v) => updateField('obstacle_other', v)} />
+            </div>
+            {form.obstacle_other ? (
+              <SurveyField label="Other Obstacle Details" optional>
+                <input value={form.obstacle_other_text} onChange={(e) => updateField('obstacle_other_text', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+            ) : null}
+            <SurveyField label="Shadow Analysis Remarks" optional>
+              <textarea value={form.shadow_analysis_remarks} onChange={(e) => updateField('shadow_analysis_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            </SurveyField>
+          </SurveySection>
+
+          <SurveySection number={6} title="Earthing Details">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <SurveyField label="Earthing Required">
                 <select value={form.earthing_required ? 'yes' : 'no'} onChange={(e) => updateField('earthing_required', e.target.value === 'yes')} className={surveyFieldClass}>
@@ -14545,7 +15028,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={5} title="Inverter Location">
+          <SurveySection number={7} title="Inverter Location">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <SurveyField label="Indoor / Outdoor">
                 <select value={form.inverter_placement} onChange={(e) => updateField('inverter_placement', e.target.value)} className={surveyFieldClass}>
@@ -14577,7 +15060,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={6} title="Meter Details">
+          <SurveySection number={8} title="Meter & Electrical Details">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <SurveyField label="Meter Type" optional>
                 <input value={form.meter_type} onChange={(e) => updateField('meter_type', e.target.value)} className={surveyFieldClass} />
@@ -14597,6 +15080,24 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyField label="Connection Point After Commissioning" optional>
                 <input value={form.connection_point_after_commissioning} onChange={(e) => updateField('connection_point_after_commissioning', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
+              <SurveyField label="Main DB Location" optional>
+                <input value={form.main_db_location} onChange={(e) => updateField('main_db_location', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Cable Route Distance (m)" optional>
+                <input value={form.cable_route_distance_m} onChange={(e) => updateField('cable_route_distance_m', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Last Termination Point" optional>
+                <select value={form.last_termination_point} onChange={(e) => updateField('last_termination_point', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_TERMINATION_POINT_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
+              <SurveyField label="AC Cable Entry Point" optional>
+                <input value={form.ac_cable_entry_point} onChange={(e) => updateField('ac_cable_entry_point', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="LA Wire Length (m)" optional>
+                <input value={form.la_wire_length_m} onChange={(e) => updateField('la_wire_length_m', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
             </div>
             <SurveyField label="Remarks" optional>
               <textarea value={form.meter_remarks} onChange={(e) => updateField('meter_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
@@ -14612,7 +15113,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={7} title="Cable & Conduit Route">
+          <SurveySection number={9} title="Cable & Conduit Route">
             <SurveyField label="Conduit Route Description" optional>
               <textarea value={form.conduit_route_description} onChange={(e) => updateField('conduit_route_description', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
             </SurveyField>
@@ -14644,8 +15145,14 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={8} title="Structure Layout">
+          <SurveySection number={10} title="Structure Layout">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SurveyField label="Structure Type" optional>
+                <select value={form.structure_type} onChange={(e) => updateField('structure_type', e.target.value)} className={surveyFieldClass}>
+                  <option value="">Select</option>
+                  {SURVEY_STRUCTURE_TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </SurveyField>
               <SurveyField label="Module Orientation">
                 <select value={form.module_orientation} onChange={(e) => updateField('module_orientation', e.target.value)} className={surveyFieldClass}>
                   <option value="">Select</option>
@@ -14654,6 +15161,18 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               </SurveyField>
               <SurveyField label="Tilt Angle" optional>
                 <input value={form.tilt_angle} onChange={(e) => updateField('tilt_angle', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Front Leg Height (ft)" optional>
+                <input value={form.front_leg_height_ft} onChange={(e) => updateField('front_leg_height_ft', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Back Leg Height (ft)" optional>
+                <input value={form.back_leg_height_ft} onChange={(e) => updateField('back_leg_height_ft', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="No. of Sets" optional>
+                <input value={form.no_of_sets} onChange={(e) => updateField('no_of_sets', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Panels in One Row" optional>
+                <input value={form.panels_in_one_row} onChange={(e) => updateField('panels_in_one_row', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Number of Rows" optional>
                 <input value={form.structure_rows} onChange={(e) => updateField('structure_rows', e.target.value)} className={surveyFieldClass} />
@@ -14673,7 +15192,30 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={9} title="Safety Checklist">
+          <SurveySection number={11} title="Material Checklist">
+            <div className="overflow-x-auto rounded-[10px] border border-[#e7eef7]">
+              <table className="w-full min-w-[420px] text-left text-[12px]">
+                <thead className="bg-[#f8fafc] text-[11px] font-extrabold text-[#7386a3]">
+                  <tr>
+                    <th className="px-3 py-2">Material</th>
+                    <th className="px-3 py-2 w-[160px]">Qty / Spec</th>
+                  </tr>
+                </thead>
+                <tbody className="font-bold text-[#1e3261]">
+                  {(form.material_checklist || []).map((row, index) => (
+                    <tr key={`${row.item}-${index}`} className="border-t border-[#eef2f8]">
+                      <td className="px-3 py-2">{row.item}</td>
+                      <td className="px-2 py-1.5">
+                        <input value={row.qty || ''} onChange={(e) => updateMaterialQty(index, e.target.value)} className={surveyFieldClass} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SurveySection>
+
+          <SurveySection number={12} title="Safety Checklist">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {SURVEY_SAFETY_ITEMS.map((item) => (
                 <SurveyCheckbox key={item.key} label={item.label} checked={form[item.key]} onChange={(v) => updateField(item.key, v)} />
@@ -14681,7 +15223,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={10} title="Additional Documents">
+          <SurveySection number={13} title="Additional Documents">
             <SiteSurveyDocumentUploads
               projectId={projectId}
               documents={additionalDocuments}
@@ -14691,13 +15233,33 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             />
           </SurveySection>
 
-          <SurveySection number={11} title="Survey Remarks">
-            <SurveyField label="Additional Remarks" optional>
-              <textarea value={form.summary_notes} onChange={(e) => updateField('summary_notes', e.target.value)} rows={4} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+          <SurveySection number={14} title="Additional Observations & Remarks">
+            <SurveyField label="Additional Observations" optional>
+              <textarea value={form.additional_observations} onChange={(e) => updateField('additional_observations', e.target.value)} rows={3} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            </SurveyField>
+            <SurveyField label="Survey Remarks" optional>
+              <textarea value={form.summary_notes} onChange={(e) => updateField('summary_notes', e.target.value)} rows={3} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
             </SurveyField>
           </SurveySection>
 
-          <SurveySection number={12} title="Survey Completion">
+          <SurveySection number={15} title="Customer Confirmation">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SurveyField label="Customer Name" optional>
+                <input value={form.customer_confirmation_name} onChange={(e) => updateField('customer_confirmation_name', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Customer Date" optional>
+                <input type="date" value={form.customer_confirmation_date} onChange={(e) => updateField('customer_confirmation_date', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Survey Engineer Name" optional>
+                <input value={form.survey_engineer_name} onChange={(e) => updateField('survey_engineer_name', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Survey Engineer Date" optional>
+                <input type="date" value={form.survey_engineer_date} onChange={(e) => updateField('survey_engineer_date', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+            </div>
+          </SurveySection>
+
+          <SurveySection number={16} title="Survey Completion">
             <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[12px] font-extrabold text-[#34466c]">Survey Summary</span>
@@ -25030,7 +25592,7 @@ function ProjectPremiumAside({ onAction }) {
 
 function PremiumLockedModal({ action, onClose, onNotify }) {
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 gap-3">
@@ -25691,7 +26253,7 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
   };
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[720px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{initialUser ? 'Edit User' : 'Add New User'}</h2>
@@ -25746,7 +26308,7 @@ function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNot
   };
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[640px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -25853,6 +26415,17 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
 
       const nextValue = !row.permissions[permissionName];
       return { ...row, permissions: { ...row.permissions, [permissionName]: nextValue } };
+    }));
+  };
+
+  // Grant every permission for a single module row in one click (per-category
+  // shortcut next to the Export column). Toggles off if already fully granted.
+  const grantAllForModule = (moduleName) => {
+    setPermissionRows((current) => current.map((row) => {
+      if (row.module !== moduleName) return row;
+      const allOn = Object.values(row.permissions).every(Boolean);
+      const next = Object.fromEntries(Object.keys(row.permissions).map((key) => [key, !allOn]));
+      return { ...row, permissions: next };
     }));
   };
 
@@ -26045,16 +26618,36 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
               </div>
               <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
                 <table className="crm-table min-w-[880px] w-full">
-                  <thead><tr>{['Module', 'View', 'Add', 'Edit', 'Delete', 'Export'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                  <thead><tr>{['Module', 'View', 'Add', 'Edit', 'Delete', 'Export', 'Grant All'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
                   <tbody>
-                    {permissionRows.map((row) => (
+                    {permissionRows.map((row) => {
+                      const allGranted = Object.values(row.permissions).every(Boolean);
+                      return (
                       <tr key={row.module}>
                         <td><div><p className="font-extrabold text-[#1e3261]">{row.module}</p><p className="mt-1 text-[11px] font-bold text-[#6f7f98]">{row.description}</p></div></td>
                         {['View', 'Add', 'Edit', 'Delete', 'Export'].map((permission) => (
                           <td key={`${row.module}-${permission}`}><SettingsPermissionToggle value={row.permissions[permission]} onClick={() => updatePermission(row.module, permission)} label={`${row.module} ${permission}`} /></td>
                         ))}
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() => grantAllForModule(row.module)}
+                            aria-pressed={allGranted}
+                            title={allGranted ? `Revoke all ${row.module} permissions` : `Grant all ${row.module} permissions`}
+                            className={cx(
+                              'inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[11px] font-extrabold transition',
+                              allGranted
+                                ? 'border-[#0d9f4a] bg-[#0d9f4a] text-white hover:bg-[#0b8b41]'
+                                : 'border-[#cfe0d6] bg-[#f0fdf4] text-[#0d9f4a] hover:bg-[#e2f9ea]',
+                            )}
+                          >
+                            <CheckCircle2 className="size-3.5" />
+                            {allGranted ? 'Granted' : 'Grant All'}
+                          </button>
+                        </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -26591,7 +27184,7 @@ function SettingsIpRuleModal({ initialRule = null, onClose, onSave }) {
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5"><h2 className="font-display text-[20px] font-extrabold text-[#111827]">{initialRule ? 'Edit IP Rule' : 'Add IP Rule'}</h2><button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button></div>
         <div className="grid gap-4 p-6 sm:grid-cols-2">
@@ -27369,7 +27962,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
       )}
 
       {empModalOpen ? (
-        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
           <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
               <h2 className="font-display text-[20px] font-semibold text-[#111827]">{editEmpId !== null ? 'Edit Employee' : 'Add Employee'}</h2>
@@ -27408,7 +28001,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
       ) : null}
 
       {voucherOpen ? (
-        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
           <div className="w-full max-w-[520px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
               <h2 className="font-display text-[20px] font-semibold text-[#111827]">Add Payment Voucher</h2>
@@ -27443,7 +28036,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
       ) : null}
 
       {editAttRow ? (
-        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
           <div className="w-full max-w-[480px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
               <h2 className="font-display text-[20px] font-semibold text-[#111827]">Edit Attendance</h2>
@@ -27476,7 +28069,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
       ) : null}
 
       {cardOpen && ledger ? (
-        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
           <div className="max-h-[92vh] w-full max-w-[900px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
               <h2 className="font-display text-[20px] font-semibold text-[#111827]">Weekly Attendance Card — {ledger.employee.name}</h2>
@@ -28688,7 +29281,7 @@ function AddUserModal({ onClose, onSave, onNotify }) {
   };
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[20px] font-extrabold text-[#111827]"><UserPlus className="size-5 text-[#0d9f4a]" /> Add User</h2>
@@ -28728,7 +29321,7 @@ function AddUserModal({ onClose, onSave, onNotify }) {
 
 function UserDetailsModal({ user, onClose, onNotify }) {
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[620px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -28758,7 +29351,7 @@ function UserDetailsModal({ user, onClose, onNotify }) {
 function AddRoleModal({ onClose, onSave }) {
   const [roleName, setRoleName] = useState('');
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Add Role</h2>
@@ -28779,7 +29372,7 @@ function AddRoleModal({ onClose, onSave }) {
 function EditRoleModal({ role, onClose, onSave }) {
   const [roleName, setRoleName] = useState(role.name);
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-display text-[20px] font-extrabold text-[#111827]">Edit Role</h2>
@@ -30933,43 +31526,88 @@ function formatMoney(value) {
   return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 }
 
-async function copyQuotationRecord(quotationId) {
-  const detail = await quotationApi.get(quotationId);
-  if (!detail?.lead) throw new Error('Cannot copy quotation');
-  const leadId = typeof detail.lead === 'object' ? detail.lead.id : detail.lead;
-  const items = (detail.items ?? [])
-    .filter((item) => String(item.item_name || '').trim())
-    .map((item) => {
-      const qty = Number(item.quantity) || 0;
-      const rate = Number(item.rate) || 0;
-      return {
-        item_name: String(item.item_name).trim(),
-        quantity: item.quantity ?? qty,
-        unit: item.unit || 'Nos',
-        rate,
-        amount: Number(item.amount) || qty * rate,
-      };
-    });
-  const payload = buildQuotationPayload(fieldsFromQuotation(detail), leadId, items);
-  payload.status = 'Draft';
-  if (detail.sales_executive != null && detail.sales_executive !== '') {
-    payload.sales_executive = Number(detail.sales_executive) || null;
-  } else {
-    payload.sales_executive = null;
-  }
-  const created = await quotationApi.create(payload);
-  if (!created?.id) throw new Error('Failed to copy quotation');
-  return created;
+const QUOTATION_PRINT_COMPANY = {
+  name: 'MALWA SOLAR ENERGY',
+  shortName: 'Malwa Solar Energy',
+  address: '11/4, Fawara Chowk, Ujjain, (M.P.)',
+  officeLine: 'OFFICE:- 11/4, Fawara Chowk, Ujjain, M.P.',
+  phone: '822-3000-822, 822-3000-824',
+  email: 'malwasolarenergy@gmail.com',
+  web: 'www.malwasolarenergy.com',
+  gstin: '23CTTPM3966P1ZN',
+  bankAccount: '2402231963220487',
+  bankIfsc: 'AUBL0002319',
+  bankName: 'AU SMALL FINANCE BANK LIMITED, FREEGANJ, UJJAIN',
+  // Client PDF brand palette
+  navy: '#0F233D',
+  orange: '#F49018',
+  yellow: '#FFFF00',
+  mint: '#B7E1CD',
+  logoUrl: '/quotation-brand/logo.png',
+  heroUrl: '/quotation-brand/hero.png',
+  qrUrl: '/quotation-brand/qr.png',
+};
+
+const QUOTATION_DEFAULT_COVER_LETTER = `Dear Sir/Madam
+We thank you for your interest in our company and also for your initiative towards green energy and conserving our Earth's health and climate.
+With regards to our discussion about providing solar grid tied power plant to cater your Electrical requirements, we hereby offer our best proposal.
+This proposal has been priced competitively, keeping in mind the strategic nature of the engagement and promise to provide you the best of services & support.
+Kindly consider our assurance of a full-fledged end-to end support to all our products. Our development and quality assurance team uses the latest tools and technology to develop state-of the-art products and solutions to address your specific needs.
+Should you require any further details or clarifications, please feel free to contact us @ 822-3000-822`;
+
+const QUOTATION_DEFAULT_TERMS = [
+  'Wattage of Panel or make might vary, depending on availability on the day of confirmation of order (Per Wp cost will remain same).',
+  'GST on 70% cost is 05% and GST on 30% cost is 18% so effective GST is 8.9% on Solar Plant.',
+  'Warranty of PV modules and inverter will be covered by the respective companies as per the warranty conditions mentioned on their products; physical damage cost of any product post installation will be borne by client.',
+  '12 year product warranty with 25 to 30 years performance warranty for 80% output for PV modules.',
+  '7 to 10 year manufacturer\'s warranty on inverter as per make of inverter.',
+  'Operation and maintenance contract if required will be Rs. 700/kW per year after out of warranty.',
+  'The project will be completed within 45 days after receiving PO and advance payment.',
+  'Warranty can be claimed against any manufacturing defect for all the components. No warranty can be claimed on broken panel, act of god or physical damage of plant components after installation.',
+  'Cleaning of panels shall be in customer scope.',
+  'Cancellation of order is not acceptable after PO. Order can be cancelled only if client reimburses the expenses and charges incurred on the project.',
+  'Any other terms and conditions not mentioned over here shall be as per mutual agreement.',
+  'The Company shall not be liable for any failure or delay due to causes beyond its reasonable control, including but not limited to acts of God, strikes, labor or government issues and policies or any other force majeure event.',
+];
+
+const QUOTATION_COMPARISON_ROWS = [
+  ['DC SPD', 'Type 2 Havells/Sibass', 'No'],
+  ['DC Wire', 'Tin Copper Polycab Type 1', 'Copper/Type 3'],
+  ['Anchor Fastening', 'With Fischer Chemical', 'Other'],
+  ['Column Balancing', 'Double Nut Washer With Spirit Level & Water Leveling', 'Direct Roof Mounting'],
+  ['Lightning Arrestor', 'Copper Bonded 100 Micron', 'Copper Bonded 50 Micron (Rusting In A Year)'],
+  ['Structure Material', 'JSW 80 GSM Pre Galvanized, Thickness 2 mm', '50 GSM Pre Galvanized'],
+  ['Lightning Arrestor earthing Above 10KW Plant', 'With Hot Dip GI Strip 25x3 Strip', 'With Aluminum Wire / Painted Strip'],
+  ['Earthing Type', 'GI Electrode/Copper Bonded 100 micron', 'Copper Bonded 50 Micron'],
+  ['Copper Wire', 'Finolex/RR Cable', 'Other'],
+  ['MCB', 'Havells/Eton', 'Other'],
+  ['Alum. AC Cable', 'RR/Polycab/Finolex Cable', 'Other'],
+  ['PVC Pipe', 'Polycab (MMS) PWD Approved', 'Other (LMS)'],
+  ['Silicon Sealant', 'Dove seal/McCoy/Pidilite', 'Ordinary'],
+  ['End Clamp & Mid Clamp', 'Aluminum 4mm Thickness With 10 Micron Anodized (25 Year life)', 'GI Polished'],
+  ['Head Allen cap M8', 'SS 304 Grade Certified', 'GI Polished'],
+  ['Termination', 'Tin Copper Lugs (With Crimping Tool)', 'Without Lugs'],
+  ['Tin Mounting Structure', '8MM J Bolt + SDS', '4mm POP Rivet'],
+  ['Roof Mounting Structure', '7 Feet to 9 Feet (No Any Cross Bracing)', 'Normal Structure'],
+  ['Structure Size/Quality', '170mmX50mmX15mm/80GSM Coated', '80mmX40mmX15mm/80GSM'],
+];
+
+function calcSplitGstAmounts(projectCostWithGst) {
+  const total = Number(projectCostWithGst) || 0;
+  if (!total) return { taxable: 0, gst5: 0, gst18: 0, gstTotal: 0, total: 0 };
+  const taxable = Math.round((total / 1.089) * 100) / 100;
+  let gst5 = Math.round(taxable * 0.7 * 0.05 * 100) / 100;
+  let gst18 = Math.round(taxable * 0.3 * 0.18 * 100) / 100;
+  const drift = Math.round((total - taxable - gst5 - gst18) * 100) / 100;
+  gst18 = Math.round((gst18 + drift) * 100) / 100;
+  return { taxable, gst5, gst18, gstTotal: Math.round((gst5 + gst18) * 100) / 100, total };
 }
 
-const QUOTATION_PRINT_COMPANY = {
-  name: 'Malwa Solar Energy',
-  tagline: 'Solar Solution Provider',
-  address: '123, Solar Street, Industrial Area, Indore, Madhya Pradesh - 452001',
-  phone: '+91 98765 43210',
-  email: 'info@malwasolar.com',
-  gstin: '23ABCDE1234F1Z5',
-};
+function formatPrintMoneyInr(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 function escapePrintHtml(value) {
   return String(value ?? '')
@@ -31037,350 +31675,606 @@ function quotationPrintLogoSvg() {
 
 function buildQuotationPrintHtml(detail) {
   const company = QUOTATION_PRINT_COMPANY;
-  const visibility = QUOTATION_SECTION_VISIBILITY[detail.template] || {};
-  const templateLabel = QUOTATION_TEMPLATE_DISPLAY_NAMES[detail.template] || detail.template || 'Solar Quotation';
-  const customerAddress = [detail.address, detail.city, detail.state, detail.pincode].filter(Boolean).join(', ');
-  const gstin = detail.gst_number || company.gstin;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const logoSrc = `${origin}${company.logoUrl}`;
+  const heroSrc = `${origin}${company.heroUrl}`;
+  const qrSrc = `${origin}${company.qrUrl}`;
 
-  const metaRows = [
-    ['Quotation No', detail.quotation_number || `#${detail.id}`],
-    ['Date', formatPrintDate(detail.quotation_date || detail.created_at)],
-    ['Valid Till', formatPrintDate(detail.valid_till)],
-    ['Sales Executive', detail.sales_executive_name || '—'],
-    ['Lead ID', detail.lead_ivrs_number || '—'],
-  ].map(([label, value]) => `
-    <tr>
-      <td class="meta-label">${escapePrintHtml(label)}</td>
-      <td class="meta-sep">:</td>
-      <td class="meta-value">${escapePrintHtml(value)}</td>
-    </tr>
-  `).join('');
+  const ink = '#102033';
+  const navy = '#0B1F36';
+  const gold = '#C8892A';
+  const goldSoft = '#F7E7C8';
+  const sand = '#F6F1E8';
+  const mist = '#EEF3F8';
+  const line = '#D7E0EA';
+  const mute = '#5B6B7C';
 
-  const customerMobile = detail.lead_mobile_number
-    || (typeof detail.lead === 'object' ? detail.lead.mobile_number : '')
-    || detail.alternate_number
-    || '';
-  const customerRows = printKvRows([
-    ['Customer Name', detail.lead_customer_name],
-    ['Mobile Number', customerMobile],
-    ['Alternate Number', detail.alternate_number],
-    ['Email', detail.email],
-    ['Aadhaar Number', detail.aadhaar_number],
-    ['Company Name', detail.company_name],
-    ['GST Number', detail.gst_number],
-    ['Address', customerAddress],
-    ['Project / Site', detail.project_type || detail.template],
-  ]);
+  const customerName = detail.lead_customer_name || 'Valued Customer';
+  const customerAddress = [detail.address, detail.city, detail.state, detail.pincode].filter(Boolean).join(', ') || '—';
+  const capacityNum = detail.plant_capacity_kw || '—';
+  const capacity = detail.plant_capacity_kw ? `${detail.plant_capacity_kw} kW` : '—';
+  const phase = detail.connection_type || 'Single Phase';
+  const panelCount = detail.number_of_panels ? `${detail.number_of_panels} Panels` : '';
+  const panelType = detail.panel_type || 'Mono PERC Half-Cut';
+  const panelLine = [panelCount, panelType].filter(Boolean).join(', ') || '—';
+  const totalWatt = detail.panel_wattage && detail.number_of_panels
+    ? Number(detail.panel_wattage) * Number(detail.number_of_panels)
+    : (detail.total_dc_capacity ? Number(detail.total_dc_capacity) * 1000 : '');
+  const panelMake = [detail.panel_brand, detail.panel_model].filter(Boolean).join(' / ') || '—';
+  const inverterCap = detail.inverter_capacity || capacity;
+  const inverterMake = detail.inverter_brand || '—';
+  const quoteAmount = detail.project_cost_with_gst || detail.grand_total || detail.customer_contribution || 0;
+  const splitCalc = calcSplitGstAmounts(quoteAmount);
+  const split = detail.use_split_gst !== false
+    ? {
+        taxable: Number(detail.taxable_value) || splitCalc.taxable,
+        gst5: Number(detail.gst_5_amount) || splitCalc.gst5,
+        gst18: Number(detail.gst_18_amount) || splitCalc.gst18,
+        gstTotal: Number(detail.gst_amount) || splitCalc.gstTotal,
+      }
+    : splitCalc;
+  const monthlyUnits = detail.monthly_production_units
+    || (detail.plant_capacity_kw ? Number(detail.plant_capacity_kw) * 120 : '');
+  const annualUnits = detail.estimated_annual_generation
+    || (monthlyUnits ? Number(monthlyUnits) * 12 : '');
+  const tariff = Number(detail.tariff_rate_per_unit) || 7.5;
+  const annualSaving = detail.annual_saving_amount
+    || (annualUnits ? Number(annualUnits) * tariff : '');
+  const plantLife = detail.plant_life_years || 30;
+  const tilt = detail.tilt_angle_range || '14 to 16 Degree';
+  const installNote = detail.installation_type || detail.structure_type || 'Rooftop';
+  const subject = detail.subject || 'Comprehensive proposal for grid-tied solar power plant';
+  const coverLetter = (detail.cover_letter || '').trim() || QUOTATION_DEFAULT_COVER_LETTER;
+  const structureSpec = detail.structure_spec_details
+    || 'Thickness 2 mm, Galvanized 80 GSM JSW Standard / Elevated height, 14–16° tilt';
+  const netMeter = detail.net_meter_details
+    || 'LTCT & GEN. Meter — Modem, Application, Agreement, Testing, CEIG & MEDP included';
+  const infra = detail.infra_items || 'Lightning Arrester / Earthing Electrode';
+  const liasoning = detail.govt_liasoning_details || 'All government liasoning fees in Malwa Solar Energy scope';
+  const acCable = detail.ac_cable || 'Polycab / RR / KEI (as per availability)';
+  const dcCable = detail.dc_cable || '4 Sqmm Polycab DC Tin Copper Type 1';
+  const earthing = detail.earthing_kit || '2 LA, Structure, DC & Inverter earthing with 25×3 mm strip';
+  const paymentText = detail.payment_terms_text
+    || '50% advance · 30% on structure delivery · 20% after installation';
+  const validityText = detail.validity_text || 'Valid till material availability / 10 days';
+  const termsLines = (detail.terms_and_conditions || '').trim()
+    ? String(detail.terms_and_conditions).split('\n').filter(Boolean)
+    : QUOTATION_DEFAULT_TERMS;
+  const quoteNo = detail.quotation_number || '—';
+  const quoteDate = formatPrintDate(detail.quotation_date || detail.created_at);
+  const amountWords = numberToWordsIndian(quoteAmount);
 
-  const projectRows = visibility.project ? printKvRows([
-    ['Project Type', detail.project_type || detail.template],
-    ['Installation Type', detail.installation_type],
-    ['DISCOM Name', detail.discom_name],
-    ['Sanctioned Load', detail.sanctioned_load_kw ? `${detail.sanctioned_load_kw} kW` : ''],
-    ['Monthly Electricity Bill', detail.monthly_electricity_bill ? formatPrintMoney(detail.monthly_electricity_bill) : ''],
-    ['Existing Meter No.', detail.existing_meter_number],
-    ['Connection Type', detail.connection_type],
-    ['Consumer Number', detail.consumer_number],
-    ['Execution Timeline', detail.execution_timeline],
-  ]) : '';
+  const pillars = [
+    ['Best Quality', 'Premium modules & certified components'],
+    ['Hassle Free', 'End-to-end installation ownership'],
+    ['150 km/h Design', 'Structure engineered for high wind'],
+    ['25+ Year Mindset', 'Built for long plant lifespan'],
+  ];
 
-  const plantRows = visibility.plant ? printKvRows([
-    ['Plant Capacity', detail.plant_capacity_kw ? `${detail.plant_capacity_kw} kW` : ''],
-    ['Total DC Capacity', detail.total_dc_capacity ? `${detail.total_dc_capacity} kW` : ''],
-    ['Est. Annual Generation', detail.estimated_annual_generation ? `${detail.estimated_annual_generation} kWh` : ''],
-    ['Shadow Free Area', detail.shadow_free_area],
-    ['Module Orientation', detail.module_orientation],
-  ]) : '';
+  const warrantyItems = [
+    ['Solar Modules — Generation', '27 Years'],
+    ['Solar Modules — Product', '12 Years'],
+    ['Structure', detail.structure_warranty || '10 Years'],
+    ['Inverter', detail.inverter_warranty || '5 / 7 / 8 / 10 Years'],
+    ['Other Components & Service', detail.workmanship_warranty || '5 Years'],
+  ];
 
-  const panelRows = visibility.panel ? printKvRows([
-    ['Panel Brand', detail.panel_brand],
-    ['Panel Model', detail.panel_model],
-    ['Panel Type', detail.panel_type],
-    ['Panel Wattage', detail.panel_wattage ? `${detail.panel_wattage} W` : ''],
-    ['Number of Panels', detail.number_of_panels],
-  ]) : '';
+  const specRows = [
+    ['Solar Panels', panelLine, panelMake],
+    ['Inverter', `${inverterCap} ON-Grid, ${phase}`, inverterMake],
+    ['Net Metering', netMeter, 'Inclusive'],
+    ['Structure', structureSpec, 'JSW / Elevated'],
+    ['Infra', infra, 'Polycab / Copper bonded'],
+    ['Govt. Liasoning', liasoning, 'Malwa Scope'],
+    ['AC Cable', acCable, 'As per site'],
+    ['DC Cable', dcCable, 'Tin Copper Type 1'],
+    ['Earthing', earthing, '25×3 mm strip'],
+  ];
 
-  const inverterRows = visibility.inverter ? printKvRows([
-    ['Inverter Brand', detail.inverter_brand],
-    ['Inverter Model', detail.inverter_model],
-    ['Inverter Type', detail.inverter_type],
-    ['Inverter Capacity', detail.inverter_capacity],
-    ['Inverter Quantity', detail.inverter_quantity],
-  ]) : '';
+  const footer = `
+    <footer class="doc-footer">
+      <div class="footer-brand">${escapePrintHtml(company.name)}</div>
+      <div class="footer-meta">${escapePrintHtml(company.officeLine)} · ${escapePrintHtml(company.phone)}</div>
+      <div class="footer-meta">${escapePrintHtml(company.web)} · ${escapePrintHtml(company.email)} · GSTIN ${escapePrintHtml(company.gstin)}</div>
+    </footer>`;
 
-  const structureRows = visibility.structure ? printKvRows([
-    ['Structure Type', detail.structure_type],
-    ['Structure Material', detail.structure_material],
-    ['Coating Details', detail.coating_details],
-    ['Foundation Type', detail.foundation_type],
-    ['Wind Speed Rating', detail.wind_speed_rating],
-  ]) : '';
-
-  const bosRows = visibility.bos ? printKvRows([
-    ['DC Cable', detail.dc_cable],
-    ['MC4 Connector', detail.mc4_connector],
-    ['DCDB', detail.dcdb],
-    ['AC Cable', detail.ac_cable],
-    ['ACDB', detail.acdb],
-    ['Earthing Kit', detail.earthing_kit],
-    ['Lightning Arrester', detail.lightning_arrester],
-    ['Cable Tray', detail.cable_tray],
-    ['Fasteners', detail.fasteners],
-    ['PVC Pipe', detail.pvc_pipe],
-  ]) : '';
-
-  const items = (detail.items ?? []).filter((item) => String(item.item_name || '').trim());
-  const itemsHtml = items.length
-    ? items.map((item, index) => `
-        <tr>
-          <td class="num">${index + 1}</td>
-          <td>${escapePrintHtml(item.item_name)}${item.brand ? `<br><span class="sub">${escapePrintHtml(item.brand)}</span>` : ''}${item.specification ? `<br><span class="sub">${escapePrintHtml(item.specification)}</span>` : ''}</td>
-          <td class="center">${escapePrintHtml(item.quantity ?? '—')}</td>
-          <td class="center">${escapePrintHtml(item.unit || 'Nos')}</td>
-          <td class="right">${formatPrintMoney(item.rate)}</td>
-          <td class="right">${formatPrintMoney(item.amount)}</td>
-        </tr>
-      `).join('')
-    : '';
-
-  const costRows = printKvRows([
-    ['Material Cost', formatPrintMoney(detail.material_cost)],
-    ['Structure Cost', formatPrintMoney(detail.structure_cost)],
-    ['Installation Cost', formatPrintMoney(detail.installation_cost)],
-    ['Transportation Cost', formatPrintMoney(detail.transportation_cost)],
-    ['Liaisoning Charges', formatPrintMoney(detail.liaisoning_charges)],
-    ['Net Metering Charges', formatPrintMoney(detail.net_metering_charges)],
-    ['Other Charges', formatPrintMoney(detail.other_charges)],
-  ]);
-
-  const paymentRows = visibility.payment ? printKvRows([
-    ['Advance', detail.advance_percent ? `${detail.advance_percent}%` : ''],
-    ['Material Dispatch', detail.material_dispatch_percent ? `${detail.material_dispatch_percent}%` : ''],
-    ['Installation', detail.installation_percent ? `${detail.installation_percent}%` : ''],
-    ['Commissioning', detail.commissioning_percent ? `${detail.commissioning_percent}%` : ''],
-  ]) : '';
-
-  const warrantyRows = visibility.warranty ? printKvRows([
-    ['Panel Warranty', detail.panel_warranty],
-    ['Inverter Warranty', detail.inverter_warranty],
-    ['Structure Warranty', detail.structure_warranty],
-    ['Workmanship Warranty', detail.workmanship_warranty],
-  ]) : '';
-
-  const payableAmount = detail.customer_contribution ?? detail.grand_total;
-  const amountWords = numberToWordsIndian(payableAmount);
+  const pageChrome = (label) => `
+    <div class="page-chrome">
+      <span>${escapePrintHtml(company.shortName || company.name)}</span>
+      <span>${escapePrintHtml(label)}</span>
+      <span>${escapePrintHtml(quoteNo)}</span>
+    </div>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>${escapePrintHtml(detail.quotation_number || 'Quotation')}</title>
+  <title>${escapePrintHtml(quoteNo)} — Premium Quotation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    @page { size: A4 portrait; margin: 10mm 12mm 14mm; }
+    @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: #fff; color: #111; }
+    html, body { margin: 0; padding: 0; background: #fff; color: ${ink}; }
     body {
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: Manrope, "Segoe UI", sans-serif;
       font-size: 11px;
       line-height: 1.45;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
     }
-    .page { width: 100%; max-width: 186mm; margin: 0 auto; }
-    .doc-header {
+    .sheet {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 14mm 14mm 16mm;
+      page-break-after: always;
+      position: relative;
+      background: #fff;
+      overflow: hidden;
+    }
+    .sheet:last-child { page-break-after: auto; }
+    .sheet::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 5px;
+      background: linear-gradient(90deg, ${navy} 0%, ${gold} 55%, ${navy} 100%);
+    }
+    .display { font-family: "Cormorant Garamond", Georgia, serif; letter-spacing: 0.02em; }
+    .page-chrome {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid ${line};
+      color: ${mute};
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .doc-footer {
+      margin-top: 18px;
+      padding-top: 10px;
+      border-top: 1px solid ${line};
+      text-align: center;
+    }
+    .footer-brand { font-weight: 800; font-size: 11px; color: ${navy}; letter-spacing: 0.08em; }
+    .footer-meta { color: ${mute}; font-size: 9.5px; margin-top: 2px; }
+    .cover-hero {
+      position: relative;
+      height: 168mm;
+      border-radius: 18px;
+      overflow: hidden;
+      background: ${navy};
+      box-shadow: 0 18px 40px rgba(11, 31, 54, 0.18);
+    }
+    .cover-hero img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      filter: saturate(1.05) contrast(1.02);
+    }
+    .cover-scrim {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(11,31,54,0.18) 0%, rgba(11,31,54,0.25) 40%, rgba(11,31,54,0.88) 100%);
+    }
+    .cover-top {
+      position: absolute;
+      top: 18px; left: 18px; right: 18px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 14px;
-      padding-bottom: 8px;
+      gap: 12px;
     }
-    .header-left { display: flex; gap: 10px; flex: 1; min-width: 0; }
-    .brand-logo { width: 68px; height: 68px; flex-shrink: 0; }
-    .company-name { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; color: #111; line-height: 1.1; }
-    .company-tagline { margin: 2px 0 6px; font-size: 12px; font-weight: 700; color: #444; }
-    .company-address, .company-contact { margin: 0; font-size: 10px; color: #222; }
-    .company-contact { margin-top: 4px; }
-    .header-right { width: 220px; flex-shrink: 0; text-align: right; }
-    .qtn-ribbon {
-      display: inline-block;
-      margin-bottom: 8px;
-      padding: 7px 22px 7px 16px;
-      background: #111;
+    .cover-logo {
+      height: 54px;
+      width: auto;
+      background: rgba(255,255,255,0.92);
+      border-radius: 10px;
+      padding: 6px 10px;
+    }
+    .cover-qr {
+      width: 72px;
+      height: auto;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.85);
+      background: #fff;
+    }
+    .cover-copy {
+      position: absolute;
+      left: 22px; right: 22px; bottom: 22px;
       color: #fff;
-      font-size: 13px;
-      font-weight: 800;
-      letter-spacing: 1.5px;
-      clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%);
     }
-    .meta-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
-    .meta-table td { padding: 2px 0; vertical-align: top; }
-    .meta-label { font-weight: 700; text-align: left; white-space: nowrap; width: 42%; }
-    .meta-sep { width: 8px; text-align: center; font-weight: 700; }
-    .meta-value { font-weight: 600; text-align: left; }
-    .header-rule { border-top: 2px solid #111; margin: 8px 0 12px; }
-    .doc-title { margin: 0 0 10px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; }
-    .detail-section { margin-bottom: 12px; page-break-inside: avoid; }
-    .section-title {
-      margin: 0 0 6px;
-      padding: 4px 8px;
-      background: #ececec;
-      border: 1px solid #bbb;
-      font-size: 11px;
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(200,137,42,0.22);
+      border: 1px solid rgba(247,231,200,0.45);
+      color: ${goldSoft};
+      font-size: 9px;
       font-weight: 800;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      letter-spacing: 0.4px;
     }
-    .detail-grid { width: 100%; border-collapse: collapse; }
-    .detail-grid td { padding: 4px 6px; border: 1px solid #ccc; vertical-align: top; }
-    .kv-label { width: 34%; font-weight: 700; background: #f5f5f5; }
-    .kv-value { width: 66%; }
-    .items-wrap { margin-top: 4px; page-break-inside: auto; }
-    .data-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    .data-table th, .data-table td { border: 1px solid #999; padding: 5px 6px; vertical-align: top; }
-    .data-table th { background: #e8e8e8; font-size: 10px; font-weight: 800; text-transform: uppercase; }
-    .data-table thead { display: table-header-group; }
-    .data-table tr { page-break-inside: avoid; }
-    .num { width: 28px; text-align: center; }
-    .center { text-align: center; }
-    .right { text-align: right; white-space: nowrap; }
-    .sub { font-size: 9.5px; color: #444; }
-    .summary-box {
-      margin-top: 10px;
-      margin-left: auto;
-      width: 100%;
-      max-width: 320px;
-      border: 1px solid #999;
-      border-collapse: collapse;
-      page-break-inside: avoid;
+    .cover-title {
+      margin: 10px 0 6px;
+      font-size: 42px;
+      line-height: 0.95;
+      font-weight: 700;
+      color: #fff;
     }
-    .summary-box td { padding: 5px 8px; border-bottom: 1px solid #ccc; }
-    .summary-box tr:last-child td { border-bottom: none; }
-    .summary-label { font-weight: 700; }
-    .summary-value { text-align: right; font-weight: 700; }
-    .summary-total td { background: #ececec; font-size: 12px; font-weight: 800; border-top: 2px solid #111; }
-    .amount-words {
-      margin-top: 8px;
-      padding: 6px 8px;
-      border: 1px dashed #888;
-      font-size: 10.5px;
-      page-break-inside: avoid;
+    .cover-sub {
+      margin: 0;
+      max-width: 420px;
+      color: rgba(255,255,255,0.86);
+      font-size: 12.5px;
+      font-weight: 500;
     }
-    .text-block {
-      margin-top: 8px;
-      padding: 8px;
-      border: 1px solid #ccc;
-      white-space: pre-wrap;
-      page-break-inside: auto;
+    .cover-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 14px;
     }
-    .text-block-title { margin: 0 0 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
-    .signature-row {
+    .meta-card {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .meta-card .k { font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.7); font-weight: 700; }
+    .meta-card .v { margin-top: 3px; font-size: 13px; font-weight: 800; color: #fff; }
+    .pillar-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .pillar {
+      border: 1px solid ${line};
+      border-radius: 12px;
+      padding: 10px 10px 11px;
+      background: linear-gradient(180deg, #fff 0%, ${sand} 100%);
+    }
+    .pillar strong { display: block; color: ${navy}; font-size: 11px; margin-bottom: 3px; }
+    .pillar span { color: ${mute}; font-size: 9.5px; font-weight: 500; }
+    .header-row {
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .brand-block h1 {
+      margin: 0;
+      font-size: 28px;
+      color: ${navy};
+      font-weight: 700;
+      line-height: 1;
+    }
+    .brand-block p { margin: 4px 0 0; color: ${mute}; font-size: 10.5px; font-weight: 600; }
+    .logo-sm { height: 48px; width: auto; }
+    .section-label {
+      display: inline-block;
+      margin: 0 0 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: ${goldSoft};
+      color: ${navy};
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      color: ${navy};
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .lede { margin: 0 0 12px; color: ${mute}; font-size: 11.5px; max-width: 520px; }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .panel {
+      border: 1px solid ${line};
+      border-radius: 14px;
+      background: #fff;
+      padding: 12px 14px;
+    }
+    .panel.navy {
+      background: linear-gradient(145deg, ${navy} 0%, #163454 100%);
+      color: #fff;
+      border-color: ${navy};
+    }
+    .panel .label { font-size: 9px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: ${mute}; }
+    .panel.navy .label { color: rgba(247,231,200,0.85); }
+    .panel .value { margin-top: 4px; font-size: 15px; font-weight: 800; color: ${ink}; }
+    .panel.navy .value { color: #fff; font-size: 26px; font-family: "Cormorant Garamond", Georgia, serif; }
+    .panel .hint { margin-top: 4px; font-size: 10px; color: ${mute}; font-weight: 600; }
+    .panel.navy .hint { color: rgba(255,255,255,0.72); }
+    .kv { width: 100%; border-collapse: collapse; }
+    .kv td { padding: 5px 0; vertical-align: top; border-bottom: 1px solid rgba(215,224,234,0.8); }
+    .kv tr:last-child td { border-bottom: 0; }
+    .kv .k { width: 38%; color: ${mute}; font-weight: 700; font-size: 10.5px; }
+    .kv .v { color: ${ink}; font-weight: 700; font-size: 11px; }
+    .letter {
+      white-space: pre-wrap;
+      margin: 0;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: ${mist};
+      border: 1px solid ${line};
+      color: ${ink};
+      font-size: 10.8px;
+      line-height: 1.55;
+    }
+    table.data {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 6px;
+      border: 1px solid ${line};
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    table.data th {
+      background: ${navy} !important;
+      color: #fff !important;
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-align: left;
+      padding: 9px 10px;
+    }
+    table.data td {
+      padding: 8px 10px;
+      border-top: 1px solid ${line};
+      font-size: 10.5px;
+      font-weight: 600;
+      vertical-align: top;
+    }
+    table.data tr:nth-child(even) td { background: ${sand} !important; }
+    table.data tr.total td {
+      background: ${goldSoft} !important;
+      font-weight: 800;
+      color: ${navy};
+      border-top: 1px solid ${gold};
+    }
+    .amount-pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: ${goldSoft} !important;
+      color: ${navy} !important;
+      font-weight: 800;
+    }
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 10px 0 14px;
+    }
+    .stat {
+      border-radius: 12px;
+      border: 1px solid ${line};
+      background: #fff;
+      padding: 10px;
+    }
+    .stat .n {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: ${navy};
+      line-height: 1;
+    }
+    .stat .t { margin-top: 4px; font-size: 9.5px; font-weight: 700; color: ${mute}; text-transform: uppercase; letter-spacing: 0.06em; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .terms { margin: 0; padding-left: 16px; }
+    .terms li { margin: 0 0 5px; color: ${ink}; font-size: 10px; font-weight: 500; }
+    .pay-strip {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: linear-gradient(90deg, ${navy}, #183652);
+      color: #fff;
+    }
+    .pay-strip strong { display: block; font-size: 12px; margin-bottom: 3px; }
+    .pay-strip span { font-size: 10.5px; color: rgba(255,255,255,0.8); font-weight: 600; }
+    .bank-card {
+      margin-top: 12px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid ${line};
+      background: linear-gradient(180deg, #fff, ${sand});
+    }
+    .bank-card h3 { margin: 0 0 6px; font-size: 13px; color: ${navy}; }
+    .bank-card p { margin: 0 0 3px; font-weight: 700; color: ${ink}; font-size: 11px; }
+    .sign-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 24px;
       margin-top: 28px;
-      page-break-inside: avoid;
     }
-    .signature-box { flex: 1; text-align: center; }
-    .signature-line { margin-top: 42px; border-top: 1px solid #111; padding-top: 4px; font-size: 10px; font-weight: 700; }
-    .print-footer {
-      margin-top: 18px;
+    .sign-box {
+      border-top: 1px solid ${line};
       padding-top: 8px;
-      border-top: 1px solid #bbb;
-      font-size: 9px;
-      color: #444;
       text-align: center;
-      page-break-inside: avoid;
+      color: ${mute};
+      font-size: 10px;
+      font-weight: 700;
     }
-    .long-section { page-break-inside: auto; }
-    @media print {
-      body { background: #fff; }
-      .page { max-width: none; }
-    }
+    .note { margin: 8px 0 0; color: ${mute}; font-size: 9.5px; font-style: italic; }
+    @media print { .sheet { box-shadow: none; } }
   </style>
 </head>
 <body>
-  <div class="page">
-    <header class="doc-header">
-      <div class="header-left">
-        ${quotationPrintLogoSvg()}
-        <div>
-          <h1 class="company-name">${escapePrintHtml(company.name)}</h1>
-          <p class="company-tagline">${escapePrintHtml(company.tagline)}</p>
-          <p class="company-address">${escapePrintHtml(company.address)}</p>
-          <p class="company-contact">Phone: ${escapePrintHtml(company.phone)} | Email: ${escapePrintHtml(company.email)} | GSTIN: ${escapePrintHtml(gstin)}</p>
+  <section class="sheet">
+    ${pageChrome('Premium Proposal')}
+    <div class="cover-hero">
+      <img src="${heroSrc}" alt="Malwa Solar" />
+      <div class="cover-scrim"></div>
+      <div class="cover-top">
+        <img class="cover-logo" src="${logoSrc}" alt="Malwa Solar Energy" />
+        <img class="cover-qr" src="${qrSrc}" alt="QR" />
+      </div>
+      <div class="cover-copy">
+        <div class="eyebrow">Solar Investment Proposal</div>
+        <h1 class="cover-title display">Power your future<br/>with clarity.</h1>
+        <p class="cover-sub">${escapePrintHtml(subject)} — ${escapePrintHtml(capacity)} ${escapePrintHtml(installNote)} system designed for lasting performance.</p>
+        <div class="cover-meta">
+          <div class="meta-card"><div class="k">Prepared for</div><div class="v">${escapePrintHtml(customerName)}</div></div>
+          <div class="meta-card"><div class="k">Quote No.</div><div class="v">${escapePrintHtml(quoteNo)}</div></div>
+          <div class="meta-card"><div class="k">Date</div><div class="v">${escapePrintHtml(quoteDate)}</div></div>
         </div>
       </div>
-      <div class="header-right">
-        <div class="qtn-ribbon">QUOTATION</div>
-        <table class="meta-table"><tbody>${metaRows}</tbody></table>
+    </div>
+    <div class="pillar-grid">
+      ${pillars.map(([t, d]) => `<div class="pillar"><strong>${escapePrintHtml(t)}</strong><span>${escapePrintHtml(d)}</span></div>`).join('')}
+    </div>
+    ${footer}
+  </section>
+
+  <section class="sheet">
+    ${pageChrome('Commercial Offer')}
+    <div class="header-row">
+      <div class="brand-block">
+        <h1 class="display">${escapePrintHtml(company.name)}</h1>
+        <p>${escapePrintHtml(company.address)} · ${escapePrintHtml(company.phone)}</p>
+        <p>${escapePrintHtml(company.email)} · GSTIN ${escapePrintHtml(company.gstin)}</p>
       </div>
-    </header>
-    <div class="header-rule"></div>
-
-    <h2 class="doc-title">${escapePrintHtml(templateLabel)}</h2>
-
-    ${printSectionBlock('Customer Details', customerRows)}
-    ${printSectionBlock('Project Information', projectRows)}
-    ${printSectionBlock('Plant & System Details', plantRows)}
-    ${printSectionBlock('Solar Panel Details', panelRows)}
-    ${printSectionBlock('Inverter Details', inverterRows)}
-    ${printSectionBlock('Structure Details', structureRows)}
-    ${printSectionBlock('BOS / Balance of System', bosRows)}
-
-    ${itemsHtml ? `
-      <section class="detail-section items-wrap">
-        <h3 class="section-title">Line Items / Bill of Materials</h3>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th class="num">#</th>
-              <th>Description</th>
-              <th>Qty</th>
-              <th>Unit</th>
-              <th class="right">Rate</th>
-              <th class="right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>${itemsHtml}</tbody>
+      <img class="logo-sm" src="${logoSrc}" alt="Logo" />
+    </div>
+    <div class="section-label">Quotation</div>
+    <h2 class="h2 display">A clear proposal for ${escapePrintHtml(customerName)}</h2>
+    <p class="lede">${escapePrintHtml(capacity)} grid-tied solar plant · ${escapePrintHtml(phase)} · Tilt ${escapePrintHtml(tilt)} · ${escapePrintHtml(installNote)}</p>
+    <div class="info-grid">
+      <div class="panel">
+        <table class="kv">
+          <tr><td class="k">Customer</td><td class="v">${escapePrintHtml(customerName)}</td></tr>
+          <tr><td class="k">Site Address</td><td class="v">${escapePrintHtml(customerAddress)}</td></tr>
+          <tr><td class="k">Plant Capacity</td><td class="v">${escapePrintHtml(capacity)}</td></tr>
+          <tr><td class="k">Panel Config</td><td class="v">${escapePrintHtml(panelLine)}${totalWatt ? ` · ${escapePrintHtml(String(totalWatt))} W` : ''}</td></tr>
+          <tr><td class="k">Inverter</td><td class="v">${escapePrintHtml(inverterMake)} · ${escapePrintHtml(inverterCap)}</td></tr>
         </table>
-      </section>
-    ` : ''}
-
-    ${printSectionBlock('Cost Breakdown', costRows)}
-
-    <table class="summary-box">
+      </div>
+      <div class="panel navy">
+        <div class="label">Investment (GST Inclusive)</div>
+        <div class="value">${escapePrintHtml(formatPrintMoneyInr(quoteAmount))}</div>
+        <div class="hint">${escapePrintHtml(amountWords)} Rupees Only</div>
+        <div class="hint" style="margin-top:10px;">Effective GST ~8.9% (70% @5% + 30% @18%)</div>
+      </div>
+    </div>
+    <div class="section-label">Letter</div>
+    <div class="letter">${escapePrintHtml(coverLetter)}</div>
+    <div style="margin-top:14px;" class="section-label">Warranty Assurance</div>
+    <table class="data">
+      <thead><tr><th>Component</th><th>Coverage</th></tr></thead>
       <tbody>
-        <tr><td class="summary-label">Subtotal</td><td class="summary-value">${formatPrintMoney(detail.subtotal)}</td></tr>
-        <tr><td class="summary-label">GST (${escapePrintHtml(detail.gst_percent ?? 0)}%)</td><td class="summary-value">${formatPrintMoney(detail.gst_amount)}</td></tr>
-        ${Number(detail.discount) ? `<tr><td class="summary-label">Discount</td><td class="summary-value">${formatPrintMoney(detail.discount)}</td></tr>` : ''}
-        <tr><td class="summary-label">Grand Total</td><td class="summary-value">${formatPrintMoney(detail.grand_total)}</td></tr>
-        ${visibility.subsidy && detail.subsidy_applicable ? `<tr><td class="summary-label">Subsidy Amount</td><td class="summary-value">${formatPrintMoney(detail.subsidy_amount)}</td></tr>` : ''}
-        <tr class="summary-total"><td>Amount Payable by Customer</td><td class="summary-value">${formatPrintMoney(payableAmount)}</td></tr>
-        ${detail.cost_per_watt ? `<tr><td class="summary-label">Cost per Watt</td><td class="summary-value">Rs. ${detail.cost_per_watt}/W</td></tr>` : ''}
-        ${detail.roi_percent ? `<tr><td class="summary-label">Estimated ROI</td><td class="summary-value">${detail.roi_percent}%</td></tr>` : ''}
-        ${detail.payback_period_years ? `<tr><td class="summary-label">Payback Period</td><td class="summary-value">${detail.payback_period_years} years</td></tr>` : ''}
+        ${warrantyItems.map(([a, b]) => `<tr><td>${escapePrintHtml(a)}</td><td><span class="amount-pill">${escapePrintHtml(b)}</span></td></tr>`).join('')}
       </tbody>
     </table>
+    ${footer}
+  </section>
 
-    <div class="amount-words"><strong>Amount in Words:</strong> ${escapePrintHtml(amountWords)} Rupees Only</div>
-
-    ${printSectionBlock('Payment Terms', paymentRows)}
-    ${printSectionBlock('Warranty Details', warrantyRows)}
-
-    ${detail.scope_of_work ? `<div class="text-block long-section"><p class="text-block-title">Scope of Work</p>${escapePrintHtml(detail.scope_of_work)}</div>` : ''}
-    ${detail.exclusions ? `<div class="text-block long-section"><p class="text-block-title">Exclusions</p>${escapePrintHtml(detail.exclusions)}</div>` : ''}
-    ${detail.special_instructions ? `<div class="text-block long-section"><p class="text-block-title">Special Instructions</p>${escapePrintHtml(detail.special_instructions)}</div>` : ''}
-    ${detail.notes ? `<div class="text-block long-section"><p class="text-block-title">Remarks / Notes</p>${escapePrintHtml(detail.notes)}</div>` : ''}
-
-    <div class="signature-row">
-      <div class="signature-box"><div class="signature-line">Customer Signature</div></div>
-      <div class="signature-box"><div class="signature-line">For ${escapePrintHtml(company.name)}</div></div>
+  <section class="sheet">
+    ${pageChrome('Technical & Pricing')}
+    <div class="section-label">System Specification</div>
+    <h2 class="h2 display">${escapePrintHtml(capacity)} plant bill of materials</h2>
+    <table class="data">
+      <thead><tr><th>Component</th><th>Detail / Value</th><th>Make / Remark</th></tr></thead>
+      <tbody>
+        ${specRows.map(([a, b, c]) => `<tr><td>${escapePrintHtml(a)}</td><td>${escapePrintHtml(b)}</td><td>${escapePrintHtml(c)}</td></tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:16px;" class="section-label">Plant Performance</div>
+    <div class="stat-row">
+      <div class="stat"><div class="n">${escapePrintHtml(String(capacityNum))}</div><div class="t">kW Capacity</div></div>
+      <div class="stat"><div class="n">${escapePrintHtml(String(monthlyUnits || '—'))}</div><div class="t">Units / Month</div></div>
+      <div class="stat"><div class="n">${escapePrintHtml(String(annualUnits || '—'))}</div><div class="t">Units / Year</div></div>
+      <div class="stat"><div class="n">${escapePrintHtml(annualSaving ? Math.round(Number(annualSaving)).toLocaleString('en-IN') : '—')}</div><div class="t">₹ Annual Saving</div></div>
     </div>
+    <p class="note">* Tariff assumed ₹${escapePrintHtml(String(tariff))}/unit · Plant life ${escapePrintHtml(String(plantLife))} years · Output varies with weather & cleaning.</p>
+    <div style="margin-top:14px;" class="section-label">Project Final Cost</div>
+    <table class="data">
+      <thead><tr><th>Particulars</th><th>Amount</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>Taxable Value</td><td>${escapePrintHtml(formatPrintMoneyInr(split.taxable))}</td><td>Project cost without GST</td></tr>
+        <tr><td>GST 5% on 70%</td><td>${escapePrintHtml(formatPrintMoneyInr(split.gst5))}</td><td>Goods portion</td></tr>
+        <tr><td>GST 18% on 30%</td><td>${escapePrintHtml(formatPrintMoneyInr(split.gst18))}</td><td>Service portion</td></tr>
+        <tr><td>Total GST</td><td>${escapePrintHtml(formatPrintMoneyInr(split.gstTotal))}</td><td>Effective ~8.9%</td></tr>
+        <tr><td>Net Metering & MEDP</td><td colspan="2">${detail.net_metering_including === false ? '—' : 'Including'}</td></tr>
+        <tr><td>L.T. Panel / Walkway / Cleaning</td><td colspan="2">${[detail.lt_panel_including !== false, detail.walkway_including !== false, detail.cleaning_solution_including !== false].every(Boolean) ? 'Including' : 'As per scope'}</td></tr>
+        <tr class="total"><td>Total Project Cost with GST</td><td>${escapePrintHtml(formatPrintMoneyInr(quoteAmount))}</td><td>All-inclusive offer</td></tr>
+      </tbody>
+    </table>
+    ${footer}
+  </section>
 
-    <div class="print-footer">
-      This is a computer-generated quotation from ${escapePrintHtml(company.name)}. Subject to terms &amp; conditions mentioned above.
+  <section class="sheet">
+    ${pageChrome('Trust & Terms')}
+    <div class="section-label">Why Malwa</div>
+    <h2 class="h2 display">Quality difference, clearly stated</h2>
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Product / Material</th>
+          <th>Malwa Solar Energy</th>
+          <th>Typical Market</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${QUOTATION_COMPARISON_ROWS.map(([a, b, c]) => `
+          <tr>
+            <td>${escapePrintHtml(a)}</td>
+            <td>${escapePrintHtml(b)}</td>
+            <td>${escapePrintHtml(c)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    <div class="two-col" style="margin-top:14px;">
+      <div>
+        <div class="section-label">Terms & Conditions</div>
+        <ol class="terms">
+          ${termsLines.slice(0, 8).map((t) => `<li>${escapePrintHtml(t)}</li>`).join('')}
+        </ol>
+      </div>
+      <div>
+        <div class="pay-strip">
+          <strong>${escapePrintHtml(paymentText)}</strong>
+          <span>${escapePrintHtml(validityText)} · Terms adjustable on discussion</span>
+        </div>
+        <div class="bank-card">
+          <h3 class="display">Bank Details</h3>
+          <p>${escapePrintHtml(company.name)}</p>
+          <p>A/C No. ${escapePrintHtml(company.bankAccount)}</p>
+          <p>IFSC ${escapePrintHtml(company.bankIfsc)}</p>
+          <p>${escapePrintHtml(company.bankName)}</p>
+        </div>
+        <div class="sign-row">
+          <div class="sign-box">Customer Acceptance</div>
+          <div class="sign-box">For ${escapePrintHtml(company.name)}</div>
+        </div>
+      </div>
     </div>
-  </div>
+    ${footer}
+  </section>
 </body>
 </html>`;
 }
@@ -31414,9 +32308,24 @@ async function printQuotationRecord(quotationId) {
     window.setTimeout(resolve, 500);
   });
 
+  // Wait for logo/hero/QR so colored PDF keeps brand images.
+  const images = Array.from(doc.images || []);
+  if (images.length) {
+    await Promise.all(images.map((img) => {
+      if (img.complete) return Promise.resolve();
+      return new Promise((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+        window.setTimeout(resolve, 1500);
+      });
+    }));
+  } else {
+    await new Promise((resolve) => window.setTimeout(resolve, 400));
+  }
+
   printWindow.focus();
   printWindow.print();
-  window.setTimeout(() => iframe.remove(), 2000);
+  window.setTimeout(() => iframe.remove(), 2500);
 }
 
 function emptyQuotationFields() {
@@ -31432,8 +32341,19 @@ function emptyQuotationFields() {
     material_cost: '0', structure_cost: '0', installation_cost: '0', transportation_cost: '0',
     liaisoning_charges: '0', net_metering_charges: '0', other_charges: '0',
     subsidy_applicable: false, subsidy_amount: '0',
-    gst_percent: '12', discount: '0',
-    advance_percent: '', material_dispatch_percent: '', installation_percent: '', commissioning_percent: '',
+    gst_percent: '8.9', discount: '0',
+    subject: 'Comprehensive proposal for grid tied', cover_letter: '', tilt_angle_range: '14 to 16 Degree',
+    net_meter_details: 'LTCT & GEN. Meter Inclusive of Modem + Application charges + Agreement + Testing Charges+CEIG+MEDP',
+    infra_items: 'Lightning Arrester/ Earthing Electrode',
+    govt_liasoning_details: 'Scope of Malwa Solar Energy — All Fees Malwa Solar Energy Scope',
+    structure_spec_details: 'Thickness 2 mm, Galvanized 80 GSM JSW Standard/ Elevated height,14 to 16 Degree Tilt Angle',
+    monthly_production_units: '', tariff_rate_per_unit: '7.5', annual_saving_amount: '', plant_life_years: '30',
+    use_split_gst: true, project_cost_with_gst: '',
+    net_metering_including: true, lt_panel_including: true, walkway_including: true, cleaning_solution_including: true,
+    payment_terms_text: 'Payment terms 50% advance, 30% after structure deliver & 20% after plant installed',
+    validity_text: 'Quotation validity is till availability of material/10 days',
+    terms_and_conditions: '',
+    advance_percent: '50', material_dispatch_percent: '30', installation_percent: '20', commissioning_percent: '0',
     panel_warranty: '', inverter_warranty: '', structure_warranty: '', workmanship_warranty: '',
     special_instructions: '', scope_of_work: '', exclusions: '', notes: '',
   };
@@ -31452,13 +32372,18 @@ function fieldsFromQuotation(q) {
 const QUOTATION_NULLABLE_NUMERIC_FIELDS = [
   'sanctioned_load_kw', 'monthly_electricity_bill', 'plant_capacity_kw', 'estimated_annual_generation',
   'panel_wattage', 'advance_percent', 'material_dispatch_percent', 'installation_percent', 'commissioning_percent',
-  'number_of_panels', 'inverter_quantity',
+  'number_of_panels', 'inverter_quantity', 'monthly_production_units', 'tariff_rate_per_unit',
+  'annual_saving_amount', 'plant_life_years', 'project_cost_with_gst',
 ];
 const QUOTATION_ZERO_DEFAULT_NUMERIC_FIELDS = [
   'material_cost', 'structure_cost', 'installation_cost', 'transportation_cost',
   'liaisoning_charges', 'net_metering_charges', 'other_charges', 'subsidy_amount', 'gst_percent', 'discount',
 ];
 const QUOTATION_NULLABLE_DATE_FIELDS = ['quotation_date', 'valid_till'];
+const QUOTATION_BOOLEAN_FIELDS = [
+  'subsidy_applicable', 'use_split_gst', 'net_metering_including',
+  'lt_panel_including', 'walkway_including', 'cleaning_solution_including',
+];
 
 function buildQuotationPayload(qForm, leadId, items) {
   const payload = { lead: leadId, items, ...qForm };
@@ -31471,8 +32396,10 @@ function buildQuotationPayload(qForm, leadId, items) {
   QUOTATION_NULLABLE_DATE_FIELDS.forEach((key) => {
     payload[key] = qForm[key] || null;
   });
+  QUOTATION_BOOLEAN_FIELDS.forEach((key) => {
+    payload[key] = !!qForm[key];
+  });
   payload.sales_executive = qForm.sales_executive || null;
-  payload.subsidy_applicable = !!qForm.subsidy_applicable;
   return payload;
 }
 
@@ -31516,19 +32443,30 @@ function emptyQuotationDetailForm(template) {
     company_name: '', gst_number: '',
     address: '', city: '', state: '', pincode: '', discom_name: '',
     project_name: '', installation_type: '', sanctioned_load_kw: '', monthly_electricity_bill: '',
-    existing_meter_number: '', connection_type: '', consumer_number: '', execution_timeline: '',
+    existing_meter_number: '', connection_type: 'Single Phase', consumer_number: '', execution_timeline: '45 days after PO and advance',
     plant_capacity_kw: '', estimated_annual_generation: '', shadow_free_area: '', module_orientation: '',
-    panel_brand: '', panel_model: '', panel_type: '', panel_wattage: '',
+    panel_brand: '', panel_model: '', panel_type: 'Mono PERC', panel_wattage: '',
     inverter_brand: '', inverter_model: '', inverter_type: '', inverter_capacity: '', inverter_quantity: '',
-    structure_type: '', structure_material: '', coating_details: '', foundation_type: '', wind_speed_rating: '',
-    dc_cable: '', mc4_connector: '', dcdb: '', ac_cable: '', acdb: '', earthing_kit: '', lightning_arrester: '',
+    structure_type: '', structure_material: 'GI', coating_details: '80 GSM JSW Pre Galvanized', foundation_type: '', wind_speed_rating: '150 km/h',
+    dc_cable: '4 Sqmm Polycab DC Wire Tin Copper Type 1', mc4_connector: '', dcdb: '', ac_cable: 'Polycab/RR/KEI (As Per Availability)', acdb: '', earthing_kit: '2 L.A., 2/3 Structure, 2 DC & 2 Inverter Earth With Wire and Earthing Strip 25x3 mm', lightning_arrester: 'Copper Bonded 100 Micron',
     cable_tray: '', fasteners: '', pvc_pipe: '',
     material_cost: '0', structure_cost: '0', installation_cost: '0', transportation_cost: '0',
     liaisoning_charges: '0', net_metering_charges: '0', other_charges: '0',
     subsidy_applicable: template === 'Residential Subsidy', subsidy_amount: '0',
-    gst_percent: '13.8',
-    advance_percent: '20', material_dispatch_percent: '50', installation_percent: '20', commissioning_percent: '10',
-    panel_warranty: '12 Years Product / 25 Years Performance', inverter_warranty: '5 Years',
+    gst_percent: '8.9',
+    subject: 'Comprehensive proposal for grid tied', cover_letter: '', tilt_angle_range: '14 to 16 Degree',
+    net_meter_details: 'LTCT & GEN. Meter Inclusive of Modem + Application charges + Agreement + Testing Charges+CEIG+MEDP',
+    infra_items: 'Lightning Arrester/ Earthing Electrode',
+    govt_liasoning_details: 'Scope of Malwa Solar Energy — All Fees Malwa Solar Energy Scope',
+    structure_spec_details: 'Thickness 2 mm, Galvanized 80 GSM JSW Standard/ Elevated height,14 to 16 Degree Tilt Angle',
+    monthly_production_units: '', tariff_rate_per_unit: '7.5', annual_saving_amount: '', plant_life_years: '30',
+    use_split_gst: true, project_cost_with_gst: '',
+    net_metering_including: true, lt_panel_including: true, walkway_including: true, cleaning_solution_including: true,
+    payment_terms_text: 'Payment terms 50% advance, 30% after structure deliver & 20% after plant installed',
+    validity_text: 'Quotation validity is till availability of material/10 days',
+    terms_and_conditions: '',
+    advance_percent: '50', material_dispatch_percent: '30', installation_percent: '20', commissioning_percent: '0',
+    panel_warranty: '12 Years Product / 27 Years Generation', inverter_warranty: '5/7/8/10 Years',
     structure_warranty: '10 Years', workmanship_warranty: '5 Years',
     special_instructions: '', scope_of_work: '', exclusions: '', notes: '',
   };
@@ -31614,6 +32552,26 @@ function buildQuotationDetailPayload(template, form, leadId, items) {
     subsidy_applicable: !!form.subsidy_applicable,
     subsidy_amount: num(form.subsidy_amount),
     gst_percent: num(form.gst_percent),
+    subject: form.subject || '',
+    cover_letter: form.cover_letter || '',
+    tilt_angle_range: form.tilt_angle_range || '',
+    net_meter_details: form.net_meter_details || '',
+    infra_items: form.infra_items || '',
+    govt_liasoning_details: form.govt_liasoning_details || '',
+    structure_spec_details: form.structure_spec_details || '',
+    monthly_production_units: nullableNum(form.monthly_production_units) ?? (plantCapacity ? plantCapacity * 120 : null),
+    tariff_rate_per_unit: nullableNum(form.tariff_rate_per_unit) ?? 7.5,
+    annual_saving_amount: nullableNum(form.annual_saving_amount),
+    plant_life_years: nullableNum(form.plant_life_years) ?? 30,
+    use_split_gst: form.use_split_gst !== false && form.use_split_gst !== 'false',
+    project_cost_with_gst: nullableNum(form.project_cost_with_gst),
+    net_metering_including: form.net_metering_including !== false && form.net_metering_including !== 'false',
+    lt_panel_including: form.lt_panel_including !== false && form.lt_panel_including !== 'false',
+    walkway_including: form.walkway_including !== false && form.walkway_including !== 'false',
+    cleaning_solution_including: form.cleaning_solution_including !== false && form.cleaning_solution_including !== 'false',
+    payment_terms_text: form.payment_terms_text || '',
+    validity_text: form.validity_text || '',
+    terms_and_conditions: form.terms_and_conditions || '',
     advance_percent: nullableNum(form.advance_percent),
     material_dispatch_percent: nullableNum(form.material_dispatch_percent),
     installation_percent: nullableNum(form.installation_percent),
@@ -31739,16 +32697,28 @@ function QuotationDetailModal({ template, initialForm, initialItems, leadSnapsho
   const plantCapacity = num(form.plant_capacity_kw);
   const numberOfPanels = panelWattage && plantCapacity ? Math.ceil((plantCapacity * 1000) / panelWattage) : null;
   const totalDcCapacity = numberOfPanels && panelWattage ? (numberOfPanels * panelWattage) / 1000 : null;
-  const autoAnnualGeneration = plantCapacity ? plantCapacity * 1500 : null;
+  const autoMonthlyUnits = plantCapacity ? plantCapacity * 120 : null;
+  const autoAnnualGeneration = num(form.monthly_production_units) || autoMonthlyUnits
+    ? (num(form.monthly_production_units) || autoMonthlyUnits) * 12
+    : (plantCapacity ? plantCapacity * 1440 : null);
+  const autoAnnualSaving = autoAnnualGeneration && num(form.tariff_rate_per_unit)
+    ? autoAnnualGeneration * num(form.tariff_rate_per_unit)
+    : null;
   const itemsTotal = items.reduce((sum, row) => sum + num(row.quantity) * num(row.rate), 0);
   const costsTotal = ['material_cost', 'structure_cost', 'installation_cost', 'transportation_cost', 'liaisoning_charges', 'net_metering_charges', 'other_charges']
     .reduce((sum, key) => sum + num(form[key]), 0);
-  const subtotal = itemsTotal + costsTotal;
-  const gstAmount = subtotal * (num(form.gst_percent) / 100);
-  const totalAmount = subtotal + gstAmount;
+  const costSubtotal = itemsTotal + costsTotal;
+  const useSplitGst = form.use_split_gst !== false && form.use_split_gst !== 'false';
+  const splitGst = useSplitGst && num(form.project_cost_with_gst)
+    ? calcSplitGstAmounts(form.project_cost_with_gst)
+    : null;
+  const subtotal = splitGst ? splitGst.taxable : costSubtotal;
+  const gstAmount = splitGst ? splitGst.gstTotal : subtotal * (num(form.gst_percent) / 100);
+  const totalAmount = splitGst ? splitGst.total : subtotal + gstAmount;
   const finalPayable = form.subsidy_applicable ? totalAmount - num(form.subsidy_amount) : totalAmount;
   const costPerWatt = totalDcCapacity ? finalPayable / (totalDcCapacity * 1000) : null;
-  const annualSavings = num(form.monthly_electricity_bill) ? num(form.monthly_electricity_bill) * 12 : null;
+  const annualSavings = num(form.annual_saving_amount) || autoAnnualSaving
+    || (num(form.monthly_electricity_bill) ? num(form.monthly_electricity_bill) * 12 : null);
   const roiPercent = annualSavings && finalPayable ? (annualSavings / finalPayable) * 100 : null;
   const paybackYears = annualSavings && finalPayable ? finalPayable / annualSavings : null;
   const paymentTermsSum = ['advance_percent', 'material_dispatch_percent', 'installation_percent', 'commissioning_percent'].reduce((sum, key) => sum + num(form[key]), 0);
@@ -31807,14 +32777,16 @@ function QuotationDetailModal({ template, initialForm, initialItems, leadSnapsho
             <QReadout label="Plant Capacity" value={plantCapacity ? `${plantCapacity} kW` : '—'} />
             <QReadout label="Number of Panels" value={numberOfPanels ?? '—'} />
             <QReadout label="Total DC Capacity" value={totalDcCapacity ? `${totalDcCapacity.toFixed(2)} kW` : '—'} />
-            <QReadout label="Subtotal" value={formatCurrencyPrecise(subtotal)} />
+            <QReadout label="Taxable Value" value={formatCurrencyPrecise(subtotal)} />
             <QReadout label="GST Amount" value={formatCurrencyPrecise(gstAmount)} />
-            <QReadout label="Total Amount" value={formatCurrencyPrecise(totalAmount)} />
+            <QReadout label="Total With GST" value={formatCurrencyPrecise(totalAmount)} />
             <QReadout label="Final Payable" value={formatCurrencyPrecise(finalPayable)} accent />
             <QReadout label="Cost / Watt" value={costPerWatt ? `₹${costPerWatt.toFixed(2)}/W` : '—'} />
             <QReadout label="Est. Annual Savings" value={annualSavings ? formatCurrencyPrecise(annualSavings) : '—'} />
             <QReadout label="ROI" value={roiPercent ? `${roiPercent.toFixed(1)}%` : '—'} />
             <QReadout label="Payback Period" value={paybackYears ? `${paybackYears.toFixed(1)} years` : '—'} />
+            {splitGst ? <QReadout label="GST 5% (70%)" value={formatCurrencyPrecise(splitGst.gst5)} /> : null}
+            {splitGst ? <QReadout label="GST 18% (30%)" value={formatCurrencyPrecise(splitGst.gst18)} /> : null}
           </div>
           <p className="text-[12px] font-bold text-[#53647f]">Final Payable Amount in Words: <span className="text-[#1e3261]">{numberToWordsIndian(finalPayable)} Rupees Only</span></p>
 
@@ -31868,12 +32840,41 @@ function QuotationDetailModal({ template, initialForm, initialItems, leadSnapsho
           <LeadFormSection title="Plant Details" icon={Zap} tone="warning">
             <div className="grid gap-4 md:grid-cols-3">
               <QField label="Plant Capacity (kW)" name="plant_capacity_kw" type="number" value={form.plant_capacity_kw} onChange={update} placeholder="Enter plant capacity" optional />
-              <QField label="Estimated Annual Generation (kWh)" name="estimated_annual_generation" type="number" value={form.estimated_annual_generation} onChange={update} placeholder={autoAnnualGeneration ? `Auto: ${autoAnnualGeneration}` : 'Capacity × 1500'} optional />
+              <QField label="Monthly Production (Units)" name="monthly_production_units" type="number" value={form.monthly_production_units} onChange={update} placeholder={autoMonthlyUnits ? `Auto: ${autoMonthlyUnits}` : 'Capacity × 120'} optional />
+              <QField label="Estimated Annual Generation (kWh)" name="estimated_annual_generation" type="number" value={form.estimated_annual_generation} onChange={update} placeholder={autoAnnualGeneration ? `Auto: ${autoAnnualGeneration}` : 'Monthly × 12'} optional />
+              <QField label="Tariff Rate (₹/unit)" name="tariff_rate_per_unit" type="number" value={form.tariff_rate_per_unit} onChange={update} placeholder="7.5" optional />
+              <QField label="Annual Saving (₹)" name="annual_saving_amount" type="number" value={form.annual_saving_amount} onChange={update} placeholder={autoAnnualSaving ? `Auto: ${Math.round(autoAnnualSaving)}` : 'Units × tariff'} optional />
+              <QField label="Plant Life (Years)" name="plant_life_years" type="number" value={form.plant_life_years} onChange={update} placeholder="30" optional />
+              <QField label="Tilt Angle Range" name="tilt_angle_range" value={form.tilt_angle_range} onChange={update} placeholder="14 to 16 Degree" optional />
               <QField label="Shadow Free Area Available" name="shadow_free_area" value={form.shadow_free_area} onChange={update} placeholder="e.g. 350 sq.ft" optional />
               <QSelect label="Module Orientation" name="module_orientation" value={form.module_orientation} onChange={update} options={['South', 'East-West', 'South-East', 'South-West']} optional />
             </div>
           </LeadFormSection>
           ) : null}
+
+          <LeadFormSection title="Client Proposal Specs" icon={FileText} tone="primary">
+            <div className="grid gap-4 md:grid-cols-2">
+              <QField label="Subject" name="subject" value={form.subject} onChange={update} placeholder="Comprehensive proposal for grid tied" optional />
+              <QField label="Project Cost With GST (₹)" name="project_cost_with_gst" type="number" value={form.project_cost_with_gst} onChange={update} placeholder="e.g. 200000" optional />
+            </div>
+            <QTextarea label="Cover Letter" name="cover_letter" value={form.cover_letter} onChange={update} placeholder="Leave blank to use default Malwa cover letter on print" optional compact />
+            <div className="grid gap-4 md:grid-cols-2">
+              <QTextarea label="Net Meter Details" name="net_meter_details" value={form.net_meter_details} onChange={update} optional compact />
+              <QTextarea label="Structure Spec Details" name="structure_spec_details" value={form.structure_spec_details} onChange={update} optional compact />
+              <QField label="Infra Items" name="infra_items" value={form.infra_items} onChange={update} optional />
+              <QField label="Govt. Liasoning Details" name="govt_liasoning_details" value={form.govt_liasoning_details} onChange={update} optional />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <QSelect label="Use Split GST (70%@5% + 30%@18%)" value={form.use_split_gst ? 'Yes' : 'No'} onChange={(_, v) => update('use_split_gst', v === 'Yes')} options={['Yes', 'No']} />
+              <QSelect label="Net Metering Including" value={form.net_metering_including ? 'Yes' : 'No'} onChange={(_, v) => update('net_metering_including', v === 'Yes')} options={['Yes', 'No']} />
+              <QSelect label="L.T. Panel Including" value={form.lt_panel_including ? 'Yes' : 'No'} onChange={(_, v) => update('lt_panel_including', v === 'Yes')} options={['Yes', 'No']} />
+              <QSelect label="Walkway Including" value={form.walkway_including ? 'Yes' : 'No'} onChange={(_, v) => update('walkway_including', v === 'Yes')} options={['Yes', 'No']} />
+              <QSelect label="Cleaning Solution Including" value={form.cleaning_solution_including ? 'Yes' : 'No'} onChange={(_, v) => update('cleaning_solution_including', v === 'Yes')} options={['Yes', 'No']} />
+            </div>
+            <QField label="Payment Terms Text" name="payment_terms_text" value={form.payment_terms_text} onChange={update} optional />
+            <QField label="Validity Text" name="validity_text" value={form.validity_text} onChange={update} optional />
+            <QTextarea label="Terms & Conditions (one per line)" name="terms_and_conditions" value={form.terms_and_conditions} onChange={update} placeholder="Leave blank to use default client PDF terms on print" optional compact />
+          </LeadFormSection>
 
           {visibility.panel ? (
           <LeadFormSection title="Solar Panel Details" icon={BadgeCheck} tone="success">
@@ -31993,10 +32994,14 @@ function QuotationDetailModal({ template, initialForm, initialItems, leadSnapsho
 
           <LeadFormSection title="GST Section" icon={ReceiptText} tone="primary">
             <div className="grid gap-4 md:grid-cols-3">
-              <QField label="GST %" name="gst_percent" type="number" value={form.gst_percent} onChange={update} />
-              <QField label="GST Amount" value={formatCurrencyPrecise(gstAmount)} readOnly />
-              <QField label="Total Amount" value={formatCurrencyPrecise(totalAmount)} readOnly />
+              <QField label="GST % (effective)" name="gst_percent" type="number" value={useSplitGst ? '8.9' : form.gst_percent} onChange={update} />
+              <QField label="Taxable Value" value={formatCurrencyPrecise(subtotal)} readOnly />
+              <QField label="GST 5% on 70%" value={formatCurrencyPrecise(splitGst?.gst5 || 0)} readOnly />
+              <QField label="GST 18% on 30%" value={formatCurrencyPrecise(splitGst?.gst18 || 0)} readOnly />
+              <QField label="Total GST" value={formatCurrencyPrecise(gstAmount)} readOnly />
+              <QField label="Total With GST" value={formatCurrencyPrecise(totalAmount)} readOnly />
             </div>
+            <p className="text-[12px] font-bold text-[#53647f]">Client PDF style: enter Project Cost With GST above — split GST (70% @ 5% + 30% @ 18%) calculates automatically.</p>
           </LeadFormSection>
 
           <LeadFormSection title="Final Payable Amount" icon={IndianRupee} tone="success">
@@ -32310,9 +33315,6 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   const [viewQuotationId, setViewQuotationId] = useState(null);
   const [editQuotationId, setEditQuotationId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [openActionMenuId, setOpenActionMenuId] = useState(null);
-  const [menuAnchor, setMenuAnchor] = useState(null);
-  const [copyingId, setCopyingId] = useState(null);
   const [createFlow, setCreateFlow] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [composeSaving, setComposeSaving] = useState(false);
@@ -32320,7 +33322,6 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState(() => toIsoDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
   const [dateTo, setDateTo] = useState(() => toIsoDate(new Date()));
-  const actionMenuRef = useRef(null);
 
   // Dashboard's "Create Quotation" quick action lands here and asks us to
   // open the New Quotation flow immediately, instead of just landing on the list.
@@ -32362,40 +33363,6 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
     loadQuotations();
   }, [refreshKey, loadQuotations]);
 
-  useEffect(() => {
-    if (!openActionMenuId) return undefined;
-    const handleClick = (event) => {
-      if (actionMenuRef.current?.contains(event.target)) return;
-      if (event.target.closest('[data-quotation-menu-trigger]')) return;
-      setOpenActionMenuId(null);
-      setMenuAnchor(null);
-    };
-    const timer = window.setTimeout(() => document.addEventListener('click', handleClick, true), 0);
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener('click', handleClick, true);
-    };
-  }, [openActionMenuId]);
-
-  const closeActionMenu = () => {
-    setOpenActionMenuId(null);
-    setMenuAnchor(null);
-  };
-
-  const toggleActionMenu = (event, quotationId) => {
-    event.stopPropagation();
-    if (openActionMenuId === quotationId) {
-      closeActionMenu();
-      return;
-    }
-    const rect = event.currentTarget.getBoundingClientRect();
-    setOpenActionMenuId(quotationId);
-    setMenuAnchor({
-      top: rect.bottom + 8,
-      left: Math.max(12, rect.right - 190),
-    });
-  };
-
   const deleteQuotation = (quotation) => {
     setDeleteConfirm({
       message: `quotation ${quotation.quotation_number || '#' + quotation.id}`,
@@ -32404,7 +33371,6 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
           await quotationApi.delete(quotation.id);
           setDeleteConfirm(null);
           onNotify?.('Quotation deleted');
-          closeActionMenu();
           setRefreshKey((k) => k + 1);
         } catch (err) {
           setDeleteConfirm(null);
@@ -32414,30 +33380,15 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
     });
   };
 
-  const copyQuotation = async (quotation) => {
-    setCopyingId(quotation.id);
-    try {
-      const created = await copyQuotationRecord(quotation.id);
-      onNotify?.(`Quotation copied as ${created.quotation_number || `#${created.id}`}`);
-      setRefreshKey((k) => k + 1);
-    } catch (err) {
-      onNotify?.(err.message || 'Failed to copy quotation');
-    } finally {
-      setCopyingId(null);
-    }
-  };
-
   const printQuotation = async (quotation) => {
     try {
       await printQuotationRecord(quotation.id);
-      closeActionMenu();
     } catch (err) {
       onNotify?.(err.message || 'Failed to print quotation');
     }
   };
 
   const openEditQuotation = (quotation) => {
-    closeActionMenu();
     setEditQuotationId(quotation.id);
   };
 
@@ -32620,26 +33571,14 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
                         <button type="button" onClick={() => setViewQuotationId(q.id)} title="View" aria-label={`View ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]">
                           <Eye className="size-4" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => copyQuotation(q)}
-                          disabled={copyingId === q.id}
-                          title="Copy"
-                          aria-label={`Copy ${q.quotation_number}`}
-                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#233a6b] transition hover:bg-[#f5f9ff] disabled:opacity-60"
-                        >
-                          <Copy className="size-4" />
+                        <button type="button" onClick={() => openEditQuotation(q)} title="Edit" aria-label={`Edit ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#233a6b] transition hover:bg-[#f5f9ff]">
+                          <Pencil className="size-4" />
                         </button>
-                        <button
-                          type="button"
-                          data-quotation-menu-trigger
-                          onClick={(event) => toggleActionMenu(event, q.id)}
-                          title="More actions"
-                          aria-label={`More actions for ${q.quotation_number}`}
-                          aria-expanded={openActionMenuId === q.id}
-                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#53647f] transition hover:bg-[#f5f9ff]"
-                        >
-                          <MoreVertical className="size-4" />
+                        <button type="button" onClick={() => printQuotation(q)} title="Print Quotation" aria-label={`Print ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#0d9f4a] transition hover:bg-[#f3fbf6]">
+                          <Printer className="size-4" />
+                        </button>
+                        <button type="button" onClick={() => deleteQuotation(q)} title="Delete" aria-label={`Delete ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#f3d4d4] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]">
+                          <Trash2 className="size-4" />
                         </button>
                       </div>
                     </td>
@@ -32724,46 +33663,6 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
         />
       ) : null}
 
-      {openActionMenuId && menuAnchor && typeof document !== 'undefined' ? createPortal(
-        (() => {
-          const activeQuotation = filteredQuotations.find((row) => row.id === openActionMenuId);
-          if (!activeQuotation) return null;
-          return (
-            <div
-              ref={actionMenuRef}
-              className="fixed z-200 w-[190px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]"
-              style={{ top: menuAnchor.top, left: menuAnchor.left }}
-            >
-              <button
-                type="button"
-                onClick={() => openEditQuotation(activeQuotation)}
-                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
-              >
-                <Pencil className="size-4" />
-                Edit
-              </button>
-              <button
-                type="button"
-                onClick={() => printQuotation(activeQuotation)}
-                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff]"
-              >
-                <Printer className="size-4" />
-                Print Quotation
-              </button>
-              <button
-                type="button"
-                onClick={() => deleteQuotation(activeQuotation)}
-                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12px] font-extrabold text-[#ef4444] transition hover:bg-[#fff5f5]"
-              >
-                <Trash2 className="size-4" />
-                Delete
-              </button>
-            </div>
-          );
-        })(),
-        document.body,
-      ) : null}
-
       {editQuotationId ? (
         <QuotationEditDetailModal
           quotationId={editQuotationId}
@@ -32844,7 +33743,10 @@ function QuotationViewModal({ quotationId, onClose }) {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <InfoCell label="Subtotal" value={formatMoney(detail.subtotal)} />
-              <InfoCell label="GST" value={`${detail.gst_percent}% — ${formatMoney(detail.gst_amount)}`} />
+              <InfoCell label="GST" value={detail.use_split_gst
+                ? `Split 8.9% — ${formatMoney(detail.gst_amount)} (5%: ${formatMoney(detail.gst_5_amount)} / 18%: ${formatMoney(detail.gst_18_amount)})`
+                : `${detail.gst_percent}% — ${formatMoney(detail.gst_amount)}`} />
+              <InfoCell label="Project Cost (GST incl.)" value={formatMoney(detail.project_cost_with_gst || detail.grand_total)} />
               {visibility.subsidy ? <InfoCell label="Subsidy Amount" value={formatMoney(detail.subsidy_amount)} /> : null}
               <InfoCell label="Grand Total" value={formatMoney(detail.grand_total)} />
               <InfoCell label="Customer Payable" value={formatMoney(detail.customer_contribution)} />
@@ -33227,7 +34129,7 @@ function NoLeadSelected({ title, onGoToList }) {
 
 // Overview / Follow-ups / Quotation — ek hi page, tabs se switch hota hai.
 // Pehle ye 3 alag pages the (breadcrumb hopping + "Back" button chahiye tha); ab sab Lead Details ke andar hi hai.
-function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackToList, onCreateLead, onShareWhatsApp, onLeadUpdated, onNotify }) {
+function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', onOpenSection, onBackToList, onCreateLead, onShareWhatsApp, onLeadUpdated, onNotify }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [followUps, setFollowUps] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
@@ -33332,12 +34234,17 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
 
   if (!lead?.id) return <NoLeadSelected title="Lead Details" onGoToList={onBackToList} />;
 
+  const detailsRole = loggedInUser?.role_name || '';
+  const detailsIsManager = Boolean(loggedInUser?.is_super_admin) || ['Admin', 'Branch Manager'].includes(detailsRole);
+  const detailsIsSalesExec = detailsRole === 'Sales Executive';
+
   const quickDetailActions = [
     { label: 'Log Follow-up', icon: Phone, tone: 'green', onClick: () => setActiveModal('follow-up') },
     { label: 'Schedule Site Visit', icon: CalendarDays, tone: 'blue', onClick: () => setActiveModal('site-visit') },
     { label: 'Create Quotation', icon: FilePlus2, tone: 'blue', onClick: () => setActiveTab('quotation') },
-    { label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => setActiveModal('assign') },
-    { label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => setActiveModal('status') },
+    ...(detailsIsManager ? [{ label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => setActiveModal('assign') }] : []),
+    // Sales Executives can never change pipeline status (Won stays Won).
+    ...(!detailsIsSalesExec ? [{ label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => setActiveModal('status') }] : []),
     { label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => setActiveModal('note') },
   ];
 
@@ -33354,9 +34261,12 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
   const itemsTotal = quoteItems.reduce((sum, row) => sum + rowAmount(row), 0);
   const costsTotal = ['material_cost', 'structure_cost', 'installation_cost', 'transportation_cost', 'liaisoning_charges', 'net_metering_charges', 'other_charges']
     .reduce((sum, key) => sum + parseNum(qForm[key]), 0);
-  const computedSubtotal = itemsTotal + costsTotal;
-  const computedGstAmount = computedSubtotal * (parseNum(qForm.gst_percent) / 100);
-  const computedGrandTotal = computedSubtotal + computedGstAmount - parseNum(qForm.discount);
+  const leadSplitGst = (qForm.use_split_gst !== false && qForm.use_split_gst !== 'false' && parseNum(qForm.project_cost_with_gst))
+    ? calcSplitGstAmounts(qForm.project_cost_with_gst)
+    : null;
+  const computedSubtotal = leadSplitGst ? leadSplitGst.taxable : (itemsTotal + costsTotal);
+  const computedGstAmount = leadSplitGst ? leadSplitGst.gstTotal : computedSubtotal * (parseNum(qForm.gst_percent) / 100);
+  const computedGrandTotal = leadSplitGst ? leadSplitGst.total - parseNum(qForm.discount) : computedSubtotal + computedGstAmount - parseNum(qForm.discount);
   const computedCustomerContribution = qForm.subsidy_applicable ? computedGrandTotal - parseNum(qForm.subsidy_amount) : computedGrandTotal;
   const computedTotalDcCapacity = (parseNum(qForm.number_of_panels) && parseNum(qForm.panel_wattage))
     ? (parseNum(qForm.number_of_panels) * parseNum(qForm.panel_wattage)) / 1000
@@ -33858,9 +34768,29 @@ function LeadDetailsPage({ lead, initialTab = 'overview', onOpenSection, onBackT
                   </LeadFormSection>
                 ) : null}
 
+                <LeadFormSection title="Client Proposal (Print PDF)" icon={FileText} tone="primary">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <QField label="Subject" name="subject" value={qForm.subject} onChange={updateQField} optional />
+                    <QField label="Project Cost With GST (₹)" name="project_cost_with_gst" type="number" value={qForm.project_cost_with_gst} onChange={updateQField} placeholder="e.g. 200000" optional />
+                    <QSelect label="Use Split GST" value={qForm.use_split_gst ? 'Yes' : 'No'} onChange={(_, v) => updateQField('use_split_gst', v === 'Yes')} options={['Yes', 'No']} />
+                    <QField label="Monthly Production (Units)" name="monthly_production_units" type="number" value={qForm.monthly_production_units} onChange={updateQField} optional />
+                    <QField label="Tariff ₹/unit" name="tariff_rate_per_unit" type="number" value={qForm.tariff_rate_per_unit} onChange={updateQField} optional />
+                    <QField label="Tilt Angle Range" name="tilt_angle_range" value={qForm.tilt_angle_range} onChange={updateQField} optional />
+                  </div>
+                  <QTextarea label="Net Meter Details" name="net_meter_details" value={qForm.net_meter_details} onChange={updateQField} optional compact />
+                  <QTextarea label="Structure Spec Details" name="structure_spec_details" value={qForm.structure_spec_details} onChange={updateQField} optional compact />
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <QField label="Infra Items" name="infra_items" value={qForm.infra_items} onChange={updateQField} optional />
+                    <QField label="Govt. Liasoning" name="govt_liasoning_details" value={qForm.govt_liasoning_details} onChange={updateQField} optional />
+                    <QField label="Payment Terms Text" name="payment_terms_text" value={qForm.payment_terms_text} onChange={updateQField} optional />
+                    <QField label="Validity Text" name="validity_text" value={qForm.validity_text} onChange={updateQField} optional />
+                  </div>
+                </LeadFormSection>
+
                 <LeadFormSection title="K. Tax Section" icon={ReceiptText} tone="primary">
                   <div className="grid gap-4 md:grid-cols-4">
-                    <QField label="GST %" name="gst_percent" type="number" value={qForm.gst_percent} onChange={updateQField} />
+                    <QField label="GST % (effective)" name="gst_percent" type="number" value={leadSplitGst ? '8.9' : qForm.gst_percent} onChange={updateQField} />
+                    <QField label="Taxable Value" value={formatCurrencyPrecise(computedSubtotal)} readOnly />
                     <QField label="GST Amount" value={formatCurrencyPrecise(computedGstAmount)} readOnly />
                     <QField label="Discount" name="discount" type="number" value={qForm.discount} onChange={updateQField} optional />
                     <QField label="Total Amount" value={formatCurrencyPrecise(computedGrandTotal)} readOnly />
@@ -34327,7 +35257,7 @@ function DuplicateIvrsModal({ ivrsNumber, existingLeads = [], requestedLead, onC
   };
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="max-h-[92vh] w-full max-w-[650px] overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="flex gap-3"><span className="grid size-10 place-items-center rounded-full bg-[#fff0dc] text-[#f59e0b]"><AlertTriangle className="size-6" /></span><div><h2 className="font-display text-[20px] font-extrabold text-[#111827]">Duplicate IVRS Detected</h2><p className="mt-1 text-[13px] font-semibold text-[#53647f]">The IVRS Number you entered already exists in our system.</p></div></div>
@@ -34571,7 +35501,7 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
   };
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[18px] font-extrabold text-[#111827]"><Icon className="size-5 text-[#0b65e5]" /> {meta.title}</h2>
@@ -34614,7 +35544,7 @@ function ViewFollowUpModal({ lead, onClose, onNotify }) {
 
   return (
     <>
-      <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+      <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
         <div className="max-h-[88vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
           <div className="flex items-center justify-between gap-3 border-b border-[#edf2f8] px-6 py-5">
             <div className="min-w-0">
@@ -34835,7 +35765,7 @@ function CrmFollowUpEditModal({ followUp, lead, onClose, onSaved, onNotify }) {
   };
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[18px] font-extrabold text-[#111827]"><Pencil className="size-5 text-[#0b65e5]" /> Edit Follow-up</h2>
@@ -35190,16 +36120,19 @@ const avatarToneMap = {
 
 function BrandLockup() {
   return (
-    <div className="flex min-w-0 items-center gap-2.5">
-      <MiniBrandMark compact plain />
-      <div className="min-w-0">
-        <p className="truncate font-display text-[14px] font-extrabold leading-tight text-[#078c3e]">
-          Malwa Solar Energy
-        </p>
-        <p className="mt-1 truncate text-[8px] font-extrabold uppercase text-[#6f7d8d]">
-          CRM System
-        </p>
-      </div>
+    <div className="sidebar-brand-lockup relative -mt-0.5 flex w-full min-w-0 items-center justify-center">
+      <img
+        src={BRAND_LOGO_SRC}
+        alt="Malwa Solar Energy"
+        className="h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain dark:hidden"
+        draggable={false}
+      />
+      <img
+        src={BRAND_LOGO_DARK_SRC}
+        alt="Malwa Solar Energy"
+        className="hidden h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain dark:block"
+        draggable={false}
+      />
     </div>
   );
 }
@@ -35208,20 +36141,24 @@ function MiniBrandMark({ compact = false, plain = false }) {
   return (
     <div
       className={cx(
-        'grid shrink-0 place-items-center',
-        plain ? '' : 'border border-[#e5edf7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.08)]',
-        compact ? 'size-10 rounded-[12px]' : 'size-[52px] rounded-[16px]',
+        'sidebar-brand-mark relative grid shrink-0 place-items-center overflow-visible bg-transparent',
+        plain ? '' : 'rounded-[14px] border border-[#e5edf7]/70 bg-white/70 shadow-[0_8px_20px_rgba(17,39,84,0.08)]',
+        compact ? 'size-12' : 'size-[52px]',
       )}
+      aria-hidden="true"
     >
-      <svg viewBox="0 0 44 44" className={compact ? 'size-8' : 'size-9'} aria-hidden="true">
-        <circle cx="16" cy="15" r="8.5" fill="#ffc928" />
-        <path
-          d="M8.5 24.5c6.7 0 11.5 3.7 12.8 10.1-6.3 1.6-10.6 1.1-13.4-1.3-2.1-1.8-3.1-4.7-3.1-8.8h3.7z"
-          fill="#16c957"
-        />
-        <path d="M31.8 16.8c-2.6 10.1-8.9 16.9-18.6 20.4 2.8-8.7 9-15.5 18.6-20.4z" fill="#0eb84d" />
-        <path d="M11.5 11.2l-3-4.4M20.6 8.1V3.6M29.4 11.1l2.8-4.2M6.8 18.6l-4.6-1" stroke="#ffc928" strokeLinecap="round" strokeWidth="2.4" />
-      </svg>
+      <img
+        src={BRAND_MARK_SRC}
+        alt=""
+        className={cx('select-none object-contain dark:hidden', compact ? 'size-11' : 'size-12')}
+        draggable={false}
+      />
+      <img
+        src={BRAND_MARK_DARK_SRC}
+        alt=""
+        className={cx('hidden select-none object-contain dark:block', compact ? 'size-11' : 'size-12')}
+        draggable={false}
+      />
     </div>
   );
 }
