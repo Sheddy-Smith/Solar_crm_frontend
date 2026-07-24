@@ -1,0 +1,2533 @@
+[
+{
+  "model": "accounts.branch",
+  "pk": 1,
+  "fields": {
+    "name": "Head Office",
+    "city": "Indore",
+    "address": "",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:24.924Z"
+  }
+},
+{
+  "model": "accounts.role",
+  "pk": 1,
+  "fields": {
+    "name": "Super Admin",
+    "role_type": "system",
+    "description": "",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:23.879Z"
+  }
+},
+{
+  "model": "accounts.role",
+  "pk": 2,
+  "fields": {
+    "name": "Admin",
+    "role_type": "system",
+    "description": "",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:24.124Z"
+  }
+},
+{
+  "model": "accounts.role",
+  "pk": 3,
+  "fields": {
+    "name": "Branch Manager",
+    "role_type": "system",
+    "description": "",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:24.365Z"
+  }
+},
+{
+  "model": "accounts.role",
+  "pk": 4,
+  "fields": {
+    "name": "Team Leader",
+    "role_type": "system",
+    "description": "",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:24.580Z"
+  }
+},
+{
+  "model": "accounts.role",
+  "pk": 5,
+  "fields": {
+    "name": "Sales Executive",
+    "role_type": "system",
+    "description": "",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:24.718Z"
+  }
+},
+{
+  "model": "accounts.role",
+  "pk": 6,
+  "fields": {
+    "name": "Viewer",
+    "role_type": "system",
+    "description": "",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:24.830Z"
+  }
+},
+{
+  "model": "accounts.role",
+  "pk": 7,
+  "fields": {
+    "name": "Tele Sales Executive",
+    "role_type": "system",
+    "description": "Tele Executive portal — calls, follow-ups and updates on own assigned leads only.",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:24.955Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 1,
+  "fields": {
+    "role": 1,
+    "module": "Dashboard",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:23.892Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 2,
+  "fields": {
+    "role": 1,
+    "module": "Leads",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:23.907Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 3,
+  "fields": {
+    "role": 1,
+    "module": "Follow-ups",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:23.923Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 4,
+  "fields": {
+    "role": 1,
+    "module": "IVRS Management",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:23.938Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 5,
+  "fields": {
+    "role": 1,
+    "module": "Approvals",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:23.952Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 6,
+  "fields": {
+    "role": 1,
+    "module": "Project Management",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:23.967Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 7,
+  "fields": {
+    "role": 1,
+    "module": "Workforce",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:23.982Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 8,
+  "fields": {
+    "role": 1,
+    "module": "Liaisoning & Commissioning",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:23.996Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 9,
+  "fields": {
+    "role": 1,
+    "module": "O&M",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.009Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 10,
+  "fields": {
+    "role": 1,
+    "module": "Accounts",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.023Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 11,
+  "fields": {
+    "role": 1,
+    "module": "Inventory",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.038Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 12,
+  "fields": {
+    "role": 1,
+    "module": "Daily Tasks",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.052Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 13,
+  "fields": {
+    "role": 1,
+    "module": "AMC & Warranty",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.065Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 14,
+  "fields": {
+    "role": 1,
+    "module": "Reports",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.079Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 15,
+  "fields": {
+    "role": 1,
+    "module": "User Management",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.093Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 16,
+  "fields": {
+    "role": 1,
+    "module": "Settings",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.107Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 17,
+  "fields": {
+    "role": 2,
+    "module": "Dashboard",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.139Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 18,
+  "fields": {
+    "role": 2,
+    "module": "Leads",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.152Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 19,
+  "fields": {
+    "role": 2,
+    "module": "Follow-ups",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.167Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 20,
+  "fields": {
+    "role": 2,
+    "module": "IVRS Management",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.180Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 21,
+  "fields": {
+    "role": 2,
+    "module": "Approvals",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.192Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 22,
+  "fields": {
+    "role": 2,
+    "module": "Project Management",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.205Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 23,
+  "fields": {
+    "role": 2,
+    "module": "Workforce",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.221Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 24,
+  "fields": {
+    "role": 2,
+    "module": "Liaisoning & Commissioning",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.236Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 25,
+  "fields": {
+    "role": 2,
+    "module": "O&M",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.249Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 26,
+  "fields": {
+    "role": 2,
+    "module": "Accounts",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.261Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 27,
+  "fields": {
+    "role": 2,
+    "module": "Inventory",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.274Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 28,
+  "fields": {
+    "role": 2,
+    "module": "Daily Tasks",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.287Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 29,
+  "fields": {
+    "role": 2,
+    "module": "AMC & Warranty",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.301Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 30,
+  "fields": {
+    "role": 2,
+    "module": "Reports",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.316Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 31,
+  "fields": {
+    "role": 2,
+    "module": "User Management",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.332Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 32,
+  "fields": {
+    "role": 2,
+    "module": "Settings",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.347Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 33,
+  "fields": {
+    "role": 3,
+    "module": "Dashboard",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.378Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 34,
+  "fields": {
+    "role": 3,
+    "module": "Leads",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.393Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 35,
+  "fields": {
+    "role": 3,
+    "module": "Follow-ups",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.406Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 36,
+  "fields": {
+    "role": 3,
+    "module": "IVRS Management",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.420Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 37,
+  "fields": {
+    "role": 3,
+    "module": "Approvals",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.436Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 38,
+  "fields": {
+    "role": 3,
+    "module": "Project Management",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.449Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 39,
+  "fields": {
+    "role": 3,
+    "module": "Workforce",
+    "can_view": true,
+    "can_add": true,
+    "can_edit": true,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.465Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 40,
+  "fields": {
+    "role": 3,
+    "module": "Liaisoning & Commissioning",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.479Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 41,
+  "fields": {
+    "role": 3,
+    "module": "O&M",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.491Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 42,
+  "fields": {
+    "role": 3,
+    "module": "Accounts",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": true,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.505Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 43,
+  "fields": {
+    "role": 3,
+    "module": "Inventory",
+    "can_view": true,
+    "can_add": true,
+    "can_edit": true,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.524Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 44,
+  "fields": {
+    "role": 3,
+    "module": "Daily Tasks",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.537Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 45,
+  "fields": {
+    "role": 3,
+    "module": "AMC & Warranty",
+    "can_view": true,
+    "can_add": true,
+    "can_edit": true,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.552Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 46,
+  "fields": {
+    "role": 3,
+    "module": "Reports",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": true,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.566Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 47,
+  "fields": {
+    "role": 4,
+    "module": "Dashboard",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.594Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 48,
+  "fields": {
+    "role": 4,
+    "module": "Leads",
+    "can_view": true,
+    "can_add": true,
+    "can_edit": true,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.606Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 49,
+  "fields": {
+    "role": 4,
+    "module": "Follow-ups",
+    "can_view": false,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": true,
+    "updated_at": "2026-07-18T06:48:24.621Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 50,
+  "fields": {
+    "role": 4,
+    "module": "Approvals",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.636Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 51,
+  "fields": {
+    "role": 4,
+    "module": "Project Management",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": true,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.649Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 52,
+  "fields": {
+    "role": 4,
+    "module": "Inventory",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.663Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 53,
+  "fields": {
+    "role": 4,
+    "module": "Daily Tasks",
+    "can_view": true,
+    "can_add": true,
+    "can_edit": true,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.678Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 54,
+  "fields": {
+    "role": 4,
+    "module": "AMC & Warranty",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.691Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 55,
+  "fields": {
+    "role": 4,
+    "module": "Reports",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.705Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 56,
+  "fields": {
+    "role": 5,
+    "module": "Dashboard",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.732Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 57,
+  "fields": {
+    "role": 5,
+    "module": "Leads",
+    "can_view": true,
+    "can_add": true,
+    "can_edit": true,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.745Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 58,
+  "fields": {
+    "role": 5,
+    "module": "Follow-ups",
+    "can_view": true,
+    "can_add": true,
+    "can_edit": true,
+    "can_delete": true,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.760Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 59,
+  "fields": {
+    "role": 5,
+    "module": "Inventory",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.773Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 60,
+  "fields": {
+    "role": 5,
+    "module": "Daily Tasks",
+    "can_view": true,
+    "can_add": true,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.788Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 61,
+  "fields": {
+    "role": 5,
+    "module": "AMC & Warranty",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.802Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 62,
+  "fields": {
+    "role": 5,
+    "module": "Reports",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.815Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 63,
+  "fields": {
+    "role": 6,
+    "module": "Dashboard",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.843Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 64,
+  "fields": {
+    "role": 6,
+    "module": "Leads",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.858Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 65,
+  "fields": {
+    "role": 6,
+    "module": "Follow-ups",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.872Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 66,
+  "fields": {
+    "role": 6,
+    "module": "Project Management",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.884Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 67,
+  "fields": {
+    "role": 6,
+    "module": "Accounts",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.898Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 68,
+  "fields": {
+    "role": 6,
+    "module": "Reports",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.912Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 69,
+  "fields": {
+    "role": 7,
+    "module": "Dashboard",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.969Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 70,
+  "fields": {
+    "role": 7,
+    "module": "Leads",
+    "can_view": true,
+    "can_add": true,
+    "can_edit": true,
+    "can_delete": true,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.983Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 71,
+  "fields": {
+    "role": 7,
+    "module": "Follow-ups",
+    "can_view": true,
+    "can_add": true,
+    "can_edit": true,
+    "can_delete": true,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:24.996Z"
+  }
+},
+{
+  "model": "accounts.rolepermission",
+  "pk": 72,
+  "fields": {
+    "role": 7,
+    "module": "Reports",
+    "can_view": true,
+    "can_add": false,
+    "can_edit": false,
+    "can_delete": false,
+    "can_export": false,
+    "can_import": false,
+    "can_approve": false,
+    "full_access": false,
+    "updated_at": "2026-07-18T06:48:25.010Z"
+  }
+},
+{
+  "model": "accounts.user",
+  "fields": {
+    "password": "pbkdf2_sha256$600000$LWUNBrz9kA4AjO0x5J06am$glNGSBgG6v66cpioFTDbdrGZww1uecIrgAbQnDhjNiE=",
+    "last_login": null,
+    "is_superuser": true,
+    "email": "Ecomalwa@poer.in",
+    "name": "Super Admin",
+    "mobile": null,
+    "role": 1,
+    "branch": null,
+    "is_active": true,
+    "is_staff": true,
+    "created_at": "2026-07-18T06:49:37.806Z",
+    "updated_at": "2026-07-18T06:49:37.806Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "accounts.user",
+  "fields": {
+    "password": "pbkdf2_sha256$600000$cD9pABUj1J70Ba7nAzfNXO$tR5GHe7mE+LmV0PHiUDDFHjqgiIpj7K1fyrUg6hhWDw=",
+    "last_login": null,
+    "is_superuser": false,
+    "email": "ridwan786@gmail.com",
+    "name": "Ridvan Hussain",
+    "mobile": "9893313715",
+    "role": 7,
+    "branch": 1,
+    "is_active": true,
+    "is_staff": false,
+    "created_at": "2026-07-18T06:58:04.525Z",
+    "updated_at": "2026-07-18T06:58:04.525Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "accounts.user",
+  "fields": {
+    "password": "pbkdf2_sha256$600000$C3KT2ag0q0gnxEVBkKB4C1$2Lousi7wbO1jkR0yC51ezTAW4qGGYGqmSl7c31Wg9DE=",
+    "last_login": null,
+    "is_superuser": false,
+    "email": "sales1@poer.in",
+    "name": "Sales Executive 1",
+    "mobile": "9876500001",
+    "role": 5,
+    "branch": 1,
+    "is_active": true,
+    "is_staff": false,
+    "created_at": "2026-07-18T07:56:39.781Z",
+    "updated_at": "2026-07-18T07:56:39.781Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "accounts.user",
+  "fields": {
+    "password": "pbkdf2_sha256$600000$9Tscf9jKjsGtMA2cXDSwxq$Dh2otYqoizVgoEquy4MVTlAnGiVM/VWGmkIp2B6Yr24=",
+    "last_login": null,
+    "is_superuser": false,
+    "email": "sales2@poer.in",
+    "name": "Sales Executive 2",
+    "mobile": "9876500002",
+    "role": 5,
+    "branch": 1,
+    "is_active": true,
+    "is_staff": false,
+    "created_at": "2026-07-18T07:56:39.915Z",
+    "updated_at": "2026-07-18T07:56:39.915Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "accounts.user",
+  "fields": {
+    "password": "pbkdf2_sha256$600000$5osTEvISWRT65v1CbLBs4w$Q1RQWy3XmxF7z0ZqHNI2RfBFNPcpoRWkw8CsYue5Scc=",
+    "last_login": null,
+    "is_superuser": false,
+    "email": "shoaibm@lwa.in",
+    "name": "Shoaib Multani",
+    "mobile": "8223000824",
+    "role": 3,
+    "branch": 1,
+    "is_active": true,
+    "is_staff": false,
+    "created_at": "2026-07-18T09:26:16.987Z",
+    "updated_at": "2026-07-18T09:26:16.987Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "leads.lead",
+  "pk": 1,
+  "fields": {
+    "customer_name": "Test Lead 1",
+    "mobile_number": "9876543210",
+    "ivrs_number": "12345",
+    "alternate_number": "",
+    "email": "",
+    "project_name": "",
+    "project_type": "",
+    "estimated_capacity": "",
+    "requirement_details": "",
+    "address": "",
+    "city": "",
+    "state": "",
+    "latitude": "",
+    "longitude": "",
+    "source": "",
+    "priority": "",
+    "remarks": "",
+    "status": "New",
+    "category": "",
+    "assigned_to": null,
+    "created_by": [
+      "Ecomalwa@poer.in"
+    ],
+    "next_follow_up": null,
+    "created_at": "2026-07-18T06:56:46.520Z",
+    "updated_at": "2026-07-18T06:56:46.520Z"
+  }
+},
+{
+  "model": "leads.lead",
+  "pk": 2,
+  "fields": {
+    "customer_name": "Shahid Multani",
+    "mobile_number": "8224000822",
+    "ivrs_number": "IVRS2C51E383",
+    "alternate_number": "",
+    "email": "sheddysmithlab@gmail.com",
+    "project_name": "5kW Rooftop Solar",
+    "project_type": "On-Grid",
+    "estimated_capacity": "5",
+    "requirement_details": "",
+    "address": "122/1 nayta mundla",
+    "city": "Indore",
+    "state": "Madhya Pradesh",
+    "latitude": "",
+    "longitude": "",
+    "source": "Website",
+    "priority": "",
+    "remarks": "",
+    "status": "Won",
+    "category": "",
+    "assigned_to": [
+      "sales1@poer.in"
+    ],
+    "created_by": [
+      "ridwan786@gmail.com"
+    ],
+    "next_follow_up": null,
+    "created_at": "2026-07-18T06:59:31.101Z",
+    "updated_at": "2026-07-18T08:03:50.516Z"
+  }
+},
+{
+  "model": "leads.lead",
+  "pk": 3,
+  "fields": {
+    "customer_name": "Pool Lead Unassigned",
+    "mobile_number": "9000010001",
+    "ivrs_number": "IVRSE2629D73",
+    "alternate_number": "",
+    "email": "",
+    "project_name": "3kW Rooftop",
+    "project_type": "On-Grid",
+    "estimated_capacity": "",
+    "requirement_details": "",
+    "address": "",
+    "city": "",
+    "state": "",
+    "latitude": "",
+    "longitude": "",
+    "source": "Manual",
+    "priority": "",
+    "remarks": "",
+    "status": "New",
+    "category": "",
+    "assigned_to": [
+      "sales2@poer.in"
+    ],
+    "created_by": [
+      "Ecomalwa@poer.in"
+    ],
+    "next_follow_up": null,
+    "created_at": "2026-07-18T07:56:39.932Z",
+    "updated_at": "2026-07-18T07:57:01.481Z"
+  }
+},
+{
+  "model": "leads.lead",
+  "pk": 4,
+  "fields": {
+    "customer_name": "SE1 Won Customer",
+    "mobile_number": "9000010002",
+    "ivrs_number": "IVRS7D05A846",
+    "alternate_number": "",
+    "email": "",
+    "project_name": "5kW Hybrid",
+    "project_type": "Hybrid",
+    "estimated_capacity": "",
+    "requirement_details": "",
+    "address": "",
+    "city": "",
+    "state": "",
+    "latitude": "",
+    "longitude": "",
+    "source": "Manual",
+    "priority": "",
+    "remarks": "",
+    "status": "Won",
+    "category": "",
+    "assigned_to": [
+      "sales1@poer.in"
+    ],
+    "created_by": [
+      "Ecomalwa@poer.in"
+    ],
+    "next_follow_up": null,
+    "created_at": "2026-07-18T07:56:39.940Z",
+    "updated_at": "2026-07-18T07:56:39.940Z"
+  }
+},
+{
+  "model": "leads.lead",
+  "pk": 5,
+  "fields": {
+    "customer_name": "SE2 Won Customer",
+    "mobile_number": "9000010003",
+    "ivrs_number": "IVRSC81F5D43",
+    "alternate_number": "",
+    "email": "",
+    "project_name": "10kW On-Grid",
+    "project_type": "On-Grid",
+    "estimated_capacity": "",
+    "requirement_details": "",
+    "address": "",
+    "city": "",
+    "state": "",
+    "latitude": "",
+    "longitude": "",
+    "source": "Manual",
+    "priority": "",
+    "remarks": "",
+    "status": "Won",
+    "category": "",
+    "assigned_to": [
+      "sales2@poer.in"
+    ],
+    "created_by": [
+      "Ecomalwa@poer.in"
+    ],
+    "next_follow_up": null,
+    "created_at": "2026-07-18T07:56:39.980Z",
+    "updated_at": "2026-07-18T09:40:34.998Z"
+  }
+},
+{
+  "model": "leads.lead",
+  "pk": 6,
+  "fields": {
+    "customer_name": "SE1 Follow-up Lead",
+    "mobile_number": "9000010004",
+    "ivrs_number": "IVRSDA601F33",
+    "alternate_number": "",
+    "email": "",
+    "project_name": "2kW Off-Grid",
+    "project_type": "Off-Grid",
+    "estimated_capacity": "",
+    "requirement_details": "",
+    "address": "",
+    "city": "",
+    "state": "",
+    "latitude": "",
+    "longitude": "",
+    "source": "Manual",
+    "priority": "",
+    "remarks": "",
+    "status": "Follow-up",
+    "category": "",
+    "assigned_to": [
+      "sales1@poer.in"
+    ],
+    "created_by": [
+      "Ecomalwa@poer.in"
+    ],
+    "next_follow_up": null,
+    "created_at": "2026-07-18T07:56:40.017Z",
+    "updated_at": "2026-07-18T07:56:40.017Z"
+  }
+},
+{
+  "model": "projects.sequencecounter",
+  "pk": 1,
+  "fields": {
+    "key": "PRJ-2026-",
+    "value": 3
+  }
+},
+{
+  "model": "projects.project",
+  "pk": 1,
+  "fields": {
+    "project_id": "PRJ-2026-0001",
+    "project_name": "5kW Rooftop Solar",
+    "lead": 2,
+    "customer_name": "Shahid Multani",
+    "site": "",
+    "site_address": "122/1 nayta mundla",
+    "city": "Indore",
+    "state": "Madhya Pradesh",
+    "meter_number": "",
+    "site_size": "",
+    "project_type": "On-Grid",
+    "capacity_kwp": "5.00",
+    "system_type": "Rooftop Solar",
+    "project_image": "",
+    "status": "Planning",
+    "priority": "Medium",
+    "progress_percent": 0,
+    "manager": null,
+    "site_engineer": null,
+    "sales_executive": null,
+    "meter_type": "",
+    "sanction_load": "",
+    "consumer_number": "",
+    "discom_name": "",
+    "start_date": null,
+    "target_date": null,
+    "contract_date": null,
+    "actual_completion": null,
+    "po_number": "",
+    "total_value": "0.00",
+    "created_by": [
+      "ridwan786@gmail.com"
+    ],
+    "created_at": "2026-07-18T06:59:31.143Z",
+    "updated_at": "2026-07-18T06:59:31.143Z"
+  }
+},
+{
+  "model": "projects.project",
+  "pk": 2,
+  "fields": {
+    "project_id": "PRJ-2026-0002",
+    "project_name": "5kW Hybrid",
+    "lead": 4,
+    "customer_name": "SE1 Won Customer",
+    "site": "",
+    "site_address": "",
+    "city": "",
+    "state": "",
+    "meter_number": "",
+    "site_size": "",
+    "project_type": "Hybrid",
+    "capacity_kwp": "0.00",
+    "system_type": "Rooftop Solar",
+    "project_image": "",
+    "status": "Planning",
+    "priority": "Medium",
+    "progress_percent": 0,
+    "manager": [
+      "sales1@poer.in"
+    ],
+    "site_engineer": null,
+    "sales_executive": null,
+    "meter_type": "",
+    "sanction_load": "",
+    "consumer_number": "",
+    "discom_name": "",
+    "start_date": null,
+    "target_date": null,
+    "contract_date": null,
+    "actual_completion": null,
+    "po_number": "",
+    "total_value": "0.00",
+    "created_by": [
+      "Ecomalwa@poer.in"
+    ],
+    "created_at": "2026-07-18T07:56:39.973Z",
+    "updated_at": "2026-07-18T07:56:39.973Z"
+  }
+},
+{
+  "model": "projects.project",
+  "pk": 3,
+  "fields": {
+    "project_id": "PRJ-2026-0003",
+    "project_name": "10kW On-Grid",
+    "lead": 5,
+    "customer_name": "SE2 Won Customer",
+    "site": "",
+    "site_address": "",
+    "city": "",
+    "state": "",
+    "meter_number": "",
+    "site_size": "",
+    "project_type": "On-Grid",
+    "capacity_kwp": "0.00",
+    "system_type": "Rooftop Solar",
+    "project_image": "",
+    "status": "On Hold",
+    "priority": "Medium",
+    "progress_percent": 0,
+    "manager": [
+      "sales2@poer.in"
+    ],
+    "site_engineer": null,
+    "sales_executive": null,
+    "meter_type": "",
+    "sanction_load": "",
+    "consumer_number": "",
+    "discom_name": "",
+    "start_date": null,
+    "target_date": null,
+    "contract_date": null,
+    "actual_completion": null,
+    "po_number": "",
+    "total_value": "0.00",
+    "created_by": [
+      "Ecomalwa@poer.in"
+    ],
+    "created_at": "2026-07-18T07:56:40.009Z",
+    "updated_at": "2026-07-18T09:40:34.851Z"
+  }
+},
+{
+  "model": "inventory.inventorycategory",
+  "pk": 1,
+  "fields": {
+    "name": "Solar Panel",
+    "description": "PV modules and panels",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:39.111Z"
+  }
+},
+{
+  "model": "inventory.inventorycategory",
+  "pk": 2,
+  "fields": {
+    "name": "Inverter",
+    "description": "Grid-tie and hybrid inverters",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:39.125Z"
+  }
+},
+{
+  "model": "inventory.inventorycategory",
+  "pk": 3,
+  "fields": {
+    "name": "Battery",
+    "description": "Storage batteries",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:39.139Z"
+  }
+},
+{
+  "model": "inventory.inventorycategory",
+  "pk": 4,
+  "fields": {
+    "name": "Structure",
+    "description": "Mounting structures and rails",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:39.153Z"
+  }
+},
+{
+  "model": "inventory.inventorycategory",
+  "pk": 5,
+  "fields": {
+    "name": "Cable & Wire",
+    "description": "DC/AC cables and wiring",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:39.166Z"
+  }
+},
+{
+  "model": "inventory.inventorycategory",
+  "pk": 6,
+  "fields": {
+    "name": "ACDB/DCDB",
+    "description": "Distribution boxes",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:39.179Z"
+  }
+},
+{
+  "model": "inventory.inventorycategory",
+  "pk": 7,
+  "fields": {
+    "name": "Steel",
+    "description": "Angle, channel, sheet, pipe etc.",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:39.194Z"
+  }
+},
+{
+  "model": "inventory.inventorycategory",
+  "pk": 8,
+  "fields": {
+    "name": "Hardware",
+    "description": "Nuts, bolts, fasteners, consumables",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:39.208Z"
+  }
+},
+{
+  "model": "inventory.inventorycategory",
+  "pk": 9,
+  "fields": {
+    "name": "Other",
+    "description": "Miscellaneous items",
+    "is_active": true,
+    "created_at": "2026-07-18T06:48:39.224Z"
+  }
+},
+{
+  "model": "liaisoning.liaisonapproval",
+  "pk": 1,
+  "fields": {
+    "project": 3,
+    "approval_type": "DISCOM Approval",
+    "assigned_to": [
+      "sales1@poer.in"
+    ],
+    "status": "Pending",
+    "due_date": "2026-06-30",
+    "description": "nothing",
+    "remarks": "Every thing is done",
+    "approved_by": null,
+    "approved_at": null,
+    "rejection_reason": "",
+    "created_by": [
+      "Ecomalwa@poer.in"
+    ],
+    "created_at": "2026-07-18T08:12:56.015Z",
+    "updated_at": "2026-07-18T08:12:56.015Z"
+  }
+},
+{
+  "model": "crm_settings.companyprofile",
+  "pk": 1,
+  "fields": {
+    "data": {
+      "companyName": "Malwa Solar Energy Pvt. Ltd.",
+      "shortName": "Malwa Solar",
+      "companyType": "Private Limited",
+      "gstNumber": "03AAGCM1234A1Z5",
+      "panNumber": "AAGCM1234A",
+      "tanNumber": "PTLM12345G",
+      "cin": "U40106PB2021PTC045678",
+      "phone": "+91 98765 43210",
+      "secondaryPhone": "+91 98765 43211",
+      "email": "info@malwasolar.com",
+      "altEmail": "support@malwasolar.com",
+      "website": "https://www.malwasolar.com",
+      "incorporationDate": "01/04/2021",
+      "startDate": "01/05/2021",
+      "companySize": "51-100 Employees",
+      "industryType": "Solar Energy",
+      "currency": "INR (Rs)",
+      "timezone": "(GMT +05:30) Asia/Kolkata",
+      "address1": "123, Industrial Area, Phase 1",
+      "address2": "Near Transport Nagar",
+      "city": "Indore",
+      "state": "Madhya Pradesh",
+      "pinCode": "452001",
+      "country": "India",
+      "bankName": "HDFC Bank",
+      "accountNumber": "50200012345678",
+      "ifsc": "HDFC0005020",
+      "branch": "Ludhiana - Industrial Area",
+      "contactName": "Amanpreet Singh",
+      "designation": "Managing Director",
+      "contactPhone": "+91 98765 43210",
+      "contactEmail": "amanpreet@malwasolar.com",
+      "notes": "Company notes..."
+    },
+    "updated_at": "2026-07-18T09:42:29.978Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 1,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "127.0.0.1",
+    "status": "Success",
+    "created_at": "2026-07-18T06:50:05.805Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 2,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "127.0.0.1",
+    "status": "Success",
+    "created_at": "2026-07-18T06:51:04.583Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 3,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login Failed",
+    "module": "Authentication",
+    "description": "Failed login attempt",
+    "ip_address": "200.97.171.119",
+    "status": "Failed",
+    "created_at": "2026-07-18T06:52:04.910Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 4,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "106.214.3.3",
+    "status": "Success",
+    "created_at": "2026-07-18T06:53:07.719Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 5,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login Failed",
+    "module": "Authentication",
+    "description": "Failed login attempt for ridwan786@gmail.com",
+    "ip_address": "106.214.3.3",
+    "status": "Failed",
+    "created_at": "2026-07-18T06:56:30.852Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 6,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "106.214.3.3",
+    "status": "Success",
+    "created_at": "2026-07-18T06:56:38.829Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 7,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "106.214.3.3",
+    "status": "Success",
+    "created_at": "2026-07-18T06:58:53.497Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 8,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "106.214.3.3",
+    "status": "Success",
+    "created_at": "2026-07-18T07:00:07.786Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 9,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "127.0.0.1",
+    "status": "Success",
+    "created_at": "2026-07-18T07:05:45.276Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 10,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "127.0.0.1",
+    "status": "Success",
+    "created_at": "2026-07-18T07:05:45.501Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 11,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "106.214.3.3",
+    "status": "Success",
+    "created_at": "2026-07-18T07:07:26.354Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 12,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "106.214.3.3",
+    "status": "Success",
+    "created_at": "2026-07-18T07:07:32.968Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 13,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "152.59.233.36",
+    "status": "Success",
+    "created_at": "2026-07-18T07:29:58.509Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 14,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "127.0.0.1",
+    "status": "Success",
+    "created_at": "2026-07-18T07:43:29.555Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 15,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "127.0.0.1",
+    "status": "Success",
+    "created_at": "2026-07-18T07:57:00.859Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 16,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "127.0.0.1",
+    "status": "Success",
+    "created_at": "2026-07-18T07:57:01.164Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 17,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "127.0.0.1",
+    "status": "Success",
+    "created_at": "2026-07-18T07:57:01.421Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 18,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "152.59.233.36",
+    "status": "Success",
+    "created_at": "2026-07-18T08:02:57.569Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 19,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "152.59.233.36",
+    "status": "Success",
+    "created_at": "2026-07-18T08:03:19.598Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 20,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "106.214.3.174",
+    "status": "Success",
+    "created_at": "2026-07-18T09:26:48.847Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 21,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "106.214.3.174",
+    "status": "Success",
+    "created_at": "2026-07-18T09:27:12.345Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 22,
+  "fields": {
+    "user": null,
+    "user_name": "",
+    "action": "Login",
+    "module": "Authentication",
+    "description": "User logged in successfully",
+    "ip_address": "106.214.3.174",
+    "status": "Success",
+    "created_at": "2026-07-18T09:41:46.363Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 23,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "user_name": "Super Admin",
+    "action": "Update",
+    "module": "Settings",
+    "description": "Company profile updated",
+    "ip_address": "106.214.3.174",
+    "status": "Success",
+    "created_at": "2026-07-18T09:42:27.732Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 24,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "user_name": "Super Admin",
+    "action": "Update",
+    "module": "Settings",
+    "description": "Company profile updated",
+    "ip_address": "106.214.3.174",
+    "status": "Success",
+    "created_at": "2026-07-18T09:42:29.579Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 25,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "user_name": "Super Admin",
+    "action": "Update",
+    "module": "Settings",
+    "description": "Company profile updated",
+    "ip_address": "106.214.3.174",
+    "status": "Success",
+    "created_at": "2026-07-18T09:42:29.763Z"
+  }
+},
+{
+  "model": "crm_settings.useractivitylog",
+  "pk": 26,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "user_name": "Super Admin",
+    "action": "Update",
+    "module": "Settings",
+    "description": "Company profile updated",
+    "ip_address": "106.214.3.174",
+    "status": "Success",
+    "created_at": "2026-07-18T09:42:29.981Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 1,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "3484e14437c0440194dd76af331c193c",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2MjIwNSwiaWF0IjoxNzg0MzU3NDA1LCJqdGkiOiIzNDg0ZTE0NDM3YzA0NDAxOTRkZDc2YWYzMzFjMTkzYyIsInVzZXJfaWQiOiIxIn0.H3-phtj24QZQSn-l2Ha6N8yotDwj_KmVY-XbWjM2_3c",
+    "created_at": "2026-07-18T06:50:05.773Z",
+    "expires_at": "2026-07-25T06:50:05Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 2,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "f4a7eeac82b447489cc4773cc58deb64",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2MjI2NCwiaWF0IjoxNzg0MzU3NDY0LCJqdGkiOiJmNGE3ZWVhYzgyYjQ0NzQ4OWNjNDc3M2NjNThkZWI2NCIsInVzZXJfaWQiOiIxIn0.VO4bVYRzT040I8d5_aFe9o6CmzJoRhIfvuFUWhXVaPg",
+    "created_at": "2026-07-18T06:51:04.554Z",
+    "expires_at": "2026-07-25T06:51:04Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 3,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "edd8647e2a1844b4b2dcd792b7706de7",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2MjM4NywiaWF0IjoxNzg0MzU3NTg3LCJqdGkiOiJlZGQ4NjQ3ZTJhMTg0NGI0YjJkY2Q3OTJiNzcwNmRlNyIsInVzZXJfaWQiOiIxIn0.RIUnOBPiCkASPHafKtPn2RMQ_ZvYCOt8YK_C8H_QS3c",
+    "created_at": "2026-07-18T06:53:07.705Z",
+    "expires_at": "2026-07-25T06:53:07Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 4,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "0718474581db4bd2906031af094aa918",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2MjU5OCwiaWF0IjoxNzg0MzU3Nzk4LCJqdGkiOiIwNzE4NDc0NTgxZGI0YmQyOTA2MDMxYWYwOTRhYTkxOCIsInVzZXJfaWQiOiIxIn0._TkX4sV6lQerNr8JzNeXjMEJm3ejPq8ifeUvBkj2vQc",
+    "created_at": "2026-07-18T06:56:38.814Z",
+    "expires_at": "2026-07-25T06:56:38Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 5,
+  "fields": {
+    "user": [
+      "ridwan786@gmail.com"
+    ],
+    "jti": "ee5f7af656044a9cbf79ec79a5db3c87",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2MjczMywiaWF0IjoxNzg0MzU3OTMzLCJqdGkiOiJlZTVmN2FmNjU2MDQ0YTljYmY3OWVjNzlhNWRiM2M4NyIsInVzZXJfaWQiOiIyIn0.sOdWgSbNMSuNyrvQZYgIEKITOO1c1OmzCqTT9hyt5yo",
+    "created_at": "2026-07-18T06:58:53.479Z",
+    "expires_at": "2026-07-25T06:58:53Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 6,
+  "fields": {
+    "user": [
+      "ridwan786@gmail.com"
+    ],
+    "jti": "0c79ede5a79848359699e1e57eb8c5bf",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2MjgwNywiaWF0IjoxNzg0MzU4MDA3LCJqdGkiOiIwYzc5ZWRlNWE3OTg0ODM1OTY5OWUxZTU3ZWI4YzViZiIsInVzZXJfaWQiOiIyIn0.sfLWzmZZH77k9xDBy728q8-H2dF92cTxb9JQJNB-SKc",
+    "created_at": "2026-07-18T07:00:07.768Z",
+    "expires_at": "2026-07-25T07:00:07Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 7,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "37ead9b39e464f4c9d0c6dcdf4ea9116",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2MzE0NSwiaWF0IjoxNzg0MzU4MzQ1LCJqdGkiOiIzN2VhZDliMzllNDY0ZjRjOWQwYzZkY2RmNGVhOTExNiIsInVzZXJfaWQiOiIxIn0.y9ucwbAhD0TE45EmJj4sHlgtjUQpwd0CwHjIwBxs_os",
+    "created_at": "2026-07-18T07:05:45.259Z",
+    "expires_at": "2026-07-25T07:05:45Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 8,
+  "fields": {
+    "user": [
+      "ridwan786@gmail.com"
+    ],
+    "jti": "41c51bc1ad55461fae960781103b626f",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2MzE0NSwiaWF0IjoxNzg0MzU4MzQ1LCJqdGkiOiI0MWM1MWJjMWFkNTU0NjFmYWU5NjA3ODExMDNiNjI2ZiIsInVzZXJfaWQiOiIyIn0.6jH0KRIr9zZCAbI9DoRkYJuAmqiOs4XbhXKrULby_8I",
+    "created_at": "2026-07-18T07:05:45.481Z",
+    "expires_at": "2026-07-25T07:05:45Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 9,
+  "fields": {
+    "user": [
+      "ridwan786@gmail.com"
+    ],
+    "jti": "147c34363e794cce90df838c3bbcbba4",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2MzI0NiwiaWF0IjoxNzg0MzU4NDQ2LCJqdGkiOiIxNDdjMzQzNjNlNzk0Y2NlOTBkZjgzOGMzYmJjYmJhNCIsInVzZXJfaWQiOiIyIn0.7lvAM3WAxX6u1Vktz6DKOXi9AX3fsTCfRZxasvbCTQ4",
+    "created_at": "2026-07-18T07:07:26.336Z",
+    "expires_at": "2026-07-25T07:07:26Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 10,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "ecd5cb9089964d5abb2dd3ab3e760983",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2MzI1MiwiaWF0IjoxNzg0MzU4NDUyLCJqdGkiOiJlY2Q1Y2I5MDg5OTY0ZDVhYmIyZGQzYWIzZTc2MDk4MyIsInVzZXJfaWQiOiIxIn0.Nnz08WztOCnriaP9bg5OPUtRL1Ge9dAd-4dijB3H3hs",
+    "created_at": "2026-07-18T07:07:32.953Z",
+    "expires_at": "2026-07-25T07:07:32Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 11,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "c7eb693b10884dbfa388b6631eeb5211",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2NDU5OCwiaWF0IjoxNzg0MzU5Nzk4LCJqdGkiOiJjN2ViNjkzYjEwODg0ZGJmYTM4OGI2NjMxZWViNTIxMSIsInVzZXJfaWQiOiIxIn0.1IXzQFUWT1nLnW2PdkHhXlF23GGIyFgBR4vGfgc9MJU",
+    "created_at": "2026-07-18T07:29:58.494Z",
+    "expires_at": "2026-07-25T07:29:58Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 12,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "0b3b4060c80b4e8bb351f86186a24603",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2NTQwOSwiaWF0IjoxNzg0MzYwNjA5LCJqdGkiOiIwYjNiNDA2MGM4MGI0ZThiYjM1MWY4NjE4NmEyNDYwMyIsInVzZXJfaWQiOiIxIn0.RalTgkTrFWhb0yfhu1ULstUFVrxfsxhL-iXe0uF-VUA",
+    "created_at": "2026-07-18T07:43:29.535Z",
+    "expires_at": "2026-07-25T07:43:29Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 13,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "2b159d624f3e42538eb93ce99ce5e538",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2NjIyMCwiaWF0IjoxNzg0MzYxNDIwLCJqdGkiOiIyYjE1OWQ2MjRmM2U0MjUzOGViOTNjZTk5Y2U1ZTUzOCIsInVzZXJfaWQiOiIxIn0.60Ek5E8rIntqY5EnRgT6ZSVqUUvU34GXFlUc4TwfC2o",
+    "created_at": "2026-07-18T07:57:00.831Z",
+    "expires_at": "2026-07-25T07:57:00Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 14,
+  "fields": {
+    "user": [
+      "sales1@poer.in"
+    ],
+    "jti": "8225e8be77d74b38a6d7c41285b5d18d",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2NjIyMSwiaWF0IjoxNzg0MzYxNDIxLCJqdGkiOiI4MjI1ZThiZTc3ZDc0YjM4YTZkN2M0MTI4NWI1ZDE4ZCIsInVzZXJfaWQiOiIzIn0.qU-gXZw6AIYi0z0ElRGh-1ee_fseHSgaxahzOW1WM4U",
+    "created_at": "2026-07-18T07:57:01.137Z",
+    "expires_at": "2026-07-25T07:57:01Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 15,
+  "fields": {
+    "user": [
+      "sales2@poer.in"
+    ],
+    "jti": "95573b0d0b1a41cba8faaa505c879461",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2NjIyMSwiaWF0IjoxNzg0MzYxNDIxLCJqdGkiOiI5NTU3M2IwZDBiMWE0MWNiYThmYWFhNTA1Yzg3OTQ2MSIsInVzZXJfaWQiOiI0In0._jj9uaNH-p72HWlfl6amLyw2ktFOSymYGzH6XmhWgic",
+    "created_at": "2026-07-18T07:57:01.395Z",
+    "expires_at": "2026-07-25T07:57:01Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 16,
+  "fields": {
+    "user": [
+      "sales1@poer.in"
+    ],
+    "jti": "db76c9e498ce4e16a7238af4b6b5904c",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2NjU3NywiaWF0IjoxNzg0MzYxNzc3LCJqdGkiOiJkYjc2YzllNDk4Y2U0ZTE2YTcyMzhhZjRiNmI1OTA0YyIsInVzZXJfaWQiOiIzIn0.tXObnwl6_kLUJQXNoYpRwkd6bUURlLY4Jr8O0y4CdWs",
+    "created_at": "2026-07-18T08:02:57.551Z",
+    "expires_at": "2026-07-25T08:02:57Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 17,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "f71b6ed8eab14a41968ec2c365f20899",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk2NjU5OSwiaWF0IjoxNzg0MzYxNzk5LCJqdGkiOiJmNzFiNmVkOGVhYjE0YTQxOTY4ZWMyYzM2NWYyMDg5OSIsInVzZXJfaWQiOiIxIn0.MjHrc-FJwq8DxF8757vYoCb5EeiGo9qp3st7YphtpiY",
+    "created_at": "2026-07-18T08:03:19.584Z",
+    "expires_at": "2026-07-25T08:03:19Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 18,
+  "fields": {
+    "user": [
+      "shoaibm@lwa.in"
+    ],
+    "jti": "7832e28887df406fb4e2e818a7090cb6",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk3MTYwOCwiaWF0IjoxNzg0MzY2ODA4LCJqdGkiOiI3ODMyZTI4ODg3ZGY0MDZmYjRlMmU4MThhNzA5MGNiNiIsInVzZXJfaWQiOiI1In0.6-zTzL0SRMbUL9PCr9wV_CAMTgve3b3un095Vgl79t4",
+    "created_at": "2026-07-18T09:26:48.826Z",
+    "expires_at": "2026-07-25T09:26:48Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 19,
+  "fields": {
+    "user": [
+      "shoaibm@lwa.in"
+    ],
+    "jti": "1de4405d9a224881b149791ed486219f",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk3MTYzMiwiaWF0IjoxNzg0MzY2ODMyLCJqdGkiOiIxZGU0NDA1ZDlhMjI0ODgxYjE0OTc5MWVkNDg2MjE5ZiIsInVzZXJfaWQiOiI1In0.x7jRyrQDZ7fYrY32azo-UyMz_X_kKtxtKwF_9P6PMlU",
+    "created_at": "2026-07-18T09:27:12.328Z",
+    "expires_at": "2026-07-25T09:27:12Z"
+  }
+},
+{
+  "model": "token_blacklist.outstandingtoken",
+  "pk": 20,
+  "fields": {
+    "user": [
+      "Ecomalwa@poer.in"
+    ],
+    "jti": "1292c592700f46d4b1ea5416da9138aa",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4NDk3MjUwNiwiaWF0IjoxNzg0MzY3NzA2LCJqdGkiOiIxMjkyYzU5MjcwMGY0NmQ0YjFlYTU0MTZkYTkxMzhhYSIsInVzZXJfaWQiOiIxIn0.z7-UWQ7sNM85HtEpdcw_j72Urevt0yZhTLzgGgxPkdo",
+    "created_at": "2026-07-18T09:41:46.347Z",
+    "expires_at": "2026-07-25T09:41:46Z"
+  }
+}
+]

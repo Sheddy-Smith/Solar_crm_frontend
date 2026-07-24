@@ -27034,6 +27034,7 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
   const [query, setQuery] = useState('');
   const [editingRule, setEditingRule] = useState(null);
   const [addRuleOpen, setAddRuleOpen] = useState(false);
+  const [rulesPage, setRulesPage] = useState(1);
   const [securityConfig, setSecurityConfig] = useState({
     strictMode: true,
     whitelistOnly: false,
@@ -27081,6 +27082,22 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
   const allowCount = rules.filter((rule) => rule.type === 'Allow').length;
   const blockCount = rules.filter((rule) => rule.type === 'Block').length;
   const lastBlocked = blockedAttempts[0] ?? { attemptedAt: '—', ip: '—' };
+
+  const IP_PAGE_SIZE = 10;
+  const rulesTotalPages = Math.max(1, Math.ceil(filteredRules.length / IP_PAGE_SIZE));
+  const safeRulesPage = Math.min(rulesPage, rulesTotalPages);
+  const pagedRules = filteredRules.slice(
+    (safeRulesPage - 1) * IP_PAGE_SIZE,
+    safeRulesPage * IP_PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    setRulesPage(1);
+  }, [query, ruleFilter, activeTab]);
+
+  useEffect(() => {
+    if (rulesPage > rulesTotalPages) setRulesPage(rulesTotalPages);
+  }, [rulesPage, rulesTotalPages]);
 
   const saveRule = async (payload) => {
     const body = {
@@ -27159,10 +27176,13 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
               </div>
 
               <div className="mt-4 space-y-3 xl:hidden">
-                {filteredRules.map((rule, index) => (
+                {pagedRules.length === 0 ? (
+                  <p className="py-8 text-center text-[13px] font-bold text-[#53647f]">No IP rules found.</p>
+                ) : null}
+                {pagedRules.map((rule, index) => (
                   <article key={rule.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
                     <div className="flex items-start justify-between gap-3">
-                      <div><p className="text-[12px] font-extrabold text-[#8a98af]">#{index + 1}</p><p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{rule.name}</p></div>
+                      <div><p className="text-[12px] font-extrabold text-[#8a98af]">#{(safeRulesPage - 1) * IP_PAGE_SIZE + index + 1}</p><p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{rule.name}</p></div>
                       <SettingsTokenBadge label={rule.type} tone={rule.type === 'Allow' ? 'green' : 'red'} />
                     </div>
                     <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
@@ -27183,9 +27203,14 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
                 <table className="crm-table min-w-[1120px] w-full">
                   <thead><tr>{['#', 'Rule Name', 'Type', 'IP Address / Range', 'Description', 'Status', 'Priority', 'Created On', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
                   <tbody>
-                    {filteredRules.map((rule, index) => (
+                    {pagedRules.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-3 py-10 text-center text-[13px] font-bold text-[#53647f]">No IP rules found.</td>
+                      </tr>
+                    ) : null}
+                    {pagedRules.map((rule, index) => (
                       <tr key={rule.id}>
-                        <td>{index + 1}</td>
+                        <td>{(safeRulesPage - 1) * IP_PAGE_SIZE + index + 1}</td>
                         <td className="font-extrabold text-[#1e3261]">{rule.name}</td>
                         <td><SettingsTokenBadge label={rule.type} tone={rule.type === 'Allow' ? 'green' : 'red'} /></td>
                         <td>{rule.ipRange}</td>
@@ -27251,16 +27276,50 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
           )}
 
           <div className="mt-5 flex flex-col gap-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-            <p>Showing {activeTab === 'IP Access Rules' ? filteredRules.length : activeTab === 'Blocked Attempts' ? blockedAttempts.length : settingsIpAuditSeed.length} entries</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <PaginationButton onClick={() => onNotify('Previous security page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-              <PaginationButton active onClick={() => onNotify('Security page 1 selected')}>1</PaginationButton>
-              <PaginationButton onClick={() => onNotify('Security page 2 selected')}>2</PaginationButton>
-              <PaginationButton onClick={() => onNotify('Security page 3 selected')}>3</PaginationButton>
-              <span className="px-2 text-[#53647f]">...</span>
-              <PaginationButton onClick={() => onNotify('Security page 10 selected')}>10</PaginationButton>
-              <PaginationButton onClick={() => onNotify('Next security page selected')}><ChevronRight className="size-4" /></PaginationButton>
-            </div>
+            <p>
+              {activeTab === 'IP Access Rules'
+                ? (filteredRules.length > 0
+                  ? `Showing ${(safeRulesPage - 1) * IP_PAGE_SIZE + 1} to ${Math.min(safeRulesPage * IP_PAGE_SIZE, filteredRules.length)} of ${filteredRules.length} entries`
+                  : 'Showing 0 entries')
+                : activeTab === 'Blocked Attempts'
+                  ? `Showing ${blockedAttempts.length} entries`
+                  : `Showing ${settingsIpAuditSeed.length} entries`}
+            </p>
+            {activeTab === 'IP Access Rules' && rulesTotalPages > 1 ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <PaginationButton onClick={() => setRulesPage((p) => Math.max(1, p - 1))}>
+                  <ChevronLeft className="size-4" />
+                </PaginationButton>
+                {(() => {
+                  const pages = [];
+                  if (rulesTotalPages <= 5) {
+                    for (let i = 1; i <= rulesTotalPages; i += 1) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (safeRulesPage > 3) pages.push('ellipsis-start');
+                    const start = Math.max(2, safeRulesPage - 1);
+                    const end = Math.min(rulesTotalPages - 1, safeRulesPage + 1);
+                    for (let i = start; i <= end; i += 1) pages.push(i);
+                    if (safeRulesPage < rulesTotalPages - 2) pages.push('ellipsis-end');
+                    pages.push(rulesTotalPages);
+                  }
+                  return pages.map((page) => (page === 'ellipsis-start' || page === 'ellipsis-end')
+                    ? <span key={page} className="px-2 text-[#53647f]">...</span>
+                    : (
+                      <PaginationButton
+                        key={page}
+                        active={safeRulesPage === page}
+                        onClick={() => setRulesPage(page)}
+                      >
+                        {page}
+                      </PaginationButton>
+                    ));
+                })()}
+                <PaginationButton onClick={() => setRulesPage((p) => Math.min(rulesTotalPages, p + 1))}>
+                  <ChevronRight className="size-4" />
+                </PaginationButton>
+              </div>
+            ) : null}
           </div>
         </div>
 

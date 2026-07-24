@@ -1,0 +1,39 @@
+# TEMPORARY WordPress check stack — NOT Malwa CRM.
+# Malwa frontend stays on :8080. Malwa API/DB untouched.
+services:
+  db:
+    image: mysql:8.0
+    container_name: temp-wp-db
+    environment:
+      MYSQL_DATABASE: temp_wp_check
+      MYSQL_USER: temp_wp
+      MYSQL_PASSWORD: "TempWpCheck_2026!"
+      MYSQL_ROOT_PASSWORD: "TempWpRoot_2026!"
+    volumes:
+      - temp_wp_mysql:/var/lib/mysql
+    command:
+      [
+        "--default-authentication-plugin=mysql_native_password",
+        "--character-set-server=utf8mb4",
+        "--collation-server=utf8mb4_unicode_ci",
+      ]
+    restart: "no"
+
+  web:
+    image: wordpress:php8.2-apache
+    container_name: temp-wp-web
+    depends_on:
+      - db
+    ports:
+      - "8082:80"
+    volumes:
+      - ./html:/var/www/html
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: temp_wp
+      WORDPRESS_DB_PASSWORD: "TempWpCheck_2026!"
+      WORDPRESS_DB_NAME: temp_wp_check
+    restart: "no"
+
+volumes:
+  temp_wp_mysql:

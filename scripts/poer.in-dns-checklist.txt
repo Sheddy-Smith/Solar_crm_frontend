@@ -1,0 +1,23 @@
+# poer.in DNS checklist (Hostinger → Domains → poer.in → DNS / Nameservers)
+#
+# FIRST: decide where the server lives
+#   A) Hostinger VPS  → use that VPS public IP
+#   B) Existing DigitalOcean droplet (likely 139.59.64.36) → use that IP
+#
+# Nameservers: Hostinger DNS (NOT dns-parking) OR keep custom DNS and only edit A records.
+#
+# DNS records to create:
+
+# Type  Name   Value
+# A     @      <SERVER_IP>
+# A     www    <SERVER_IP>
+# A     api    <SERVER_IP>
+
+# After DNS propagates (5–60 min):
+#   https://poer.in          → React frontend
+#   https://api.poer.in      → Django API
+#
+# CORS on server .env must include:
+#   CORS_ALLOWED_ORIGINS=https://poer.in,https://www.poer.in
+#   CSRF_TRUSTED_ORIGINS=https://poer.in,https://www.poer.in,https://api.poer.in
+#   ALLOWED_HOSTS=api.poer.in,poer.in,www.poer.in

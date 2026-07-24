@@ -1,0 +1,28 @@
+{
+	email admin@poer.in
+}
+
+# --- Aitrads API (do not remove) ---
+api.aitrads.in {
+	encode gzip
+	reverse_proxy crypto-ai-trads-backend-1:8000
+}
+
+# --- Temporary: ecomalwa WordPress check on :8082 ---
+# Malwa CRM frontend remains on :8080. Restore when user says.
+poer.in, www.poer.in {
+	reverse_proxy 172.17.0.1:8082 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+		header_up Host {host}
+	}
+}
+
+api.poer.in {
+	reverse_proxy 172.17.0.1:8001 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP {remote_host}
+		header_up Host {host}
+	}
+}

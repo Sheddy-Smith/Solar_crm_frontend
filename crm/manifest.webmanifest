@@ -1,0 +1,42 @@
+{
+  "id": "/",
+  "name": "Malwa Solar CRM",
+  "short_name": "Malwa Solar",
+  "description": "Malwa Solar CRM for lead management, follow-ups, project coordination, inventory, and solar business operations.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait-primary",
+  "background_color": "#fafbfc",
+  "theme_color": "#0d9f4a",
+  "categories": ["business", "productivity"],
+  "lang": "en",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icons/icon-72.png?v=8", "sizes": "72x72", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-96.png?v=8", "sizes": "96x96", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-128.png?v=8", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-144.png?v=8", "sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-152.png?v=8", "sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-180.png?v=8", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png?v=8", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-384.png?v=8", "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png?v=8", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/?source=pwa#dashboard",
+      "icons": [{ "src": "/icons/icon-96.png?v=8", "sizes": "96x96" }]
+    },
+    {
+      "name": "Business Insights",
+      "short_name": "Insights",
+      "url": "/?source=pwa#insights",
+      "icons": [{ "src": "/icons/icon-96.png?v=8", "sizes": "96x96" }]
+    }
+  ]
+}
