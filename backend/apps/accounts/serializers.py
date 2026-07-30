@@ -30,7 +30,7 @@ class RoleSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'role_type', 'description', 'is_active', 'user_count', 'created_at']
 
     def get_user_count(self, obj):
-        return obj.users.filter(is_active=True).count()
+        return obj.users.filter(is_active=True, is_deleted=False).count()
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -44,7 +44,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'name', 'mobile', 'role', 'role_name', 'branch', 'branch_name',
-            'is_active', 'initials', 'created_at', 'is_super_admin', 'permissions',
+            'is_active', 'is_deleted', 'initials', 'created_at', 'is_super_admin', 'permissions',
         ]
 
     def get_is_super_admin(self, obj):
@@ -89,5 +89,8 @@ class ChangePasswordSerializer(serializers.Serializer):
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
+        if getattr(self.user, 'is_deleted', False):
+            from rest_framework.exceptions import AuthenticationFailed
+            raise AuthenticationFailed('This account has been deleted.')
         data['user'] = UserSerializer(self.user).data
         return data

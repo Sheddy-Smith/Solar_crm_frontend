@@ -19,8 +19,8 @@ class RoleAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ['email', 'name', 'mobile', 'role', 'branch', 'is_active', 'created_at']
-    list_filter = ['is_active', 'is_staff', 'role', 'branch']
+    list_display = ['email', 'name', 'mobile', 'role', 'branch', 'is_active', 'is_deleted', 'created_at']
+    list_filter = ['is_active', 'is_deleted', 'is_staff', 'role', 'branch']
     search_fields = ['email', 'name', 'mobile']
     ordering = ['-created_at']
     fieldsets = (

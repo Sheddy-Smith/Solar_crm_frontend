@@ -1,15 +1,17 @@
 /**
- * Global column resize for CRM data tables.
+ * Per-column resize for CRM data tables.
  *
- * Drag the right edge of any header cell to resize. Uses CSS ::after grips
- * (no nodes injected into React-managed <th>s) so re-renders stay clean.
- * Widths persist in localStorage per header fingerprint.
+ * Each column is locked to its own pixel width via <colgroup>. Dragging one
+ * header edge only changes that column; the table width grows/shrinks so the
+ * parent overflow-x-auto scrolls (responsive) instead of squeezing siblings.
  */
 const BOOT_KEY = '__malwaCrmTableResize';
-const MIN_COL_PX = 64;
-const EDGE_PX = 10;
+const MIN_COL_PX = 72;
+const EDGE_PX = 8;
 const TABLE_READY = 'crm-cols-resizable';
-const STORAGE_PREFIX = 'crm-colw:v1:';
+const STORAGE_PREFIX = 'crm-colw:v2:';
+
+let resizing = false;
 
 function headerCells(table) {
   const row = table.tHead?.rows?.[0];
@@ -68,81 +70,87 @@ function clearSavedWidths(table) {
   }
 }
 
-function bodyCellsForColumn(table, colIndex) {
-  const out = [];
-  for (const body of Array.from(table.tBodies || [])) {
-    for (const row of Array.from(body.rows)) {
-      const cell = row.cells[colIndex];
-      if (cell && cell.colSpan === 1) out.push(cell);
-    }
+function ensureColgroup(table, count) {
+  let colgroup = table.querySelector(':scope > colgroup[data-crm-cols]');
+  if (!colgroup) {
+    colgroup = document.createElement('colgroup');
+    colgroup.dataset.crmCols = '1';
+    table.insertBefore(colgroup, table.firstChild);
   }
-  return out;
+  while (colgroup.children.length < count) {
+    colgroup.appendChild(document.createElement('col'));
+  }
+  while (colgroup.children.length > count) {
+    colgroup.lastElementChild.remove();
+  }
+  return colgroup;
 }
 
-function setColumnWidth(table, colIndex, widthPx) {
-  const width = `${Math.max(MIN_COL_PX, Math.round(widthPx))}px`;
-  const th = headerCells(table)[colIndex];
-  if (!th) return;
-  th.style.width = width;
-  th.style.minWidth = width;
-  th.style.maxWidth = width;
-  for (const cell of bodyCellsForColumn(table, colIndex)) {
-    cell.style.width = width;
-    cell.style.minWidth = width;
-    cell.style.maxWidth = width;
-  }
-}
-
-function syncTableWidth(table) {
-  const cells = headerCells(table);
-  let total = 0;
-  let measured = 0;
-  for (const th of cells) {
-    const w = th.getBoundingClientRect().width;
-    if (w > 0) {
-      total += w;
-      measured += 1;
-    }
-  }
-  if (measured === cells.length && total > 0) {
-    table.style.width = `${Math.ceil(total)}px`;
-    table.style.minWidth = `${Math.ceil(total)}px`;
-  }
+function measureNaturalWidths(table) {
+  // Temporarily clear forced layout so we measure content sizes once.
+  const prevLayout = table.style.tableLayout;
+  const prevWidth = table.style.width;
+  const prevMin = table.style.minWidth;
+  table.style.tableLayout = 'auto';
+  table.style.width = 'max-content';
+  table.style.minWidth = 'max-content';
+  const widths = headerCells(table).map((th) => Math.max(MIN_COL_PX, Math.round(th.getBoundingClientRect().width) || MIN_COL_PX));
+  table.style.tableLayout = prevLayout;
+  table.style.width = prevWidth;
+  table.style.minWidth = prevMin;
+  return widths;
 }
 
 function currentWidths(table) {
-  return headerCells(table).map((th) => Math.round(th.getBoundingClientRect().width) || MIN_COL_PX);
+  const colgroup = table.querySelector(':scope > colgroup[data-crm-cols]');
+  if (colgroup?.children?.length) {
+    return Array.from(colgroup.children).map((col, i) => {
+      const raw = Number.parseFloat(col.style.width);
+      if (Number.isFinite(raw) && raw > 0) return raw;
+      const th = headerCells(table)[i];
+      return Math.max(MIN_COL_PX, Math.round(th?.getBoundingClientRect().width || MIN_COL_PX));
+    });
+  }
+  return headerCells(table).map((th) => Math.max(MIN_COL_PX, Math.round(th.getBoundingClientRect().width) || MIN_COL_PX));
 }
 
 function applyWidths(table, widths) {
   if (!widths?.length) return;
+  const cols = ensureColgroup(table, widths.length).children;
+  let total = 0;
+  for (let i = 0; i < widths.length; i += 1) {
+    const px = Math.max(MIN_COL_PX, Math.round(widths[i] || MIN_COL_PX));
+    total += px;
+    cols[i].style.width = `${px}px`;
+    cols[i].style.minWidth = `${px}px`;
+  }
+
   table.classList.add(TABLE_READY);
   table.style.tableLayout = 'fixed';
-  headerCells(table).forEach((_, i) => {
-    if (typeof widths[i] === 'number' && widths[i] > 0) {
-      setColumnWidth(table, i, widths[i]);
-    }
-  });
-  syncTableWidth(table);
+  // Explicit pixel table width — never leave at 100%, or siblings reflow together.
+  table.style.width = `${total}px`;
+  table.style.minWidth = `${total}px`;
+  table.style.maxWidth = 'none';
 }
 
 function restoreTable(table) {
-  if (!isDataTable(table)) return;
+  if (!isDataTable(table) || resizing) return;
   table.classList.add('crm-col-resize-enabled');
-  const saved = readSavedWidths(table);
   const cells = headerCells(table);
+  const saved = readSavedWidths(table);
   if (saved && saved.length === cells.length) {
     applyWidths(table, saved);
   }
 }
 
 function prepareAll(root = document) {
+  if (resizing) return;
   root.querySelectorAll?.('table').forEach((table) => restoreTable(table));
 }
 
 function hitResizeEdge(th, clientX) {
   const rect = th.getBoundingClientRect();
-  return clientX >= rect.right - EDGE_PX && clientX <= rect.right + 2;
+  return clientX >= rect.right - EDGE_PX && clientX <= rect.right + 4;
 }
 
 function startResize(event, table, colIndex) {
@@ -152,25 +160,35 @@ function startResize(event, table, colIndex) {
   const th = headerCells(table)[colIndex];
   if (!th) return;
 
+  resizing = true;
   const startX = event.clientX;
-  const startWidth = th.getBoundingClientRect().width;
-  table.classList.add(TABLE_READY);
-  table.style.tableLayout = 'fixed';
-  applyWidths(table, currentWidths(table));
+
+  // Lock every column to its current pixel width, then only mutate colIndex.
+  let locked = currentWidths(table);
+  if (!table.classList.contains(TABLE_READY)) {
+    locked = measureNaturalWidths(table);
+  }
+  applyWidths(table, locked);
+  const startWidth = locked[colIndex];
 
   document.body.classList.add('crm-col-resizing');
+  table.classList.add('crm-col-resizing-active');
 
   const onMove = (ev) => {
-    setColumnWidth(table, colIndex, startWidth + (ev.clientX - startX));
-    syncTableWidth(table);
+    const next = locked.slice();
+    next[colIndex] = Math.max(MIN_COL_PX, startWidth + (ev.clientX - startX));
+    applyWidths(table, next);
+    locked = next;
   };
 
   const onUp = () => {
+    resizing = false;
     document.body.classList.remove('crm-col-resizing');
+    table.classList.remove('crm-col-resizing-active');
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('pointercancel', onUp);
-    writeSavedWidths(table, currentWidths(table));
+    writeSavedWidths(table, locked);
   };
 
   window.addEventListener('pointermove', onMove);
@@ -191,7 +209,7 @@ function onPointerDown(event) {
 }
 
 function onPointerMove(event) {
-  if (document.body.classList.contains('crm-col-resizing')) return;
+  if (resizing) return;
   const th = event.target?.closest?.('thead th, thead td');
   if (!th) {
     document.body.classList.remove('crm-col-resize-cursor');
@@ -218,16 +236,9 @@ function onDblClick(event) {
   table.style.tableLayout = '';
   table.style.width = '';
   table.style.minWidth = '';
-  headerCells(table).forEach((header, i) => {
-    header.style.width = '';
-    header.style.minWidth = '';
-    header.style.maxWidth = '';
-    for (const cell of bodyCellsForColumn(table, i)) {
-      cell.style.width = '';
-      cell.style.minWidth = '';
-      cell.style.maxWidth = '';
-    }
-  });
+  table.style.maxWidth = '';
+  const colgroup = table.querySelector(':scope > colgroup[data-crm-cols]');
+  colgroup?.remove();
 }
 
 export function enableCrmTableColumnResize() {
@@ -249,8 +260,9 @@ export function enableCrmTableColumnResize() {
   const root = document.getElementById('root') || document.body;
   let timer = 0;
   const observer = new MutationObserver(() => {
+    if (resizing) return;
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => prepareAll(root), 50);
+    timer = window.setTimeout(() => prepareAll(root), 80);
   });
   observer.observe(root, { childList: true, subtree: true });
 }

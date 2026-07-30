@@ -104,6 +104,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    # Soft-delete keeps the row so FK history (leads, follow-ups, etc.) still
+    # resolves to a display name of "Deleted User" instead of breaking or
+    # cascading. Hard DELETE is intentionally not used from the Users UI.
+    is_deleted = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -113,6 +117,25 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f'{self.name} ({self.email})'
+
+    def soft_delete(self):
+        """Anonymize + deactivate without removing the DB row."""
+        from django.utils import timezone
+
+        stamp = timezone.now().strftime('%Y%m%d%H%M%S')
+        self.name = 'Deleted User'
+        self.email = f'deleted.{self.pk}.{stamp}@deleted.local'
+        self.mobile = None
+        self.is_active = False
+        self.is_deleted = True
+        self.is_staff = False
+        self.is_superuser = False
+        self.set_unusable_password()
+        self.save(update_fields=[
+            'name', 'email', 'mobile', 'is_active', 'is_deleted',
+            'is_staff', 'is_superuser', 'password', 'updated_at',
+        ])
+        return self
 
     @property
     def initials(self):

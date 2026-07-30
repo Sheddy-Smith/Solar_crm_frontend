@@ -203,7 +203,7 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [HasModulePermission]
     permission_module = 'User Management'
     search_fields = ['name', 'email', 'mobile']
-    filterset_fields = ['role', 'branch', 'is_active']
+    filterset_fields = ['role', 'branch', 'is_active', 'is_deleted']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
 
@@ -217,13 +217,37 @@ class UserViewSet(viewsets.ModelViewSet):
         return [HasModulePermission()]
 
     def destroy(self, request, *args, **kwargs):
+        """Soft-delete: rename to Deleted User, keep FK history intact."""
         user = self.get_object()
         if user == request.user:
             return Response(
                 {'detail': 'You cannot delete your own account.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return super().destroy(request, *args, **kwargs)
+        if user.is_deleted:
+            return Response(UserSerializer(user).data)
+        if user.is_superuser or getattr(user.role, 'name', '') == 'Super Admin':
+            # Extra guard — never soft-delete another Super Admin via the UI.
+            if User.objects.filter(is_superuser=True, is_deleted=False).exclude(pk=user.pk).count() == 0:
+                return Response(
+                    {'detail': 'Cannot delete the only Super Admin account.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        user.soft_delete()
+        return Response(UserSerializer(user).data)
+
+    def update(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user.is_deleted:
+            return Response(
+                {'detail': 'Deleted users cannot be edited.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
 
     def get_throttles(self):
         # verify_password is a password oracle for the caller's own account;
@@ -288,11 +312,16 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def toggle_active(self, request, pk=None):
         user = self.get_object()
+        if user.is_deleted:
+            return Response(
+                {'detail': 'Deleted users cannot be reactivated. Create a new user instead.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if user == request.user and user.is_active:
             return Response(
                 {'detail': 'You cannot deactivate your own account.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         user.is_active = not user.is_active
-        user.save()
+        user.save(update_fields=['is_active', 'updated_at'])
         return Response({'is_active': user.is_active})

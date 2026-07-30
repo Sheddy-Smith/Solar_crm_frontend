@@ -891,13 +891,27 @@ body.crm-col-resizing * {
 }
 
 table.crm-cols-resizable {
-  table-layout: fixed;
+  table-layout: fixed !important;
+  /* Pixel width is set inline as sum of columns — never stretch to 100%. */
+  max-width: none !important;
+  width: max-content;
+}
+
+.responsive-scroll > .crm-table.crm-cols-resizable,
+.overflow-x-auto > .crm-table.crm-cols-resizable {
+  min-width: 0 !important;
+  width: max-content !important;
 }
 
 table.crm-cols-resizable th,
 table.crm-cols-resizable td {
   overflow: hidden;
   text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+table.crm-col-resizing-active {
+  user-select: none;
 }
 
 .crm-table td {

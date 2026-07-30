@@ -25803,6 +25803,7 @@ function SettingsResultBadge({ status }) {
     {
       Active: 'green',
       Inactive: 'red',
+      Deleted: 'slate',
       Success: 'green',
       Failed: 'red',
       Queued: 'amber',
@@ -25932,19 +25933,21 @@ function createSettingsRolePermissions(roleName) {
 function mapApiUserToSettingsRow(apiUser) {
   const name = apiUser.name || 'Unnamed User';
   const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NU';
+  const isDeleted = Boolean(apiUser.is_deleted) || name === 'Deleted User';
   return {
     id: apiUser.id,
     name,
-    email: apiUser.email,
-    phone: apiUser.mobile || '—',
+    email: isDeleted ? '—' : apiUser.email,
+    phone: isDeleted ? '—' : (apiUser.mobile || '—'),
     role: apiUser.role_name || 'Unassigned',
     branch: apiUser.branch_name || 'Unassigned',
-    status: apiUser.is_active ? 'Active' : 'Inactive',
+    status: isDeleted ? 'Deleted' : (apiUser.is_active ? 'Active' : 'Inactive'),
     lastLogin: '—',
     joinedOn: apiUser.created_at ? new Date(apiUser.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
-    assignee: { name, initials, tone: 'emerald' },
+    assignee: { name, initials: isDeleted ? 'DU' : initials, tone: isDeleted ? 'slate' : 'emerald' },
     roleId: apiUser.role,
     branchId: apiUser.branch,
+    isDeleted,
   };
 }
 
@@ -26108,10 +26111,15 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       onNotify?.('You cannot delete your own account', 'error');
       return;
     }
-    if (!window.confirm(`Delete user "${user.name}"? This cannot be undone.`)) return;
-    userApi.delete(user.id).then(() => {
-      setUsers((current) => current.filter((item) => item.id !== user.id));
-      onNotify(`${user.name} deleted`);
+    if (user.isDeleted || user.status === 'Deleted') {
+      onNotify?.('This user is already deleted', 'error');
+      return;
+    }
+    if (!window.confirm(`Remove "${user.name}"?\n\nThey will be renamed to "Deleted User". Past leads and records stay linked to Deleted User.`)) return;
+    userApi.delete(user.id).then((updated) => {
+      const mapped = mapApiUserToSettingsRow(updated || { ...user, name: 'Deleted User', is_deleted: true, is_active: false, email: '', mobile: '' });
+      setUsers((current) => current.map((item) => (item.id === user.id ? mapped : item)));
+      onNotify(`${user.name} removed — now shown as Deleted User`, 'success');
     }).catch((error) => onNotify(error.message || 'Failed to delete user', 'error'));
   };
 
@@ -26177,9 +26185,13 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
               {canManageUsers ? (
                 <div className="mt-4 grid grid-cols-2 gap-2 min-[420px]:grid-cols-4">
                   <button type="button" onClick={() => setSelectedUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
-                  <button type="button" onClick={() => setEditingUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Pencil className="size-4" />Edit</button>
-                  <button type="button" onClick={() => toggleUserStatus(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#284276]"><RefreshCw className="size-4" />Status</button>
-                  <button type="button" onClick={() => deleteUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#ffd5d5] bg-[#fff8f8] text-[12px] font-extrabold text-[#ef4444]"><Trash2 className="size-4" />Delete</button>
+                  {!user.isDeleted ? (
+                    <>
+                      <button type="button" onClick={() => setEditingUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Pencil className="size-4" />Edit</button>
+                      <button type="button" onClick={() => toggleUserStatus(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white text-[12px] font-extrabold text-[#284276]"><RefreshCw className="size-4" />Status</button>
+                      <button type="button" onClick={() => deleteUser(user)} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#ffd5d5] bg-[#fff8f8] text-[12px] font-extrabold text-[#ef4444]"><Trash2 className="size-4" />Delete</button>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
             </article>
@@ -26211,9 +26223,13 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
                     {canManageUsers ? (
                       <div className="flex items-center justify-end gap-2">
                         <UserActionButton label={`View ${user.name}`} icon={Eye} tone="blue" onClick={() => setSelectedUser(user)} />
-                        <UserActionButton label={`Edit ${user.name}`} icon={Pencil} tone="blue" onClick={() => setEditingUser(user)} />
-                        <UserActionButton label={`Toggle status for ${user.name}`} icon={RefreshCw} tone="blue" onClick={() => toggleUserStatus(user)} />
-                        <UserActionButton label={`Delete ${user.name}`} icon={Trash2} tone="red" onClick={() => deleteUser(user)} />
+                        {!user.isDeleted ? (
+                          <>
+                            <UserActionButton label={`Edit ${user.name}`} icon={Pencil} tone="blue" onClick={() => setEditingUser(user)} />
+                            <UserActionButton label={`Toggle status for ${user.name}`} icon={RefreshCw} tone="blue" onClick={() => toggleUserStatus(user)} />
+                            <UserActionButton label={`Delete ${user.name}`} icon={Trash2} tone="red" onClick={() => deleteUser(user)} />
+                          </>
+                        ) : null}
                       </div>
                     ) : (
                       <span className="block text-right text-[12px] font-bold text-[#8a98af]">—</span>
@@ -28397,17 +28413,19 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
 function mapApiUserToRow(apiUser) {
   const name = apiUser.name || 'Unnamed User';
   const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NU';
+  const isDeleted = Boolean(apiUser.is_deleted) || name === 'Deleted User';
   return {
     id: apiUser.id,
     name,
-    email: apiUser.email,
-    mobile: apiUser.mobile || '',
+    email: isDeleted ? '—' : apiUser.email,
+    mobile: isDeleted ? '' : (apiUser.mobile || ''),
     role: apiUser.role_name || 'Unassigned',
     branch: apiUser.branch_name || 'Unassigned',
-    status: apiUser.is_active ? 'Active' : 'Inactive',
+    status: isDeleted ? 'Deleted' : (apiUser.is_active ? 'Active' : 'Inactive'),
     createdOn: apiUser.created_at ? new Date(apiUser.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
-    assignee: { name, initials, tone: 'emerald' },
+    assignee: { name, initials: isDeleted ? 'DU' : initials, tone: isDeleted ? 'slate' : 'emerald' },
     _isSuperAdmin: Boolean(apiUser.is_super_admin),
+    isDeleted,
   };
 }
 
@@ -28469,14 +28487,19 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
   };
 
   const deleteUser = (user) => {
+    if (user.isDeleted || user.status === 'Deleted') {
+      onNotify?.('This user is already deleted', 'error');
+      return;
+    }
     setDeleteConfirm({
-      message: `"${user.name}"`,
+      message: `"${user.name}" will be renamed to Deleted User. Past records stay linked.`,
       onConfirm: () => {
-        userApi.delete(user.id).then(() => {
+        userApi.delete(user.id).then((updated) => {
           setDeleteConfirm(null);
-          setUsers((current) => current.filter((item) => item.id !== user.id));
-          if (selectedUser?.id === user.id) setSelectedUser(null);
-          onNotify(`${user.name} deleted`);
+          const mapped = mapApiUserToRow(updated || { ...user, name: 'Deleted User', is_deleted: true, is_active: false, email: '', mobile: '' });
+          setUsers((current) => current.map((item) => (item.id === user.id ? mapped : item)));
+          if (selectedUser?.id === user.id) setSelectedUser(mapped);
+          onNotify(`${user.name} removed — now shown as Deleted User`, 'success');
         }).catch((error) => {
           setDeleteConfirm(null);
           onNotify(error.message || `Failed to delete ${user.name}`);
@@ -28604,8 +28627,12 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
                   <td>
                     <div className="flex items-center justify-end gap-2">
                       <UserActionButton label={`View ${user.name}`} icon={Eye} tone="blue" onClick={() => setSelectedUser(user)} />
-                      <UserActionButton label={`Edit ${user.name}`} icon={FileText} tone="blue" onClick={() => { setSelectedUser(user); onNotify(`${user.name} edit panel opened`); }} />
-                      <UserActionButton label={`Delete ${user.name}`} icon={XCircle} tone="red" onClick={() => deleteUser(user)} />
+                      {!user.isDeleted ? (
+                        <>
+                          <UserActionButton label={`Edit ${user.name}`} icon={FileText} tone="blue" onClick={() => { setSelectedUser(user); onNotify(`${user.name} edit panel opened`); }} />
+                          <UserActionButton label={`Delete ${user.name}`} icon={XCircle} tone="red" onClick={() => deleteUser(user)} />
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -29693,7 +29720,11 @@ function ModalTextInput({ label, value, onChange, placeholder, type = 'text' }) 
 }
 
 function EmployeeStatusBadge({ status }) {
-  const classes = status === 'Active' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : 'bg-[#ffe9e6] text-[#ef4444]';
+  const classes = status === 'Active'
+    ? 'bg-[#e8f8eb] text-[#0d9f4a]'
+    : status === 'Deleted'
+      ? 'bg-[#eef2f7] text-[#53647f]'
+      : 'bg-[#ffe9e6] text-[#ef4444]';
   return <span className={cx('inline-flex rounded-[7px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>{status}</span>;
 }
 
