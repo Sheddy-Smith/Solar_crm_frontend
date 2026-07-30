@@ -26469,6 +26469,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
   const [query, setQuery] = useState('');
   const [permissionRows, setPermissionRows] = useState([]);
   const [addRoleOpen, setAddRoleOpen] = useState(false);
+  const [manageRoleOpen, setManageRoleOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [openRoleMenuId, setOpenRoleMenuId] = useState(null);
   const [roleMenuAnchor, setRoleMenuAnchor] = useState(null);
@@ -26576,15 +26577,6 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
           { label: 'User & Access Management', onClick: () => onNotify('User & Access Management opened') },
           { label: 'Roles & Permissions' },
         ]}
-        actions={
-          <>
-            <label className="flex h-11 w-full min-w-[220px] items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:w-[240px]">
-              <Search className="size-4 text-[#7386a3]" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search roles..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
-            </label>
-            <button type="button" onClick={() => setAddRoleOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add New Role</button>
-          </>
-        }
       />
 
       <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
@@ -26597,15 +26589,47 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
         <SettingsMetricCard title="Custom Roles" value={String(roles.filter((role) => role.type === 'Custom Role').length)} subtitle="Created Roles" icon={ClipboardPlus} tone="cyan" />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.38fr)]">
-        <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
-          <div className="flex items-center justify-between gap-3">
+      <section className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+          {/* Search + Add stay in-page — Settings hub hides PageHeading actions via .settings-inline-detail */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Roles List</h2>
+            <div className="flex w-full flex-col gap-2 min-[460px]:w-auto min-[460px]:flex-row min-[460px]:flex-wrap min-[460px]:items-center">
+              <label className="flex h-11 w-full min-w-[180px] items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:w-[220px]">
+                <Search className="size-4 text-[#7386a3]" />
+                <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search roles..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+              </label>
+              <button type="button" onClick={() => setAddRoleOpen(true)} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]">
+                <Plus className="size-4" />
+                Add New Role
+              </button>
+              <button
+                type="button"
+                disabled={!selectedRole}
+                onClick={() => {
+                  if (!selectedRole) return;
+                  setActiveTab('Permissions');
+                  setManageRoleOpen(true);
+                }}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] border border-[#0d9f4a] bg-[#f0fdf4] px-5 text-[13px] font-extrabold text-[#078c3e] transition hover:bg-[#e2f9ea] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ShieldCheck className="size-4" />
+                Manage Role and Permission
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 space-y-3 xl:hidden">
             {filteredRoles.map((role) => (
-              <button key={role.id} type="button" onClick={() => switchRole(role.name)} className={cx('w-full rounded-[14px] border p-4 text-left transition', selectedRoleName === role.name ? 'border-[#d4efdd] bg-[#f5fff8]' : 'border-[#e7eef7] bg-white hover:bg-[#f8fbff]')}>
+              <button
+                key={role.id}
+                type="button"
+                onClick={() => {
+                  switchRole(role.name);
+                  setActiveTab('Permissions');
+                  setManageRoleOpen(true);
+                }}
+                className={cx('w-full rounded-[14px] border p-4 text-left transition', selectedRoleName === role.name ? 'border-[#d4efdd] bg-[#f5fff8]' : 'border-[#e7eef7] bg-white hover:bg-[#f8fbff]')}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[15px] font-extrabold text-[#1e3261]">{role.name}</p>
@@ -26621,7 +26645,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
             ))}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+          <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
             <table className="crm-table min-w-[620px] w-full">
               <thead><tr>{['#', 'Role Name', 'Users', 'Status', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
               <tbody>
@@ -26629,7 +26653,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
                   <tr key={role.id} className={cx(selectedRoleName === role.name && 'bg-[#f7fff9]')}>
                     <td>{index + 1}</td>
                     <td>
-                      <div className="flex items-center gap-3">
+                      <button type="button" onClick={() => switchRole(role.name)} className="flex items-center gap-3 text-left">
                         <span className={cx('grid size-10 place-items-center rounded-[12px]', getRoleToneClass(role.tone))}>
                           <UsersRound className="size-5" />
                         </span>
@@ -26637,13 +26661,22 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
                           <p className="font-extrabold text-[#1e3261]">{role.name}</p>
                           <p className="mt-1 text-[11px] font-bold text-[#6f7f98]">{role.type}</p>
                         </div>
-                      </div>
+                      </button>
                     </td>
                     <td>{role.users}</td>
                     <td><SettingsResultBadge status={role.status} /></td>
                     <td>
                       <div className="flex items-center justify-end gap-2">
-                        <UserActionButton label={`Open ${role.name}`} icon={Eye} tone="blue" onClick={() => switchRole(role.name)} />
+                        <UserActionButton
+                          label={`Manage ${role.name} permissions`}
+                          icon={Eye}
+                          tone="blue"
+                          onClick={() => {
+                            switchRole(role.name);
+                            setActiveTab('Permissions');
+                            setManageRoleOpen(true);
+                          }}
+                        />
                         <UserActionButton
                           label={`More actions for ${role.name}`}
                           icon={MoreVertical}
@@ -26671,106 +26704,150 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
               </tbody>
             </table>
           </div>
-        </article>
-
-        <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Role Details & Permissions</h2>
-            <ReportSelect label="Select Role" value={selectedRoleName} onChange={switchRole} options={roles.map((role) => role.name)} hideLabel className="sm:w-[220px]" />
-          </div>
-          <div className="mt-5 flex gap-6 border-b border-[#edf2f8] text-[13px] font-extrabold">
-            {['Role Details', 'Permissions'].map((tab) => (
-              <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={cx('pb-3 transition', activeTab === tab ? 'border-b-2 border-[#0d9f4a] text-[#078c3e]' : 'border-b-2 border-transparent text-[#53647f] hover:text-[#0b65e5]')}>{tab}</button>
-            ))}
-          </div>
-
-          {activeTab === 'Role Details' ? (
-            <div className="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-              <article className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
-                <p className="text-[14px] font-extrabold text-[#1e3261]">{selectedRole.name}</p>
-                <p className="mt-2 text-[12px] font-bold text-[#53647f]">{selectedRole.type}</p>
-                <div className="mt-4 grid gap-3 text-[12px] sm:grid-cols-2">
-                  <InfoCell label="Status" valueNode={<SettingsResultBadge status={selectedRole.status} />} />
-                  <InfoCell label="Users Assigned" value={String(selectedRole.users)} />
-                  <InfoCell label="Access Type" value="Module level access" />
-                  <InfoCell label="Last Updated" value="20 May 2024" />
-                </div>
-              </article>
-              <article className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
-                <p className="text-[14px] font-extrabold text-[#1e3261]">Users with this Role</p>
-                <div className="mt-4 space-y-3">
-                  {(selectedRoleUsers.length ? selectedRoleUsers : settingsUsersSeed.slice(0, 3)).map((user) => (
-                    <div key={user.id} className="flex items-center justify-between gap-3 rounded-[10px] border border-[#edf2f8] px-3 py-3">
-                      <div>
-                        <AssigneeCell assignee={user.assignee} compact />
-                        <p className="mt-1 text-[12px] font-bold text-[#53647f]">{user.email}</p>
-                      </div>
-                      <SettingsResultBadge status={user.status} />
-                    </div>
-                  ))}
-                </div>
-              </article>
-            </div>
-          ) : (
-            <div className="mt-5">
-              <div className="mb-4 flex flex-wrap items-center gap-3 text-[12px] font-extrabold text-[#30466d]">
-                <button type="button" onClick={() => setAllPermissions(true)} className="inline-flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-[#f0fdf4]">
-                  <span className="grid size-5 place-items-center rounded-[5px] bg-[#0d9f4a] text-white"><CheckCircle2 className="size-4" /></span>Full Access
-                </button>
-                <button type="button" onClick={() => setAllPermissions(false)} className="inline-flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-[#fef2f2]">
-                  <span className="size-5 rounded-[5px] border border-[#cbd5e1] bg-white" />No Access
-                </button>
-              </div>
-              <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
-                <table className="crm-table min-w-[880px] w-full">
-                  <thead><tr>{['Module', 'View', 'Add', 'Edit', 'Delete', 'Export', 'Grant All'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
-                  <tbody>
-                    {permissionRows.map((row) => {
-                      const allGranted = Object.values(row.permissions).every(Boolean);
-                      return (
-                      <tr key={row.module}>
-                        <td><div><p className="font-extrabold text-[#1e3261]">{row.module}</p><p className="mt-1 text-[11px] font-bold text-[#6f7f98]">{row.description}</p></div></td>
-                        {['View', 'Add', 'Edit', 'Delete', 'Export'].map((permission) => (
-                          <td key={`${row.module}-${permission}`}><SettingsPermissionToggle value={row.permissions[permission]} onClick={() => updatePermission(row.module, permission)} label={`${row.module} ${permission}`} /></td>
-                        ))}
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => grantAllForModule(row.module)}
-                            aria-pressed={allGranted}
-                            title={allGranted ? `Revoke all ${row.module} permissions` : `Grant all ${row.module} permissions`}
-                            className={cx(
-                              'inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[11px] font-extrabold transition',
-                              allGranted
-                                ? 'border-[#0d9f4a] bg-[#0d9f4a] text-white hover:bg-[#0b8b41]'
-                                : 'border-[#cfe0d6] bg-[#f0fdf4] text-[#0d9f4a] hover:bg-[#e2f9ea]',
-                            )}
-                          >
-                            <CheckCircle2 className="size-3.5" />
-                            {allGranted ? 'Granted' : 'Grant All'}
-                          </button>
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <button type="button" onClick={() => {
-                  if (!selectedRole?.id) return;
-                  roleApi.getPermissions(selectedRole.id)
-                    .then((perms) => setPermissionRows(mapApiPermissionsToSettingsRows(perms)))
-                    .catch(() => setPermissionRows(createSettingsRolePermissions(selectedRoleName)));
-                }} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]">Cancel</button>
-                <button type="button" onClick={savePermissions} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]">Save Permissions</button>
-              </div>
-            </div>
-          )}
-        </article>
-      </section>
+        </section>
 
       <DashboardFooter />
+
+      {manageRoleOpen && selectedRole ? createPortal(
+        <div
+          className="fixed inset-0 z-100 flex items-start justify-center overflow-y-auto bg-[#111827]/50 p-4 sm:items-center"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setManageRoleOpen(false);
+          }}
+        >
+          <div className={`${panelClass} my-4 flex max-h-[min(92vh,920px)] w-full max-w-[1100px] flex-col overflow-hidden p-4 sm:p-5`}>
+            <div className="flex flex-col gap-4 border-b border-[#edf2f8] pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-[#e8f8eb] text-[#0d9f4a]">
+                  <ShieldCheck className="size-5" />
+                </span>
+                <div>
+                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Role Details & Permissions</h2>
+                  <p className="mt-1 text-[12px] font-bold text-[#53647f]">Review role info and set module access</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <ReportSelect label="Select Role" value={selectedRoleName} onChange={switchRole} options={roles.map((role) => role.name)} hideLabel className="sm:w-[220px]" />
+                <button type="button" onClick={() => setManageRoleOpen(false)} aria-label="Close" className="grid size-10 place-items-center rounded-[8px] text-[#7585a2] transition hover:bg-[#f3f7fc] hover:text-[#1e3261]">
+                  <X className="size-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 flex gap-6 border-b border-[#edf2f8] text-[13px] font-extrabold">
+              {['Role Details', 'Permissions'].map((tab) => (
+                <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={cx('pb-3 transition', activeTab === tab ? 'border-b-2 border-[#0d9f4a] text-[#078c3e]' : 'border-b-2 border-transparent text-[#53647f] hover:text-[#0b65e5]')}>{tab}</button>
+              ))}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto pt-4">
+              {activeTab === 'Role Details' ? (
+                <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+                  <article className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                    <p className="text-[14px] font-extrabold text-[#1e3261]">{selectedRole.name}</p>
+                    <p className="mt-2 text-[12px] font-bold text-[#53647f]">{selectedRole.type}</p>
+                    <div className="mt-4 grid gap-3 text-[12px] sm:grid-cols-2">
+                      <InfoCell label="Status" valueNode={<SettingsResultBadge status={selectedRole.status} />} />
+                      <InfoCell label="Users Assigned" value={String(selectedRole.users)} />
+                      <InfoCell label="Access Type" value="Module level access" />
+                      <InfoCell label="Last Updated" value="20 May 2024" />
+                    </div>
+                  </article>
+                  <article className="rounded-[12px] border border-[#e7eef7] bg-white p-4">
+                    <p className="text-[14px] font-extrabold text-[#1e3261]">Users with this Role</p>
+                    <div className="mt-4 space-y-3">
+                      {(selectedRoleUsers.length ? selectedRoleUsers : settingsUsersSeed.slice(0, 3)).map((user) => (
+                        <div key={user.id} className="flex items-center justify-between gap-3 rounded-[10px] border border-[#edf2f8] px-3 py-3">
+                          <div>
+                            <AssigneeCell assignee={user.assignee} compact />
+                            <p className="mt-1 text-[12px] font-bold text-[#53647f]">{user.email}</p>
+                          </div>
+                          <SettingsResultBadge status={user.status} />
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                </div>
+              ) : (
+                <div>
+                  <div className="mb-4 flex flex-wrap items-center gap-3 text-[12px] font-extrabold text-[#30466d]">
+                    <button type="button" onClick={() => setAllPermissions(true)} className="inline-flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-[#f0fdf4]">
+                      <span className="grid size-5 place-items-center rounded-[5px] bg-[#0d9f4a] text-white"><CheckCircle2 className="size-4" /></span>Full Access
+                    </button>
+                    <button type="button" onClick={() => setAllPermissions(false)} className="inline-flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-[#fef2f2]">
+                      <span className="size-5 rounded-[5px] border border-[#cbd5e1] bg-white" />No Access
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
+                    <table className="crm-table min-w-[880px] w-full">
+                      <thead><tr>{['Module', 'View', 'Add', 'Edit', 'Delete', 'Export', 'Grant All'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                      <tbody>
+                        {permissionRows.map((row) => {
+                          const allGranted = Object.values(row.permissions).every(Boolean);
+                          return (
+                          <tr key={row.module}>
+                            <td><div><p className="font-extrabold text-[#1e3261]">{row.module}</p><p className="mt-1 text-[11px] font-bold text-[#6f7f98]">{row.description}</p></div></td>
+                            {['View', 'Add', 'Edit', 'Delete', 'Export'].map((permission) => (
+                              <td key={`${row.module}-${permission}`}><SettingsPermissionToggle value={row.permissions[permission]} onClick={() => updatePermission(row.module, permission)} label={`${row.module} ${permission}`} /></td>
+                            ))}
+                            <td>
+                              <button
+                                type="button"
+                                onClick={() => grantAllForModule(row.module)}
+                                aria-pressed={allGranted}
+                                title={allGranted ? `Revoke all ${row.module} permissions` : `Grant all ${row.module} permissions`}
+                                className={cx(
+                                  'inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[11px] font-extrabold transition',
+                                  allGranted
+                                    ? 'border-[#0d9f4a] bg-[#0d9f4a] text-white hover:bg-[#0b8b41]'
+                                    : 'border-[#cfe0d6] bg-[#f0fdf4] text-[#0d9f4a] hover:bg-[#e2f9ea]',
+                                )}
+                              >
+                                <CheckCircle2 className="size-3.5" />
+                                {allGranted ? 'Granted' : 'Grant All'}
+                              </button>
+                            </td>
+                          </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 border-t border-[#edf2f8] pt-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeTab === 'Permissions' && selectedRole?.id) {
+                    roleApi.getPermissions(selectedRole.id)
+                      .then((perms) => setPermissionRows(mapApiPermissionsToSettingsRows(perms)))
+                      .catch(() => setPermissionRows(createSettingsRolePermissions(selectedRoleName)));
+                  }
+                  setManageRoleOpen(false);
+                }}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"
+              >
+                Cancel
+              </button>
+              {activeTab === 'Permissions' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    savePermissions();
+                  }}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"
+                >
+                  Save Permissions
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
 
       {openRoleMenuId && roleMenuAnchor && typeof document !== 'undefined' ? createPortal(
         (() => {
@@ -26833,6 +26910,8 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
                 setRoles((current) => [...current, mapped]);
                 setAddRoleOpen(false);
                 switchRole(mapped.name);
+                setActiveTab('Permissions');
+                setManageRoleOpen(true);
                 onNotify(`${mapped.name} role added`, 'success');
               })
               .catch((error) => onNotify(error.message || 'Failed to add role', 'error'));
