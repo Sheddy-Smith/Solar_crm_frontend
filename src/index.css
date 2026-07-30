@@ -840,6 +840,64 @@ a {
   font-weight: 600;
   text-align: left;
   white-space: nowrap;
+  position: relative;
+}
+
+/* Column resize grip on header right edge (crmTableResize.js) */
+.crm-table thead th,
+.crm-col-resize-enabled thead th,
+.overflow-x-auto > table thead th,
+.responsive-scroll > table thead th {
+  position: relative;
+}
+
+.crm-table thead th::after,
+.crm-col-resize-enabled thead th::after,
+.overflow-x-auto > table thead th::after,
+.responsive-scroll > table thead th::after {
+  content: '';
+  position: absolute;
+  top: 18%;
+  right: 0;
+  bottom: 18%;
+  width: 3px;
+  border-radius: 2px;
+  background: transparent;
+  pointer-events: none;
+  transition: background-color 120ms ease;
+}
+
+.crm-table thead th:hover::after,
+.crm-col-resize-enabled thead th:hover::after,
+.overflow-x-auto > table thead th:hover::after,
+.responsive-scroll > table thead th:hover::after,
+body.crm-col-resize-cursor .crm-table thead th:hover::after,
+body.crm-col-resizing .crm-table thead th::after {
+  background: rgba(13, 159, 74, 0.55);
+}
+
+body.crm-col-resize-cursor,
+body.crm-col-resizing,
+body.crm-col-resizing * {
+  cursor: col-resize !important;
+}
+
+body.crm-col-resizing {
+  user-select: none !important;
+}
+
+body.crm-col-resizing * {
+  user-select: none !important;
+}
+
+table.crm-cols-resizable {
+  table-layout: fixed;
+}
+
+table.crm-cols-resizable th,
+table.crm-cols-resizable td {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .crm-table td {

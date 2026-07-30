@@ -1,8 +1,35 @@
+from collections import defaultdict
+from datetime import date, datetime, time, timedelta
+
 from django.db.models import Count, Q
-from django.db.models.functions import TruncMonth
 from django.utils import timezone
+from django.utils.timezone import localtime
 
 from .models import Lead
+
+
+def _parse_iso_date(value):
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _day_start(d: date):
+    return timezone.make_aware(datetime.combine(d, time.min))
+
+
+def _apply_created_at_date_bounds(qs, date_from=None, date_to=None):
+    """Filter by calendar dates without MySQL CONVERT_TZ (__date lookups)."""
+    start_d = _parse_iso_date(date_from)
+    end_d = _parse_iso_date(date_to)
+    if start_d:
+        qs = qs.filter(created_at__gte=_day_start(start_d))
+    if end_d:
+        qs = qs.filter(created_at__lt=_day_start(end_d) + timedelta(days=1))
+    return qs
 
 
 def lead_analytics(
@@ -12,11 +39,8 @@ def lead_analytics(
     status_filter=None,
     assigned_to=None,
 ):
-    qs = Lead.objects.all()
-    if date_from:
-        qs = qs.filter(created_at__date__gte=date_from)
-    if date_to:
-        qs = qs.filter(created_at__date__lte=date_to)
+    qs = Lead.objects.filter(is_deleted=False)
+    qs = _apply_created_at_date_bounds(qs, date_from, date_to)
     if project_type and project_type != 'All':
         qs = qs.filter(project_type=project_type)
     if status_filter and status_filter != 'All':
@@ -26,19 +50,33 @@ def lead_analytics(
 
     status_dist = list(qs.values('status').annotate(count=Count('id')).order_by('status'))
 
-    monthly = list(
-        qs.annotate(month=TruncMonth('created_at'))
-        .values('month')
-        .annotate(
-            new=Count('id', filter=Q(status='New')),
-            follow_up=Count('id', filter=Q(status='Follow-up')),
-            won=Count('id', filter=Q(status='Won')),
-            total=Count('id'),
-        )
-        .order_by('month')
-    )
-    for m in monthly:
-        m['month'] = m['month'].strftime('%b %Y') if m['month'] else '—'
+    # Bucket in Python with localtime — TruncMonth needs MySQL timezone tables.
+    buckets = defaultdict(lambda: {'new': 0, 'follow_up': 0, 'won': 0, 'total': 0, '_sort': None})
+    for created_at, status in qs.values_list('created_at', 'status'):
+        if not created_at:
+            continue
+        local = localtime(created_at)
+        key = local.strftime('%b %Y')
+        bucket = buckets[key]
+        if bucket['_sort'] is None:
+            bucket['_sort'] = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        bucket['total'] += 1
+        if status == 'New':
+            bucket['new'] += 1
+        elif status == 'Follow-up':
+            bucket['follow_up'] += 1
+        elif status == 'Won':
+            bucket['won'] += 1
+    monthly = [
+        {
+            'month': key,
+            'new': data['new'],
+            'follow_up': data['follow_up'],
+            'won': data['won'],
+            'total': data['total'],
+        }
+        for key, data in sorted(buckets.items(), key=lambda item: item[1]['_sort'] or timezone.now())
+    ]
 
     employee_stats = list(
         qs.filter(assigned_to__isnull=False)

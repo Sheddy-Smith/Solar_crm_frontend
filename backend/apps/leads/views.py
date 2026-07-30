@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
@@ -8,7 +8,6 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q, Count
-from django.db.models.functions import TruncMonth
 from .models import Lead, FollowUp, AdminApproval, Quotation, LeadSiteSurvey, LeadSurveyPhoto
 from .serializers import (
     LeadListSerializer, LeadDetailSerializer, LeadCreateSerializer,
@@ -18,6 +17,7 @@ from .serializers import (
 from apps.accounts.permissions import (
     HasModulePermission, is_lead_scoped, lead_owner_filter, is_own_lead, can_manage_leads,
 )
+from .datetime_filters import filter_field_on_local_date, period_created_at_queryset
 from .recycle import soft_delete_follow_up, soft_delete_lead, soft_delete_quotation
 
 
@@ -103,15 +103,15 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def today_followups(self, request):
-        today = timezone.now().date()
-        qs = self.get_queryset().filter(next_follow_up__date=today)
+        today = timezone.localdate()
+        qs = filter_field_on_local_date(self.get_queryset(), 'next_follow_up', today)
         serializer = LeadListSerializer(qs, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
         qs = self.get_queryset()
-        today = timezone.now().date()
+        today = timezone.localdate()
 
         # `anchor` lets the dashboard's date-picker look at a period other than
         # the current one (e.g. a past month), defaulting to today when absent
@@ -128,32 +128,17 @@ class LeadViewSet(viewsets.ModelViewSet):
         # day / week / month / year, for the dashboard's period toggle.
         # `today_followups` and `overdue` stay absolute — they describe
         # what's due today, not when the lead was created.
+        #
+        # Use aware datetime bounds (not __date/__year/__month) so counts work
+        # on MySQL hosts without timezone tables.
         period = request.query_params.get('period')
-        range_start = range_end = None
-        if period == 'day':
-            range_start = range_end = anchor
-            period_qs = qs.filter(created_at__date=anchor)
-        elif period == 'week':
-            range_start = anchor - timedelta(days=anchor.weekday())
-            range_end = range_start + timedelta(days=6)
-            period_qs = qs.filter(created_at__date__gte=range_start, created_at__date__lte=range_end)
-        elif period == 'month':
-            range_start = anchor.replace(day=1)
-            next_month = (range_start.replace(day=28) + timedelta(days=4)).replace(day=1)
-            range_end = next_month - timedelta(days=1)
-            period_qs = qs.filter(created_at__year=anchor.year, created_at__month=anchor.month)
-        elif period == 'year':
-            range_start = anchor.replace(month=1, day=1)
-            range_end = anchor.replace(month=12, day=31)
-            period_qs = qs.filter(created_at__year=anchor.year)
-        else:
-            period_qs = qs
+        period_qs, range_start, range_end = period_created_at_queryset(qs, period, anchor)
 
         return Response({
             'total': period_qs.count(),
             'new': period_qs.filter(status='New').count(),
             'follow_up': period_qs.filter(status='Follow-up').count(),
-            'today_followups': qs.filter(next_follow_up__date=today).count(),
+            'today_followups': filter_field_on_local_date(qs, 'next_follow_up', today).count(),
             'quotation': period_qs.filter(status='Quotation').count(),
             'won': period_qs.filter(status='Won').count(),
             'lost': period_qs.filter(status='Lost').count(),
