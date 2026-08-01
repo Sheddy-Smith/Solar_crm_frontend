@@ -131,9 +131,9 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
   };
 
   return (
-    <div className="space-y-4 p-4 sm:p-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+    <div className="settings-full-width w-full min-w-0 space-y-4 p-3 sm:p-5">
+      <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
           <h2 className="font-display text-[18px] font-extrabold text-[#102446]">Recycle Bin</h2>
           <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">
             Soft-deleted leads, follow-ups, quotations and projects land here.
@@ -175,9 +175,9 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <label className="flex h-10 min-w-[220px] flex-1 items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3">
-          <Search className="size-4 text-[#8a98af]" />
+      <div className="flex w-full flex-col gap-2 sm:flex-row">
+        <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3">
+          <Search className="size-4 shrink-0 text-[#8a98af]" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -188,7 +188,7 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
         <select
           value={entityFilter}
           onChange={(e) => setEntityFilter(e.target.value)}
-          className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold outline-none"
+          className="h-10 w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold outline-none sm:w-[160px]"
         >
           {['All', 'Lead', 'Follow-up', 'Quotation', 'Project'].map((option) => (
             <option key={option} value={option}>{option === 'All' ? 'All types' : option}</option>
@@ -196,18 +196,80 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-[#e2e9f3] bg-white shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse text-left">
+      {/* Mobile / tablet cards */}
+      <div className="space-y-3 lg:hidden">
+        {loading ? (
+          <div className="rounded-[14px] border border-[#e2e9f3] bg-white px-4 py-10 text-center text-[13px] font-bold text-[#7585a2]">
+            Loading recycle bin...
+          </div>
+        ) : null}
+        {!loading && filtered.length === 0 ? (
+          <div className="rounded-[14px] border border-[#e2e9f3] bg-white px-4 py-10 text-center text-[13px] font-bold text-[#7585a2]">
+            Recycle bin is empty.
+          </div>
+        ) : null}
+        {!loading && filtered.map((row) => (
+          <article key={row.id} className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-[0_8px_20px_rgba(23,43,77,0.05)]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="wrap-break-word text-[14px] font-extrabold text-[#1e3261]">{row.title}</p>
+                <p className="mt-1 text-[11px] font-semibold text-[#8a98af]">{row.subtitle || '—'}</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#eef2ff] px-2.5 py-1 text-[11px] font-extrabold text-[#3730a3]">
+                {row.entity_type}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 text-[12px] font-bold text-[#53647f] sm:grid-cols-2">
+              <p><span className="text-[#8a98af]">Source:</span> {row.source || '—'}</p>
+              <p><span className="text-[#8a98af]">Deleted by:</span> {row.deleted_by_name || '—'}</p>
+              <p><span className="text-[#8a98af]">Deleted on:</span> {formatWhen(row.deleted_at)}</p>
+              <p>
+                <span className="text-[#8a98af]">Auto-delete:</span>{' '}
+                <span className={cx(
+                  'rounded-full px-2 py-0.5 text-[11px] font-extrabold',
+                  (row.days_left ?? 0) <= 3 ? 'bg-[#fef2f2] text-[#dc2626]' : 'bg-[#f1f5f9] text-[#53647f]',
+                )}
+                >
+                  {row.days_left ?? 0} day{(row.days_left ?? 0) === 1 ? '' : 's'} left
+                </span>
+              </p>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busyId === row.id}
+                onClick={() => restoreItem(row)}
+                className="inline-flex h-9 flex-1 items-center justify-center gap-1 rounded-[8px] border border-[#bbf7d0] bg-[#f0fdf4] px-3 text-[12px] font-extrabold text-[#166534] disabled:opacity-50 sm:flex-none"
+              >
+                <RotateCcw className="size-3.5" />
+                Restore
+              </button>
+              {canPermanentDelete ? (
+                <button
+                  type="button"
+                  disabled={busyId === row.id}
+                  onClick={() => permanentDelete(row)}
+                  className="inline-flex h-9 flex-1 items-center justify-center gap-1 rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-3 text-[12px] font-extrabold text-[#b91c1c] disabled:opacity-50 sm:flex-none"
+                  aria-label={`Permanently delete ${row.title}`}
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete
+                </button>
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      {/* Desktop full-width table */}
+      <div className="hidden w-full overflow-hidden rounded-[14px] border border-[#e2e9f3] bg-white shadow-[0_10px_26px_rgba(23,43,77,0.06)] lg:block">
+        <div className="w-full overflow-x-auto">
+          <table className="crm-table w-full min-w-[860px] border-collapse text-left">
             <thead>
-              <tr className="border-b border-[#e8eef6] text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">
-                <th className="px-3 py-3">Item</th>
-                <th className="px-3 py-3">Type</th>
-                <th className="px-3 py-3">Source</th>
-                <th className="px-3 py-3">Deleted by</th>
-                <th className="px-3 py-3">Deleted on</th>
-                <th className="px-3 py-3">Auto-delete</th>
-                <th className="px-3 py-3">Action</th>
+              <tr>
+                {['Item', 'Type', 'Source', 'Deleted by', 'Deleted on', 'Auto-delete', 'Action'].map((header) => (
+                  <th key={header}>{header}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -226,20 +288,20 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
                 </tr>
               )}
               {!loading && filtered.map((row) => (
-                <tr key={row.id} className="border-b border-[#f1f5fa] text-[13px] font-bold text-[#33456b]">
-                  <td className="px-3 py-3.5">
-                    <p className="font-extrabold text-[#1e3261]">{row.title}</p>
+                <tr key={row.id}>
+                  <td>
+                    <p className="wrap-break-word whitespace-normal font-extrabold text-[#1e3261]">{row.title}</p>
                     <p className="text-[11px] font-semibold text-[#8a98af]">{row.subtitle || '—'}</p>
                   </td>
-                  <td className="px-3 py-3.5">
+                  <td>
                     <span className="rounded-full bg-[#eef2ff] px-2.5 py-1 text-[11px] font-extrabold text-[#3730a3]">
                       {row.entity_type}
                     </span>
                   </td>
-                  <td className="px-3 py-3.5">{row.source || '—'}</td>
-                  <td className="px-3 py-3.5">{row.deleted_by_name || '—'}</td>
-                  <td className="px-3 py-3.5 whitespace-nowrap">{formatWhen(row.deleted_at)}</td>
-                  <td className="px-3 py-3.5">
+                  <td>{row.source || '—'}</td>
+                  <td>{row.deleted_by_name || '—'}</td>
+                  <td className="whitespace-nowrap">{formatWhen(row.deleted_at)}</td>
+                  <td>
                     <span className={cx(
                       'rounded-full px-2.5 py-1 text-[11px] font-extrabold',
                       (row.days_left ?? 0) <= 3 ? 'bg-[#fef2f2] text-[#dc2626]' : 'bg-[#f1f5f9] text-[#53647f]',
@@ -248,8 +310,8 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
                       {row.days_left ?? 0} day{(row.days_left ?? 0) === 1 ? '' : 's'} left
                     </span>
                   </td>
-                  <td className="px-3 py-3.5">
-                    <div className="flex items-center gap-1.5">
+                  <td>
+                    <div className="flex items-center justify-end gap-1.5">
                       <button
                         type="button"
                         disabled={busyId === row.id}

@@ -12,7 +12,7 @@ const ACTION_MIN_PX = 176;
 const EDGE_PX = 8;
 const TABLE_READY = 'crm-cols-resizable';
 /** Bump when default/min logic changes so bloated localStorage widths reset. */
-const STORAGE_PREFIX = 'crm-colw:v4:';
+const STORAGE_PREFIX = 'crm-colw:v5:';
 
 let resizing = false;
 
@@ -50,10 +50,11 @@ function defaultWidthForHeader(th) {
   if (label.includes('ivrs')) return 140;
   if (label === 'status' || label === 'survey status') return 108;
   if (label.includes('project type') || label === 'type') return 100;
-  if (label.includes('customer')) return 150;
+  if (label.includes('customer') || label.includes('role name') || label === 'item') return 180;
   if (label.includes('project name') || label === 'project') return 140;
-  if (label.includes('assigned') || label.includes('added by') || label.includes('created by')) return 130;
-  if (label.includes('follow-up') || label.includes('follow up')) return 120;
+  if (label.includes('assigned') || label.includes('added by') || label.includes('created by') || label.includes('deleted by')) return 140;
+  if (label.includes('follow-up') || label.includes('follow up') || label.includes('deleted on') || label.includes('auto-delete')) return 130;
+  if (label === 'source' || label === 'type' || label === 'users' || label === 'status') return 110;
   return 120;
 }
 
@@ -222,13 +223,14 @@ function applyWidths(table, widths) {
     // Floor min-width only — do NOT pin minWidth to current width, or
     // browsers refuse to shrink the column on the next drag.
     cols[i].style.minWidth = `${floor}px`;
-    cols[i].style.maxWidth = `${px}px`;
+    // No maxWidth — lets columns grow so the table can fill the page width.
+    cols[i].style.maxWidth = '';
   }
 
   table.classList.add(TABLE_READY);
   table.style.tableLayout = 'fixed';
-  // Explicit pixel total so shrink actually reduces table width (max-content fights this).
-  table.style.width = `${total}px`;
+  // Fill the available page/container width; scroll only when content needs more.
+  table.style.width = '100%';
   table.style.minWidth = `${total}px`;
   table.style.maxWidth = 'none';
   markStickyAction(table);

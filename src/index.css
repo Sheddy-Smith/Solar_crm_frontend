@@ -892,15 +892,29 @@ body.crm-col-resizing * {
 
 table.crm-cols-resizable {
   table-layout: fixed !important;
-  /* Inline pixel width (sum of cols) must win so shrink can reduce table size. */
+  width: 100% !important;
   max-width: none !important;
 }
 
 .responsive-scroll > .crm-table.crm-cols-resizable,
 .overflow-x-auto > .crm-table.crm-cols-resizable,
 .crm-table-scroll > .crm-table.crm-cols-resizable {
-  /* Do not force max-content — that blocked column shrink. */
+  width: 100% !important;
   max-width: none !important;
+}
+
+/* Settings tables / panels always use the full content column */
+.settings-inline-detail,
+.settings-full-width {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.settings-full-width .crm-table,
+.settings-inline-detail .crm-table,
+.settings-full-width table {
+  width: 100%;
 }
 
 table.crm-cols-resizable th,
@@ -908,6 +922,14 @@ table.crm-cols-resizable td {
   overflow: hidden;
   text-overflow: ellipsis;
   box-sizing: border-box;
+}
+
+/* Allow intentionally wrapped cells (role names, recycle item titles) to show fully */
+table.crm-cols-resizable td .whitespace-normal,
+table.crm-cols-resizable td .wrap-break-word {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 /* Compact serial / # column */
@@ -972,6 +994,42 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
   font-weight: 500;
   white-space: nowrap;
   vertical-align: top;
+}
+
+/* Lead List — tighter row height / less whitespace between leads */
+.crm-table.crm-table--lead-dense th {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.crm-table.crm-table--lead-dense td {
+  padding: 4px 8px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+/* Tele My Leads — keep Action pinned while table scrolls horizontally */
+.tele-leads-table th.crm-col-sticky-right,
+.tele-leads-table td.crm-col-sticky-right {
+  background: #fff;
+}
+
+.tele-leads-table thead th.crm-col-sticky-right {
+  background: #fbfcff;
+}
+
+.tele-leads-table tbody tr:hover td.crm-col-sticky-right {
+  background: #f8fbff;
+}
+
+.crm-table.crm-table--lead-dense .rounded-full,
+.crm-table.crm-table--lead-dense .rounded-\[999px\] {
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+}
+
+.lead-list-page {
+  margin-top: 0;
 }
 
 /* Long description/details text must wrap — .crm-table td nowrap otherwise overlaps next column */
@@ -1585,6 +1643,33 @@ body {
   padding-top: env(safe-area-inset-top);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+}
+
+/* Welcome / portal chooser: document scroll so laptop trackpad two-finger scroll works */
+html:has(.portal-landing) {
+  height: auto;
+  min-height: 100%;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+}
+
+html:has(.portal-landing) body,
+html:has(.portal-landing) #root {
+  height: auto;
+  min-height: 100%;
+  min-height: 100dvh;
+  overflow: visible;
+  overscroll-behavior-y: auto;
+  touch-action: pan-y pinch-zoom;
+}
+
+.portal-landing,
+.portal-landing-page {
+  overflow: visible;
+  min-height: 100dvh;
+  height: auto;
 }
 
 @media (max-width: 767px) {

@@ -569,9 +569,9 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
   ];
 
   return (
-    <div className="min-h-[100dvh] overflow-y-auto bg-[#eef3f7] px-3 py-3 text-[#172648] sm:px-6 sm:py-6">
-      <main className="mx-auto flex min-h-[calc(100dvh-1.5rem)] w-full max-w-[1080px] flex-col rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.14)] sm:min-h-[calc(100dvh-3rem)]">
-        <div className="flex shrink-0 items-center gap-3 px-4 pt-5 sm:px-9 sm:pt-8">
+    <div className="portal-landing-page bg-[#eef3f7] px-3 py-3 text-[#172648] sm:px-6 sm:py-6">
+      <main className="mx-auto flex w-full max-w-[1080px] flex-col rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.14)]">
+        <div className="flex items-center gap-3 px-4 pt-5 sm:px-9 sm:pt-8">
           <TeleBrandMark size="lg" />
           <div>
             <p className="font-display text-[18px] font-extrabold leading-tight text-[#087532] sm:text-[22px]">Malwa Solar Energy</p>
@@ -579,7 +579,7 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-10 sm:py-16">
+        <div className="flex flex-col items-center px-4 py-10 sm:px-10 sm:py-16">
           <h1 className="text-center font-display text-[28px] font-extrabold leading-tight text-[#102446] sm:text-[44px]">
             Welcome to <span className="text-[#0d9f4a]">Solar CRM</span>
           </h1>
@@ -614,7 +614,7 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
           </div>
         </div>
 
-        <footer className="shrink-0 border-t border-[#edf2f8] px-5 py-4 text-center text-[13px] font-semibold text-[#8a98af]">
+        <footer className="border-t border-[#edf2f8] px-5 py-4 text-center text-[13px] font-semibold text-[#8a98af]">
           © {new Date().getFullYear()} Malwa Solar Energy CRM. All rights reserved.
         </footer>
       </main>
@@ -795,23 +795,58 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
 // ─── Tele Executive portal ────────────────────────────────────────────────────
 
 const TELE_NAV_ITEMS = [
-  { label: 'Dashboard', icon: Home },
-  { label: 'My Leads', icon: Users },
-  { label: 'Follow-ups', icon: Phone },
-  { label: 'Reminders', icon: Bell },
-  { label: 'Reports', icon: BarChart3 },
-  { label: 'Profile Details', icon: UserRound },
+  { label: 'Dashboard', icon: Home, path: '/tele/dashboard' },
+  { label: 'My Leads', icon: Users, path: '/tele/leads' },
+  { label: 'Follow-ups', icon: Phone, path: '/tele/follow-ups' },
+  { label: 'Reminders', icon: Bell, path: '/tele/reminders' },
+  { label: 'Reports', icon: BarChart3, path: '/tele/reports' },
+  { label: 'Profile Details', icon: UserRound, path: '/tele/profile' },
 ];
 
-const TELE_PAGE_SIZE = 10;
+const TELE_PATH_ALIASES = {
+  '/tele': 'Dashboard',
+  '/tele/': 'Dashboard',
+  '/tele/my-leads': 'My Leads',
+  '/tele/profile-details': 'Profile Details',
+};
+
+function resolveTeleNavFromPath(pathname = '') {
+  const clean = String(pathname || '').replace(/\/+$/, '') || '/tele';
+  const exact = TELE_NAV_ITEMS.find((item) => item.path === clean);
+  if (exact) return exact.label;
+  if (TELE_PATH_ALIASES[clean]) return TELE_PATH_ALIASES[clean];
+  if (TELE_PATH_ALIASES[`${clean}/`]) return TELE_PATH_ALIASES[`${clean}/`];
+  return 'Dashboard';
+}
+
+function pathForTeleNav(label) {
+  return TELE_NAV_ITEMS.find((item) => item.label === label)?.path || '/tele/dashboard';
+}
+
+const TELE_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 
 export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme }) {
-  const [activeNav, setActiveNav] = useState('Dashboard');
+  const [activeNav, setActiveNav] = useState(() => (
+    typeof window !== 'undefined' ? resolveTeleNavFromPath(window.location.pathname) : 'Dashboard'
+  ));
   const [followUpsTab, setFollowUpsTab] = useState('today');
   const [me, setMe] = useState(null);
   const [leads, setLeads] = useState(null);
   const [followUps, setFollowUps] = useState(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+  const navigateTele = useCallback((label, { replace = false } = {}) => {
+    const nextLabel = TELE_NAV_ITEMS.some((item) => item.label === label) ? label : 'Dashboard';
+    const nextPath = pathForTeleNav(nextLabel);
+    setActiveNav(nextLabel);
+    if (typeof window === 'undefined') return;
+    const historyState = { currentPage: 'tele', teleNav: nextLabel };
+    if (replace || window.location.pathname === nextPath) {
+      window.history.replaceState(historyState, '', nextPath);
+      return;
+    }
+    window.history.pushState(historyState, '', nextPath);
+  }, []);
 
   // Modals
   const [historyLead, setHistoryLead] = useState(null);
@@ -839,6 +874,22 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const label = resolveTeleNavFromPath(window.location.pathname);
+    const path = pathForTeleNav(label);
+    if (window.location.pathname !== path) {
+      window.history.replaceState({ currentPage: 'tele', teleNav: label }, '', path);
+    }
+    setActiveNav(label);
+
+    const onPopState = () => {
+      setActiveNav(resolveTeleNavFromPath(window.location.pathname));
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
     if (!profileMenuOpen) return undefined;
     const onPointerDown = (event) => {
       if (!(event.target instanceof Element && event.target.closest('[data-tele-profile-menu="true"]'))) {
@@ -856,7 +907,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       return;
     }
     if (action === 'Profile Details') {
-      setActiveNav('Profile Details');
+      navigateTele('Profile Details');
     }
   };
 
@@ -900,7 +951,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
 
   const openFollowUpsTab = (tab) => {
     setFollowUpsTab(tab);
-    setActiveNav('Follow-ups');
+    navigateTele('Follow-ups');
   };
 
   const handleAlertCall = (item) => {
@@ -1019,7 +1070,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       {/* Same floating-card sidebar treatment as the CRM shell: white brand
           header on top, gradient menu area with the moving shine below —
           tele portal carries it in blue/white instead of green/blue. */}
-      <aside className="tele-sidebar-root my-2 ml-2 hidden w-[232px] shrink-0 flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] lg:flex">
+      <aside className="tele-sidebar-root my-1.5 ml-1.5 hidden w-[220px] shrink-0 flex-col overflow-hidden rounded-[18px] border border-[#dfe7f2] bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] lg:flex">
         <div className="tele-sidebar-brand flex shrink-0 items-start justify-center border-b border-[#e8eef6] bg-white px-3 pt-3 pb-2.5">
           <TeleBrandLockup />
         </div>
@@ -1034,7 +1085,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => setActiveNav(item.label)}
+                    onClick={() => navigateTele(item.label)}
                     aria-current={active ? 'page' : undefined}
                     className={cx(
                       'flex h-11 w-full items-center gap-3 rounded-[10px] px-3.5 text-[13.5px] font-extrabold transition',
@@ -1062,10 +1113,10 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="app-mobile-topbar flex shrink-0 items-center justify-between gap-2 border-b border-[#e2e9f3] bg-white px-3 py-2.5 sm:px-6 sm:py-3.5">
+        <header className="app-mobile-topbar flex shrink-0 items-center justify-between gap-2 border-b border-[#e2e9f3] bg-white px-2.5 py-2 sm:px-3 sm:py-2.5 lg:pl-2">
           <div className="min-w-0">
             <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#7585a2] lg:hidden">Malwa Solar</p>
-            <h1 className="truncate font-display text-[17px] font-extrabold text-[#102446] sm:text-[22px]">
+            <h1 className="truncate font-display text-[17px] font-extrabold text-[#102446] sm:text-[20px]">
               {activeNav === 'Dashboard' ? 'Tele Dashboard' : activeNav}
             </h1>
             <p className="hidden text-[12px] font-semibold text-[#7585a2] sm:block">Manage your leads, follow-ups and reminders.</p>
@@ -1134,7 +1185,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
           <PwaInstallBanner notify={onNotify} />
         </div>
 
-        <main className="scroll-soft flex-1 space-y-5 overflow-y-auto px-3 py-4 pb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-5">
+        <main className="scroll-soft flex-1 space-y-2 overflow-y-auto px-2 py-2 pb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:px-3 sm:py-2.5 lg:pl-1.5 lg:pb-3">
           {pageContent()}
         </main>
 
@@ -1147,7 +1198,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                 <button
                   key={item.label}
                   type="button"
-                  onClick={() => setActiveNav(item.label)}
+                  onClick={() => navigateTele(item.label)}
                   className={cx(
                     'flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 pb-[max(10px,env(safe-area-inset-bottom))] transition active:scale-95',
                     active ? 'text-[#1d4ed8]' : 'text-[#7b88a2]',
@@ -1261,6 +1312,14 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
     currentUserId != null && !isSuperAdmin ? String(currentUserId) : 'All'
   ));
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(() => {
+    try {
+      const saved = Number(window.localStorage.getItem('tele-lead-page-size'));
+      return TELE_PAGE_SIZE_OPTIONS.includes(saved) ? saved : 10;
+    } catch {
+      return 10;
+    }
+  });
 
   useEffect(() => {
     if (isSuperAdmin) return;
@@ -1289,9 +1348,9 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
     });
   }, [leads, searchQuery, statusFilter, addByFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / TELE_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pageLeads = filteredLeads.slice((safePage - 1) * TELE_PAGE_SIZE, safePage * TELE_PAGE_SIZE);
+  const pageLeads = filteredLeads.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const pageNumbers = useMemo(() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -1301,31 +1360,31 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
   }, [safePage, totalPages]);
 
   return (
-    <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-5">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <h2 className="font-display text-[17px] font-extrabold text-[#102446]">{title}</h2>
-          <div className="flex flex-wrap items-center gap-2.5">
+    <section className="rounded-[14px] border border-[#e2e9f3] bg-white p-2.5 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-3">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="font-display text-[16px] font-extrabold text-[#102446]">{title}</h2>
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => onAddFollowUp(null)}
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[9px] border border-[#1d4ed8] bg-white px-4 text-[13px] font-extrabold text-[#1d4ed8] transition hover:bg-[#e7efff]"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[9px] border border-[#1d4ed8] bg-white px-3 text-[12.5px] font-extrabold text-[#1d4ed8] transition hover:bg-[#e7efff]"
             >
-              <Phone className="size-4 shrink-0" />
+              <Phone className="size-3.5 shrink-0" />
               Add Follow-up
             </button>
             <button
               type="button"
               onClick={onAddLead}
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[9px] bg-[#1d4ed8] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[9px] bg-[#1d4ed8] px-3 text-[12.5px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
             >
-              <Plus className="size-4 shrink-0" />
+              <Plus className="size-3.5 shrink-0" />
               Add New Lead
             </button>
           </div>
         </div>
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
-          <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3 sm:max-w-[280px] sm:flex-none">
+        <div className="tele-leads-filters flex flex-row flex-wrap items-center gap-2">
+          <label className="flex h-9 min-w-[180px] flex-1 items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3">
             <Search className="size-4 shrink-0 text-[#8a98af]" />
             <input
               type="text"
@@ -1338,7 +1397,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="h-10 shrink-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
+            className="h-9 w-[140px] shrink-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
           >
             {['All', ...TELE_LEAD_STATUSES].map((option) => (
               <option key={option} value={option}>{option === 'All' ? 'All Status' : option}</option>
@@ -1347,7 +1406,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
           <select
             value={addByFilter}
             onChange={(e) => { setAddByFilter(e.target.value); setPage(1); }}
-            className="h-10 shrink-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
+            className="h-9 min-w-[150px] shrink-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
             aria-label="Filter by Add By"
           >
             <option value="All">Add By: All</option>
@@ -1360,27 +1419,27 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[860px] border-collapse text-left">
+      <div className="crm-table-scroll mt-2 overflow-x-auto">
+        <table className="crm-table tele-leads-table crm-table--lead-dense w-full min-w-[860px] border-collapse text-left">
           <thead>
-            <tr className="border-b border-[#e8eef6] text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#7585a2]">
-              <th className="px-3 py-3">#</th>
-              <th className="px-3 py-3">Customer Name</th>
-              <th className="px-3 py-3">Mobile No.</th>
-              <th className="px-3 py-3">Project Name</th>
-              <th className="px-3 py-3">Added By</th>
-              <th className="px-3 py-3">Status</th>
-              <th className="px-3 py-3">Next Follow-up</th>
-              <th className="px-3 py-3">Remarks</th>
-              <th className="px-3 py-3">Action</th>
+            <tr className="border-b border-[#e8eef6] text-[11px] font-extrabold uppercase tracking-[0.04em] text-[#7585a2]">
+              <th className="px-2.5 py-2">#</th>
+              <th className="px-2.5 py-2">Customer Name</th>
+              <th className="px-2.5 py-2">Mobile No.</th>
+              <th className="px-2.5 py-2">Project Name</th>
+              <th className="px-2.5 py-2">Added By</th>
+              <th className="px-2.5 py-2">Status</th>
+              <th className="px-2.5 py-2">Next Follow-up</th>
+              <th className="px-2.5 py-2">Remarks</th>
+              <th className="crm-col-sticky-right px-2.5 py-2">Action</th>
             </tr>
           </thead>
           <tbody>
             {!leadsLoaded && (
-              <tr><td colSpan={9} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading leads...</td></tr>
+              <tr><td colSpan={9} className="px-2.5 py-6 text-center text-[13px] font-bold text-[#7585a2]">Loading leads...</td></tr>
             )}
             {leadsLoaded && pageLeads.length === 0 && (
-              <tr><td colSpan={9} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</td></tr>
+              <tr><td colSpan={9} className="px-2.5 py-6 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</td></tr>
             )}
             {pageLeads.map((lead, index) => {
               // Tele may edit/delete only leads they personally added.
@@ -1392,28 +1451,28 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
                 key={lead.id}
                 onDoubleClick={() => onView(lead)}
                 title="Double-click to view follow-up history"
-                className="cursor-pointer border-b border-[#f1f5fa] text-[13px] font-bold text-[#33456b] transition hover:bg-[#f8fbff]"
+                className="cursor-pointer border-b border-[#f1f5fa] text-[12.5px] font-bold text-[#33456b] transition hover:bg-[#f8fbff]"
               >
-                <td className="px-3 py-3.5 text-[#7585a2]">{(safePage - 1) * TELE_PAGE_SIZE + index + 1}</td>
-                <td className="px-3 py-3.5 font-extrabold text-[#1e3261]">{lead.customer_name}</td>
-                <td className="px-3 py-3.5">{lead.mobile_number || '—'}</td>
-                <td className="px-3 py-3.5">{lead.project_name || '—'}</td>
-                <td className="px-3 py-3.5">{lead.created_by_name || (lead.created_by ? 'Deleted User' : '—')}</td>
-                <td className="px-3 py-3.5"><StatusPill value={teleDisplayStatus(lead)} /></td>
-                <td className="px-3 py-3.5 whitespace-nowrap">{formatDateTime(lead.next_follow_up)}</td>
-                <td className="max-w-[200px] truncate px-3 py-3.5" title={lead.remarks || ''}>{lead.remarks || '—'}</td>
-                <td className="px-3 py-3.5">
+                <td className="px-2.5 py-2 text-[#7585a2]">{(safePage - 1) * pageSize + index + 1}</td>
+                <td className="px-2.5 py-2 font-extrabold text-[#1e3261]">{lead.customer_name}</td>
+                <td className="px-2.5 py-2">{lead.mobile_number || '—'}</td>
+                <td className="px-2.5 py-2">{lead.project_name || '—'}</td>
+                <td className="px-2.5 py-2">{lead.created_by_name || (lead.created_by ? 'Deleted User' : '—')}</td>
+                <td className="px-2.5 py-2"><StatusPill value={teleDisplayStatus(lead)} /></td>
+                <td className="whitespace-nowrap px-2.5 py-2">{formatDateTime(lead.next_follow_up)}</td>
+                <td className="max-w-[180px] truncate px-2.5 py-2" title={lead.remarks || ''}>{lead.remarks || '—'}</td>
+                <td className="crm-col-sticky-right px-2.5 py-2">
                   {isOwnLead ? (
-                    <div className="flex items-center gap-1.5">
-                      <button type="button" onClick={() => onEdit(lead)} className="grid size-8 place-items-center rounded-[8px] text-[#53647f] transition hover:bg-[#f3f7fd]" aria-label={`Edit ${lead.customer_name}`}>
-                        <Pencil className="size-4" />
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => onEdit(lead)} className="grid size-7 place-items-center rounded-[7px] text-[#53647f] transition hover:bg-[#f3f7fd]" aria-label={`Edit ${lead.customer_name}`}>
+                        <Pencil className="size-3.5" />
                       </button>
-                      <button type="button" onClick={() => onDelete(lead)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] transition hover:bg-[#feecec]" aria-label={`Delete ${lead.customer_name}`}>
-                        <Trash2 className="size-4" />
+                      <button type="button" onClick={() => onDelete(lead)} className="grid size-7 place-items-center rounded-[7px] text-[#dc2626] transition hover:bg-[#feecec]" aria-label={`Delete ${lead.customer_name}`}>
+                        <Trash2 className="size-3.5" />
                       </button>
                     </div>
                   ) : (
-                    <span className="text-[11px] font-bold uppercase tracking-wide text-[#a5b1c7]">View only</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-[#a5b1c7]">View only</span>
                   )}
                 </td>
               </tr>
@@ -1423,16 +1482,41 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
         </table>
       </div>
 
-      <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
-        <p className="text-[12px] font-bold text-[#7585a2]">
-          Showing {filteredLeads.length === 0 ? 0 : (safePage - 1) * TELE_PAGE_SIZE + 1} to {Math.min(safePage * TELE_PAGE_SIZE, filteredLeads.length)} of {filteredLeads.length} entries
-        </p>
+      <div className="mt-2.5 flex flex-col items-center justify-between gap-2 sm:flex-row">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[12px] font-bold text-[#7585a2]">
+            Showing {filteredLeads.length === 0 ? 0 : (safePage - 1) * pageSize + 1} to {Math.min(safePage * pageSize, filteredLeads.length)} of {filteredLeads.length} entries
+          </p>
+          <label className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#284276]">
+            <span>Show</span>
+            <select
+              value={pageSize}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setPageSize(next);
+                setPage(1);
+                try {
+                  window.localStorage.setItem('tele-lead-page-size', String(next));
+                } catch {
+                  /* ignore */
+                }
+              }}
+              aria-label="Leads per page"
+              className="h-8 rounded-[7px] border border-[#d9e4f2] bg-white px-2 text-[12px] font-extrabold text-[#1e3261] outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              {TELE_PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+            <span>/ page</span>
+          </label>
+        </div>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setPage((current) => Math.max(1, current - 1))}
             disabled={safePage <= 1}
-            className="grid size-9 place-items-center rounded-[8px] border border-[#dbe4f0] bg-white text-[#53647f] transition hover:bg-[#f8fbff] disabled:opacity-40"
+            className="grid size-8 place-items-center rounded-[8px] border border-[#dbe4f0] bg-white text-[#53647f] transition hover:bg-[#f8fbff] disabled:opacity-40"
             aria-label="Previous page"
           >
             <ChevronLeft className="size-4" />
@@ -1446,7 +1530,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
                 type="button"
                 onClick={() => setPage(pageNumber)}
                 className={cx(
-                  'grid size-9 place-items-center rounded-[8px] border text-[13px] font-extrabold transition',
+                  'grid size-8 place-items-center rounded-[8px] border text-[12.5px] font-extrabold transition',
                   pageNumber === safePage
                     ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white'
                     : 'border-[#dbe4f0] bg-white text-[#53647f] hover:bg-[#f8fbff]',
@@ -1460,7 +1544,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
             type="button"
             onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
             disabled={safePage >= totalPages}
-            className="grid size-9 place-items-center rounded-[8px] border border-[#dbe4f0] bg-white text-[#53647f] transition hover:bg-[#f8fbff] disabled:opacity-40"
+            className="grid size-8 place-items-center rounded-[8px] border border-[#dbe4f0] bg-white text-[#53647f] transition hover:bg-[#f8fbff] disabled:opacity-40"
             aria-label="Next page"
           >
             <ChevronRight className="size-4" />

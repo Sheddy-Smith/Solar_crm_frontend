@@ -1931,6 +1931,11 @@ function App() {
   const initialRoute = initialRouteRef.current;
   const [currentPage, setCurrentPage] = useState(() => {
     const hasToken = Boolean(localStorage.getItem('malwa_access'));
+    const path = typeof window !== 'undefined' ? window.location.pathname : '';
+    if (path.startsWith('/tele')) {
+      if (path.startsWith('/tele/signin') || path === '/tele-signin') return 'tele-signin';
+      return hasToken ? 'tele' : 'tele-signin';
+    }
     if (hasToken && initialPreferences.currentPage === 'dashboard') return 'dashboard';
     if (hasToken && initialPreferences.currentPage === 'tele') return 'tele';
     // Not logged in: always land on the portal chooser first
@@ -2363,6 +2368,11 @@ function App() {
   // Uses prevNavStateRef to deduplicate — prevents StrictMode double-push on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // Tele portal owns /tele/* URLs inside TeleExecutivePortal — don't overwrite them.
+    if (currentPage === 'tele' || currentPage === 'tele-signin' || currentPage === 'portal') {
+      prevNavStateRef.current = `${currentPage}::${window.location.pathname}`;
+      return;
+    }
     const nextPath = buildPathForSection(activeSidebarItem, { selectedLead, selectedProject, insightsTab });
     const navKey = `${currentPage}::${activeSidebarItem}::${selectedLead?.id ?? ''}::${selectedProject?.id ?? ''}::${insightsTab}::${nextPath}`;
     const historyState = {
@@ -2417,6 +2427,10 @@ function App() {
         return;
       }
       isPopStateRef.current = true;
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/tele')) {
+        setCurrentPage(window.location.pathname.startsWith('/tele/signin') ? 'tele-signin' : 'tele');
+        return;
+      }
       if (['signin', 'portal', 'tele-signin', 'tele'].includes(state.currentPage)) {
         setCurrentPage(state.currentPage);
       } else if (state.activeSidebarItem && isKnownSection(state.activeSidebarItem)) {
@@ -2508,13 +2522,19 @@ function App() {
   if (currentPage === 'portal') {
     return (
       <>
-        <div className="app-mobile-shell min-h-dvh overflow-y-auto">
+        {/* Natural document scroll so laptop trackpad two-finger scroll works */}
+        <div className="app-mobile-shell portal-landing">
           <div className="px-3 pt-[max(10px,env(safe-area-inset-top))] md:hidden">
             <PwaInstallBanner notify={notify} />
           </div>
           <PortalSelectPage
             onSelectCrm={() => setCurrentPage('signin')}
-            onSelectTele={() => setCurrentPage('tele-signin')}
+            onSelectTele={() => {
+              setCurrentPage('tele-signin');
+              if (typeof window !== 'undefined') {
+                window.history.replaceState({ currentPage: 'tele-signin' }, '', '/tele/signin');
+              }
+            }}
           />
         </div>
         <Toast toast={toast} />
@@ -2528,9 +2548,25 @@ function App() {
         <TeleSignInPage
           onLogin={() => {
             setCurrentPage('tele');
+            if (typeof window !== 'undefined') {
+              const path = window.location.pathname;
+              const keepTelePath = path.startsWith('/tele/')
+                && !path.startsWith('/tele/signin')
+                && path !== '/tele-signin';
+              window.history.replaceState(
+                { currentPage: 'tele' },
+                '',
+                keepTelePath ? path : '/tele/dashboard',
+              );
+            }
             notify('Tele Executive portal opened');
           }}
-          onBack={() => setCurrentPage('portal')}
+          onBack={() => {
+            setCurrentPage('portal');
+            if (typeof window !== 'undefined') {
+              window.history.replaceState({ currentPage: 'portal' }, '', '/');
+            }
+          }}
           onNotify={notify}
         />
         <Toast toast={toast} />
@@ -2545,6 +2581,9 @@ function App() {
           onLogout={() => {
             authApi.logout();
             setCurrentPage('portal');
+            if (typeof window !== 'undefined') {
+              window.history.replaceState({ currentPage: 'portal' }, '', '/');
+            }
             notify('Logged out');
           }}
           onNotify={notify}
@@ -2583,7 +2622,14 @@ function App() {
       )}
     >
       <PinLockOverlay />
-      <div className="mx-auto flex w-full max-w-full gap-2 xl:h-full xl:items-stretch xl:gap-2">
+      <div
+        className={cx(
+          'mx-auto flex w-full max-w-full xl:h-full xl:items-stretch',
+          activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)
+            ? 'gap-1.5'
+            : 'gap-2 xl:gap-2.5',
+        )}
+      >
         <div
           className={cx(
             'fixed inset-0 z-40 bg-[#10213d]/45 transition xl:hidden',
@@ -3069,8 +3115,8 @@ function App() {
           </div>
         </aside>
 
-        <main className="main-scroll-area scroll-soft min-w-0 w-full flex-1 px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-0.5">
-          <div className="space-y-2 px-2 md:px-0 xl:pb-2">
+        <main className="main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 self-stretch overflow-y-auto px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:pr-0.5">
+          <div className="w-full min-w-0 space-y-2 px-2 md:px-0 xl:pb-2">
             <AppHeader
               notify={notify}
               setMobileSidebarOpen={setMobileSidebarOpen}
@@ -4250,6 +4296,15 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const [followUpDate, setFollowUpDate] = useState('');
   const [activeLeadCategory, setActiveLeadCategory] = useState(null);
   const [activePage, setActivePage] = useState(1);
+  const LEAD_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+  const [pageSize, setPageSize] = useState(() => {
+    try {
+      const saved = Number(window.localStorage.getItem('crm-lead-page-size'));
+      return LEAD_PAGE_SIZE_OPTIONS.includes(saved) ? saved : 10;
+    } catch {
+      return 10;
+    }
+  });
   const [apiLeads, setApiLeads] = useState(null);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -4479,7 +4534,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     });
   }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, addByFilter, followUpDate]);
 
-  const LEAD_PAGE_SIZE = 10;
+  const LEAD_PAGE_SIZE = pageSize;
   const totalLeadPages = Math.max(1, Math.ceil(visibleLeadRows.length / LEAD_PAGE_SIZE));
   const safePage = Math.min(activePage, totalLeadPages);
   const pagedLeadRows = visibleLeadRows.slice((safePage - 1) * LEAD_PAGE_SIZE, safePage * LEAD_PAGE_SIZE);
@@ -4498,8 +4553,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   }, [activeLeadCategory]);
 
   return (
-    <div className="space-y-1">
-      <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
+    <div className="lead-list-page -mx-1 space-y-1 md:mx-0 xl:-mx-1">
+      <section className={`${panelClass} overflow-hidden p-2 sm:p-2.5`}>
         <div className="flex items-center justify-end gap-2">
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -4532,8 +4587,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           </div>
         </div>
 
-        <div className="mt-2.5">
-          <div className="flex flex-wrap items-center gap-2.5">
+        <div className="mt-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {leadCategoryTabs.map((category) => {
               const Icon = category.icon;
               const tone = leadCategoryToneClasses[category.tone];
@@ -4551,18 +4606,18 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                   }}
                   data-action={`open-${category.shortLabel.toLowerCase()}-leads`}
                   className={cx(
-                    'group inline-flex h-[46px] w-max shrink-0 items-center justify-between gap-2.5 rounded-[10px] border px-3 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
+                    'group inline-flex h-[38px] w-max shrink-0 items-center justify-between gap-2 rounded-[9px] border px-2.5 text-left shadow-[0_8px_16px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
                     tone.button,
-                    activeLeadCategory?.label === category.label ? 'ring-2 ring-[#0b65e5] ring-offset-2 ring-offset-white' : '',
+                    activeLeadCategory?.label === category.label ? 'ring-2 ring-[#0b65e5] ring-offset-1 ring-offset-white' : '',
                   )}
                 >
-                  <span className="inline-flex items-center gap-2">
-                    <span className={cx('grid size-7 shrink-0 place-items-center rounded-[8px]', tone.icon)}>
-                      <Icon className="size-[15px]" />
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={cx('grid size-6 shrink-0 place-items-center rounded-[7px]', tone.icon)}>
+                      <Icon className="size-[14px]" />
                     </span>
                     <span>
-                      <span className="block whitespace-nowrap text-[12px] font-extrabold">{category.label}</span>
-                      <span className="block whitespace-nowrap text-[10px] font-bold opacity-75">{category.priority}</span>
+                      <span className="block whitespace-nowrap text-[11px] font-extrabold">{category.label}</span>
+                      <span className="block whitespace-nowrap text-[9px] font-bold opacity-75">{category.priority}</span>
                     </span>
                   </span>
                   <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold', tone.count)}>
@@ -4575,8 +4630,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
       </section>
 
-      <section className={`${panelClass} relative z-40 overflow-visible p-3 sm:p-4`}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <section className={`${panelClass} relative z-40 overflow-visible p-2 sm:p-2.5`}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <label className="flex h-11 flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <input
               value={searchQuery}
@@ -4700,7 +4755,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 p-2 sm:p-3`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 p-1.5 sm:p-2`}>
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
@@ -4712,7 +4767,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
         {!leadsLoading && pagedLeadRows.length > 0 && (
         <div className="overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:hidden">
-          <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_30px] items-center gap-1.5 border-b border-[#eef2f8] bg-[#f8fafd] px-3 py-2.5 text-[10px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+          <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_30px] items-center gap-1.5 border-b border-[#eef2f8] bg-[#f8fafd] px-3 py-2 text-[10px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
             <span>Customer Name</span>
             <span>Status</span>
             <span>Next Follow-up</span>
@@ -4734,7 +4789,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
         {!leadsLoading && pagedLeadRows.length > 0 && (
         <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
-          <table className="crm-table w-max">
+          <table className="crm-table crm-table--lead-dense w-max">
               <thead>
                 <tr>
                   {headers.map((header) => (
@@ -4774,47 +4829,47 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                       <SurveyStatusBadge status={lead.surveyStatus} />
                     </td>
                     <td className="crm-col-sticky-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
                           onClick={() => setViewLeadId(lead.id)}
                           data-action="lead-view"
-                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
+                          className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
                           aria-label={`View ${lead.customer}`}
                           title="View"
                         >
-                          <Eye className="size-4" />
+                          <Eye className="size-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditLeadId(lead.id)}
                           data-action="lead-edit"
-                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#0d9f4a] transition hover:bg-[#f5f9ff]"
+                          className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#e3ebf7] bg-white text-[#0d9f4a] transition hover:bg-[#f5f9ff]"
                           aria-label={`Edit ${lead.customer}`}
                           title="Edit"
                         >
-                          <Pencil className="size-4" />
+                          <Pencil className="size-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => setSurveyLead(lead)}
                           data-action="lead-survey"
-                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#7c3aed] transition hover:bg-[#f5f9ff]"
+                          className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#e3ebf7] bg-white text-[#7c3aed] transition hover:bg-[#f5f9ff]"
                           aria-label={`Site survey for ${lead.customer}`}
                           title={lead.surveyStatus === 'Completed' ? 'View Survey' : lead.surveyStatus === 'In Progress' ? 'Continue Survey' : 'Start Survey'}
                         >
-                          <MapPin className="size-4" />
+                          <MapPin className="size-3.5" />
                         </button>
                         {isLeadManager ? (
                           <button
                             type="button"
                             onClick={() => setAssignLead(lead)}
                             data-action="lead-assign"
-                            className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dbe4ff] bg-white text-[#3538cd] transition hover:bg-[#f2f4ff]"
+                            className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#dbe4ff] bg-white text-[#3538cd] transition hover:bg-[#f2f4ff]"
                             aria-label={`Assign ${lead.customer}`}
                             title="Assign to executive"
                           >
-                            <Users className="size-4" />
+                            <Users className="size-3.5" />
                           </button>
                         ) : null}
                         {!isSalesExecutive && (lead.status !== 'Won' || isLeadManager) ? (
@@ -4822,11 +4877,11 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                             type="button"
                             onClick={() => deleteLead(lead)}
                             data-action="lead-delete"
-                            className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffd5d5] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]"
+                            className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#ffd5d5] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]"
                             aria-label={`Delete ${lead.customer}`}
                             title="Delete"
                           >
-                            <Trash2 className="size-4" />
+                            <Trash2 className="size-3.5" />
                           </button>
                         ) : null}
                       </div>
@@ -4838,12 +4893,37 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
         )}
 
-        <div className="flex flex-col gap-3 px-3 py-3 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            {!leadsLoading && visibleLeadRows.length > 0
-              ? `Showing ${(safePage - 1) * LEAD_PAGE_SIZE + 1} to ${Math.min(safePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`
-              : null}
-          </p>
+        <div className="flex flex-col gap-2 px-2 py-2 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <p>
+              {!leadsLoading && visibleLeadRows.length > 0
+                ? `Showing ${(safePage - 1) * LEAD_PAGE_SIZE + 1} to ${Math.min(safePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`
+                : null}
+            </p>
+            <label className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#284276]">
+              <span>Show</span>
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  setPageSize(next);
+                  setActivePage(1);
+                  try {
+                    window.localStorage.setItem('crm-lead-page-size', String(next));
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                aria-label="Leads per page"
+                className="h-8 rounded-[7px] border border-[#d9e4f2] bg-white px-2 text-[12px] font-extrabold text-[#1e3261] outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                {LEAD_PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+              <span>/ page</span>
+            </label>
+          </div>
           {totalLeadPages > 1 && (
             <div className="flex flex-wrap items-center gap-2">
               <PaginationButton onClick={() => selectPage(Math.max(1, safePage - 1))}>
@@ -5697,7 +5777,7 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="settings-full-width w-full min-w-0 space-y-4">
       <PageHeading
         title="Settings"
         crumbs={[
@@ -5718,7 +5798,9 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
         />
       ) : null}
 
-      {renderPillarContent()}
+      <div className="w-full min-w-0">
+        {renderPillarContent()}
+      </div>
     </div>
   );
 }
@@ -5887,7 +5969,7 @@ function SettingsInlineContent({ activeSection, onOpenSection, onNotify, loggedI
 
 function SettingsInlineDetailFrame({ children }) {
   return (
-    <div className="settings-inline-detail">
+    <div className="settings-inline-detail settings-full-width w-full min-w-0">
       {children}
     </div>
   );
@@ -26591,7 +26673,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
   };
 
   return (
-    <div className="space-y-4">
+    <div className="settings-full-width w-full min-w-0 space-y-4">
       <PageHeading
         title="Roles & Permissions"
         crumbs={[
@@ -26604,7 +26686,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
 
       <SettingsNavigationRail activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <SettingsMetricCard title="Total Roles" value={String(roles.length)} subtitle="All System Roles" icon={UsersRound} tone="green" />
         <SettingsMetricCard title="Active Roles" value={String(roles.filter((role) => role.status === 'Active').length)} subtitle="Currently Active" detail="13% from last month" detailTone="positive" icon={ShieldCheck} tone="blue" />
         <SettingsMetricCard title="Inactive Roles" value={String(roles.filter((role) => role.status === 'Inactive').length)} subtitle="Currently Inactive" detail="1 from last month" detailTone="negative" icon={UserPlus} tone="amber" />
@@ -26612,16 +26694,16 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
         <SettingsMetricCard title="Custom Roles" value={String(roles.filter((role) => role.type === 'Custom Role').length)} subtitle="Created Roles" icon={ClipboardPlus} tone="cyan" />
       </section>
 
-      <section className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
+      <section className={`${panelClass} w-full min-w-0 overflow-hidden p-3 sm:p-5`}>
           {/* Search + Add stay in-page — Settings hub hides PageHeading actions via .settings-inline-detail */}
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Roles List</h2>
-            <div className="flex w-full flex-col gap-2 min-[460px]:w-auto min-[460px]:flex-row min-[460px]:flex-wrap min-[460px]:items-center">
-              <label className="flex h-11 w-full min-w-[180px] items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:w-[220px]">
-                <Search className="size-4 text-[#7386a3]" />
+            <div className="flex w-full flex-col gap-2 min-[460px]:flex-row min-[460px]:flex-wrap min-[460px]:items-center lg:w-auto">
+              <label className="flex h-11 w-full min-w-0 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:min-w-[220px] sm:flex-1 lg:w-[240px] lg:flex-none">
+                <Search className="size-4 shrink-0 text-[#7386a3]" />
                 <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search roles..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
               </label>
-              <button type="button" onClick={() => setAddRoleOpen(true)} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]">
+              <button type="button" onClick={() => setAddRoleOpen(true)} className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] min-[460px]:w-auto">
                 <Plus className="size-4" />
                 Add New Role
               </button>
@@ -26633,7 +26715,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
                   setActiveTab('Permissions');
                   setManageRoleOpen(true);
                 }}
-                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] border border-[#0d9f4a] bg-[#f0fdf4] px-5 text-[13px] font-extrabold text-[#078c3e] transition hover:bg-[#e2f9ea] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-[8px] border border-[#0d9f4a] bg-[#f0fdf4] px-5 text-[13px] font-extrabold text-[#078c3e] transition hover:bg-[#e2f9ea] disabled:cursor-not-allowed disabled:opacity-50 min-[460px]:w-auto"
               >
                 <ShieldCheck className="size-4" />
                 Manage Role and Permission
@@ -26641,7 +26723,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
             </div>
           </div>
 
-          <div className="mt-4 space-y-3 xl:hidden">
+          <div className="mt-4 space-y-3 lg:hidden">
             {filteredRoles.map((role) => (
               <button
                 key={role.id}
@@ -26654,8 +26736,8 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
                 className={cx('w-full rounded-[14px] border p-4 text-left transition', selectedRoleName === role.name ? 'border-[#d4efdd] bg-[#f5fff8]' : 'border-[#e7eef7] bg-white hover:bg-[#f8fbff]')}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[15px] font-extrabold text-[#1e3261]">{role.name}</p>
+                  <div className="min-w-0">
+                    <p className="wrap-break-word text-[15px] font-extrabold text-[#1e3261]">{role.name}</p>
                     <p className="mt-1 text-[12px] font-bold text-[#53647f]">{role.type}</p>
                   </div>
                   <SettingsResultBadge status={role.status} />
@@ -26668,20 +26750,20 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
             ))}
           </div>
 
-          <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
-            <table className="crm-table min-w-[620px] w-full">
+          <div className="mt-4 hidden w-full overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+            <table className="crm-table w-full min-w-[640px]">
               <thead><tr>{['#', 'Role Name', 'Users', 'Status', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
               <tbody>
                 {filteredRoles.map((role, index) => (
                   <tr key={role.id} className={cx(selectedRoleName === role.name && 'bg-[#f7fff9]')}>
-                    <td>{index + 1}</td>
+                    <td className="crm-col-index">{index + 1}</td>
                     <td>
-                      <button type="button" onClick={() => switchRole(role.name)} className="flex items-center gap-3 text-left">
-                        <span className={cx('grid size-10 place-items-center rounded-[12px]', getRoleToneClass(role.tone))}>
+                      <button type="button" onClick={() => switchRole(role.name)} className="flex min-w-0 items-center gap-3 text-left">
+                        <span className={cx('grid size-10 shrink-0 place-items-center rounded-[12px]', getRoleToneClass(role.tone))}>
                           <UsersRound className="size-5" />
                         </span>
-                        <div>
-                          <p className="font-extrabold text-[#1e3261]">{role.name}</p>
+                        <div className="min-w-0">
+                          <p className="wrap-break-word whitespace-normal font-extrabold text-[#1e3261]">{role.name}</p>
                           <p className="mt-1 text-[11px] font-bold text-[#6f7f98]">{role.type}</p>
                         </div>
                       </button>
