@@ -1,17 +1,18 @@
 /**
- * Per-column resize for CRM data tables.
+ * Resizable columns for CRM data tables.
  *
- * - Each column keeps its own pixel width (via <colgroup>).
- * - Action/Actions column stays sticky on the right and is not resized.
- * - Parent scroll container gets overflow-x:auto so wide tables scroll
- *   horizontally instead of clipping action buttons off-screen.
+ * Drag the right edge of a header to expand OR shrink that column.
+ * Action/Actions stays sticky on the right and is not resized.
+ * Double-click a resize edge to reset widths for that table.
  */
 const BOOT_KEY = '__malwaCrmTableResize';
-const MIN_COL_PX = 72;
+const MIN_COL_PX = 52;
+const MIN_INDEX_PX = 40;
 const ACTION_MIN_PX = 176;
 const EDGE_PX = 8;
 const TABLE_READY = 'crm-cols-resizable';
-const STORAGE_PREFIX = 'crm-colw:v3:';
+/** Bump when default/min logic changes so bloated localStorage widths reset. */
+const STORAGE_PREFIX = 'crm-colw:v4:';
 
 let resizing = false;
 
@@ -28,6 +29,32 @@ function headerLabel(th) {
 function isActionHeader(th) {
   const label = headerLabel(th).toLowerCase();
   return label === 'action' || label === 'actions';
+}
+
+function isIndexHeader(th) {
+  const label = headerLabel(th).toLowerCase();
+  return label === '#' || label === 'no.' || label === 'no' || label === 'sr' || label === 'sr.';
+}
+
+function minForHeader(th) {
+  if (isActionHeader(th)) return ACTION_MIN_PX;
+  if (isIndexHeader(th)) return MIN_INDEX_PX;
+  return MIN_COL_PX;
+}
+
+function defaultWidthForHeader(th) {
+  const label = headerLabel(th).toLowerCase();
+  if (isActionHeader(th)) return ACTION_MIN_PX;
+  if (isIndexHeader(th)) return 44;
+  if (label.includes('mobile') || label.includes('phone')) return 118;
+  if (label.includes('ivrs')) return 140;
+  if (label === 'status' || label === 'survey status') return 108;
+  if (label.includes('project type') || label === 'type') return 100;
+  if (label.includes('customer')) return 150;
+  if (label.includes('project name') || label === 'project') return 140;
+  if (label.includes('assigned') || label.includes('added by') || label.includes('created by')) return 130;
+  if (label.includes('follow-up') || label.includes('follow up')) return 120;
+  return 120;
 }
 
 function actionColumnIndex(table) {
@@ -98,7 +125,6 @@ function ensureScrollParent(table) {
 }
 
 function ensureColgroup(table, count) {
-  // Remove legacy percentage colgroups so only our pixel cols drive layout.
   Array.from(table.querySelectorAll(':scope > colgroup')).forEach((group) => {
     if (group.dataset.crmCols !== '1') group.remove();
   });
@@ -123,11 +149,13 @@ function markStickyAction(table) {
   const cells = headerCells(table);
   cells.forEach((th, i) => {
     th.classList.toggle('crm-col-sticky-right', i === idx);
+    th.classList.toggle('crm-col-index', isIndexHeader(th));
   });
   for (const body of Array.from(table.tBodies || [])) {
     for (const row of Array.from(body.rows)) {
       Array.from(row.cells).forEach((cell, i) => {
         cell.classList.toggle('crm-col-sticky-right', i === idx);
+        cell.classList.toggle('crm-col-index', i === 0 && isIndexHeader(cells[0]));
       });
     }
   }
@@ -137,18 +165,28 @@ function measureNaturalWidths(table) {
   const prevLayout = table.style.tableLayout;
   const prevWidth = table.style.width;
   const prevMin = table.style.minWidth;
+  const prevMax = table.style.maxWidth;
+  // Measure compact content widths — ignore stretched min-width classes.
   table.style.tableLayout = 'auto';
-  table.style.width = 'max-content';
-  table.style.minWidth = 'max-content';
-  const widths = headerCells(table).map((th, i) => {
-    const measured = Math.round(th.getBoundingClientRect().width) || MIN_COL_PX;
-    if (isActionHeader(th)) return Math.max(ACTION_MIN_PX, measured);
-    return Math.max(MIN_COL_PX, measured);
+  table.style.width = 'auto';
+  table.style.minWidth = '0';
+  table.style.maxWidth = 'none';
+  const widths = headerCells(table).map((th) => {
+    const measured = Math.round(th.getBoundingClientRect().width) || minForHeader(th);
+    const preferred = defaultWidthForHeader(th);
+    // Cap index columns so "#" never inherits a stretched layout width.
+    if (isIndexHeader(th)) return Math.max(minForHeader(th), Math.min(measured, preferred));
+    return Math.max(minForHeader(th), measured || preferred);
   });
   table.style.tableLayout = prevLayout;
   table.style.width = prevWidth;
   table.style.minWidth = prevMin;
+  table.style.maxWidth = prevMax;
   return widths;
+}
+
+function defaultWidths(table) {
+  return headerCells(table).map((th) => defaultWidthForHeader(th));
 }
 
 function currentWidths(table) {
@@ -159,23 +197,15 @@ function currentWidths(table) {
       const raw = Number.parseFloat(col.style.width);
       if (Number.isFinite(raw) && raw > 0) return raw;
       const th = cells[i];
-      const fallback = Math.round(th?.getBoundingClientRect().width || MIN_COL_PX);
-      return isActionHeader(th) ? Math.max(ACTION_MIN_PX, fallback) : Math.max(MIN_COL_PX, fallback);
+      return defaultWidthForHeader(th);
     });
   }
-  return cells.map((th) => {
-    const fallback = Math.round(th.getBoundingClientRect().width || MIN_COL_PX);
-    return isActionHeader(th) ? Math.max(ACTION_MIN_PX, fallback) : Math.max(MIN_COL_PX, fallback);
-  });
+  return defaultWidths(table);
 }
 
 function normalizeWidths(table, widths) {
   const cells = headerCells(table);
-  return cells.map((th, i) => {
-    const value = Math.round(widths[i] || MIN_COL_PX);
-    if (isActionHeader(th)) return Math.max(ACTION_MIN_PX, value);
-    return Math.max(MIN_COL_PX, value);
-  });
+  return cells.map((th, i) => Math.max(minForHeader(th), Math.round(widths[i] || minForHeader(th))));
 }
 
 function applyWidths(table, widths) {
@@ -185,13 +215,19 @@ function applyWidths(table, widths) {
   let total = 0;
   for (let i = 0; i < next.length; i += 1) {
     const px = next[i];
+    const th = headerCells(table)[i];
+    const floor = minForHeader(th);
     total += px;
     cols[i].style.width = `${px}px`;
-    cols[i].style.minWidth = `${px}px`;
+    // Floor min-width only — do NOT pin minWidth to current width, or
+    // browsers refuse to shrink the column on the next drag.
+    cols[i].style.minWidth = `${floor}px`;
+    cols[i].style.maxWidth = `${px}px`;
   }
 
   table.classList.add(TABLE_READY);
   table.style.tableLayout = 'fixed';
+  // Explicit pixel total so shrink actually reduces table width (max-content fights this).
   table.style.width = `${total}px`;
   table.style.minWidth = `${total}px`;
   table.style.maxWidth = 'none';
@@ -204,11 +240,16 @@ function restoreTable(table) {
   table.classList.add('crm-col-resize-enabled');
   ensureScrollParent(table);
   markStickyAction(table);
+  // Already initialized for this DOM node — don't clobber live widths.
+  if (table.classList.contains(TABLE_READY)) return;
   const cells = headerCells(table);
   const saved = readSavedWidths(table);
   if (saved && saved.length === cells.length) {
     applyWidths(table, saved);
+    return;
   }
+  // Compact defaults so "#" / first columns are not stretched by min-width.
+  applyWidths(table, defaultWidths(table));
 }
 
 function prepareAll(root = document) {
@@ -239,17 +280,19 @@ function startResize(event, table, colIndex) {
   }
   applyWidths(table, locked);
   const startWidth = locked[colIndex];
+  const floor = minForHeader(th);
   const startScroll = scrollParent?.scrollLeft || 0;
 
   document.body.classList.add('crm-col-resizing');
   table.classList.add('crm-col-resizing-active');
 
   const onMove = (ev) => {
+    const delta = ev.clientX - startX;
     const next = locked.slice();
-    next[colIndex] = Math.max(MIN_COL_PX, startWidth + (ev.clientX - startX));
+    // Expand (positive) and shrink (negative) both supported down to floor.
+    next[colIndex] = Math.max(floor, Math.round(startWidth + delta));
     applyWidths(table, next);
     locked = next;
-    // Keep the user's viewport anchored while the table grows to the right.
     if (scrollParent) scrollParent.scrollLeft = startScroll;
   };
 
@@ -304,13 +347,7 @@ function onDblClick(event) {
   event.preventDefault();
   event.stopPropagation();
   clearSavedWidths(table);
-  table.classList.remove(TABLE_READY);
-  table.style.tableLayout = '';
-  table.style.width = '';
-  table.style.minWidth = '';
-  table.style.maxWidth = '';
-  table.querySelector(':scope > colgroup[data-crm-cols]')?.remove();
-  markStickyAction(table);
+  applyWidths(table, defaultWidths(table));
 }
 
 export function enableCrmTableColumnResize() {

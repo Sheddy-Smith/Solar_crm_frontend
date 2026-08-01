@@ -2576,14 +2576,14 @@ function App() {
   return (
     <div
       className={cx(
-        'crm-density app-mobile-shell box-border min-h-dvh max-w-full overflow-x-hidden p-0 md:p-2.5 xl:h-dvh xl:overflow-hidden xl:p-3',
+        'crm-density app-mobile-shell box-border min-h-dvh max-w-full overflow-x-hidden p-0 md:p-2 xl:h-dvh xl:overflow-hidden xl:p-2',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
       )}
     >
       <PinLockOverlay />
-      <div className="mx-auto flex w-full max-w-full gap-2.5 xl:h-full xl:items-stretch xl:gap-3">
+      <div className="mx-auto flex w-full max-w-full gap-2 xl:h-full xl:items-stretch xl:gap-2">
         <div
           className={cx(
             'fixed inset-0 z-40 bg-[#10213d]/45 transition xl:hidden',
@@ -3069,8 +3069,8 @@ function App() {
           </div>
         </aside>
 
-        <main className="main-scroll-area scroll-soft min-w-0 w-full flex-1 px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-1">
-          <div className="space-y-2.5 px-2.5 md:px-0 xl:pb-3">
+        <main className="main-scroll-area scroll-soft min-w-0 w-full flex-1 px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-0.5">
+          <div className="space-y-2 px-2 md:px-0 xl:pb-2">
             <AppHeader
               notify={notify}
               setMobileSidebarOpen={setMobileSidebarOpen}
@@ -4700,7 +4700,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 p-3 sm:p-4`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 p-2 sm:p-3`}>
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
@@ -4734,14 +4734,17 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
         {!leadsLoading && pagedLeadRows.length > 0 && (
         <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
-          <table className="crm-table min-w-[1280px] w-max">
+          <table className="crm-table w-max">
               <thead>
                 <tr>
                   {headers.map((header) => (
                     <th
                       key={header}
                       title={header}
-                      className={header === 'Action' ? 'crm-col-sticky-right' : undefined}
+                      className={cx(
+                        header === 'Action' && 'crm-col-sticky-right',
+                        header === '#' && 'crm-col-index',
+                      )}
                     >
                       <span className="block truncate">{header}</span>
                     </th>
@@ -4751,7 +4754,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               <tbody>
                 {pagedLeadRows.map((lead, index) => (
                   <tr key={lead.id}>
-                    <td className="font-extrabold text-[#233a6b]">{(safePage - 1) * LEAD_PAGE_SIZE + index + 1}</td>
+                    <td className="crm-col-index font-extrabold text-[#233a6b]">{(safePage - 1) * LEAD_PAGE_SIZE + index + 1}</td>
                     <td className="font-bold text-[#233a6b]" title={lead.customer}><span className="block truncate">{lead.customer}</span></td>
                     <td title={lead.mobile}><span className="block truncate">{lead.mobile}</span></td>
                     <td title={lead.ivrs}><span className="block truncate">{lead.ivrs}</span></td>

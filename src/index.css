@@ -892,16 +892,15 @@ body.crm-col-resizing * {
 
 table.crm-cols-resizable {
   table-layout: fixed !important;
-  /* Pixel width is set inline as sum of columns — never stretch to 100%. */
+  /* Inline pixel width (sum of cols) must win so shrink can reduce table size. */
   max-width: none !important;
-  width: max-content;
 }
 
 .responsive-scroll > .crm-table.crm-cols-resizable,
 .overflow-x-auto > .crm-table.crm-cols-resizable,
 .crm-table-scroll > .crm-table.crm-cols-resizable {
-  min-width: 0 !important;
-  width: max-content !important;
+  /* Do not force max-content — that blocked column shrink. */
+  max-width: none !important;
 }
 
 table.crm-cols-resizable th,
@@ -909,6 +908,16 @@ table.crm-cols-resizable td {
   overflow: hidden;
   text-overflow: ellipsis;
   box-sizing: border-box;
+}
+
+/* Compact serial / # column */
+.crm-table th.crm-col-index,
+.crm-table td.crm-col-index {
+  width: 44px;
+  max-width: 56px;
+  padding-left: 8px;
+  padding-right: 6px;
+  text-align: center;
 }
 
 table.crm-col-resizing-active {
