@@ -9,7 +9,7 @@ import {
   writeStoredPageZoom,
 } from '../../lib/pageZoom.js';
 
-/** Compact header zoom control: 110% default, − / + / Reset. */
+/** Compact header zoom control: 100% default, − / + / Reset. */
 export default function PageZoomControl({ value, onChange, className = '' }) {
   const zoom = clampPageZoom(value);
 
@@ -50,7 +50,7 @@ export default function PageZoomControl({ value, onChange, className = '' }) {
         type="button"
         onClick={() => commit(PAGE_ZOOM_DEFAULT)}
         className="rounded-[7px] px-2 py-1 text-[11px] font-extrabold text-[#0b65e5] transition hover:bg-[#eef5ff] dark:text-sky-400 dark:hover:bg-slate-700"
-        aria-label={`Reset zoom to ${PAGE_ZOOM_DEFAULT}%`}
+        aria-label="Reset zoom to 100%"
       >
         Reset
       </button>

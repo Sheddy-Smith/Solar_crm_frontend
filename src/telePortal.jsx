@@ -1015,7 +1015,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   };
 
   return (
-    <div className="tele-portal app-mobile-shell flex h-full min-h-0 overflow-hidden bg-[#eef3f7] text-[#172648]">
+    <div className="tele-portal app-mobile-shell flex h-dvh overflow-hidden bg-[#eef3f7] text-[#172648]">
       {/* Same floating-card sidebar treatment as the CRM shell: white brand
           header on top, gradient menu area with the moving shine below —
           tele portal carries it in blue/white instead of green/blue. */}
@@ -1061,7 +1061,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
         </div>
       </aside>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="app-mobile-topbar flex shrink-0 items-center justify-between gap-2 border-b border-[#e2e9f3] bg-white px-3 py-2.5 sm:px-6 sm:py-3.5">
           <div className="min-w-0">
             <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#7585a2] lg:hidden">Malwa Solar</p>
@@ -1134,7 +1134,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
           <PwaInstallBanner notify={onNotify} />
         </div>
 
-        <main className="main-scroll-area scroll-soft min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4 pb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-5">
+        <main className="scroll-soft flex-1 space-y-5 overflow-y-auto px-3 py-4 pb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-5">
           {pageContent()}
         </main>
 

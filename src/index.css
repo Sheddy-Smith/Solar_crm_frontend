@@ -14,27 +14,22 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #f5f7fb;
-  --crm-zoom: 1;
 }
 
 html {
-  width: 100%;
   min-height: 100%;
   background: #f3f7fb;
   overflow-x: hidden;
-  overflow-y: auto;
 }
 
 body {
   margin: 0;
   min-width: 320px;
-  width: 100%;
-  min-height: 100%;
+  min-height: 100vh;
   background: #f3f7fb;
   color: #20345f;
   line-height: 1.5;
   overflow-x: hidden;
-  overflow-y: auto;
 }
 
 /* ============================================================
@@ -694,51 +689,10 @@ textarea:focus-visible {
   outline: none;
 }
 
-/* Default #root — document scroll works (signin / short pages). */
 #root {
-  width: 100%;
-  min-height: 100%;
-  max-width: 100%;
+  min-height: 100vh;
+  max-width: 100vw;
   overflow-x: hidden;
-}
-
-/*
-  Logged-in CRM / Tele shells: viewport-fit zoom via CSS zoom (not transform).
-  Transform:scale breaks laptop trackpad wheel scrolling inside nested overflow.
-  Width/height are divided by zoom so the visual size still fills the window.
-  Scrolling happens inside .main-scroll-area / tele content panes.
-*/
-html:has(.crm-density),
-html:has(.tele-portal) {
-  height: 100%;
-  overflow: hidden;
-}
-
-html:has(.crm-density) body,
-html:has(.tele-portal) body {
-  height: 100%;
-  overflow: hidden;
-  overscroll-behavior-y: none;
-}
-
-html:has(.crm-density) #root,
-html:has(.tele-portal) #root {
-  display: flex;
-  flex-direction: column;
-  width: calc(100% / var(--crm-zoom, 1));
-  height: calc(100% / var(--crm-zoom, 1));
-  max-width: none;
-  min-height: 0;
-  transform: none;
-  zoom: var(--crm-zoom, 1);
-  overflow: hidden;
-}
-
-html:has(.crm-density) #root > .crm-density,
-html:has(.tele-portal) #root > .tele-portal {
-  flex: 1 1 auto;
-  min-height: 0;
-  height: 100%;
 }
 
 a {
@@ -793,16 +747,9 @@ a {
 /* The header/navbar sits inside this same scroll container as the page
    content below it. Without reserving scrollbar space up front, switching
    between a short page (no scrollbar) and a tall one (scrollbar appears)
-   changes the available width and visibly shifts the header sideways.
-   overflow-y must stay auto so laptop trackpad two-finger scroll works. */
+   changes the available width and visibly shifts the header sideways. */
 .main-scroll-area {
   scrollbar-gutter: stable;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  touch-action: pan-y;
-  min-height: 0;
 }
 
 .sidebar-menu-scroll {
@@ -1181,13 +1128,17 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
 .crm-density .mt-4 { margin-top: 0.5rem; }
 .crm-density .mt-3 { margin-top: 0.375rem; }
 
-/* Lead pages only — pull main content closer to sidebar */
-.crm-density .main-scroll-area > .crm-lead-content-tight {
+/* Pull main content closer to sidebar project-wide */
+.crm-density .main-scroll-area > .space-y-2,
+.crm-density .main-scroll-area > .space-y-2\.5,
+.crm-density .main-scroll-area > .space-y-3 {
   margin-left: -0.25rem;
   margin-right: -0.25rem;
 }
 @media (min-width: 1280px) {
-  .crm-density .main-scroll-area > .crm-lead-content-tight {
+  .crm-density .main-scroll-area > .space-y-2,
+  .crm-density .main-scroll-area > .space-y-2\.5,
+  .crm-density .main-scroll-area > .space-y-3 {
     margin-left: -0.5rem;
     margin-right: -0.35rem;
   }
@@ -1649,8 +1600,17 @@ html.dark .tele-portal [class*="hover:bg-[#feecec]"]:hover {
    MOBILE APP SHELL — Android / PWA standalone feel
    ============================================================ */
 
+html,
+body,
+#root {
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
 body {
+  overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .app-mobile-shell {
@@ -1659,32 +1619,23 @@ body {
   padding-right: env(safe-area-inset-right);
 }
 
-/* Welcome / portal chooser: document scroll + CSS zoom (transform breaks tall-page scroll). */
+/* Welcome / portal chooser: single window scrollport so laptop trackpad two-finger scroll works.
+   Nested overflow-y-auto was swallowing wheel events before content reached the document. */
 html:has(.portal-landing) {
-  height: auto !important;
+  height: auto;
   min-height: 100%;
   min-height: 100dvh;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior-y: auto;
 }
 
-html:has(.portal-landing) body {
-  height: auto !important;
-  min-height: 100%;
-  min-height: 100dvh;
-  overflow: visible !important;
-  overscroll-behavior-y: auto;
-  touch-action: pan-y pinch-zoom;
-}
-
+html:has(.portal-landing) body,
 html:has(.portal-landing) #root {
-  width: 100% !important;
-  height: auto !important;
+  height: auto;
+  min-height: 100%;
   min-height: 100dvh;
-  transform: none !important;
-  zoom: var(--crm-zoom, 1);
-  overflow: visible !important;
+  overflow: visible;
   overscroll-behavior-y: auto;
   touch-action: pan-y pinch-zoom;
 }
@@ -1742,8 +1693,7 @@ html:has(.portal-landing) #root {
   }
 
   .app-mobile-shell {
-    min-height: 100%;
-    height: 100%;
+    min-height: 100dvh;
   }
 }
 

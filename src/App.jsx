@@ -2582,22 +2582,14 @@ function App() {
   return (
     <div
       className={cx(
-        'crm-density app-mobile-shell box-border flex h-full min-h-0 max-w-full flex-col overflow-hidden p-0 md:p-1.5',
+        'crm-density app-mobile-shell box-border min-h-dvh max-w-full overflow-x-hidden p-0 md:p-1.5 xl:h-dvh xl:overflow-hidden xl:p-1.5',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
       )}
     >
       <PinLockOverlay />
-      <div
-        className={cx(
-          'mx-auto flex h-full min-h-0 w-full max-w-full flex-1 xl:items-stretch',
-          // Lead pages stay tight to the sidebar; all other pages use the original gap.
-          activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)
-            ? 'gap-1.5'
-            : 'gap-2.5 xl:gap-3',
-        )}
-      >
+      <div className="mx-auto flex w-full max-w-full gap-1.5 xl:h-full xl:items-stretch xl:gap-1.5">
         <div
           className={cx(
             'fixed inset-0 z-40 bg-[#10213d]/45 transition xl:hidden',
@@ -3083,13 +3075,8 @@ function App() {
           </div>
         </aside>
 
-        <main className="main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 self-stretch overflow-y-auto px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:pr-0.5">
-          <div
-            className={cx(
-              'space-y-2 px-2 md:px-0 xl:pb-2',
-              (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)) && 'crm-lead-content-tight',
-            )}
-          >
+        <main className="main-scroll-area scroll-soft min-w-0 w-full flex-1 px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-0.5">
+          <div className="space-y-2 px-2 md:px-0 xl:pb-2">
             <AppHeader
               notify={notify}
               setMobileSidebarOpen={setMobileSidebarOpen}
@@ -3796,12 +3783,12 @@ function AppHeader({
           />
         </div>
 
-        <div className="hidden min-w-0 flex-wrap items-center justify-end gap-2 lg:col-span-2 lg:flex xl:col-span-1 xl:gap-2 2xl:gap-3">
+        <div className="hidden flex-wrap items-center justify-end gap-2 lg:col-span-2 lg:flex xl:col-span-1 xl:gap-3">
           {actionIcons.map((action) => {
             const Icon = action.icon;
 
             return (
-              <div key={action.label} className="relative shrink-0" data-header-actions="true">
+              <div key={action.label} className="relative" data-header-actions="true">
                 <motion.button
                   type="button"
                   whileHover={{ scale: 1.08 }}
@@ -3829,15 +3816,15 @@ function AppHeader({
             );
           })}
 
-          <PwaInstallIconButton notify={notify} className="hidden shrink-0 xl:inline-flex" />
+          <PwaInstallIconButton notify={notify} className="hidden xl:inline-flex" />
 
           <PageZoomControl
             value={pageZoom}
             onChange={(next) => {
               setPageZoom?.(next);
-              if (next === PAGE_ZOOM_DEFAULT) notify?.(`Zoom reset to ${PAGE_ZOOM_DEFAULT}%`);
+              if (next === PAGE_ZOOM_DEFAULT) notify?.('Zoom reset to 100%');
             }}
-            className="hidden max-w-full lg:inline-flex"
+            className="hidden lg:inline-flex"
           />
 
           <ThemeToggle
@@ -3849,18 +3836,18 @@ function AppHeader({
             }}
           />
 
-          <div className="relative ml-auto min-w-0 shrink" data-profile-menu="true">
+          <div className="relative ml-auto" data-profile-menu="true">
             <button
               type="button"
               onClick={() => setProfileMenuOpen((current) => !current)}
-              className="flex min-w-0 items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#f5f9ff] sm:gap-3"
+              className="flex items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#f5f9ff] sm:gap-3"
               aria-label="Open profile menu"
               aria-expanded={profileMenuOpen}
             >
               <AdminAvatar name={loggedInUser?.name} />
-              <div className="min-w-0 text-right">
-                <p className="truncate text-[15px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
-                <p className="mt-0.5 truncate text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
+              <div className="text-right">
+                <p className="text-[15px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
+                <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
               </div>
               <ChevronRight
                 className={cx(
