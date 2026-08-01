@@ -2582,7 +2582,7 @@ function App() {
   return (
     <div
       className={cx(
-        'crm-density app-mobile-shell box-border min-h-dvh max-w-full overflow-x-hidden p-0 md:p-1.5 xl:h-dvh xl:overflow-hidden xl:p-1.5',
+        'crm-density app-mobile-shell box-border h-full min-h-0 max-w-full overflow-x-hidden p-0 md:p-1.5 xl:h-full xl:overflow-hidden xl:p-1.5',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
@@ -3783,12 +3783,12 @@ function AppHeader({
           />
         </div>
 
-        <div className="hidden flex-wrap items-center justify-end gap-2 lg:col-span-2 lg:flex xl:col-span-1 xl:gap-3">
+        <div className="hidden min-w-0 flex-wrap items-center justify-end gap-2 lg:col-span-2 lg:flex xl:col-span-1 xl:gap-2 2xl:gap-3">
           {actionIcons.map((action) => {
             const Icon = action.icon;
 
             return (
-              <div key={action.label} className="relative" data-header-actions="true">
+              <div key={action.label} className="relative shrink-0" data-header-actions="true">
                 <motion.button
                   type="button"
                   whileHover={{ scale: 1.08 }}
@@ -3816,15 +3816,15 @@ function AppHeader({
             );
           })}
 
-          <PwaInstallIconButton notify={notify} className="hidden xl:inline-flex" />
+          <PwaInstallIconButton notify={notify} className="hidden shrink-0 xl:inline-flex" />
 
           <PageZoomControl
             value={pageZoom}
             onChange={(next) => {
               setPageZoom?.(next);
-              if (next === PAGE_ZOOM_DEFAULT) notify?.('Zoom reset to 100%');
+              if (next === PAGE_ZOOM_DEFAULT) notify?.(`Zoom reset to ${PAGE_ZOOM_DEFAULT}%`);
             }}
-            className="hidden lg:inline-flex"
+            className="hidden max-w-full lg:inline-flex"
           />
 
           <ThemeToggle
@@ -3836,18 +3836,18 @@ function AppHeader({
             }}
           />
 
-          <div className="relative ml-auto" data-profile-menu="true">
+          <div className="relative ml-auto min-w-0 shrink" data-profile-menu="true">
             <button
               type="button"
               onClick={() => setProfileMenuOpen((current) => !current)}
-              className="flex items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#f5f9ff] sm:gap-3"
+              className="flex min-w-0 items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#f5f9ff] sm:gap-3"
               aria-label="Open profile menu"
               aria-expanded={profileMenuOpen}
             >
               <AdminAvatar name={loggedInUser?.name} />
-              <div className="text-right">
-                <p className="text-[15px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
-                <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
+              <div className="min-w-0 text-right">
+                <p className="truncate text-[15px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
+                <p className="mt-0.5 truncate text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
               </div>
               <ChevronRight
                 className={cx(

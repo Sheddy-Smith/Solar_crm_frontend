@@ -1,6 +1,6 @@
-/** CRM page zoom — default 100%; users can adjust and Reset back to 100%. */
+/** CRM page zoom — default 110%; Reset returns to 110%. Viewport-fit via --crm-zoom. */
 export const PAGE_ZOOM_STORAGE_KEY = 'crm-page-zoom';
-export const PAGE_ZOOM_DEFAULT = 100;
+export const PAGE_ZOOM_DEFAULT = 110;
 export const PAGE_ZOOM_MIN = 70;
 export const PAGE_ZOOM_MAX = 150;
 export const PAGE_ZOOM_STEP = 10;
@@ -34,14 +34,16 @@ export function writeStoredPageZoom(value) {
 export function applyPageZoom(value) {
   if (typeof document === 'undefined') return PAGE_ZOOM_DEFAULT;
   const zoom = clampPageZoom(value);
+  const factor = zoom / 100;
   const root = document.documentElement;
-  // CSS zoom keeps layout stable better than transform:scale for app shells.
-  root.style.zoom = String(zoom / 100);
+  // Clear legacy html { zoom } so it cannot fight viewport-fit scale.
+  root.style.removeProperty('zoom');
+  root.style.setProperty('--crm-zoom', String(factor));
   root.dataset.crmPageZoom = String(zoom);
   return zoom;
 }
 
-/** Boot helper — always land on stored value or 100%. */
+/** Boot helper — always land on stored value or 110%. */
 export function bootPageZoom() {
   return applyPageZoom(readStoredPageZoom());
 }

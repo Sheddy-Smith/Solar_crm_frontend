@@ -1015,7 +1015,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   };
 
   return (
-    <div className="tele-portal app-mobile-shell flex h-dvh overflow-hidden bg-[#eef3f7] text-[#172648]">
+    <div className="tele-portal app-mobile-shell flex h-full min-h-0 overflow-hidden bg-[#eef3f7] text-[#172648]">
       {/* Same floating-card sidebar treatment as the CRM shell: white brand
           header on top, gradient menu area with the moving shine below —
           tele portal carries it in blue/white instead of green/blue. */}
