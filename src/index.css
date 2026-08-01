@@ -833,10 +833,10 @@ a {
 }
 
 .crm-table th {
-  padding: 6px 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid #eaf0f7;
   color: #284276;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   text-align: left;
   white-space: nowrap;
@@ -915,8 +915,8 @@ table.crm-cols-resizable td {
 .crm-table td.crm-col-index {
   width: 44px;
   max-width: 56px;
-  padding-left: 6px;
-  padding-right: 4px;
+  padding-left: 8px;
+  padding-right: 6px;
   text-align: center;
 }
 
@@ -965,19 +965,13 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
 }
 
 .crm-table td {
-  padding: 4px 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid #eef3f8;
   color: #52637f;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   white-space: nowrap;
-  vertical-align: middle;
-}
-
-/* Alias kept for Lead List markup — same as global dense tables */
-.crm-table.crm-table--lead-dense th,
-.crm-table.crm-table--lead-dense td {
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 /* Long description/details text must wrap — .crm-table td nowrap otherwise overlaps next column */
@@ -1073,13 +1067,13 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
 }
 
 .crm-table--dense th {
-  padding: 5px 8px;
-  font-size: 13px;
+  padding: 8px 10px;
+  font-size: 14px;
 }
 
 .crm-table--dense td {
-  padding: 4px 8px;
-  font-size: 13px;
+  padding: 8px 10px;
+  font-size: 14px;
 }
 
 .crm-table--fit {
@@ -1101,48 +1095,25 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
   --crm-space-compact-3: 1rem;
 }
 
-.crm-density .space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
-.crm-density .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.5rem; }
-.crm-density .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.5rem; }
-.crm-density .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.375rem; }
-.crm-density .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.375rem; }
-.crm-density .space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.25rem; }
+.crm-density .space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+.crm-density .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
+.crm-density .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
+.crm-density .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.5rem; }
 
-.crm-density .gap-8 { gap: 0.75rem; }
-.crm-density .gap-7 { gap: 0.625rem; }
-.crm-density .gap-6 { gap: 0.5rem; }
-.crm-density .gap-5 { gap: 0.5rem; }
-.crm-density .gap-4 { gap: 0.375rem; }
-.crm-density .gap-3 { gap: 0.375rem; }
+.crm-density .gap-8 { gap: 1rem; }
+.crm-density .gap-7 { gap: 0.875rem; }
+.crm-density .gap-6 { gap: 0.75rem; }
+.crm-density .gap-5 { gap: 0.625rem; }
+.crm-density .gap-4 { gap: 0.5rem; }
 
-.crm-density .p-6 { padding: 0.75rem; }
-.crm-density .p-5 { padding: 0.625rem; }
-.crm-density .p-4 { padding: 0.5rem; }
-.crm-density .p-3 { padding: 0.5rem; }
-.crm-density .px-6 { padding-left: 0.75rem; padding-right: 0.75rem; }
-.crm-density .py-6 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
-.crm-density .py-5 { padding-top: 0.625rem; padding-bottom: 0.625rem; }
-.crm-density .py-4 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-.crm-density .mt-8 { margin-top: 0.75rem; }
-.crm-density .mb-8 { margin-bottom: 0.75rem; }
-.crm-density .mt-4 { margin-top: 0.5rem; }
-.crm-density .mt-3 { margin-top: 0.375rem; }
-
-/* Pull main content closer to sidebar project-wide */
-.crm-density .main-scroll-area > .space-y-2,
-.crm-density .main-scroll-area > .space-y-2\.5,
-.crm-density .main-scroll-area > .space-y-3 {
-  margin-left: -0.25rem;
-  margin-right: -0.25rem;
-}
-@media (min-width: 1280px) {
-  .crm-density .main-scroll-area > .space-y-2,
-  .crm-density .main-scroll-area > .space-y-2\.5,
-  .crm-density .main-scroll-area > .space-y-3 {
-    margin-left: -0.5rem;
-    margin-right: -0.35rem;
-  }
-}
+.crm-density .p-6 { padding: 1rem; }
+.crm-density .p-5 { padding: 0.75rem; }
+.crm-density .p-4 { padding: 0.75rem; }
+.crm-density .px-6 { padding-left: 1rem; padding-right: 1rem; }
+.crm-density .py-6 { padding-top: 1rem; padding-bottom: 1rem; }
+.crm-density .py-5 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.crm-density .mt-8 { margin-top: 1rem; }
+.crm-density .mb-8 { margin-bottom: 1rem; }
 
 .crm-density .crm-panel,
 .crm-density .crm-data-panel {
@@ -1212,16 +1183,13 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
 }
 
 .crm-density .crm-table th {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
-  padding: 6px 8px;
 }
 
 .crm-density .crm-table td {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
-  padding: 4px 8px;
-  vertical-align: middle;
 }
 
 .crm-density .crm-table .rounded-full,
@@ -1617,34 +1585,6 @@ body {
   padding-top: env(safe-area-inset-top);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
-}
-
-/* Welcome / portal chooser: single window scrollport so laptop trackpad two-finger scroll works.
-   Nested overflow-y-auto was swallowing wheel events before content reached the document. */
-html:has(.portal-landing) {
-  height: auto;
-  min-height: 100%;
-  min-height: 100dvh;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior-y: auto;
-}
-
-html:has(.portal-landing) body,
-html:has(.portal-landing) #root {
-  height: auto;
-  min-height: 100%;
-  min-height: 100dvh;
-  overflow: visible;
-  overscroll-behavior-y: auto;
-  touch-action: pan-y pinch-zoom;
-}
-
-.portal-landing,
-.portal-landing-page {
-  overflow: visible;
-  min-height: 100dvh;
-  height: auto;
 }
 
 @media (max-width: 767px) {

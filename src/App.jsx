@@ -4,10 +4,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Button from './components/ui/Button.jsx';
 import Card from './components/ui/Card.jsx';
 import ThemeToggle from './components/ui/ThemeToggle.jsx';
-import PageZoomControl from './components/ui/PageZoomControl.jsx';
-import PageSizeSelect, { EntriesFooter } from './components/ui/PageSizeSelect.jsx';
-import { PAGE_ZOOM_DEFAULT, readStoredPageZoom } from './lib/pageZoom.js';
-import { readCrmPageSize } from './lib/crmPageSize.js';
 import {
   authApi, userApi, roleApi, branchApi, leadApi, leadSurveyPhotoApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
   projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
@@ -1942,7 +1938,6 @@ function App() {
   });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
-  const [pageZoom, setPageZoom] = useState(() => readStoredPageZoom() || PAGE_ZOOM_DEFAULT);
   const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
     const routeSection = isKnownSection(initialRoute.section) ? initialRoute.section : null;
     const stored = isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard';
@@ -2513,8 +2508,7 @@ function App() {
   if (currentPage === 'portal') {
     return (
       <>
-        {/* Natural document scroll so laptop trackpad two-finger scroll works */}
-        <div className="app-mobile-shell portal-landing">
+        <div className="app-mobile-shell min-h-dvh overflow-y-auto">
           <div className="px-3 pt-[max(10px,env(safe-area-inset-top))] md:hidden">
             <PwaInstallBanner notify={notify} />
           </div>
@@ -2582,14 +2576,14 @@ function App() {
   return (
     <div
       className={cx(
-        'crm-density app-mobile-shell box-border min-h-dvh max-w-full overflow-x-hidden p-0 md:p-1.5 xl:h-dvh xl:overflow-hidden xl:p-1.5',
+        'crm-density app-mobile-shell box-border min-h-dvh max-w-full overflow-x-hidden p-0 md:p-2 xl:h-dvh xl:overflow-hidden xl:p-2',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
       )}
     >
       <PinLockOverlay />
-      <div className="mx-auto flex w-full max-w-full gap-1.5 xl:h-full xl:items-stretch xl:gap-1.5">
+      <div className="mx-auto flex w-full max-w-full gap-2 xl:h-full xl:items-stretch xl:gap-2">
         <div
           className={cx(
             'fixed inset-0 z-40 bg-[#10213d]/45 transition xl:hidden',
@@ -3095,8 +3089,6 @@ function App() {
               theme={theme}
               setTheme={setTheme}
               loggedInUser={loggedInUser}
-              pageZoom={pageZoom}
-              setPageZoom={setPageZoom}
             />
             <div className="px-3 pt-2 md:hidden">
               <PwaInstallBanner notify={notify} />
@@ -3651,7 +3643,6 @@ function AppHeader({
   profileMenuOpen, setProfileMenuOpen, handleProfileAction,
   globalSearch, setGlobalSearch, setActiveSidebarItem,
   theme, setTheme, loggedInUser,
-  pageZoom = PAGE_ZOOM_DEFAULT, setPageZoom,
 }) {
   return (
     <header className={`${panelClass} header-toolbar app-mobile-topbar relative z-30 overflow-visible rounded-none border-x-0 border-t-0 px-3 py-2.5 md:rounded-[16px] md:border md:px-4 md:py-3`}>
@@ -3817,15 +3808,6 @@ function AppHeader({
           })}
 
           <PwaInstallIconButton notify={notify} className="hidden xl:inline-flex" />
-
-          <PageZoomControl
-            value={pageZoom}
-            onChange={(next) => {
-              setPageZoom?.(next);
-              if (next === PAGE_ZOOM_DEFAULT) notify?.('Zoom reset to 100%');
-            }}
-            className="hidden lg:inline-flex"
-          />
 
           <ThemeToggle
             theme={theme}
@@ -4268,7 +4250,6 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const [followUpDate, setFollowUpDate] = useState('');
   const [activeLeadCategory, setActiveLeadCategory] = useState(null);
   const [activePage, setActivePage] = useState(1);
-  const [pageSize, setPageSize] = useState(() => readCrmPageSize());
   const [apiLeads, setApiLeads] = useState(null);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -4498,7 +4479,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     });
   }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, addByFilter, followUpDate]);
 
-  const LEAD_PAGE_SIZE = pageSize;
+  const LEAD_PAGE_SIZE = 10;
   const totalLeadPages = Math.max(1, Math.ceil(visibleLeadRows.length / LEAD_PAGE_SIZE));
   const safePage = Math.min(activePage, totalLeadPages);
   const pagedLeadRows = visibleLeadRows.slice((safePage - 1) * LEAD_PAGE_SIZE, safePage * LEAD_PAGE_SIZE);
@@ -4518,7 +4499,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
   return (
     <div className="space-y-1">
-      <section className={`${panelClass} overflow-hidden p-2 sm:p-2.5`}>
+      <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
         <div className="flex items-center justify-end gap-2">
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -4551,8 +4532,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           </div>
         </div>
 
-        <div className="mt-1.5">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="mt-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             {leadCategoryTabs.map((category) => {
               const Icon = category.icon;
               const tone = leadCategoryToneClasses[category.tone];
@@ -4570,21 +4551,21 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                   }}
                   data-action={`open-${category.shortLabel.toLowerCase()}-leads`}
                   className={cx(
-                    'group inline-flex h-[38px] w-max shrink-0 items-center justify-between gap-2 rounded-[9px] border px-2.5 text-left shadow-[0_8px_16px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
+                    'group inline-flex h-[46px] w-max shrink-0 items-center justify-between gap-2.5 rounded-[10px] border px-3 text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
                     tone.button,
-                    activeLeadCategory?.label === category.label ? 'ring-2 ring-[#0b65e5] ring-offset-1 ring-offset-white' : '',
+                    activeLeadCategory?.label === category.label ? 'ring-2 ring-[#0b65e5] ring-offset-2 ring-offset-white' : '',
                   )}
                 >
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className={cx('grid size-6 shrink-0 place-items-center rounded-[7px]', tone.icon)}>
-                      <Icon className="size-[14px]" />
+                  <span className="inline-flex items-center gap-2">
+                    <span className={cx('grid size-7 shrink-0 place-items-center rounded-[8px]', tone.icon)}>
+                      <Icon className="size-[15px]" />
                     </span>
                     <span>
-                      <span className="block whitespace-nowrap text-[11px] font-extrabold leading-tight">{category.label}</span>
-                      <span className="block whitespace-nowrap text-[9px] font-bold leading-tight opacity-75">{category.priority}</span>
+                      <span className="block whitespace-nowrap text-[12px] font-extrabold">{category.label}</span>
+                      <span className="block whitespace-nowrap text-[10px] font-bold opacity-75">{category.priority}</span>
                     </span>
                   </span>
-                  <span className={cx('shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold', tone.count)}>
+                  <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold', tone.count)}>
                     {categoryLeadCount ? (categoryLeadCount[category.label] ?? 0) : '—'}
                   </span>
                 </button>
@@ -4594,9 +4575,9 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
       </section>
 
-      <section className={`${panelClass} relative z-40 overflow-visible p-2 sm:p-2.5`}>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="flex h-9 flex-1 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+      <section className={`${panelClass} relative z-40 overflow-visible p-3 sm:p-4`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="flex h-11 flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <input
               value={searchQuery}
               onChange={(event) => { setSearchQuery(event.target.value); setActivePage(1); }}
@@ -4607,7 +4588,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             <Search className="size-4 text-[#7386a3]" />
           </label>
 
-          <label className="flex h-9 shrink-0 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] sm:w-[190px]">
+          <label className="flex h-11 shrink-0 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] sm:w-[190px]">
             <UserRound className="size-4 shrink-0 text-[#7386a3]" />
             <select
               value={assignedToFilter}
@@ -4621,7 +4602,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             </select>
           </label>
 
-          <label className="flex h-9 shrink-0 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] sm:w-[200px]">
+          <label className="flex h-11 shrink-0 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] sm:w-[200px]">
             <UserRound className="size-4 shrink-0 text-[#7386a3]" />
             <select
               value={addByFilter}
@@ -4641,7 +4622,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               onClick={() => setFiltersOpen((open) => !open)}
               aria-expanded={filtersOpen}
               className={cx(
-                'inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border px-3 text-[13px] font-extrabold transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
+                'inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border px-4 text-[13px] font-extrabold transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
                 activeFilterCount > 0 ? 'border-[#0b65e5] bg-[#eef6ff] text-[#0b65e5]' : 'border-black/20 bg-white text-[#284276] hover:bg-[#f8fbff]',
               )}
             >
@@ -4711,7 +4692,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               onNotify('Lead filters reset');
             }}
             data-action="lead-reset-filters"
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
           >
             <RefreshCw className="size-4 text-[#0b65e5]" />
             Reset Filters
@@ -4719,7 +4700,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 p-1.5 sm:p-2`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 p-2 sm:p-3`}>
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
@@ -4752,8 +4733,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         )}
 
         {!leadsLoading && pagedLeadRows.length > 0 && (
-        <div className="hidden overflow-x-auto rounded-[10px] border border-[#e7eef7] bg-white lg:block">
-          <table className="crm-table crm-table--lead-dense w-max">
+        <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+          <table className="crm-table w-max">
               <thead>
                 <tr>
                   {headers.map((header) => (
@@ -4793,47 +4774,47 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                       <SurveyStatusBadge status={lead.surveyStatus} />
                     </td>
                     <td className="crm-col-sticky-right">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
                           onClick={() => setViewLeadId(lead.id)}
                           data-action="lead-view"
-                          className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
+                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
                           aria-label={`View ${lead.customer}`}
                           title="View"
                         >
-                          <Eye className="size-3.5" />
+                          <Eye className="size-4" />
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditLeadId(lead.id)}
                           data-action="lead-edit"
-                          className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#e3ebf7] bg-white text-[#0d9f4a] transition hover:bg-[#f5f9ff]"
+                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#0d9f4a] transition hover:bg-[#f5f9ff]"
                           aria-label={`Edit ${lead.customer}`}
                           title="Edit"
                         >
-                          <Pencil className="size-3.5" />
+                          <Pencil className="size-4" />
                         </button>
                         <button
                           type="button"
                           onClick={() => setSurveyLead(lead)}
                           data-action="lead-survey"
-                          className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#e3ebf7] bg-white text-[#7c3aed] transition hover:bg-[#f5f9ff]"
+                          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#7c3aed] transition hover:bg-[#f5f9ff]"
                           aria-label={`Site survey for ${lead.customer}`}
                           title={lead.surveyStatus === 'Completed' ? 'View Survey' : lead.surveyStatus === 'In Progress' ? 'Continue Survey' : 'Start Survey'}
                         >
-                          <MapPin className="size-3.5" />
+                          <MapPin className="size-4" />
                         </button>
                         {isLeadManager ? (
                           <button
                             type="button"
                             onClick={() => setAssignLead(lead)}
                             data-action="lead-assign"
-                            className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#dbe4ff] bg-white text-[#3538cd] transition hover:bg-[#f2f4ff]"
+                            className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dbe4ff] bg-white text-[#3538cd] transition hover:bg-[#f2f4ff]"
                             aria-label={`Assign ${lead.customer}`}
                             title="Assign to executive"
                           >
-                            <Users className="size-3.5" />
+                            <Users className="size-4" />
                           </button>
                         ) : null}
                         {!isSalesExecutive && (lead.status !== 'Won' || isLeadManager) ? (
@@ -4841,11 +4822,11 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                             type="button"
                             onClick={() => deleteLead(lead)}
                             data-action="lead-delete"
-                            className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#ffd5d5] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]"
+                            className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffd5d5] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]"
                             aria-label={`Delete ${lead.customer}`}
                             title="Delete"
                           >
-                            <Trash2 className="size-3.5" />
+                            <Trash2 className="size-4" />
                           </button>
                         ) : null}
                       </div>
@@ -4857,15 +4838,14 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
         )}
 
-        <EntriesFooter
-          from={!leadsLoading && visibleLeadRows.length ? (safePage - 1) * LEAD_PAGE_SIZE + 1 : 0}
-          to={!leadsLoading && visibleLeadRows.length ? Math.min(safePage * LEAD_PAGE_SIZE, visibleLeadRows.length) : 0}
-          total={!leadsLoading ? visibleLeadRows.length : 0}
-          pageSize={pageSize}
-          onPageSizeChange={(next) => { setPageSize(next); setActivePage(1); }}
-        >
-          {totalLeadPages > 1 ? (
-            <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-col gap-3 px-3 py-3 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            {!leadsLoading && visibleLeadRows.length > 0
+              ? `Showing ${(safePage - 1) * LEAD_PAGE_SIZE + 1} to ${Math.min(safePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`
+              : null}
+          </p>
+          {totalLeadPages > 1 && (
+            <div className="flex flex-wrap items-center gap-2">
               <PaginationButton onClick={() => selectPage(Math.max(1, safePage - 1))}>
                 <ChevronLeft className="size-4" />
               </PaginationButton>
@@ -4891,8 +4871,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                 <ChevronRight className="size-4" />
               </PaginationButton>
             </div>
-          ) : null}
-        </EntriesFooter>
+          )}
+        </div>
       </section>
 
       <DashboardFooter />
@@ -7552,17 +7532,11 @@ function AccountStatusBadge({ status }) {
   return <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[11px] font-extrabold', cls)}>{status || 'Unknown'}</span>;
 }
 
-function InventoryPagination({ text, onNotify, prefix = '', pageSize, onPageSizeChange }) {
-  const [localPageSize, setLocalPageSize] = useState(() => readCrmPageSize());
-  const size = pageSize ?? localPageSize;
-  const setSize = onPageSizeChange ?? ((next) => { setLocalPageSize(next); onNotify?.(`${prefix} page size ${next}`); });
+function InventoryPagination({ text, onNotify, prefix = '' }) {
   return (
-    <div className="mt-2 flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-wrap items-center gap-2 text-[12px] font-bold text-[#53647f]">
-        <p>{text}</p>
-        <PageSizeSelect value={size} onChange={setSize} />
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5">
+    <div className="mt-4 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-[13px] font-bold text-[#53647f]">{text}</p>
+      <div className="flex flex-wrap items-center gap-2">
         <PaginationButton onClick={() => onNotify?.(`${prefix} previous page`)}><ChevronLeft className="size-4" /></PaginationButton>
         <PaginationButton active onClick={() => {}}> 1 </PaginationButton>
         <PaginationButton onClick={() => onNotify?.(`${prefix} next page`)}><ChevronRight className="size-4" /></PaginationButton>
@@ -9595,6 +9569,7 @@ function LcChecklistSection({ record, api, onNotify, onSaved }) {
 }
 
 function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
+  const PAGE_SIZE = 10;
   const extraFilters = config.extraFilters || [];
   const statuses = config.statuses || [];
   const [search, setSearch] = useState('');
@@ -9606,8 +9581,6 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const [lookupData, setLookupData] = useState({});
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(() => readCrmPageSize());
-  const PAGE_SIZE = pageSize;
   const [viewItem, setViewItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
   const [showNew, setShowNew] = useState(false);
@@ -9913,22 +9886,15 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
         </section>
 
         {/* Pagination */}
-        {filtered.length > 0 && (
-          <EntriesFooter
-            from={(page - 1) * PAGE_SIZE + 1}
-            to={Math.min(page * PAGE_SIZE, filtered.length)}
-            total={filtered.length}
-            pageSize={pageSize}
-            onPageSizeChange={(next) => { setPageSize(next); setPage(1); }}
-          >
-            {filtered.length > PAGE_SIZE ? (
-              <div className="flex items-center gap-2">
-                <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="h-8 rounded-[8px] border border-[#e5eaf2] px-3 font-bold disabled:opacity-40">Previous</button>
-                <span className="font-extrabold text-[#1e2a38]">{page} / {totalPages}</span>
-                <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="h-8 rounded-[8px] border border-[#e5eaf2] px-3 font-bold disabled:opacity-40">Next</button>
-              </div>
-            ) : null}
-          </EntriesFooter>
+        {filtered.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between text-[13px] text-[#53647f]">
+            <span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="h-8 rounded-[8px] border border-[#e5eaf2] px-3 font-bold disabled:opacity-40">Previous</button>
+              <span className="font-extrabold text-[#1e2a38]">{page} / {totalPages}</span>
+              <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="h-8 rounded-[8px] border border-[#e5eaf2] px-3 font-bold disabled:opacity-40">Next</button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -13522,7 +13488,6 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const [statusFilter, setStatusFilter] = useState('All');
   const [managerFilter, setManagerFilter] = useState('All');
   const [activePage, setActivePage] = useState(1);
-  const [pageSize, setPageSize] = useState(() => readCrmPageSize());
   const [projectRows, setProjectRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -13667,11 +13632,11 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     });
   }, [deferredQuery, projectRows, statusFilter, managerFilter, dateFrom, dateTo]);
 
-  const PROJECT_PAGE_SIZE = pageSize;
+  const PROJECT_PAGE_SIZE = 10;
   const totalProjectPages = Math.max(1, Math.ceil(filteredRows.length / PROJECT_PAGE_SIZE));
   const pagedProjectRows = filteredRows.slice((activePage - 1) * PROJECT_PAGE_SIZE, activePage * PROJECT_PAGE_SIZE);
 
-  useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, managerFilter, dateFrom, dateTo, pageSize]);
+  useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, managerFilter, dateFrom, dateTo]);
 
   const exportProjects = () => {
     if (loading) {
@@ -13930,21 +13895,16 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           ) : null}
         </div>
 
-        <EntriesFooter
-          from={filteredRows.length === 0 ? 0 : (activePage - 1) * PROJECT_PAGE_SIZE + 1}
-          to={Math.min(activePage * PROJECT_PAGE_SIZE, filteredRows.length)}
-          total={filteredRows.length}
-          pageSize={pageSize}
-          onPageSizeChange={(next) => { setPageSize(next); setActivePage(1); }}
-        >
-          <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <div className="mt-3 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[13px] font-bold text-[#53647f]">Showing {filteredRows.length === 0 ? 0 : (activePage - 1) * PROJECT_PAGE_SIZE + 1} to {Math.min(activePage * PROJECT_PAGE_SIZE, filteredRows.length)} of {filteredRows.length} entries</p>
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <PaginationButton onClick={() => setActivePage((p) => Math.max(1, p - 1))}><ChevronLeft className="size-4" /></PaginationButton>
             {Array.from({ length: totalProjectPages }, (_, i) => i + 1).map((page) => (
               <PaginationButton key={page} active={page === activePage} onClick={() => setActivePage(page)}>{page}</PaginationButton>
             ))}
             <PaginationButton onClick={() => setActivePage((p) => Math.min(totalProjectPages, p + 1))}><ChevronRight className="size-4" /></PaginationButton>
           </div>
-        </EntriesFooter>
+        </div>
         </>
         )}
       </article>
@@ -27177,7 +27137,6 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
   const [editingRule, setEditingRule] = useState(null);
   const [addRuleOpen, setAddRuleOpen] = useState(false);
   const [rulesPage, setRulesPage] = useState(1);
-  const [pageSize, setPageSize] = useState(() => readCrmPageSize());
   const [securityConfig, setSecurityConfig] = useState({
     strictMode: true,
     whitelistOnly: false,
@@ -27226,7 +27185,7 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
   const blockCount = rules.filter((rule) => rule.type === 'Block').length;
   const lastBlocked = blockedAttempts[0] ?? { attemptedAt: '—', ip: '—' };
 
-  const IP_PAGE_SIZE = pageSize;
+  const IP_PAGE_SIZE = 10;
   const rulesTotalPages = Math.max(1, Math.ceil(filteredRules.length / IP_PAGE_SIZE));
   const safeRulesPage = Math.min(rulesPage, rulesTotalPages);
   const pagedRules = filteredRules.slice(
@@ -27418,23 +27377,18 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
             </div>
           )}
 
-          <div className="mt-3 flex flex-col gap-2 text-[12px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <p>
-                {activeTab === 'IP Access Rules'
-                  ? (filteredRules.length > 0
-                    ? `Showing ${(safeRulesPage - 1) * IP_PAGE_SIZE + 1} to ${Math.min(safeRulesPage * IP_PAGE_SIZE, filteredRules.length)} of ${filteredRules.length} entries`
-                    : 'Showing 0 entries')
-                  : activeTab === 'Blocked Attempts'
-                    ? `Showing ${blockedAttempts.length} entries`
-                    : `Showing ${settingsIpAuditSeed.length} entries`}
-              </p>
-              {activeTab === 'IP Access Rules' ? (
-                <PageSizeSelect value={pageSize} onChange={(next) => { setPageSize(next); setRulesPage(1); }} />
-              ) : null}
-            </div>
+          <div className="mt-5 flex flex-col gap-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              {activeTab === 'IP Access Rules'
+                ? (filteredRules.length > 0
+                  ? `Showing ${(safeRulesPage - 1) * IP_PAGE_SIZE + 1} to ${Math.min(safeRulesPage * IP_PAGE_SIZE, filteredRules.length)} of ${filteredRules.length} entries`
+                  : 'Showing 0 entries')
+                : activeTab === 'Blocked Attempts'
+                  ? `Showing ${blockedAttempts.length} entries`
+                  : `Showing ${settingsIpAuditSeed.length} entries`}
+            </p>
             {activeTab === 'IP Access Rules' && rulesTotalPages > 1 ? (
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <PaginationButton onClick={() => setRulesPage((p) => Math.max(1, p - 1))}>
                   <ChevronLeft className="size-4" />
                 </PaginationButton>
@@ -33665,7 +33619,6 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   const [statusFilter, setStatusFilter] = useState('All');
   const [templateFilter, setTemplateFilter] = useState('All');
   const [activePage, setActivePage] = useState(1);
-  const [pageSize, setPageSize] = useState(() => readCrmPageSize());
   const quotationTableRef = useRef(null);
   const [viewQuotationId, setViewQuotationId] = useState(null);
   const [editQuotationId, setEditQuotationId] = useState(null);
@@ -33787,7 +33740,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
     return statusMatch && templateMatch && searchMatch && dateMatch;
   });
 
-  const QUOTATION_PAGE_SIZE = pageSize;
+  const QUOTATION_PAGE_SIZE = 10;
   const totalQuotationPages = Math.max(1, Math.ceil(filteredQuotations.length / QUOTATION_PAGE_SIZE));
   const safeQuotationPage = Math.min(activePage, totalQuotationPages);
   const pagedQuotations = filteredQuotations.slice((safeQuotationPage - 1) * QUOTATION_PAGE_SIZE, safeQuotationPage * QUOTATION_PAGE_SIZE);
@@ -33795,7 +33748,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   // Reset to first page whenever the filters/search change the result set.
   useEffect(() => {
     setActivePage(1);
-  }, [searchQuery, statusFilter, templateFilter, expiredFilter, dateFrom, dateTo, pageSize]);
+  }, [searchQuery, statusFilter, templateFilter, expiredFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     if (activePage > totalQuotationPages) setActivePage(totalQuotationPages);
@@ -33945,15 +33898,12 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
         )}
 
         {!loading && filteredQuotations.length > 0 && (
-          <EntriesFooter
-            from={(safeQuotationPage - 1) * QUOTATION_PAGE_SIZE + 1}
-            to={Math.min(safeQuotationPage * QUOTATION_PAGE_SIZE, filteredQuotations.length)}
-            total={filteredQuotations.length}
-            pageSize={pageSize}
-            onPageSizeChange={(next) => { setPageSize(next); setActivePage(1); }}
-          >
-            {totalQuotationPages > 1 ? (
-              <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-col gap-3 px-3 py-3 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              {`Showing ${(safeQuotationPage - 1) * QUOTATION_PAGE_SIZE + 1} to ${Math.min(safeQuotationPage * QUOTATION_PAGE_SIZE, filteredQuotations.length)} of ${filteredQuotations.length} entries`}
+            </p>
+            {totalQuotationPages > 1 && (
+              <div className="flex flex-wrap items-center gap-2">
                 <PaginationButton onClick={() => selectQuotationPage(Math.max(1, safeQuotationPage - 1))}>
                   <ChevronLeft className="size-4" />
                 </PaginationButton>
@@ -33979,8 +33929,8 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
                   <ChevronRight className="size-4" />
                 </PaginationButton>
               </div>
-            ) : null}
-          </EntriesFooter>
+            )}
+          </div>
         )}
       </section>
 
