@@ -2589,7 +2589,15 @@ function App() {
       )}
     >
       <PinLockOverlay />
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-full flex-1 gap-1.5 xl:items-stretch">
+      <div
+        className={cx(
+          'mx-auto flex h-full min-h-0 w-full max-w-full flex-1 xl:items-stretch',
+          // Lead pages stay tight to the sidebar; all other pages use the original gap.
+          activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)
+            ? 'gap-1.5'
+            : 'gap-2.5 xl:gap-3',
+        )}
+      >
         <div
           className={cx(
             'fixed inset-0 z-40 bg-[#10213d]/45 transition xl:hidden',
@@ -3076,7 +3084,12 @@ function App() {
         </aside>
 
         <main className="main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 self-stretch overflow-y-auto px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:pr-0.5">
-          <div className="space-y-2 px-2 md:px-0 xl:pb-2">
+          <div
+            className={cx(
+              'space-y-2 px-2 md:px-0 xl:pb-2',
+              (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)) && 'crm-lead-content-tight',
+            )}
+          >
             <AppHeader
               notify={notify}
               setMobileSidebarOpen={setMobileSidebarOpen}
