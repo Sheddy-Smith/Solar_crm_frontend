@@ -2582,14 +2582,14 @@ function App() {
   return (
     <div
       className={cx(
-        'crm-density app-mobile-shell box-border h-full min-h-0 max-w-full overflow-x-hidden p-0 md:p-1.5 xl:h-full xl:overflow-hidden xl:p-1.5',
+        'crm-density app-mobile-shell box-border flex h-full min-h-0 max-w-full flex-col overflow-hidden p-0 md:p-1.5',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
       )}
     >
       <PinLockOverlay />
-      <div className="mx-auto flex w-full max-w-full gap-1.5 xl:h-full xl:items-stretch xl:gap-1.5">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-full flex-1 gap-1.5 xl:items-stretch">
         <div
           className={cx(
             'fixed inset-0 z-40 bg-[#10213d]/45 transition xl:hidden',
@@ -3075,7 +3075,7 @@ function App() {
           </div>
         </aside>
 
-        <main className="main-scroll-area scroll-soft min-w-0 w-full flex-1 px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:min-h-0 xl:self-stretch xl:overflow-y-auto xl:pr-0.5">
+        <main className="main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 self-stretch overflow-y-auto px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:pr-0.5">
           <div className="space-y-2 px-2 md:px-0 xl:pb-2">
             <AppHeader
               notify={notify}
