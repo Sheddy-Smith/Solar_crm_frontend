@@ -569,9 +569,9 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
   ];
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[#eef3f7] px-3 py-3 text-[#172648] sm:px-6 sm:py-6 md:min-h-screen">
-      <main className="mx-auto flex w-full max-w-[1080px] flex-1 flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.14)] md:rounded-[20px]">
-        <div className="flex items-center gap-3 px-4 pt-5 sm:px-9 sm:pt-8">
+    <div className="min-h-[100dvh] overflow-y-auto bg-[#eef3f7] px-3 py-3 text-[#172648] sm:px-6 sm:py-6">
+      <main className="mx-auto flex min-h-[calc(100dvh-1.5rem)] w-full max-w-[1080px] flex-col rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.14)] sm:min-h-[calc(100dvh-3rem)]">
+        <div className="flex shrink-0 items-center gap-3 px-4 pt-5 sm:px-9 sm:pt-8">
           <TeleBrandMark size="lg" />
           <div>
             <p className="font-display text-[18px] font-extrabold leading-tight text-[#087532] sm:text-[22px]">Malwa Solar Energy</p>
@@ -614,7 +614,7 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
           </div>
         </div>
 
-        <footer className="border-t border-[#edf2f8] px-5 py-4 text-center text-[13px] font-semibold text-[#8a98af]">
+        <footer className="shrink-0 border-t border-[#edf2f8] px-5 py-4 text-center text-[13px] font-semibold text-[#8a98af]">
           © {new Date().getFullYear()} Malwa Solar Energy CRM. All rights reserved.
         </footer>
       </main>
@@ -1272,7 +1272,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
     const map = new Map();
     leads.forEach((lead) => {
       if (lead.created_by != null && !map.has(String(lead.created_by))) {
-        map.set(String(lead.created_by), lead.created_by_name || `User #${lead.created_by}`);
+        map.set(String(lead.created_by), lead.created_by_name || 'Deleted User');
       }
     });
     return Array.from(map, ([id, name]) => ({ id, name }));
@@ -1302,23 +1302,43 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
 
   return (
     <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <h2 className="font-display text-[17px] font-extrabold text-[#102446]">{title}</h2>
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-          <label className="flex h-10 items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3">
-            <Search className="size-4 text-[#8a98af]" />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <h2 className="font-display text-[17px] font-extrabold text-[#102446]">{title}</h2>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => onAddFollowUp(null)}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[9px] border border-[#1d4ed8] bg-white px-4 text-[13px] font-extrabold text-[#1d4ed8] transition hover:bg-[#e7efff]"
+            >
+              <Phone className="size-4 shrink-0" />
+              Add Follow-up
+            </button>
+            <button
+              type="button"
+              onClick={onAddLead}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[9px] bg-[#1d4ed8] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
+            >
+              <Plus className="size-4 shrink-0" />
+              Add New Lead
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3 sm:max-w-[280px] sm:flex-none">
+            <Search className="size-4 shrink-0 text-[#8a98af]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               placeholder="Search by name, mobile, project..."
-              className="w-full min-w-0 bg-transparent text-[13px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#8a98af] sm:w-[210px]"
+              className="w-full min-w-0 bg-transparent text-[13px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#8a98af]"
             />
           </label>
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
+            className="h-10 shrink-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
           >
             {['All', ...TELE_LEAD_STATUSES].map((option) => (
               <option key={option} value={option}>{option === 'All' ? 'All Status' : option}</option>
@@ -1327,7 +1347,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
           <select
             value={addByFilter}
             onChange={(e) => { setAddByFilter(e.target.value); setPage(1); }}
-            className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
+            className="h-10 shrink-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
             aria-label="Filter by Add By"
           >
             <option value="All">Add By: All</option>
@@ -1337,22 +1357,6 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={() => onAddFollowUp(null)}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] border border-[#1d4ed8] bg-white px-4 text-[13px] font-extrabold text-[#1d4ed8] transition hover:bg-[#e7efff]"
-          >
-            <Phone className="size-4" />
-            Add Follow-up
-          </button>
-          <button
-            type="button"
-            onClick={onAddLead}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#1d4ed8] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
-          >
-            <Plus className="size-4" />
-            Add New Lead
-          </button>
         </div>
       </div>
 
@@ -1394,7 +1398,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
                 <td className="px-3 py-3.5 font-extrabold text-[#1e3261]">{lead.customer_name}</td>
                 <td className="px-3 py-3.5">{lead.mobile_number || '—'}</td>
                 <td className="px-3 py-3.5">{lead.project_name || '—'}</td>
-                <td className="px-3 py-3.5">{lead.created_by_name || '—'}</td>
+                <td className="px-3 py-3.5">{lead.created_by_name || (lead.created_by ? 'Deleted User' : '—')}</td>
                 <td className="px-3 py-3.5"><StatusPill value={teleDisplayStatus(lead)} /></td>
                 <td className="px-3 py-3.5 whitespace-nowrap">{formatDateTime(lead.next_follow_up)}</td>
                 <td className="max-w-[200px] truncate px-3 py-3.5" title={lead.remarks || ''}>{lead.remarks || '—'}</td>
@@ -1609,7 +1613,7 @@ function TeleFollowUpsPage({
     const map = new Map();
     leads.forEach((lead) => {
       if (lead.created_by != null && !map.has(String(lead.created_by))) {
-        map.set(String(lead.created_by), lead.created_by_name || `User #${lead.created_by}`);
+        map.set(String(lead.created_by), lead.created_by_name || 'Deleted User');
       }
     });
     return Array.from(map, ([id, name]) => ({ id, name }));

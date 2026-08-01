@@ -5,34 +5,50 @@ from .models import (
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
     ProjectExpenseDocument, ProjectApproval, ProjectApprovalDocument,
 )
+from apps.accounts.models import User
 from apps.accounts.serializers import UserSerializer
 
 
+def _user_name(user, blank_if_missing=False):
+    if user is None and blank_if_missing:
+        return ''
+    return User.public_display_name(user)
+
+
 class ProjectActivitySerializer(serializers.ModelSerializer):
-    assigned_to_name = serializers.CharField(source='assigned_to.name', read_only=True)
+    assigned_to_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectActivity
         fields = ['id', 'project', 'title', 'activity_type', 'status', 'priority', 'assigned_to', 'assigned_to_name', 'start_date', 'due_date', 'completed_date', 'notes', 'created_at']
         read_only_fields = ['created_at']
 
+    def get_assigned_to_name(self, obj):
+        return _user_name(obj.assigned_to, blank_if_missing=True)
+
 
 class ProjectNoteSerializer(serializers.ModelSerializer):
-    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectNote
         fields = ['id', 'project', 'title', 'content', 'is_pinned', 'created_by', 'created_by_name', 'created_at', 'updated_at']
         read_only_fields = ['created_by', 'created_at', 'updated_at']
 
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
+
 
 class ProjectDocumentSerializer(serializers.ModelSerializer):
-    uploaded_by_name = serializers.CharField(source='uploaded_by.name', read_only=True)
+    uploaded_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectDocument
         fields = ['id', 'project', 'name', 'file', 'category', 'uploaded_by', 'uploaded_by_name', 'uploaded_at']
         read_only_fields = ['uploaded_by', 'uploaded_at']
+
+    def get_uploaded_by_name(self, obj):
+        return _user_name(obj.uploaded_by)
 
 
 class ProjectExpenseDocumentSerializer(serializers.ModelSerializer):
@@ -47,7 +63,7 @@ class ProjectExpenseSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='project.customer_name', read_only=True)
     project_capacity = serializers.CharField(source='project.capacity_kwp', read_only=True)
     project_status = serializers.CharField(source='project.status', read_only=True)
-    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
     expense_documents = ProjectExpenseDocumentSerializer(many=True, read_only=True)
 
     class Meta:
@@ -60,23 +76,32 @@ class ProjectExpenseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_by', 'created_at']
 
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
+
 
 class ProjectPaymentSerializer(serializers.ModelSerializer):
-    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectPayment
         fields = ['id', 'project', 'amount', 'payment_mode', 'payment_date', 'reference', 'notes', 'created_by', 'created_by_name', 'created_at']
         read_only_fields = ['created_by', 'created_at']
 
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
+
 
 class WorkOrderSerializer(serializers.ModelSerializer):
-    assignee_name = serializers.CharField(source='assignee.name', read_only=True)
+    assignee_name = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkOrder
         fields = ['id', 'project', 'order_id', 'task', 'category', 'assignee', 'assignee_name', 'status', 'start_date', 'due_date', 'completed_date', 'notes', 'created_at']
         read_only_fields = ['order_id', 'created_at']
+
+    def get_assignee_name(self, obj):
+        return _user_name(obj.assignee, blank_if_missing=True)
 
 
 class ProjectTeamMemberSerializer(serializers.ModelSerializer):
@@ -341,19 +366,13 @@ class ProjectApprovalSerializer(serializers.ModelSerializer):
         return f"APR-{obj.created_at.year}-{obj.id:04d}"
 
     def get_assigned_to_name(self, obj):
-        if obj.assigned_to:
-            return obj.assigned_to.name or obj.assigned_to.email
-        return ''
+        return _user_name(obj.assigned_to, blank_if_missing=True)
 
     def get_created_by_name(self, obj):
-        if obj.created_by:
-            return obj.created_by.name or obj.created_by.email
-        return ''
+        return _user_name(obj.created_by)
 
     def get_approved_by_name(self, obj):
-        if obj.approved_by:
-            return obj.approved_by.name or obj.approved_by.email
-        return ''
+        return _user_name(obj.approved_by, blank_if_missing=True)
 
     class Meta:
         model = ProjectApproval

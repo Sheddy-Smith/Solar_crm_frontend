@@ -1,6 +1,11 @@
 from rest_framework import serializers
 from .models import Lead, FollowUp, AdminApproval, Quotation, QuotationItem, LeadSiteSurvey, LeadSurveyPhoto
+from apps.accounts.models import User
 from apps.accounts.serializers import UserSerializer
+
+
+def _user_name(user):
+    return User.public_display_name(user)
 
 
 class LeadSurveyPhotoSerializer(serializers.ModelSerializer):
@@ -11,7 +16,7 @@ class LeadSurveyPhotoSerializer(serializers.ModelSerializer):
 
 
 class LeadSiteSurveySerializer(serializers.ModelSerializer):
-    surveyed_by_name = serializers.CharField(source='surveyed_by.name', read_only=True)
+    surveyed_by_name = serializers.SerializerMethodField()
     photos = LeadSurveyPhotoSerializer(many=True, read_only=True)
 
     class Meta:
@@ -23,9 +28,12 @@ class LeadSiteSurveySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at']
 
+    def get_surveyed_by_name(self, obj):
+        return _user_name(obj.surveyed_by)
+
 
 class FollowUpSerializer(serializers.ModelSerializer):
-    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
     lead_customer_name = serializers.CharField(source='lead.customer_name', read_only=True)
     lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
     lead_project_name = serializers.CharField(source='lead.project_name', read_only=True)
@@ -39,10 +47,13 @@ class FollowUpSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_by', 'created_at']
 
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
+
 
 class AdminApprovalSerializer(serializers.ModelSerializer):
-    requested_by_name = serializers.CharField(source='requested_by.name', read_only=True)
-    approved_by_name = serializers.CharField(source='approved_by.name', read_only=True)
+    requested_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
     lead_customer_name = serializers.CharField(source='lead.customer_name', read_only=True)
     lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
     lead_project_type = serializers.CharField(source='lead.project_type', read_only=True)
@@ -60,6 +71,12 @@ class AdminApprovalSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['requested_by', 'approved_by', 'created_lead', 'created_at', 'updated_at']
 
+    def get_requested_by_name(self, obj):
+        return _user_name(obj.requested_by)
+
+    def get_approved_by_name(self, obj):
+        return _user_name(obj.approved_by) if obj.approved_by else ''
+
 
 class QuotationItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -69,8 +86,8 @@ class QuotationItemSerializer(serializers.ModelSerializer):
 
 class QuotationSerializer(serializers.ModelSerializer):
     items = QuotationItemSerializer(many=True, required=False)
-    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
-    sales_executive_name = serializers.CharField(source='sales_executive.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    sales_executive_name = serializers.SerializerMethodField()
     lead_customer_name = serializers.CharField(source='lead.customer_name', read_only=True)
     lead_ivrs_number = serializers.CharField(source='lead.ivrs_number', read_only=True)
     lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
@@ -116,6 +133,12 @@ class QuotationSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
 
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
+
+    def get_sales_executive_name(self, obj):
+        return _user_name(obj.sales_executive) if obj.sales_executive else ''
+
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
         quotation = Quotation.objects.create(**validated_data)
@@ -138,8 +161,8 @@ class QuotationSerializer(serializers.ModelSerializer):
 
 
 class LeadListSerializer(serializers.ModelSerializer):
-    assigned_to_name = serializers.CharField(source='assigned_to.name', read_only=True)
-    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    assigned_to_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
     created_at_display = serializers.SerializerMethodField()
     survey_status = serializers.SerializerMethodField()
 
@@ -153,6 +176,12 @@ class LeadListSerializer(serializers.ModelSerializer):
             'next_follow_up', 'created_at', 'created_at_display', 'survey_status',
         ]
 
+    def get_assigned_to_name(self, obj):
+        return _user_name(obj.assigned_to) if obj.assigned_to else ''
+
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
+
     def get_created_at_display(self, obj):
         return obj.created_at.strftime('%d %b %Y') if obj.created_at else '—'
 
@@ -163,7 +192,7 @@ class LeadListSerializer(serializers.ModelSerializer):
 
 class LeadDetailSerializer(serializers.ModelSerializer):
     assigned_to_detail = UserSerializer(source='assigned_to', read_only=True)
-    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
     follow_ups = serializers.SerializerMethodField()
     quotations = QuotationSerializer(many=True, read_only=True)
     approvals = AdminApprovalSerializer(many=True, read_only=True)
@@ -174,6 +203,9 @@ class LeadDetailSerializer(serializers.ModelSerializer):
         model = Lead
         fields = '__all__'
         read_only_fields = ['created_by', 'created_at', 'updated_at']
+
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
 
     def get_created_at_display(self, obj):
         return obj.created_at.strftime('%d %b %Y') if obj.created_at else '—'

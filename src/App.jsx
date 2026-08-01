@@ -2508,7 +2508,7 @@ function App() {
   if (currentPage === 'portal') {
     return (
       <>
-        <div className="app-mobile-shell min-h-dvh">
+        <div className="app-mobile-shell min-h-dvh overflow-y-auto">
           <div className="px-3 pt-[max(10px,env(safe-area-inset-top))] md:hidden">
             <PwaInstallBanner notify={notify} />
           </div>
@@ -4366,7 +4366,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         source: lead.source || '',
         assignedTo: { id: lead.assigned_to || null, name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
         createdById: lead.created_by || null,
-        createdByName: lead.created_by_name || '—',
+        createdByName: lead.created_by_name || 'Deleted User',
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
         nextFollowUpRaw: lead.next_follow_up || null,
         surveyStatus: lead.survey_status || 'Pending',
@@ -4700,7 +4700,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 overflow-hidden p-3 sm:p-4`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 p-3 sm:p-4`}>
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
@@ -4733,26 +4733,16 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         )}
 
         {!leadsLoading && pagedLeadRows.length > 0 && (
-        <div className="hidden overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:block">
-          <table className="crm-table crm-table--fit w-full">
-            <colgroup>
-              <col style={{ width: '4%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '7%' }} />
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '6%' }} />
-              <col style={{ width: '6%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '7%' }} />
-              <col style={{ width: '13%' }} />
-            </colgroup>
+        <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+          <table className="crm-table min-w-[1280px] w-max">
               <thead>
                 <tr>
                   {headers.map((header) => (
-                    <th key={header} title={header}>
+                    <th
+                      key={header}
+                      title={header}
+                      className={header === 'Action' ? 'crm-col-sticky-right' : undefined}
+                    >
                       <span className="block truncate">{header}</span>
                     </th>
                   ))}
@@ -4780,7 +4770,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                     <td>
                       <SurveyStatusBadge status={lead.surveyStatus} />
                     </td>
-                    <td>
+                    <td className="crm-col-sticky-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
@@ -9939,7 +9929,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
                 {!config.hideStatusInView && (viewItem.status || viewItem.stock_status) ? (
                   <div><dt className={lcLabelCls}>Status</dt><dd><LcStatusBadge status={viewItem.status || viewItem.stock_status} /></dd></div>
                 ) : null}
-                <div><dt className={lcLabelCls}>Created By</dt><dd className="font-semibold text-[#1e2a38]">{viewItem.created_by_name || '—'}</dd></div>
+                <div><dt className={lcLabelCls}>Created By</dt><dd className="font-semibold text-[#1e2a38]">{viewItem.created_by_name || 'Deleted User'}</dd></div>
                 {config.detailRows.map(([label, render, wide]) => (
                   <div key={label} className={wide || label === 'Description' || label === 'Remarks' ? 'col-span-2' : ''}>
                     <dt className={lcLabelCls}>{label}</dt>
@@ -26147,13 +26137,27 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       </section>
 
       <section className={`${panelClass} p-4 sm:p-5`}>
+        {/* Add User stays in-page — Settings hub hides PageHeading actions via .settings-inline-detail */}
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Users List</h2>
+          {canManageUsers ? (
+            <button
+              type="button"
+              onClick={() => setAddUserOpen(true)}
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"
+            >
+              <Plus className="size-4" />
+              Add New User
+            </button>
+          ) : null}
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(260px,1.45fr)_minmax(150px,0.8fr)_minmax(150px,0.8fr)_minmax(170px,0.95fr)_auto_auto] 2xl:items-end">
           <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <Search className="size-4 text-[#7386a3]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search users by name, email, phone..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
           </label>
           <ReportSelect label="Role" value={role} onChange={setRole} options={['All Roles', ...new Set(users.map((user) => user.role))]} hideLabel />
-          <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Inactive']} hideLabel />
+          <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Inactive', 'Deleted']} hideLabel />
           <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branches', ...new Set(users.map((user) => user.branch))]} hideLabel />
           <button type="button" onClick={() => onNotify(`Users exported: ${filteredUsers.length} rows`)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
           <button type="button" onClick={() => onNotify(`Filters applied: ${filteredUsers.length} users`)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filter</button>

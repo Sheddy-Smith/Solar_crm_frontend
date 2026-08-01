@@ -137,10 +137,22 @@ class User(AbstractBaseUser, PermissionsMixin):
         ])
         return self
 
+    @staticmethod
+    def public_display_name(user):
+        """Safe label for FKs in lists/history. Never blank after account removal."""
+        if user is None:
+            return 'Deleted User'
+        if getattr(user, 'is_deleted', False):
+            return 'Deleted User'
+        name = (getattr(user, 'name', None) or '').strip()
+        if not name or name.lower() == 'deleted user':
+            return 'Deleted User'
+        return name
+
     @property
     def initials(self):
-        parts = self.name.split()
-        return ''.join(p[0].upper() for p in parts[:2])
+        parts = (self.name or 'Deleted User').split()
+        return ''.join(p[0].upper() for p in parts[:2]) if parts else 'DU'
 
     @property
     def role_name(self):

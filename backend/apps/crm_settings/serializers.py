@@ -97,6 +97,5 @@ class SystemBackupLogSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'created_by_name']
 
     def get_created_by_name(self, obj):
-        if obj.created_by:
-            return obj.created_by.name or obj.created_by.email
-        return ''
+        from apps.accounts.models import User
+        return User.public_display_name(obj.created_by)

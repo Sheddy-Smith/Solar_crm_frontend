@@ -898,7 +898,8 @@ table.crm-cols-resizable {
 }
 
 .responsive-scroll > .crm-table.crm-cols-resizable,
-.overflow-x-auto > .crm-table.crm-cols-resizable {
+.overflow-x-auto > .crm-table.crm-cols-resizable,
+.crm-table-scroll > .crm-table.crm-cols-resizable {
   min-width: 0 !important;
   width: max-content !important;
 }
@@ -912,6 +913,46 @@ table.crm-cols-resizable td {
 
 table.crm-col-resizing-active {
   user-select: none;
+}
+
+/* Keep Action buttons visible while other columns grow / horizontal scroll */
+.crm-table th.crm-col-sticky-right,
+.crm-table td.crm-col-sticky-right {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: #fff;
+  box-shadow: -8px 0 12px -10px rgba(17, 39, 84, 0.35);
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.crm-table thead th.crm-col-sticky-right {
+  background: #fbfcff;
+  z-index: 4;
+}
+
+.crm-table tbody tr:hover td.crm-col-sticky-right {
+  background: #f8fbff;
+}
+
+html.dark .crm-table th.crm-col-sticky-right,
+html.dark .crm-table td.crm-col-sticky-right {
+  background: #12141c;
+}
+
+html.dark .crm-table thead th.crm-col-sticky-right {
+  background: rgba(20, 20, 30, 0.95);
+}
+
+html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.crm-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .crm-table td {

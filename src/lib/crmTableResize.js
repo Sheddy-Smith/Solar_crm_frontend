@@ -1,15 +1,17 @@
 /**
  * Per-column resize for CRM data tables.
  *
- * Each column is locked to its own pixel width via <colgroup>. Dragging one
- * header edge only changes that column; the table width grows/shrinks so the
- * parent overflow-x-auto scrolls (responsive) instead of squeezing siblings.
+ * - Each column keeps its own pixel width (via <colgroup>).
+ * - Action/Actions column stays sticky on the right and is not resized.
+ * - Parent scroll container gets overflow-x:auto so wide tables scroll
+ *   horizontally instead of clipping action buttons off-screen.
  */
 const BOOT_KEY = '__malwaCrmTableResize';
 const MIN_COL_PX = 72;
+const ACTION_MIN_PX = 176;
 const EDGE_PX = 8;
 const TABLE_READY = 'crm-cols-resizable';
-const STORAGE_PREFIX = 'crm-colw:v2:';
+const STORAGE_PREFIX = 'crm-colw:v3:';
 
 let resizing = false;
 
@@ -17,6 +19,23 @@ function headerCells(table) {
   const row = table.tHead?.rows?.[0];
   if (!row) return [];
   return Array.from(row.cells);
+}
+
+function headerLabel(th) {
+  return (th?.textContent || '').trim().replace(/\s+/g, ' ');
+}
+
+function isActionHeader(th) {
+  const label = headerLabel(th).toLowerCase();
+  return label === 'action' || label === 'actions';
+}
+
+function actionColumnIndex(table) {
+  const cells = headerCells(table);
+  for (let i = cells.length - 1; i >= 0; i -= 1) {
+    if (isActionHeader(cells[i])) return i;
+  }
+  return -1;
 }
 
 function isDataTable(table) {
@@ -37,9 +56,7 @@ function isDataTable(table) {
 }
 
 function tableStorageKey(table) {
-  const headers = headerCells(table)
-    .map((th) => (th.textContent || '').trim().replace(/\s+/g, ' '))
-    .join('|');
+  const headers = headerCells(table).map((th) => headerLabel(th)).join('|');
   return `${STORAGE_PREFIX}${headers}`;
 }
 
@@ -70,7 +87,22 @@ function clearSavedWidths(table) {
   }
 }
 
+function ensureScrollParent(table) {
+  const wrap = table.parentElement;
+  if (!wrap || !(wrap instanceof HTMLElement)) return;
+  const overflowX = getComputedStyle(wrap).overflowX;
+  if (overflowX === 'hidden' || overflowX === 'clip') {
+    wrap.style.overflowX = 'auto';
+  }
+  wrap.classList.add('crm-table-scroll');
+}
+
 function ensureColgroup(table, count) {
+  // Remove legacy percentage colgroups so only our pixel cols drive layout.
+  Array.from(table.querySelectorAll(':scope > colgroup')).forEach((group) => {
+    if (group.dataset.crmCols !== '1') group.remove();
+  });
+
   let colgroup = table.querySelector(':scope > colgroup[data-crm-cols]');
   if (!colgroup) {
     colgroup = document.createElement('colgroup');
@@ -86,15 +118,33 @@ function ensureColgroup(table, count) {
   return colgroup;
 }
 
+function markStickyAction(table) {
+  const idx = actionColumnIndex(table);
+  const cells = headerCells(table);
+  cells.forEach((th, i) => {
+    th.classList.toggle('crm-col-sticky-right', i === idx);
+  });
+  for (const body of Array.from(table.tBodies || [])) {
+    for (const row of Array.from(body.rows)) {
+      Array.from(row.cells).forEach((cell, i) => {
+        cell.classList.toggle('crm-col-sticky-right', i === idx);
+      });
+    }
+  }
+}
+
 function measureNaturalWidths(table) {
-  // Temporarily clear forced layout so we measure content sizes once.
   const prevLayout = table.style.tableLayout;
   const prevWidth = table.style.width;
   const prevMin = table.style.minWidth;
   table.style.tableLayout = 'auto';
   table.style.width = 'max-content';
   table.style.minWidth = 'max-content';
-  const widths = headerCells(table).map((th) => Math.max(MIN_COL_PX, Math.round(th.getBoundingClientRect().width) || MIN_COL_PX));
+  const widths = headerCells(table).map((th, i) => {
+    const measured = Math.round(th.getBoundingClientRect().width) || MIN_COL_PX;
+    if (isActionHeader(th)) return Math.max(ACTION_MIN_PX, measured);
+    return Math.max(MIN_COL_PX, measured);
+  });
   table.style.tableLayout = prevLayout;
   table.style.width = prevWidth;
   table.style.minWidth = prevMin;
@@ -103,23 +153,38 @@ function measureNaturalWidths(table) {
 
 function currentWidths(table) {
   const colgroup = table.querySelector(':scope > colgroup[data-crm-cols]');
+  const cells = headerCells(table);
   if (colgroup?.children?.length) {
     return Array.from(colgroup.children).map((col, i) => {
       const raw = Number.parseFloat(col.style.width);
       if (Number.isFinite(raw) && raw > 0) return raw;
-      const th = headerCells(table)[i];
-      return Math.max(MIN_COL_PX, Math.round(th?.getBoundingClientRect().width || MIN_COL_PX));
+      const th = cells[i];
+      const fallback = Math.round(th?.getBoundingClientRect().width || MIN_COL_PX);
+      return isActionHeader(th) ? Math.max(ACTION_MIN_PX, fallback) : Math.max(MIN_COL_PX, fallback);
     });
   }
-  return headerCells(table).map((th) => Math.max(MIN_COL_PX, Math.round(th.getBoundingClientRect().width) || MIN_COL_PX));
+  return cells.map((th) => {
+    const fallback = Math.round(th.getBoundingClientRect().width || MIN_COL_PX);
+    return isActionHeader(th) ? Math.max(ACTION_MIN_PX, fallback) : Math.max(MIN_COL_PX, fallback);
+  });
+}
+
+function normalizeWidths(table, widths) {
+  const cells = headerCells(table);
+  return cells.map((th, i) => {
+    const value = Math.round(widths[i] || MIN_COL_PX);
+    if (isActionHeader(th)) return Math.max(ACTION_MIN_PX, value);
+    return Math.max(MIN_COL_PX, value);
+  });
 }
 
 function applyWidths(table, widths) {
   if (!widths?.length) return;
-  const cols = ensureColgroup(table, widths.length).children;
+  const next = normalizeWidths(table, widths);
+  const cols = ensureColgroup(table, next.length).children;
   let total = 0;
-  for (let i = 0; i < widths.length; i += 1) {
-    const px = Math.max(MIN_COL_PX, Math.round(widths[i] || MIN_COL_PX));
+  for (let i = 0; i < next.length; i += 1) {
+    const px = next[i];
     total += px;
     cols[i].style.width = `${px}px`;
     cols[i].style.minWidth = `${px}px`;
@@ -127,15 +192,18 @@ function applyWidths(table, widths) {
 
   table.classList.add(TABLE_READY);
   table.style.tableLayout = 'fixed';
-  // Explicit pixel table width — never leave at 100%, or siblings reflow together.
   table.style.width = `${total}px`;
   table.style.minWidth = `${total}px`;
   table.style.maxWidth = 'none';
+  markStickyAction(table);
+  ensureScrollParent(table);
 }
 
 function restoreTable(table) {
   if (!isDataTable(table) || resizing) return;
   table.classList.add('crm-col-resize-enabled');
+  ensureScrollParent(table);
+  markStickyAction(table);
   const cells = headerCells(table);
   const saved = readSavedWidths(table);
   if (saved && saved.length === cells.length) {
@@ -149,6 +217,7 @@ function prepareAll(root = document) {
 }
 
 function hitResizeEdge(th, clientX) {
+  if (isActionHeader(th)) return false;
   const rect = th.getBoundingClientRect();
   return clientX >= rect.right - EDGE_PX && clientX <= rect.right + 4;
 }
@@ -158,18 +227,19 @@ function startResize(event, table, colIndex) {
   event.stopPropagation();
 
   const th = headerCells(table)[colIndex];
-  if (!th) return;
+  if (!th || isActionHeader(th)) return;
 
   resizing = true;
   const startX = event.clientX;
+  const scrollParent = table.parentElement;
 
-  // Lock every column to its current pixel width, then only mutate colIndex.
   let locked = currentWidths(table);
   if (!table.classList.contains(TABLE_READY)) {
     locked = measureNaturalWidths(table);
   }
   applyWidths(table, locked);
   const startWidth = locked[colIndex];
+  const startScroll = scrollParent?.scrollLeft || 0;
 
   document.body.classList.add('crm-col-resizing');
   table.classList.add('crm-col-resizing-active');
@@ -179,6 +249,8 @@ function startResize(event, table, colIndex) {
     next[colIndex] = Math.max(MIN_COL_PX, startWidth + (ev.clientX - startX));
     applyWidths(table, next);
     locked = next;
+    // Keep the user's viewport anchored while the table grows to the right.
+    if (scrollParent) scrollParent.scrollLeft = startScroll;
   };
 
   const onUp = () => {
@@ -237,8 +309,8 @@ function onDblClick(event) {
   table.style.width = '';
   table.style.minWidth = '';
   table.style.maxWidth = '';
-  const colgroup = table.querySelector(':scope > colgroup[data-crm-cols]');
-  colgroup?.remove();
+  table.querySelector(':scope > colgroup[data-crm-cols]')?.remove();
+  markStickyAction(table);
 }
 
 export function enableCrmTableColumnResize() {
