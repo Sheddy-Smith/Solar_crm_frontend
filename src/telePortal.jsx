@@ -1420,7 +1420,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
       </div>
 
       <div className="crm-table-scroll mt-2 overflow-x-auto">
-        <table className="crm-table tele-leads-table crm-table--lead-dense w-full min-w-[860px] border-collapse text-left">
+        <table className="crm-table tele-leads-table crm-table--lead-dense w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-[#e8eef6] text-[11px] font-extrabold uppercase tracking-[0.04em] text-[#7585a2]">
               <th className="px-2.5 py-2">#</th>
@@ -1431,7 +1431,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
               <th className="px-2.5 py-2">Status</th>
               <th className="px-2.5 py-2">Next Follow-up</th>
               <th className="px-2.5 py-2">Remarks</th>
-              <th className="crm-col-sticky-right px-2.5 py-2">Action</th>
+              <th className="crm-col-sticky-right px-2.5 py-2 text-right">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -1461,9 +1461,9 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
                 <td className="px-2.5 py-2"><StatusPill value={teleDisplayStatus(lead)} /></td>
                 <td className="whitespace-nowrap px-2.5 py-2">{formatDateTime(lead.next_follow_up)}</td>
                 <td className="max-w-[180px] truncate px-2.5 py-2" title={lead.remarks || ''}>{lead.remarks || '—'}</td>
-                <td className="crm-col-sticky-right px-2.5 py-2">
+                <td className="crm-col-sticky-right px-2.5 py-2 text-right">
                   {isOwnLead ? (
-                    <div className="flex items-center gap-1">
+                    <div className="inline-flex items-center justify-end gap-1">
                       <button type="button" onClick={() => onEdit(lead)} className="grid size-7 place-items-center rounded-[7px] text-[#53647f] transition hover:bg-[#f3f7fd]" aria-label={`Edit ${lead.customer_name}`}>
                         <Pencil className="size-3.5" />
                       </button>

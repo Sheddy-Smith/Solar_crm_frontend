@@ -1008,10 +1008,21 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
   vertical-align: middle;
 }
 
-/* Tele My Leads — keep Action pinned while table scrolls horizontally */
+/* Tele My Leads — fill card width; keep Action flush on the right (no empty gap) */
+.tele-leads-table {
+  width: 100% !important;
+  max-width: none !important;
+  table-layout: fixed !important;
+}
+
 .tele-leads-table th.crm-col-sticky-right,
 .tele-leads-table td.crm-col-sticky-right {
+  width: 96px !important;
+  min-width: 96px !important;
+  max-width: 96px !important;
   background: #fff;
+  text-align: right;
+  padding-right: 10px !important;
 }
 
 .tele-leads-table thead th.crm-col-sticky-right {
@@ -1020,6 +1031,10 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
 
 .tele-leads-table tbody tr:hover td.crm-col-sticky-right {
   background: #f8fbff;
+}
+
+.tele-leads-table td.crm-col-sticky-right > div {
+  justify-content: flex-end;
 }
 
 .crm-table.crm-table--lead-dense .rounded-full,

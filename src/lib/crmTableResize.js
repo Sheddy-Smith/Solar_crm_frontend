@@ -8,11 +8,13 @@
 const BOOT_KEY = '__malwaCrmTableResize';
 const MIN_COL_PX = 52;
 const MIN_INDEX_PX = 40;
-const ACTION_MIN_PX = 176;
+/** Keep Action compact — must not absorb leftover table width (creates a right-side gap). */
+const ACTION_MIN_PX = 88;
+const ACTION_WIDTH_PX = 96;
 const EDGE_PX = 8;
 const TABLE_READY = 'crm-cols-resizable';
 /** Bump when default/min logic changes so bloated localStorage widths reset. */
-const STORAGE_PREFIX = 'crm-colw:v5:';
+const STORAGE_PREFIX = 'crm-colw:v6:';
 
 let resizing = false;
 
@@ -44,7 +46,7 @@ function minForHeader(th) {
 
 function defaultWidthForHeader(th) {
   const label = headerLabel(th).toLowerCase();
-  if (isActionHeader(th)) return ACTION_MIN_PX;
+  if (isActionHeader(th)) return ACTION_WIDTH_PX;
   if (isIndexHeader(th)) return 44;
   if (label.includes('mobile') || label.includes('phone')) return 118;
   if (label.includes('ivrs')) return 140;
@@ -215,16 +217,17 @@ function applyWidths(table, widths) {
   const cols = ensureColgroup(table, next.length).children;
   let total = 0;
   for (let i = 0; i < next.length; i += 1) {
-    const px = next[i];
     const th = headerCells(table)[i];
     const floor = minForHeader(th);
+    const isAction = isActionHeader(th);
+    // Pin Action so leftover 100%-width space goes into data columns, not past the icons.
+    const px = isAction ? ACTION_WIDTH_PX : next[i];
     total += px;
     cols[i].style.width = `${px}px`;
     // Floor min-width only — do NOT pin minWidth to current width, or
     // browsers refuse to shrink the column on the next drag.
-    cols[i].style.minWidth = `${floor}px`;
-    // No maxWidth — lets columns grow so the table can fill the page width.
-    cols[i].style.maxWidth = '';
+    cols[i].style.minWidth = `${isAction ? ACTION_WIDTH_PX : floor}px`;
+    cols[i].style.maxWidth = isAction ? `${ACTION_WIDTH_PX}px` : '';
   }
 
   table.classList.add(TABLE_READY);
