@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { EntriesFooter } from './components/ui/PageSizeSelect.jsx';
+import { readCrmPageSize } from './lib/crmPageSize.js';
 import {
   AlertTriangle,
   ArrowRight,
@@ -569,9 +571,9 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
   ];
 
   return (
-    <div className="min-h-[100dvh] overflow-y-auto bg-[#eef3f7] px-3 py-3 text-[#172648] sm:px-6 sm:py-6">
-      <main className="mx-auto flex min-h-[calc(100dvh-1.5rem)] w-full max-w-[1080px] flex-col rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.14)] sm:min-h-[calc(100dvh-3rem)]">
-        <div className="flex shrink-0 items-center gap-3 px-4 pt-5 sm:px-9 sm:pt-8">
+    <div className="portal-landing-page bg-[#eef3f7] px-3 py-3 text-[#172648] sm:px-6 sm:py-6">
+      <main className="mx-auto flex w-full max-w-[1080px] flex-col rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.14)]">
+        <div className="flex items-center gap-3 px-4 pt-5 sm:px-9 sm:pt-8">
           <TeleBrandMark size="lg" />
           <div>
             <p className="font-display text-[18px] font-extrabold leading-tight text-[#087532] sm:text-[22px]">Malwa Solar Energy</p>
@@ -579,7 +581,7 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-10 sm:py-16">
+        <div className="flex flex-col items-center px-4 py-10 sm:px-10 sm:py-16">
           <h1 className="text-center font-display text-[28px] font-extrabold leading-tight text-[#102446] sm:text-[44px]">
             Welcome to <span className="text-[#0d9f4a]">Solar CRM</span>
           </h1>
@@ -614,7 +616,7 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
           </div>
         </div>
 
-        <footer className="shrink-0 border-t border-[#edf2f8] px-5 py-4 text-center text-[13px] font-semibold text-[#8a98af]">
+        <footer className="border-t border-[#edf2f8] px-5 py-4 text-center text-[13px] font-semibold text-[#8a98af]">
           © {new Date().getFullYear()} Malwa Solar Energy CRM. All rights reserved.
         </footer>
       </main>
@@ -802,8 +804,6 @@ const TELE_NAV_ITEMS = [
   { label: 'Reports', icon: BarChart3 },
   { label: 'Profile Details', icon: UserRound },
 ];
-
-const TELE_PAGE_SIZE = 10;
 
 export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme }) {
   const [activeNav, setActiveNav] = useState('Dashboard');
@@ -1261,6 +1261,8 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
     currentUserId != null && !isSuperAdmin ? String(currentUserId) : 'All'
   ));
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(() => readCrmPageSize());
+  const TELE_PAGE_SIZE = pageSize;
 
   useEffect(() => {
     if (isSuperAdmin) return;
@@ -1423,10 +1425,14 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
         </table>
       </div>
 
-      <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
-        <p className="text-[12px] font-bold text-[#7585a2]">
-          Showing {filteredLeads.length === 0 ? 0 : (safePage - 1) * TELE_PAGE_SIZE + 1} to {Math.min(safePage * TELE_PAGE_SIZE, filteredLeads.length)} of {filteredLeads.length} entries
-        </p>
+      <EntriesFooter
+        className="mt-3"
+        from={filteredLeads.length === 0 ? 0 : (safePage - 1) * TELE_PAGE_SIZE + 1}
+        to={Math.min(safePage * TELE_PAGE_SIZE, filteredLeads.length)}
+        total={filteredLeads.length}
+        pageSize={pageSize}
+        onPageSizeChange={(next) => { setPageSize(next); setPage(1); }}
+      >
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -1466,7 +1472,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
             <ChevronRight className="size-4" />
           </button>
         </div>
-      </div>
+      </EntriesFooter>
     </section>
   );
 }

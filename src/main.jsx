@@ -3,12 +3,16 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { startKeepAlive } from './lib/keepAlive.js';
 import { enableCrmTableColumnResize } from './lib/crmTableResize.js';
+import { bootPageZoom } from './lib/pageZoom.js';
 import { registerServiceWorker } from './lib/pwaInstall.js';
 import './index.css';
 
 // Backend keep-alive: silent 14-min ping so the Render backend never sleeps.
 // Started once at app boot, entirely outside React — zero UI impact.
 startKeepAlive();
+
+// Page zoom defaults to 100%; restores a saved user preference if present.
+bootPageZoom();
 
 // Column resize handles on CRM data tables (drag header edge to adjust width).
 enableCrmTableColumnResize();
