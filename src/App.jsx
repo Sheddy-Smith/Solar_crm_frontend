@@ -4818,8 +4818,10 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                     <td>
                       <StatusBadge status={lead.status} />
                     </td>
-                    <td>
-                      <AssigneeCell assignee={lead.assignedTo} compact />
+                    <td title={lead.assignedTo?.name || 'Unassigned'}>
+                      <span className="block truncate text-[12px] font-bold text-[#314a79]">
+                        {lead.assignedTo?.name || 'Unassigned'}
+                      </span>
                     </td>
                     <td title={lead.createdByName}><span className="block truncate">{lead.createdByName}</span></td>
                     <td className={cx('font-extrabold', isFollowUpOverdue(lead.nextFollowUp) ? 'text-[#f04438]' : 'text-[#233a6b]')}>
