@@ -246,6 +246,18 @@ function formatDateTime(value) {
   return dateLabel === '—' ? '—' : `${dateLabel}, ${timeLabel}`;
 }
 
+/** Open the OS / linked desktop dialer for a lead mobile number. */
+function dialTeleMobile(mobile) {
+  const raw = String(mobile || '').trim();
+  if (!raw) return false;
+  const href = raw.startsWith('+')
+    ? `tel:${raw.replace(/[^\d+]/g, '')}`
+    : `tel:${raw.replace(/\D/g, '')}`;
+  if (href === 'tel:' || href === 'tel:+') return false;
+  window.location.href = href;
+  return true;
+}
+
 function followUpAgeLabel(value) {
   if (!value) return '';
   const when = new Date(value);
@@ -306,7 +318,7 @@ function splitFollowUpAlerts(scheduledRows) {
   return { today, overdue };
 }
 
-function TeleFollowUpAlertRow({ item, level, onCall, onView }) {
+function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
   const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
   const isExtra = level === 'extra';
   return (
@@ -349,6 +361,16 @@ function TeleFollowUpAlertRow({ item, level, onCall, onView }) {
         ) : null}
       </div>
       <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
+        {onLog ? (
+          <button
+            type="button"
+            onClick={() => onLog(item)}
+            className="inline-flex h-8 items-center justify-center gap-1 rounded-[8px] border border-[#1d4ed8] bg-white px-2.5 text-[11px] font-extrabold text-[#1d4ed8]"
+          >
+            <StickyNote className="size-3.5" />
+            Log
+          </button>
+        ) : null}
         {onView ? (
           <button
             type="button"
@@ -384,6 +406,7 @@ function TeleFollowUpAlertsPanel({
   onOpenToday,
   onOpenOverdue,
   onCall,
+  onLog,
   onView,
 }) {
   const todayCount = todayFollowUps?.length || 0;
@@ -427,6 +450,7 @@ function TeleFollowUpAlertsPanel({
               item={item}
               level="high"
               onCall={onCall}
+              onLog={onLog}
               onView={onView}
             />
           ))}
@@ -477,6 +501,7 @@ function TeleFollowUpAlertsPanel({
               item={item}
               level="extra"
               onCall={onCall}
+              onLog={onLog}
               onView={onView}
             />
           ))}
@@ -955,6 +980,12 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   };
 
   const handleAlertCall = (item) => {
+    if (!dialTeleMobile(item?.lead_mobile_number)) {
+      onNotify?.('No mobile number on this lead.', 'error');
+    }
+  };
+
+  const handleAlertLogFollowUp = (item) => {
     openFollowUpForm({
       id: item.lead,
       customer_name: item.lead_customer_name,
@@ -1004,6 +1035,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             onOpenToday={() => openFollowUpsTab('today')}
             onOpenOverdue={() => openFollowUpsTab('overdue')}
             onAlertCall={handleAlertCall}
+            onAlertLogFollowUp={handleAlertLogFollowUp}
             onAlertView={handleAlertView}
           />
         );
@@ -1036,6 +1068,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
               if (lead) setHistoryLead(lead);
             }}
             onAlertCall={handleAlertCall}
+            onAlertLogFollowUp={handleAlertLogFollowUp}
             onAlertView={handleAlertView}
           />
         );
@@ -1045,6 +1078,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             scheduledFollowUps={scheduledFollowUps}
             loaded={followUps !== null}
             onAlertCall={handleAlertCall}
+            onAlertLogFollowUp={handleAlertLogFollowUp}
             onAlertView={handleAlertView}
             onAddFollowUp={openFollowUpForm}
             onOpenFollowUps={() => openFollowUpsTab('today')}
@@ -1577,6 +1611,7 @@ function TeleDashboard({
   onOpenToday,
   onOpenOverdue,
   onAlertCall,
+  onAlertLogFollowUp,
   onAlertView,
 }) {
   const cards = [
@@ -1601,6 +1636,7 @@ function TeleDashboard({
         onOpenToday={onOpenToday}
         onOpenOverdue={onOpenOverdue}
         onCall={onAlertCall}
+        onLog={onAlertLogFollowUp}
         onView={onAlertView}
       />
 
@@ -1668,6 +1704,7 @@ function TeleFollowUpsPage({
   onAddFollowUp,
   onViewLead,
   onAlertCall,
+  onAlertLogFollowUp,
   onAlertView,
 }) {
   const [tab, setTab] = useState(initialTab || 'today');
@@ -1954,12 +1991,28 @@ function TeleFollowUpsPage({
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
-                    <span className={cx(
-                      'inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold',
-                      item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
-                    )}>
-                      {item.status}
-                    </span>
+                    {canOperate ? (
+                      <button
+                        type="button"
+                        onClick={() => (
+                          onAlertLogFollowUp
+                            ? onAlertLogFollowUp(item)
+                            : onAddFollowUp({
+                              id: item.lead,
+                              customer_name: item.lead_customer_name,
+                              mobile_number: item.lead_mobile_number,
+                            })
+                        )}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#1d4ed8] bg-white px-3 text-[12px] font-extrabold text-[#1d4ed8] transition hover:bg-[#e7efff]"
+                      >
+                        <StickyNote className="size-3.5" />
+                        Log Follow-up
+                      </button>
+                    ) : (
+                      <span className="inline-flex h-9 items-center rounded-[8px] px-3 text-[11px] font-bold uppercase tracking-wide text-[#a5b1c7]">
+                        View only
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => onViewLead(item.lead)}
@@ -1969,33 +2022,18 @@ function TeleFollowUpsPage({
                       Full Timeline
                     </button>
                     {canOperate ? (
-                      (isTodayAlert || isExtraAlert) && onAlertCall ? (
-                        <button
-                          type="button"
-                          onClick={() => onAlertCall(item)}
-                          className={cx(
-                            'inline-flex h-9 items-center gap-1.5 rounded-[8px] px-3 text-[12px] font-extrabold text-white transition',
-                            isExtraAlert ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : 'bg-[#f59e0b] hover:bg-[#d97706]',
-                          )}
-                        >
-                          <Phone className="size-3.5" />
-                          Call Now
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => onAddFollowUp({ id: item.lead, customer_name: item.lead_customer_name, mobile_number: item.lead_mobile_number })}
-                          className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#1d4ed8] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
-                        >
-                          <Plus className="size-3.5" />
-                          Log Next
-                        </button>
-                      )
-                    ) : (
-                      <span className="inline-flex h-9 items-center rounded-[8px] px-3 text-[11px] font-bold uppercase tracking-wide text-[#a5b1c7]">
-                        View only
-                      </span>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => onAlertCall?.(item)}
+                        className={cx(
+                          'inline-flex h-9 items-center gap-1.5 rounded-[8px] px-3 text-[12px] font-extrabold text-white transition',
+                          isExtraAlert ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : isTodayAlert ? 'bg-[#f59e0b] hover:bg-[#d97706]' : 'bg-[#1d4ed8] hover:bg-[#1a3fb0]',
+                        )}
+                      >
+                        <Phone className="size-3.5" />
+                        Call Now
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </article>
@@ -2013,6 +2051,7 @@ function TeleRemindersPage({
   scheduledFollowUps,
   loaded,
   onAlertCall,
+  onAlertLogFollowUp,
   onAlertView,
   onAddFollowUp,
   onOpenFollowUps,
@@ -2225,6 +2264,22 @@ function TeleRemindersPage({
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => (
+                      onAlertLogFollowUp
+                        ? onAlertLogFollowUp(item)
+                        : onAddFollowUp?.({
+                          id: item.lead,
+                          customer_name: item.lead_customer_name,
+                          mobile_number: item.lead_mobile_number,
+                        })
+                    )}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#1d4ed8] bg-white px-3 text-[12px] font-extrabold text-[#1d4ed8] transition hover:bg-[#e7efff]"
+                  >
+                    <StickyNote className="size-3.5" />
+                    Log Follow-up
+                  </button>
                   <button
                     type="button"
                     onClick={() => onAlertView?.(item)}
