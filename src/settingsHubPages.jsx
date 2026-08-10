@@ -10,6 +10,32 @@ const REAUTH_KEY = 'malwa-solar-crm:admin-reauth';
 const REAUTH_TTL_MS = 15 * 60 * 1000;
 const SECURITY_PREFS_KEY = 'malwa-solar-crm:security-prefs';
 
+const MODULE_ACTION_TO_API = {
+  View: 'can_view',
+  Add: 'can_add',
+  Edit: 'can_edit',
+  Delete: 'can_delete',
+  Export: 'can_export',
+  Import: 'can_import',
+  Approve: 'can_approve',
+};
+
+/** True when the user's role matrix (Settings → Roles & Permissions) allows this module action. */
+export function hasModuleAccess(user, moduleName, action = 'View') {
+  if (!user) return false;
+  if (user.is_super_admin) return true;
+  const rows = Array.isArray(user.permissions) ? user.permissions : [];
+  const row = rows.find((item) => item.module === moduleName);
+  if (!row) return false;
+  if (row.full_access) return true;
+  const apiKey = MODULE_ACTION_TO_API[action] || action;
+  return Boolean(row[apiKey]);
+}
+
+export function canManageUsersAndRoles(user) {
+  return hasModuleAccess(user, 'User Management', 'View');
+}
+
 export const SETTINGS_PILLARS = [
   {
     id: 'organization',
@@ -279,7 +305,7 @@ export function AdminReauthGate({ children, onNotify, fallback }) {
         <section className={`${CARD} flex flex-col items-center gap-4 p-12 text-center`}>
           <ShieldCheck className="size-12 text-[#dc2626]" />
           <h2 className="font-display text-[18px] font-extrabold text-[#1e3261]">Protected Area</h2>
-          <p className="max-w-md text-[13px] font-semibold text-[#53647f]">This section requires Super Admin password verification.</p>
+          <p className="max-w-md text-[13px] font-semibold text-[#53647f]">This section requires your password verification.</p>
           <button type="button" onClick={() => setModalOpen(true)} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white">
             <ShieldCheck className="size-4" />
             Verify Password
@@ -333,9 +359,11 @@ export function UsersAccessHubPage({ onOpenSection, onNotify }) {
             <div>
               <h2 className="flex items-center gap-2 font-display text-[20px] font-extrabold text-[#1e3261]">
                 <ShieldCheck className="size-6 text-[#dc2626]" />
-                Super Admin Powers
+                Users & Access Control
               </h2>
-              <p className="mt-1 text-[13px] font-semibold text-[#53647f]">Manage users, roles, permissions and audit trail.</p>
+              <p className="mt-1 text-[13px] font-semibold text-[#53647f]">
+                Manage users, roles and permissions from here — no code changes needed.
+              </p>
             </div>
             <span className="inline-flex items-center gap-2 rounded-full bg-[#dcfce7] px-3 py-1.5 text-[12px] font-extrabold text-[#16a34a]">
               <CheckCircle2 className="size-4" />

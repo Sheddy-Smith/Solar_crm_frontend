@@ -41,14 +41,19 @@ def is_own_lead(user, lead):
 
 
 def is_super_admin(user):
-    """True for Super Admin and Branch Manager (same system-level access,
-    including Roles/Users admin APIs so the Settings UI works for managers)."""
+    """True only for the Super Admin role / Django superuser.
+
+    Day-to-day module access (including Users & Roles screens) is controlled
+    by the Role → Permissions matrix in Settings UI — not by hard-coded role
+    names. Keep this helper for irreversible safeguards only (e.g. cannot
+    delete the last Super Admin / Super Admin role).
+    """
     if not user or not user.is_authenticated:
         return False
     if user.is_superuser:
         return True
     role_name = (getattr(getattr(user, 'role', None), 'name', '') or '').strip().lower()
-    return role_name in ('super admin', 'branch manager')
+    return role_name == 'super admin'
 
 
 # Roles allowed to delete a Won lead and to (re)assign leads: the management

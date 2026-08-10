@@ -40,6 +40,8 @@ import {
   AdminReauthGate,
   PinLockOverlay,
   mapUiPermissionsToApi,
+  canManageUsersAndRoles,
+  hasModuleAccess,
 } from './settingsHubPages.jsx';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
 import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide } from './components/mobile/PwaInstallControls.jsx';
@@ -25974,7 +25976,7 @@ function createSettingsRolePermissions(roleName) {
   };
 
   return template.map((row, index) => {
-    if (roleName === 'Super Admin' || roleName === 'Branch Manager') {
+    if (roleName === 'Super Admin') {
       return {
         ...row,
         permissions: { View: true, Add: true, Edit: true, Delete: true, Export: true },
@@ -26108,9 +26110,8 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
   const [selectedUser, setSelectedUser] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
-  // Every user-management action (view details, add, edit, delete,
-  // activate/deactivate) is Super Admin only — the backend enforces the same.
-  const canManageUsers = Boolean(loggedInUser?.is_super_admin);
+  // Driven by Settings → Roles & Permissions → User Management module flags.
+  const canManageUsers = canManageUsersAndRoles(loggedInUser);
 
   useEffect(() => {
     setLoading(true);
@@ -28534,9 +28535,9 @@ function mapApiUserToRow(apiUser) {
 }
 
 function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
-  const isSuperAdmin = Boolean(loggedInUser?.is_super_admin);
+  const canManageUsers = canManageUsersAndRoles(loggedInUser);
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(isSuperAdmin);
+  const [loading, setLoading] = useState(canManageUsers);
   const [query, setQuery] = useState('');
   const [role, setRole] = useState('All');
   const [status, setStatus] = useState('All');
@@ -28546,22 +28547,22 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!canManageUsers) return;
     setLoading(true);
     userApi.list().then((data) => {
       const list = data?.results ?? data ?? [];
       setUsers(list.map(mapApiUserToRow));
     }).catch((error) => onNotify?.(error.message || 'Failed to load users')).finally(() => setLoading(false));
-  }, [isSuperAdmin]);
+  }, [canManageUsers]);
 
-  if (!isSuperAdmin) {
+  if (!canManageUsers) {
     return (
       <div className="space-y-4">
         <PageHeading title="User Management" crumbs={[{ label: 'User Management' }]} />
         <section className={`${panelClass} flex flex-col items-center justify-center gap-3 p-10 text-center`}>
           <ShieldCheck className="size-10 text-[#d98200]" />
-          <h2 className="font-display text-[16px] font-extrabold text-[#1e3261]">Super Admin access required</h2>
-          <p className="max-w-[420px] text-[13px] font-bold text-[#53647f]">User accounts, roles and permissions are managed exclusively by the Super Admin.</p>
+          <h2 className="font-display text-[16px] font-extrabold text-[#1e3261]">User Management permission required</h2>
+          <p className="max-w-[420px] text-[13px] font-bold text-[#53647f]">Ask an admin to grant User Management access on Roles &amp; Permissions.</p>
         </section>
       </div>
     );
@@ -29157,7 +29158,7 @@ function roleVisuals(roleName) {
 }
 
 function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
-  const isSuperAdmin = Boolean(loggedInUser?.is_super_admin);
+  const canManageRoles = canManageUsersAndRoles(loggedInUser);
   const [roles, setRoles] = useState([]);
   const [selectedRoleId, setSelectedRoleId] = useState(null);
   const [activeTab, setActiveTab] = useState('Permissions');
@@ -29170,16 +29171,16 @@ function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
   const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? null;
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!canManageRoles) return;
     roleApi.list().then((data) => {
       const list = data?.results ?? data ?? [];
       setRoles(list);
       if (list.length) setSelectedRoleId(list[0].id);
     }).catch((error) => onNotify?.(error.message || 'Failed to load roles'));
-  }, [isSuperAdmin]);
+  }, [canManageRoles]);
 
   useEffect(() => {
-    if (!isSuperAdmin || !selectedRoleId) return;
+    if (!canManageRoles || !selectedRoleId) return;
     setLoadingPermissions(true);
     roleApi.getPermissions(selectedRoleId).then((data) => {
       setPermissions(data ?? []);
@@ -29187,16 +29188,16 @@ function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
     userApi.list({ role: selectedRoleId }).then((data) => {
       setRoleUsers((data?.results ?? data ?? []).map(mapApiUserToRow));
     }).catch(() => setRoleUsers([]));
-  }, [isSuperAdmin, selectedRoleId]);
+  }, [canManageRoles, selectedRoleId]);
 
-  if (!isSuperAdmin) {
+  if (!canManageRoles) {
     return (
       <div className="space-y-4">
         <PageHeading title="Roles & Permissions" crumbs={[{ label: 'Roles & Permissions' }]} />
         <section className={`${panelClass} flex flex-col items-center justify-center gap-3 p-10 text-center`}>
           <ShieldCheck className="size-10 text-[#d98200]" />
-          <h2 className="font-display text-[16px] font-extrabold text-[#1e3261]">Super Admin access required</h2>
-          <p className="max-w-[420px] text-[13px] font-bold text-[#53647f]">Roles and module permissions are managed exclusively by the Super Admin.</p>
+          <h2 className="font-display text-[16px] font-extrabold text-[#1e3261]">User Management permission required</h2>
+          <p className="max-w-[420px] text-[13px] font-bold text-[#53647f]">Grant User Management access from Roles &amp; Permissions to manage roles here.</p>
         </section>
       </div>
     );
@@ -29327,18 +29328,13 @@ function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
                   <thead><tr>{['Module', ...PERMISSION_ACTION_FIELDS.map(([label]) => label), 'Full Access'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
                   <tbody>
                     {permissions.map((row) => {
-                      const isLocked = row.module === 'User Management';
                       return (
                         <tr key={row.module}>
                           <td className="font-extrabold text-[#1e3261]">
                             {row.module}
-                            {isLocked ? <span className="ml-2 text-[10px] font-bold text-[#9aa8bc]">(Super Admin only)</span> : null}
                           </td>
                           {PERMISSION_ACTION_FIELDS.map(([label, field]) => (
                             <td key={`${row.module}-${field}`}>
-                              {isLocked ? (
-                                <span className="text-[#9aa8bc]">-</span>
-                              ) : (
                                 <input
                                   type="checkbox"
                                   checked={Boolean(row.full_access || row[field])}
@@ -29347,21 +29343,16 @@ function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
                                   className="size-4 rounded border-[#b9c4d6] accent-[#0d9f4a]"
                                   aria-label={`${row.module} ${label}`}
                                 />
-                              )}
                             </td>
                           ))}
                           <td>
-                            {isLocked ? (
-                              <span className="text-[#9aa8bc]">-</span>
-                            ) : (
-                              <input
-                                type="checkbox"
-                                checked={Boolean(row.full_access)}
-                                onChange={() => toggleFullAccess(row.module)}
-                                className="size-4 rounded border-[#b9c4d6] accent-[#0d9f4a]"
-                                aria-label={`${row.module} Full Access`}
-                              />
-                            )}
+                            <input
+                              type="checkbox"
+                              checked={Boolean(row.full_access)}
+                              onChange={() => toggleFullAccess(row.module)}
+                              className="size-4 rounded border-[#b9c4d6] accent-[#0d9f4a]"
+                              aria-label={`${row.module} Full Access`}
+                            />
                           </td>
                         </tr>
                       );

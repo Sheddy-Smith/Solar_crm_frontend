@@ -17,7 +17,7 @@ from .serializers import (
     UserCreateSerializer, ChangePasswordSerializer,
     CustomTokenObtainPairSerializer, RolePermissionSerializer,
 )
-from .permissions import IsAdminOrSuperAdmin, IsSuperAdmin, HasModulePermission, is_super_admin
+from .permissions import HasModulePermission, is_super_admin
 
 User = get_user_model()
 
@@ -135,23 +135,26 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 
 class BranchViewSet(viewsets.ModelViewSet):
+    """Branches are managed via the User Management permission matrix (UI)."""
     queryset = Branch.objects.all()
     serializer_class = BranchSerializer
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [HasModulePermission]
+    permission_module = 'User Management'
     search_fields = ['name', 'city']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
 
-    def get_permissions(self):
-        if self.action in ('list', 'retrieve'):
-            return [IsAdminOrSuperAdmin()]
-        return [IsSuperAdmin()]
-
 
 class RoleViewSet(viewsets.ModelViewSet):
+    """Roles & permission matrix — fully controlled from Settings UI.
+
+    Access is granted by the User Management module flags on the caller's
+    role (View/Add/Edit/Delete). No hard-coded Branch Manager / Admin checks.
+    """
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [HasModulePermission]
+    permission_module = 'User Management'
     search_fields = ['name']
     ordering = ['name']
 
@@ -210,10 +213,8 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('me', 'change_password', 'verify_password'):
             return [IsAuthenticated()]
-        # Account mutations (add/edit/delete/activate) are Super Admin only;
-        # list/retrieve stay on the User Management module permission.
-        if self.action in ('toggle_active', 'create', 'update', 'partial_update', 'destroy'):
-            return [IsSuperAdmin()]
+        # All user-admin actions follow the User Management matrix from Settings UI
+        # (View / Add / Edit / Delete). Super Admin still bypasses via HasModulePermission.
         return [HasModulePermission()]
 
     def destroy(self, request, *args, **kwargs):
