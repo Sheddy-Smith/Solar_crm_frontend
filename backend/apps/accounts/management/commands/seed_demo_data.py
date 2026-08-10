@@ -98,18 +98,8 @@ class Command(BaseCommand):
         role_defaults = {
             'Super Admin': {m: {'full_access': True} for m in all_modules},
             'Admin': {m: {'full_access': full_access_modules[m]} for m in all_modules},
-            'Branch Manager': {
-                'Leads': {'full_access': True}, 'Follow-ups': {'full_access': True},
-                'Approvals': {'full_access': True}, 'Project Management': {'full_access': True},
-                'Accounts': {'can_view': True, 'can_export': True},
-                'Reports': {'can_view': True, 'can_export': True},
-                'Dashboard': {'can_view': True},
-                'IVRS Management': {'can_view': True},
-                'Liaisoning & Commissioning': {'can_view': True},
-                'O&M': {'can_view': True},
-                'Inventory': {'can_view': True, 'can_add': True, 'can_edit': True},
-                'AMC & Warranty': {'can_view': True, 'can_add': True, 'can_edit': True},
-            },
+            # Same matrix as Super Admin — Branch Manager may operate every module.
+            'Branch Manager': {m: {'full_access': True} for m in all_modules},
             'Team Leader': {
                 'Leads': {'can_view': True, 'can_add': True, 'can_edit': True},
                 'Follow-ups': {'full_access': True},

@@ -41,11 +41,14 @@ def is_own_lead(user, lead):
 
 
 def is_super_admin(user):
+    """True for Super Admin and Branch Manager (same system-level access,
+    including Roles/Users admin APIs so the Settings UI works for managers)."""
     if not user or not user.is_authenticated:
         return False
     if user.is_superuser:
         return True
-    return getattr(user.role, 'name', '') == 'Super Admin'
+    role_name = (getattr(getattr(user, 'role', None), 'name', '') or '').strip().lower()
+    return role_name in ('super admin', 'branch manager')
 
 
 # Roles allowed to delete a Won lead and to (re)assign leads: the management

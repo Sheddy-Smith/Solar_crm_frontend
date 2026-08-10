@@ -25974,7 +25974,7 @@ function createSettingsRolePermissions(roleName) {
   };
 
   return template.map((row, index) => {
-    if (roleName === 'Super Admin') {
+    if (roleName === 'Super Admin' || roleName === 'Branch Manager') {
       return {
         ...row,
         permissions: { View: true, Add: true, Edit: true, Delete: true, Export: true },
@@ -26065,13 +26065,19 @@ function mapApiPermissionsToSettingsRows(apiPermissions) {
     can_delete: 'Delete',
     can_export: 'Export',
   };
-  return apiPermissions.map((row) => ({
-    module: row.module,
-    description: `${row.module} module access`,
-    permissions: Object.fromEntries(
-      Object.entries(permLabels).map(([apiKey, uiKey]) => [uiKey, Boolean(row[apiKey])]),
-    ),
-  }));
+  return apiPermissions.map((row) => {
+    const allOn = Boolean(row.full_access);
+    return {
+      module: row.module,
+      description: `${row.module} module access`,
+      permissions: Object.fromEntries(
+        Object.entries(permLabels).map(([apiKey, uiKey]) => [
+          uiKey,
+          allOn ? true : Boolean(row[apiKey]),
+        ]),
+      ),
+    };
+  });
 }
 
 function useSettingsMasters(masterType, onNotify) {
@@ -26585,8 +26591,16 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([roleApi.list(), userApi.list()])
-      .then(([rolesRes, usersRes]) => {
+    Promise.allSettled([roleApi.list(), userApi.list()])
+      .then(([rolesResult, usersResult]) => {
+        if (rolesResult.status === 'rejected') {
+          onNotify?.(rolesResult.reason?.message || 'Failed to load roles', 'error');
+        }
+        if (usersResult.status === 'rejected') {
+          onNotify?.(usersResult.reason?.message || 'Failed to load users', 'error');
+        }
+        const rolesRes = rolesResult.status === 'fulfilled' ? rolesResult.value : [];
+        const usersRes = usersResult.status === 'fulfilled' ? usersResult.value : [];
         const roleList = (Array.isArray(rolesRes) ? rolesRes : (rolesRes?.results ?? [])).map(mapApiRoleToSettingsRow);
         const userList = (Array.isArray(usersRes) ? usersRes : (usersRes?.results ?? [])).map(mapApiUserToSettingsRow);
         setRoles(roleList);
@@ -26598,7 +26612,6 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
             .catch(() => setPermissionRows(createSettingsRolePermissions(roleList[0].name)));
         }
       })
-      .catch((error) => onNotify?.(error.message || 'Failed to load roles', 'error'))
       .finally(() => setLoading(false));
   }, []);  
 
