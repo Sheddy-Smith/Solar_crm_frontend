@@ -3,6 +3,7 @@ import {
   AlertCircle, Boxes, ClipboardCheck, MapPin, Pencil, Save, Search, Trash2, Truck, Wrench, X,
 } from 'lucide-react';
 import { dailyTasksApi, inventoryApi, leadApi, projectApi, workforceApi } from './api.js';
+import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
 
 const CARD = 'rounded-[12px] border border-[#dbe5f2] bg-white shadow-[0_8px_24px_rgba(24,48,87,0.06)]';
 
@@ -311,7 +312,7 @@ function StatusCell({ status }) {
   );
 }
 
-export function DailyTasksPage({ onNotify }) {
+export function DailyTasksPage({ onNotify, loggedInUser = null }) {
   const [tasks, setTasks] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
@@ -323,6 +324,7 @@ export function DailyTasksPage({ onNotify }) {
   const [modal, setModal] = useState({ open: false, mode: 'create', categoryId: 'site_visit_log', task: null });
   const [saving, setSaving] = useState(false);
   const [noteEdit, setNoteEdit] = useState({ id: null, value: '' });
+  const [hubTab, setHubTab] = useState('assigned');
   const [projects, setProjects] = useState([]);
   const [leads, setLeads] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -429,9 +431,30 @@ export function DailyTasksPage({ onNotify }) {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="font-display text-[24px] font-extrabold text-[#1e3261]">Daily Tasks &amp; Reports</h1>
-        <p className="mt-1 text-[13px] font-semibold text-[#7a8fa6]">Site visits, installation progress, material dispatch and warehouse checks for solar operations.</p>
+        <h1 className="font-display text-[24px] font-extrabold text-[#1e3261]">Daily Tasks</h1>
+        <p className="mt-1 text-[13px] font-semibold text-[#7a8fa6]">Assign work to users and track Completed / Not Completed. Field reports stay in the second tab.</p>
       </div>
+
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id: 'assigned', label: 'Assigned Tasks' },
+          { id: 'reports', label: 'Field Reports' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setHubTab(tab.id)}
+            className={`rounded-[8px] px-4 py-2.5 text-[13px] font-extrabold transition ${hubTab === tab.id ? 'bg-[#0d9f4a] text-white shadow-md' : 'border border-[#d9e2ec] bg-white text-[#30466d] hover:bg-[#f8fbff]'}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {hubTab === 'assigned' ? (
+        <TeleDailyTasksPage me={loggedInUser} onNotify={onNotify} variant="crm" />
+      ) : (
+      <div className="space-y-5">
 
       <section className={`${CARD} p-4 sm:p-5`}>
         <h2 className="text-[15px] font-extrabold text-[#1e3261]">Add New Task</h2>
@@ -560,6 +583,8 @@ export function DailyTasksPage({ onNotify }) {
         onClose={closeModal}
         onSave={handleSave}
       />
+      </div>
+      )}
     </div>
   );
 }

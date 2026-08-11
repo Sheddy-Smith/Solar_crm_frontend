@@ -13,7 +13,7 @@ class AttendanceMarkByDateTests(TestCase):
         self.user = make_user(
             'wf@test.com',
             'Workforce Editor',
-            {'Workforce': {'can_view': True, 'can_add': True, 'can_edit': True}},
+            {'Employee': {'can_view': True, 'can_add': True, 'can_edit': True}},
         )
         self.client.force_authenticate(self.user)
         self.employee = Employee.objects.create(name='Ravi Kumar', daily_rate=900)

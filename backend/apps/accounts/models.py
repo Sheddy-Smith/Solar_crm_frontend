@@ -30,27 +30,24 @@ class Role(models.Model):
 
 
 class RolePermission(models.Model):
-    # BUG-017 (wired): 'Dashboard' gates `apps.reports.views.ReportsViewSet`
-    # (cross-module reports dashboard). 'IVRS Management' gates duplicate-IVRS
-    # approval *create* on `apps.leads.views.AdminApprovalViewSet`; list/
-    # approve/reject stay under 'Approvals'.
+    # Ordered to match the main CRM sidebar so Roles & Permissions UI is
+    # easy to understand. Lead covers follow-ups / IVRS / approvals APIs.
+    # User Management stays separate (Users & Roles under Settings).
     MODULE_CHOICES = [
         ('Dashboard', 'Dashboard'),
-        ('Leads', 'Leads'),
-        ('Follow-ups', 'Follow-ups'),
-        ('IVRS Management', 'IVRS Management'),
-        ('Approvals', 'Approvals'),
+        ('Lead', 'Lead'),
+        ('Quotation', 'Quotation'),
         ('Project Management', 'Project Management'),
-        ('Workforce', 'Workforce'),
         ('Liaisoning & Commissioning', 'Liaisoning & Commissioning'),
         ('O&M', 'O&M'),
         ('Accounts', 'Accounts'),
         ('Inventory', 'Inventory'),
+        ('Employee', 'Employee'),
+        ('Insights', 'Insights'),
         ('Daily Tasks', 'Daily Tasks'),
         ('AMC & Warranty', 'AMC & Warranty'),
-        ('Reports', 'Reports'),
-        ('User Management', 'User Management'),
         ('Settings', 'Settings'),
+        ('User Management', 'User Management'),
     ]
 
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='permissions')

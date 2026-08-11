@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpRight, BarChart3, Bell, Boxes, Calendar, ChevronRight,
   ClipboardList, CreditCard, Download, FileText, Filter, FolderKanban, Gauge,
-  Headphones, Heart, Hourglass, IndianRupee, Leaf, LineChart, Package,
+  Headphones, Hourglass, IndianRupee, LineChart, Package,
   PackageMinus, PackageX, RefreshCw, Target, Ticket, TrendingUp, Trophy,
   UserPlus, Users, Wallet, Wrench, XCircle, ArrowLeftRight,
 } from 'lucide-react';
@@ -418,14 +418,7 @@ function MisIntelligenceCard({ sales, onNotify }) {
 }
 
 function InsightsFooter() {
-  return (
-    <footer className="flex flex-col gap-2 border-t border-[#e5eaf2] pt-4 text-[12px] font-semibold text-[#9aa8bc] sm:flex-row sm:items-center sm:justify-between">
-      <p>© 2024 Malwa Solar CRM. All rights reserved.</p>
-      <p className="flex items-center gap-1.5">
-        Made with <Heart className="size-3.5 fill-[#0d9f4a] text-[#0d9f4a]" /> for a Sustainable Future <Leaf className="size-3.5 text-[#0d9f4a]" />
-      </p>
-    </footer>
-  );
+  return null;
 }
 
 function DashboardSkeleton() {

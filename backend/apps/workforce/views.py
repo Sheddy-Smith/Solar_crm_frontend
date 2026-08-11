@@ -21,7 +21,7 @@ from apps.accounts.permissions import HasModulePermission
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.prefetch_related('assignments', 'documents', 'attendance_records', 'vouchers').all()
     permission_classes = [HasModulePermission]
-    permission_module = 'Workforce'
+    permission_module = 'Employee'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'department']
     search_fields = ['name', 'employee_id', 'role', 'mobile', 'skill_trade', 'aadhaar_number']
@@ -113,7 +113,7 @@ class EmployeeAttendanceViewSet(viewsets.ModelViewSet):
     queryset = EmployeeAttendance.objects.select_related('employee').all()
     serializer_class = EmployeeAttendanceSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Workforce'
+    permission_module = 'Employee'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['employee', 'status', 'date']
     ordering_fields = ['date']
@@ -191,7 +191,7 @@ class EmployeeVoucherViewSet(viewsets.ModelViewSet):
     queryset = EmployeeVoucher.objects.select_related('employee').all()
     serializer_class = EmployeeVoucherSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Workforce'
+    permission_module = 'Employee'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['employee', 'payment_mode', 'voucher_date']
     ordering_fields = ['voucher_date', 'created_at']
@@ -201,7 +201,7 @@ class EmployeeAssignmentViewSet(viewsets.ModelViewSet):
     queryset = EmployeeAssignment.objects.select_related('employee', 'project').all()
     serializer_class = EmployeeAssignmentSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Workforce'
+    permission_module = 'Employee'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['employee', 'status', 'priority', 'project']
     search_fields = ['task_name']
@@ -229,7 +229,7 @@ class EmployeeDocumentViewSet(viewsets.ModelViewSet):
     queryset = EmployeeDocument.objects.select_related('employee').all()
     serializer_class = EmployeeDocumentSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Workforce'
+    permission_module = 'Employee'
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['employee', 'doc_type']

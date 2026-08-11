@@ -68,3 +68,50 @@ class DailyTask(models.Model):
     def save(self, *args, **kwargs):
         self.refresh_summary_text()
         super().save(*args, **kwargs)
+
+
+class StaffDailyTask(models.Model):
+    """User-assigned daily tasks (Tele portal + role-based View/Edit)."""
+
+    STATUS_NOT_COMPLETED = 'Not Completed'
+    STATUS_COMPLETED = 'Completed'
+    STATUS_CHOICES = [
+        (STATUS_NOT_COMPLETED, STATUS_NOT_COMPLETED),
+        (STATUS_COMPLETED, STATUS_COMPLETED),
+    ]
+
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='staff_tasks_assigned',
+    )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='staff_tasks',
+    )
+    branch = models.ForeignKey(
+        'accounts.Branch',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='staff_daily_tasks',
+    )
+    task_date = models.DateField(default=timezone.now)
+    due_date = models.DateField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_NOT_COMPLETED,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-task_date', '-created_at']
+
+    def __str__(self):
+        return f'{self.title} → {self.assigned_to_id}'

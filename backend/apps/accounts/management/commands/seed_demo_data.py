@@ -101,27 +101,27 @@ class Command(BaseCommand):
             # Same matrix as Super Admin — Branch Manager may operate every module.
             'Branch Manager': {m: {'full_access': True} for m in all_modules},
             'Team Leader': {
-                'Leads': {'can_view': True, 'can_add': True, 'can_edit': True},
-                'Follow-ups': {'full_access': True},
-                'Approvals': {'can_view': True},
+                'Lead': {'full_access': True},
+                'Quotation': {'can_view': True, 'can_add': True, 'can_edit': True},
                 'Project Management': {'can_view': True, 'can_edit': True},
                 'Dashboard': {'can_view': True},
-                'Reports': {'can_view': True},
+                'Insights': {'can_view': True},
                 'Inventory': {'can_view': True},
                 'AMC & Warranty': {'can_view': True},
             },
             'Sales Executive': {
-                'Leads': {'can_view': True, 'can_add': True, 'can_edit': True},
-                'Follow-ups': {'can_view': True, 'can_add': True, 'can_edit': True},
+                'Lead': {'can_view': True, 'can_add': True, 'can_edit': True},
+                'Quotation': {'can_view': True, 'can_add': True, 'can_edit': True},
                 'Dashboard': {'can_view': True},
-                'Reports': {'can_view': True},
+                'Insights': {'can_view': True},
                 'Inventory': {'can_view': True},
                 'AMC & Warranty': {'can_view': True},
             },
             'Viewer': {
-                'Leads': {'can_view': True}, 'Follow-ups': {'can_view': True},
+                'Lead': {'can_view': True},
+                'Quotation': {'can_view': True},
                 'Project Management': {'can_view': True}, 'Accounts': {'can_view': True},
-                'Reports': {'can_view': True}, 'Dashboard': {'can_view': True},
+                'Insights': {'can_view': True}, 'Dashboard': {'can_view': True},
             },
         }
 

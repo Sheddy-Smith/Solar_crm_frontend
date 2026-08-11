@@ -23,7 +23,7 @@ from .recycle import soft_delete_follow_up, soft_delete_lead, soft_delete_quotat
 
 class LeadViewSet(viewsets.ModelViewSet):
     permission_classes = [HasModulePermission]
-    permission_module = 'Leads'
+    permission_module = 'Lead'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'category', 'assigned_to']
     search_fields = ['customer_name', 'mobile_number', 'ivrs_number', 'project_name']
@@ -216,7 +216,7 @@ class LeadSurveyPhotoViewSet(viewsets.ModelViewSet):
     queryset = LeadSurveyPhoto.objects.select_related('survey', 'survey__lead', 'uploaded_by').all()
     serializer_class = LeadSurveyPhotoSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Leads'
+    permission_module = 'Lead'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['survey']
 
@@ -228,7 +228,7 @@ class FollowUpViewSet(viewsets.ModelViewSet):
     queryset = FollowUp.objects.select_related('lead', 'created_by').all()
     serializer_class = FollowUpSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Follow-ups'
+    permission_module = 'Lead'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['lead', 'follow_up_type', 'status']
     ordering = ['-created_at']
@@ -298,10 +298,8 @@ class AdminApprovalViewSet(viewsets.ModelViewSet):
     queryset = AdminApproval.objects.select_related('lead', 'requested_by', 'approved_by').all()
     serializer_class = AdminApprovalSerializer
     permission_classes = [HasModulePermission]
-    # BUG-017: duplicate-IVRS approval *requests* are an IVRS Management
-    # action; reviewing/approving/rejecting them is Approvals.
-    permission_module = 'Approvals'
-    permission_module_map = {'create': 'IVRS Management'}
+    # Lead matrix covers approvals + IVRS duplicate requests (sidebar-aligned).
+    permission_module = 'Lead'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status']
     search_fields = [
@@ -361,7 +359,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
     queryset = Quotation.objects.select_related('lead', 'created_by').prefetch_related('items').all()
     serializer_class = QuotationSerializer
     permission_classes = [HasModulePermission]
-    permission_module = 'Leads'
+    permission_module = 'Quotation'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['lead', 'status']
     ordering = ['-created_at']

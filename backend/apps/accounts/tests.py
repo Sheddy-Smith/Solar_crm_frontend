@@ -54,7 +54,7 @@ class PermissionRegressionTests(TestCase):
         self.assertEqual(res.status_code, 200)
 
     def test_pagination_honours_page_size(self):
-        user = make_user('leaduser@test.com', 'Lead Role', {'Leads': {'can_view': True}})
+        user = make_user('leaduser@test.com', 'Lead Role', {'Lead': {'can_view': True}})
         for i in range(120):
             Lead.objects.create(customer_name=f'Cust {i}', mobile_number=f'9{i:09d}', created_by=user)
         self.client.force_authenticate(user)

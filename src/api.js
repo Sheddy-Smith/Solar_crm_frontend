@@ -687,6 +687,20 @@ export const dailyTasksApi = {
   summary: () => request('/daily-tasks/tasks/summary/'),
 };
 
+export const staffDailyTasksApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/daily-tasks/assignments/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/daily-tasks/assignments/${id}/`),
+  create: (data) => request('/daily-tasks/assignments/', { method: 'POST', body: data }),
+  updateStatus: (id, status) => request(`/daily-tasks/assignments/${id}/update_status/`, { method: 'PATCH', body: { status } }),
+  delete: (id) => request(`/daily-tasks/assignments/${id}/`, { method: 'DELETE' }),
+  assignees: () => request('/daily-tasks/assignments/assignees/'),
+};
+
 // ─── CRM Settings ─────────────────────────────────────────────────────────────
 
 const settingsCrud = (base) => ({

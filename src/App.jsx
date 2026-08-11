@@ -16,7 +16,7 @@ import {
   getMediaUrl,
 } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
-import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME, isTeleExecutiveRole } from './telePortal.jsx';
+import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME, isTeleExecutiveRole, AuthLandingShell, AuthBrandHeader, AuthLandingFooter, ProductFooter } from './telePortal.jsx';
 import {
   InventoryOverviewPageEnhanced,
   InventoryProductsPage,
@@ -123,7 +123,6 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
-import signInBgImage from './assets/data/Sign_in_bg.png';
 import navBarImage from './assets/data/nav_bar_img.png';
 import {
   PurchaseInvoicePage,
@@ -2363,7 +2362,10 @@ function App() {
       tele: 'Tele Executive',
     };
     const pageLabel = authPageTitles[currentPage] || activeSidebarItem;
-    document.title = `${pageLabel} | Malwa Solar CRM`;
+    const productName = ['portal', 'signin', 'tele-signin'].includes(currentPage)
+      ? 'Malwa Solar ERP'
+      : 'Malwa Solar CRM';
+    document.title = `${pageLabel} | ${productName}`;
   }, [activeSidebarItem, currentPage]);
 
   // Sync navigation to browser history (back/forward support)
@@ -2600,15 +2602,17 @@ function App() {
   if (currentPage === 'signin') {
     return (
       <>
-        <SignInPage
-          onLogin={(user) => {
-            if (user) setLoggedInUser(user);
-            setCurrentPage('dashboard');
-            notify('Dashboard opened');
-          }}
-          onBack={() => setCurrentPage('portal')}
-          onNotify={notify}
-        />
+        <div className="app-mobile-shell portal-landing">
+          <SignInPage
+            onLogin={(user) => {
+              if (user) setLoggedInUser(user);
+              setCurrentPage('dashboard');
+              notify('Dashboard opened');
+            }}
+            onBack={() => setCurrentPage('portal')}
+            onNotify={notify}
+          />
+        </div>
         <Toast toast={toast} />
       </>
     );
@@ -3117,7 +3121,8 @@ function App() {
           </div>
         </aside>
 
-        <main className="main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 self-stretch overflow-y-auto px-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:pr-0.5">
+        <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col self-stretch">
+        <main className="main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 overflow-y-auto px-0 pb-2 md:px-0 xl:pr-0.5">
           <div className="w-full min-w-0 space-y-2 px-2 md:px-0 xl:pb-2">
             <AppHeader
               notify={notify}
@@ -3264,7 +3269,7 @@ function App() {
                 onNotify={notify}
               />
             ) : activeSidebarItem === 'Daily Tasks' ? (
-              <DailyTasksPage onNotify={notify} />
+              <DailyTasksPage onNotify={notify} loggedInUser={loggedInUser} />
             ) : inventoryRelatedPages.includes(activeSidebarItem) ? (
               <InventoryManagementPage
                 activeSection={activeSidebarItem}
@@ -3622,20 +3627,13 @@ function App() {
               </div>
             </section>
 
-            <footer className="flex flex-col gap-2 border-t border-[#e4ebf4] px-1 pb-1 pt-3 text-center text-[12px] font-semibold text-[#7b88a2] sm:text-left lg:flex-row lg:items-center lg:justify-between">
-              <p>Copyright {new Date().getFullYear()} Malwa Solar CRM. All rights reserved.</p>
-              <p className="inline-flex items-center justify-center gap-1.5 lg:justify-end">
-                Made with
-                <Heart className="size-3.5 fill-current text-[#ff4b4f]" />
-                for a Sustainable Future
-                <Leaf className="size-3.5 text-[#1bc35f]" />
-              </p>
-            </footer>
               </div>
               </>
             )}
           </div>
         </main>
+          <ProductFooter className="mb-[calc(4.5rem+env(safe-area-inset-bottom))] rounded-b-[16px] md:mb-0" />
+        </div>
       </div>
 
       <MobileBottomNav
@@ -4059,221 +4057,106 @@ function SignInPage({ onLogin, onBack, onNotify }) {
       setLoading(false);
     }
   };
-  const features = [
-    {
-      title: 'Lead Management',
-      text: 'Capture, track & convert leads',
-      icon: Users,
-    },
-    {
-      title: 'Follow-ups',
-      text: 'Never miss your next follow-up',
-      icon: CalendarDays,
-    },
-    {
-      title: 'Analytics',
-      text: 'Real-time insights & performance',
-      icon: BarChart3,
-    },
-    {
-      title: 'Secure & Reliable',
-      text: 'Your data is safe with us',
-      icon: ShieldCheck,
-    },
-  ];
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#eef3f7] px-2 py-3 text-[#172648] sm:px-5 sm:py-4 lg:px-7">
-      <main className="mx-auto grid h-auto min-h-[calc(100vh-1.5rem)] w-full max-w-[1960px] overflow-hidden rounded-[18px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.18)] sm:min-h-[90vh] sm:w-[95vw] sm:rounded-[24px] lg:grid-cols-[55fr_45fr]">
-        <section
-          className="relative isolate min-h-[480px] overflow-hidden bg-cover bg-no-repeat px-4 py-7 sm:min-h-[680px] sm:px-12 sm:py-12 lg:min-h-full lg:rounded-l-[24px] lg:px-[5.2vw] lg:py-[4.2vw] xl:px-[5.8vw] 2xl:px-[6.2vw]"
-          style={{
-            backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.86) 0%, rgba(241,250,244,0.72) 46%, rgba(232,244,255,0.74) 100%), url(${signInBgImage})`,
-            backgroundPosition: 'left center',
-          }}
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.88),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(17,111,208,0.14),transparent_28%)]" aria-hidden="true" />
-          <div className="absolute -left-12 top-16 size-40 rounded-full bg-white/40 blur-3xl sm:size-52" aria-hidden="true" />
-          <div className="absolute bottom-12 right-8 size-44 rounded-full bg-[#0d9f4a]/12 blur-3xl sm:size-56" aria-hidden="true" />
+    <AuthLandingShell maxWidth="max-w-[560px]">
+      <div className="px-6 pt-6 sm:px-8 sm:pt-8">
+        <AuthBrandHeader />
+      </div>
 
-          <div className="relative z-10 flex min-w-0 items-center gap-3">
-            <MiniBrandMark plain />
-            <div className="min-w-0">
-              <p className="font-display text-[20px] font-extrabold leading-tight text-[#087532] sm:text-[28px] xl:text-[30px]">
-                Malwa Solar Energy
-              </p>
-              <p className="mt-1 text-[13px] font-extrabold uppercase tracking-[0.24em] text-[#252b35] sm:text-[18px]">
-                CRM System
-              </p>
-            </div>
-          </div>
+      <div className="px-6 pb-2 pt-8 sm:px-10 sm:pt-10">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#5c6676] transition hover:text-[#0d9f4a]"
+          >
+            <ChevronLeft className="size-4" />
+            Choose different portal
+          </button>
+        ) : null}
 
-          <div className="relative z-10 mt-9 max-w-[760px] sm:mt-20 lg:mt-[7.4vh] xl:mt-[8.2vh]">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/72 px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.12em] text-[#116fd0] shadow-[0_10px_24px_rgba(17,39,84,0.08)] backdrop-blur-sm">
-              <ShieldCheck className="size-4 text-[#0d9f4a]" />
-              Secure solar operations workspace
+        <h1 className="text-center font-display text-[28px] font-extrabold leading-tight text-[#102446] sm:text-[34px]">
+          Welcome to <span className="text-[#0d9f4a]">Solar ERP</span>
+        </h1>
+        <p className="mt-3 text-center text-[14px] font-semibold text-[#5c6676] sm:text-[16px]">
+          Login to continue to ERP Operations
+        </p>
+
+        <form className="mt-8 space-y-5 sm:mt-9 sm:space-y-6" onSubmit={handleLogin}>
+          <label className="block">
+            <span className="text-[13px] font-bold text-[#33456b]">Email Address</span>
+            <span className="mt-2 flex h-12 items-center gap-3 rounded-[10px] border border-[#dbe4f0] bg-white px-4 transition focus-within:border-[#0d9f4a] focus-within:ring-4 focus-within:ring-[#0d9f4a]/15 sm:h-14">
+              <UserRound className="size-5 text-[#7a8494]" />
+              <input
+                type="text"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter email or mobile number"
+                autoComplete="username"
+                spellCheck={false}
+                className="h-full min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796]"
+              />
             </span>
-            <h1 className="font-display text-[40px] font-extrabold leading-[1.12] text-[#102446] sm:text-[56px] lg:text-[60px] 2xl:text-[66px]">
-              Run your solar pipeline
-              <span className="mt-1 block text-[#087532]">Sustainable Future</span>
-            </h1>
-            <p className="mt-6 max-w-[620px] text-[15px] font-bold leading-8 text-[#364255] sm:text-[18px]">
-              Manage leads, follow-ups, site visits, approvals, and revenue tracking in one clean workspace.
-              Give your team more speed and more process visibility.
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3 text-[12px] font-extrabold text-[#314a79] sm:text-[13px]">
-              {['Role-based access', 'Daily pipeline visibility', 'Faster follow-ups'].map((item) => (
-                <span key={item} className="rounded-full border border-white/55 bg-white/72 px-4 py-2 shadow-[0_8px_18px_rgba(17,39,84,0.07)] backdrop-blur-sm">
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
+          </label>
 
-          <div className="relative z-10 mt-10 rounded-[22px] border border-white/20 bg-[linear-gradient(105deg,rgba(29,166,67,0.92)_0%,rgba(12,137,132,0.88)_48%,rgba(13,108,202,0.92)_100%)] p-5 text-white shadow-[0_18px_34px_rgba(11,71,118,0.24)] sm:mt-12 sm:rounded-[24px] sm:p-7 lg:absolute lg:bottom-[5.2vh] lg:left-[3.8vw] lg:right-[3.3vw] lg:mt-0">
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              {features.map((feature) => (
-                <LoginFeature key={feature.title} feature={feature} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="flex items-center justify-center bg-white px-4 py-8 sm:px-10 sm:py-12 lg:px-[5vw]">
-          <div className="w-full max-w-[720px] lg:max-w-[560px] 2xl:max-w-[680px]">
-            {onBack && (
+          <label className="block">
+            <span className="text-[13px] font-bold text-[#33456b]">Password</span>
+            <span className="mt-2 flex h-12 items-center gap-3 rounded-[10px] border border-[#dbe4f0] bg-white px-4 transition focus-within:border-[#0d9f4a] focus-within:ring-4 focus-within:ring-[#0d9f4a]/15 sm:h-14">
+              <LockKeyhole className="size-5 text-[#7a8494]" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                className="h-full min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796]"
+              />
               <button
                 type="button"
-                onClick={onBack}
-                className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#5c6676] transition hover:text-[#0d9f4a]"
+                onClick={() => setShowPassword((current) => !current)}
+                className="text-[#7a8494] transition hover:text-[#0d9f4a]"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                <ChevronLeft className="size-4" />
-                Choose different portal
+                <Eye className="size-5" />
               </button>
-            )}
-            <div>
-              <h2 className="font-display text-[30px] font-extrabold text-[#102446] sm:text-[36px] lg:text-[38px]">
-                Welcome Back!
-              </h2>
-              <p className="mt-5 text-[16px] font-semibold text-[#5c6676] sm:text-[20px]">
-                Login to your Malwa Solar Energy CRM account
-              </p>
-            </div>
+            </span>
+          </label>
 
-            <form
-              className="mt-9 space-y-6 sm:mt-11 sm:space-y-7"
-              onSubmit={handleLogin}
+          {loginError ? (
+            <p className="rounded-[8px] bg-red-50 px-4 py-3 text-[13px] font-bold text-red-600">
+              {loginError}
+            </p>
+          ) : null}
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="inline-flex items-center gap-2.5 text-[13px] font-bold text-[#5a6574]">
+              <input type="checkbox" defaultChecked className="size-4 rounded accent-[#0d9f4a]" />
+              Remember me
+            </label>
+            <button
+              type="button"
+              onClick={() => onNotify('Forgot password selected')}
+              className="text-left text-[13px] font-bold text-[#055ee4] transition hover:text-[#034bb6] sm:text-right"
             >
-              <label className="block">
-                <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Email Address</span>
-                <span className="mt-3 flex h-14 items-center gap-3 rounded-[9px] border border-black/20 bg-white px-4 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:mt-4 sm:h-[62px] sm:gap-5 sm:px-5">
-                  <UserRound className="size-6 text-[#7a8494]" />
-                  <input
-                    type="text"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter email or mobile number"
-                    autoComplete="username"
-                    spellCheck={false}
-                    className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796] sm:text-[18px]"
-                  />
-                </span>
-              </label>
-
-              <label className="block">
-                <span className="text-[15px] font-bold text-[#111827] sm:text-[17px]">Password</span>
-                <span className="mt-3 flex h-14 items-center gap-3 rounded-[9px] border border-black/20 bg-white px-4 shadow-[inset_0_1px_2px_rgba(20,35,60,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:mt-4 sm:h-[62px] sm:gap-5 sm:px-5">
-                  <LockKeyhole className="size-6 text-[#7a8494]" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    autoComplete="current-password"
-                    className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796] sm:text-[18px]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((current) => !current)}
-                    className="text-[#7a8494] transition hover:text-[#156bd9]"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    <Eye className="size-5" />
-                  </button>
-                </span>
-              </label>
-
-              {loginError && (
-                <p className="rounded-[8px] bg-red-50 px-4 py-3 text-[13px] font-bold text-red-600">
-                  {loginError}
-                </p>
-              )}
-
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <label className="inline-flex items-center gap-3 text-[15px] font-bold text-[#5a6574] sm:text-[16px]">
-                  <input
-                    type="checkbox"
-                    defaultChecked
-                    className="size-5 rounded accent-[#17a34a]"
-                  />
-                  Remember me
-                </label>
-                <button
-                  type="button"
-                  onClick={() => onNotify('Forgot password selected')}
-                  className="text-left text-[15px] font-bold text-[#055ee4] transition hover:text-[#034bb6] sm:text-right sm:text-[16px]"
-                >
-                  Forgot Password?
-                </button>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex h-14 w-full items-center justify-center gap-3 rounded-[9px] bg-[linear-gradient(90deg,#20b947_0%,#169e9a_51%,#116fd0_100%)] text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(21,116,171,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(21,116,171,0.28)] disabled:opacity-60 sm:h-[64px] sm:text-[20px]"
-              >
-                <LogIn className="size-5" />
-                {loading ? 'Logging in...' : 'Login'}
-              </button>
-
-              <p className="text-center text-[13px] font-bold text-[#6a7586]">
-                Protected access for sales, project, liaisoning, and service teams.
-              </p>
-
-              <p className="pt-2 text-center text-[13px] font-semibold text-[#8a98af]">
-                Account access is granted by your Super Admin only.
-              </p>
-            </form>
+              Forgot Password?
+            </button>
           </div>
-        </section>
-      </main>
 
-      <footer className="mx-auto flex w-full max-w-[1470px] flex-col gap-2 px-3 py-6 text-center text-[14px] font-semibold text-[#566173] sm:flex-row sm:items-center sm:justify-between sm:text-left">
-        <p>© 2024 Malwa Solar Energy CRM. All rights reserved.</p>
-        <p className="inline-flex items-center justify-center gap-1.5 sm:justify-end">
-          Made with
-          <Heart className="size-4 fill-current text-[#ff2f2f]" />
-          for a Sustainable Future
-          <Leaf className="size-4 fill-current text-[#4db52f]" />
-        </p>
-      </footer>
-    </div>
-  );
-}
-
-function LoginFeature({ feature }) {
-  const Icon = feature.icon;
-
-  return (
-    <div className="text-center">
-      <div className="mx-auto grid size-16 place-items-center rounded-full bg-white/28 text-white ring-1 ring-white/20 sm:size-[72px] lg:size-[78px]">
-        <Icon className="size-8 sm:size-9" />
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#0d9f4a] text-[15px] font-extrabold text-white shadow-[0_12px_24px_rgba(13,159,74,0.28)] transition hover:bg-[#078c3e] disabled:opacity-60 sm:h-14"
+          >
+            <LogIn className="size-4" />
+            {loading ? 'Logging in...' : 'Login'}
+            <ArrowRight className="size-4" />
+          </button>
+        </form>
       </div>
-      <p className="mt-5 text-[15px] font-extrabold sm:text-[16px]">{feature.title}</p>
-      <p className="mx-auto mt-3 max-w-[160px] text-[13px] font-semibold leading-7 text-white/92 sm:text-[14px]">
-        {feature.text}
-      </p>
-    </div>
+
+      <AuthLandingFooter />
+    </AuthLandingShell>
   );
 }
 
@@ -25935,44 +25818,42 @@ function SettingsPermissionToggle({ value, onClick, label }) {
 }
 
 function createSettingsRolePermissions(roleName) {
+  // Fallback template — live Roles UI loads MODULE_CHOICES from the API.
+  // Keep names aligned with the CRM sidebar for easy understanding.
   const template = [
     { module: 'Dashboard', description: 'View dashboard and analytics' },
-    { module: 'Leads', description: 'Manage leads and inquiries' },
-    { module: 'Follow-ups', description: 'Follow-up scheduling and tracking' },
-    { module: 'IVRS Management', description: 'IVRS call routing and logs' },
-    { module: 'Approvals', description: 'Approval workflows' },
+    { module: 'Lead', description: 'Leads, follow-ups, IVRS and approvals' },
+    { module: 'Quotation', description: 'Create and manage quotations' },
     { module: 'Project Management', description: 'Create and manage solar projects' },
-    { module: 'Workforce', description: 'Employees, attendance and payroll' },
     { module: 'Liaisoning & Commissioning', description: 'LC applications and approvals' },
     { module: 'O&M', description: 'Operation and maintenance activities' },
     { module: 'Accounts', description: 'Invoices, payments and accounting' },
     { module: 'Inventory', description: 'Stock and warehouse management' },
-    { module: 'Daily Tasks', description: 'Site visits, installs and dispatch' },
+    { module: 'Employee', description: 'Employees, attendance and payroll' },
+    { module: 'Insights', description: 'Reports and analytics' },
+    { module: 'Daily Tasks', description: 'Assign tasks and track Completed / Not Completed' },
     { module: 'AMC & Warranty', description: 'AMC contracts and warranty claims' },
-    { module: 'Reports', description: 'View and export reports' },
-    { module: 'User Management', description: 'Manage users and access' },
     { module: 'Settings', description: 'System configuration' },
+    { module: 'User Management', description: 'Manage users and roles' },
   ];
 
   const guestMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: false };
   const viewerMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: true };
   const managerMatrix = {
     Dashboard: { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    Leads: { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    'Follow-ups': { View: true, Add: true, Edit: true, Delete: true, Export: true },
-    'IVRS Management': { View: true, Add: false, Edit: false, Delete: false, Export: true },
-    Approvals: { View: true, Add: true, Edit: true, Delete: false, Export: false },
+    Lead: { View: true, Add: true, Edit: true, Delete: true, Export: true },
+    Quotation: { View: true, Add: true, Edit: true, Delete: false, Export: true },
     'Project Management': { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    Workforce: { View: true, Add: true, Edit: true, Delete: false, Export: true },
     'Liaisoning & Commissioning': { View: true, Add: true, Edit: true, Delete: false, Export: false },
     'O&M': { View: true, Add: true, Edit: true, Delete: false, Export: true },
     Accounts: { View: true, Add: true, Edit: false, Delete: false, Export: true },
     Inventory: { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    Employee: { View: true, Add: true, Edit: true, Delete: false, Export: true },
+    Insights: { View: true, Add: false, Edit: false, Delete: false, Export: true },
     'Daily Tasks': { View: true, Add: true, Edit: true, Delete: false, Export: true },
     'AMC & Warranty': { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    Reports: { View: true, Add: false, Edit: false, Delete: false, Export: true },
-    'User Management': { View: false, Add: false, Edit: false, Delete: false, Export: false },
     Settings: { View: true, Add: false, Edit: false, Delete: false, Export: false },
+    'User Management': { View: false, Add: false, Edit: false, Delete: false, Export: false },
   };
 
   return template.map((row, index) => {
@@ -25990,7 +25871,7 @@ function createSettingsRolePermissions(roleName) {
           View: true,
           Add: index === 0 ? false : true,
           Edit: index === 0 ? false : true,
-          Delete: ['Leads', 'Project Management', 'Inventory', 'Daily Tasks'].includes(row.module),
+          Delete: ['Lead', 'Project Management', 'Inventory', 'Daily Tasks'].includes(row.module),
           Export: true,
         },
       };
@@ -26662,7 +26543,10 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
       return;
     }
     roleApi.setPermissions(selectedRole.id, mapUiPermissionsToApi(permissionRows))
-      .then(() => onNotify(`${selectedRoleName} permissions saved`, 'success'))
+      .then(() => {
+        onNotify(`${selectedRoleName} permissions saved`, 'success');
+        setManageRoleOpen(false);
+      })
       .catch((error) => onNotify(error.message || 'Failed to save permissions', 'error'));
   };
 
@@ -29461,7 +29345,7 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_0.95fr_1fr_1fr_auto_auto] xl:items-end">
           <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((value) => !value)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={`${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`} />
           <ReportSelect label="User" value={user} onChange={setUser} options={['All Users', ...uniqueUsers]} />
-          <ReportSelect label="Module" value={moduleName} onChange={setModuleName} options={['All Modules', 'Leads', 'Follow-ups', 'IVRS Management', 'Approvals', 'Users', 'Roles & Permissions', 'Settings']} />
+          <ReportSelect label="Module" value={moduleName} onChange={setModuleName} options={['All Modules', 'Lead', 'Quotation', 'Project Management', 'Employee', 'Insights', 'Users', 'Roles & Permissions', 'Settings']} />
           <ReportSelect label="Action" value={action} onChange={setAction} options={['All Actions', 'Created', 'Updated', 'Requested', 'Approved', 'Edited', 'Deleted']} />
           <button type="button" onClick={() => onNotify(`Activity filters applied: ${filteredLogs.length} entries`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filters</button>
           <button type="button" onClick={resetLogs} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
@@ -36323,17 +36207,7 @@ function LeadListMobileRow({ lead, onOpenLead, onOpenSurvey, onEditLead }) {
 }
 
 function DashboardFooter() {
-  return (
-    <footer className="flex flex-col gap-2 border-t border-[#e4ebf4] px-1 pb-1 pt-3 text-center text-[12px] font-semibold text-[#7b88a2] sm:text-left lg:flex-row lg:items-center lg:justify-between">
-      <p>Copyright 2024 Malwa Solar CRM. All rights reserved.</p>
-      <p className="inline-flex items-center justify-center gap-1.5 lg:justify-end">
-        Made with
-        <Heart className="size-3.5 fill-current text-[#ff4b4f]" />
-        for a Sustainable Future
-        <Leaf className="size-3.5 text-[#1bc35f]" />
-      </p>
-    </footer>
-  );
+  return null;
 }
 
 function StatCard({ stat, onClick }) {

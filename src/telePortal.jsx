@@ -6,6 +6,7 @@ import {
   Bell,
   CalendarDays,
   CheckCircle2,
+  ClipboardList,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -20,7 +21,7 @@ import {
   Mail,
   MapPin,
   MessageCircle,
-  MonitorSmartphone,
+  MonitorCog,
   Moon,
   Pencil,
   Phone,
@@ -41,6 +42,8 @@ import {
 import { cx } from './lib/utils.js';
 import { authApi, leadApi, followUpApi } from './api.js';
 import { PwaInstallBanner, PwaInstallIconButton } from './components/mobile/PwaInstallControls.jsx';
+import { hasModuleAccess } from './settingsHubPages.jsx';
+import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
 
 export const TELE_ROLE_NAME = 'Tele Sales Executive';
 
@@ -567,18 +570,113 @@ function TeleField({ label, children }) {
 
 const teleInputClass = 'h-11 w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[14px] font-semibold text-[#1f2d44] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100';
 
+// ─── Shared auth landing chrome (portal chooser + login pages) ────────────────
+
+function AuthLandingBackground() {
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute -left-28 bottom-[-90px] h-[340px] w-[460px] rounded-[48%_52%_44%_56%] bg-[#c8efd2] opacity-80"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute -right-24 top-[-80px] h-[300px] w-[420px] rounded-[56%_44%_50%_50%] bg-[#d5f4de] opacity-85"
+        aria-hidden="true"
+      />
+      <div className="pointer-events-none absolute left-[7%] top-[46%] grid grid-cols-4 gap-2.5 opacity-30" aria-hidden="true">
+        {Array.from({ length: 16 }).map((_, i) => (
+          <span key={i} className="size-1.5 rounded-full bg-[#8fa0b8]" />
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function AuthBrandHeader() {
+  return (
+    <div className="flex items-center gap-3">
+      <TeleBrandMark size="lg" />
+      <div>
+        <p className="font-display text-[18px] font-extrabold leading-tight text-[#0d9f4a] sm:text-[22px]">Malwa Solar Energy</p>
+        <div className="mt-1 flex max-w-[210px] items-center gap-2">
+          <span className="h-px flex-1 bg-[#0d9f4a]/55" />
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#123c8f] sm:text-[11px]">ERP System</p>
+          <span className="h-px flex-1 bg-[#0d9f4a]/55" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function BuiltByCredit({ className = '' }) {
+  return (
+    <span className={cx('text-[12px] font-semibold text-[#8a98af]', className)}>
+      Designed &amp; developed by{' '}
+      <a
+        href="https://sheddysmithlab.tech/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-extrabold text-[#3d5273] underline-offset-2 transition hover:text-[#0d9f4a] hover:underline"
+      >
+        Sheddy Smith Lab
+      </a>
+    </span>
+  );
+}
+
+export function ProductFooter({ className = '' }) {
+  return (
+    <footer
+      className={cx(
+        'flex shrink-0 flex-col gap-1 border-t border-[#e4ebf4] bg-white/95 px-3 py-2.5 text-center text-[12px] font-semibold text-[#7b88a2] sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:text-left',
+        className,
+      )}
+    >
+      <p>Copyright {new Date().getFullYear()} Malwa Solar Energy. All rights reserved.</p>
+      <BuiltByCredit className="sm:text-right" />
+    </footer>
+  );
+}
+
+export function AuthLandingFooter() {
+  return (
+    <footer className="flex flex-col items-center justify-center gap-2 border-t border-[#edf2f8] px-5 py-4 text-center">
+      <div className="flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-3">
+        <p className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#0d9f4a]">
+          <CheckCircle2 className="size-4" />
+          Secure. Reliable. Integrated.
+        </p>
+        <span className="hidden h-4 w-px bg-[#d7e0ec] sm:block" />
+        <p className="text-[13px] font-semibold text-[#8a98af]">Powering Solar Business Growth</p>
+      </div>
+      <BuiltByCredit />
+    </footer>
+  );
+}
+
+export function AuthLandingShell({ children, maxWidth = 'max-w-[1080px]' }) {
+  return (
+    <div className="portal-landing-page relative overflow-hidden bg-[#f3f5f7] px-3 py-5 text-[#172648] sm:px-6 sm:py-8">
+      <AuthLandingBackground />
+      <main className={cx('relative z-10 mx-auto flex w-full flex-col overflow-hidden rounded-[22px] border border-[#e4ebf4] bg-white shadow-[0_18px_50px_rgba(23,43,77,0.10)]', maxWidth)}>
+        {children}
+      </main>
+    </div>
+  );
+}
+
 // ─── Entry screen: portal chooser ─────────────────────────────────────────────
 
 export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
   const portals = [
     {
       key: 'crm',
-      title: 'CRM Operations',
-      description: 'Manage leads, projects, installations, O&M, AMC, inventory, accounts and more.',
-      icon: MonitorSmartphone,
+      title: 'ERP Operations',
+      description: 'Manage leads, projects, installations, O&M, AMC, inventory, accounts, reports and more.',
+      icon: MonitorCog,
       iconWrap: 'bg-[#e8f8eb] text-[#0d9f4a]',
       button: 'bg-[#0d9f4a] hover:bg-[#078c3e]',
-      buttonLabel: 'Open CRM Operations',
+      buttonLabel: 'Open ERP Operations',
       onClick: onSelectCrm,
     },
     {
@@ -594,56 +692,48 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
   ];
 
   return (
-    <div className="portal-landing-page bg-[#eef3f7] px-3 py-3 text-[#172648] sm:px-6 sm:py-6">
-      <main className="mx-auto flex w-full max-w-[1080px] flex-col rounded-[20px] border border-[#dfe7f2] bg-white shadow-[0_24px_60px_rgba(23,43,77,0.14)]">
-        <div className="flex items-center gap-3 px-4 pt-5 sm:px-9 sm:pt-8">
-          <TeleBrandMark size="lg" />
-          <div>
-            <p className="font-display text-[18px] font-extrabold leading-tight text-[#087532] sm:text-[22px]">Malwa Solar Energy</p>
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.24em] text-[#252b35] sm:text-[13px]">CRM System</p>
-          </div>
-        </div>
+    <AuthLandingShell>
+      <div className="px-5 pt-6 sm:px-9 sm:pt-8">
+        <AuthBrandHeader />
+      </div>
 
-        <div className="flex flex-col items-center px-4 py-10 sm:px-10 sm:py-16">
-          <h1 className="text-center font-display text-[28px] font-extrabold leading-tight text-[#102446] sm:text-[44px]">
-            Welcome to <span className="text-[#0d9f4a]">Solar CRM</span>
-          </h1>
-          <p className="mt-4 text-center text-[15px] font-semibold text-[#5c6676] sm:text-[18px]">
-            Choose your portal to continue
-          </p>
+      <div className="flex flex-col items-center px-5 py-10 sm:px-10 sm:py-14">
+        <h1 className="text-center font-display text-[28px] font-extrabold leading-tight text-[#102446] sm:text-[42px]">
+          Welcome to <span className="text-[#0d9f4a]">Solar ERP</span>
+        </h1>
+        <p className="mt-3 text-center text-[15px] font-semibold text-[#5c6676] sm:text-[17px]">
+          Choose your portal to continue
+        </p>
 
-          <div className="mt-10 grid w-full max-w-[760px] gap-6 sm:mt-12 sm:grid-cols-2">
-            {portals.map((portal) => {
-              const Icon = portal.icon;
-              return (
-                <article
-                  key={portal.key}
-                  className="flex flex-col items-center rounded-[18px] border border-[#e2e9f3] bg-white p-7 text-center shadow-[0_14px_34px_rgba(23,43,77,0.08)] transition hover:-translate-y-1 hover:shadow-[0_20px_44px_rgba(23,43,77,0.14)] sm:p-8"
+        <div className="mt-10 grid w-full max-w-[760px] gap-6 sm:mt-12 sm:grid-cols-2">
+          {portals.map((portal) => {
+            const Icon = portal.icon;
+            return (
+              <article
+                key={portal.key}
+                className="flex flex-col items-center rounded-[18px] border border-[#e8eef6] bg-white p-7 text-center shadow-[0_12px_30px_rgba(23,43,77,0.07)] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(23,43,77,0.12)] sm:p-8"
+              >
+                <span className={cx('grid size-[88px] place-items-center rounded-full sm:size-24', portal.iconWrap)}>
+                  <Icon className="size-10 sm:size-11" />
+                </span>
+                <h2 className="mt-6 font-display text-[20px] font-extrabold text-[#102446] sm:text-[22px]">{portal.title}</h2>
+                <p className="mt-3 text-[13px] font-semibold leading-6 text-[#5c6676] sm:text-[14px]">{portal.description}</p>
+                <button
+                  type="button"
+                  onClick={portal.onClick}
+                  className={cx('mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[10px] text-[14px] font-extrabold text-white shadow-[0_12px_24px_rgba(23,43,77,0.16)] transition sm:text-[15px]', portal.button)}
                 >
-                  <span className={cx('grid size-24 place-items-center rounded-full sm:size-28', portal.iconWrap)}>
-                    <Icon className="size-11 sm:size-12" />
-                  </span>
-                  <h2 className="mt-6 font-display text-[20px] font-extrabold text-[#102446] sm:text-[22px]">{portal.title}</h2>
-                  <p className="mt-3 text-[13px] font-semibold leading-6 text-[#5c6676] sm:text-[14px]">{portal.description}</p>
-                  <button
-                    type="button"
-                    onClick={portal.onClick}
-                    className={cx('mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[10px] text-[14px] font-extrabold text-white shadow-[0_12px_24px_rgba(23,43,77,0.16)] transition sm:text-[15px]', portal.button)}
-                  >
-                    {portal.buttonLabel}
-                    <ArrowRight className="size-4" />
-                  </button>
-                </article>
-              );
-            })}
-          </div>
+                  {portal.buttonLabel}
+                  <ArrowRight className="size-4" />
+                </button>
+              </article>
+            );
+          })}
         </div>
+      </div>
 
-        <footer className="border-t border-[#edf2f8] px-5 py-4 text-center text-[13px] font-semibold text-[#8a98af]">
-          © {new Date().getFullYear()} Malwa Solar Energy CRM. All rights reserved.
-        </footer>
-      </main>
-    </div>
+      <AuthLandingFooter />
+    </AuthLandingShell>
   );
 }
 
@@ -813,6 +903,7 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
           </div>
         </section>
       </main>
+      <BuiltByCredit className="relative z-10 mt-4 text-center" />
     </div>
   );
 }
@@ -824,6 +915,7 @@ const TELE_NAV_ITEMS = [
   { label: 'My Leads', icon: Users, path: '/tele/leads' },
   { label: 'Follow-ups', icon: Phone, path: '/tele/follow-ups' },
   { label: 'Reminders', icon: Bell, path: '/tele/reminders' },
+  { label: 'Daily Tasks', icon: ClipboardList, path: '/tele/daily-tasks' },
   { label: 'Reports', icon: BarChart3, path: '/tele/reports' },
   { label: 'Profile Details', icon: UserRound, path: '/tele/profile' },
 ];
@@ -944,6 +1036,10 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const leadRows = leads ?? [];
   const sameId = (a, b) => a != null && b != null && String(a) === String(b);
   const isSuperAdminUser = Boolean(me?.is_super_admin);
+  const teleNavItems = useMemo(() => {
+    if (!me || hasModuleAccess(me, 'Daily Tasks', 'View')) return TELE_NAV_ITEMS;
+    return TELE_NAV_ITEMS.filter((item) => item.label !== 'Daily Tasks');
+  }, [me]);
   const isOwnLeadRow = (lead) => sameId(lead?.created_by, me?.id);
   const ownLeadRows = leadRows.filter(isOwnLeadRow);
   const ownLeadIds = useMemo(
@@ -1084,6 +1180,8 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             onOpenFollowUps={() => openFollowUpsTab('today')}
           />
         );
+      case 'Daily Tasks':
+        return <TeleDailyTasksPage me={me} onNotify={onNotify} />;
       case 'Reports':
         return (
           <TeleReportsPage
@@ -1112,7 +1210,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
           <div className="sidebar-shine tele-sidebar-shine" aria-hidden="true" />
           <div className="scroll-soft sidebar-menu-scroll relative flex h-full flex-col overflow-y-auto px-3.5 py-4">
             <nav className="space-y-1.5">
-              {TELE_NAV_ITEMS.map((item) => {
+              {teleNavItems.map((item) => {
                 const Icon = item.icon;
                 const active = activeNav === item.label;
                 return (
@@ -1219,13 +1317,15 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
           <PwaInstallBanner notify={onNotify} />
         </div>
 
-        <main className="scroll-soft flex-1 space-y-2 overflow-y-auto px-2 py-2 pb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:px-3 sm:py-2.5 lg:pl-1.5 lg:pb-3">
+        <main className="scroll-soft flex-1 space-y-2 overflow-y-auto px-2 py-2 pb-2 sm:px-3 sm:py-2.5 lg:pl-1.5 lg:pb-3">
           {pageContent()}
         </main>
 
+        <ProductFooter className="mb-[calc(5.25rem+env(safe-area-inset-bottom))] lg:mb-1.5 lg:mr-1.5 lg:rounded-b-[16px]" />
+
         <nav className="app-mobile-bottom-nav fixed inset-x-0 bottom-0 z-60 border-t border-[#e2e9f3] bg-white/98 shadow-[0_-10px_28px_rgba(21,43,83,0.12)] backdrop-blur-[10px] lg:hidden dark:border-slate-700 dark:bg-slate-950/96">
-          <div className="mx-auto grid max-w-lg grid-cols-6 gap-0.5 px-1 pt-1">
-            {TELE_NAV_ITEMS.map((item) => {
+          <div className={cx('mx-auto grid max-w-lg gap-0.5 px-1 pt-1', teleNavItems.length >= 7 ? 'grid-cols-7' : 'grid-cols-6')}>
+            {teleNavItems.map((item) => {
               const Icon = item.icon;
               const active = activeNav === item.label;
               return (
@@ -1246,7 +1346,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                     <Icon className="size-[18px]" strokeWidth={active ? 2.4 : 2} />
                   </span>
                   <span className="max-w-full truncate px-0.5 text-[9px] font-extrabold leading-none">
-                    {item.label === 'Profile Details' ? 'Profile' : item.label}
+                    {item.label === 'Profile Details' ? 'Profile' : item.label === 'Daily Tasks' ? 'Tasks' : item.label}
                   </span>
                 </button>
               );
