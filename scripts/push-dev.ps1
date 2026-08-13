@@ -39,7 +39,7 @@ if (-not $SkipCommit) {
 git push origin main
 Write-Host ""
 Write-Host "Pushed to 822 repo: Sheddy-Smith/Solar_crm_frontend (origin/main)" -ForegroundColor Green
-Write-Host "→ Test on Render/Vercel after build finishes."
+Write-Host "→ Auto-deploy: VPS pulls main and updates FE + BE within ~1 minute." -ForegroundColor Green
 Write-Host ""
 Write-Host "When testing is OK, promote to lab (client/prod):" -ForegroundColor Yellow
 Write-Host "  .\scripts\promote-to-lab.ps1 -Message `"your message`""
