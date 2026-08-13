@@ -749,7 +749,7 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
   const handleLogin = async (event) => {
     event.preventDefault();
     if (!email.trim() || !password.trim()) {
-      setLoginError('Please enter both email and password.');
+      setLoginError('Please enter email/username and password.');
       return;
     }
     setLoading(true);
@@ -771,7 +771,7 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
       }
       onLogin(data.user);
     } catch (err) {
-      setLoginError(err.message || 'Invalid email or password.');
+      setLoginError(err.message || 'Invalid email, username or password.');
     } finally {
       setLoading(false);
     }
@@ -838,7 +838,7 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
                     type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email or username"
+                    placeholder="Enter email, username or mobile"
                     autoComplete="username"
                     spellCheck={false}
                     className="h-full min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796]"

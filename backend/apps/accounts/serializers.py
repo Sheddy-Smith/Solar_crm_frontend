@@ -87,10 +87,53 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Login accepts email, display name (username), or mobile.
+
+    The User model has no separate username field — staff type the person's
+    name (e.g. "Roshini") into the Email / Username box. Resolve that to the
+    canonical email before SimpleJWT's email-based authenticate runs.
+    """
+
+    @staticmethod
+    def resolve_login_identifier(login_id):
+        from rest_framework.exceptions import AuthenticationFailed
+
+        identifier = (login_id or '').strip()
+        if not identifier:
+            return None
+
+        qs = User.objects.filter(is_active=True, is_deleted=False)
+
+        by_email = qs.filter(email__iexact=identifier).first()
+        if by_email:
+            return by_email
+
+        digits = ''.join(ch for ch in identifier if ch.isdigit())
+        if len(digits) >= 10:
+            by_mobile = qs.filter(mobile=digits[-10:]).first()
+            if by_mobile:
+                return by_mobile
+
+        name_matches = list(qs.filter(name__iexact=identifier)[:2])
+        if len(name_matches) == 1:
+            return name_matches[0]
+        if len(name_matches) > 1:
+            raise AuthenticationFailed(
+                'Multiple accounts match this username. Please login with email.',
+            )
+        return None
+
     def validate(self, attrs):
+        from rest_framework.exceptions import AuthenticationFailed
+
+        login_id = attrs.get(self.username_field)
+        user = self.resolve_login_identifier(login_id)
+        if user is None:
+            raise AuthenticationFailed('No active account found with the given credentials')
+        attrs[self.username_field] = user.email
+
         data = super().validate(attrs)
         if getattr(self.user, 'is_deleted', False):
-            from rest_framework.exceptions import AuthenticationFailed
             raise AuthenticationFailed('This account has been deleted.')
         data['user'] = UserSerializer(self.user).data
         return data

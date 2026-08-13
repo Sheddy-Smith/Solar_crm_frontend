@@ -2116,12 +2116,27 @@ function App() {
       if (!data) return;
       setDashboardLeadStats(data);
       setDashboardRange({ start: data.range_start, end: data.range_end });
+      const periodLabel = dashboardPeriod.toLowerCase();
       setDashboardStats((prev) =>
         prev.map((s) => {
-          if (s.title === 'Total Leads') return { ...s, value: String(data.total ?? s.value) };
+          if (s.title === 'Total Leads') {
+            return {
+              ...s,
+              value: String(data.total ?? s.value),
+              delta: `${data.created_in_period ?? 0} new this ${periodLabel}`,
+              deltaTone: 'positive',
+            };
+          }
           if (s.title === 'Today Follow-ups') return { ...s, value: String(data.today_followups ?? s.value) };
           if (s.title === 'Pending Quotations') return { ...s, value: String(data.quotation ?? s.value) };
-          if (s.title === 'Won Projects') return { ...s, value: String(data.won ?? s.value) };
+          if (s.title === 'Won Projects') {
+            return {
+              ...s,
+              value: String(data.won ?? s.value),
+              delta: `${data.won_in_period ?? 0} this ${periodLabel}`,
+              deltaTone: 'positive',
+            };
+          }
           return s;
         }),
       );
@@ -4033,7 +4048,7 @@ function SignInPage({ onLogin, onBack, onNotify }) {
   const handleLogin = async (event) => {
     event.preventDefault();
     if (!email.trim() || !password.trim()) {
-      setLoginError('Please enter both email and password.');
+      setLoginError('Please enter email/username and password.');
       return;
     }
     setLoading(true);
@@ -4052,7 +4067,7 @@ function SignInPage({ onLogin, onBack, onNotify }) {
         setLoginError('Login failed. Please try again.');
       }
     } catch (err) {
-      setLoginError(err.message || 'Invalid email or password.');
+      setLoginError(err.message || 'Invalid email, username or password.');
     } finally {
       setLoading(false);
     }
@@ -4085,14 +4100,14 @@ function SignInPage({ onLogin, onBack, onNotify }) {
 
         <form className="mt-8 space-y-5 sm:mt-9 sm:space-y-6" onSubmit={handleLogin}>
           <label className="block">
-            <span className="text-[13px] font-bold text-[#33456b]">Email Address</span>
+            <span className="text-[13px] font-bold text-[#33456b]">Email / Username</span>
             <span className="mt-2 flex h-12 items-center gap-3 rounded-[10px] border border-[#dbe4f0] bg-white px-4 transition focus-within:border-[#0d9f4a] focus-within:ring-4 focus-within:ring-[#0d9f4a]/15 sm:h-14">
               <UserRound className="size-5 text-[#7a8494]" />
               <input
                 type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter email or mobile number"
+                placeholder="Enter email, username or mobile"
                 autoComplete="username"
                 spellCheck={false}
                 className="h-full min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#7d8796]"
@@ -36343,9 +36358,8 @@ function WorkflowTabContent({ stages, onViewAll, onStageClick }) {
 
 function AssigneeCell({ assignee, compact = false }) {
   return (
-    <span className={cx('inline-flex items-center gap-2', compact ? 'text-[12px]' : 'text-[13px]')}>
-      <PersonAvatar tone={assignee.tone} initials={assignee.initials} />
-      <span className="font-bold text-[#314a79]">{assignee.name}</span>
+    <span className={cx('inline-flex items-center font-bold text-[#314a79]', compact ? 'text-[12px]' : 'text-[13px]')}>
+      {assignee?.name || 'Unassigned'}
     </span>
   );
 }
@@ -36381,12 +36395,6 @@ function SurveyStatusBadge({ status }) {
     </span>
   );
 }
-
-const avatarToneMap = {
-  amber: 'bg-[linear-gradient(135deg,#f7a11a,#f97316)]',
-  sky: 'bg-[linear-gradient(135deg,#1f8dff,#3767ff)]',
-  emerald: 'bg-[linear-gradient(135deg,#19b55a,#0ea5a4)]',
-};
 
 function BrandLockup() {
   return (
@@ -36436,54 +36444,13 @@ function MiniBrandMark({ compact = false, plain = false }) {
 function AdminAvatar({ name }) {
   const initials = name
     ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
-    : null;
+    : '?';
   return (
     <div className="grid size-11 place-items-center overflow-hidden rounded-full border-[3px] border-[#f2d27a] bg-white shadow-[0_8px_18px_rgba(40,66,118,0.14)]">
-      {initials ? (
-        <div className="flex size-full items-center justify-center bg-[#1f4e8c] text-[15px] font-extrabold text-white">
-          {initials}
-        </div>
-      ) : (
-        <svg viewBox="0 0 44 44" className="size-full" aria-hidden="true">
-          <rect width="44" height="44" rx="22" fill="#f7f3ea" />
-          <path d="M10 44c1-7 5-11 12-11s11 4 12 11" fill="#1f4e8c" />
-          <circle cx="22" cy="18" r="9" fill="#f1bf8b" />
-          <path d="M13 17c0-7 4-11 9-11 5 0 10 4 10 12-2-1-3-3-4-5-2 2-5 4-10 4-2 0-4 0-5 0z" fill="#2b251d" />
-          <circle cx="18.5" cy="18.5" r="0.9" fill="#33261e" />
-          <circle cx="25.5" cy="18.5" r="0.9" fill="#33261e" />
-          <path d="M19 23c2 1 4 1 6 0" stroke="#c86f5f" strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
-      )}
+      <div className="flex size-full items-center justify-center bg-[#1f4e8c] text-[15px] font-extrabold text-white">
+        {initials}
+      </div>
     </div>
-  );
-}
-
-function PersonAvatar({ tone, initials }) {
-  const shirt =
-    {
-      amber: '#f59e0b',
-      sky: '#2563eb',
-      emerald: '#10b981',
-    }[tone] ?? '#64748b';
-
-  const hair =
-    {
-      amber: '#2d241d',
-      sky: '#3a2e25',
-      emerald: '#1f1a16',
-    }[tone] ?? '#2d241d';
-
-  return (
-    <span className={cx('grid size-7 place-items-center overflow-hidden rounded-full shadow-[0_6px_12px_rgba(33,54,93,0.16)]', avatarToneMap[tone])}>
-      <svg viewBox="0 0 28 28" className="size-full" aria-label={initials}>
-        <rect width="28" height="28" rx="14" fill="#ffffff" fillOpacity="0.08" />
-        <path d="M6 28c1-4.5 4-7 8-7s7 2.5 8 7" fill={shirt} />
-        <circle cx="14" cy="12" r="5.5" fill="#f3c18f" />
-        <path d="M8.7 11.7c0-4.7 2.4-7.7 5.8-7.7 3.7 0 6.6 2.9 6.1 8-1-1.2-2.2-2-3.3-2.8-.9 1-2.9 2.3-5.8 2.5-.8 0-1.8 0-2.8 0z" fill={hair} />
-        <circle cx="12.2" cy="12.2" r="0.55" fill="#2a201a" />
-        <circle cx="15.9" cy="12.2" r="0.55" fill="#2a201a" />
-      </svg>
-    </span>
   );
 }
 

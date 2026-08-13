@@ -62,8 +62,61 @@ class PermissionRegressionTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data['results']), 120)
 
+    def test_dashboard_lead_stats_total_is_not_zeroed_by_month_filter(self):
+        # Hero "Total Leads" must count the live pipeline. Month/year only
+        # scopes created_in_period — otherwise older leads vanish from the
+        # dashboard while Recent Leads still lists them.
+        from datetime import timedelta
+        from django.utils import timezone
+
+        user = make_user('statsuser@test.com', 'Super Admin', {'Lead': {'can_view': True}})
+        old = Lead.objects.create(customer_name='Old Lead', mobile_number='9000000001', created_by=user, status='New')
+        Lead.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=60))
+        Lead.objects.create(customer_name='New Lead', mobile_number='9000000002', created_by=user, status='Follow-up')
+
+        self.client.force_authenticate(user)
+        today = timezone.localdate().isoformat()
+        res = self.client.get(f'/api/v1/leads/stats/?period=month&date={today}')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['total'], 2)
+        self.assertEqual(res.data['created_in_period'], 1)
+        self.assertEqual(res.data['follow_up'], 1)
+
     def test_failed_login_is_logged(self):
         make_user('login@test.com', 'Any Role')
         res = self.client.post('/api/v1/auth/login/', {'email': 'login@test.com', 'password': 'wrong'}, format='json')
         self.assertEqual(res.status_code, 401)
         self.assertTrue(UserActivityLog.objects.filter(action='Login Failed').exists())
+
+    def test_login_accepts_email_name_or_mobile(self):
+        user = make_user('roshini@malwasolar.com', 'Tele Sales Executive', {'Lead': {'can_view': True}})
+        user.name = 'Roshini'
+        user.mobile = '9876543210'
+        user.set_password('SecretPass1')
+        user.save()
+
+        # Email
+        res = self.client.post(
+            '/api/v1/auth/login/',
+            {'email': 'roshini@malwasolar.com', 'password': 'SecretPass1'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertIn('access', res.data)
+
+        # Display name used as username (case-insensitive)
+        res = self.client.post(
+            '/api/v1/auth/login/',
+            {'email': 'roshini', 'password': 'SecretPass1'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['user']['name'], 'Roshini')
+
+        # Mobile
+        res = self.client.post(
+            '/api/v1/auth/login/',
+            {'email': '9876543210', 'password': 'SecretPass1'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200, res.data)

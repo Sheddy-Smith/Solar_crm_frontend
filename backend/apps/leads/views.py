@@ -124,8 +124,10 @@ class LeadViewSet(viewsets.ModelViewSet):
             except ValueError:
                 anchor = today
 
-        # `period` scopes the headline counts to leads created in the anchored
-        # day / week / month / year, for the dashboard's period toggle.
+        # Headline KPIs are the live pipeline (all non-deleted leads). The
+        # day/week/month/year toggle only scopes "created / won in this period"
+        # so a month with no *new* leads does not zero out Total Leads while
+        # Recent Leads still shows the existing book.
         # `today_followups` and `overdue` stay absolute — they describe
         # what's due today, not when the lead was created.
         #
@@ -135,13 +137,15 @@ class LeadViewSet(viewsets.ModelViewSet):
         period_qs, range_start, range_end = period_created_at_queryset(qs, period, anchor)
 
         return Response({
-            'total': period_qs.count(),
-            'new': period_qs.filter(status='New').count(),
-            'follow_up': period_qs.filter(status='Follow-up').count(),
+            'total': qs.count(),
+            'new': qs.filter(status='New').count(),
+            'follow_up': qs.filter(status='Follow-up').count(),
             'today_followups': filter_field_on_local_date(qs, 'next_follow_up', today).count(),
-            'quotation': period_qs.filter(status='Quotation').count(),
-            'won': period_qs.filter(status='Won').count(),
-            'lost': period_qs.filter(status='Lost').count(),
+            'quotation': qs.filter(status='Quotation').count(),
+            'won': qs.filter(status='Won').count(),
+            'lost': qs.filter(status='Lost').count(),
+            'created_in_period': period_qs.count(),
+            'won_in_period': period_qs.filter(status='Won').count(),
             'overdue': qs.filter(next_follow_up__lt=timezone.now(), status__in=['New', 'Follow-up']).count(),
             'range_start': range_start.isoformat() if range_start else None,
             'range_end': range_end.isoformat() if range_end else None,
