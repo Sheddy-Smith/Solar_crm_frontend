@@ -48,6 +48,12 @@ fi
 
 echo "==> Deploying $SHORT"
 
+# Keep the on-box deploy entrypoint in sync with the repo copy.
+if [[ -f "$SRC_DIR/scripts/vps-auto-deploy.sh" ]]; then
+  install -m 0755 "$SRC_DIR/scripts/vps-auto-deploy.sh" /usr/local/bin/malwa-crm-auto-deploy.sh
+  sed -i 's/\r$//' /usr/local/bin/malwa-crm-auto-deploy.sh || true
+fi
+
 echo "==> Sync backend → $BE_DIR"
 rsync -a --delete \
   --exclude '.venv/' \
