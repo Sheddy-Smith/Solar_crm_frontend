@@ -14,11 +14,18 @@ FE_DIR="${FE_DIR:-/docker/crm-ecomalwa-frontend}"
 BE_DIR="${BE_DIR:-/var/www/malwa-crm/backend}"
 STATE_DIR="${STATE_DIR:-/var/lib/malwa-crm-auto-deploy}"
 STATE_FILE="${STATE_DIR}/last_sha"
+LOCK_FILE="${STATE_DIR}/deploy.lock"
 API_URL="${API_URL:-https://api.crm.ecomalwa.com/api/v1}"
 FORCE="${FORCE:-0}"
 APP_USER="${APP_USER:-malwa}"
 
 mkdir -p "$STATE_DIR" "$SRC_DIR" "$FE_DIR"
+
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "Another deploy is already running — exiting."
+  exit 0
+fi
 
 if [[ ! -d "$SRC_DIR/.git" ]]; then
   echo "==> Cloning $REPO_URL ($BRANCH)"
