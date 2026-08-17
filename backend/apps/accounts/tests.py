@@ -3,7 +3,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import Role, RolePermission, User
 from apps.crm_settings.models import UserActivityLog
-from apps.leads.models import Lead
+from apps.leads.models import FollowUp, Lead
 
 
 def make_user(email, role_name, perms=None):
@@ -120,3 +120,60 @@ class PermissionRegressionTests(TestCase):
             format='json',
         )
         self.assertEqual(res.status_code, 200, res.data)
+
+    def test_logging_follow_up_clears_old_extra_high_scheduled(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        user = make_user('telefu@test.com', 'Tele Sales Executive', {'Lead': {'can_view': True, 'can_add': True, 'can_edit': True}})
+        now = timezone.now()
+        old_due = now - timedelta(days=16)
+        next_due = now + timedelta(days=3)
+        lead = Lead.objects.create(
+            customer_name='Jivan Gupta',
+            mobile_number='9407556185',
+            created_by=user,
+            status='Follow-up',
+            next_follow_up=old_due,
+        )
+        FollowUp.objects.create(
+            lead=lead,
+            follow_up_type='Call',
+            scheduled_at=old_due,
+            status='Scheduled',
+            notes='Old pending',
+            created_by=user,
+        )
+
+        self.client.force_authenticate(user)
+        completed = self.client.post('/api/v1/follow-ups/', {
+            'lead': lead.id,
+            'follow_up_type': 'Call',
+            'scheduled_at': now.isoformat(),
+            'completed_at': now.isoformat(),
+            'status': 'Completed',
+            'notes': 'out of town',
+            'outcome': 'Thinking',
+        }, format='json')
+        self.assertEqual(completed.status_code, 201, completed.data)
+
+        nxt = self.client.post('/api/v1/follow-ups/', {
+            'lead': lead.id,
+            'follow_up_type': 'Call',
+            'scheduled_at': next_due.isoformat(),
+            'status': 'Scheduled',
+            'notes': 'Next follow-up planned after: Thinking',
+        }, format='json')
+        self.assertEqual(nxt.status_code, 201, nxt.data)
+
+        lead.refresh_from_db()
+        self.assertEqual(
+            FollowUp.objects.filter(lead=lead, status='Scheduled', scheduled_at=old_due).count(),
+            0,
+        )
+        self.assertEqual(FollowUp.objects.filter(lead=lead, status='Missed').count(), 1)
+        self.assertAlmostEqual(lead.next_follow_up.timestamp(), next_due.timestamp(), delta=1)
+        overdue = self.client.get('/api/v1/leads/overdue/')
+        self.assertEqual(overdue.status_code, 200)
+        self.assertFalse(any(row['id'] == lead.id for row in overdue.data))
+

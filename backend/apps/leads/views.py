@@ -18,6 +18,7 @@ from apps.accounts.permissions import (
     HasModulePermission, is_lead_scoped, lead_owner_filter, is_own_lead, can_manage_leads,
 )
 from .datetime_filters import filter_field_on_local_date, period_created_at_queryset
+from .followup_sync import sync_lead_next_follow_up
 from .recycle import soft_delete_follow_up, soft_delete_lead, soft_delete_quotation
 
 
@@ -256,7 +257,7 @@ class FollowUpViewSet(viewsets.ModelViewSet):
         if is_lead_scoped(self.request.user) and lead and not is_own_lead(self.request.user, lead):
             raise PermissionDenied('You can only add follow-ups to your own leads.')
         follow_up = serializer.save(created_by=self.request.user)
-        self._sync_lead_next_follow_up(follow_up.lead)
+        sync_lead_next_follow_up(follow_up.lead)
 
     def perform_update(self, serializer):
         # A scoped executive must not be able to re-point their follow-up at
@@ -271,31 +272,17 @@ class FollowUpViewSet(viewsets.ModelViewSet):
         # follow-up. Recompute from the lead's remaining state on every save.
         old_lead = serializer.instance.lead
         follow_up = serializer.save()
-        self._sync_lead_next_follow_up(follow_up.lead)
+        sync_lead_next_follow_up(follow_up.lead)
         # If the follow-up was moved to a different lead, the old lead's
         # next_follow_up would otherwise keep pointing at the moved record.
         if old_lead.pk != follow_up.lead_id:
-            self._sync_lead_next_follow_up(old_lead)
+            sync_lead_next_follow_up(old_lead)
 
     def perform_destroy(self, instance):
         # Soft-delete → Recycle Bin; resync lead next_follow_up afterwards.
         lead = instance.lead
         soft_delete_follow_up(instance, self.request.user)
-        self._sync_lead_next_follow_up(lead)
-
-    @staticmethod
-    def _sync_lead_next_follow_up(lead):
-        """Set `lead.next_follow_up` to the earliest remaining `Scheduled`
-        follow-up's `scheduled_at`, or null if none remain."""
-        next_scheduled = (
-            lead.follow_ups.filter(status='Scheduled', is_deleted=False)
-            .order_by('scheduled_at')
-            .values_list('scheduled_at', flat=True)
-            .first()
-        )
-        if lead.next_follow_up != next_scheduled:
-            lead.next_follow_up = next_scheduled
-            lead.save(update_fields=['next_follow_up'])
+        sync_lead_next_follow_up(lead)
 
 
 class AdminApprovalViewSet(viewsets.ModelViewSet):
