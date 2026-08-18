@@ -1014,6 +1014,11 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
   z-index: 3;
   background: #fbfcff;
   box-shadow: inset 0 -1px 0 #eaf0f7;
+  overflow: visible;
+}
+
+.crm-header-filter-anchor {
+  overflow: visible;
 }
 
 .crm-table-sticky-head thead th.crm-col-sticky-right {
