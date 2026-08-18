@@ -37,18 +37,23 @@ class FollowUpSerializer(serializers.ModelSerializer):
     lead_customer_name = serializers.CharField(source='lead.customer_name', read_only=True)
     lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
     lead_project_name = serializers.CharField(source='lead.project_name', read_only=True)
+    lead_assigned_to_name = serializers.SerializerMethodField()
 
     class Meta:
         model = FollowUp
         fields = [
             'id', 'lead', 'follow_up_type', 'scheduled_at', 'completed_at', 'status', 'notes',
             'reminder', 'status_after', 'outcome', 'created_by', 'created_by_name', 'created_at',
-            'lead_customer_name', 'lead_mobile_number', 'lead_project_name',
+            'lead_customer_name', 'lead_mobile_number', 'lead_project_name', 'lead_assigned_to_name',
         ]
         read_only_fields = ['created_by', 'created_at']
 
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
+
+    def get_lead_assigned_to_name(self, obj):
+        assigned = getattr(obj.lead, 'assigned_to', None) if obj.lead else None
+        return _user_name(assigned) if assigned else ''
 
 
 class AdminApprovalSerializer(serializers.ModelSerializer):

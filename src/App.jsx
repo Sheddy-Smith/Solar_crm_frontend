@@ -16,7 +16,8 @@ import {
   getMediaUrl,
 } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
-import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME, isTeleExecutiveRole, AuthLandingShell, AuthBrandHeader, AuthLandingFooter, ProductFooter } from './telePortal.jsx';
+import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME, isTeleExecutiveRole, AuthLandingShell, AuthBrandHeader, AuthLandingFooter, ProductFooter, TeleFollowUpAlertsPanel, splitFollowUpAlerts, followUpAgeLabel, formatDateTime } from './telePortal.jsx';
+import { CrmFollowUpsPage } from './crmFollowUps.jsx';
 import {
   InventoryOverviewPageEnhanced,
   InventoryProductsPage,
@@ -212,7 +213,7 @@ const sidebarItems = [
   { label: 'Settings', icon: Settings, showChevron: false },
 ];
 
-const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Admin Approval'];
+const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Follow-ups', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Admin Approval'];
 // Pages jinhe ek selected lead chahiye — refresh/restore pe selectedLead null hota hai, isliye inhe Lead List se replace karo
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Employee Details', 'Employee Ledger'];
@@ -448,6 +449,7 @@ const summarySubRoutes = {
 
 const leadSubRoutes = {
   'Lead List': '/lead/list',
+  'Follow-ups': '/lead/follow-ups',
   'Lead Edit': '/lead/edit/:leadId',
   'Lead Follow-up Create': '/lead/follow-up/create/:leadId',
   'Lead Site Visit Schedule': '/lead/site-visit/schedule/:leadId',
@@ -866,13 +868,16 @@ function buildDashboardWorkflowStages(leadStats = {}, projectSummary = {}) {
   const followUps = Number(leadStats.follow_up ?? 0);
   const quotations = Number(leadStats.quotation ?? 0);
   const activeProjects = Number(projectSummary.active ?? 0);
+  const planningProjects = Number(projectSummary.planning ?? 0);
+  const onHoldProjects = Number(projectSummary.on_hold ?? 0);
   const completedProjects = Number(projectSummary.completed ?? 0);
   const projectTotal = ['planning', 'active', 'on_hold', 'completed', 'cancelled'].reduce(
     (sum, key) => sum + (Number(projectSummary?.[key]) || 0),
     0,
   );
+  const inProgressProjects = planningProjects + activeProjects + onHoldProjects;
 
-  const installationProgress = projectTotal ? Math.min(100, Math.round((activeProjects / projectTotal) * 100)) : 0;
+  const installationProgress = projectTotal ? Math.min(100, Math.round((inProgressProjects / projectTotal) * 100)) : 0;
   const handoverProgress = projectTotal ? Math.min(100, Math.round((completedProjects / projectTotal) * 100)) : 0;
 
   return [
@@ -902,11 +907,11 @@ function buildDashboardWorkflowStages(leadStats = {}, projectSummary = {}) {
     },
     {
       title: 'Installation',
-      status: `${activeProjects} active projects`,
+      status: `${inProgressProjects} project${inProgressProjects === 1 ? '' : 's'} in progress`,
       progress: installationProgress,
       icon: Wrench,
       tone: 'bg-[#64748b] text-white',
-      target: 'Project List',
+      target: 'Project Installation',
     },
     {
       title: 'Handover',
@@ -936,16 +941,7 @@ const stats = [
     deltaTone: 'positive',
     icon: CalendarDays,
     iconBg: 'from-[#1277ff] to-[#2aa7ff]',
-    target: 'Lead List',
-  },
-  {
-    title: 'Pending Quotations',
-    value: '18',
-    delta: '2 new today',
-    deltaTone: 'neutral',
-    icon: FileText,
-    iconBg: 'from-[#4b49ef] to-[#7058ff]',
-    target: 'Lead List',
+    target: 'Follow-ups',
   },
   {
     title: 'Won Projects',
@@ -2017,12 +2013,14 @@ function App() {
   const [dashboardLeadStats, setDashboardLeadStats] = useState({});
   const [dashboardProjectSummary, setDashboardProjectSummary] = useState({});
   const [dashboardFollowUps, setDashboardFollowUps] = useState([]);
+  const [dashboardScheduledFollowUps, setDashboardScheduledFollowUps] = useState(null);
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
   const [dashboardOverdue, setDashboardOverdue] = useState(null);
   const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
   const [autoOpenFollowUps, setAutoOpenFollowUps] = useState(false);
   const [autoOpenQuotation, setAutoOpenQuotation] = useState(false);
   const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
+  const [followUpsPageTab, setFollowUpsPageTab] = useState('today');
   const [dashboardPeriod, setDashboardPeriod] = useState('Month');
   const [dashboardPeriodAnchor, setDashboardPeriodAnchor] = useState(() => new Date());
   const [dashboardRange, setDashboardRange] = useState({ start: null, end: null });
@@ -2037,6 +2035,11 @@ function App() {
       : false
   ));
   const isDarkMode = theme === 'system' ? systemPrefersDark : theme === 'dark';
+
+  const dashboardFollowUpAlerts = useMemo(
+    () => splitFollowUpAlerts(dashboardScheduledFollowUps || []),
+    [dashboardScheduledFollowUps],
+  );
 
   const dashboardWorkflowStages = useMemo(
     () => buildDashboardWorkflowStages(dashboardLeadStats, dashboardProjectSummary),
@@ -2127,8 +2130,6 @@ function App() {
               deltaTone: 'positive',
             };
           }
-          if (s.title === 'Today Follow-ups') return { ...s, value: String(data.today_followups ?? s.value) };
-          if (s.title === 'Pending Quotations') return { ...s, value: String(data.quotation ?? s.value) };
           if (s.title === 'Won Projects') {
             return {
               ...s,
@@ -2142,6 +2143,32 @@ function App() {
       );
     }).catch(() => notify('Dashboard lead stats could not be loaded.', 'error'));
   }, [dashboardPeriod, dashboardPeriodAnchor]);
+
+  useEffect(() => {
+    const todayCount = dashboardScheduledFollowUps === null ? null : dashboardFollowUpAlerts.today.length;
+    setDashboardStats((prev) =>
+      prev.map((s) => (s.title === 'Today Follow-ups' ? { ...s, value: todayCount === null ? '—' : String(todayCount) } : s)),
+    );
+    const overdueRows = dashboardFollowUpAlerts.overdue.map((item) => ({
+      id: item.id,
+      leadId: item.lead,
+      customer: item.lead_customer_name || 'Customer',
+      project: item.lead_project_name || item.follow_up_type || 'Follow-up',
+      delay: followUpAgeLabel(item.scheduled_at),
+      missedBy: item.lead_assigned_to_name || item.created_by_name || 'Unassigned',
+      detail: item.notes || '',
+      when: item.scheduled_at,
+    }));
+    setDashboardOverdue(overdueRows);
+    setDashboardFollowUps(dashboardFollowUpAlerts.today.map((item) => ({
+      id: item.lead,
+      customer: item.lead_customer_name || 'Customer',
+      mobile: item.lead_mobile_number,
+      project: item.lead_project_name || item.follow_up_type || 'Follow-up',
+      date: formatDateTime(item.scheduled_at),
+      assignedTo: { name: item.lead_assigned_to_name || item.created_by_name || 'Unassigned' },
+    })));
+  }, [dashboardFollowUpAlerts, dashboardScheduledFollowUps]);
 
   useEffect(() => {
     if (currentPage !== 'dashboard') return;
@@ -2167,25 +2194,12 @@ function App() {
       );
     }).catch(() => notify('Accounts summary could not be loaded.', 'error'));
 
-    leadApi.todayFollowUps().then((data) => {
-      const rows = Array.isArray(data) ? data : (data?.results ?? []);
-      setDashboardFollowUps(rows.length === 0 ? [] :
-        rows.map((lead) => ({
-          id: lead.id,
-          customer: lead.customer_name,
-          mobile: lead.mobile_number,
-          ivrs: lead.ivrs_number,
-          project: lead.project_name || '—',
-          type: lead.project_type || 'On-Grid',
-          status: lead.status,
-          priority: lead.priority || '',
-          source: lead.source || '',
-          assignedTo: { name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
-          date: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN') : '—',
-          nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
-        })),
-      );
-    }).catch(() => notify('Today\'s follow-ups could not be loaded.', 'error'));
+    followUpApi.listAll({ page_size: 500, status: 'Scheduled', ordering: 'scheduled_at' }).then((data) => {
+      setDashboardScheduledFollowUps(Array.isArray(data) ? data : (data?.results ?? []));
+    }).catch(() => {
+      setDashboardScheduledFollowUps([]);
+      notify('Follow-ups could not be loaded.', 'error');
+    });
 
     leadApi.recent().then((data) => {
       const rows = Array.isArray(data) ? data : (data?.results ?? []);
@@ -2204,20 +2218,6 @@ function App() {
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
       })));
     }).catch(() => notify('Recent leads could not be loaded.', 'error'));
-
-    leadApi.overdue().then((data) => {
-      const rows = Array.isArray(data) ? data : (data?.results ?? []);
-      if (rows.length === 0) { setDashboardOverdue([]); return; }
-      setDashboardOverdue(rows.map((lead) => {
-        const dueDate = lead.next_follow_up ? new Date(lead.next_follow_up) : null;
-        const diffDays = dueDate ? Math.ceil((Date.now() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-        return {
-          customer: lead.customer_name,
-          project: lead.project_name || '—',
-          delay: diffDays <= 0 ? 'Today Overdue' : diffDays === 1 ? '1 Day Overdue' : `${diffDays} Days Overdue`,
-        };
-      }));
-    }).catch(() => notify('Overdue leads could not be loaded.', 'error'));
   }, [currentPage]);
 
   const openDashboardSection = (section, message, lead, tab) => {
@@ -2237,6 +2237,7 @@ function App() {
 
     if (lead) setSelectedLead(lead);
     if (section === 'Lead Details') setLeadDetailsTab(tab || 'overview');
+    if (section === 'Follow-ups') setFollowUpsPageTab(tab || 'today');
     setActiveSidebarItem(section);
     setMobileSidebarOpen(false);
     setNotificationMenuOpen(false);
@@ -3294,15 +3295,41 @@ function App() {
                 }}
                 onNotify={notify}
               />
+            ) : activeSidebarItem === 'Follow-ups' ? (
+              <CrmFollowUpsPage
+                initialTab={followUpsPageTab}
+                onNotify={notify}
+                onViewLead={(item) => {
+                  if (!item?.lead) return;
+                  setSelectedLead({ id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number });
+                  setLeadDetailsTab('overview');
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
+                onLogFollowUp={(item) => {
+                  if (item?.lead) {
+                    setSelectedLead({ id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number });
+                    setLeadDetailsTab('follow-ups');
+                    setActiveSidebarItem('Lead Details');
+                    notify('Lead follow-up opened');
+                    return;
+                  }
+                  setAutoOpenFollowUps(true);
+                  setActiveSidebarItem('Lead List');
+                  notify('Log follow-up opened');
+                }}
+              />
             ) : activeSidebarItem === 'Lead List' ? (
               <LeadListPage
                 activeSection="Lead List"
                 loggedInUser={loggedInUser}
                 initialSearch={globalSearch}
                 searchNonce={globalSearchNonce}
-                onOpenSection={(section) => {
+                onOpenSection={(section, message, lead, tab) => {
+                  if (section === 'Follow-ups') setFollowUpsPageTab(tab || 'today');
+                  if (lead) setSelectedLead(lead);
                   setActiveSidebarItem(section);
-                  notify(`${section} opened`);
+                  notify(message || `${section} opened`);
                 }}
                 onCreateLead={() => {
                   setDashboardCreateLeadOpen(true);
@@ -3385,7 +3412,7 @@ function App() {
                   overdue={dashboardOverdue}
                   followUps={dashboardFollowUps}
                   projectSummary={dashboardProjectSummary}
-                  onOpenSection={(section, message, lead) => openDashboardSection(section, message, lead)}
+                  onOpenSection={(section, message, lead, tab) => openDashboardSection(section, message, lead, tab)}
                   onQuickAction={(action) => {
                     if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
                       setDashboardCreateLeadOpen(true);
@@ -3494,56 +3521,33 @@ function App() {
 
             <section className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3">
               {dashboardStats.map((stat) => (
-                <StatCard key={stat.title} stat={stat} onClick={() => openDashboardSection(stat.target, `${stat.title} opened`)} />
+                <StatCard key={stat.title} stat={stat} onClick={() => openDashboardSection(stat.target, `${stat.title} opened`, null, stat.title === 'Today Follow-ups' ? 'today' : undefined)} />
               ))}
             </section>
 
-            {dashboardFollowUps.length > 0 ? (
-              <div className={dataPanelClass}>
-                <button
-                  type="button"
-                  onClick={() => setDashboardFollowUpsOpen((v) => !v)}
-                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="grid size-8 place-items-center rounded-[8px] bg-white shadow-[inset_0_0_0_1px_rgba(220,230,243,0.9)]">
-                      <CalendarDays className="size-[17px] text-[#2d67e1]" />
-                    </span>
-                    <span className="font-display text-[14px] font-extrabold text-[#223768]">
-                      {dashboardFollowUps.length} Follow-up{dashboardFollowUps.length === 1 ? '' : 's'} Today
-                    </span>
-                  </span>
-                  <ChevronDown className={cx('size-4 shrink-0 text-[#7b88a2] transition-transform', dashboardFollowUpsOpen ? 'rotate-180' : '')} />
-                </button>
-
-                {dashboardFollowUpsOpen ? (
-                  <div className="max-h-[260px] space-y-2 overflow-y-auto border-t border-[#e8eef6] px-4 py-3">
-                    {dashboardFollowUps.map((followUp) => (
-                      <button
-                        key={`${followUp.customer}-${followUp.ivrs}`}
-                        type="button"
-                        onClick={() => setFollowUpPopupLead(followUp)}
-                        className="flex w-full items-center justify-between gap-3 rounded-[10px] border border-[#e8eef6] bg-white px-3 py-2 text-left transition hover:bg-[#f8fbff]"
-                      >
-                        <span className="min-w-0 truncate text-[13px] font-bold text-[#274072]">
-                          {followUp.customer}
-                          <span className="font-semibold text-[#8895ab]"> · {followUp.project}</span>
-                        </span>
-                        <span className="shrink-0 text-[12px] font-extrabold text-[#ea5a4c]">{followUp.date}</span>
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => openDashboardSection('Lead List', 'All follow-ups opened')}
-                      className="flex w-full items-center justify-center gap-1.5 pt-1 text-[12px] font-extrabold text-[#2a64dd] hover:underline"
-                    >
-                      View All Follow-ups
-                      <ArrowRight className="size-3.5" />
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+            <TeleFollowUpAlertsPanel
+              todayFollowUps={dashboardFollowUpAlerts.today}
+              overdueFollowUps={dashboardFollowUpAlerts.overdue}
+              loaded={dashboardScheduledFollowUps !== null}
+              compact={false}
+              onOpenToday={() => openDashboardSection('Follow-ups', "Today's follow-ups opened", null, 'today')}
+              onOpenOverdue={() => openDashboardSection('Follow-ups', 'Overdue follow-ups opened', null, 'overdue')}
+              onCall={(item) => {
+                const raw = String(item.lead_mobile_number || '').trim();
+                if (!raw) { notify('No mobile number on this lead.', 'error'); return; }
+                const href = raw.startsWith('+') ? `tel:${raw.replace(/[^\d+]/g, '')}` : `tel:${raw.replace(/\D/g, '')}`;
+                window.location.href = href;
+              }}
+              onLog={(item) => {
+                if (!item.lead) return;
+                setLeadDetailsTab('follow-ups');
+                openDashboardSection('Lead Details', 'Lead follow-up opened', { id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number }, 'follow-ups');
+              }}
+              onView={(item) => {
+                if (!item.lead) return;
+                openDashboardSection('Lead Details', `${item.lead_customer_name || 'Lead'} opened`, { id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number });
+              }}
+            />
 
             <section className="grid gap-3 lg:grid-cols-[1.6fr_1fr] lg:items-start">
               <div className="min-w-0 space-y-3">
@@ -3635,7 +3639,7 @@ function App() {
                   ) : (
                     <OverdueTabContent
                       items={dashboardOverdue}
-                      onViewAll={() => openDashboardSection('Lead List', 'All overdue follow-ups opened')}
+                      onViewAll={() => openDashboardSection('Follow-ups', 'All overdue follow-ups opened', null, 'overdue')}
                     />
                   )}
                 </aside>
@@ -3654,7 +3658,10 @@ function App() {
       <MobileBottomNav
         activeSection={activeSidebarItem}
         onNavigate={(item) => {
-          if (item.followUps) setAutoOpenFollowUps(true);
+          if (item.section === 'Follow-ups') {
+            openDashboardSection('Follow-ups', 'Follow-ups opened', null, 'today');
+            return;
+          }
           openDashboardSection(item.section, `${item.label} opened`);
         }}
         onMore={() => setMobileSidebarOpen(true)}
@@ -4459,7 +4466,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => setFollowUpsOverviewOpen(true)}
+              onClick={() => onOpenSection('Follow-ups', 'Follow-ups opened', null, 'today')}
               data-action="lead-view-followups"
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 text-[12px] font-extrabold text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
             >
@@ -20214,18 +20221,6 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
   const avgProgress = tasks.length ? Math.round(tasks.reduce((s, t) => s + Number(t.progress_percent || 0), 0) / tasks.length) : 0;
   const workforce = projectData?.team_members?.length ?? 0;
 
-  // â”€â”€ Load projects for picker â”€â”€
-  const loadProjects = useCallback(async () => {
-    if (allProjects.length > 0) return;
-    setLoadingProjects(true);
-    try {
-      const d = await projectApi.list({ page_size: 200 });
-      setAllProjects(normalizeApiRows(d));
-    } catch {}
-    finally { setLoadingProjects(false); }
-  }, [allProjects.length]);
-
-  // â”€â”€ Load all installation data â”€â”€
   const loadData = useCallback(async (proj) => {
     if (!proj) return;
     setLoading(true);
@@ -20247,12 +20242,37 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingProjects(true);
+      try {
+        const d = await projectApi.list({ page_size: 200 });
+        const rows = normalizeApiRows(d);
+        if (cancelled) return;
+        setAllProjects(rows);
+        const preferred = rows.find((p) => p.status === 'Active')
+          || rows.find((p) => p.status === 'Planning')
+          || rows.find((p) => p.status === 'On Hold')
+          || rows[0];
+        if (preferred) {
+          setSelectedProject(preferred);
+          loadData(preferred);
+        }
+      } catch {
+        if (!cancelled) setAllProjects([]);
+      } finally {
+        if (!cancelled) setLoadingProjects(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loadData]);
+
+  useEffect(() => {
     userApi.list({ is_active: true }).then((res) => {
       setUserOptions(Array.isArray(res) ? res : res?.results ?? []);
     }).catch(() => {});
   }, []);
 
-  // â”€â”€ Project selection â”€â”€
   const handleSelectProject = (proj) => {
     setSelectedProject(proj);
     setPickerOpen(false);
@@ -20261,7 +20281,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
     loadData(proj);
   };
 
-  const openPicker = () => { loadProjects(); setPickerOpen(true); };
+  const openPicker = () => { setPickerOpen(true); };
 
   // â”€â”€ Task handlers â”€â”€
   const openAddTask = () => { setEditTask(null); setTaskForm(emptyTaskForm); setTaskModalOpen(true); };
@@ -34431,6 +34451,10 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
   const [editFollowUp, setEditFollowUp] = useState(null);
   const [linkedLeads, setLinkedLeads] = useState(null);
 
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
+
   // Always hydrate from the API by id — callers (Dashboard cards, Lead List, Overdue widget, etc.)
   // each shape the `lead` object differently for their own display needs, so only the authoritative
   // backend record can be trusted for the full Overview tab.
@@ -36505,16 +36529,21 @@ function OverdueTabContent({ items, onViewAll }) {
         ) : null}
         {list.slice(0, 4).map((item) => (
           <div
-            key={`${item.customer}-${item.project}`}
-            className="grid grid-cols-1 gap-1 py-2.5 text-[13px] sm:grid-cols-[1.2fr_1fr_auto] sm:items-center sm:gap-3"
+            key={`${item.id || item.customer}-${item.when || item.project}`}
+            className="grid grid-cols-1 gap-1 py-2.5 text-[13px]"
           >
             <p className="font-bold text-[#274072]">{item.customer}</p>
-            <p className="font-semibold text-[#4e6282]">{item.project}</p>
-            <p className="font-extrabold text-[#ea5a4c] sm:text-right">{item.delay}</p>
+            <p className="font-semibold text-[#4e6282]">
+              {item.missedBy ? `Missed by ${item.missedBy} · ` : ''}{item.project}
+            </p>
+            {item.detail ? (
+              <p className="line-clamp-2 text-[12px] font-semibold text-[#53647f]">{item.detail}</p>
+            ) : null}
+            <p className="font-extrabold text-[#ea5a4c]">{item.delay}</p>
           </div>
         ))}
       </div>
-      {list.length > 4 ? (
+      {list.length > 0 ? (
         <button
           type="button"
           onClick={onViewAll}

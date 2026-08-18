@@ -230,7 +230,7 @@ class LeadSurveyPhotoViewSet(viewsets.ModelViewSet):
 
 
 class FollowUpViewSet(viewsets.ModelViewSet):
-    queryset = FollowUp.objects.select_related('lead', 'created_by').all()
+    queryset = FollowUp.objects.select_related('lead', 'lead__assigned_to', 'created_by').all()
     serializer_class = FollowUpSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Lead'

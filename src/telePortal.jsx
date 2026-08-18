@@ -237,13 +237,13 @@ function formatDate(value) {
   return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatTime(value) {
+export function formatTime(value) {
   if (!value) return '';
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 }
 
-function formatDateTime(value) {
+export function formatDateTime(value) {
   const dateLabel = formatDate(value);
   const timeLabel = formatTime(value);
   return dateLabel === '—' ? '—' : `${dateLabel}, ${timeLabel}`;
@@ -261,7 +261,7 @@ function dialTeleMobile(mobile) {
   return true;
 }
 
-function followUpAgeLabel(value) {
+export function followUpAgeLabel(value) {
   if (!value) return '';
   const when = new Date(value);
   if (Number.isNaN(when.getTime())) return '';
@@ -304,7 +304,7 @@ function formatLocalIsoLabel(iso) {
 }
 
 /** Split scheduled follow-ups into today's (high alert) vs overdue (extra high). */
-function splitFollowUpAlerts(scheduledRows) {
+export function splitFollowUpAlerts(scheduledRows) {
   const todayStart = startOfLocalDay();
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
@@ -327,7 +327,7 @@ function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
   return (
     <div
       className={cx(
-        'flex items-center gap-3 rounded-[12px] border px-3 py-2.5',
+        'flex items-start gap-3 rounded-[12px] border px-3 py-2.5',
         isExtra
           ? 'border-[#fecaca] bg-[#fff5f5]'
           : 'border-[#fde68a] bg-[#fffbeb]',
@@ -359,8 +359,19 @@ function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
           {item.follow_up_type || 'Call'}
           {isExtra ? ` · Pending ${followUpAgeLabel(item.scheduled_at)}` : ''}
         </p>
+        {(item.lead_assigned_to_name || item.created_by_name) ? (
+          <p className="mt-0.5 text-[11px] font-extrabold text-[#1e3261]">
+            {isExtra ? 'Missed by: ' : 'Owner: '}
+            {item.lead_assigned_to_name || item.created_by_name}
+          </p>
+        ) : null}
         {item.lead_mobile_number ? (
           <p className="mt-0.5 text-[11px] font-bold text-[#53647f]">{item.lead_mobile_number}</p>
+        ) : null}
+        {item.notes ? (
+          <p className="mt-0.5 line-clamp-2 text-[11px] font-semibold text-[#33456b]">
+            {item.notes}
+          </p>
         ) : null}
       </div>
       <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
@@ -401,7 +412,7 @@ function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
   );
 }
 
-function TeleFollowUpAlertsPanel({
+export function TeleFollowUpAlertsPanel({
   todayFollowUps,
   overdueFollowUps,
   loaded = true,
@@ -427,7 +438,11 @@ function TeleFollowUpAlertsPanel({
         )}
       >
         <div className="flex items-center justify-between gap-3 border-b border-[#fde68a] bg-[linear-gradient(90deg,#fff7ed_0%,#fffbeb_100%)] px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2.5">
+          <button
+            type="button"
+            onClick={onOpenToday}
+            className="flex min-w-0 items-center gap-2.5 text-left"
+          >
             <span className="grid size-10 place-items-center rounded-full bg-[#f59e0b] text-white shadow-[0_6px_14px_rgba(245,158,11,0.35)]">
               <Zap className="size-5" />
             </span>
@@ -435,7 +450,7 @@ function TeleFollowUpAlertsPanel({
               <p className="text-[14px] font-extrabold text-[#92400e]">High Alert · Today's Follow-ups</p>
               <p className="text-[11px] font-semibold text-[#b45309]">Follow-ups due today</p>
             </div>
-          </div>
+          </button>
           <span className="inline-flex min-w-[36px] items-center justify-center rounded-full bg-[#f59e0b] px-2.5 py-1 text-[14px] font-extrabold text-white">
             {loaded ? todayCount : '—'}
           </span>
@@ -457,7 +472,7 @@ function TeleFollowUpAlertsPanel({
               onView={onView}
             />
           ))}
-          {loaded && todayCount > todayPreview.length && onOpenToday ? (
+          {loaded && todayCount > 0 && onOpenToday ? (
             <button
               type="button"
               onClick={onOpenToday}
@@ -478,7 +493,11 @@ function TeleFollowUpAlertsPanel({
         )}
       >
         <div className="flex items-center justify-between gap-3 border-b border-[#fecaca] bg-[linear-gradient(90deg,#fef2f2_0%,#fff5f5_100%)] px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2.5">
+          <button
+            type="button"
+            onClick={onOpenOverdue}
+            className="flex min-w-0 items-center gap-2.5 text-left"
+          >
             <span className="grid size-10 place-items-center rounded-full bg-[#dc2626] text-white shadow-[0_6px_14px_rgba(220,38,38,0.35)]">
               <AlertTriangle className="size-5" />
             </span>
@@ -486,7 +505,7 @@ function TeleFollowUpAlertsPanel({
               <p className="text-[14px] font-extrabold text-[#991b1b]">Extra High Alert · Pending</p>
               <p className="text-[11px] font-semibold text-[#b91c1c]">Missed earlier — still pending</p>
             </div>
-          </div>
+          </button>
           <span className="inline-flex min-w-[36px] items-center justify-center rounded-full bg-[#dc2626] px-2.5 py-1 text-[14px] font-extrabold text-white">
             {loaded ? overdueCount : '—'}
           </span>
@@ -508,7 +527,7 @@ function TeleFollowUpAlertsPanel({
               onView={onView}
             />
           ))}
-          {loaded && overdueCount > overduePreview.length && onOpenOverdue ? (
+          {loaded && overdueCount > 0 && onOpenOverdue ? (
             <button
               type="button"
               onClick={onOpenOverdue}

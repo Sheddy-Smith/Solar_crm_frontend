@@ -177,7 +177,7 @@ export function MobileDashboardPage({
             <button
               key={stat.title}
               type="button"
-              onClick={() => onOpenSection(stat.target, `${stat.title} opened`)}
+              onClick={() => onOpenSection(stat.target, `${stat.title} opened`, null, stat.title === 'Today Follow-ups' ? 'today' : undefined)}
               className={`${CARD} p-3.5 text-left`}
             >
               <div className="flex items-start justify-between gap-2">
@@ -359,13 +359,15 @@ export function MobileDashboardPage({
 
       {/* Overdue follow-ups */}
       {(overdue ?? []).length > 0 ? (
-        <SectionCard title="Overdue Follow-ups" action="View All" onAction={() => onOpenSection('Lead List', 'All overdue follow-ups opened')}>
+        <SectionCard title="Overdue Follow-ups" action="View All" onAction={() => onOpenSection('Follow-ups', 'All overdue follow-ups opened', null, 'overdue')}>
           <ul className="divide-y divide-[#eef2f8]">
             {(overdue ?? []).slice(0, 5).map((item, index) => (
               <li key={`${item.customer}-${index}`} className="flex items-center justify-between gap-2 py-2.5">
                 <span className="min-w-0">
                   <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{item.customer}</span>
-                  <span className="block text-[11px] font-semibold text-[#8895ab]">{item.project}</span>
+                  <span className="block text-[11px] font-semibold text-[#8895ab]">
+                    {item.missedBy ? `${item.missedBy} · ` : ''}{item.project}
+                  </span>
                 </span>
                 <span className="shrink-0 text-[11px] font-extrabold text-[#e11d48]">{item.delay}</span>
               </li>
@@ -375,7 +377,7 @@ export function MobileDashboardPage({
       ) : null}
 
       {/* Today follow-ups */}
-      <SectionCard title="Today Follow-ups" action="View All" onAction={() => onOpenSection('Lead List', 'All follow-ups opened')}>
+      <SectionCard title="Today Follow-ups" action="View All" onAction={() => onOpenSection('Follow-ups', "Today's follow-ups opened", null, 'today')}>
         {(followUps ?? []).length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-4 text-center">
             <span className="grid size-14 place-items-center rounded-[16px] bg-[#eef4fd]">
@@ -467,7 +469,7 @@ export function MobileDashboardPage({
 const BOTTOM_NAV_ITEMS = [
   { label: 'Dashboard', icon: Home, section: 'Dashboard' },
   { label: 'Leads', icon: Users, section: 'Lead List' },
-  { label: 'Follow-ups', icon: CalendarDays, section: 'Lead List', followUps: true },
+  { label: 'Follow-ups', icon: CalendarDays, section: 'Follow-ups' },
   { label: 'Projects', icon: FolderKanban, section: 'Project List' },
   { label: 'More', icon: Menu, more: true },
 ];
@@ -475,6 +477,7 @@ const BOTTOM_NAV_ITEMS = [
 export function MobileBottomNav({ activeSection, onNavigate, onMore }) {
   const activeLabel = (() => {
     if (activeSection === 'Dashboard') return 'Dashboard';
+    if (activeSection === 'Follow-ups') return 'Follow-ups';
     if (activeSection?.startsWith('Lead') || activeSection === 'Admin Approval') return 'Leads';
     if (activeSection?.startsWith('Project')) return 'Projects';
     return null;
