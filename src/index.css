@@ -1008,6 +1008,31 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
   vertical-align: middle;
 }
 
+.crm-table-sticky-head thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #fbfcff;
+  box-shadow: inset 0 -1px 0 #eaf0f7;
+}
+
+.crm-table-sticky-head thead th.crm-col-sticky-right {
+  z-index: 4;
+}
+
+html.dark .crm-table-sticky-head thead th {
+  background: #0f172a;
+  box-shadow: inset 0 -1px 0 #1e293b;
+}
+
+.crm-table tbody tr.crm-row-clickable {
+  cursor: pointer;
+}
+
+.crm-table tbody tr.crm-row-clickable:hover td {
+  background: #f7fbff;
+}
+
 /* Tele My Leads — fill card width; keep Action flush on the right (no empty gap) */
 .tele-leads-table {
   width: 100% !important;

@@ -3138,8 +3138,14 @@ function App() {
         </aside>
 
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col self-stretch">
-        <main className="main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 overflow-y-auto px-0 pb-2 md:px-0 xl:pr-0.5">
-          <div className="w-full min-w-0 space-y-2 px-2 md:px-0 xl:pb-2">
+        <main className={cx(
+          'main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 px-0 pb-2 md:px-0 xl:pr-0.5',
+          ['Lead List', 'Quotation'].includes(activeSidebarItem) ? 'flex flex-col overflow-hidden' : 'overflow-y-auto',
+        )}>
+          <div className={cx(
+            'w-full min-w-0 px-2 md:px-0 xl:pb-2',
+            ['Lead List', 'Quotation'].includes(activeSidebarItem) ? 'flex min-h-0 flex-1 flex-col space-y-2 overflow-hidden' : 'space-y-2',
+          )}>
             <AppHeader
               notify={notify}
               setMobileSidebarOpen={setMobileSidebarOpen}
@@ -4197,7 +4203,6 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   }, [searchNonce]);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [projectTypeFilter, setProjectTypeFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
   const [assignedToFilter, setAssignedToFilter] = useState('All');
   const [addByFilter, setAddByFilter] = useState('All');
   const [followUpDate, setFollowUpDate] = useState('');
@@ -4214,8 +4219,6 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   });
   const [apiLeads, setApiLeads] = useState(null);
   const [leadsLoading, setLeadsLoading] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const filtersPopoverRef = useRef(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editLeadId, setEditLeadId] = useState(null);
@@ -4286,24 +4289,6 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   };
 
   useEffect(() => {
-    if (!filtersOpen) return;
-    const handlePointerDown = (event) => {
-      if (!(event.target instanceof Element && event.target.closest('[data-lead-filters-popover="true"]'))) {
-        setFiltersOpen(false);
-      }
-    };
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setFiltersOpen(false);
-    };
-    document.addEventListener('mousedown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [filtersOpen]);
-
-  useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
@@ -4311,7 +4296,6 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   useEffect(() => {
     setLeadsLoading(true);
     const params = { page_size: 1000 };
-    if (statusFilter !== 'All') params.status = statusFilter;
     if (debouncedSearch) params.search = debouncedSearch;
     leadApi.list(params).then((data) => {
       if (!data) return;
@@ -4337,23 +4321,9 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     }).catch((err) => {
       onNotify?.((err && err.message) ? `Failed to load leads: ${err.message}` : 'Failed to load leads. Please try again.');
     }).finally(() => setLeadsLoading(false));
-  }, [statusFilter, debouncedSearch, refreshKey]);
+  }, [debouncedSearch, refreshKey]);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
-  const headers = [
-    '#',
-    'Customer Name',
-    'Mobile Number',
-    'IVRS Number',
-    'Project Name',
-    'Project Type',
-    'Status',
-    'Assigned To',
-    'Added By',
-    'Next Follow-up',
-    'Survey Status',
-    'Action',
-  ];
 
   const openFollowUpDatePicker = () => {
     const input = followUpDateInputRef.current;
@@ -4391,7 +4361,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((e) => ({ value: String(e.id), label: e.name }));
     return [
-      { value: 'All', label: 'All Executives' },
+      { value: 'All', label: 'All' },
       { value: '__unassigned__', label: 'Unassigned' },
       ...execs,
     ];
@@ -4407,12 +4377,12 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     const fromLeads = Array.from(map, ([value, label]) => ({ value, label }))
       .sort((a, b) => a.label.localeCompare(b.label));
     return [
-      { value: 'All', label: 'Add By: All' },
-      ...fromLeads.map((opt) => ({ value: opt.value, label: `Add By: ${opt.label}` })),
+      { value: 'All', label: 'All' },
+      ...fromLeads,
     ];
   }, [apiLeads]);
 
-  const activeFilterCount = [projectTypeFilter, statusFilter, assignedToFilter, addByFilter].filter((v) => v !== 'All').length + (followUpDate ? 1 : 0);
+  const activeFilterCount = [projectTypeFilter, assignedToFilter, addByFilter].filter((v) => v !== 'All').length + (followUpDate ? 1 : 0);
 
   const visibleLeadRows = useMemo(() => {
     if (!apiLeads) return [];
@@ -4428,7 +4398,6 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
       const query = searchQuery.trim().toLowerCase();
       const queryMatch = !query || [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name, lead.createdByName].some((value) => String(value).toLowerCase().includes(query));
       const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
-      const statusMatch = statusFilter === 'All' || lead.status === statusFilter;
       const assignedMatch =
         assignedToFilter === 'All'
           ? true
@@ -4437,9 +4406,9 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             : String(lead.assignedTo.id) === assignedToFilter;
       const addByMatch = addByFilter === 'All' || String(lead.createdById) === String(addByFilter);
       const followUpMatch = !followUpDate || (lead.nextFollowUpRaw && lead.nextFollowUpRaw.slice(0, 10) === followUpDate);
-      return queryMatch && projectTypeMatch && statusMatch && assignedMatch && addByMatch && followUpMatch;
+      return queryMatch && projectTypeMatch && assignedMatch && addByMatch && followUpMatch;
     });
-  }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, addByFilter, followUpDate]);
+  }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, assignedToFilter, addByFilter, followUpDate]);
 
   const LEAD_PAGE_SIZE = pageSize;
   const totalLeadPages = Math.max(1, Math.ceil(visibleLeadRows.length / LEAD_PAGE_SIZE));
@@ -4460,8 +4429,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   }, [activeLeadCategory]);
 
   return (
-    <div className="lead-list-page -mx-1 space-y-1 md:mx-0 xl:-mx-1">
-      <section className={`${panelClass} overflow-hidden p-2 sm:p-2.5`}>
+    <div className="lead-list-page -mx-1 flex min-h-0 flex-1 flex-col gap-1 overflow-hidden md:mx-0 xl:-mx-1">
+      <section className={`${panelClass} shrink-0 overflow-hidden p-2 sm:p-2.5`}>
         <div className="flex items-center justify-end gap-2">
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -4507,7 +4476,6 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                   onClick={() => {
                     const isDeselecting = activeLeadCategory?.label === category.label;
                     setActiveLeadCategory(isDeselecting ? null : category);
-                    setStatusFilter('All');
                     setActivePage(1);
                     if (!isDeselecting) onNotify(`${category.label} filter applied`);
                   }}
@@ -4537,7 +4505,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
       </section>
 
-      <section className={`${panelClass} relative z-40 overflow-visible p-2 sm:p-2.5`}>
+      <section className={`${panelClass} relative z-40 shrink-0 overflow-visible p-2 sm:p-2.5`}>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <label className="flex h-11 flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <input
@@ -4550,107 +4518,16 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             <Search className="size-4 text-[#7386a3]" />
           </label>
 
-          <label className="flex h-11 shrink-0 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] sm:w-[190px]">
-            <UserRound className="size-4 shrink-0 text-[#7386a3]" />
-            <select
-              value={assignedToFilter}
-              onChange={(event) => { setAssignedToFilter(event.target.value); setActivePage(1); }}
-              aria-label="Assigned To"
-              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none"
-            >
-              {assigneeOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex h-11 shrink-0 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] sm:w-[200px]">
-            <UserRound className="size-4 shrink-0 text-[#7386a3]" />
-            <select
-              value={addByFilter}
-              onChange={(event) => { setAddByFilter(event.target.value); setActivePage(1); }}
-              aria-label="Add By"
-              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none"
-            >
-              {addByOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </label>
-
-          <div className="relative" data-lead-filters-popover="true">
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((open) => !open)}
-              aria-expanded={filtersOpen}
-              className={cx(
-                'inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border px-4 text-[13px] font-extrabold transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
-                activeFilterCount > 0 ? 'border-[#0b65e5] bg-[#eef6ff] text-[#0b65e5]' : 'border-black/20 bg-white text-[#284276] hover:bg-[#f8fbff]',
-              )}
-            >
-              <Filter className="size-4" />
-              Filters
-              {activeFilterCount > 0 ? (
-                <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#0b65e5] text-[11px] font-extrabold text-white">{activeFilterCount}</span>
-              ) : null}
-            </button>
-
-            {filtersOpen ? (
-              <div className="absolute right-0 z-50 mt-2 w-[300px] rounded-[12px] border border-[#e7eef7] bg-white p-4 shadow-[0_18px_38px_rgba(17,39,84,0.14)] sm:w-[340px]">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="font-display text-[14px] font-extrabold text-[#1e3261]">Filters</p>
-                  <button type="button" onClick={() => setFiltersOpen(false)} aria-label="Close filters" className="grid size-7 place-items-center rounded-[6px] text-[#7386a3] hover:bg-[#f1f5fb]">
-                    <X className="size-4" />
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <FilterSelect label="Project Type" value={projectTypeFilter} onChange={(v) => { setProjectTypeFilter(v); setActivePage(1); }} options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']} />
-                  <div>
-                    <FilterSelect label="Status" value={statusFilter} onChange={(v) => { setStatusFilter(v); setActiveLeadCategory(null); setActivePage(1); }} options={['All', 'New', 'Follow-up', 'Quotation', 'Won', 'Lost']} />
-                    {activeLeadCategory ? (
-                      <p className="mt-1.5 text-[11px] font-bold text-[#8493ab]">{activeLeadCategory.label} category is active — changing status will clear it.</p>
-                    ) : null}
-                  </div>
-                  <label className="block">
-                    <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Follow-up Date</span>
-                    <button
-                      type="button"
-                      onClick={openFollowUpDatePicker}
-                      className="relative flex h-11 w-full items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 text-left text-[13px] font-bold text-[#6f7f98] transition hover:bg-[#fbfdff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                    >
-                      <CalendarDays className="size-4 text-[#7386a3]" />
-                      <span className={cx('pointer-events-none', followUpDate ? 'text-[#30466d]' : 'text-[#6f7f98]')}>
-                        {followUpDate || 'Select date range'}
-                      </span>
-                      <input
-                        ref={followUpDateInputRef}
-                        type="date"
-                        value={followUpDate}
-                        onChange={(event) => { setFollowUpDate(event.target.value); setActivePage(1); }}
-                        className="pointer-events-none absolute bottom-0 left-4 h-px w-px opacity-0"
-                        tabIndex={-1}
-                        aria-label="Select follow-up date"
-                      />
-                    </button>
-                  </label>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
           <button
             type="button"
             onClick={() => {
               setSearchQuery('');
               setProjectTypeFilter('All');
-              setStatusFilter('All');
               setAssignedToFilter('All');
               setAddByFilter('All');
               setFollowUpDate('');
               setActiveLeadCategory(null);
               setActivePage(1);
-              setFiltersOpen(false);
               onNotify('Lead filters reset');
             }}
             data-action="lead-reset-filters"
@@ -4658,11 +4535,15 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           >
             <RefreshCw className="size-4 text-[#0b65e5]" />
             Reset Filters
+            {activeFilterCount > 0 ? (
+              <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#0b65e5] text-[11px] font-extrabold text-white">{activeFilterCount}</span>
+            ) : null}
           </button>
         </div>
+        <p className="mt-1.5 text-[11px] font-semibold text-[#8a98af]">Double-click a row to view details. Use column arrows to filter.</p>
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 p-1.5 sm:p-2`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 flex min-h-0 flex-1 flex-col p-1.5 sm:p-2`}>
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
@@ -4673,21 +4554,20 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         ) : null}
 
         {!leadsLoading && pagedLeadRows.length > 0 && (
-        <div className="overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:hidden">
-          <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_30px] items-center gap-1.5 border-b border-[#eef2f8] bg-[#f8fafd] px-3 py-2 text-[10px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:hidden">
+          <div className="grid shrink-0 grid-cols-[minmax(0,1.45fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_30px] items-center gap-1.5 border-b border-[#eef2f8] bg-[#f8fafd] px-3 py-2 text-[10px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
             <span>Customer Name</span>
             <span>Status</span>
             <span>Next Follow-up</span>
             <span aria-hidden="true" />
           </div>
-          <div className="divide-y divide-[#eef2f8]">
+          <div className="min-h-0 flex-1 divide-y divide-[#eef2f8] overflow-y-auto">
             {pagedLeadRows.map((lead) => (
               <LeadListMobileRow
                 key={lead.id}
                 lead={lead}
-                onOpenLead={onOpenLead}
+                onOpenLead={() => setViewLeadId(lead.id)}
                 onOpenSurvey={() => setSurveyLead(lead)}
-                onEditLead={() => setEditLeadId(lead.id)}
               />
             ))}
           </div>
@@ -4695,27 +4575,80 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         )}
 
         {!leadsLoading && pagedLeadRows.length > 0 && (
-        <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
-          <table className="crm-table crm-table--lead-dense w-max">
+        <div className="hidden min-h-0 flex-1 overflow-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+          <table className="crm-table crm-table--lead-dense crm-table-sticky-head w-max">
               <thead>
                 <tr>
-                  {headers.map((header) => (
-                    <th
-                      key={header}
-                      title={header}
-                      className={cx(
-                        header === 'Action' && 'crm-col-sticky-right',
-                        header === '#' && 'crm-col-index',
-                      )}
-                    >
-                      <span className="block truncate">{header}</span>
-                    </th>
-                  ))}
+                  <th className="crm-col-index" title="#"><span className="block truncate">#</span></th>
+                  <th title="Customer Name"><span className="block truncate">Customer Name</span></th>
+                  <th title="Mobile Number"><span className="block truncate">Mobile Number</span></th>
+                  <th title="IVRS Number"><span className="block truncate">IVRS Number</span></th>
+                  <th title="Project Name"><span className="block truncate">Project Name</span></th>
+                  <th title="Project Type">
+                    <TableHeaderFilter
+                      label="Project Type"
+                      value={projectTypeFilter}
+                      active={projectTypeFilter !== 'All'}
+                      options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']}
+                      onChange={(v) => { setProjectTypeFilter(v); setActivePage(1); }}
+                    />
+                  </th>
+                  <th title="Status"><span className="block truncate">Status</span></th>
+                  <th title="Assigned To">
+                    <TableHeaderFilter
+                      label="Assigned To"
+                      value={assignedToFilter}
+                      active={assignedToFilter !== 'All'}
+                      options={assigneeOptions}
+                      onChange={(v) => { setAssignedToFilter(v); setActivePage(1); }}
+                    />
+                  </th>
+                  <th title="Added By">
+                    <TableHeaderFilter
+                      label="Added By"
+                      value={addByFilter}
+                      active={addByFilter !== 'All'}
+                      options={addByOptions}
+                      onChange={(v) => { setAddByFilter(v); setActivePage(1); }}
+                    />
+                  </th>
+                  <th title="Next Follow-up">
+                    <div className="relative inline-flex items-center gap-0.5">
+                      <span className="truncate">Next Follow-up</span>
+                      <button
+                        type="button"
+                        onClick={openFollowUpDatePicker}
+                        aria-label="Filter by follow-up date"
+                        className={cx(
+                          'grid size-5 shrink-0 place-items-center rounded-[5px] transition',
+                          followUpDate ? 'bg-[#e8f1ff] text-[#0b65e5]' : 'text-[#8a98af] hover:bg-[#eef3fb] hover:text-[#284276]',
+                        )}
+                      >
+                        <ChevronDown className="size-3.5" />
+                      </button>
+                      <input
+                        ref={followUpDateInputRef}
+                        type="date"
+                        value={followUpDate}
+                        onChange={(event) => { setFollowUpDate(event.target.value); setActivePage(1); }}
+                        className="pointer-events-none absolute bottom-0 left-0 h-px w-px opacity-0"
+                        tabIndex={-1}
+                        aria-label="Select follow-up date"
+                      />
+                    </div>
+                  </th>
+                  <th title="Survey Status"><span className="block truncate">Survey Status</span></th>
+                  <th className="crm-col-sticky-right" title="Action"><span className="block truncate">Action</span></th>
                 </tr>
               </thead>
               <tbody>
                 {pagedLeadRows.map((lead, index) => (
-                  <tr key={lead.id}>
+                  <tr
+                    key={lead.id}
+                    className="crm-row-clickable"
+                    onDoubleClick={() => setViewLeadId(lead.id)}
+                    title="Double-click to view"
+                  >
                     <td className="crm-col-index font-extrabold text-[#233a6b]">{(safePage - 1) * LEAD_PAGE_SIZE + index + 1}</td>
                     <td className="font-bold text-[#233a6b]" title={lead.customer}><span className="block truncate">{lead.customer}</span></td>
                     <td title={lead.mobile}><span className="block truncate">{lead.mobile}</span></td>
@@ -4737,28 +4670,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                     <td>
                       <SurveyStatusBadge status={lead.surveyStatus} />
                     </td>
-                    <td className="crm-col-sticky-right">
+                    <td className="crm-col-sticky-right" onDoubleClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setViewLeadId(lead.id)}
-                          data-action="lead-view"
-                          className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]"
-                          aria-label={`View ${lead.customer}`}
-                          title="View"
-                        >
-                          <Eye className="size-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditLeadId(lead.id)}
-                          data-action="lead-edit"
-                          className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#e3ebf7] bg-white text-[#0d9f4a] transition hover:bg-[#f5f9ff]"
-                          aria-label={`Edit ${lead.customer}`}
-                          title="Edit"
-                        >
-                          <Pencil className="size-3.5" />
-                        </button>
                         <button
                           type="button"
                           onClick={() => setSurveyLead(lead)}
@@ -4802,7 +4715,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
         )}
 
-        <div className="flex flex-col gap-2 px-2 py-2 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex shrink-0 flex-col gap-2 px-2 py-2 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <p>
               {!leadsLoading && visibleLeadRows.length > 0
@@ -31683,8 +31596,8 @@ function LeadViewModal({ leadId, onClose, onEdit, onNotify }) {
         className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/50 p-4"
         onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
       >
-        <div className="modal-pop-in scroll-soft flex max-h-[90vh] w-full max-w-[720px] flex-col overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-          <div className="flex items-start justify-between gap-4">
+        <div className="modal-pop-in flex max-h-[90vh] w-full max-w-[720px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+          <div className="flex shrink-0 items-start justify-between gap-4 px-6 pt-6">
             <h2 className="font-display text-[19px] font-extrabold text-[#111827]">Lead Details</h2>
             <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
           </div>
@@ -31694,6 +31607,7 @@ function LeadViewModal({ leadId, onClose, onEdit, onNotify }) {
             <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Lead not found.</p>
           ) : (
             <>
+              <div className="scroll-soft min-h-0 flex-1 overflow-y-auto px-6">
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <InfoCell large label="Customer Name" value={detail.customer_name} />
                 <InfoCell large label="Mobile Number" value={detail.mobile_number} />
@@ -31757,11 +31671,14 @@ function LeadViewModal({ leadId, onClose, onEdit, onNotify }) {
                   ))}
                 </div>
               </div>
+              </div>
 
-              <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#edf2f8] bg-white px-6 py-4">
                 <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Close</button>
-                <button type="button" onClick={() => setAddFollowUpOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><Plus className="size-4" />Add Follow-up</button>
-                <button type="button" onClick={onEdit} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]"><Pencil className="size-4" />Edit Lead</button>
+                <div className="flex flex-wrap justify-end gap-3">
+                  <button type="button" onClick={() => setAddFollowUpOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#078c3e]"><Plus className="size-4" />Add Follow-up</button>
+                  <button type="button" onClick={onEdit} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0954c4]"><Pencil className="size-4" />Edit</button>
+                </div>
               </div>
             </>
           )}
@@ -33785,8 +33702,8 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   };
 
   return (
-    <div className="space-y-4">
-      <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+    <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
+      <section className="grid shrink-0 gap-4 sm:grid-cols-2 2xl:grid-cols-5">
         <LiaisonApprovalStatCard label="Total Quotations" value={String(quotationStats.total)} caption="All Time" icon={FileText} tone="green" onClick={() => applyStatusCardFilter('All')} />
         <LiaisonApprovalStatCard label="Sent" value={String(quotationStats.sent)} caption={quotationStats.pct(quotationStats.sent)} icon={Mail} tone="purple" onClick={() => applyStatusCardFilter('Sent')} />
         <LiaisonApprovalStatCard label="Draft" value={String(quotationStats.draft)} caption={quotationStats.pct(quotationStats.draft)} icon={FileText} tone="amber" onClick={() => applyStatusCardFilter('Draft')} />
@@ -33848,14 +33765,14 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
         </div>
       </article>
 
-      <section ref={quotationTableRef} className={`${panelClass} overflow-visible p-3 sm:p-4`}>
+      <section ref={quotationTableRef} className={`${panelClass} flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4`}>
         {loading ? (
           <PageLoadingState message="Loading quotations..." />
         ) : filteredQuotations.length === 0 ? (
           <div className="py-16 text-center text-[14px] font-bold text-[#7386a3]">No quotations found</div>
         ) : (
-          <div className="overflow-x-auto overflow-y-visible rounded-[12px] border border-[#e7eef7] bg-white">
-            <table className="crm-table crm-table--fit w-full">
+          <div className="min-h-0 flex-1 overflow-auto rounded-[12px] border border-[#e7eef7] bg-white">
+            <table className="crm-table crm-table--fit crm-table-sticky-head w-full">
               <colgroup>
                 <col style={{ width: '14%' }} />
                 <col style={{ width: '18%' }} />
@@ -33874,21 +33791,20 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
               </thead>
               <tbody>
                 {pagedQuotations.map((q) => (
-                  <tr key={q.id}>
+                  <tr
+                    key={q.id}
+                    className="crm-row-clickable"
+                    onDoubleClick={() => setViewQuotationId(q.id)}
+                    title="Double-click to view"
+                  >
                     <td className="font-extrabold text-[#233a6b]"><span className="block truncate">{q.quotation_number || `#${q.id}`}</span></td>
                     <td className="font-bold text-[#233a6b]"><span className="block truncate">{q.lead_customer_name || '—'}</span></td>
                     <td><span className="block truncate">{q.template}</span></td>
                     <td><StatusBadge status={q.status} /></td>
                     <td className="font-extrabold text-[#233a6b]"><span className="block truncate">{formatMoney(q.grand_total)}</span></td>
                     <td><span className="block truncate">{q.created_at ? new Date(q.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span></td>
-                    <td className="relative overflow-visible">
+                    <td className="relative overflow-visible" onDoubleClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
-                        <button type="button" onClick={() => setViewQuotationId(q.id)} title="View" aria-label={`View ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#3480ff] transition hover:bg-[#f5f9ff]">
-                          <Eye className="size-4" />
-                        </button>
-                        <button type="button" onClick={() => openEditQuotation(q)} title="Edit" aria-label={`Edit ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#233a6b] transition hover:bg-[#f5f9ff]">
-                          <Pencil className="size-4" />
-                        </button>
                         <button type="button" onClick={() => printQuotation(q)} title="Print Quotation" aria-label={`Print ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#0d9f4a] transition hover:bg-[#f3fbf6]">
                           <Printer className="size-4" />
                         </button>
@@ -33905,7 +33821,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
         )}
 
         {!loading && filteredQuotations.length > 0 && (
-          <div className="flex flex-col gap-3 px-3 py-3 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex shrink-0 flex-col gap-3 px-3 py-3 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
             <p>
               {`Showing ${(safeQuotationPage - 1) * QUOTATION_PAGE_SIZE + 1} to ${Math.min(safeQuotationPage * QUOTATION_PAGE_SIZE, filteredQuotations.length)} of ${filteredQuotations.length} entries`}
             </p>
@@ -33991,7 +33907,15 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
       ) : null}
 
       {viewQuotationId ? (
-        <QuotationViewModal quotationId={viewQuotationId} onClose={() => setViewQuotationId(null)} />
+        <QuotationViewModal
+          quotationId={viewQuotationId}
+          onClose={() => setViewQuotationId(null)}
+          onEdit={() => {
+            const id = viewQuotationId;
+            setViewQuotationId(null);
+            setEditQuotationId(id);
+          }}
+        />
       ) : null}
       {deleteConfirm ? (
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
@@ -34000,7 +33924,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   );
 }
 
-function QuotationViewModal({ quotationId, onClose }) {
+function QuotationViewModal({ quotationId, onClose, onEdit }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -34016,8 +33940,8 @@ function QuotationViewModal({ quotationId, onClose }) {
       className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/50 p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
-      <div className="modal-pop-in scroll-soft flex max-h-[90vh] w-full max-w-[820px] flex-col overflow-y-auto rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-        <div className="flex items-start justify-between gap-4">
+      <div className="modal-pop-in flex max-h-[90vh] w-full max-w-[820px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex shrink-0 items-start justify-between gap-4 px-6 pt-6">
           <div>
             <h2 className="font-display text-[19px] font-extrabold text-[#111827]">{detail?.quotation_number || 'Quotation'}</h2>
             {detail ? <p className="mt-1 text-[13px] font-bold text-[#53647f]">{detail.template} • {detail.lead_customer_name}</p> : null}
@@ -34030,6 +33954,8 @@ function QuotationViewModal({ quotationId, onClose }) {
         ) : !detail ? (
           <p className="py-12 text-center text-[13px] font-bold text-[#7386a3]">Quotation not found.</p>
         ) : (
+          <>
+            <div className="scroll-soft min-h-0 flex-1 overflow-y-auto px-6 pb-4">
           <div className="mt-5 space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <InfoCell label="Status" valueNode={<StatusBadge status={detail.status} />} />
@@ -34093,11 +34019,19 @@ function QuotationViewModal({ quotationId, onClose }) {
             ) : null}
 
             {detail.notes ? <InfoCell label="Remarks" value={detail.notes} /> : null}
-
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Close</button>
-            </div>
           </div>
+            </div>
+
+            <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#edf2f8] bg-white px-6 py-4">
+              <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">Close</button>
+              {onEdit ? (
+                <button type="button" onClick={onEdit} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0954c4]">
+                  <Pencil className="size-4" />
+                  Edit
+                </button>
+              ) : null}
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -36154,6 +36088,63 @@ function FilterSelect({ label, value, onChange, options }) {
   );
 }
 
+function TableHeaderFilter({ label, value, options, onChange, active = false }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (!ref.current?.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative inline-flex max-w-full min-w-0 items-center gap-0.5">
+      <span className="truncate">{label}</span>
+      <button
+        type="button"
+        onClick={(event) => { event.stopPropagation(); setOpen((current) => !current); }}
+        aria-label={`Filter ${label}`}
+        className={cx(
+          'grid size-5 shrink-0 place-items-center rounded-[5px] transition',
+          active || open ? 'bg-[#e8f1ff] text-[#0b65e5]' : 'text-[#8a98af] hover:bg-[#eef3fb] hover:text-[#284276]',
+        )}
+      >
+        <ChevronDown className="size-3.5" />
+      </button>
+      {open ? (
+        <div className="absolute left-0 top-full z-50 mt-1 max-h-64 min-w-[190px] overflow-y-auto rounded-[10px] border border-[#e2e9f3] bg-white py-1 shadow-[0_16px_32px_rgba(17,39,84,0.16)]">
+          {options.map((option) => {
+            const optionValue = typeof option === 'object' ? option.value : option;
+            const optionLabel = typeof option === 'object' ? option.label : option;
+            const selected = String(value) === String(optionValue);
+            return (
+              <button
+                key={String(optionValue)}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onChange(optionValue);
+                  setOpen(false);
+                }}
+                className={cx(
+                  'flex w-full items-center px-3 py-1.5 text-left text-[12px] font-bold transition',
+                  selected ? 'bg-[#eef6ff] text-[#0b65e5]' : 'text-[#314a79] hover:bg-[#f7fbff]',
+                )}
+              >
+                {optionLabel}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function PaginationButton({ active = false, children, onClick }) {
   return (
     <button
@@ -36182,7 +36173,7 @@ function mobileAvatarTone(name) {
 }
 
 // Compact phone-app style row for the Lead List (mockup: avatar | status | follow-up | kebab)
-function LeadListMobileRow({ lead, onOpenLead, onOpenSurvey, onEditLead }) {
+function LeadListMobileRow({ lead, onOpenLead, onOpenSurvey }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const initials = (lead.customer || 'NA').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
   const surveyLabel = lead.surveyStatus === 'Completed' ? 'View Survey' : lead.surveyStatus === 'In Progress' ? 'Continue Survey' : 'Start Survey';
@@ -36226,17 +36217,9 @@ function LeadListMobileRow({ lead, onOpenLead, onOpenSurvey, onEditLead }) {
         <>
           <button type="button" aria-label="Close menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setMenuOpen(false)} />
           <div className="absolute right-2 top-11 z-50 w-[170px] overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white shadow-[0_18px_38px_rgba(17,39,84,0.16)]">
-            <button type="button" onClick={() => { setMenuOpen(false); onOpenLead(lead); }} className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
-              <Eye className="size-4" />
-              View Lead
-            </button>
             <button type="button" onClick={() => { setMenuOpen(false); onOpenSurvey(); }} className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12px] font-extrabold text-[#7c3aed] transition hover:bg-[#f8fbff]">
               <MapPin className="size-4" />
               {surveyLabel}
-            </button>
-            <button type="button" onClick={() => { setMenuOpen(false); onEditLead(); }} className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12px] font-extrabold text-[#0d9f4a] transition hover:bg-[#f8fbff]">
-              <Pencil className="size-4" />
-              Edit Lead
             </button>
           </div>
         </>
