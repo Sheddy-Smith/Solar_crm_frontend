@@ -18,6 +18,7 @@ const MODULE_ACTION_TO_API = {
   Export: 'can_export',
   Import: 'can_import',
   Approve: 'can_approve',
+  Assign: 'can_assign',
 };
 
 /** True when the user's role matrix (Settings → Roles & Permissions) allows this module action. */
@@ -648,7 +649,14 @@ export function SettingsArchitectureTabs({ activePillarId, onSelectPillar }) {
 }
 
 export function mapUiPermissionsToApi(permissionRows) {
-  const fieldMap = { View: 'can_view', Add: 'can_add', Edit: 'can_edit', Delete: 'can_delete', Export: 'can_export' };
+  const fieldMap = {
+    View: 'can_view',
+    Add: 'can_add',
+    Edit: 'can_edit',
+    Delete: 'can_delete',
+    Export: 'can_export',
+    Assign: 'can_assign',
+  };
   return permissionRows.map((row) => {
     const entry = { module: row.module };
     Object.entries(fieldMap).forEach(([uiKey, apiKey]) => {

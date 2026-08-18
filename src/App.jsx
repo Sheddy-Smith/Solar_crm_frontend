@@ -16,6 +16,7 @@ import {
   getMediaUrl,
 } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
+import fixWebmDuration from 'fix-webm-duration';
 import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME, isTeleExecutiveRole, AuthLandingShell, AuthBrandHeader, AuthLandingFooter, ProductFooter, TeleFollowUpAlertsPanel, splitFollowUpAlerts, followUpAgeLabel, formatDateTime } from './telePortal.jsx';
 import { CrmFollowUpsPage } from './crmFollowUps.jsx';
 import {
@@ -160,6 +161,221 @@ function loadGoogleMapsApi() {
   return googleMapsLoaderPromise;
 }
 
+function formatFileMb(bytes) {
+  return `${(Number(bytes || 0) / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function pickVideoRecorderMime() {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') return '';
+  // Prefer H.264/mp4 (Safari/iOS) then VP8. VP9 from MediaRecorder often will not
+  // play back on the same Android phone that recorded it.
+  const candidates = [
+    'video/mp4;codecs=avc1.42E01E',
+    'video/mp4',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/webm;codecs=vp9',
+  ];
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+}
+
+function waitForVideoData(video) {
+  if (video.readyState >= 2) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const onReady = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error('Could not read video'));
+    };
+    const cleanup = () => {
+      video.removeEventListener('loadeddata', onReady);
+      video.removeEventListener('error', onError);
+    };
+    video.addEventListener('loadeddata', onReady);
+    video.addEventListener('error', onError);
+  });
+}
+
+// Re-encodes survey videos client-side (canvas + MediaRecorder) so a 2-minute
+// phone clip can fit the 10 MB server limit. Typical 4K 20s footage is 50–80 MB
+// before this step and ~2–8 MB after.
+function compressVideoFile(file, { maxBytes = 8 * 1024 * 1024, maxEdge = 640, fps = 18, onProgress } = {}) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      resolve(file);
+      return;
+    }
+    if (file.size <= maxBytes) {
+      resolve(file);
+      return;
+    }
+
+    const mimeType = pickVideoRecorderMime();
+    if (!mimeType) {
+      reject(new Error('This phone cannot compress video. Please record at a lower quality or a shorter clip.'));
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.preload = 'auto';
+    video.src = objectUrl;
+
+    let settled = false;
+    let drawTimer = 0;
+    const cleanup = () => {
+      if (drawTimer) window.clearInterval(drawTimer);
+      drawTimer = 0;
+      try { video.pause(); } catch { /* ignore */ }
+      document.querySelectorAll('[data-survey-compress="1"]').forEach((node) => node.remove());
+      URL.revokeObjectURL(objectUrl);
+      video.removeAttribute('src');
+      video.load();
+    };
+    const succeed = (value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+    const fail = (message) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error(message));
+    };
+
+    const encode = async () => {
+      try {
+        await waitForVideoData(video);
+        const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+        const srcW = video.videoWidth || 1280;
+        const srcH = video.videoHeight || 720;
+        const scale = Math.min(1, maxEdge / Math.max(srcW, srcH));
+        const width = Math.max(2, Math.round((srcW * scale) / 2) * 2);
+        const height = Math.max(2, Math.round((srcH * scale) / 2) * 2);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.dataset.surveyCompress = '1';
+        // Must stay inside the visible viewport. Off-screen / opacity:0 canvases
+        // are not painted on Android, so captureStream records a single still
+        // and mobile players show 0:00 / 0:00.
+        canvas.style.cssText = 'position:fixed;right:10px;bottom:10px;width:96px;height:54px;opacity:0.35;z-index:140;pointer-events:none;border-radius:8px;background:#000;';
+        document.body.appendChild(canvas);
+        const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+        if (!ctx) {
+          canvas.remove();
+          fail('Video compression is not supported on this device.');
+          return;
+        }
+
+        const recordStream = typeof canvas.captureStream === 'function'
+          ? canvas.captureStream(fps)
+          : (video.captureStream?.() || video.mozCaptureStream?.());
+        if (!recordStream) {
+          fail('Video compression is not supported on this device.');
+          return;
+        }
+
+        const budgetBits = maxBytes * 8 * 0.75;
+        const targetBitrate = Math.min(
+          1_000_000,
+          Math.max(280_000, Math.floor(budgetBits / Math.max(duration, 1))),
+        );
+
+        let recorder;
+        try {
+          recorder = new MediaRecorder(recordStream, {
+            mimeType,
+            videoBitsPerSecond: targetBitrate,
+          });
+        } catch {
+          recorder = new MediaRecorder(recordStream);
+        }
+
+        const chunks = [];
+        recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size) chunks.push(event.data);
+        };
+        recorder.onerror = () => fail('Video compression failed. Please try a shorter clip.');
+        recorder.onstop = async () => {
+          if (drawTimer) window.clearInterval(drawTimer);
+          drawTimer = 0;
+          let blob = new Blob(chunks, { type: mimeType.split(';')[0] || 'video/webm' });
+          if (!blob.size) {
+            fail('Video compression produced an empty file. Please try again.');
+            return;
+          }
+          const minExpected = Math.max(40_000, duration * 12_000);
+          if (duration > 2 && blob.size < minExpected) {
+            fail('Compressed video was incomplete. Please try uploading again.');
+            return;
+          }
+          if (blob.type.includes('webm') && duration > 0) {
+            try {
+              blob = await fixWebmDuration(blob, Math.round(duration * 1000));
+            } catch { /* keep original blob */ }
+          }
+          const ext = (blob.type.includes('mp4') || mimeType.includes('mp4')) ? 'mp4' : 'webm';
+          const compressed = new File(
+            [blob],
+            (file.name || 'survey-video').replace(/\.[^.]+$/, '') + `.${ext}`,
+            { type: blob.type || (ext === 'mp4' ? 'video/mp4' : 'video/webm') },
+          );
+          if (compressed.size > 10 * 1024 * 1024) {
+            fail(`Compressed video is still ${formatFileMb(compressed.size)}. Please record a shorter clip.`);
+            return;
+          }
+          succeed(compressed);
+        };
+
+        const paintFrame = () => {
+          if (settled) return;
+          try { ctx.drawImage(video, 0, 0, width, height); } catch { /* ignore frame */ }
+        };
+
+        video.ontimeupdate = () => {
+          if (duration > 0) onProgress?.(Math.min(99, Math.round((video.currentTime / duration) * 100)));
+        };
+        video.onended = () => {
+          onProgress?.(100);
+          paintFrame();
+          window.setTimeout(() => {
+            if (recorder.state === 'recording') {
+              try { recorder.stop(); } catch { fail('Video compression failed. Please try again.'); }
+            }
+          }, 400);
+        };
+
+        try {
+          await video.play();
+        } catch {
+          fail('Could not play the video for compression. Please try another file.');
+          return;
+        }
+        paintFrame();
+        drawTimer = window.setInterval(paintFrame, Math.max(40, Math.round(1000 / fps)));
+        recorder.start(100);
+      } catch (err) {
+        fail(err?.message || 'Video compression failed. Please try again.');
+      }
+    };
+
+    video.onerror = () => fail('Could not read video');
+    if (video.readyState >= 1) encode();
+    else video.onloadedmetadata = () => { encode(); };
+  });
+}
+
 // Resizes + re-encodes an image client-side before upload (canvas-based —
 // no extra dependency) so survey photos taken on-site don't ship full camera
 // resolution over a slow mobile connection.
@@ -221,6 +437,7 @@ function isImageFileName(name) {
 }
 
 function SurveyMediaPreview({ title, src, kind, onClose }) {
+  const [videoError, setVideoError] = useState('');
   if (!src) return null;
   return createPortal(
     <div
@@ -234,7 +451,18 @@ function SurveyMediaPreview({ title, src, kind, onClose }) {
         </div>
         <div className="bg-[#0f172a] p-3">
           {kind === 'video' ? (
-            <video src={src} controls autoPlay className="max-h-[72vh] w-full rounded-[8px]" />
+            <>
+              <video
+                key={src}
+                src={src}
+                controls
+                playsInline
+                preload="auto"
+                className="max-h-[72vh] w-full rounded-[8px] bg-black"
+                onError={() => setVideoError('Video could not be played. Remove it and upload again.')}
+              />
+              {videoError ? <p className="mt-2 text-center text-[12px] font-bold text-[#fca5a5]">{videoError}</p> : null}
+            </>
           ) : (
             <img src={src} alt={title} className="mx-auto max-h-[72vh] w-full object-contain" />
           )}
@@ -2720,7 +2948,6 @@ function App() {
           </div>
 
           <div className="relative min-h-0 flex-1 overflow-hidden rounded-t-[14px] bg-[linear-gradient(180deg,#09b83f_0%,#0799a7_42%,#075fc2_100%)]">
-            <div className="sidebar-shine" aria-hidden="true" />
             <div className="scroll-soft sidebar-menu-scroll relative h-full overflow-y-auto px-4 py-4">
               <nav className="space-y-0.5">
                 {sidebarItems.map((item) => {
@@ -4223,11 +4450,10 @@ function SignInPage({ onLogin, onBack, onNotify }) {
 }
 
 function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initialSearch = '', searchNonce, onOpenSection, onCreateLead, onOpenLead, autoOpenFollowUps = false, onConsumeAutoOpenFollowUps, onNotify }) {
-  // Role-based gating for lead actions. The management tier (Super Admin /
-  // Admin / Branch Manager) can assign leads and delete Won leads; a Sales
-  // Executive can neither delete nor change status.
+  // Assign / Won-delete gated by Settings → Roles & Permissions → Lead → Assign
+  // (or full_access / Super Admin), not by hardcoded role names.
   const currentRole = loggedInUser?.role_name || '';
-  const isLeadManager = Boolean(loggedInUser?.is_super_admin) || ['Admin', 'Branch Manager'].includes(currentRole);
+  const isLeadManager = hasModuleAccess(loggedInUser, 'Lead', 'Assign');
   const isSalesExecutive = currentRole === 'Sales Executive';
   const [searchQuery, setSearchQuery] = useState(initialSearch);
 
@@ -13290,10 +13516,16 @@ function buildSiteSurveyViewHtml(row, detail) {
     ${infoRow('Remarks', survey.shadow_analysis_remarks)}
   </table></section>
   <section class="full"><p class="sub">Electrical Details</p><table>${kvPairs(survey.electrical_details)}</table></section>
-  <section class="full"><p class="sub">Material Checklist</p>${listTable(['Material', 'Qty / Spec'], (Array.isArray(survey.material_checklist) ? survey.material_checklist : []).map((r) => `<tr><td>${esc(r.item)}</td><td>${esc(r.qty || '-')}</td></tr>`))}</section>
+  <section class="full"><p class="sub">Cable &amp; Conduit</p><table>
+    ${infoRow('AC Cable Length (m)', survey.ac_cable_length_approx)}
+    ${infoRow('DC Cable Length (m)', survey.dc_cable_length_approx)}
+    ${infoRow('AC Cable Route', survey.ac_cable_route)}
+    ${infoRow('DC Cable Route', survey.dc_cable_route)}
+    ${infoRow('Conduit Length (m)', survey.conduit_length_approx)}
+    ${infoRow('Conduit Route', survey.conduit_route_description)}
+  </table></section>
   <section class="full"><table>
-    ${infoRow('Additional Observations', survey.additional_observations)}
-    ${infoRow('Customer Confirmation', [survey.customer_confirmation_name, survey.customer_confirmation_date].filter(Boolean).join(' — '))}
+    ${infoRow('Decision maker', [survey.customer_confirmation_name, survey.customer_confirmation_date].filter(Boolean).join(' — '))}
     ${infoRow('Survey Engineer', [survey.survey_engineer_name, survey.survey_engineer_date].filter(Boolean).join(' — '))}
   </table></section>
 
@@ -14535,6 +14767,11 @@ function SurveyVideoSlot({ label, doc, uploading, onUpload, onDelete, onView }) 
               <Eye className="size-3" /> View
             </button>
           </>
+        ) : uploading ? (
+          <div className="flex h-full flex-col items-center justify-center gap-1 px-2 text-center text-[#5f7396]">
+            <RefreshCw className="size-6 animate-spin" />
+            <span className="text-[10px] font-extrabold">Compressing…</span>
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-[#c3ccdb]">
             <Play className="size-6" />
@@ -14546,7 +14783,7 @@ function SurveyVideoSlot({ label, doc, uploading, onUpload, onDelete, onView }) 
           <CheckCircle2 className="size-3" /> Uploaded
         </p>
       ) : (
-        <p className="mt-1.5 text-center text-[10px] font-bold text-[#8a98af]">Max 2 min</p>
+        <p className="mt-1.5 text-center text-[10px] font-bold text-[#8a98af]">{uploading ? 'Please wait' : 'Max 2 min · auto compressed'}</p>
       )}
       <div className="mt-2 grid grid-cols-2 gap-1.5">
         <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
@@ -14863,15 +15100,6 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
     material_checklist: Array.isArray(form.material_checklist) ? form.material_checklist : [],
   });
 
-  const updateMaterialQty = (index, qty) => {
-    setForm((f) => {
-      const list = [...(f.material_checklist || [])];
-      list[index] = { ...list[index], qty };
-      return { ...f, material_checklist: list };
-    });
-    setDirty(true);
-  };
-
   const handleSave = useCallback(async (nextStatus) => {
     if (!String(form.ivrs_number || '').trim()) {
       onNotify?.('IVRS Number is required.', 'error');
@@ -14987,9 +15215,15 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
     }
     setUploadingSlot(category);
     try {
-      if (videoOnly || isSurveyVideoFile(file.name) || file.type?.startsWith('video/')) {
+      let uploadFile = file;
+      const isVideo = videoOnly || isSurveyVideoFile(file.name) || file.type?.startsWith('video/');
+      if (isVideo) {
         const duration = await getVideoDurationSeconds(file);
         if (duration > 120) throw new Error('Video length should be 2 minutes or less.');
+        if (file.size > 8 * 1024 * 1024) {
+          onNotify?.(`Compressing video (${formatFileMb(file.size)})… please wait`);
+          uploadFile = await compressVideoFile(file);
+        }
       }
       const existing = additionalDocuments.filter((doc) => doc.category === category || (category === 'Document 1' && doc.category === 'Other Documents'));
       for (const doc of existing) {
@@ -14997,12 +15231,14 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
       }
       const fd = new FormData();
       fd.append('project', projectId);
-      fd.append('name', file.name);
+      fd.append('name', uploadFile.name);
       fd.append('category', category);
-      fd.append('file', file);
+      fd.append('file', uploadFile);
       await projectDocumentApi.create(fd);
       reloadAdditionalDocuments();
-      onNotify?.(`${category} uploaded`);
+      onNotify?.(isVideo && uploadFile !== file
+        ? `${category} uploaded (${formatFileMb(file.size)} → ${formatFileMb(uploadFile.size)})`
+        : `${category} uploaded`);
     } catch (err) {
       onNotify?.(err?.message || `Failed to upload ${category}`, 'error');
     } finally {
@@ -15038,12 +15274,11 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
 
   const uploadedRoofPhotoCount = (survey?.photos ?? []).filter((p) => SURVEY_ROOF_PHOTO_SLOTS.some((s) => s.slot === p.slot)).length;
   const totalRoofPhotoSlots = SURVEY_ROOF_PHOTO_SLOTS.length;
-  const safetyDoneCount = SURVEY_SAFETY_ITEMS.filter((item) => form[item.key]).length;
   const overallProgress = Math.round((
     (uploadedRoofPhotoCount / totalRoofPhotoSlots) * 40
-    + (safetyDoneCount / SURVEY_SAFETY_ITEMS.length) * 30
-    + (form.roof_type ? 15 : 0)
-    + (form.latitude && form.longitude ? 15 : 0)
+    + (form.roof_type ? 20 : 0)
+    + (form.latitude && form.longitude ? 20 : 0)
+    + (form.ac_cable_length_approx || form.dc_cable_length_approx || form.conduit_length_approx ? 20 : 0)
   ));
 
   if (loading) {
@@ -15343,14 +15578,20 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
 
           <SurveySection number={8} title="Cable & Conduit Route">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <SurveyField label="Earthing Cable Length (m)">
+              <SurveyField label="AC Cable Length (m)">
                 <input value={form.ac_cable_length_approx} onChange={(e) => updateField('ac_cable_length_approx', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="LA Cable Length (m)">
+              <SurveyField label="DC Cable Length (m)">
                 <input value={form.dc_cable_length_approx} onChange={(e) => updateField('dc_cable_length_approx', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Conduit Length (m)">
                 <input value={form.conduit_length_approx} onChange={(e) => updateField('conduit_length_approx', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="AC Cable Route">
+                <input value={form.ac_cable_route} onChange={(e) => updateField('ac_cable_route', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="DC Cable Route">
+                <input value={form.dc_cable_route} onChange={(e) => updateField('dc_cable_route', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
             </div>
             <SurveyField label="Conduit Route Description">
@@ -15399,38 +15640,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={10} title="Material Checklist">
-            <div className="overflow-x-auto rounded-[10px] border border-[#e7eef7]">
-              <table className="w-full min-w-[420px] text-left text-[12px]">
-                <thead className="bg-[#f8fafc] text-[11px] font-extrabold text-[#7386a3]">
-                  <tr>
-                    <th className="px-3 py-2">Material</th>
-                    <th className="px-3 py-2 w-[160px]">Qty / Spec</th>
-                  </tr>
-                </thead>
-                <tbody className="font-bold text-[#1e3261]">
-                  {(form.material_checklist || []).map((row, index) => (
-                    <tr key={`${row.item}-${index}`} className="border-t border-[#eef2f8]">
-                      <td className="px-3 py-2">{row.item}</td>
-                      <td className="px-2 py-1.5">
-                        <input value={row.qty || ''} onChange={(e) => updateMaterialQty(index, e.target.value)} className={surveyFieldClass} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </SurveySection>
-
-          <SurveySection number={11} title="Safety Checklist">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {SURVEY_SAFETY_ITEMS.map((item) => (
-                <SurveyCheckbox key={item.key} label={item.label} checked={form[item.key]} onChange={(v) => updateField(item.key, v)} />
-              ))}
-            </div>
-          </SurveySection>
-
-          <SurveySection number={12} title="Additional Documents">
+          <SurveySection number={10} title="Documents">
             <div className="rounded-[12px] border border-[#8fa0b8] bg-[#fbfcff] p-3">
               <div className="mb-2.5 flex items-center justify-between gap-2">
                 <p className="text-[12px] font-extrabold text-[#34466c]">Documents</p>
@@ -15464,13 +15674,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={13} title="Additional Observations">
-            <SurveyField label="Additional Observations">
-              <textarea value={form.additional_observations} onChange={(e) => updateField('additional_observations', e.target.value)} rows={3} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
-            </SurveyField>
-          </SurveySection>
-
-          <SurveySection number={14} title="Customer Confirmation">
+          <SurveySection number={11} title="Decision maker">
             <div className="grid gap-3 sm:grid-cols-2">
               <SurveyField label="Customer Name">
                 <input value={form.customer_confirmation_name} onChange={(e) => updateField('customer_confirmation_name', e.target.value)} className={surveyFieldClass} />
@@ -15490,7 +15694,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </SurveyField>
           </SurveySection>
 
-          <SurveySection number={15} title="Survey Completion">
+          <SurveySection number={12} title="Survey Completion">
             <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[12px] font-extrabold text-[#34466c]">Survey Summary</span>
@@ -15503,8 +15707,8 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                 <div className="flex items-center justify-between"><span>Roof Photos</span><span>{uploadedRoofPhotoCount >= totalRoofPhotoSlots ? '✅' : '⏳'} {uploadedRoofPhotoCount}/{totalRoofPhotoSlots}</span></div>
                 <div className="flex items-center justify-between"><span>Earthing</span><span>{form.earthing_count || getPhoto('Earthing Location Photo') ? '✅ Done' : '⏳ Pending'}</span></div>
                 <div className="flex items-center justify-between"><span>Inverter / Meter Photos</span><span>{getPhoto('Inverter Location Photo') || getPhoto('Meter Photo Close to Main DB') ? '✅ Done' : '⏳ Pending'}</span></div>
+                <div className="flex items-center justify-between"><span>AC / DC Cable</span><span>{form.ac_cable_length_approx || form.dc_cable_length_approx ? '✅ Done' : '⏳ Pending'}</span></div>
                 <div className="flex items-center justify-between"><span>Conduit Route</span><span>{form.conduit_route_description ? '✅ Done' : '⏳ Pending'}</span></div>
-                <div className="flex items-center justify-between"><span>Safety Checklist</span><span>{safetyDoneCount}/{SURVEY_SAFETY_ITEMS.length}</span></div>
               </div>
             </div>
           </SurveySection>
@@ -20035,17 +20239,22 @@ function SiteSurveyDocumentUploads({ projectId, documents = [], categories = SUR
     setUploadingCategory(category);
     try {
       for (const file of files) {
-        if (/video/i.test(category)) {
+        let uploadFile = file;
+        if (/video/i.test(category) || file.type?.startsWith('video/')) {
           const duration = await getVideoDurationSeconds(file);
           if (duration > 120) {
             throw new Error('Video length should be 2 minutes or less.');
           }
+          if (file.size > 8 * 1024 * 1024) {
+            onNotify?.(`Compressing video (${formatFileMb(file.size)})… please wait`);
+            uploadFile = await compressVideoFile(file);
+          }
         }
         const formData = new FormData();
         formData.append('project', projectId);
-        formData.append('name', file.name);
+        formData.append('name', uploadFile.name);
         formData.append('category', category);
-        formData.append('file', file);
+        formData.append('file', uploadFile);
         await projectDocumentApi.create(formData);
       }
       onNotify?.(`${category} uploaded`);
@@ -26065,30 +26274,30 @@ function createSettingsRolePermissions(roleName) {
     { module: 'User Management', description: 'Manage users and roles' },
   ];
 
-  const guestMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: false };
-  const viewerMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: true };
+  const guestMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: false, Assign: false };
+  const viewerMatrix = { View: true, Add: false, Edit: false, Delete: false, Export: true, Assign: false };
   const managerMatrix = {
-    Dashboard: { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    Lead: { View: true, Add: true, Edit: true, Delete: true, Export: true },
-    Quotation: { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    'Project Management': { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    'Liaisoning & Commissioning': { View: true, Add: true, Edit: true, Delete: false, Export: false },
-    'O&M': { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    Accounts: { View: true, Add: true, Edit: false, Delete: false, Export: true },
-    Inventory: { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    Employee: { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    Insights: { View: true, Add: false, Edit: false, Delete: false, Export: true },
-    'Daily Tasks': { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    'AMC & Warranty': { View: true, Add: true, Edit: true, Delete: false, Export: true },
-    Settings: { View: true, Add: false, Edit: false, Delete: false, Export: false },
-    'User Management': { View: false, Add: false, Edit: false, Delete: false, Export: false },
+    Dashboard: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    Lead: { View: true, Add: true, Edit: true, Delete: true, Export: true, Assign: true },
+    Quotation: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    'Project Management': { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    'Liaisoning & Commissioning': { View: true, Add: true, Edit: true, Delete: false, Export: false, Assign: false },
+    'O&M': { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    Accounts: { View: true, Add: true, Edit: false, Delete: false, Export: true, Assign: false },
+    Inventory: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    Employee: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    Insights: { View: true, Add: false, Edit: false, Delete: false, Export: true, Assign: false },
+    'Daily Tasks': { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    'AMC & Warranty': { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    Settings: { View: true, Add: false, Edit: false, Delete: false, Export: false, Assign: false },
+    'User Management': { View: false, Add: false, Edit: false, Delete: false, Export: false, Assign: false },
   };
 
   return template.map((row, index) => {
     if (roleName === 'Super Admin') {
       return {
         ...row,
-        permissions: { View: true, Add: true, Edit: true, Delete: true, Export: true },
+        permissions: { View: true, Add: true, Edit: true, Delete: true, Export: true, Assign: true },
       };
     }
 
@@ -26101,6 +26310,7 @@ function createSettingsRolePermissions(roleName) {
           Edit: index === 0 ? false : true,
           Delete: ['Lead', 'Project Management', 'Inventory', 'Daily Tasks'].includes(row.module),
           Export: true,
+          Assign: row.module === 'Lead',
         },
       };
     }
@@ -26175,6 +26385,7 @@ function mapApiPermissionsToSettingsRows(apiPermissions) {
     can_edit: 'Edit',
     can_delete: 'Delete',
     can_export: 'Export',
+    can_assign: 'Assign',
   };
   return apiPermissions.map((row) => {
     const allOn = Boolean(row.full_access);
@@ -27012,15 +27223,15 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
                     </button>
                   </div>
                   <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
-                    <table className="crm-table min-w-[880px] w-full">
-                      <thead><tr>{['Module', 'View', 'Add', 'Edit', 'Delete', 'Export', 'Grant All'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                    <table className="crm-table min-w-[960px] w-full">
+                      <thead><tr>{['Module', 'View', 'Add', 'Edit', 'Delete', 'Export', 'Assign', 'Grant All'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
                       <tbody>
                         {permissionRows.map((row) => {
                           const allGranted = Object.values(row.permissions).every(Boolean);
                           return (
                           <tr key={row.module}>
                             <td><div><p className="font-extrabold text-[#1e3261]">{row.module}</p><p className="mt-1 text-[11px] font-bold text-[#6f7f98]">{row.description}</p></div></td>
-                            {['View', 'Add', 'Edit', 'Delete', 'Export'].map((permission) => (
+                            {['View', 'Add', 'Edit', 'Delete', 'Export', 'Assign'].map((permission) => (
                               <td key={`${row.module}-${permission}`}><SettingsPermissionToggle value={row.permissions[permission]} onClick={() => updatePermission(row.module, permission)} label={`${row.module} ${permission}`} /></td>
                             ))}
                             <td>
@@ -29262,6 +29473,7 @@ const PERMISSION_ACTION_FIELDS = [
   ['Export', 'can_export'],
   ['Import', 'can_import'],
   ['Approve', 'can_approve'],
+  ['Assign', 'can_assign'],
 ];
 
 function roleVisuals(roleName) {
@@ -29337,7 +29549,7 @@ function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
   const resetPermissions = () => {
     setPermissions((current) => current.map((row) => ({
       ...row, can_view: false, can_add: false, can_edit: false, can_delete: false,
-      can_export: false, can_import: false, can_approve: false, full_access: false,
+      can_export: false, can_import: false, can_approve: false, can_assign: false, full_access: false,
     })));
     onNotify('Permissions reset — click Save Permissions to apply');
   };

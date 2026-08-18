@@ -18,7 +18,7 @@ class RolePermissionSerializer(serializers.ModelSerializer):
         model = RolePermission
         fields = [
             'module', 'can_view', 'can_add', 'can_edit', 'can_delete',
-            'can_export', 'can_import', 'can_approve', 'full_access',
+            'can_export', 'can_import', 'can_approve', 'can_assign', 'full_access',
         ]
 
 

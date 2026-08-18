@@ -56,20 +56,23 @@ def is_super_admin(user):
     return role_name == 'super admin'
 
 
-# Roles allowed to delete a Won lead and to (re)assign leads: the management
-# tier only. A Sales Executive receives Won leads but can never delete them or
-# change their status.
-LEAD_MANAGER_ROLES = ('Admin', 'Branch Manager')
-
-
 def can_manage_leads(user):
-    """True for the management tier (Super Admin / Admin / Branch Manager) that
-    may assign leads and delete Won leads."""
+    """True when the user's Lead permission row allows Assign (or full_access).
+
+    Used for lead (re)assignment and deleting Won leads. Controlled from
+    Settings → Roles & Permissions → Lead → Assign — not by hardcoded role names.
+    """
     if not user or not user.is_authenticated:
         return False
     if is_super_admin(user):
         return True
-    return getattr(getattr(user, 'role', None), 'name', '') in LEAD_MANAGER_ROLES
+    role = getattr(user, 'role', None)
+    if not role:
+        return False
+    perm = role.permissions.filter(module='Lead').first()
+    if not perm:
+        return False
+    return bool(perm.full_access or perm.can_assign)
 
 
 class IsAdminOrSuperAdmin(BasePermission):
@@ -122,7 +125,7 @@ MODULE_ACTION_FLAGS = {
     'create': 'can_add',
     'update': 'can_edit',
     'partial_update': 'can_edit',
-    'assign': 'can_edit',
+    'assign': 'can_assign',
     'update_status': 'can_edit',
     'update_progress': 'can_edit',
     'destroy': 'can_delete',

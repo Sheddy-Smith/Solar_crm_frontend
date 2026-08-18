@@ -185,7 +185,7 @@ class RoleViewSet(viewsets.ModelViewSet):
             if module not in valid_modules:
                 continue
             perm = existing[module]
-            for field in ('can_view', 'can_add', 'can_edit', 'can_delete', 'can_export', 'can_import', 'can_approve', 'full_access'):
+            for field in ('can_view', 'can_add', 'can_edit', 'can_delete', 'can_export', 'can_import', 'can_approve', 'can_assign', 'full_access'):
                 if field in entry:
                     setattr(perm, field, bool(entry[field]))
             perm.save()

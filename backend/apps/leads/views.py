@@ -66,10 +66,9 @@ class LeadViewSet(viewsets.ModelViewSet):
         role = getattr(getattr(user, 'role', None), 'name', '')
         if role == 'Tele Sales Executive' and serializer.instance.created_by_id != user.id:
             raise PermissionDenied('You can only edit leads you added.')
-        # Scoped executives cannot reassign leads via PATCH — assignment is an
-        # admin action, and giving a lead away would also drop it out of the
-        # executive's own scoped view.
-        if is_lead_scoped(user):
+        # Scoped executives cannot reassign leads via PATCH unless they have
+        # Lead → Assign in the permission matrix (Settings → Roles).
+        if is_lead_scoped(user) and not can_manage_leads(user):
             locked = {'assigned_to': serializer.instance.assigned_to}
             # A Sales Executive can update lead details/follow-ups but must never
             # change the pipeline status — a Won lead stays Won in their account.
@@ -190,9 +189,12 @@ class LeadViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):
         from django.contrib.auth import get_user_model
-        # Same rule as perform_update: scoped executives don't control assignment.
-        if is_lead_scoped(request.user):
-            return Response({'error': 'Lead assignment is managed by administrators.'}, status=status.HTTP_403_FORBIDDEN)
+        # Gated by Settings → Roles & Permissions → Lead → Assign (or full_access).
+        if not can_manage_leads(request.user):
+            return Response(
+                {'error': 'Lead assignment requires Assign permission on the Lead module.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         lead = self.get_object()
         user_id = request.data.get('assigned_to')
         if user_id is not None and not get_user_model().objects.filter(pk=user_id, is_active=True).exists():

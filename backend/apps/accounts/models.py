@@ -59,6 +59,9 @@ class RolePermission(models.Model):
     can_export = models.BooleanField(default=False)
     can_import = models.BooleanField(default=False)
     can_approve = models.BooleanField(default=False)
+    # Lead (re)assignment — toggled from Settings → Roles & Permissions.
+    # Not implied by can_edit; managers get this explicitly (or via full_access).
+    can_assign = models.BooleanField(default=False)
     full_access = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
 
