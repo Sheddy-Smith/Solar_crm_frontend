@@ -97,6 +97,7 @@ import {
   MonitorSmartphone,
   MoreVertical,
   PauseCircle,
+  Play,
   Pencil,
   Phone,
   Pin,
@@ -191,6 +192,57 @@ function compressImageFile(file, { maxDimension = 1600, quality = 0.8 } = {}) {
     img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
     img.src = objectUrl;
   });
+}
+
+function getVideoDurationSeconds(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      const duration = Number(video.duration || 0);
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(duration) ? duration : 0);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(0);
+    };
+    video.src = url;
+  });
+}
+
+function isSurveyVideoFile(nameOrUrl = '') {
+  return /\.(mp4|mov|webm|m4v|avi)$/i.test(nameOrUrl);
+}
+
+function isImageFileName(name) {
+  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(name || '');
+}
+
+function SurveyMediaPreview({ title, src, kind, onClose }) {
+  if (!src) return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-[#111827]/70 p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-pop-in relative w-full max-w-[920px] overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.35)]">
+        <div className="flex items-center justify-between border-b border-[#8fa0b8] px-5 py-3">
+          <h3 className="truncate pr-4 text-[15px] font-extrabold text-[#1e3261]">{title}</h3>
+          <button type="button" onClick={onClose} aria-label="Close preview" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="bg-[#0f172a] p-3">
+          {kind === 'video' ? (
+            <video src={src} controls autoPlay className="max-h-[72vh] w-full rounded-[8px]" />
+          ) : (
+            <img src={src} alt={title} className="mx-auto max-h-[72vh] w-full object-contain" />
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 const BRAND_LOGO_SRC = '/brand/malwa-logo-wordmark-light.png';
@@ -3119,12 +3171,12 @@ function App() {
 
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col self-stretch">
         <main className={cx(
-          'main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 px-0 pb-2 md:px-0 xl:pr-0.5',
-          ['Lead List', 'Quotation'].includes(activeSidebarItem) ? 'flex flex-col overflow-hidden' : 'overflow-y-auto',
+          'main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 px-0 pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:px-0 md:pb-2 xl:pr-0.5',
+          ['Lead List', 'Quotation'].includes(activeSidebarItem) ? 'flex flex-col overflow-visible lg:overflow-hidden' : 'overflow-visible lg:overflow-y-auto',
         )}>
           <div className={cx(
             'w-full min-w-0 px-2 md:px-0 xl:pb-2',
-            ['Lead List', 'Quotation'].includes(activeSidebarItem) ? 'flex min-h-0 flex-1 flex-col space-y-2 overflow-hidden' : 'space-y-2',
+            ['Lead List', 'Quotation'].includes(activeSidebarItem) ? 'flex min-h-0 flex-1 flex-col space-y-2 overflow-visible lg:overflow-hidden' : 'space-y-2',
           )}>
             <AppHeader
               notify={notify}
@@ -4444,7 +4496,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   }, [activeLeadCategory]);
 
   return (
-    <div className="lead-list-page -mx-1 flex min-h-0 flex-1 flex-col gap-1 overflow-hidden md:mx-0 xl:-mx-1">
+    <div className="lead-list-page -mx-1 flex min-h-0 flex-1 flex-col gap-1 overflow-visible lg:overflow-hidden md:mx-0 xl:-mx-1">
       <section className={`${panelClass} shrink-0 overflow-hidden p-2 sm:p-2.5`}>
         <div className="flex items-center justify-end gap-2">
           <div className="flex shrink-0 items-center gap-2">
@@ -4549,7 +4601,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         <p className="mt-1.5 text-[11px] font-semibold text-[#8a98af]">Double-click a row to view details. Use column arrows to filter.</p>
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden p-1.5 sm:p-2`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col overflow-visible lg:overflow-hidden p-1.5 sm:p-2`}>
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
@@ -14280,7 +14332,7 @@ function SiteSurveyEditModal({ row, onClose, onOpenSection, onNotify }) {
   );
 }
 
-const SURVEY_ROOF_PHOTO_SLOTS = [
+const SURVEY_BASE_PHOTO_SLOTS = [
   { slot: 'South Side', required: true },
   { slot: 'South-East Side', required: true },
   { slot: 'South-West Side', required: true },
@@ -14288,19 +14340,19 @@ const SURVEY_ROOF_PHOTO_SLOTS = [
   { slot: 'Inverter Location Photo', required: false },
   { slot: 'Meter Photo Close to Main DB', required: false },
   { slot: 'Earthing Location Photo', required: false },
-  { slot: 'Conduiting Photo 1', required: false },
-  { slot: 'Conduiting Photo 2', required: false },
-  { slot: 'Conduiting Photo 3', required: false },
-  { slot: 'Conduiting Photo 4', required: false },
-  { slot: 'Conduiting Photo 5', required: false },
-  { slot: 'Conduiting Photo 6', required: false },
-  { slot: 'Conduiting Photo 7', required: false },
-  { slot: 'Conduiting Photo 8', required: false },
-  { slot: 'Site Drawing 1', required: false },
-  { slot: 'Site Drawing 2', required: false },
-  { slot: 'Site Drawing 3', required: false },
-  { slot: 'Site Drawing 4', required: false },
 ];
+const SURVEY_CONDUITING_PHOTO_SLOTS = Array.from({ length: 8 }, (_, i) => `Conduiting Photo ${i + 1}`);
+const SURVEY_SITE_DRAWING_PHOTO_SLOTS = Array.from({ length: 4 }, (_, i) => `Site Drawing ${i + 1}`);
+const SURVEY_ROOF_PHOTO_SLOTS = [
+  ...SURVEY_BASE_PHOTO_SLOTS,
+  ...SURVEY_CONDUITING_PHOTO_SLOTS.map((slot) => ({ slot, required: false })),
+  ...SURVEY_SITE_DRAWING_PHOTO_SLOTS.map((slot) => ({ slot, required: false })),
+];
+
+function getMultiPhotoVisibleCount(slots, photos) {
+  const filled = slots.filter((slot) => (photos ?? []).some((photo) => photo.slot === slot && photo.image)).length;
+  return Math.min(slots.length, Math.max(1, filled));
+}
 const SURVEY_ROOF_TYPE_OPTIONS = ['RCC', 'Tin Shed', 'RBC Roof', 'Ground Mount'];
 const SURVEY_PROJECT_CATEGORY_OPTIONS = ['Residential', 'Commercial', 'Industrial', 'Other'];
 const SURVEY_PURPOSE_OPTIONS = ['On-Grid', 'Off-Grid', 'Hybrid'];
@@ -14312,7 +14364,9 @@ const SURVEY_INVERTER_PLACEMENT_OPTIONS = ['Indoor', 'Outdoor'];
 const SURVEY_INVERTER_MOUNTING_OPTIONS = ['Wall Mounted', 'Floor Mounted'];
 const SURVEY_METER_PHASE_OPTIONS = ['Normal Single Phase', 'Normal 3 Phase', 'Smart Single Phase', 'Smart 3 Phase', 'Normal LTCT', 'Smart LTCT'];
 const SURVEY_MODULE_ORIENTATION_OPTIONS = ['Portrait', 'Landscape', 'Both'];
-const SURVEY_ADDITIONAL_DOC_CATEGORIES = ['Conduiting & Earthing Video', 'Structure & Inverter Location Video', 'Other Documents'];
+const SURVEY_VIDEO_CATEGORIES = ['Conduiting & Earthing Video', 'Structure & Inverter Location Video'];
+const SURVEY_ADDITIONAL_DOC_SLOTS = Array.from({ length: 8 }, (_, i) => `Document ${i + 1}`);
+const SURVEY_ADDITIONAL_DOC_CATEGORIES = [...SURVEY_VIDEO_CATEGORIES, ...SURVEY_ADDITIONAL_DOC_SLOTS, 'Other Documents'];
 const SURVEY_DEFAULT_MATERIAL_CHECKLIST = [
   { item: 'Solar Panels (Wattage)', qty: '' },
   { item: 'Inverter Capacity', qty: '' },
@@ -14373,17 +14427,20 @@ const surveyFieldClass = 'h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-w
 
 function SurveySection({ number, title, children }) {
   return (
-    <section className="rounded-[14px] border border-[#e7eef7] bg-white p-4 sm:p-5">
+    <section className="rounded-[14px] border border-[#8fa0b8] bg-white p-4 sm:p-5">
       <h3 className="mb-3 text-[14px] font-extrabold text-[#1e3261]">{number}. {title}</h3>
       <div className="space-y-3">{children}</div>
     </section>
   );
 }
 
-function SurveyField({ label, optional, children }) {
+function SurveyField({ label, required = false, children }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-1.5 block text-[11px] font-extrabold text-[#7386a3]">{label}</span>
+      <span className="mb-1.5 block text-[11px] font-extrabold text-[#7386a3]">
+        {label}
+        {required ? <span className="ml-0.5 text-[#f04438]">*</span> : null}
+      </span>
       {children}
     </label>
   );
@@ -14398,19 +14455,31 @@ function SurveyCheckbox({ label, checked, onChange }) {
   );
 }
 
-function SurveyPhotoSlot({ label, optional, photo, uploading, onUpload, onDelete }) {
+function SurveyPhotoSlot({ label, required = false, photo, uploading, onUpload, onDelete, onView }) {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
   return (
-    <div className="rounded-[10px] border border-[#e7eef7] bg-white p-2.5">
+    <div className="rounded-[10px] border border-[#8fa0b8] bg-white p-2.5">
       <div className="flex items-center justify-between gap-1">
-        <p className="truncate text-[11px] font-extrabold text-[#34466c]" title={label}>{label}</p>
+        <p className="truncate text-[11px] font-extrabold text-[#34466c]" title={label}>
+          {label}
+          {required ? <span className="ml-0.5 text-[#f04438]">*</span> : null}
+        </p>
         {photo ? <CheckCircle2 className="size-4 shrink-0 text-[#0d9f4a]" /> : null}
       </div>
-      <div className="mt-2 aspect-square overflow-hidden rounded-[8px] bg-[#f4f7fb]">
+      <div className="relative mt-2 aspect-square overflow-hidden rounded-[8px] bg-[#f4f7fb]">
         {photo ? (
-          <img src={getMediaUrl(photo.image)} alt={label} className="h-full w-full object-cover" />
+          <>
+            <img src={getMediaUrl(photo.image)} alt={label} className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={onView}
+              className="absolute right-1.5 top-1.5 inline-flex h-7 items-center gap-1 rounded-[6px] bg-black/70 px-2 text-[10px] font-extrabold text-white"
+            >
+              <Eye className="size-3" /> View
+            </button>
+          </>
         ) : (
           <div className="flex h-full items-center justify-center text-[#c3ccdb]">
             <Camera className="size-6" />
@@ -14441,6 +14510,156 @@ function SurveyPhotoSlot({ label, optional, photo, uploading, onUpload, onDelete
   );
 }
 
+function SurveyVideoSlot({ label, doc, uploading, onUpload, onDelete, onView }) {
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+
+  return (
+    <div className="w-[min(100%,188px)] rounded-[10px] border border-[#8fa0b8] bg-white p-2.5">
+      <div className="flex items-center justify-between gap-1">
+        <p className="truncate text-[11px] font-extrabold text-[#34466c]" title={label}>{label}</p>
+        {doc ? <CheckCircle2 className="size-4 shrink-0 text-[#0d9f4a]" /> : null}
+      </div>
+      <div className="relative mt-2 aspect-square overflow-hidden rounded-[8px] bg-[#f4f7fb]">
+        {doc ? (
+          <>
+            <div className="flex h-full flex-col items-center justify-center gap-1 text-[#5f7396]">
+              <Play className="size-8" />
+              <span className="px-2 text-center text-[10px] font-extrabold">{doc.name || 'Video uploaded'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={onView}
+              className="absolute right-1.5 top-1.5 inline-flex h-7 items-center gap-1 rounded-[6px] bg-black/70 px-2 text-[10px] font-extrabold text-white"
+            >
+              <Eye className="size-3" /> View
+            </button>
+          </>
+        ) : (
+          <div className="flex h-full items-center justify-center text-[#c3ccdb]">
+            <Play className="size-6" />
+          </div>
+        )}
+      </div>
+      {doc ? (
+        <p className="mt-1.5 flex items-center justify-center gap-1 text-[10px] font-extrabold text-[#0d9f4a]">
+          <CheckCircle2 className="size-3" /> Uploaded
+        </p>
+      ) : (
+        <p className="mt-1.5 text-center text-[10px] font-bold text-[#8a98af]">Max 2 min</p>
+      )}
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+          <Upload className="size-3" /> Upload
+        </button>
+        <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+          <Camera className="size-3" /> Camera
+        </button>
+      </div>
+      {doc ? (
+        <button type="button" onClick={onDelete} className="mt-1.5 flex w-full items-center justify-center gap-1 text-[10px] font-bold text-[#e2594c] hover:underline">
+          <Trash2 className="size-3" /> Remove
+        </button>
+      ) : null}
+      <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+      <input ref={cameraInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+    </div>
+  );
+}
+
+function SurveyDocSlot({ label, doc, uploading, onUpload, onDelete, onView }) {
+  const fileInputRef = useRef(null);
+  const isImage = isImageFileName(doc?.name || doc?.file);
+  const isVideo = isSurveyVideoFile(doc?.name || doc?.file);
+
+  return (
+    <div className="w-[min(100%,168px)] rounded-[10px] border border-[#8fa0b8] bg-white p-2.5">
+      <div className="flex items-center justify-between gap-1">
+        <p className="truncate text-[11px] font-extrabold text-[#34466c]" title={label}>{label}</p>
+        {doc ? <CheckCircle2 className="size-4 shrink-0 text-[#0d9f4a]" /> : null}
+      </div>
+      <div className="relative mt-2 aspect-square overflow-hidden rounded-[8px] bg-[#f4f7fb]">
+        {doc && isImage ? (
+          <img src={getMediaUrl(doc.file)} alt={label} className="h-full w-full object-cover" />
+        ) : doc ? (
+          <div className="flex h-full flex-col items-center justify-center gap-1 text-[#5f7396]">
+            {isVideo ? <Play className="size-7" /> : <FileText className="size-7" />}
+            <span className="px-2 text-center text-[10px] font-extrabold">{doc.name}</span>
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-[#c3ccdb]">
+            <FileText className="size-6" />
+          </div>
+        )}
+        {doc ? (
+          <button
+            type="button"
+            onClick={onView}
+            className="absolute right-1.5 top-1.5 inline-flex h-7 items-center gap-1 rounded-[6px] bg-black/70 px-2 text-[10px] font-extrabold text-white"
+          >
+            <Eye className="size-3" /> View
+          </button>
+        ) : null}
+      </div>
+      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+        <Upload className="size-3" /> {uploading ? 'Uploading...' : 'Upload'}
+      </button>
+      {doc ? (
+        <button type="button" onClick={onDelete} className="mt-1.5 flex w-full items-center justify-center gap-1 text-[10px] font-bold text-[#e2594c] hover:underline">
+          <Trash2 className="size-3" /> Remove
+        </button>
+      ) : null}
+      <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.mp4,.mov" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+    </div>
+  );
+}
+
+function SurveyMultiPhotoGroup({ title, slots, visibleCount, onAdd, getPhoto, uploadingSlot, onUpload, onDelete, onView }) {
+  const shownSlots = slots.slice(0, visibleCount);
+  const canAddMore = visibleCount < slots.length;
+
+  return (
+    <div className="rounded-[12px] border border-[#8fa0b8] bg-[#fbfcff] p-3">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <p className="text-[12px] font-extrabold text-[#34466c]">{title}</p>
+        <span className="text-[10px] font-bold text-[#8a98af]">{shownSlots.length}/{slots.length}</span>
+      </div>
+      <div className="flex flex-wrap items-stretch gap-2.5">
+        {shownSlots.map((slot, index) => (
+          <div key={slot} className="w-[min(100%,168px)]">
+            <SurveyPhotoSlot
+              label={`${title} ${index + 1}`}
+              photo={getPhoto(slot)}
+              uploading={uploadingSlot === slot}
+              onUpload={(file) => onUpload(slot, file)}
+              onDelete={() => {
+                const photo = getPhoto(slot);
+                if (photo?.id) onDelete(photo.id);
+              }}
+              onView={() => {
+                const photo = getPhoto(slot);
+                if (photo) onView?.(photo, `${title} ${index + 1}`);
+              }}
+            />
+          </div>
+        ))}
+        {canAddMore ? (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="flex min-h-[168px] w-[88px] flex-col items-center justify-center gap-1.5 rounded-[10px] border-2 border-dashed border-[#c9d7ea] bg-white text-[#5f7396] transition hover:border-[#0b65e5] hover:bg-[#f8fbff] hover:text-[#0b65e5]"
+          >
+            <span className="grid size-9 place-items-center rounded-full bg-[#eef4ff]">
+              <Plus className="size-5" />
+            </span>
+            <span className="text-[11px] font-extrabold">Add</span>
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
   const [loading, setLoading] = useState(true);
   const [survey, setSurvey] = useState(null);
@@ -14449,6 +14668,10 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
   const [dirty, setDirty] = useState(false);
   const [locating, setLocating] = useState(false);
   const [uploadingSlot, setUploadingSlot] = useState(null);
+  const [conduitingVisibleCount, setConduitingVisibleCount] = useState(1);
+  const [siteDrawingVisibleCount, setSiteDrawingVisibleCount] = useState(1);
+  const [documentVisibleCount, setDocumentVisibleCount] = useState(1);
+  const [mediaPreview, setMediaPreview] = useState(null);
   const [employeeOptions, setEmployeeOptions] = useState(cachedEmployeeOptions || []);
   const [additionalDocuments, setAdditionalDocuments] = useState([]);
   const dirtyRef = useRef(false);
@@ -14470,6 +14693,17 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
   }, [reloadAdditionalDocuments]);
 
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
+
+  useEffect(() => {
+    if (!survey?.photos) return;
+    setConduitingVisibleCount((current) => Math.max(current, getMultiPhotoVisibleCount(SURVEY_CONDUITING_PHOTO_SLOTS, survey.photos)));
+    setSiteDrawingVisibleCount((current) => Math.max(current, getMultiPhotoVisibleCount(SURVEY_SITE_DRAWING_PHOTO_SLOTS, survey.photos)));
+  }, [survey?.id, survey?.photos]);
+
+  useEffect(() => {
+    const filled = SURVEY_ADDITIONAL_DOC_SLOTS.filter((slot) => additionalDocuments.some((doc) => doc.category === slot || (slot === 'Document 1' && doc.category === 'Other Documents'))).length;
+    setDocumentVisibleCount((current) => Math.max(current, Math.min(SURVEY_ADDITIONAL_DOC_SLOTS.length, Math.max(1, filled))));
+  }, [additionalDocuments]);
 
   useEffect(() => {
     let cancelled = false;
@@ -14678,11 +14912,13 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
 
   const getMissingForCompletion = () => {
     const missing = [];
+    if (!form.survey_date) missing.push('Survey Date');
+    if (!String(form.ivrs_number || '').trim()) missing.push('IVRS Number');
+    if (!form.latitude || !form.longitude) missing.push('GPS Location');
     if (!form.roof_type) missing.push('Roof Type');
     if (!form.rooftop_area_sqft) missing.push('Roof Area');
-    if (!form.latitude || !form.longitude) missing.push('GPS Location');
     const uploadedSlots = new Set((survey?.photos ?? []).map((p) => p.slot));
-    const missingPhotos = SURVEY_ROOF_PHOTO_SLOTS.filter((s) => s.required && !uploadedSlots.has(s.slot)).map((s) => s.slot);
+    const missingPhotos = SURVEY_BASE_PHOTO_SLOTS.filter((s) => s.required && !uploadedSlots.has(s.slot)).map((s) => s.slot);
     if (missingPhotos.length) missing.push(`Photos — ${missingPhotos.join(', ')}`);
     return missing;
   };
@@ -14735,6 +14971,71 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
     }
   };
 
+  const getDocByCategory = (category) => {
+    const matches = additionalDocuments.filter((doc) => doc.category === category);
+    if (category === 'Document 1' && !matches.length) {
+      return additionalDocuments.find((doc) => doc.category === 'Other Documents') || null;
+    }
+    return matches[0] || null;
+  };
+
+  const handleCategoryFileUpload = async (category, file, { videoOnly = false } = {}) => {
+    if (!file) return;
+    if (!survey?.id) {
+      onNotify?.('Save the survey once before adding files', 'error');
+      return;
+    }
+    setUploadingSlot(category);
+    try {
+      if (videoOnly || isSurveyVideoFile(file.name) || file.type?.startsWith('video/')) {
+        const duration = await getVideoDurationSeconds(file);
+        if (duration > 120) throw new Error('Video length should be 2 minutes or less.');
+      }
+      const existing = additionalDocuments.filter((doc) => doc.category === category || (category === 'Document 1' && doc.category === 'Other Documents'));
+      for (const doc of existing) {
+        await projectDocumentApi.delete(doc.id);
+      }
+      const fd = new FormData();
+      fd.append('project', projectId);
+      fd.append('name', file.name);
+      fd.append('category', category);
+      fd.append('file', file);
+      await projectDocumentApi.create(fd);
+      reloadAdditionalDocuments();
+      onNotify?.(`${category} uploaded`);
+    } catch (err) {
+      onNotify?.(err?.message || `Failed to upload ${category}`, 'error');
+    } finally {
+      setUploadingSlot(null);
+    }
+  };
+
+  const handleCategoryFileDelete = async (docId) => {
+    if (!docId) return;
+    try {
+      await projectDocumentApi.delete(docId);
+      reloadAdditionalDocuments();
+    } catch (err) {
+      onNotify?.(err?.message || 'Failed to delete file', 'error');
+    }
+  };
+
+  const openPhotoPreview = (photo, title) => {
+    if (!photo?.image) return;
+    setMediaPreview({ title, src: getMediaUrl(photo.image), kind: 'image' });
+  };
+
+  const openDocPreview = (doc, title) => {
+    if (!doc?.file) return;
+    const src = getMediaUrl(doc.file);
+    const kind = isSurveyVideoFile(doc.name || doc.file) || /video/i.test(doc.category || '') ? 'video' : 'image';
+    if (kind === 'image' && !isImageFileName(doc.name || doc.file)) {
+      window.open(src, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setMediaPreview({ title, src, kind });
+  };
+
   const uploadedRoofPhotoCount = (survey?.photos ?? []).filter((p) => SURVEY_ROOF_PHOTO_SLOTS.some((s) => s.slot === p.slot)).length;
   const totalRoofPhotoSlots = SURVEY_ROOF_PHOTO_SLOTS.length;
   const safetyDoneCount = SURVEY_SAFETY_ITEMS.filter((item) => form[item.key]).length;
@@ -14766,12 +15067,12 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
         </div>
       </div>
 
-      <div className="scroll-soft flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-6">
+      <div className="scroll-soft min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] p-4 sm:p-6">
         <div className="space-y-4">
 
           <SurveySection number={1} title="Survey Information">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <SurveyField label="Survey Date">
+              <SurveyField label="Survey Date" required>
                 <input type="date" value={form.survey_date} onChange={(e) => updateField('survey_date', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Survey Engineer">
@@ -14780,39 +15081,39 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   {employeeOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               </SurveyField>
-              <SurveyField label="Survey Status">
+              <SurveyField label="Survey Status" required>
                 <select value={form.status} onChange={(e) => updateField('status', e.target.value)} className={surveyFieldClass}>
                   <option value="Pending">🔴 Pending</option>
                   <option value="In Progress">🟡 In Progress</option>
                   <option value="Completed">🟢 Completed</option>
                 </select>
               </SurveyField>
-              <SurveyField label="Customer Name (Auto)">
+              <SurveyField label="Customer Name (Auto)" required>
                 <input value={survey?.customer_name || ''} disabled className={`${surveyFieldClass} bg-[#f4f7fb] text-[#7386a3]`} />
               </SurveyField>
-              <SurveyField label="Mobile Number (Auto)">
+              <SurveyField label="Mobile Number (Auto)" required>
                 <input value={survey?.mobile_number || ''} disabled className={`${surveyFieldClass} bg-[#f4f7fb] text-[#7386a3]`} />
               </SurveyField>
               <SurveyField label="Project Name (Auto)">
                 <input value={survey?.project_name || ''} disabled className={`${surveyFieldClass} bg-[#f4f7fb] text-[#7386a3]`} />
               </SurveyField>
-              <SurveyField label="Address (Auto)" optional>
+              <SurveyField label="Address (Auto)" required>
                 <input value={survey?.address || ''} disabled className={`${surveyFieldClass} bg-[#f4f7fb] text-[#7386a3]`} />
               </SurveyField>
-              <SurveyField label="Alternate Mobile" optional>
+              <SurveyField label="Alternate Mobile">
                 <input value={form.alternate_mobile} onChange={(e) => updateField('alternate_mobile', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Email ID" optional>
+              <SurveyField label="Email ID">
                 <input type="email" value={form.email_id} onChange={(e) => updateField('email_id', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="IVRS Number">
+              <SurveyField label="IVRS Number" required>
                 <input value={form.ivrs_number} onChange={(e) => updateField('ivrs_number', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
             </div>
 
             <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[12px] font-extrabold text-[#34466c]">GPS Location</span>
+                <span className="text-[12px] font-extrabold text-[#34466c]">GPS Location <span className="text-[#f04438]">*</span></span>
                 <button
                   type="button"
                   onClick={handleCaptureLocation}
@@ -14824,10 +15125,10 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                 </button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <SurveyField label="Latitude">
+                <SurveyField label="Latitude" required>
                   <input value={form.latitude} onChange={(e) => updateField('latitude', e.target.value)} placeholder="e.g. 22.7196" className={surveyFieldClass} />
                 </SurveyField>
-                <SurveyField label="Longitude">
+                <SurveyField label="Longitude" required>
                   <input value={form.longitude} onChange={(e) => updateField('longitude', e.target.value)} placeholder="e.g. 75.8577" className={surveyFieldClass} />
                 </SurveyField>
               </div>
@@ -14842,7 +15143,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   {SURVEY_PROJECT_CATEGORY_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </SurveyField>
-              <SurveyField label="Capacity Required (kW)" optional>
+              <SurveyField label="Capacity Required (kW)">
                 <input value={form.capacity_required_kw} onChange={(e) => updateField('capacity_required_kw', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Purpose">
@@ -14857,10 +15158,10 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   <option value="yes">Yes</option>
                 </select>
               </SurveyField>
-              <SurveyField label="Sanction Load (kW)" optional>
+              <SurveyField label="Sanction Load (kW)">
                 <input value={form.sanction_load_kw} onChange={(e) => updateField('sanction_load_kw', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Extend Sanction Load (kW)" optional>
+              <SurveyField label="Extend Sanction Load (kW)">
                 <input value={form.extend_sanction_load_kw} onChange={(e) => updateField('extend_sanction_load_kw', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Types of Meters">
@@ -14869,7 +15170,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   {SURVEY_METER_PHASE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </SurveyField>
-              <SurveyField label="Average Monthly Bill" optional>
+              <SurveyField label="Average Monthly Bill">
                 <input value={form.average_monthly_bill} onChange={(e) => updateField('average_monthly_bill', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               
@@ -14881,34 +15182,34 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyField label="Building Height">
                 <input value={form.floor_count} onChange={(e) => updateField('floor_count', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Roof Type">
+              <SurveyField label="Roof Type" required>
                 <select value={form.roof_type} onChange={(e) => updateField('roof_type', e.target.value)} className={surveyFieldClass}>
                   <option value="">Select roof type</option>
                   {SURVEY_ROOF_TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </SurveyField>
-              <SurveyField label="Roof Condition" optional>
+              <SurveyField label="Roof Condition">
                 <select value={form.roof_condition} onChange={(e) => updateField('roof_condition', e.target.value)} className={surveyFieldClass}>
                   <option value="">Select</option>
                   {SURVEY_ROOF_CONDITION_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </SurveyField>
-              <SurveyField label="Roof Direction" optional>
+              <SurveyField label="Roof Direction">
                 <select value={form.roof_direction} onChange={(e) => updateField('roof_direction', e.target.value)} className={surveyFieldClass}>
                   <option value="">Select</option>
                   {SURVEY_ROOF_DIRECTION_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </SurveyField>
-              <SurveyField label="Roof Area (sq.ft)">
+              <SurveyField label="Roof Area (sq.ft)" required>
                 <input value={form.rooftop_area_sqft} onChange={(e) => updateField('rooftop_area_sqft', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Roof Length" optional>
+              <SurveyField label="Roof Length">
                 <input value={form.roof_length_ft} onChange={(e) => updateField('roof_length_ft', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Roof Width" optional>
+              <SurveyField label="Roof Width">
                 <input value={form.roof_width_ft} onChange={(e) => updateField('roof_width_ft', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Shadow-free Area (sq.ft)" optional>
+              <SurveyField label="Shadow-free Area (sq.ft)">
                 <input value={form.shadow_free_area_sqft} onChange={(e) => updateField('shadow_free_area_sqft', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
             </div>
@@ -14918,25 +15219,48 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyCheckbox label="Tree Nearby" checked={form.tree_nearby} onChange={(v) => updateField('tree_nearby', v)} />
               <SurveyCheckbox label="Obstacle Present" checked={form.obstacle_present} onChange={(v) => updateField('obstacle_present', v)} />
             </div>
-            <SurveyField label="Roof Remarks" optional>
+            <SurveyField label="Roof Remarks">
               <textarea value={form.roof_remarks} onChange={(e) => updateField('roof_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
             </SurveyField>
           </SurveySection>
 
           <SurveySection number={4} title="Roof / Site Photo Checklist">
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-              {SURVEY_ROOF_PHOTO_SLOTS.map(({ slot, required }) => (
+              {SURVEY_BASE_PHOTO_SLOTS.map(({ slot, required }) => (
                 <SurveyPhotoSlot
                   key={slot}
                   label={slot}
-                  optional={!required}
+                  required={required}
                   photo={getPhoto(slot)}
                   uploading={uploadingSlot === slot}
                   onUpload={(file) => handlePhotoUpload(slot, file)}
                   onDelete={() => handlePhotoDelete(getPhoto(slot).id)}
+                  onView={() => openPhotoPreview(getPhoto(slot), slot)}
                 />
               ))}
             </div>
+            <SurveyMultiPhotoGroup
+              title="Conduiting Photo"
+              slots={SURVEY_CONDUITING_PHOTO_SLOTS}
+              visibleCount={conduitingVisibleCount}
+              onAdd={() => setConduitingVisibleCount((count) => Math.min(SURVEY_CONDUITING_PHOTO_SLOTS.length, count + 1))}
+              getPhoto={getPhoto}
+              uploadingSlot={uploadingSlot}
+              onUpload={handlePhotoUpload}
+              onDelete={handlePhotoDelete}
+              onView={openPhotoPreview}
+            />
+            <SurveyMultiPhotoGroup
+              title="Site Drawing"
+              slots={SURVEY_SITE_DRAWING_PHOTO_SLOTS}
+              visibleCount={siteDrawingVisibleCount}
+              onAdd={() => setSiteDrawingVisibleCount((count) => Math.min(SURVEY_SITE_DRAWING_PHOTO_SLOTS.length, count + 1))}
+              getPhoto={getPhoto}
+              uploadingSlot={uploadingSlot}
+              onUpload={handlePhotoUpload}
+              onDelete={handlePhotoDelete}
+              onView={openPhotoPreview}
+            />
             {!survey?.id ? <p className="mt-2 text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
           </SurveySection>
 
@@ -14974,11 +15298,11 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyCheckbox label="Other Obstacle" checked={form.obstacle_other} onChange={(v) => updateField('obstacle_other', v)} />
             </div>
             {form.obstacle_other ? (
-              <SurveyField label="Other Obstacle Details" optional>
+              <SurveyField label="Other Obstacle Details">
                 <input value={form.obstacle_other_text} onChange={(e) => updateField('obstacle_other_text', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
             ) : null}
-            <SurveyField label="Shadow Analysis Remarks" optional>
+            <SurveyField label="Shadow Analysis Remarks">
               <textarea value={form.shadow_analysis_remarks} onChange={(e) => updateField('shadow_analysis_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
             </SurveyField>
           </SurveySection>
@@ -15001,7 +15325,20 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
           </SurveySection>
 
           <SurveySection number={7} title="Media & Evidence">
-            <p className="text-[12px] font-bold text-[#6b7f9c]">Upload conduit photos (max 8), site drawing photos (max 4), and the required videos (each up to 2 min).</p>
+            <div className="flex flex-wrap items-stretch gap-2.5">
+              {SURVEY_VIDEO_CATEGORIES.map((category) => (
+                <SurveyVideoSlot
+                  key={category}
+                  label={category}
+                  doc={getDocByCategory(category)}
+                  uploading={uploadingSlot === category}
+                  onUpload={(file) => handleCategoryFileUpload(category, file, { videoOnly: true })}
+                  onDelete={() => handleCategoryFileDelete(getDocByCategory(category)?.id)}
+                  onView={() => openDocPreview(getDocByCategory(category), category)}
+                />
+              ))}
+            </div>
+            {!survey?.id ? <p className="text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable video uploads.</p> : null}
           </SurveySection>
 
           <SurveySection number={8} title="Cable & Conduit Route">
@@ -15035,22 +15372,22 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   {SURVEY_MODULE_ORIENTATION_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </SurveyField>
-              <SurveyField label="Front Leg Height (ft)" optional>
+              <SurveyField label="Front Leg Height (ft)">
                 <input value={form.front_leg_height_ft} onChange={(e) => updateField('front_leg_height_ft', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Back Leg Height (ft)" optional>
+              <SurveyField label="Back Leg Height (ft)">
                 <input value={form.back_leg_height_ft} onChange={(e) => updateField('back_leg_height_ft', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="No. of Sets" optional>
+              <SurveyField label="No. of Sets">
                 <input value={form.no_of_sets} onChange={(e) => updateField('no_of_sets', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Panels in One Row" optional>
+              <SurveyField label="Panels in One Row">
                 <input value={form.panels_in_one_row} onChange={(e) => updateField('panels_in_one_row', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Number of Rows" optional>
+              <SurveyField label="Number of Rows">
                 <input value={form.structure_rows} onChange={(e) => updateField('structure_rows', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Number of Columns" optional>
+              <SurveyField label="Number of Columns">
                 <input value={form.structure_columns} onChange={(e) => updateField('structure_columns', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Future Expansion">
@@ -15062,7 +15399,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={11} title="Material Checklist">
+          <SurveySection number={10} title="Material Checklist">
             <div className="overflow-x-auto rounded-[10px] border border-[#e7eef7]">
               <table className="w-full min-w-[420px] text-left text-[12px]">
                 <thead className="bg-[#f8fafc] text-[11px] font-extrabold text-[#7386a3]">
@@ -15085,7 +15422,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={12} title="Safety Checklist">
+          <SurveySection number={11} title="Safety Checklist">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {SURVEY_SAFETY_ITEMS.map((item) => (
                 <SurveyCheckbox key={item.key} label={item.label} checked={form[item.key]} onChange={(v) => updateField(item.key, v)} />
@@ -15093,43 +15430,67 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={13} title="Additional Documents">
-            <SiteSurveyDocumentUploads
-              projectId={projectId}
-              documents={additionalDocuments}
-              categories={SURVEY_ADDITIONAL_DOC_CATEGORIES}
-              onReload={reloadAdditionalDocuments}
-              onNotify={onNotify}
-            />
+          <SurveySection number={12} title="Additional Documents">
+            <div className="rounded-[12px] border border-[#8fa0b8] bg-[#fbfcff] p-3">
+              <div className="mb-2.5 flex items-center justify-between gap-2">
+                <p className="text-[12px] font-extrabold text-[#34466c]">Documents</p>
+                <span className="text-[10px] font-bold text-[#8a98af]">{documentVisibleCount}/{SURVEY_ADDITIONAL_DOC_SLOTS.length}</span>
+              </div>
+              <div className="flex flex-wrap items-stretch gap-2.5">
+                {SURVEY_ADDITIONAL_DOC_SLOTS.slice(0, documentVisibleCount).map((slot, index) => (
+                  <SurveyDocSlot
+                    key={slot}
+                    label={`Document ${index + 1}`}
+                    doc={getDocByCategory(slot)}
+                    uploading={uploadingSlot === slot}
+                    onUpload={(file) => handleCategoryFileUpload(slot, file)}
+                    onDelete={() => handleCategoryFileDelete(getDocByCategory(slot)?.id)}
+                    onView={() => openDocPreview(getDocByCategory(slot), `Document ${index + 1}`)}
+                  />
+                ))}
+                {documentVisibleCount < SURVEY_ADDITIONAL_DOC_SLOTS.length ? (
+                  <button
+                    type="button"
+                    onClick={() => setDocumentVisibleCount((count) => Math.min(SURVEY_ADDITIONAL_DOC_SLOTS.length, count + 1))}
+                    className="flex min-h-[168px] w-[88px] flex-col items-center justify-center gap-1.5 rounded-[10px] border-2 border-dashed border-[#8fa0b8] bg-white text-[#5f7396] transition hover:border-[#0b65e5] hover:bg-[#f8fbff] hover:text-[#0b65e5]"
+                  >
+                    <span className="grid size-9 place-items-center rounded-full bg-[#eef4ff]">
+                      <Plus className="size-5" />
+                    </span>
+                    <span className="text-[11px] font-extrabold">Add</span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </SurveySection>
 
-          <SurveySection number={14} title="Additional Observations & Remarks">
-            <SurveyField label="Additional Observations" optional>
+          <SurveySection number={13} title="Additional Observations">
+            <SurveyField label="Additional Observations">
               <textarea value={form.additional_observations} onChange={(e) => updateField('additional_observations', e.target.value)} rows={3} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
             </SurveyField>
-            <SurveyField label="Survey Remarks" optional>
+          </SurveySection>
+
+          <SurveySection number={14} title="Customer Confirmation">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SurveyField label="Customer Name">
+                <input value={form.customer_confirmation_name} onChange={(e) => updateField('customer_confirmation_name', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Customer Date">
+                <input type="date" value={form.customer_confirmation_date} onChange={(e) => updateField('customer_confirmation_date', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Survey Engineer Name">
+                <input value={form.survey_engineer_name} onChange={(e) => updateField('survey_engineer_name', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              <SurveyField label="Survey Engineer Date">
+                <input type="date" value={form.survey_engineer_date} onChange={(e) => updateField('survey_engineer_date', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+            </div>
+            <SurveyField label="Remark">
               <textarea value={form.summary_notes} onChange={(e) => updateField('summary_notes', e.target.value)} rows={3} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
             </SurveyField>
           </SurveySection>
 
-          <SurveySection number={15} title="Customer Confirmation">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <SurveyField label="Customer Name" optional>
-                <input value={form.customer_confirmation_name} onChange={(e) => updateField('customer_confirmation_name', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Customer Date" optional>
-                <input type="date" value={form.customer_confirmation_date} onChange={(e) => updateField('customer_confirmation_date', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Survey Engineer Name" optional>
-                <input value={form.survey_engineer_name} onChange={(e) => updateField('survey_engineer_name', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Survey Engineer Date" optional>
-                <input type="date" value={form.survey_engineer_date} onChange={(e) => updateField('survey_engineer_date', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-            </div>
-          </SurveySection>
-
-          <SurveySection number={16} title="Survey Completion">
+          <SurveySection number={15} title="Survey Completion">
             <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[12px] font-extrabold text-[#34466c]">Survey Summary</span>
@@ -15151,7 +15512,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
         </div>
       </div>
 
-      <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-4 sm:flex-row">
+      <div className="flex flex-col justify-end gap-3 border-t border-[#8fa0b8] px-6 py-4 sm:flex-row">
         <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
           Cancel
         </button>
@@ -15168,6 +15529,14 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
           Complete Survey
         </button>
       </div>
+      {mediaPreview ? (
+        <SurveyMediaPreview
+          title={mediaPreview.title}
+          src={mediaPreview.src}
+          kind={mediaPreview.kind}
+          onClose={() => setMediaPreview(null)}
+        />
+      ) : null}
     </>
   );
 }
@@ -19638,10 +20007,6 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
 }
 
 const SURVEY_DOCUMENT_CATEGORIES = ['Site Photos', 'Electricity Bill', 'Roof Images', 'Customer Documents', 'Other Files'];
-
-function isImageFileName(name) {
-  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(name || '');
-}
 
 function SiteSurveyDocumentUploads({ projectId, documents = [], categories = SURVEY_DOCUMENT_CATEGORIES, onReload, onNotify }) {
   const fileInputRefs = useRef({});
@@ -30820,405 +31185,59 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
   );
 }
 
-const LEAD_SURVEY_MOUNTING_OPTIONS = ['Ground Mount', 'Roof / Terrace Mount', 'Tin Shed Mount'];
-
-// Lightweight site inspection captured at the lead stage (before the lead is
-// won) — separate from the fuller Project Management > Site Survey, which
-// happens after conversion and gets auto-filled from this one.
 function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify }) {
-  const [linkedProjectId, setLinkedProjectId] = useState(null);
+  const [projectId, setProjectId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [survey, setSurvey] = useState(null);
-  const [form, setForm] = useState({
-    status: 'In Progress', site_address: '', latitude: '', longitude: '', mounting_type: '',
-    site_size_sqft: '', customer_feedback: '', survey_date: '',
-  });
-  const [saving, setSaving] = useState(false);
-  const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState('');
-  const [mapPickerOpen, setMapPickerOpen] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const fileInputRef = useRef(null);
-  const cameraInputRef = useRef(null);
-
-  useEffect(() => {
-    projectApi.list({ lead: leadId, page_size: 1 }).then((data) => {
-      const rows = Array.isArray(data) ? data : (data?.results ?? []);
-      setLinkedProjectId(rows[0]?.id || null);
-    }).catch(() => setLinkedProjectId(null));
-  }, [leadId]);
 
   useEffect(() => {
     let cancelled = false;
-    leadApi.getSiteSurvey(leadId).then((data) => {
-      if (cancelled) return;
-      setSurvey(data);
-      if (data) {
-        setForm({
-          status: data.status || 'In Progress',
-          site_address: data.site_address || '',
-          latitude: data.latitude || '',
-          longitude: data.longitude || '',
-          mounting_type: data.mounting_type || '',
-          site_size_sqft: data.site_size_sqft || '',
-          customer_feedback: data.customer_feedback || '',
-          survey_date: data.survey_date || '',
-        });
-      }
-    }).catch(() => {
-      onNotify?.('Could not load site survey', 'error');
-    }).finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [leadId]);
-
-  const handleUseLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationError('Location is not supported on this device/browser.');
-      return;
-    }
-    setLocating(true);
-    setLocationError('');
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude.toFixed(6);
-        const lng = position.coords.longitude.toFixed(6);
-        setForm((f) => ({ ...f, latitude: lat, longitude: lng }));
-        setLocating(false);
-
-        // Best-effort reverse geocode into the address field too — location fix
-        // already succeeded, so a failure here shouldn't surface as an error.
-        loadGoogleMapsApi().then((maps) => {
-          new maps.Geocoder().geocode({ location: { lat: Number(lat), lng: Number(lng) } }, (results, status) => {
-            if (status === 'OK' && results?.[0]) {
-              setForm((f) => ({ ...f, site_address: results[0].formatted_address }));
-            }
-          });
-        }).catch(() => {});
-      },
-      (error) => {
-        setLocating(false);
-        if (error.code === error.PERMISSION_DENIED) {
-          setLocationError('Location access is blocked for this site. Allow location permission in your browser/device settings, then tap Retry.');
-        } else {
-          setLocationError('Could not fetch location — make sure Location/GPS is turned on for this device, then tap Retry.');
+    (async () => {
+      try {
+        const data = await projectApi.list({ lead: leadId, page_size: 1 });
+        const rows = Array.isArray(data) ? data : (data?.results ?? []);
+        if (rows[0]?.id) {
+          if (!cancelled) {
+            setProjectId(rows[0].id);
+            setLoading(false);
+          }
+          return;
         }
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const saved = await leadApi.saveSiteSurvey(leadId, { ...form, survey_date: form.survey_date || null });
-      setSurvey(saved);
-      onNotify?.('Site survey saved');
-      onSaved?.(saved);
-    } catch (err) {
-      onNotify?.(err?.message || 'Failed to save site survey', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleUploadPhotos = async (event) => {
-    const files = Array.from(event.target.files || []);
-    event.target.value = '';
-    if (!files.length) return;
-    if (!survey?.id) {
-      onNotify?.('Save the survey once before adding photos', 'error');
-      return;
-    }
-    setUploadingPhoto(true);
-    try {
-      for (const file of files) {
-        const fd = new FormData();
-        fd.append('survey', survey.id);
-        fd.append('image', file);
-        await leadSurveyPhotoApi.create(fd);
+        const lead = await leadApi.get(leadId);
+        const created = await projectApi.create({
+          lead: leadId,
+          project_name: lead.project_name || `${lead.customer_name || customerName || 'Customer'} Solar Project`,
+          customer_name: lead.customer_name || customerName || 'Customer',
+          capacity_kwp: Number(lead.estimated_capacity) || 0,
+          project_type: lead.project_type || 'On-Grid',
+        });
+        if (!cancelled) setProjectId(created.id);
+      } catch (err) {
+        onNotify?.(err?.message || 'Could not open site survey', 'error');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      const refreshed = await leadApi.getSiteSurvey(leadId);
-      setSurvey(refreshed);
-      onNotify?.('Photo(s) uploaded');
-    } catch (err) {
-      onNotify?.(err?.message || 'Failed to upload photo(s)', 'error');
-    } finally {
-      setUploadingPhoto(false);
-    }
-  };
-
-  const handleDeletePhoto = async (photoId) => {
-    try {
-      await leadSurveyPhotoApi.delete(photoId);
-      const refreshed = await leadApi.getSiteSurvey(leadId);
-      setSurvey(refreshed);
-    } catch (err) {
-      onNotify?.(err?.message || 'Failed to delete photo', 'error');
-    }
-  };
-
-  if (linkedProjectId) {
-    return (
-      <div
-        className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4"
-        onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
-      >
-        <div className="modal-pop-in flex max-h-[94vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-          <SiteSurveyFullForm
-            projectId={linkedProjectId}
-            onClose={onClose}
-            onNotify={onNotify}
-          />
-        </div>
-      </div>
-    );
-  }
+    })();
+    return () => { cancelled = true; };
+  }, [leadId, customerName, onNotify]);
 
   return (
     <div
       className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
-      <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[640px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-          <div>
-            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Site Survey</h2>
-            {customerName ? <p className="mt-0.5 text-[12px] font-bold text-[#7386a3]">{customerName}</p> : null}
+      <div className="modal-pop-in flex max-h-[94vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        {loading || !projectId ? (
+          <div className="flex flex-1 items-center justify-center p-10">
+            <PageLoadingState message="Loading site survey..." />
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
-        </div>
-
-        <div className="scroll-soft flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <PageLoadingState message="Loading survey..." />
-          ) : (
-            <div className="space-y-5">
-              <label className="block min-w-0">
-                <LeadLabel label="Status" />
-                <span className="mt-2 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                  <select
-                    value={form.status}
-                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                    className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none"
-                  >
-                    <option value="Pending">🔴 Pending</option>
-                    <option value="In Progress">🟡 In Progress</option>
-                    <option value="Completed">🟢 Completed</option>
-                  </select>
-                </span>
-              </label>
-
-              {form.status === 'Completed' ? (
-                <p className="rounded-[8px] bg-[#e8f8eb] px-3 py-2 text-[12px] font-extrabold text-[#0d9f4a]">
-                  This survey is marked completed. You can still edit and re-save it.
-                </p>
-              ) : null}
-
-              <div>
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[12px] font-extrabold text-[#34466c]">Site Details / Address, Latitude &amp; Longitude</span>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={handleUseLocation}
-                      disabled={locating}
-                      className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
-                    >
-                      <Crosshair className="size-3.5" />
-                      {locating ? 'Locating...' : 'Use My Location'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMapPickerOpen(true)}
-                      className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"
-                    >
-                      <MapPin className="size-3.5" />
-                      Manually
-                    </button>
-                  </div>
-                </div>
-                <p className="mb-2 text-[11px] font-bold text-[#8a98af]">Either button fills the address and lat/long together — you can also edit any field by hand.</p>
-                {locationError ? (
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-[#f6dda9] bg-[#fff8e8] px-3 py-2 text-[12px] font-bold text-[#a76200]">
-                    <span className="inline-flex items-center gap-1.5"><AlertTriangle className="size-3.5 shrink-0" />{locationError}</span>
-                    <button
-                      type="button"
-                      onClick={handleUseLocation}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-[#f6dda9] bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#a76200] transition hover:bg-[#fff3d6]"
-                    >
-                      <RefreshCw className="size-3" />
-                      Retry
-                    </button>
-                  </div>
-                ) : null}
-
-                <label className="block min-w-0">
-                  <span className="flex min-h-[74px] items-start gap-3 rounded-[8px] border border-black/20 bg-white px-3 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                    <MapPin className="mt-0.5 size-4 shrink-0 text-[#8391a8]" />
-                    <textarea
-                      placeholder="Site address, landmark, access notes"
-                      rows={3}
-                      value={form.site_address}
-                      onChange={(e) => setForm((f) => ({ ...f, site_address: e.target.value }))}
-                      className="min-h-full min-w-0 flex-1 resize-y bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
-                    />
-                  </span>
-                </label>
-
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                  <label className="block min-w-0">
-                    <span className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                      <MapPin className="size-4 shrink-0 text-[#8391a8]" />
-                      <input
-                        type="text"
-                        placeholder="Latitude"
-                        value={form.latitude}
-                        onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
-                        className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
-                      />
-                    </span>
-                  </label>
-                  <label className="block min-w-0">
-                    <span className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                      <MapPin className="size-4 shrink-0 text-[#8391a8]" />
-                      <input
-                        type="text"
-                        placeholder="Longitude"
-                        value={form.longitude}
-                        onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
-                        className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
-                      />
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              <div>
-                <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Mounting Type</span>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {LEAD_SURVEY_MOUNTING_OPTIONS.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, mounting_type: option }))}
-                      className={cx(
-                        'rounded-[8px] border px-3 py-2.5 text-[12px] font-extrabold transition',
-                        form.mounting_type === option
-                          ? 'border-[#0b65e5] bg-[#edf5ff] text-[#0b65e5]'
-                          : 'border-[#dbe5f2] bg-white text-[#30466d] hover:bg-[#f8fbff]',
-                      )}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <label className="block min-w-0">
-                <LeadLabel label="Site / Roof Size (sq. ft.)" optional />
-                <span className="mt-2 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                  <input
-                    type="text"
-                    placeholder="e.g. 850"
-                    value={form.site_size_sqft}
-                    onChange={(e) => setForm((f) => ({ ...f, site_size_sqft: e.target.value }))}
-                    className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
-                  />
-                </span>
-              </label>
-
-              <label className="block min-w-0">
-                <LeadLabel label="Customer Feedback" optional />
-                <span className="mt-2 flex min-h-[62px] items-start gap-3 rounded-[8px] border border-black/20 bg-white px-3 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                  <textarea
-                    placeholder="Customer's feedback / expectations from the site visit"
-                    rows={2}
-                    value={form.customer_feedback}
-                    onChange={(e) => setForm((f) => ({ ...f, customer_feedback: e.target.value }))}
-                    className="min-h-full min-w-0 flex-1 resize-y bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
-                  />
-                </span>
-              </label>
-
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-[12px] font-extrabold text-[#34466c]">Site Photos</span>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploadingPhoto}
-                      className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
-                    >
-                      <Upload className="size-3.5" />
-                      {uploadingPhoto ? 'Uploading...' : 'Upload'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      disabled={uploadingPhoto}
-                      className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
-                    >
-                      <Camera className="size-3.5" />
-                      Camera
-                    </button>
-                  </div>
-                  <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleUploadPhotos} />
-                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUploadPhotos} />
-                </div>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {(survey?.photos ?? []).length === 0 ? (
-                    <p className="col-span-full text-[12px] font-bold text-[#8a98af]">No photos uploaded yet.</p>
-                  ) : survey.photos.map((photo) => (
-                    <div key={photo.id} className="group relative overflow-hidden rounded-[8px] border border-[#e7eef7]">
-                      <img src={getMediaUrl(photo.image)} alt="Site" className="h-20 w-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePhoto(photo.id)}
-                        aria-label="Remove photo"
-                        className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded-full bg-black/60 text-white group-hover:flex"
-                      >
-                        <X className="size-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                {!survey?.id ? (
-                  <p className="mt-1.5 text-[11px] font-bold text-[#8a98af]">Save the survey once to enable photo uploads.</p>
-                ) : null}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-6 py-4 sm:flex-row">
-          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
-            Close
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || loading}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60"
-          >
-            <Save className="size-4" />
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-        </div>
+        ) : (
+          <SiteSurveyFullForm
+            projectId={projectId}
+            onClose={() => { onSaved?.(); onClose(); }}
+            onNotify={onNotify}
+          />
+        )}
       </div>
-
-      {mapPickerOpen ? (
-        <LeadSurveyMapPickerModal
-          initialLat={form.latitude}
-          initialLng={form.longitude}
-          onClose={() => setMapPickerOpen(false)}
-          onConfirm={(lat, lng, address) => {
-            setForm((f) => ({ ...f, latitude: lat, longitude: lng, site_address: address || f.site_address }));
-            setLocationError('');
-            setMapPickerOpen(false);
-          }}
-        />
-      ) : null}
     </div>
   );
 }

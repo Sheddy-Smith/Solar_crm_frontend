@@ -26,12 +26,30 @@ export const tokenStore = {
 // Media files (uploaded documents/photos) are served behind auth (BUG-047) — the
 // backend accepts the JWT access token as a query param since <img>/<a> tags can't
 // send an Authorization header. Wrap every media URL rendered in the UI with this.
-export function getMediaUrl(url) {
+function resolveMediaUrl(url) {
   if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+
+  let path = url.startsWith('/') ? url : `/media/${url.replace(/^\/+/, '')}`;
+  if (path.startsWith('/') && !path.startsWith('/media/')) {
+    path = `/media${path}`;
+  }
+
+  const apiBase = import.meta.env.VITE_API_URL || '';
+  if (apiBase && /^https?:\/\//i.test(apiBase)) {
+    return `${new URL(apiBase).origin}${path}`;
+  }
+
+  return path;
+}
+
+export function getMediaUrl(url) {
+  const resolved = resolveMediaUrl(url);
+  if (!resolved) return resolved;
   const token = tokenStore.getAccess();
-  if (!token) return url;
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}access=${encodeURIComponent(token)}`;
+  if (!token) return resolved;
+  const separator = resolved.includes('?') ? '&' : '?';
+  return `${resolved}${separator}access=${encodeURIComponent(token)}`;
 }
 
 let refreshPromise = null;

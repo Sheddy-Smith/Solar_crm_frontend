@@ -318,7 +318,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
 
     def get_site_survey(self, obj):
         survey = getattr(obj, 'site_survey', None)
-        return SiteSurveySerializer(survey).data if survey else None
+        return SiteSurveySerializer(survey, context=self.context).data if survey else None
 
     def get_milestones(self, obj):
         top_level = obj.milestones.filter(parent__isnull=True).order_by('sequence', 'start_date')

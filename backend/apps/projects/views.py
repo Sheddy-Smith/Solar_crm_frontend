@@ -108,12 +108,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
             survey.material_checklist = SiteSurvey.default_material_checklist()
             survey.save(update_fields=['material_checklist'])
         if request.method == 'GET':
-            return Response(SiteSurveySerializer(survey).data)
+            return Response(SiteSurveySerializer(survey, context={'request': request}).data)
         # Avoid wiping ImageField when client sends JSON without a file.
         data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
         if not request.FILES.get('site_drawing'):
             data.pop('site_drawing', None)
-        serializer = SiteSurveySerializer(survey, data=data, partial=True)
+        serializer = SiteSurveySerializer(survey, data=data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)

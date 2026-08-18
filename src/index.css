@@ -30,6 +30,8 @@ body {
   color: #20345f;
   line-height: 1.5;
   overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y pinch-zoom;
 }
 
 /* ============================================================
@@ -1695,9 +1697,9 @@ body,
 }
 
 body {
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: auto;
   -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  touch-action: pan-y pinch-zoom;
 }
 
 .app-mobile-shell {
@@ -1733,8 +1735,22 @@ html:has(.portal-landing) #root {
   height: auto;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: auto;
+    touch-action: pan-y pinch-zoom;
+  }
+
   .app-mobile-shell {
+    height: auto !important;
+    min-height: 100dvh;
+    overflow: visible !important;
     background: #eef3f7;
   }
 
@@ -1754,6 +1770,31 @@ html:has(.portal-landing) #root {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
   }
 
+  .main-scroll-area,
+  .main-scroll-area.overflow-hidden,
+  .main-scroll-area.overflow-y-auto {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    flex: none !important;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .lead-list-page,
+  .lead-list-table-panel,
+  .lead-list-table-scroll {
+    overflow: visible !important;
+    flex: none !important;
+    min-height: auto !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .scroll-soft {
+    overscroll-behavior: auto;
+  }
+
   .main-scroll-area section,
   .main-scroll-area article {
     max-width: 100%;
@@ -1762,20 +1803,33 @@ html:has(.portal-landing) #root {
   .main-scroll-area .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
   }
+
+  /* Overlay itself scrolls on phones — nested overflow:hidden + max-height
+     traps are a common iOS/Android bug ("can't scroll anywhere"). */
+  .modal-overlay,
+  .fixed.inset-0.flex {
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .modal-overlay > *,
+  .fixed.inset-0.flex > .modal-pop-in {
+    max-height: none !important;
+    width: 100%;
+    margin-top: 0.75rem;
+    margin-bottom: 5.5rem;
+  }
 }
 
 /* Installed PWA / Android “Add to Home Screen” fullscreen */
 @media (display-mode: standalone), (display-mode: minimal-ui) {
   html,
   body {
-    overscroll-behavior: none;
-    user-select: none;
-  }
-
-  input,
-  textarea,
-  [contenteditable="true"] {
-    user-select: text;
+    overscroll-behavior-y: auto;
   }
 
   .app-mobile-shell {
