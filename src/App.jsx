@@ -952,15 +952,6 @@ const stats = [
     iconBg: 'from-[#16c93f] to-[#39e264]',
     target: 'Project List',
   },
-  {
-    title: 'Revenue Overview',
-    value: 'Rs 38.75L',
-    delta: '15% from last month',
-    deltaTone: 'positive',
-    icon: IndianRupee,
-    iconBg: 'from-[#1578ff] to-[#0ea5ff]',
-    target: 'Accounts Overview',
-  },
 ];
 
 const todayFollowUps = [
@@ -2182,17 +2173,6 @@ function App() {
       if (!data) return;
       setDashboardProjectSummary(data);
     }).catch(() => notify('Project summary could not be loaded.', 'error'));
-
-    accountsModuleApi.summary().then((data) => {
-      if (!data) return;
-      setDashboardStats((prev) =>
-        prev.map((s) =>
-          s.title === 'Revenue Overview'
-            ? { ...s, value: formatRevenueShort(data.total_received) }
-            : s,
-        ),
-      );
-    }).catch(() => notify('Accounts summary could not be loaded.', 'error'));
 
     followUpApi.listAll({ page_size: 500, status: 'Scheduled', ordering: 'scheduled_at' }).then((data) => {
       setDashboardScheduledFollowUps(Array.isArray(data) ? data : (data?.results ?? []));
@@ -14301,35 +14281,38 @@ function SiteSurveyEditModal({ row, onClose, onOpenSection, onNotify }) {
 }
 
 const SURVEY_ROOF_PHOTO_SLOTS = [
-  { slot: 'North Side', required: true },
   { slot: 'South Side', required: true },
-  { slot: 'East Side', required: true },
-  { slot: 'West Side', required: true },
-  { slot: 'Overall Roof', required: true },
-  { slot: 'Roof Close-up', required: true },
-  { slot: 'Water Tank', required: true },
-  { slot: 'Obstacle', required: true },
-  { slot: 'Drone Photo', required: false },
-  { slot: 'Front View', required: false },
-  { slot: 'Roof View', required: false },
-  { slot: 'Main DB Photo', required: false },
-  { slot: 'Consumer Bill', required: false },
-  { slot: 'Shadow Area Photo', required: false },
-  { slot: 'GPS Location', required: false },
-  { slot: 'Site Drawing', required: false },
+  { slot: 'South-East Side', required: true },
+  { slot: 'South-West Side', required: true },
+  { slot: 'Front View', required: true },
+  { slot: 'Inverter Location Photo', required: false },
+  { slot: 'Meter Photo Close to Main DB', required: false },
+  { slot: 'Earthing Location Photo', required: false },
+  { slot: 'Conduiting Photo 1', required: false },
+  { slot: 'Conduiting Photo 2', required: false },
+  { slot: 'Conduiting Photo 3', required: false },
+  { slot: 'Conduiting Photo 4', required: false },
+  { slot: 'Conduiting Photo 5', required: false },
+  { slot: 'Conduiting Photo 6', required: false },
+  { slot: 'Conduiting Photo 7', required: false },
+  { slot: 'Conduiting Photo 8', required: false },
+  { slot: 'Site Drawing 1', required: false },
+  { slot: 'Site Drawing 2', required: false },
+  { slot: 'Site Drawing 3', required: false },
+  { slot: 'Site Drawing 4', required: false },
 ];
-const SURVEY_ROOF_TYPE_OPTIONS = ['RCC', 'Tin Shed', 'Metal Roof', 'Ground Mount'];
+const SURVEY_ROOF_TYPE_OPTIONS = ['RCC', 'Tin Shed', 'RBC Roof', 'Ground Mount'];
 const SURVEY_PROJECT_CATEGORY_OPTIONS = ['Residential', 'Commercial', 'Industrial', 'Other'];
 const SURVEY_PURPOSE_OPTIONS = ['On-Grid', 'Off-Grid', 'Hybrid'];
 const SURVEY_ROOF_CONDITION_OPTIONS = ['Excellent', 'Good', 'Average', 'Poor'];
-const SURVEY_ROOF_DIRECTION_OPTIONS = ['North', 'South', 'East', 'West'];
-const SURVEY_STRUCTURE_TYPE_OPTIONS = ['GP', 'GL', 'CGL', 'ZM'];
+const SURVEY_ROOF_DIRECTION_OPTIONS = ['South', 'South-East', 'South-West', 'Degree'];
+const SURVEY_STRUCTURE_TYPE_OPTIONS = ['GP', 'GL', 'HDGI', 'ZM'];
 const SURVEY_TERMINATION_POINT_OPTIONS = ['MCB', 'Cutout', 'Need to Install', 'Other'];
 const SURVEY_INVERTER_PLACEMENT_OPTIONS = ['Indoor', 'Outdoor'];
 const SURVEY_INVERTER_MOUNTING_OPTIONS = ['Wall Mounted', 'Floor Mounted'];
-const SURVEY_METER_PHASE_OPTIONS = ['Single Phase', 'Three Phase'];
-const SURVEY_MODULE_ORIENTATION_OPTIONS = ['Portrait', 'Landscape'];
-const SURVEY_ADDITIONAL_DOC_CATEGORIES = ['Images', 'Videos', 'PDF', 'Other Documents'];
+const SURVEY_METER_PHASE_OPTIONS = ['Normal Single Phase', 'Normal 3 Phase', 'Smart Single Phase', 'Smart 3 Phase', 'Normal LTCT', 'Smart LTCT'];
+const SURVEY_MODULE_ORIENTATION_OPTIONS = ['Portrait', 'Landscape', 'Both'];
+const SURVEY_ADDITIONAL_DOC_CATEGORIES = ['Conduiting & Earthing Video', 'Structure & Inverter Location Video', 'Other Documents'];
 const SURVEY_DEFAULT_MATERIAL_CHECKLIST = [
   { item: 'Solar Panels (Wattage)', qty: '' },
   { item: 'Inverter Capacity', qty: '' },
@@ -14400,7 +14383,7 @@ function SurveySection({ number, title, children }) {
 function SurveyField({ label, optional, children }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-1.5 block text-[11px] font-extrabold text-[#7386a3]">{label}{optional ? ' (Optional)' : ''}</span>
+      <span className="mb-1.5 block text-[11px] font-extrabold text-[#7386a3]">{label}</span>
       {children}
     </label>
   );
@@ -14422,7 +14405,7 @@ function SurveyPhotoSlot({ label, optional, photo, uploading, onUpload, onDelete
   return (
     <div className="rounded-[10px] border border-[#e7eef7] bg-white p-2.5">
       <div className="flex items-center justify-between gap-1">
-        <p className="truncate text-[11px] font-extrabold text-[#34466c]" title={label}>{label}{optional ? ' (Optional)' : ''}</p>
+        <p className="truncate text-[11px] font-extrabold text-[#34466c]" title={label}>{label}</p>
         {photo ? <CheckCircle2 className="size-4 shrink-0 text-[#0d9f4a]" /> : null}
       </div>
       <div className="mt-2 aspect-square overflow-hidden rounded-[8px] bg-[#f4f7fb]">
@@ -14656,6 +14639,10 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
   };
 
   const handleSave = useCallback(async (nextStatus) => {
+    if (!String(form.ivrs_number || '').trim()) {
+      onNotify?.('IVRS Number is required.', 'error');
+      return null;
+    }
     setSaving(true);
     try {
       const payload = buildPayload();
@@ -14818,7 +14805,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyField label="Email ID" optional>
                 <input type="email" value={form.email_id} onChange={(e) => updateField('email_id', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="IVRS Number" optional>
+              <SurveyField label="IVRS Number">
                 <input value={form.ivrs_number} onChange={(e) => updateField('ivrs_number', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
             </div>
@@ -14864,7 +14851,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   {SURVEY_PURPOSE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </SurveyField>
-              <SurveyField label="Existing Connection">
+              <SurveyField label="Existing Solar">
                 <select value={form.existing_connection ? 'yes' : 'no'} onChange={(e) => updateField('existing_connection', e.target.value === 'yes')} className={surveyFieldClass}>
                   <option value="no">No</option>
                   <option value="yes">Yes</option>
@@ -14876,33 +14863,22 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyField label="Extend Sanction Load (kW)" optional>
                 <input value={form.extend_sanction_load_kw} onChange={(e) => updateField('extend_sanction_load_kw', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Meter Location" optional>
-                <input value={form.meter_location} onChange={(e) => updateField('meter_location', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Main Supply From" optional>
-                <input value={form.main_supply_from} onChange={(e) => updateField('main_supply_from', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Tariff Category" optional>
-                <input value={form.tariff_category} onChange={(e) => updateField('tariff_category', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Average Monthly Bill" optional>
-                <input value={form.average_monthly_bill} onChange={(e) => updateField('average_monthly_bill', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Supply Voltage / Phase" optional>
-                <select value={form.supply_voltage} onChange={(e) => updateField('supply_voltage', e.target.value)} className={surveyFieldClass}>
+              <SurveyField label="Types of Meters">
+                <select value={form.meter_location} onChange={(e) => updateField('meter_location', e.target.value)} className={surveyFieldClass}>
                   <option value="">Select</option>
                   {SURVEY_METER_PHASE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </SurveyField>
+              <SurveyField label="Average Monthly Bill" optional>
+                <input value={form.average_monthly_bill} onChange={(e) => updateField('average_monthly_bill', e.target.value)} className={surveyFieldClass} />
+              </SurveyField>
+              
             </div>
           </SurveySection>
 
           <SurveySection number={3} title="Roof Details">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <SurveyField label="Building Type" optional>
-                <input value={form.building_type} onChange={(e) => updateField('building_type', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Floor Count" optional>
+              <SurveyField label="Building Height">
                 <input value={form.floor_count} onChange={(e) => updateField('floor_count', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Roof Type">
@@ -14923,12 +14899,6 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   {SURVEY_ROOF_DIRECTION_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </SurveyField>
-              <SurveyField label="Roof Tilt Angle" optional>
-                <input value={form.roof_tilt_angle} onChange={(e) => updateField('roof_tilt_angle', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Roof Height (ft)" optional>
-                <input value={form.roof_height_ft} onChange={(e) => updateField('roof_height_ft', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
               <SurveyField label="Roof Area (sq.ft)">
                 <input value={form.rooftop_area_sqft} onChange={(e) => updateField('rooftop_area_sqft', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
@@ -14940,9 +14910,6 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               </SurveyField>
               <SurveyField label="Shadow-free Area (sq.ft)" optional>
                 <input value={form.shadow_free_area_sqft} onChange={(e) => updateField('shadow_free_area_sqft', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Available Area (sq.ft)" optional>
-                <input value={form.available_area_sqft} onChange={(e) => updateField('available_area_sqft', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -15018,156 +14985,45 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
 
           <SurveySection number={6} title="Earthing Details">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <SurveyField label="Earthing Required">
-                <select value={form.earthing_required ? 'yes' : 'no'} onChange={(e) => updateField('earthing_required', e.target.value === 'yes')} className={surveyFieldClass}>
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
-                </select>
-              </SurveyField>
-              <SurveyField label="Number of Earthing" optional>
+              <SurveyField label="Number of Earthing">
                 <input value={form.earthing_count} onChange={(e) => updateField('earthing_count', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Earthing Type" optional>
-                <input value={form.earthing_type} onChange={(e) => updateField('earthing_type', e.target.value)} className={surveyFieldClass} />
+              <SurveyField label="Earthing Cable Length (m)">
+                <input value={form.ac_cable_length_approx} onChange={(e) => updateField('ac_cable_length_approx', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Earthing Location" optional>
-                <input value={form.earthing_location} onChange={(e) => updateField('earthing_location', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-            </div>
-            <SurveyField label="Remarks" optional>
-              <textarea value={form.earthing_remarks} onChange={(e) => updateField('earthing_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
-            </SurveyField>
-            <div className="max-w-[180px]">
-              <SurveyPhotoSlot
-                label="Earthing Location"
-                photo={getPhoto('Earthing Location')}
-                uploading={uploadingSlot === 'Earthing Location'}
-                onUpload={(file) => handlePhotoUpload('Earthing Location', file)}
-                onDelete={() => handlePhotoDelete(getPhoto('Earthing Location').id)}
-              />
-            </div>
-          </SurveySection>
-
-          <SurveySection number={7} title="Inverter Location">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <SurveyField label="Indoor / Outdoor">
-                <select value={form.inverter_placement} onChange={(e) => updateField('inverter_placement', e.target.value)} className={surveyFieldClass}>
-                  <option value="">Select</option>
-                  {SURVEY_INVERTER_PLACEMENT_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-              </SurveyField>
-              <SurveyField label="Mounting">
-                <select value={form.inverter_mounting} onChange={(e) => updateField('inverter_mounting', e.target.value)} className={surveyFieldClass}>
-                  <option value="">Select</option>
-                  {SURVEY_INVERTER_MOUNTING_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-              </SurveyField>
-              <SurveyField label="Location Description" optional>
-                <input value={form.inverter_location_description} onChange={(e) => updateField('inverter_location_description', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Distance from Roof" optional>
-                <input value={form.inverter_distance_from_roof} onChange={(e) => updateField('inverter_distance_from_roof', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-            </div>
-            <div className="max-w-[180px]">
-              <SurveyPhotoSlot
-                label="Inverter Location"
-                photo={getPhoto('Inverter Location')}
-                uploading={uploadingSlot === 'Inverter Location'}
-                onUpload={(file) => handlePhotoUpload('Inverter Location', file)}
-                onDelete={() => handlePhotoDelete(getPhoto('Inverter Location').id)}
-              />
-            </div>
-          </SurveySection>
-
-          <SurveySection number={8} title="Meter & Electrical Details">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <SurveyField label="Meter Type" optional>
-                <input value={form.meter_type} onChange={(e) => updateField('meter_type', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Phase">
-                <select value={form.meter_phase} onChange={(e) => updateField('meter_phase', e.target.value)} className={surveyFieldClass}>
-                  <option value="">Select</option>
-                  {SURVEY_METER_PHASE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-              </SurveyField>
-              <SurveyField label="Meter Capacity" optional>
-                <input value={form.meter_capacity} onChange={(e) => updateField('meter_capacity', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Existing MCB" optional>
-                <input value={form.existing_mcb} onChange={(e) => updateField('existing_mcb', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Connection Point After Commissioning" optional>
-                <input value={form.connection_point_after_commissioning} onChange={(e) => updateField('connection_point_after_commissioning', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Main DB Location" optional>
-                <input value={form.main_db_location} onChange={(e) => updateField('main_db_location', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Cable Route Distance (m)" optional>
-                <input value={form.cable_route_distance_m} onChange={(e) => updateField('cable_route_distance_m', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Last Termination Point" optional>
-                <select value={form.last_termination_point} onChange={(e) => updateField('last_termination_point', e.target.value)} className={surveyFieldClass}>
-                  <option value="">Select</option>
-                  {SURVEY_TERMINATION_POINT_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-              </SurveyField>
-              <SurveyField label="AC Cable Entry Point" optional>
-                <input value={form.ac_cable_entry_point} onChange={(e) => updateField('ac_cable_entry_point', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="LA Wire Length (m)" optional>
+              <SurveyField label="LA Cable Length (m)">
                 <input value={form.la_wire_length_m} onChange={(e) => updateField('la_wire_length_m', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
             </div>
-            <SurveyField label="Remarks" optional>
-              <textarea value={form.meter_remarks} onChange={(e) => updateField('meter_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            <SurveyField label="Remark">
+              <textarea value={form.earthing_remarks} onChange={(e) => updateField('earthing_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
             </SurveyField>
-            <div className="max-w-[180px]">
-              <SurveyPhotoSlot
-                label="Meter"
-                photo={getPhoto('Meter')}
-                uploading={uploadingSlot === 'Meter'}
-                onUpload={(file) => handlePhotoUpload('Meter', file)}
-                onDelete={() => handlePhotoDelete(getPhoto('Meter').id)}
-              />
-            </div>
           </SurveySection>
 
-          <SurveySection number={9} title="Cable & Conduit Route">
-            <SurveyField label="Conduit Route Description" optional>
-              <textarea value={form.conduit_route_description} onChange={(e) => updateField('conduit_route_description', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
-            </SurveyField>
+          <SurveySection number={7} title="Media & Evidence">
+            <p className="text-[12px] font-bold text-[#6b7f9c]">Upload conduit photos (max 8), site drawing photos (max 4), and the required videos (each up to 2 min).</p>
+          </SurveySection>
+
+          <SurveySection number={8} title="Cable & Conduit Route">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <SurveyField label="AC Cable Route" optional>
-                <input value={form.ac_cable_route} onChange={(e) => updateField('ac_cable_route', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="DC Cable Route" optional>
-                <input value={form.dc_cable_route} onChange={(e) => updateField('dc_cable_route', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Approx AC Cable Length" optional>
+              <SurveyField label="Earthing Cable Length (m)">
                 <input value={form.ac_cable_length_approx} onChange={(e) => updateField('ac_cable_length_approx', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Approx DC Cable Length" optional>
+              <SurveyField label="LA Cable Length (m)">
                 <input value={form.dc_cable_length_approx} onChange={(e) => updateField('dc_cable_length_approx', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Approx Conduit Length" optional>
+              <SurveyField label="Conduit Length (m)">
                 <input value={form.conduit_length_approx} onChange={(e) => updateField('conduit_length_approx', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
             </div>
-            <div className="max-w-[180px]">
-              <SurveyPhotoSlot
-                label="Cable Route"
-                photo={getPhoto('Cable Route')}
-                uploading={uploadingSlot === 'Cable Route'}
-                onUpload={(file) => handlePhotoUpload('Cable Route', file)}
-                onDelete={() => handlePhotoDelete(getPhoto('Cable Route').id)}
-              />
-            </div>
+            <SurveyField label="Conduit Route Description">
+              <textarea value={form.conduit_route_description} onChange={(e) => updateField('conduit_route_description', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            </SurveyField>
           </SurveySection>
 
-          <SurveySection number={10} title="Structure Layout">
+          <SurveySection number={9} title="Structure Layout">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <SurveyField label="Structure Type" optional>
+              <SurveyField label="Structure Type">
                 <select value={form.structure_type} onChange={(e) => updateField('structure_type', e.target.value)} className={surveyFieldClass}>
                   <option value="">Select</option>
                   {SURVEY_STRUCTURE_TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -15178,9 +15034,6 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   <option value="">Select</option>
                   {SURVEY_MODULE_ORIENTATION_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
-              </SurveyField>
-              <SurveyField label="Tilt Angle" optional>
-                <input value={form.tilt_angle} onChange={(e) => updateField('tilt_angle', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Front Leg Height (ft)" optional>
                 <input value={form.front_leg_height_ft} onChange={(e) => updateField('front_leg_height_ft', e.target.value)} className={surveyFieldClass} />
@@ -15199,9 +15052,6 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               </SurveyField>
               <SurveyField label="Number of Columns" optional>
                 <input value={form.structure_columns} onChange={(e) => updateField('structure_columns', e.target.value)} className={surveyFieldClass} />
-              </SurveyField>
-              <SurveyField label="Approx Plant Capacity" optional>
-                <input value={form.approx_plant_capacity} onChange={(e) => updateField('approx_plant_capacity', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Future Expansion">
                 <select value={form.future_expansion ? 'yes' : 'no'} onChange={(e) => updateField('future_expansion', e.target.value === 'yes')} className={surveyFieldClass}>
@@ -15290,9 +15140,9 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               </div>
               <div className="mt-3 space-y-1.5 text-[12px] font-bold text-[#4b5b78]">
                 <div className="flex items-center justify-between"><span>Roof Photos</span><span>{uploadedRoofPhotoCount >= totalRoofPhotoSlots ? '✅' : '⏳'} {uploadedRoofPhotoCount}/{totalRoofPhotoSlots}</span></div>
-                <div className="flex items-center justify-between"><span>Earthing</span><span>{form.earthing_type || getPhoto('Earthing Location') ? '✅ Done' : '⏳ Pending'}</span></div>
-                <div className="flex items-center justify-between"><span>Meter</span><span>{form.meter_type || getPhoto('Meter') ? '✅ Done' : '⏳ Pending'}</span></div>
-                <div className="flex items-center justify-between"><span>Cable Route</span><span>{form.ac_cable_route || form.dc_cable_route || getPhoto('Cable Route') ? '✅ Done' : '⏳ Pending'}</span></div>
+                <div className="flex items-center justify-between"><span>Earthing</span><span>{form.earthing_count || getPhoto('Earthing Location Photo') ? '✅ Done' : '⏳ Pending'}</span></div>
+                <div className="flex items-center justify-between"><span>Inverter / Meter Photos</span><span>{getPhoto('Inverter Location Photo') || getPhoto('Meter Photo Close to Main DB') ? '✅ Done' : '⏳ Pending'}</span></div>
+                <div className="flex items-center justify-between"><span>Conduit Route</span><span>{form.conduit_route_description ? '✅ Done' : '⏳ Pending'}</span></div>
                 <div className="flex items-center justify-between"><span>Safety Checklist</span><span>{safetyDoneCount}/{SURVEY_SAFETY_ITEMS.length}</span></div>
               </div>
             </div>
@@ -19797,6 +19647,22 @@ function SiteSurveyDocumentUploads({ projectId, documents = [], categories = SUR
   const fileInputRefs = useRef({});
   const [uploadingCategory, setUploadingCategory] = useState(null);
 
+  const getVideoDurationSeconds = (file) => new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      const duration = Number(video.duration || 0);
+      URL.revokeObjectURL(url);
+      resolve(duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(0);
+    };
+    video.src = url;
+  });
+
   const handleSelectFiles = async (category, event) => {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
@@ -19804,6 +19670,12 @@ function SiteSurveyDocumentUploads({ projectId, documents = [], categories = SUR
     setUploadingCategory(category);
     try {
       for (const file of files) {
+        if (/video/i.test(category)) {
+          const duration = await getVideoDurationSeconds(file);
+          if (duration > 120) {
+            throw new Error('Video length should be 2 minutes or less.');
+          }
+        }
         const formData = new FormData();
         formData.append('project', projectId);
         formData.append('name', file.name);
@@ -19842,6 +19714,7 @@ function SiteSurveyDocumentUploads({ projectId, documents = [], categories = SUR
                   ref={(el) => { fileInputRefs.current[category] = el; }}
                   type="file"
                   multiple
+                  accept={/video/i.test(category) ? 'video/*' : 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.mp4,.mov'}
                   className="hidden"
                   onChange={(e) => handleSelectFiles(category, e)}
                 />
@@ -30597,19 +30470,28 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
     const fd = new FormData(event.currentTarget);
     const mobile = fd.get('mobile_number')?.trim();
     const ivrs = fd.get('ivrs_number')?.trim();
+    if (!ivrs) {
+      setSubmitError('IVRS Number is required.');
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError('');
     const payload = {
       customer_name: fd.get('customer_name'),
       mobile_number: mobile,
-      ivrs_number: ivrs || undefined,
+      ivrs_number: ivrs,
       alternate_number: fd.get('alternate_number') || undefined,
       email: fd.get('email') || undefined,
       project_name: fd.get('project_name') || undefined,
       project_type: fd.get('project_type') || undefined,
       requirement_details: fd.get('requirement_details') || undefined,
-      source: fd.get('source') || undefined,
+      source: (() => {
+        const src = String(fd.get('source') || '').trim();
+        const refName = String(fd.get('source_reference_name') || '').trim();
+        if (src === 'Reference' && refName) return `Reference - ${refName}`;
+        return src || undefined;
+      })(),
       estimated_capacity: fd.get('estimated_capacity') || undefined,
       next_follow_up: fd.get('next_follow_up') || undefined,
       assigned_to: fd.get('assigned_to') || undefined,
@@ -30744,9 +30626,10 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
               </div>
               <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." name="requirement_details" defaultValue={d.requirement_details} />
               <div className="grid gap-4 lg:grid-cols-2">
-                <LeadSelect label="Source" placeholder="Select source" options={['Instagram', 'Justdial', 'Google', 'Facebook']} name="source" defaultValue={d.source} />
+                <LeadSelect label="Source" placeholder="Select source" options={['Walk-in', 'Campaign', 'Reference', 'Other']} name="source" defaultValue={d.source} />
                 <LeadInput label="Estimated Capacity (kW)" icon={Zap} type="number" placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" defaultValue={d.estimated_capacity} />
               </div>
+              <LeadInput label="Reference Name" icon={UserRound} placeholder="If source is Reference, enter name" name="source_reference_name" defaultValue={d.source?.startsWith('Reference - ') ? d.source.replace('Reference - ', '') : ''} />
             </LeadFormSection>
 
             <LeadFormSection title="3. Assignment & Follow-up" icon={UserRound} tone="purple">
@@ -30943,6 +30826,7 @@ const LEAD_SURVEY_MOUNTING_OPTIONS = ['Ground Mount', 'Roof / Terrace Mount', 'T
 // won) — separate from the fuller Project Management > Site Survey, which
 // happens after conversion and gets auto-filled from this one.
 function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify }) {
+  const [linkedProjectId, setLinkedProjectId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [survey, setSurvey] = useState(null);
   const [form, setForm] = useState({
@@ -30956,6 +30840,13 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+
+  useEffect(() => {
+    projectApi.list({ lead: leadId, page_size: 1 }).then((data) => {
+      const rows = Array.isArray(data) ? data : (data?.results ?? []);
+      setLinkedProjectId(rows[0]?.id || null);
+    }).catch(() => setLinkedProjectId(null));
+  }, [leadId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -31065,6 +30956,23 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
       onNotify?.(err?.message || 'Failed to delete photo', 'error');
     }
   };
+
+  if (linkedProjectId) {
+    return (
+      <div
+        className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4"
+        onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      >
+        <div className="modal-pop-in flex max-h-[94vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+          <SiteSurveyFullForm
+            projectId={linkedProjectId}
+            onClose={onClose}
+            onNotify={onNotify}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

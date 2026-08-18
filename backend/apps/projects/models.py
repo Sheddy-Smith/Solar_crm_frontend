@@ -437,7 +437,7 @@ class SiteSurvey(models.Model):
     ROOF_TYPE_CHOICES = [
         ('RCC', 'RCC'),
         ('Tin Shed', 'Tin Shed'),
-        ('Metal Roof', 'Metal Roof'),
+        ('RBC Roof', 'RBC Roof'),
         ('Ground Mount', 'Ground Mount'),
     ]
     PROJECT_CATEGORY_CHOICES = [
@@ -458,15 +458,15 @@ class SiteSurvey(models.Model):
         ('Poor', 'Poor'),
     ]
     ROOF_DIRECTION_CHOICES = [
-        ('North', 'North'),
         ('South', 'South'),
-        ('East', 'East'),
-        ('West', 'West'),
+        ('South-East', 'South-East'),
+        ('South-West', 'South-West'),
+        ('Degree', 'Degree'),
     ]
     STRUCTURE_TYPE_CHOICES = [
         ('GP', 'GP'),
         ('GL', 'GL'),
-        ('CGL', 'CGL'),
+        ('HDGI', 'HDGI'),
         ('ZM', 'ZM'),
     ]
     TERMINATION_POINT_CHOICES = [
@@ -477,8 +477,15 @@ class SiteSurvey(models.Model):
     ]
     INVERTER_PLACEMENT_CHOICES = [('Indoor', 'Indoor'), ('Outdoor', 'Outdoor')]
     INVERTER_MOUNTING_CHOICES = [('Wall Mounted', 'Wall Mounted'), ('Floor Mounted', 'Floor Mounted')]
-    METER_PHASE_CHOICES = [('Single Phase', 'Single Phase'), ('Three Phase', 'Three Phase')]
-    MODULE_ORIENTATION_CHOICES = [('Portrait', 'Portrait'), ('Landscape', 'Landscape')]
+    METER_PHASE_CHOICES = [
+        ('Normal Single Phase', 'Normal Single Phase'),
+        ('Normal 3 Phase', 'Normal 3 Phase'),
+        ('Smart Single Phase', 'Smart Single Phase'),
+        ('Smart 3 Phase', 'Smart 3 Phase'),
+        ('Normal LTCT', 'Normal LTCT'),
+        ('Smart LTCT', 'Smart LTCT'),
+    ]
+    MODULE_ORIENTATION_CHOICES = [('Portrait', 'Portrait'), ('Landscape', 'Landscape'), ('Both', 'Both')]
 
     @staticmethod
     def default_material_checklist():
@@ -670,31 +677,28 @@ class SiteSurvey(models.Model):
 
 class SiteSurveyPhoto(models.Model):
     SLOT_CHOICES = [
-        ('North Side', 'North Side'),
         ('South Side', 'South Side'),
-        ('East Side', 'East Side'),
-        ('West Side', 'West Side'),
-        ('Overall Roof', 'Overall Roof'),
-        ('Roof Close-up', 'Roof Close-up'),
-        ('Water Tank', 'Water Tank'),
-        ('Obstacle', 'Obstacle'),
-        ('Drone Photo', 'Drone Photo'),
-        ('Earthing Location', 'Earthing Location'),
-        ('Inverter Location', 'Inverter Location'),
-        ('Meter', 'Meter'),
-        ('Cable Route', 'Cable Route'),
-        # Client paper form checklist
+        ('South-East Side', 'South-East Side'),
+        ('South-West Side', 'South-West Side'),
         ('Front View', 'Front View'),
-        ('Roof View', 'Roof View'),
-        ('Main DB Photo', 'Main DB Photo'),
-        ('Consumer Bill', 'Consumer Bill'),
-        ('Shadow Area Photo', 'Shadow Area Photo'),
-        ('GPS Location', 'GPS Location'),
-        ('Site Drawing', 'Site Drawing'),
+        ('Inverter Location Photo', 'Inverter Location Photo'),
+        ('Meter Photo Close to Main DB', 'Meter Photo Close to Main DB'),
+        ('Earthing Location Photo', 'Earthing Location Photo'),
+        ('Conduiting Photo 1', 'Conduiting Photo 1'),
+        ('Conduiting Photo 2', 'Conduiting Photo 2'),
+        ('Conduiting Photo 3', 'Conduiting Photo 3'),
+        ('Conduiting Photo 4', 'Conduiting Photo 4'),
+        ('Conduiting Photo 5', 'Conduiting Photo 5'),
+        ('Conduiting Photo 6', 'Conduiting Photo 6'),
+        ('Conduiting Photo 7', 'Conduiting Photo 7'),
+        ('Conduiting Photo 8', 'Conduiting Photo 8'),
+        ('Site Drawing 1', 'Site Drawing 1'),
+        ('Site Drawing 2', 'Site Drawing 2'),
+        ('Site Drawing 3', 'Site Drawing 3'),
+        ('Site Drawing 4', 'Site Drawing 4'),
     ]
     REQUIRED_SLOTS = [
-        'North Side', 'South Side', 'East Side', 'West Side', 'Overall Roof',
-        'Roof Close-up', 'Water Tank', 'Obstacle',
+        'South Side', 'South-East Side', 'South-West Side', 'Front View',
     ]
 
     survey = models.ForeignKey(SiteSurvey, on_delete=models.CASCADE, related_name='photos')

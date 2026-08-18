@@ -221,7 +221,7 @@ function TeleReminderField({ value, onChange, label = 'Reminder' }) {
   );
 }
 
-const LEAD_SOURCES = ['Instagram', 'Justdial', 'Google', 'Facebook'];
+const LEAD_SOURCES = ['Walk-in', 'Campaign', 'Reference', 'Other'];
 
 function StatusPill({ value }) {
   return (
@@ -3429,7 +3429,7 @@ function TeleLeadCreateModal({ onClose, onSaved, onNotify }) {
     project_name: '',
     project_type: 'On-Grid',
     estimated_capacity: '',
-    source: 'Website',
+    source: 'Walk-in',
     priority: 'Medium',
     address: '',
     city: '',

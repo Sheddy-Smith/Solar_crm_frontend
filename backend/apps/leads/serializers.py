@@ -238,3 +238,9 @@ class LeadCreateSerializer(serializers.ModelSerializer):
         if value and Lead.objects.filter(ivrs_number=value).exists():
             raise serializers.ValidationError('IVRS number already exists — Admin approval required.')
         return value
+
+    def validate(self, attrs):
+        ivrs = (attrs.get('ivrs_number') or '').strip()
+        if not ivrs:
+            raise serializers.ValidationError({'ivrs_number': 'IVRS Number is required.'})
+        return attrs

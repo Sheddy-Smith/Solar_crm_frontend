@@ -192,8 +192,7 @@ SURVEY_SAFETY_FIELD_NAMES = [
     'safety_customer_approval_taken', 'safety_gps_captured', 'safety_all_photos_uploaded',
 ]
 SURVEY_REQUIRED_ROOF_SLOTS = {
-    'North Side', 'South Side', 'East Side', 'West Side',
-    'Overall Roof', 'Roof Close-up', 'Water Tank', 'Obstacle',
+    'South Side', 'South-East Side', 'South-West Side', 'Front View',
 }
 
 
