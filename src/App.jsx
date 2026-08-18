@@ -4569,7 +4569,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         <p className="mt-1.5 text-[11px] font-semibold text-[#8a98af]">Double-click a row to view details. Use column arrows to filter.</p>
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col p-1.5 sm:p-2`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden p-1.5 sm:p-2`}>
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
@@ -4754,11 +4754,11 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         )}
 
         {!leadsLoading ? (
-        <div className="flex shrink-0 flex-col gap-2 px-2 py-2 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#eef2f8] bg-white px-3 py-2 text-[13px] font-bold text-[#53647f]">
           <div className="flex flex-wrap items-center gap-2">
             <p>
               {visibleLeadRows.length > 0
-                ? `Showing ${(safePage - 1) * LEAD_PAGE_SIZE + 1} to ${Math.min(safePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`
+                ? `Showing ${(safePage - 1) * LEAD_PAGE_SIZE + 1}–${Math.min(safePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`
                 : hasLeadFilters
                   ? `0 of ${totalLeadCount} leads match your filters`
                   : 'No leads to display'}
@@ -4778,7 +4778,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                   }
                 }}
                 aria-label="Leads per page"
-                className="h-8 rounded-[7px] border border-[#d9e4f2] bg-white px-2 text-[12px] font-extrabold text-[#1e3261] outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="h-7 rounded-[7px] border border-[#d9e4f2] bg-white px-2 text-[12px] font-extrabold text-[#1e3261] outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               >
                 {LEAD_PAGE_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>{size}</option>
@@ -4788,13 +4788,13 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             </label>
           </div>
           {totalLeadPages > 1 && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <PaginationButton onClick={() => selectPage(Math.max(1, safePage - 1))}>
                 <ChevronLeft className="size-4" />
               </PaginationButton>
               {(() => {
                 const pages = [];
-                if (totalLeadPages <= 5) {
+                if (totalLeadPages <= 7) {
                   for (let i = 1; i <= totalLeadPages; i++) pages.push(i);
                 } else {
                   pages.push(1);
@@ -4806,7 +4806,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                   pages.push(totalLeadPages);
                 }
                 return pages.map((page) => (page === 'ellipsis-start' || page === 'ellipsis-end')
-                  ? <span key={page} className="px-2 text-[#53647f]">...</span>
+                  ? <span key={page} className="px-1.5 text-[#53647f]">…</span>
                   : <PaginationButton key={page} active={safePage === page} onClick={() => selectPage(page)}>{page}</PaginationButton>
                 );
               })()}
