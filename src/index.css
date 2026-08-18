@@ -1075,6 +1075,24 @@ html.dark .crm-table-sticky-head thead th {
 
 .lead-list-page {
   margin-top: 0;
+  min-height: 0;
+  flex: 1 1 0%;
+}
+
+.lead-list-table-panel {
+  min-height: 0;
+  flex: 1 1 0%;
+}
+
+.lead-list-table-scroll {
+  min-height: 0;
+  flex: 1 1 0%;
+}
+
+@media (min-width: 1024px) {
+  .lead-list-table-scroll {
+    min-height: clamp(380px, calc(100dvh - 300px), 100%);
+  }
 }
 
 /* Long description/details text must wrap — .crm-table td nowrap otherwise overlaps next column */

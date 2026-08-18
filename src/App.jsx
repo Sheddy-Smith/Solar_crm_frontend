@@ -2637,7 +2637,7 @@ function App() {
   return (
     <div
       className={cx(
-        'crm-density app-mobile-shell box-border min-h-dvh max-w-full overflow-x-hidden p-0 md:p-2 xl:h-dvh xl:overflow-hidden xl:p-2',
+        'crm-density app-mobile-shell box-border min-h-dvh max-w-full overflow-x-hidden p-0 md:p-2 lg:h-dvh lg:overflow-hidden lg:p-2 xl:h-dvh xl:overflow-hidden xl:p-2',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
@@ -3657,7 +3657,9 @@ function App() {
             )}
           </div>
         </main>
+          {!['Lead List', 'Quotation'].includes(activeSidebarItem) ? (
           <ProductFooter className="mb-[calc(4.5rem+env(safe-area-inset-bottom))] rounded-b-[16px] md:mb-0" />
+          ) : null}
         </div>
       </div>
 
@@ -4382,7 +4384,40 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     ];
   }, [apiLeads]);
 
-  const activeFilterCount = [projectTypeFilter, assignedToFilter, addByFilter].filter((v) => v !== 'All').length + (followUpDate ? 1 : 0);
+  const activeFilterCount = [projectTypeFilter, assignedToFilter, addByFilter].filter((v) => v !== 'All').length + (followUpDate ? 1 : 0) + (activeLeadCategory ? 1 : 0) + (searchQuery.trim() ? 1 : 0);
+
+  const resetLeadFilters = () => {
+    setSearchQuery('');
+    setProjectTypeFilter('All');
+    setAssignedToFilter('All');
+    setAddByFilter('All');
+    setFollowUpDate('');
+    setActiveLeadCategory(null);
+    setActivePage(1);
+    onNotify('Lead filters reset');
+  };
+
+  const activeFilterLabels = useMemo(() => {
+    const labels = [];
+    if (activeLeadCategory) labels.push(activeLeadCategory.label);
+    if (searchQuery.trim()) labels.push(`Search: "${searchQuery.trim()}"`);
+    if (projectTypeFilter !== 'All') labels.push(`Type: ${projectTypeFilter}`);
+    if (assignedToFilter !== 'All') {
+      const match = assigneeOptions.find((option) => String(option.value) === String(assignedToFilter));
+      labels.push(`Assigned: ${match?.label || assignedToFilter}`);
+    }
+    if (addByFilter !== 'All') {
+      const match = addByOptions.find((option) => String(option.value) === String(addByFilter));
+      labels.push(`Added by: ${match?.label || addByFilter}`);
+    }
+    if (followUpDate) {
+      labels.push(`Follow-up: ${new Date(`${followUpDate}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`);
+    }
+    return labels;
+  }, [activeLeadCategory, searchQuery, projectTypeFilter, assignedToFilter, addByFilter, followUpDate, assigneeOptions, addByOptions]);
+
+  const hasLeadFilters = activeFilterLabels.length > 0;
+  const totalLeadCount = apiLeads?.length ?? 0;
 
   const visibleLeadRows = useMemo(() => {
     if (!apiLeads) return [];
@@ -4520,16 +4555,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
           <button
             type="button"
-            onClick={() => {
-              setSearchQuery('');
-              setProjectTypeFilter('All');
-              setAssignedToFilter('All');
-              setAddByFilter('All');
-              setFollowUpDate('');
-              setActiveLeadCategory(null);
-              setActivePage(1);
-              onNotify('Lead filters reset');
-            }}
+            onClick={resetLeadFilters}
             data-action="lead-reset-filters"
             className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
           >
@@ -4543,18 +4569,13 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         <p className="mt-1.5 text-[11px] font-semibold text-[#8a98af]">Double-click a row to view details. Use column arrows to filter.</p>
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} relative z-10 flex min-h-0 flex-1 flex-col p-1.5 sm:p-2`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col p-1.5 sm:p-2`}>
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
-        ) : pagedLeadRows.length === 0 ? (
-          <div className="py-16 text-center text-[14px] font-bold text-[#7386a3]">
-            {activeLeadCategory ? `No leads found in ${activeLeadCategory.label}` : 'No leads found'}
-          </div>
-        ) : null}
-
-        {!leadsLoading && pagedLeadRows.length > 0 && (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:hidden">
+        ) : (
+          <>
+        <div className="lead-list-table-scroll flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:hidden">
           <div className="grid shrink-0 grid-cols-[minmax(0,1.45fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_30px] items-center gap-1.5 border-b border-[#eef2f8] bg-[#f8fafd] px-3 py-2 text-[10px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
             <span>Customer Name</span>
             <span>Status</span>
@@ -4562,7 +4583,14 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             <span aria-hidden="true" />
           </div>
           <div className="min-h-0 flex-1 divide-y divide-[#eef2f8] overflow-y-auto">
-            {pagedLeadRows.map((lead) => (
+            {pagedLeadRows.length === 0 ? (
+              <LeadListEmptyState
+                hasFilters={hasLeadFilters}
+                filterLabels={activeFilterLabels}
+                totalCount={totalLeadCount}
+                onReset={hasLeadFilters ? resetLeadFilters : null}
+              />
+            ) : pagedLeadRows.map((lead) => (
               <LeadListMobileRow
                 key={lead.id}
                 lead={lead}
@@ -4572,10 +4600,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             ))}
           </div>
         </div>
-        )}
 
-        {!leadsLoading && pagedLeadRows.length > 0 && (
-        <div className="hidden min-h-0 flex-1 overflow-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+        <div className="lead-list-table-scroll hidden min-h-0 flex-1 overflow-auto rounded-[12px] border border-[#e7eef7] bg-white lg:flex lg:flex-col">
           <table className="crm-table crm-table--lead-dense crm-table-sticky-head w-max">
               <thead>
                 <tr>
@@ -4642,7 +4668,18 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                 </tr>
               </thead>
               <tbody>
-                {pagedLeadRows.map((lead, index) => (
+                {pagedLeadRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="!p-0">
+                      <LeadListEmptyState
+                        hasFilters={hasLeadFilters}
+                        filterLabels={activeFilterLabels}
+                        totalCount={totalLeadCount}
+                        onReset={hasLeadFilters ? resetLeadFilters : null}
+                      />
+                    </td>
+                  </tr>
+                ) : pagedLeadRows.map((lead, index) => (
                   <tr
                     key={lead.id}
                     className="crm-row-clickable"
@@ -4713,14 +4750,18 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               </tbody>
             </table>
         </div>
+          </>
         )}
 
+        {!leadsLoading ? (
         <div className="flex shrink-0 flex-col gap-2 px-2 py-2 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <p>
-              {!leadsLoading && visibleLeadRows.length > 0
+              {visibleLeadRows.length > 0
                 ? `Showing ${(safePage - 1) * LEAD_PAGE_SIZE + 1} to ${Math.min(safePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`
-                : null}
+                : hasLeadFilters
+                  ? `0 of ${totalLeadCount} leads match your filters`
+                  : 'No leads to display'}
             </p>
             <label className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#284276]">
               <span>Show</span>
@@ -4775,6 +4816,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             </div>
           )}
         </div>
+        ) : null}
       </section>
 
       <DashboardFooter />
@@ -36212,6 +36254,44 @@ function mobileAvatarTone(name) {
 }
 
 // Compact phone-app style row for the Lead List (mockup: avatar | status | follow-up | kebab)
+function LeadListEmptyState({ hasFilters, filterLabels = [], totalCount = 0, onReset }) {
+  const title = hasFilters ? 'No leads match your filters' : 'No leads found';
+  const subtitle = hasFilters
+    ? `None of the ${totalCount} leads match the selected criteria.`
+    : 'Create a new lead to get started.';
+
+  return (
+    <div className="flex min-h-[280px] flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+      <div className="grid size-14 place-items-center rounded-full bg-[#f0f5fb] text-[#7386a3]">
+        <Search className="size-6" />
+      </div>
+      <div className="max-w-md">
+        <p className="text-[15px] font-extrabold text-[#284276]">{title}</p>
+        <p className="mt-1 text-[13px] font-semibold text-[#8a98af]">{subtitle}</p>
+        {filterLabels.length > 0 ? (
+          <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+            {filterLabels.map((label) => (
+              <span key={label} className="inline-flex rounded-full bg-[#eef4ff] px-2.5 py-1 text-[11px] font-extrabold text-[#0b65e5]">
+                {label}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {onReset ? (
+        <button
+          type="button"
+          onClick={onReset}
+          className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"
+        >
+          <RefreshCw className="size-4 text-[#0b65e5]" />
+          Clear filters
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function LeadListMobileRow({ lead, onOpenLead, onOpenSurvey }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const initials = (lead.customer || 'NA').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
