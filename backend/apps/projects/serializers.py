@@ -186,11 +186,6 @@ class SiteSurveySerializer(serializers.ModelSerializer):
         return data
 
 
-SURVEY_SAFETY_FIELD_NAMES = [
-    'safety_roof_safe', 'safety_shadow_checked', 'safety_earthing_finalized', 'safety_meter_verified',
-    'safety_inverter_location_final', 'safety_cable_route_final', 'safety_tank_checked',
-    'safety_customer_approval_taken', 'safety_gps_captured', 'safety_all_photos_uploaded',
-]
 SURVEY_REQUIRED_ROOF_SLOTS = {
     'South Side', 'South-East Side', 'South-West Side', 'Front View',
 }
@@ -201,10 +196,10 @@ def compute_survey_completion_percent(survey):
     # so the dashboard list and the edit form always agree on the same number.
     uploaded_slots = {p.slot for p in survey.photos.all()}
     roof_score = len(SURVEY_REQUIRED_ROOF_SLOTS & uploaded_slots) / len(SURVEY_REQUIRED_ROOF_SLOTS) * 40
-    safety_score = sum(1 for f in SURVEY_SAFETY_FIELD_NAMES if getattr(survey, f)) / len(SURVEY_SAFETY_FIELD_NAMES) * 30
-    roof_type_score = 15 if survey.roof_type else 0
-    gps_score = 15 if survey.latitude and survey.longitude else 0
-    return round(roof_score + safety_score + roof_type_score + gps_score)
+    roof_type_score = 20 if survey.roof_type else 0
+    gps_score = 20 if survey.latitude and survey.longitude else 0
+    route_score = 20 if any([survey.ac_cable_length_approx, survey.dc_cable_length_approx, survey.conduit_length_approx]) else 0
+    return round(roof_score + roof_type_score + gps_score + route_score)
 
 
 class SiteSurveyListSerializer(serializers.ModelSerializer):

@@ -589,6 +589,69 @@ function TeleField({ label, children }) {
 
 const teleInputClass = 'h-11 w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[14px] font-semibold text-[#1f2d44] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100';
 
+function useTeleIvrsCheck(excludeId) {
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const check = async (value) => {
+    const ivrs = (value || '').trim();
+    if (!ivrs) { setResult(null); return; }
+    setChecking(true);
+    try {
+      const data = await leadApi.list({ search: ivrs });
+      const rows = Array.isArray(data) ? data : (data?.results ?? []);
+      const match = rows.find((row) => row.ivrs_number === ivrs && row.id !== excludeId);
+      setResult(match || 'unique');
+    } catch {
+      setResult(null);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return { checking, result, check, reset: () => setResult(null) };
+}
+
+function TeleIvrsVerifyField({ value, onChange, checking, result, onCheck, onReset }) {
+  return (
+    <TeleField label="IVRS Number *">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={(event) => {
+            onReset?.();
+            onChange(event.target.value);
+          }}
+          onBlur={(event) => onCheck(event.target.value)}
+          placeholder="Enter IVRS number"
+          className={cx(teleInputClass, 'min-w-0 flex-1')}
+        />
+        <button
+          type="button"
+          onClick={() => onCheck(value)}
+          disabled={checking}
+          title="Verify IVRS No"
+          aria-label="Verify IVRS No"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-[9px] border border-[#dbe4f0] bg-white text-[#1d4ed8] transition hover:bg-[#f8fbff] disabled:opacity-60"
+        >
+          <ShieldCheck className={cx('size-4', checking && 'animate-pulse')} />
+        </button>
+      </div>
+      {result && result !== 'unique' ? (
+        <div className="mt-2 flex items-start gap-2 rounded-[9px] border border-[#f6dda9] bg-[#fff8e8] px-3 py-2.5 text-[12px] font-bold text-[#a76200]">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <span>This IVRS Number already exists ({result.customer_name}). Use a different IVRS or contact admin.</span>
+        </div>
+      ) : result === 'unique' ? (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#0d9f4a]">
+          <CheckCircle2 className="size-3.5" /> IVRS Number is available
+        </p>
+      ) : null}
+    </TeleField>
+  );
+}
+
 // ─── Shared auth landing chrome (portal chooser + login pages) ────────────────
 
 function AuthLandingBackground() {
@@ -1226,7 +1289,6 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
           <TeleBrandLockup />
         </div>
         <div className="tele-sidebar-grad relative min-h-0 flex-1 overflow-hidden rounded-t-[14px] bg-[linear-gradient(180deg,#123c8f_0%,#1d4ed8_52%,#3b82f6_100%)]">
-          <div className="sidebar-shine tele-sidebar-shine" aria-hidden="true" />
           <div className="scroll-soft sidebar-menu-scroll relative flex h-full flex-col overflow-y-auto px-3.5 py-4">
             <nav className="space-y-1.5">
               {teleNavItems.map((item) => {
@@ -3421,9 +3483,11 @@ function TeleFollowUpEditModal({ followUp, onClose, onSaved, onNotify }) {
 
 function TeleLeadCreateModal({ onClose, onSaved, onNotify }) {
   const todayIso = new Date().toISOString().slice(0, 10);
+  const ivrsCheck = useTeleIvrsCheck();
   const [form, setForm] = useState({
     customer_name: '',
     mobile_number: '',
+    ivrs_number: '',
     alternate_number: '',
     email: '',
     project_name: '',
@@ -3449,6 +3513,11 @@ function TeleLeadCreateModal({ onClose, onSaved, onNotify }) {
     event.preventDefault();
     if (!form.customer_name.trim()) { onNotify('Customer name is required.', 'error'); return; }
     if (!/^\d{10}$/.test(form.mobile_number.trim())) { onNotify('Mobile number must be 10 digits.', 'error'); return; }
+    if (!form.ivrs_number.trim()) { onNotify('IVRS Number is required.', 'error'); return; }
+    if (ivrsCheck.result && ivrsCheck.result !== 'unique') {
+      onNotify('This IVRS Number already exists. Please verify and use a different IVRS.', 'error');
+      return;
+    }
     if (form.email && !/^\S+@\S+\.\S+$/.test(form.email.trim())) { onNotify('Please enter a valid email address.', 'error'); return; }
     if (form.nextDate && new Date(`${form.nextDate}T${form.nextTime || '10:00'}`) < new Date()) {
       onNotify('First follow-up must be in the future.', 'error');
@@ -3461,6 +3530,7 @@ function TeleLeadCreateModal({ onClose, onSaved, onNotify }) {
       const created = await leadApi.create({
         customer_name: form.customer_name.trim(),
         mobile_number: form.mobile_number.trim(),
+        ivrs_number: form.ivrs_number.trim(),
         alternate_number: form.alternate_number.trim(),
         email: form.email.trim(),
         project_name: form.project_name.trim() || (form.estimated_capacity ? `${form.estimated_capacity}kW Rooftop Solar` : ''),
@@ -3509,6 +3579,14 @@ function TeleLeadCreateModal({ onClose, onSaved, onNotify }) {
           <TeleField label="Mobile Number *">
             <input type="text" value={form.mobile_number} onChange={(e) => updateField('mobile_number', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit mobile" className={teleInputClass} />
           </TeleField>
+          <TeleIvrsVerifyField
+            value={form.ivrs_number}
+            onChange={(value) => updateField('ivrs_number', value)}
+            checking={ivrsCheck.checking}
+            result={ivrsCheck.result}
+            onCheck={ivrsCheck.check}
+            onReset={ivrsCheck.reset}
+          />
           <TeleField label="Alternate Number">
             <input type="text" value={form.alternate_number} onChange={(e) => updateField('alternate_number', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="Optional" className={teleInputClass} />
           </TeleField>
