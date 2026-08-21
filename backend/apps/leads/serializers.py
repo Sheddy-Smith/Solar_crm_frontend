@@ -8,6 +8,28 @@ def _user_name(user):
     return User.public_display_name(user)
 
 
+# Field lead hand-off targets. Tele Sales Executives create/nurture leads but
+# must never be set as assigned_to — managers assign only to Sales Executives.
+LEAD_ASSIGNABLE_ROLE = 'Sales Executive'
+LEAD_BLOCKED_ASSIGN_ROLE = 'Tele Sales Executive'
+
+
+def validate_lead_assignee(user):
+    """Raise ValidationError unless `user` is an active Sales Executive (or None)."""
+    if user is None:
+        return user
+    role_name = getattr(getattr(user, 'role', None), 'name', '') or ''
+    if role_name == LEAD_BLOCKED_ASSIGN_ROLE:
+        raise serializers.ValidationError(
+            'Leads cannot be assigned to a Tele Sales Executive. Assign to a Sales Executive instead.'
+        )
+    if role_name != LEAD_ASSIGNABLE_ROLE:
+        raise serializers.ValidationError('Leads can only be assigned to a Sales Executive.')
+    if not getattr(user, 'is_active', True) or getattr(user, 'is_deleted', False):
+        raise serializers.ValidationError('Invalid or inactive user.')
+    return user
+
+
 class LeadSurveyPhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeadSurveyPhoto
@@ -219,6 +241,9 @@ class LeadDetailSerializer(serializers.ModelSerializer):
         qs = obj.follow_ups.filter(is_deleted=False)
         return FollowUpSerializer(qs, many=True).data
 
+    def validate_assigned_to(self, value):
+        return validate_lead_assignee(value)
+
 
 class LeadCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -238,6 +263,9 @@ class LeadCreateSerializer(serializers.ModelSerializer):
         if value and Lead.objects.filter(ivrs_number=value).exists():
             raise serializers.ValidationError('IVRS number already exists — Admin approval required.')
         return value
+
+    def validate_assigned_to(self, value):
+        return validate_lead_assignee(value)
 
     def validate(self, attrs):
         ivrs = (attrs.get('ivrs_number') or '').strip()

@@ -39,10 +39,13 @@ class LeadViewSet(viewsets.ModelViewSet):
             # Sales Executives see only leads assigned to them
             qs = qs.filter(assigned_to=user)
         elif role == 'Tele Sales Executive':
-            # Tele Sales Executives can browse every tele-sourced lead (for the
-            # "lead holder" filter), not just their own — edit/delete stays
-            # restricted to their own in perform_update/perform_destroy.
-            qs = qs.filter(created_by__role__name='Tele Sales Executive')
+            # Tele portal: only the leads this executive created that are still
+            # unassigned, or leads explicitly assigned to them. Once a manager
+            # hands a lead to a field Sales Executive, it leaves the tele list —
+            # Tele Sales Executives are never valid field assignees.
+            qs = qs.filter(
+                Q(created_by=user, assigned_to__isnull=True) | Q(assigned_to=user)
+            )
         return qs
 
     def get_serializer_class(self):
@@ -197,9 +200,34 @@ class LeadViewSet(viewsets.ModelViewSet):
             )
         lead = self.get_object()
         user_id = request.data.get('assigned_to')
-        if user_id is not None and not get_user_model().objects.filter(pk=user_id, is_active=True).exists():
+        # Clearing assignment (null / empty) is allowed.
+        if user_id in (None, '', 'null'):
+            lead.assigned_to_id = None
+            lead.save(update_fields=['assigned_to', 'updated_at'])
+            return Response({'assigned_to': None})
+
+        User = get_user_model()
+        try:
+            assignee = User.objects.select_related('role').get(pk=user_id, is_active=True, is_deleted=False)
+        except (User.DoesNotExist, ValueError, TypeError):
             return Response({'error': 'Invalid or inactive user.'}, status=status.HTTP_400_BAD_REQUEST)
-        lead.assigned_to_id = user_id
+
+        # Field assignment is Sales Executive only — Tele Sales Executive must
+        # never receive an assigned_to lead (they create/nurture, managers hand
+        # off to field Sales Executives).
+        role_name = getattr(getattr(assignee, 'role', None), 'name', '') or ''
+        if role_name == 'Tele Sales Executive':
+            return Response(
+                {'error': 'Leads cannot be assigned to a Tele Sales Executive. Assign to a Sales Executive instead.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if role_name != 'Sales Executive':
+            return Response(
+                {'error': 'Leads can only be assigned to a Sales Executive.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        lead.assigned_to_id = assignee.pk
         lead.save(update_fields=['assigned_to', 'updated_at'])
         return Response({'assigned_to': lead.assigned_to_id})
 
@@ -244,11 +272,13 @@ class FollowUpViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset().filter(is_deleted=False, lead__is_deleted=False)
         user = self.request.user
         role = getattr(getattr(user, 'role', None), 'name', '')
-        # Tele Sales Executives can browse every tele-sourced lead's follow-ups
-        # (for the "lead holder" filter), matching LeadViewSet. Create/update
-        # still restricted to own leads via is_own_lead.
+        # Match LeadViewSet: tele only sees follow-ups on their unassigned
+        # created leads, or leads assigned to them — not leads already handed
+        # to a field Sales Executive.
         if role == 'Tele Sales Executive':
-            return qs.filter(lead__created_by__role__name='Tele Sales Executive')
+            return qs.filter(
+                Q(lead__created_by=user, lead__assigned_to__isnull=True) | Q(lead__assigned_to=user)
+            )
         filt = lead_owner_filter(user, prefix='lead__')
         if filt:
             qs = qs.filter(**filt)

@@ -36,7 +36,12 @@ def is_own_lead(user, lead):
     if role == 'Sales Executive':
         return lead.assigned_to_id == user.id
     if role == 'Tele Sales Executive':
-        return lead.created_by_id == user.id or lead.assigned_to_id == user.id
+        # Unassigned leads they created, or leads explicitly assigned to them.
+        # Once a manager assigns the lead to a field Sales Executive, tele
+        # no longer owns it for edit / follow-up.
+        if lead.assigned_to_id == user.id:
+            return True
+        return lead.created_by_id == user.id and lead.assigned_to_id is None
     return True
 
 
