@@ -81,18 +81,25 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
         <div className={cx(panelClass, 'flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]')}>Loading overview...</div>
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-4 xl:grid-cols-3">
             {cards.map((card) => (
-              <button key={card.label} type="button" onClick={card.onClick} className={cx(panelClass, 'p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg')}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[12px] font-bold text-[#7a8fa6]">{card.label}</p>
-                    <p className="mt-2 text-[22px] font-extrabold text-[#1e3261]">{card.value}</p>
-                    <p className="mt-1 text-[11px] font-bold text-[#53647f]">{card.caption}</p>
-                  </div>
-                  <span className={cx('grid size-10 place-items-center rounded-[10px]', reportKpiToneClasses[card.tone] || reportKpiToneClasses.blue)}>
-                    <card.icon className="size-5" />
-                  </span>
+              <button
+                key={card.label}
+                type="button"
+                onClick={card.onClick}
+                className={cx(
+                  panelClass,
+                  'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center transition active:scale-[0.98]',
+                  'md:p-4 md:text-left md:hover:-translate-y-0.5 md:hover:shadow-lg',
+                )}
+              >
+                <span className={cx('grid size-7 place-items-center rounded-[8px] md:size-10 md:rounded-[10px]', reportKpiToneClasses[card.tone] || reportKpiToneClasses.blue)}>
+                  <card.icon className="size-3.5 md:size-5" />
+                </span>
+                <div className="min-w-0 w-full">
+                  <p className="truncate text-[9px] font-bold text-[#7a8fa6] md:text-[12px]">{card.label}</p>
+                  <p className="mt-0.5 text-[15px] font-extrabold leading-none text-[#1e3261] md:mt-2 md:text-[22px]">{card.value}</p>
+                  <p className="mt-0.5 truncate text-[8px] font-bold text-[#53647f] md:mt-1 md:text-[11px]">{card.caption}</p>
                 </div>
               </button>
             ))}

@@ -169,8 +169,8 @@ export function MobileDashboardPage({
         ) : null}
       </section>
 
-      {/* KPI 2x2 grid */}
-      <section className="grid grid-cols-2 gap-3">
+      {/* KPI one-line strip on mobile */}
+      <section className="flex gap-1.5">
         {kpis.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -178,16 +178,16 @@ export function MobileDashboardPage({
               key={stat.title}
               type="button"
               onClick={() => onOpenSection(stat.target, `${stat.title} opened`, null, stat.title === 'Today Follow-ups' ? 'today' : undefined)}
-              className={`${CARD} p-3.5 text-left`}
+              className={`${CARD} flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center`}
             >
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-[11px] font-bold leading-4 text-[#7b88a2]">{stat.title}</p>
-                <span className={cx('grid size-8 shrink-0 place-items-center rounded-[9px] bg-linear-to-br text-white', stat.iconBg)}>
-                  <Icon className="size-4" />
-                </span>
+              <span className={cx('grid size-7 shrink-0 place-items-center rounded-[8px] bg-linear-to-br text-white', stat.iconBg)}>
+                <Icon className="size-3.5" />
+              </span>
+              <p className="w-full truncate text-[9px] font-bold leading-tight text-[#7b88a2]">{stat.title}</p>
+              <p className="font-display text-[15px] font-extrabold leading-none text-[#1e3261]">{stat.value}</p>
+              <div className="w-full truncate text-[8px] font-bold">
+                <DeltaLine delta={stat.delta} tone={stat.deltaTone} />
               </div>
-              <p className="mt-1 font-display text-[22px] font-extrabold leading-none text-[#1e3261]">{stat.value}</p>
-              <DeltaLine delta={stat.delta} tone={stat.deltaTone} />
             </button>
           );
         })}

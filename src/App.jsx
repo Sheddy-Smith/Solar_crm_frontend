@@ -3795,7 +3795,7 @@ function App() {
               </div>
             </Card>
 
-            <section className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3">
+            <section className="flex gap-1.5 md:grid md:grid-cols-[repeat(auto-fit,minmax(140px,1fr))] md:gap-3">
               {dashboardStats.map((stat) => (
                 <StatCard key={stat.title} stat={stat} onClick={() => openDashboardSection(stat.target, `${stat.title} opened`, null, stat.title === 'Today Follow-ups' ? 'today' : undefined)} />
               ))}
@@ -10927,14 +10927,23 @@ function LiaisonApprovalStatCard({ label, value, caption, icon: Icon, tone, onCl
   }[tone] ?? 'text-[#53647f]';
 
   return (
-    <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[116px] items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]`}>
-      <span className={cx('grid size-12 shrink-0 place-items-center rounded-[14px] shadow-[0_10px_24px_rgba(37,99,235,0.18)]', toneClass)}>
-        <Icon className="size-5" />
+    <button
+      type="button"
+      onClick={onClick}
+      className={cx(
+        panelClass,
+        // Mobile: compact vertical tile for one-line KPI strips
+        'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center transition active:scale-[0.98]',
+        'md:min-h-[116px] md:flex-none md:flex-row md:items-center md:gap-4 md:p-5 md:text-left md:hover:-translate-y-0.5 md:hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]',
+      )}
+    >
+      <span className={cx('grid size-7 shrink-0 place-items-center rounded-[9px] shadow-sm md:size-12 md:rounded-[14px] md:shadow-[0_10px_24px_rgba(37,99,235,0.18)]', toneClass)}>
+        <Icon className="size-3.5 md:size-5" />
       </span>
-      <span className="min-w-0">
-        <span className="block text-[13px] font-extrabold text-[#1e3261]">{label}</span>
-        <span className="mt-1 block font-display text-[22px] font-extrabold text-[#111827]">{value}</span>
-        <span className={cx('mt-2 block text-[12px] font-extrabold', captionClass)}>{caption}</span>
+      <span className="min-w-0 w-full md:w-auto">
+        <span className="block truncate text-[9px] font-extrabold leading-tight text-[#53647f] md:text-[13px] md:text-[#1e3261]">{label}</span>
+        <span className="mt-0.5 block font-display text-[15px] font-extrabold leading-none text-[#111827] md:mt-1 md:text-[22px]">{value}</span>
+        <span className={cx('mt-0.5 block truncate text-[8px] font-extrabold md:mt-2 md:text-[12px]', captionClass)}>{caption}</span>
       </span>
     </button>
   );
@@ -11509,16 +11518,25 @@ function OpsStatCard({ label, value, caption, tone, icon: Icon, onClick }) {
   }[tone] ?? { bg: 'bg-[#eef5ff]', text: 'text-[#0b65e5]', border: 'border-[#d0e4ff]' };
 
   return (
-    <button type="button" onClick={onClick} className={cx(`${panelClass} flex min-h-[110px] flex-col items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]`, toneMap.border)}>
-      {Icon && (
-        <span className={cx('grid size-10 place-items-center rounded-[10px]', toneMap.bg, toneMap.text)}>
-          <Icon className="size-5" />
-        </span>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cx(
+        panelClass,
+        'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center transition active:scale-[0.98]',
+        'md:min-h-[110px] md:flex-none md:items-start md:gap-3 md:p-4 md:text-left md:hover:-translate-y-0.5 md:hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]',
+        toneMap.border,
       )}
-      <div className="min-w-0">
-        <p className="text-[12px] font-extrabold text-[#30466d]">{label}</p>
-        <p className="mt-1 font-display text-[22px] font-extrabold text-[#111827]">{value}</p>
-        {caption ? <p className="mt-1 text-[11px] font-bold text-[#7b8ca8]">{caption}</p> : null}
+    >
+      {Icon ? (
+        <span className={cx('grid size-7 place-items-center rounded-[8px] md:size-10 md:rounded-[10px]', toneMap.bg, toneMap.text)}>
+          <Icon className="size-3.5 md:size-5" />
+        </span>
+      ) : null}
+      <div className="min-w-0 w-full">
+        <p className="truncate text-[9px] font-extrabold text-[#53647f] md:text-[12px] md:text-[#30466d]">{label}</p>
+        <p className="mt-0.5 font-display text-[15px] font-extrabold leading-none text-[#111827] md:mt-1 md:text-[22px]">{value}</p>
+        {caption ? <p className="mt-0.5 truncate text-[8px] font-bold text-[#7b8ca8] md:mt-1 md:text-[11px]">{caption}</p> : null}
       </div>
     </button>
   );
@@ -11609,7 +11627,7 @@ function AccountsOverviewPage({ activeSection, onOpenSection, onNotify }) {
         <div className={cx(panelClass, 'flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]')}>Loading overview...</div>
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-4 xl:grid-cols-3 2xl:grid-cols-6">
             {cards.map((card) => (
               <OpsStatCard key={card.label} {...card} />
             ))}
@@ -14046,17 +14064,24 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       {isSiteSurveyPicker ? (
-        <section className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+        <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-4">
           {surveyStatCards.map((stat) => {
             const Icon = stat.icon;
             return (
-              <article key={stat.label} className={`${panelClass} flex items-center gap-3 p-4`}>
-                <span className={cx('grid size-11 shrink-0 place-items-center rounded-full text-white', stat.toneClass)}>
-                  <Icon className="size-5" />
+              <article
+                key={stat.label}
+                className={cx(
+                  panelClass,
+                  'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center',
+                  'md:flex-row md:items-center md:gap-3 md:p-4 md:text-left',
+                )}
+              >
+                <span className={cx('grid size-7 shrink-0 place-items-center rounded-full text-white md:size-11', stat.toneClass)}>
+                  <Icon className="size-3.5 md:size-5" />
                 </span>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-extrabold uppercase text-[#7b88a2]">{stat.label}</p>
-                  <p className="font-display text-[21px] font-extrabold text-[#223768]">{stat.value}</p>
+                <div className="min-w-0 w-full">
+                  <p className="truncate text-[9px] font-extrabold uppercase text-[#7b88a2] md:text-[11px]">{stat.label}</p>
+                  <p className="mt-0.5 font-display text-[15px] font-extrabold leading-none text-[#223768] md:text-[21px]">{stat.value}</p>
                 </div>
               </article>
             );
@@ -14605,17 +14630,24 @@ function SurveyDashboardPage({ onNotify }) {
         <p className="mt-1 text-[12px] font-bold text-[#7386a3]">Office-wide view of every site survey across all projects.</p>
       </Card>
 
-      <section className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+      <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <article key={stat.label} className={`${panelClass} flex items-center gap-3 p-4`}>
-              <span className={cx('grid size-11 shrink-0 place-items-center rounded-full text-white', stat.toneClass)}>
-                <Icon className="size-5" />
+            <article
+              key={stat.label}
+              className={cx(
+                panelClass,
+                'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center',
+                'md:flex-row md:items-center md:gap-3 md:p-4 md:text-left',
+              )}
+            >
+              <span className={cx('grid size-7 shrink-0 place-items-center rounded-full text-white md:size-11', stat.toneClass)}>
+                <Icon className="size-3.5 md:size-5" />
               </span>
-              <div className="min-w-0">
-                <p className="text-[11px] font-extrabold uppercase text-[#7b88a2]">{stat.label}</p>
-                <p className="font-display text-[21px] font-extrabold text-[#223768]">{stat.value}</p>
+              <div className="min-w-0 w-full">
+                <p className="truncate text-[9px] font-extrabold uppercase text-[#7b88a2] md:text-[11px]">{stat.label}</p>
+                <p className="mt-0.5 font-display text-[15px] font-extrabold leading-none text-[#223768] md:text-[21px]">{stat.value}</p>
               </div>
             </article>
           );
@@ -18996,7 +19028,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       const overviewSection = (
         <>
           {hubMode ? (
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-4 xl:grid-cols-6">
               {surveyStatCards.map((stat) => <ProjectSummaryCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />)}
             </section>
           ) : null}
@@ -21122,7 +21154,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
           {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ OVERVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Overview' && (
             <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-3">
                 {statCards.map((s) => (
                   <LiaisonApprovalStatCard key={s.label} label={s.label} value={s.value} caption={s.caption} icon={s.icon} tone={s.tone} />
                 ))}
@@ -22683,7 +22715,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
       </section>
 
       {selectedProject && (
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-6">
           {[
             { label: 'Total Plans', value: dashStats.total, icon: Boxes, tone: 'blue', caption: 'All materials', filter: 'All' },
             { label: 'Not Started', value: dashStats.not_started, icon: Clock3, tone: 'amber', caption: 'Pending action', filter: 'Not Started' },
@@ -25634,7 +25666,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
           </article>
 
           {/* Stat Cards */}
-          <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+          <section className="flex gap-1.5 md:grid md:grid-cols-3 md:gap-2 xl:grid-cols-6">
             {STAT_CARDS.map((c) => (
               <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value ?? 0)} caption={c.label} icon={c.icon} tone={c.tone} onClick={() => c.filter ? setStatusFilter(c.filter) : setStatusFilter('All')} />
             ))}
@@ -25942,14 +25974,22 @@ function ProjectSummaryCard({ stat, onClick }) {
   }[stat.tone] ?? 'bg-[#eef5ff] text-[#0b65e5]';
 
   return (
-    <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[112px] items-center justify-between gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]`}>
-      <span>
-        <span className="block text-[12px] font-extrabold text-[#30466d]">{stat.label}</span>
-        <span className="mt-2 block font-display text-[22px] font-extrabold text-[#111827]">{stat.value}</span>
-        <span className="mt-2 block text-[11px] font-extrabold text-[#14b84c]">↗ {stat.caption}</span>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cx(
+        panelClass,
+        'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center transition active:scale-[0.98]',
+        'md:min-h-[112px] md:flex-none md:flex-row md:items-center md:justify-between md:gap-4 md:p-5 md:text-left md:hover:-translate-y-0.5 md:hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]',
+      )}
+    >
+      <span className="order-2 min-w-0 w-full md:order-1">
+        <span className="block truncate text-[9px] font-extrabold text-[#53647f] md:text-[12px] md:text-[#30466d]">{stat.label}</span>
+        <span className="mt-0.5 block font-display text-[15px] font-extrabold leading-none text-[#111827] md:mt-2 md:text-[22px]">{stat.value}</span>
+        <span className="mt-0.5 block truncate text-[8px] font-extrabold text-[#14b84c] md:mt-2 md:text-[11px]">↗ {stat.caption}</span>
       </span>
-      <span className={cx('grid size-14 shrink-0 place-items-center rounded-full', iconToneClass)}>
-        <Icon className="size-7" />
+      <span className={cx('order-1 grid size-7 shrink-0 place-items-center rounded-full md:order-2 md:size-14', iconToneClass)}>
+        <Icon className="size-3.5 md:size-7" />
       </span>
     </button>
   );
@@ -29160,7 +29200,7 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
         )}
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-4 xl:grid-cols-4">
         {stats.map((stat) => (
           <EmployeeStatCard key={stat.label} stat={stat} onClick={() => onNotify(`${stat.label} opened`)} />
         ))}
@@ -30039,13 +30079,21 @@ function EmployeeStatCard({ stat, onClick }) {
   }[stat.tone] ?? 'bg-[#e8f2ff] text-[#0b65e5]';
 
   return (
-    <button type="button" onClick={onClick} className={`${panelClass} flex min-h-[96px] items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]`}>
-      <span className={cx('grid size-12 shrink-0 place-items-center rounded-full', toneClass)}>
-        <Icon className="size-6" />
+    <button
+      type="button"
+      onClick={onClick}
+      className={cx(
+        panelClass,
+        'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center transition active:scale-[0.98]',
+        'md:min-h-[96px] md:flex-none md:flex-row md:items-center md:gap-4 md:p-5 md:text-left md:hover:-translate-y-0.5 md:hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]',
+      )}
+    >
+      <span className={cx('grid size-7 shrink-0 place-items-center rounded-full md:size-12', toneClass)}>
+        <Icon className="size-3.5 md:size-6" />
       </span>
-      <span>
-        <span className="block text-[13px] font-bold text-[#53647f]">{stat.label}</span>
-        <span className="mt-1 block font-display text-[25px] font-extrabold text-[#111827]">{stat.value}</span>
+      <span className="min-w-0 w-full">
+        <span className="block truncate text-[9px] font-bold text-[#53647f] md:text-[13px]">{stat.label}</span>
+        <span className="mt-0.5 block font-display text-[15px] font-extrabold leading-none text-[#111827] md:mt-1 md:text-[25px]">{stat.value}</span>
       </span>
     </button>
   );
@@ -30516,7 +30564,7 @@ function ReportsPage({ onOpenSection, onNotify }) {
         ) : null}
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-4 xl:grid-cols-5">
         {(dashboardData?.kpis ?? reportKpis).map((kpi) => (
           <ReportKpiCard key={kpi.title} kpi={{ ...kpi, icon: reportKpiIconMap[kpi.tone] || Users, caption: kpi.caption || '' }} onClick={() => onNotify(`${kpi.title} report opened`)} />
         ))}
@@ -30828,24 +30876,26 @@ function ReportKpiCard({ kpi, onClick }) {
       type="button"
       onClick={onClick}
       className={cx(
-        `${panelClass} min-h-[112px] p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(24,48,87,0.1)]`,
+        panelClass,
+        'min-w-0 flex-1 px-1.5 py-2 text-center transition active:scale-[0.98]',
+        'md:min-h-[112px] md:flex-none md:p-4 md:text-left md:hover:-translate-y-0.5 md:hover:shadow-[0_16px_34px_rgba(24,48,87,0.1)]',
         tone,
       )}
     >
-      <div className="flex items-center gap-4">
-        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-current/10">
-          <Icon className="size-6" />
+      <div className="flex flex-col items-center gap-1 md:flex-row md:items-center md:gap-4">
+        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-current/10 md:size-12">
+          <Icon className="size-3.5 md:size-6" />
         </span>
-        <div className="min-w-0">
-          <p className="truncate text-[13px] font-extrabold text-[#263d72]">{kpi.title}</p>
-          <p className="mt-1 font-display text-[25px] font-extrabold leading-none text-[#111827]">
+        <div className="min-w-0 w-full">
+          <p className="truncate text-[9px] font-extrabold text-[#53647f] md:text-[13px] md:text-[#263d72]">{kpi.title}</p>
+          <p className="mt-0.5 font-display text-[15px] font-extrabold leading-none text-[#111827] md:mt-1 md:text-[25px]">
             {kpi.value}
-            <span className="ml-2 inline-flex items-center gap-1 align-middle text-[12px] font-extrabold text-[#0d9f4a]">
+            <span className="ml-1 hidden items-center gap-1 align-middle text-[12px] font-extrabold text-[#0d9f4a] md:inline-flex">
               <ArrowUpRight className="size-3.5" />
               {kpi.growth}
             </span>
           </p>
-          <p className="mt-3 text-[11px] font-bold text-[#53647f]">{kpi.caption}</p>
+          <p className="mt-0.5 truncate text-[8px] font-bold text-[#53647f] md:mt-3 md:text-[11px]">{kpi.caption}</p>
         </div>
       </div>
     </button>
@@ -34057,7 +34107,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
 
   return (
     <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
-      <section className="grid shrink-0 gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+      <section className="flex shrink-0 gap-1.5 md:grid md:grid-cols-2 md:gap-4 2xl:grid-cols-5">
         <LiaisonApprovalStatCard label="Total Quotations" value={String(quotationStats.total)} caption="All Time" icon={FileText} tone="green" onClick={() => applyStatusCardFilter('All')} />
         <LiaisonApprovalStatCard label="Sent" value={String(quotationStats.sent)} caption={quotationStats.pct(quotationStats.sent)} icon={Mail} tone="purple" onClick={() => applyStatusCardFilter('Sent')} />
         <LiaisonApprovalStatCard label="Draft" value={String(quotationStats.draft)} caption={quotationStats.pct(quotationStats.draft)} icon={FileText} tone="amber" onClick={() => applyStatusCardFilter('Draft')} />
@@ -36737,13 +36787,17 @@ function StatCard({ stat, onClick }) {
       whileHover={{ y: -3 }}
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className={`${panelClass} flex w-full flex-col gap-2 px-3 py-3 text-left transition-shadow duration-200 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]`}
+      className={cx(
+        panelClass,
+        'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center transition-shadow duration-200',
+        'md:w-full md:flex-none md:items-stretch md:gap-2 md:px-3 md:py-3 md:text-left md:hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]',
+      )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <p className="min-w-0 truncate text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">{stat.title}</p>
+      <div className="flex w-full flex-col items-center gap-1 md:flex-row md:items-center md:justify-between md:gap-2">
+        <p className="order-2 min-w-0 w-full truncate text-[9px] font-extrabold uppercase tracking-wide text-[#7b88a2] md:order-1 md:text-[11px]">{stat.title}</p>
         <div
           className={cx(
-            'flex size-7 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-white shadow-[0_8px_16px_rgba(24,86,190,0.18)]',
+            'order-1 flex size-7 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-white shadow-sm md:order-2 md:size-7 md:shadow-[0_8px_16px_rgba(24,86,190,0.18)]',
             stat.iconBg,
           )}
         >
@@ -36751,22 +36805,22 @@ function StatCard({ stat, onClick }) {
         </div>
       </div>
 
-      <p className="font-display text-[21px] font-extrabold leading-none text-[#223768]">
+      <p className="font-display text-[15px] font-extrabold leading-none text-[#223768] md:text-[21px]">
         {stat.value}
       </p>
 
       <div
         className={cx(
-          'inline-flex items-center gap-1 text-[10px] font-extrabold',
+          'inline-flex max-w-full items-center gap-1 truncate text-[8px] font-extrabold md:text-[10px]',
           stat.deltaTone === 'positive' ? 'text-[#1db15f]' : 'text-[#8895ab]',
         )}
       >
         {stat.deltaTone === 'positive' ? (
-          <ArrowUpRight className="size-3.5" />
+          <ArrowUpRight className="size-3 shrink-0 md:size-3.5" />
         ) : (
-          <Minus className="size-3.5" />
+          <Minus className="size-3 shrink-0 md:size-3.5" />
         )}
-        <span>{stat.delta}</span>
+        <span className="truncate">{stat.delta}</span>
       </div>
     </motion.button>
   );

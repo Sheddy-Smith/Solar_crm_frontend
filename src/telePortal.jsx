@@ -1524,19 +1524,22 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
 
 function TeleStatCards({ cards }) {
   return (
-    <section className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-5">
+    <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3.5 xl:grid-cols-5">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <article key={card.title} className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.05)]">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[12px] font-extrabold text-[#7585a2]">{card.title}</p>
-                <p className="mt-2 font-display text-[26px] font-extrabold text-[#102446]">{card.value ?? '—'}</p>
-                <p className="mt-1 text-[11px] font-semibold text-[#8a98af]">{card.note}</p>
+          <article
+            key={card.title}
+            className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[12px] border border-[#e2e9f3] bg-white px-1.5 py-2 text-center shadow-sm md:items-stretch md:rounded-[14px] md:p-4 md:text-left md:shadow-[0_10px_26px_rgba(23,43,77,0.05)]"
+          >
+            <div className="flex w-full flex-col items-center gap-1 md:flex-row md:items-start md:justify-between md:gap-3">
+              <div className="order-2 min-w-0 w-full md:order-1">
+                <p className="truncate text-[9px] font-extrabold text-[#7585a2] md:text-[12px]">{card.title}</p>
+                <p className="mt-0.5 font-display text-[15px] font-extrabold leading-none text-[#102446] md:mt-2 md:text-[26px]">{card.value ?? '—'}</p>
+                <p className="mt-0.5 truncate text-[8px] font-semibold text-[#8a98af] md:mt-1 md:text-[11px]">{card.note}</p>
               </div>
-              <span className={cx('grid size-11 shrink-0 place-items-center rounded-full', card.tone)}>
-                <Icon className="size-5" />
+              <span className={cx('order-1 grid size-7 shrink-0 place-items-center rounded-full md:order-2 md:size-11', card.tone)}>
+                <Icon className="size-3.5 md:size-5" />
               </span>
             </div>
           </article>
@@ -2057,7 +2060,7 @@ function TeleFollowUpsPage({
         </div>
       ) : null}
 
-      <section className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3.5 xl:grid-cols-4">
         {cards.map((card) => {
           const Icon = card.icon;
           const active = tab === card.id;
@@ -2067,18 +2070,18 @@ function TeleFollowUpsPage({
               type="button"
               onClick={() => setTab(card.id)}
               className={cx(
-                'rounded-[14px] border bg-white p-4 text-left shadow-[0_10px_26px_rgba(23,43,77,0.05)] transition',
-                active ? card.activeRing : 'border-[#e2e9f3] hover:border-[#c7d7f0]',
+                'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[12px] border bg-white px-1.5 py-2 text-center shadow-sm transition md:items-stretch md:rounded-[14px] md:p-4 md:text-left md:shadow-[0_10px_26px_rgba(23,43,77,0.05)]',
+                active ? card.activeRing : 'border-[#e2e9f3] md:hover:border-[#c7d7f0]',
               )}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[12px] font-extrabold text-[#7585a2]">{card.title}</p>
-                  <p className="mt-2 font-display text-[26px] font-extrabold text-[#102446]">{card.value ?? '—'}</p>
-                  <p className="mt-1 text-[11px] font-semibold text-[#8a98af]">{card.note}</p>
+              <div className="flex w-full flex-col items-center gap-1 md:flex-row md:items-start md:justify-between md:gap-3">
+                <div className="order-2 min-w-0 w-full md:order-1">
+                  <p className="truncate text-[9px] font-extrabold text-[#7585a2] md:text-[12px]">{card.title}</p>
+                  <p className="mt-0.5 font-display text-[15px] font-extrabold leading-none text-[#102446] md:mt-2 md:text-[26px]">{card.value ?? '—'}</p>
+                  <p className="mt-0.5 truncate text-[8px] font-semibold text-[#8a98af] md:mt-1 md:text-[11px]">{card.note}</p>
                 </div>
-                <span className={cx('grid size-11 shrink-0 place-items-center rounded-full', card.tone)}>
-                  <Icon className="size-5" />
+                <span className={cx('order-1 grid size-7 shrink-0 place-items-center rounded-full md:order-2 md:size-11', card.tone)}>
+                  <Icon className="size-3.5 md:size-5" />
                 </span>
               </div>
             </button>
@@ -2376,7 +2379,7 @@ function TeleRemindersPage({
         </div>
       </section>
 
-      <section className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3.5 xl:grid-cols-4">
         {cards.map((card) => {
           const Icon = card.icon;
           const active = tab === card.id;
@@ -2386,18 +2389,18 @@ function TeleRemindersPage({
               type="button"
               onClick={() => setTab(card.id)}
               className={cx(
-                'rounded-[14px] border bg-white p-4 text-left shadow-[0_10px_26px_rgba(23,43,77,0.05)] transition',
-                active ? card.activeRing : 'border-[#e2e9f3] hover:border-[#c7d7f0]',
+                'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[12px] border bg-white px-1.5 py-2 text-center shadow-sm transition md:items-stretch md:rounded-[14px] md:p-4 md:text-left md:shadow-[0_10px_26px_rgba(23,43,77,0.05)]',
+                active ? card.activeRing : 'border-[#e2e9f3] md:hover:border-[#c7d7f0]',
               )}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[12px] font-extrabold text-[#7585a2]">{card.title}</p>
-                  <p className="mt-2 font-display text-[26px] font-extrabold text-[#102446]">{card.value ?? '—'}</p>
-                  <p className="mt-1 text-[11px] font-semibold text-[#8a98af]">{card.note}</p>
+              <div className="flex w-full flex-col items-center gap-1 md:flex-row md:items-start md:justify-between md:gap-3">
+                <div className="order-2 min-w-0 w-full md:order-1">
+                  <p className="truncate text-[9px] font-extrabold text-[#7585a2] md:text-[12px]">{card.title}</p>
+                  <p className="mt-0.5 font-display text-[15px] font-extrabold leading-none text-[#102446] md:mt-2 md:text-[26px]">{card.value ?? '—'}</p>
+                  <p className="mt-0.5 truncate text-[8px] font-semibold text-[#8a98af] md:mt-1 md:text-[11px]">{card.note}</p>
                 </div>
-                <span className={cx('grid size-11 shrink-0 place-items-center rounded-full', card.tone)}>
-                  <Icon className="size-5" />
+                <span className={cx('order-1 grid size-7 shrink-0 place-items-center rounded-full md:order-2 md:size-11', card.tone)}>
+                  <Icon className="size-3.5 md:size-5" />
                 </span>
               </div>
             </button>
