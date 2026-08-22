@@ -102,7 +102,10 @@ def hourly_rate_for(employee):
     daily = employee.daily_rate or Decimal('0.00')
     if not daily:
         return Decimal('0.00')
-    return (daily / WORK_HOURS_PER_DAY).quantize(Decimal('0.0001'))
+    hours = getattr(employee, 'duty_hours_per_day', None) or WORK_HOURS_PER_DAY
+    if hours <= 0:
+        hours = WORK_HOURS_PER_DAY
+    return (daily / hours).quantize(Decimal('0.0001'))
 
 
 def payment_for_attendance(employee, hours, ot_hours=Decimal('0.00')):
@@ -209,6 +212,7 @@ def attendance_ledger_payload(employee, start_date, end_date, user=None):
             ),
             'skill_trade': employee.skill_trade or employee.role,
             'daily_rate': str(employee.daily_rate or Decimal('0.00')),
+            'duty_hours_per_day': str(employee.duty_hours_per_day or WORK_HOURS_PER_DAY),
             'hourly_rate': str(hourly_rate_for(employee)),
             'opening_balance': str(employee.opening_balance or Decimal('0.00')),
         },

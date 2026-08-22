@@ -28218,7 +28218,7 @@ function exportEmployeesCsv(rows) {
 function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
   const isAttendanceView = activeSection === 'Employee Ledger';
   const pageTitle = isAttendanceView ? 'Employee Ledger' : 'Employee Management';
-  const emptyEmpForm = { name: '', mobile: '', skill_trade: '', daily_rate: '', address: '', aadhaar_number: '', opening_balance: '0' };
+  const emptyEmpForm = { name: '', mobile: '', skill_trade: '', daily_rate: '', duty_hours_per_day: '9', address: '', aadhaar_number: '', opening_balance: '0' };
   const paymentModes = ['Cash', 'Bank Transfer', 'UPI', 'Cheque'];
 
   const [employees, setEmployees] = useState([]);
@@ -28358,24 +28358,45 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
     setEmpModalOpen(true);
   };
 
-  const openEditEmployee = (row) => {
+  const openEditEmployee = async (row) => {
     setEditEmpId(row.id);
     setEmpForm({
       name: row.name || '',
       mobile: row.mobile || '',
       skill_trade: row.skill_trade || row.role || '',
       daily_rate: row.daily_rate ?? '',
+      duty_hours_per_day: row.duty_hours_per_day ?? '9',
       address: row.address || '',
       aadhaar_number: row.aadhaar_number || '',
       opening_balance: row.opening_balance ?? '0',
     });
     setEmpModalOpen(true);
+    try {
+      const detail = await workforceApi.getEmployee(row.id);
+      setEmpForm({
+        name: detail.name || '',
+        mobile: detail.mobile || '',
+        skill_trade: detail.skill_trade || detail.role || '',
+        daily_rate: detail.daily_rate ?? '',
+        duty_hours_per_day: detail.duty_hours_per_day ?? '9',
+        address: detail.address || '',
+        aadhaar_number: detail.aadhaar_number || '',
+        opening_balance: detail.opening_balance ?? '0',
+      });
+    } catch {
+      // Keep list-row values if detail fetch fails.
+    }
   };
 
   const handleSaveEmployee = async () => {
     if (!empForm.name.trim()) { onNotify('Employee name is required'); return; }
     if (!empForm.skill_trade.trim()) { onNotify('Skill/Trade is required'); return; }
     if (!empForm.daily_rate) { onNotify('Daily rate is required'); return; }
+    const dutyHours = Number(empForm.duty_hours_per_day);
+    if (!dutyHours || dutyHours <= 0 || dutyHours > 24) {
+      onNotify('Duty hours per day must be between 0.5 and 24');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -28384,6 +28405,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
         skill_trade: empForm.skill_trade.trim(),
         role: empForm.skill_trade.trim(),
         daily_rate: Number(empForm.daily_rate) || 0,
+        duty_hours_per_day: dutyHours,
         address: empForm.address.trim(),
         aadhaar_number: empForm.aadhaar_number.trim(),
         opening_balance: Number(empForm.opening_balance) || 0,
@@ -28894,7 +28916,14 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
               </label>
               <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Rate (₹ per day) *
                 <input type="number" min="0" step="0.01" value={empForm.daily_rate} onChange={(e) => setEmpForm((prev) => ({ ...prev, daily_rate: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
-                {empForm.daily_rate ? <span className="text-[13px] font-medium text-[#53647f]">Hourly Rate: {formatInrAmount(Number(empForm.daily_rate) / 9)}/hr (9 hours basis)</span> : null}
+              </label>
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Duty Hours / Day *
+                <input type="number" min="0.5" max="24" step="0.5" value={empForm.duty_hours_per_day} onChange={(e) => setEmpForm((prev) => ({ ...prev, duty_hours_per_day: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+                {empForm.daily_rate && Number(empForm.duty_hours_per_day) > 0 ? (
+                  <span className="text-[13px] font-medium text-[#53647f]">
+                    Hourly Rate: {formatInrAmount(Number(empForm.daily_rate) / Number(empForm.duty_hours_per_day))}/hr ({empForm.duty_hours_per_day} hrs basis)
+                  </span>
+                ) : null}
               </label>
               <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c] md:col-span-2">Address
                 <textarea rows={3} value={empForm.address} onChange={(e) => setEmpForm((prev) => ({ ...prev, address: e.target.value }))} className="rounded-[8px] border border-[#dce6f3] px-3 py-2 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />

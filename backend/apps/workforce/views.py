@@ -129,7 +129,7 @@ class EmployeeAttendanceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='mark-present')
     def mark_present(self, request, pk=None):
         record = self.get_object()
-        hours = request.data.get('hours', 9)
+        hours = request.data.get('hours', record.employee.duty_hours_per_day or 9)
         ot_hours = request.data.get('ot_hours', 0)
         serializer = self.get_serializer(record, data={
             'employee': record.employee_id,
@@ -180,12 +180,13 @@ class EmployeeAttendanceViewSet(viewsets.ModelViewSet):
         record, _ = EmployeeAttendance.objects.get_or_create(
             employee=employee, date=target_date, defaults={'status': 'Not Marked'},
         )
+        default_hours = employee.duty_hours_per_day or 9
         target_status = request.data.get('status', 'Present')
         serializer = self.get_serializer(record, data={
             'employee': employee.id,
             'date': record.date,
             'status': target_status,
-            'hours': request.data.get('hours', 9 if target_status == 'Present' else 0),
+            'hours': request.data.get('hours', default_hours if target_status == 'Present' else 0),
             'ot_hours': request.data.get('ot_hours', 0),
             'payment_mode': request.data.get('payment_mode', record.payment_mode),
             'notes': request.data.get('notes', record.notes),

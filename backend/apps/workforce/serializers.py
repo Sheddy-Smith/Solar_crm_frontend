@@ -52,7 +52,7 @@ class EmployeeListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'employee_id', 'name', 'mobile', 'email',
             'department', 'role', 'skill_trade', 'joining_date', 'status',
-            'hourly_rate', 'net_balance',
+            'duty_hours_per_day', 'hourly_rate', 'net_balance',
             'present_days', 'absent_days', 'leave_balance',
             'current_assignment', 'pending_tasks', 'completed_tasks',
             'created_at',
@@ -99,13 +99,21 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'employee_id', 'name', 'mobile', 'email',
             'department', 'role', 'skill_trade', 'joining_date', 'status',
-            'aadhaar_number', 'address', 'daily_rate', 'hourly_rate', 'opening_balance', 'net_balance',
+            'aadhaar_number', 'address', 'daily_rate', 'duty_hours_per_day', 'hourly_rate', 'opening_balance', 'net_balance',
             'present_days', 'absent_days', 'leave_balance', 'notes',
             'assignments', 'documents',
             'pending_tasks', 'completed_tasks', 'overall_progress',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['employee_id', 'created_at', 'updated_at']
+
+    def validate_duty_hours_per_day(self, value):
+        if value is None or value == '':
+            return Decimal('9.00')
+        hours = Decimal(str(value))
+        if hours <= 0 or hours > 24:
+            raise serializers.ValidationError('Duty hours per day must be between 0.5 and 24.')
+        return hours
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

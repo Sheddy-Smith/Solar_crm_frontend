@@ -91,6 +91,7 @@ class Employee(models.Model):
     address = models.TextField(blank=True)
     skill_trade = models.CharField(max_length=100, blank=True)
     daily_rate = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    duty_hours_per_day = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('9.00'))
     opening_balance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -99,7 +100,10 @@ class Employee(models.Model):
     def hourly_rate(self):
         if not self.daily_rate:
             return Decimal('0.00')
-        return (self.daily_rate / Decimal('9')).quantize(Decimal('0.01'))
+        hours = self.duty_hours_per_day or Decimal('9.00')
+        if hours <= 0:
+            hours = Decimal('9.00')
+        return (self.daily_rate / hours).quantize(Decimal('0.01'))
 
     def save(self, *args, **kwargs):
         if not self.employee_id:
