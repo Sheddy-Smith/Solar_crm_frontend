@@ -14794,7 +14794,7 @@ const SURVEY_ROOF_TYPE_OPTIONS = ['RCC', 'Tin Shed', 'RBC Roof', 'Ground Mount']
 const SURVEY_PROJECT_CATEGORY_OPTIONS = ['Residential', 'Commercial', 'Industrial', 'Other'];
 const SURVEY_PURPOSE_OPTIONS = ['On-Grid', 'Off-Grid', 'Hybrid'];
 const SURVEY_ROOF_CONDITION_OPTIONS = ['Excellent', 'Good', 'Average', 'Poor'];
-const SURVEY_ROOF_DIRECTION_OPTIONS = ['South', 'South-East', 'South-West', 'Degree'];
+const SURVEY_ROOF_DIRECTION_OPTIONS = ['South', 'South-East', 'South-West'];
 const SURVEY_STRUCTURE_TYPE_OPTIONS = ['GP', 'GL', 'HDGI', 'ZM'];
 const SURVEY_TERMINATION_POINT_OPTIONS = ['MCB', 'Cutout', 'Need to Install', 'Other'];
 const SURVEY_INVERTER_PLACEMENT_OPTIONS = ['Indoor', 'Outdoor'];
@@ -15189,7 +15189,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
         obstacle_present: Boolean(data.obstacle_present),
         roof_remarks: data.roof_remarks || '',
         roof_condition: data.roof_condition || '',
-        roof_direction: data.roof_direction || '',
+        roof_direction: data.roof_direction === 'Degree' ? '' : (data.roof_direction || ''),
         roof_tilt_angle: data.roof_tilt_angle || '',
         shadow_morning_from: data.shadow_morning_from || '',
         shadow_morning_to: data.shadow_morning_to || '',

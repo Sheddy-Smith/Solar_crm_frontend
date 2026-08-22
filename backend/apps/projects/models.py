@@ -461,7 +461,6 @@ class SiteSurvey(models.Model):
         ('South', 'South'),
         ('South-East', 'South-East'),
         ('South-West', 'South-West'),
-        ('Degree', 'Degree'),
     ]
     STRUCTURE_TYPE_CHOICES = [
         ('GP', 'GP'),
