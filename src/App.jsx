@@ -499,7 +499,14 @@ const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', '
 const employeeSubItems = ['Employee Details', 'Employee Ledger'];
 const employeeRelatedPages = ['Employee', ...employeeSubItems];
 const legacyEmployeeAdminPages = ['Users', 'Roles & Permissions', 'Activity Logs'];
-const projectSubItems = ['Project List', 'Project Site Survey', 'Project Material Planning', 'Project Team Assignment', 'Project Installation', 'Project Expenses'];
+const projectSubItems = [
+  'Project List',
+  'Project Site Survey',
+  'Project Material Planning',
+  'Project Team Assignment',
+  'Project Installation',
+  'Project Expenses',
+];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
 // 'Subsidy', 'Project Documents', 'Project Approvals' ab Project Management ke sidebar submenu me nahi —
 // unke sidebar entries Liaisoning & Commissioning me move ho gaye (Subsidy seedha, Documents/Approvals
@@ -9436,7 +9443,7 @@ function getModuleSubnavLabel(item) {
   }
 
   if (item === 'Project Team Assignment') {
-    return 'Team Assignment';
+    return 'Dispatch';
   }
 
   if (item === 'Project Material Planning') {
