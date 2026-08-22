@@ -28826,58 +28826,111 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
         </section>
       ) : (
         <div className="space-y-2.5">
-          <section className={`${panelClass} p-2.5 sm:p-3`}>
-            <p className="mb-2 text-[14px] font-semibold text-[#53647f]">Date Range Mode</p>
-            <div className="flex flex-wrap gap-4">
-              {[
-                { value: 'weekly', label: 'Weekly View' },
-                { value: 'monthly', label: 'Monthly View' },
-                { value: 'custom', label: 'Custom Date Range' },
-              ].map((option) => (
-                <label key={option.value} className="inline-flex items-center gap-2 text-[15px] font-medium text-[#1e3261]">
-                  <input type="radio" name="employee-range-mode" checked={rangeMode === option.value} onChange={() => setRangeMode(option.value)} className="size-4 accent-[#ea5a4c]" />
-                  {option.label}
-                </label>
-              ))}
-            </div>
-
-            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
-                Select Employee *
-                <select value={selectedEmployeeId} onChange={(e) => setSelectedEmployeeId(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
-                  <option value="">-- Choose Employee --</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.skill_trade || emp.role || 'Employee'})</option>
+          <section className={`${panelClass} overflow-hidden p-3 sm:p-3.5`}>
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+              <div className="shrink-0">
+                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8a98af]">Period</p>
+                <div className="inline-flex rounded-[10px] border border-[#dce6f3] bg-[#f4f8ff] p-1" role="tablist" aria-label="Date range mode">
+                  {[
+                    { value: 'weekly', label: 'Week' },
+                    { value: 'monthly', label: 'Month' },
+                    { value: 'custom', label: 'Custom' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="tab"
+                      aria-selected={rangeMode === option.value}
+                      onClick={() => setRangeMode(option.value)}
+                      className={cx(
+                        'h-9 min-w-[72px] rounded-[8px] px-3.5 text-[14px] font-semibold transition',
+                        rangeMode === option.value
+                          ? 'bg-[#078c3e] text-white shadow-[0_6px_14px_rgba(7,140,62,0.22)]'
+                          : 'text-[#53647f] hover:bg-white hover:text-[#1e3261]',
+                      )}
+                    >
+                      {option.label}
+                    </button>
                   ))}
-                </select>
-              </label>
+                </div>
+              </div>
 
-              {rangeMode === 'weekly' ? (
-                <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
-                  Week Starting
-                  <input type="date" value={weekStart} onChange={(e) => setWeekStart(getMondayIso(e.target.value))} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+              <div className={cx(
+                'grid flex-1 gap-2.5',
+                rangeMode === 'custom' ? 'sm:grid-cols-2 xl:grid-cols-3' : 'sm:grid-cols-2',
+              )}
+              >
+                <label className="grid gap-1 text-[12px] font-semibold text-[#53647f]">
+                  Employee <span className="text-[#ea5a4c]">*</span>
+                  <div className="relative">
+                    <UserRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a98af]" />
+                    <select
+                      value={selectedEmployeeId}
+                      onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                      className="h-11 w-full appearance-none rounded-[8px] border border-[#dce6f3] bg-white py-2 pl-10 pr-9 text-[15px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
+                    >
+                      <option value="">Choose employee…</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>{emp.name} ({emp.skill_trade || emp.role || 'Employee'})</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#8a98af]" />
+                  </div>
                 </label>
-              ) : null}
 
-              {rangeMode === 'monthly' ? (
-                <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
-                  Select Month
-                  <input type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
-                </label>
-              ) : null}
+                {rangeMode === 'weekly' ? (
+                  <label className="grid gap-1 text-[12px] font-semibold text-[#53647f]">
+                    Week starting
+                    <div className="relative">
+                      <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a98af]" />
+                      <input
+                        type="date"
+                        value={weekStart}
+                        onChange={(e) => setWeekStart(getMondayIso(e.target.value))}
+                        className="h-11 w-full rounded-[8px] border border-[#dce6f3] bg-white py-2 pl-10 pr-3 text-[15px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
+                      />
+                    </div>
+                  </label>
+                ) : null}
 
-              {rangeMode === 'custom' ? (
-                <>
-                  <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
-                    Start Date
-                    <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+                {rangeMode === 'monthly' ? (
+                  <label className="grid gap-1 text-[12px] font-semibold text-[#53647f]">
+                    Month
+                    <div className="relative">
+                      <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a98af]" />
+                      <input
+                        type="month"
+                        value={monthValue}
+                        onChange={(e) => setMonthValue(e.target.value)}
+                        className="h-11 w-full rounded-[8px] border border-[#dce6f3] bg-white py-2 pl-10 pr-3 text-[15px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
+                      />
+                    </div>
                   </label>
-                  <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
-                    End Date
-                    <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
-                  </label>
-                </>
-              ) : null}
+                ) : null}
+
+                {rangeMode === 'custom' ? (
+                  <>
+                    <label className="grid gap-1 text-[12px] font-semibold text-[#53647f]">
+                      Start date
+                      <input
+                        type="date"
+                        value={customStart}
+                        onChange={(e) => setCustomStart(e.target.value)}
+                        className="h-11 w-full rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[15px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
+                      />
+                    </label>
+                    <label className="grid gap-1 text-[12px] font-semibold text-[#53647f]">
+                      End date
+                      <input
+                        type="date"
+                        value={customEnd}
+                        onChange={(e) => setCustomEnd(e.target.value)}
+                        className="h-11 w-full rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[15px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
+                      />
+                    </label>
+                  </>
+                ) : null}
+              </div>
             </div>
           </section>
 
@@ -28893,12 +28946,35 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
             <PageLoadingState message="Loading attendance card..." compact />
           ) : ledger ? (
             <>
-              <section className="rounded-[10px] border border-[#d9ecff] bg-[#f3f9ff] px-4 py-3">
-                <div className="flex flex-wrap gap-x-8 gap-y-2 text-[14px] font-medium text-[#1e3261]">
-                  <span><strong>Name:</strong> {ledger.employee.name}</span>
-                  <span><strong>Phone:</strong> {ledger.employee.mobile || '-'}</span>
-                  <span><strong>Aadhaar:</strong> {ledger.employee.aadhaar_number || '-'}</span>
-                  <span><strong>Daily Rate:</strong> {formatInrAmount(ledger.employee.daily_rate)} / {formatInrAmount(ledger.employee.hourly_rate)}/hr</span>
+              <section className={`${panelClass} p-3 sm:p-3.5`}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="grid size-12 shrink-0 place-items-center rounded-[12px] bg-[linear-gradient(145deg,#0b65e5,#1d4ed8)] text-[15px] font-bold tracking-wide text-white shadow-[0_8px_18px_rgba(11,101,229,0.28)]">
+                      {(ledger.employee.name || 'E').slice(0, 2).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-display text-[18px] font-semibold text-[#1e3261] sm:text-[20px]">{ledger.employee.name}</p>
+                      <p className="mt-0.5 truncate text-[13px] font-medium text-[#7585a2]">
+                        {ledger.employee.skill_trade || ledger.employee.role || 'Employee'}
+                        <span className="mx-1.5 text-[#c5d0e0]">·</span>
+                        {periodRange.start} → {periodRange.end}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-[#e7eef7] bg-[#f8fbff] px-2.5 py-1.5 text-[13px] font-semibold text-[#284276]">
+                      <Phone className="size-3.5 text-[#0b65e5]" />
+                      {ledger.employee.mobile || '—'}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-[#e7eef7] bg-[#f8fbff] px-2.5 py-1.5 text-[13px] font-semibold text-[#284276]">
+                      Aadhaar: {ledger.employee.aadhaar_number || '—'}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-[#d9f5e4] bg-[#f1fff6] px-2.5 py-1.5 text-[13px] font-semibold text-[#078c3e]">
+                      <IndianRupee className="size-3.5" />
+                      {formatInrAmount(ledger.employee.daily_rate)}/day
+                      <span className="font-medium text-[#6b9f80]">· {formatInrAmount(ledger.employee.hourly_rate)}/hr</span>
+                    </span>
+                  </div>
                 </div>
               </section>
 
