@@ -4774,9 +4774,40 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           </div>
         </div>
 
-        {/* Category chips — 2-col cards on phone, wrap row on desktop */}
+        {/* Category filter — dropdown on phone, chips on desktop */}
         <div className="mt-3 md:mt-1.5">
-          <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center md:gap-1.5">
+          <label className="relative flex h-12 w-full items-center gap-2.5 rounded-[12px] border border-[#d9e4f2] bg-white px-3.5 shadow-sm md:hidden">
+            <Filter className="size-4 shrink-0 text-[#0b65e5]" />
+            <select
+              value={activeLeadCategory?.label || 'All'}
+              onChange={(event) => {
+                const next = event.target.value;
+                setActivePage(1);
+                if (next === 'All') {
+                  setActiveLeadCategory(null);
+                  return;
+                }
+                const category = leadCategoryTabs.find((item) => item.label === next) || null;
+                setActiveLeadCategory(category);
+                if (category) onNotify(`${category.label} filter applied`);
+              }}
+              aria-label="Lead category"
+              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent py-2 pr-6 text-[14px] font-extrabold text-[#1e3261] outline-none"
+            >
+              <option value="All">
+                All categories{categoryLeadCount ? ` (${Object.values(categoryLeadCount).reduce((sum, n) => sum + n, 0)})` : ''}
+              </option>
+              {leadCategoryTabs.map((category) => (
+                <option key={category.label} value={category.label}>
+                  {category.label}
+                  {categoryLeadCount ? ` (${categoryLeadCount[category.label] ?? 0})` : ''}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3.5 size-4 text-[#7b88a2]" />
+          </label>
+
+          <div className="hidden flex-wrap items-center gap-1.5 md:flex">
             {leadCategoryTabs.map((category) => {
               const Icon = category.icon;
               const tone = leadCategoryToneClasses[category.tone];
@@ -4794,21 +4825,21 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                   }}
                   data-action={`open-${category.shortLabel.toLowerCase()}-leads`}
                   className={cx(
-                    'group flex min-h-[52px] w-full items-center justify-between gap-2 rounded-[12px] border px-3 py-2 text-left shadow-sm transition active:scale-[0.98] md:inline-flex md:h-[38px] md:w-max md:min-h-0 md:shrink-0 md:rounded-[9px] md:px-2.5 md:py-0 md:hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
+                    'group inline-flex h-[38px] w-max shrink-0 items-center justify-between gap-2 rounded-[9px] border px-2.5 text-left shadow-[0_8px_16px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
                     tone.button,
                     selected ? 'ring-2 ring-[#0b65e5] ring-offset-1 ring-offset-white' : '',
                   )}
                 >
-                  <span className="inline-flex min-w-0 items-center gap-2">
-                    <span className={cx('grid size-8 shrink-0 place-items-center rounded-[9px] md:size-6 md:rounded-[7px]', tone.icon)}>
-                      <Icon className="size-4 md:size-[14px]" />
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={cx('grid size-6 shrink-0 place-items-center rounded-[7px]', tone.icon)}>
+                      <Icon className="size-[14px]" />
                     </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-[12px] font-extrabold md:whitespace-nowrap md:text-[11px]">{category.label}</span>
-                      <span className="block truncate text-[10px] font-bold opacity-75 md:whitespace-nowrap md:text-[9px]">{category.priority}</span>
+                    <span>
+                      <span className="block whitespace-nowrap text-[11px] font-extrabold">{category.label}</span>
+                      <span className="block whitespace-nowrap text-[9px] font-bold opacity-75">{category.priority}</span>
                     </span>
                   </span>
-                  <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[11px] font-extrabold md:text-[10px]', tone.count)}>
+                  <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold', tone.count)}>
                     {categoryLeadCount ? (categoryLeadCount[category.label] ?? 0) : '—'}
                   </span>
                 </button>
@@ -9448,9 +9479,36 @@ function getModuleSubnavLabel(item) {
 }
 
 function HorizontalModuleTabs({ items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false, fullLabels = false, dense = false }) {
+  const activeLabel = fullLabels
+    ? (items.includes(activeSection) ? activeSection : items[0])
+    : getModuleSubnavLabel(items.includes(activeSection) ? activeSection : items[0]);
+
   return (
     <section className={cx(`${panelClass} overflow-hidden`, dense ? 'p-2 sm:p-2.5' : 'p-3 sm:p-4')}>
-      <div className={cx('module-tab-scroll -mx-1 overflow-x-auto px-1', dense ? 'pb-1' : 'pb-2')}>
+      {/* Mobile: single dropdown instead of horizontal scroll chips */}
+      <label className="relative flex h-12 items-center gap-2.5 rounded-[12px] border border-[#d9e4f2] bg-white px-3.5 shadow-sm md:hidden">
+        <FolderKanban className="size-4 shrink-0 text-[#0b65e5]" />
+        <span className="sr-only">Module section</span>
+        <select
+          value={items.includes(activeSection) ? activeSection : items[0]}
+          onChange={(event) => onOpenSection(event.target.value)}
+          className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent py-1 text-[14px] font-extrabold text-[#1e3261] outline-none"
+          aria-label="Choose section"
+        >
+          {items.map((item) => (
+            <option key={item} value={item}>
+              {fullLabels ? item : getModuleSubnavLabel(item)}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none size-4 shrink-0 text-[#8a98af]" />
+      </label>
+      <p className="mt-1.5 text-[11px] font-semibold text-[#8a98af] md:hidden">
+        Showing · {activeLabel}
+      </p>
+
+      {/* Desktop / tablet: keep horizontal tabs */}
+      <div className={cx('module-tab-scroll -mx-1 hidden overflow-x-auto px-1 md:block', dense ? 'pb-1' : 'pb-2')}>
         <div className={cx('flex w-max min-w-full', dense ? 'gap-2' : 'gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
           {items.map((item) => {
             const isActive = activeSection === item;
@@ -14007,8 +14065,32 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       ) : null}
 
       {!isSiteSurveyPicker ? (
-        <section className={`${panelClass} overflow-hidden p-2 sm:p-2.5`}>
-          <div className="flex flex-wrap items-center gap-2">
+        <section className={`${panelClass} overflow-hidden p-3 sm:p-2.5`}>
+          {/* Mobile: status category dropdown (counts included) */}
+          <label className="relative flex h-12 w-full items-center gap-2.5 rounded-[12px] border border-[#dce6f3] bg-white px-3.5 md:hidden">
+            <FolderKanban className="size-4 shrink-0 text-[#0b65e5]" />
+            <select
+              value={statusFilter}
+              onChange={(event) => { setStatusFilter(event.target.value); setActivePage(1); }}
+              aria-label="Project status category"
+              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent py-2 pr-6 text-[14px] font-extrabold text-[#1e3261] outline-none"
+            >
+              {projectStatusTabs.map((tab) => {
+                const count = tab.value === 'All'
+                  ? projectRows.length
+                  : (projectStatusCounts[tab.value] ?? 0);
+                return (
+                  <option key={tab.value} value={tab.value}>
+                    {tab.label} ({count})
+                  </option>
+                );
+              })}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3.5 size-4 text-[#7b88a2]" />
+          </label>
+
+          {/* Desktop: horizontal category chips */}
+          <div className="hidden flex-wrap items-center gap-2 md:flex">
             {projectStatusTabs.map((tab) => {
               const Icon = tab.icon;
               const tone = projectStatusToneClasses[tab.tone];
@@ -14046,7 +14128,11 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             <Search className="size-4 text-[#7e8fab]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by IVRS no, customer, project name, site, manager, mobile number..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
           </label>
-          <label className="relative flex h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
+          <label className={cx(
+            'relative h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]',
+            isSiteSurveyPicker ? 'flex' : 'hidden md:flex',
+          )}
+          >
             <Filter className="size-4 text-[#0b65e5]" />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none">
               <option value="All">All Status</option>
