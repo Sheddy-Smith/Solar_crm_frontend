@@ -13639,7 +13639,7 @@ function buildSiteSurveyViewHtml(row, detail) {
     <section><table>
       ${infoRow('Category', survey.project_category)}
       ${infoRow('Capacity Required (kW)', survey.capacity_required_kw)}
-      ${infoRow('Purpose', survey.purpose)}
+      ${infoRow('Project Type', survey.purpose)}
       ${infoRow('Sanction Load (kW)', survey.sanction_load_kw)}
       ${infoRow('Tariff Category', survey.tariff_category)}
       ${infoRow('Avg Monthly Bill', survey.average_monthly_bill)}
@@ -15586,7 +15586,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyField label="Capacity Required (kW)">
                 <input value={form.capacity_required_kw} onChange={(e) => updateField('capacity_required_kw', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Purpose">
+              <SurveyField label="Project Type">
                 <select value={form.purpose} onChange={(e) => updateField('purpose', e.target.value)} className={surveyFieldClass}>
                   <option value="">Select</option>
                   {SURVEY_PURPOSE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
