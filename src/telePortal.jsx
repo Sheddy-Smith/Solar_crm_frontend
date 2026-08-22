@@ -20,9 +20,11 @@ import {
   LogOut,
   Mail,
   MapPin,
+  Menu,
   MessageCircle,
   MonitorCog,
   Moon,
+  MoreVertical,
   Pencil,
   Phone,
   PhoneCall,
@@ -354,59 +356,74 @@ function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
   return (
     <div
       className={cx(
-        'flex items-start gap-3 rounded-[12px] border px-3 py-2.5',
+        'flex flex-col gap-2.5 rounded-[12px] border px-3 py-2.5 sm:flex-row sm:items-start sm:gap-3',
         isExtra
           ? 'border-[#fecaca] bg-[#fff5f5]'
           : 'border-[#fde68a] bg-[#fffbeb]',
       )}
     >
-      <span
-        className={cx(
-          'grid size-10 shrink-0 place-items-center rounded-full',
-          isExtra ? 'bg-[#fee2e2] text-[#dc2626]' : 'bg-[#fef3c7] text-[#d97706]',
-        )}
-      >
-        <Icon className="size-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{item.lead_customer_name || 'Customer'}</p>
-          <span
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <span
+          className={cx(
+            'grid size-10 shrink-0 place-items-center rounded-full',
+            isExtra ? 'bg-[#fee2e2] text-[#dc2626]' : 'bg-[#fef3c7] text-[#d97706]',
+          )}
+        >
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{item.lead_customer_name || 'Customer'}</p>
+            <span
+              className={cx(
+                'inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide',
+                isExtra ? 'bg-[#dc2626] text-white' : 'bg-[#f59e0b] text-white',
+              )}
+            >
+              {isExtra ? 'Extra High' : 'High Alert'}
+            </span>
+          </div>
+          <p className="mt-0.5 text-[11px] font-semibold text-[#7585a2]">
+            {isExtra ? formatDateTime(item.scheduled_at) : formatTime(item.scheduled_at)}
+            {' · '}
+            {item.follow_up_type || 'Call'}
+            {isExtra ? ` · Pending ${followUpAgeLabel(item.scheduled_at)}` : ''}
+          </p>
+          {(item.lead_assigned_to_name || item.created_by_name) ? (
+            <p className="mt-0.5 text-[11px] font-extrabold text-[#1e3261]">
+              {isExtra ? 'Missed by: ' : 'Owner: '}
+              {item.lead_assigned_to_name || item.created_by_name}
+            </p>
+          ) : null}
+          {item.lead_mobile_number ? (
+            <p className="mt-0.5 text-[11px] font-bold text-[#53647f]">{item.lead_mobile_number}</p>
+          ) : null}
+          {item.notes ? (
+            <p className="mt-0.5 line-clamp-2 text-[11px] font-semibold text-[#33456b]">
+              {item.notes}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:flex sm:w-auto sm:shrink-0 sm:flex-col sm:gap-1.5 md:flex-row">
+        {onCall ? (
+          <button
+            type="button"
+            onClick={() => onCall(item)}
             className={cx(
-              'inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide',
-              isExtra ? 'bg-[#dc2626] text-white' : 'bg-[#f59e0b] text-white',
+              'inline-flex h-10 items-center justify-center gap-1 rounded-[10px] px-2.5 text-[12px] font-extrabold text-white sm:h-8 sm:text-[11px]',
+              isExtra ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : 'bg-[#f59e0b] hover:bg-[#d97706]',
             )}
           >
-            {isExtra ? 'Extra High' : 'High Alert'}
-          </span>
-        </div>
-        <p className="mt-0.5 text-[11px] font-semibold text-[#7585a2]">
-          {isExtra ? formatDateTime(item.scheduled_at) : formatTime(item.scheduled_at)}
-          {' · '}
-          {item.follow_up_type || 'Call'}
-          {isExtra ? ` · Pending ${followUpAgeLabel(item.scheduled_at)}` : ''}
-        </p>
-        {(item.lead_assigned_to_name || item.created_by_name) ? (
-          <p className="mt-0.5 text-[11px] font-extrabold text-[#1e3261]">
-            {isExtra ? 'Missed by: ' : 'Owner: '}
-            {item.lead_assigned_to_name || item.created_by_name}
-          </p>
+            <Phone className="size-3.5" />
+            Call
+          </button>
         ) : null}
-        {item.lead_mobile_number ? (
-          <p className="mt-0.5 text-[11px] font-bold text-[#53647f]">{item.lead_mobile_number}</p>
-        ) : null}
-        {item.notes ? (
-          <p className="mt-0.5 line-clamp-2 text-[11px] font-semibold text-[#33456b]">
-            {item.notes}
-          </p>
-        ) : null}
-      </div>
-      <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
         {onLog ? (
           <button
             type="button"
             onClick={() => onLog(item)}
-            className="inline-flex h-8 items-center justify-center gap-1 rounded-[8px] border border-[#1d4ed8] bg-white px-2.5 text-[11px] font-extrabold text-[#1d4ed8]"
+            className="inline-flex h-10 items-center justify-center gap-1 rounded-[10px] border border-[#1d4ed8] bg-white px-2.5 text-[12px] font-extrabold text-[#1d4ed8] sm:h-8 sm:text-[11px]"
           >
             <StickyNote className="size-3.5" />
             Log
@@ -416,22 +433,9 @@ function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
           <button
             type="button"
             onClick={() => onView(item)}
-            className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#e2e9f3] bg-white px-2.5 text-[11px] font-extrabold text-[#1d4ed8]"
+            className="inline-flex h-10 items-center justify-center rounded-[10px] border border-[#e2e9f3] bg-white px-2.5 text-[12px] font-extrabold text-[#1d4ed8] sm:h-8 sm:text-[11px]"
           >
             View
-          </button>
-        ) : null}
-        {onCall ? (
-          <button
-            type="button"
-            onClick={() => onCall(item)}
-            className={cx(
-              'inline-flex h-8 items-center justify-center gap-1 rounded-[8px] px-2.5 text-[11px] font-extrabold text-white',
-              isExtra ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : 'bg-[#f59e0b] hover:bg-[#d97706]',
-            )}
-          >
-            <Phone className="size-3.5" />
-            Call
           </button>
         ) : null}
       </div>
@@ -1029,6 +1033,10 @@ const TELE_NAV_ITEMS = [
   { label: 'Profile Details', icon: UserRound, path: '/tele/profile' },
 ];
 
+/** Primary bottom-nav slots on phones — rest live in the More sheet. */
+const TELE_MOBILE_PRIMARY_NAV = ['Dashboard', 'My Leads', 'Follow-ups', 'Reminders'];
+const TELE_MOBILE_MORE_NAV = ['Daily Tasks', 'Reports', 'Profile Details'];
+
 const TELE_PATH_ALIASES = {
   '/tele': 'Dashboard',
   '/tele/': 'Dashboard',
@@ -1060,11 +1068,13 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const [leads, setLeads] = useState(null);
   const [followUps, setFollowUps] = useState(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
 
   const navigateTele = useCallback((label, { replace = false } = {}) => {
     const nextLabel = TELE_NAV_ITEMS.some((item) => item.label === label) ? label : 'Dashboard';
     const nextPath = pathForTeleNav(nextLabel);
     setActiveNav(nextLabel);
+    setMobileMoreOpen(false);
     if (typeof window === 'undefined') return;
     const historyState = { currentPage: 'tele', teleNav: nextLabel };
     if (replace || window.location.pathname === nextPath) {
@@ -1427,15 +1437,17 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
           <PwaInstallBanner notify={onNotify} />
         </div>
 
-        <main className="scroll-soft flex-1 space-y-2 overflow-y-auto px-2 py-2 pb-2 sm:px-3 sm:py-2.5 lg:pl-1.5 lg:pb-3">
+        <main className="scroll-soft flex-1 space-y-2.5 overflow-y-auto px-2.5 py-2.5 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-3 sm:py-3 lg:pb-3 lg:pl-1.5">
           {pageContent()}
         </main>
 
-        <ProductFooter className="mb-[calc(5.25rem+env(safe-area-inset-bottom))] lg:mb-1.5 lg:mr-1.5 lg:rounded-b-[16px]" />
+        <ProductFooter className="mb-[calc(5.25rem+env(safe-area-inset-bottom))] hidden lg:mb-1.5 lg:mr-1.5 lg:block lg:rounded-b-[16px]" />
 
         <nav className="app-mobile-bottom-nav fixed inset-x-0 bottom-0 z-60 border-t border-[#e2e9f3] bg-white/98 shadow-[0_-10px_28px_rgba(21,43,83,0.12)] backdrop-blur-[10px] lg:hidden dark:border-slate-700 dark:bg-slate-950/96">
-          <div className={cx('mx-auto grid max-w-lg gap-0.5 px-1 pt-1', teleNavItems.length >= 7 ? 'grid-cols-7' : 'grid-cols-6')}>
-            {teleNavItems.map((item) => {
+          <div className="mx-auto grid max-w-lg grid-cols-5 gap-0.5 px-1 pt-1">
+            {TELE_MOBILE_PRIMARY_NAV.map((label) => {
+              const item = teleNavItems.find((nav) => nav.label === label) || TELE_NAV_ITEMS.find((nav) => nav.label === label);
+              if (!item) return null;
               const Icon = item.icon;
               const active = activeNav === item.label;
               return (
@@ -1444,25 +1456,103 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                   type="button"
                   onClick={() => navigateTele(item.label)}
                   className={cx(
-                    'flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 pb-[max(10px,env(safe-area-inset-bottom))] transition active:scale-95',
+                    'flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 pb-[max(10px,env(safe-area-inset-bottom))] transition active:scale-95',
                     active ? 'text-[#1d4ed8]' : 'text-[#7b88a2]',
                   )}
                 >
                   <span className={cx(
-                    'grid size-8 place-items-center rounded-full',
+                    'grid size-9 place-items-center rounded-full',
                     active ? 'bg-[#e7efff] text-[#1d4ed8]' : 'bg-transparent',
                   )}
                   >
-                    <Icon className="size-[18px]" strokeWidth={active ? 2.4 : 2} />
+                    <Icon className="size-[20px]" strokeWidth={active ? 2.4 : 2} />
                   </span>
-                  <span className="max-w-full truncate px-0.5 text-[9px] font-extrabold leading-none">
-                    {item.label === 'Profile Details' ? 'Profile' : item.label === 'Daily Tasks' ? 'Tasks' : item.label}
+                  <span className="max-w-full truncate px-0.5 text-[10px] font-extrabold leading-none">
+                    {item.label === 'My Leads' ? 'Leads' : item.label}
                   </span>
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => setMobileMoreOpen(true)}
+              className={cx(
+                'flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 pb-[max(10px,env(safe-area-inset-bottom))] transition active:scale-95',
+                TELE_MOBILE_MORE_NAV.includes(activeNav) || mobileMoreOpen ? 'text-[#1d4ed8]' : 'text-[#7b88a2]',
+              )}
+            >
+              <span className={cx(
+                'grid size-9 place-items-center rounded-full',
+                TELE_MOBILE_MORE_NAV.includes(activeNav) || mobileMoreOpen ? 'bg-[#e7efff] text-[#1d4ed8]' : 'bg-transparent',
+              )}
+              >
+                <Menu className="size-[20px]" strokeWidth={TELE_MOBILE_MORE_NAV.includes(activeNav) || mobileMoreOpen ? 2.4 : 2} />
+              </span>
+              <span className="text-[10px] font-extrabold leading-none">More</span>
+            </button>
           </div>
         </nav>
+
+        {mobileMoreOpen ? (
+          <>
+            <button
+              type="button"
+              aria-label="Close more menu"
+              className="fixed inset-0 z-70 bg-black/35 lg:hidden"
+              onClick={() => setMobileMoreOpen(false)}
+            />
+            <div className="fixed inset-x-0 bottom-0 z-80 rounded-t-[22px] border border-[#e2e9f3] bg-white px-3 pb-[max(16px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_40px_rgba(15,39,92,0.18)] lg:hidden">
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#d9e4f2]" />
+              <p className="px-1 pb-2 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">More options</p>
+              <div className="grid gap-1.5">
+                {TELE_MOBILE_MORE_NAV.filter((label) => teleNavItems.some((item) => item.label === label)).map((label) => {
+                  const item = TELE_NAV_ITEMS.find((nav) => nav.label === label);
+                  if (!item) return null;
+                  const Icon = item.icon;
+                  const active = activeNav === item.label;
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => navigateTele(item.label)}
+                      className={cx(
+                        'flex h-12 items-center gap-3 rounded-[12px] px-3.5 text-left text-[14px] font-extrabold transition',
+                        active ? 'bg-[#e7efff] text-[#1d4ed8]' : 'bg-[#f8fafd] text-[#1e3261] active:bg-[#eef3fb]',
+                      )}
+                    >
+                      <span className={cx('grid size-9 place-items-center rounded-full', active ? 'bg-white text-[#1d4ed8]' : 'bg-white text-[#53647f]')}>
+                        <Icon className="size-4" />
+                      </span>
+                      {item.label === 'Profile Details' ? 'Profile' : item.label === 'Daily Tasks' ? 'Daily Tasks' : item.label}
+                    </button>
+                  );
+                })}
+                {onToggleTheme ? (
+                  <button
+                    type="button"
+                    onClick={() => { onToggleTheme(); setMobileMoreOpen(false); }}
+                    className="flex h-12 items-center gap-3 rounded-[12px] bg-[#f8fafd] px-3.5 text-left text-[14px] font-extrabold text-[#1e3261] active:bg-[#eef3fb]"
+                  >
+                    <span className="grid size-9 place-items-center rounded-full bg-white text-[#53647f]">
+                      {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                    </span>
+                    {isDark ? 'Light mode' : 'Dark mode'}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => { setMobileMoreOpen(false); onLogout?.(); }}
+                  className="flex h-12 items-center gap-3 rounded-[12px] bg-[#fff5f5] px-3.5 text-left text-[14px] font-extrabold text-[#dc2626] active:bg-[#feecec]"
+                >
+                  <span className="grid size-9 place-items-center rounded-full bg-white text-[#dc2626]">
+                    <LogOut className="size-4" />
+                  </span>
+                  Logout
+                </button>
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
 
       {historyLead && (
@@ -1608,65 +1698,159 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
 
   return (
     <section className="rounded-[14px] border border-[#e2e9f3] bg-white p-2.5 shadow-[0_10px_26px_rgba(23,43,77,0.06)] sm:p-3">
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-display text-[16px] font-extrabold text-[#102446]">{title}</h2>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={() => onAddFollowUp(null)}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[9px] border border-[#1d4ed8] bg-white px-3 text-[12.5px] font-extrabold text-[#1d4ed8] transition hover:bg-[#e7efff]"
+              className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border border-[#1d4ed8] bg-white px-3 text-[13px] font-extrabold text-[#1d4ed8] transition active:bg-[#e7efff] sm:h-9 sm:rounded-[9px] sm:text-[12.5px]"
             >
               <Phone className="size-3.5 shrink-0" />
-              Add Follow-up
+              Follow-up
             </button>
             <button
               type="button"
               onClick={onAddLead}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[9px] bg-[#1d4ed8] px-3 text-[12.5px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
+              className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-[11px] bg-[#1d4ed8] px-3 text-[13px] font-extrabold text-white transition active:bg-[#1a3fb0] sm:h-9 sm:rounded-[9px] sm:text-[12.5px]"
             >
               <Plus className="size-3.5 shrink-0" />
-              Add New Lead
+              Add Lead
             </button>
           </div>
         </div>
-        <div className="tele-leads-filters flex flex-row flex-wrap items-center gap-2">
-          <label className="flex h-9 min-w-[180px] flex-1 items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3">
+        <div className="tele-leads-filters grid gap-2 sm:flex sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="flex h-11 min-w-0 items-center gap-2 rounded-[11px] border border-[#dbe4f0] bg-white px-3 sm:h-9 sm:min-w-[180px] sm:flex-1 sm:rounded-[9px]">
             <Search className="size-4 shrink-0 text-[#8a98af]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              placeholder="Search by name, mobile, project..."
-              className="w-full min-w-0 bg-transparent text-[13px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#8a98af]"
+              placeholder="Search name, mobile, project..."
+              className="w-full min-w-0 bg-transparent text-[14px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#8a98af] sm:text-[13px]"
             />
           </label>
-          <select
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="h-9 w-[140px] shrink-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
-          >
-            {['All', ...TELE_LEAD_STATUSES].map((option) => (
-              <option key={option} value={option}>{option === 'All' ? 'All Status' : option}</option>
-            ))}
-          </select>
-          <select
-            value={addByFilter}
-            onChange={(e) => { setAddByFilter(e.target.value); setPage(1); }}
-            className="h-9 min-w-[150px] shrink-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
-            aria-label="Filter by Add By"
-          >
-            <option value="All">Add By: All</option>
-            {addByOptions.map((person) => (
-              <option key={person.id} value={String(person.id)}>
-                Add By: {person.name}
-              </option>
-            ))}
-          </select>
+          <div className="grid grid-cols-2 gap-2 sm:contents">
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+              className="h-11 w-full rounded-[11px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none sm:h-9 sm:w-[140px] sm:shrink-0 sm:rounded-[9px]"
+            >
+              {['All', ...TELE_LEAD_STATUSES].map((option) => (
+                <option key={option} value={option}>{option === 'All' ? 'All Status' : option}</option>
+              ))}
+            </select>
+            <select
+              value={addByFilter}
+              onChange={(e) => { setAddByFilter(e.target.value); setPage(1); }}
+              className="h-11 w-full rounded-[11px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none sm:h-9 sm:min-w-[150px] sm:shrink-0 sm:rounded-[9px]"
+              aria-label="Filter by Add By"
+            >
+              <option value="All">Add By: All</option>
+              {addByOptions.map((person) => (
+                <option key={person.id} value={String(person.id)}>
+                  Add By: {person.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      <div className="crm-table-scroll mt-2 overflow-x-auto">
+      {/* Mobile lead cards — every action visible */}
+      <div className="mt-3 flex flex-col gap-2.5 lg:hidden">
+        {!leadsLoaded ? (
+          <p className="rounded-[12px] bg-[#f8fbff] px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading leads...</p>
+        ) : null}
+        {leadsLoaded && pageLeads.length === 0 ? (
+          <p className="rounded-[12px] bg-[#f8fbff] px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</p>
+        ) : null}
+        {pageLeads.map((lead) => {
+          const isOwnLead = isSuperAdmin || (
+            currentUserId != null && String(lead.created_by) === String(currentUserId)
+          );
+          const dialOk = Boolean(String(lead.mobile_number || '').replace(/\D/g, ''));
+          return (
+            <article key={lead.id} className="overflow-hidden rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
+              <button type="button" onClick={() => onView(lead)} className="flex w-full items-start gap-3 px-3.5 pb-2 pt-3.5 text-left active:bg-[#f8fbff]">
+                <span className="mt-0.5 grid size-11 shrink-0 place-items-center rounded-full bg-[#123c8f] text-[12px] font-extrabold text-white">
+                  {(lead.customer_name || 'NA').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-extrabold leading-snug text-[#1e3261]">{lead.customer_name}</span>
+                  <span className="mt-0.5 block text-[12px] font-bold text-[#53647f]">{lead.mobile_number || 'No mobile'}{lead.project_name ? ` · ${lead.project_name}` : ''}</span>
+                  <span className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <StatusPill value={teleDisplayStatus(lead)} />
+                    <span className="text-[11px] font-semibold text-[#8895ab]">Next · {formatDateTime(lead.next_follow_up)}</span>
+                  </span>
+                  {lead.created_by_name ? (
+                    <span className="mt-1 block text-[11px] font-semibold text-[#a5b1c7]">Added by {lead.created_by_name}</span>
+                  ) : null}
+                </span>
+                <ChevronRight className="mt-1 size-5 shrink-0 text-[#b0bdd4]" />
+              </button>
+              <div className="grid grid-cols-4 gap-1 border-t border-[#eef2f8] bg-[#fbfcfe] p-1.5">
+                <button
+                  type="button"
+                  disabled={!dialOk}
+                  onClick={() => { if (!dialTeleMobile(lead.mobile_number)) { /* no-op */ } }}
+                  className="inline-flex h-10 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[10px] font-extrabold text-[#0d9f4a] transition active:bg-[#e8f8eb] disabled:opacity-40"
+                >
+                  <Phone className="size-3.5" />
+                  Call
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAddFollowUp(lead)}
+                  className="inline-flex h-10 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[10px] font-extrabold text-[#1d4ed8] transition active:bg-[#e7efff]"
+                >
+                  <StickyNote className="size-3.5" />
+                  Log
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onView(lead)}
+                  className="inline-flex h-10 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[10px] font-extrabold text-[#53647f] transition active:bg-[#eef3fb]"
+                >
+                  <Eye className="size-3.5" />
+                  View
+                </button>
+                {isOwnLead ? (
+                  <button
+                    type="button"
+                    onClick={() => onEdit(lead)}
+                    className="inline-flex h-10 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[10px] font-extrabold text-[#53647f] transition active:bg-[#eef3fb]"
+                  >
+                    <Pencil className="size-3.5" />
+                    Edit
+                  </button>
+                ) : (
+                  <span className="inline-flex h-10 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[10px] font-extrabold text-[#b0bdd4]">
+                    <MoreVertical className="size-3.5" />
+                    —
+                  </span>
+                )}
+              </div>
+              {isOwnLead ? (
+                <div className="flex gap-1.5 border-t border-[#eef2f8] px-2 pb-2 pt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onDelete(lead)}
+                    className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-[#ffd5d5] bg-white text-[12px] font-extrabold text-[#ef4444] active:bg-[#fff5f5]"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete
+                  </button>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+
+      {/* Desktop table */}
+      <div className="crm-table-scroll mt-2 hidden overflow-x-auto lg:block">
         <table className="crm-table tele-leads-table crm-table--lead-dense w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-[#e8eef6] text-[11px] font-extrabold uppercase tracking-[0.04em] text-[#7585a2]">
@@ -1689,7 +1873,6 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
               <tr><td colSpan={9} className="px-2.5 py-6 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</td></tr>
             )}
             {pageLeads.map((lead, index) => {
-              // Tele may edit/delete only leads they personally added.
               const isOwnLead = isSuperAdmin || (
                 currentUserId != null && String(lead.created_by) === String(currentUserId)
               );
@@ -2103,37 +2286,39 @@ function TeleFollowUpsPage({
                   : 'Every call and WhatsApp note is saved here. Nothing overwrites old history.'}
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label className="flex h-10 min-w-[220px] items-center gap-2 rounded-[9px] border border-[#dbe4f0] bg-white px-3">
+          <div className="flex flex-col gap-2">
+            <label className="flex h-11 w-full items-center gap-2 rounded-[11px] border border-[#dbe4f0] bg-white px-3 sm:h-10 sm:min-w-[220px] sm:rounded-[9px]">
               <Search className="size-4 text-[#7585a2]" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search customer, note, outcome..."
-                className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[#1f2d44] outline-none"
+                className="min-w-0 flex-1 bg-transparent text-[14px] font-semibold text-[#1f2d44] outline-none sm:text-[13px]"
               />
             </label>
-            <select
-              value={addByFilter}
-              onChange={(e) => setAddByFilter(e.target.value)}
-              className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none"
-              aria-label="Filter by Add By"
-            >
-              <option value="All">Add By: All</option>
-              {addByOptions.map((person) => (
-                <option key={person.id} value={String(person.id)}>
-                  Add By: {person.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => onAddFollowUp(null)}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#1d4ed8] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#1a3fb0]"
-            >
-              <Plus className="size-4" />
-              Log Follow-up
-            </button>
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-row sm:items-center">
+              <select
+                value={addByFilter}
+                onChange={(e) => setAddByFilter(e.target.value)}
+                className="h-11 w-full rounded-[11px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none sm:h-10 sm:w-auto sm:rounded-[9px]"
+                aria-label="Filter by Add By"
+              >
+                <option value="All">Add By: All</option>
+                {addByOptions.map((person) => (
+                  <option key={person.id} value={String(person.id)}>
+                    Add By: {person.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => onAddFollowUp(null)}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-[#1d4ed8] px-4 text-[14px] font-extrabold text-white transition active:bg-[#1a3fb0] sm:h-10 sm:w-auto sm:rounded-[9px] sm:text-[13px]"
+              >
+                <Plus className="size-4" />
+                Log Follow-up
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2212,7 +2397,20 @@ function TeleFollowUpsPage({
                       )}
                     </div>
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
+                  <div className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0 sm:flex-wrap sm:items-center sm:gap-2 md:flex-col md:items-end">
+                    {canOperate ? (
+                      <button
+                        type="button"
+                        onClick={() => onAlertCall?.(item)}
+                        className={cx(
+                          'inline-flex h-10 items-center justify-center gap-1 rounded-[10px] px-2 text-[11px] font-extrabold text-white transition sm:h-9 sm:gap-1.5 sm:px-3 sm:text-[12px]',
+                          isExtraAlert ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : isTodayAlert ? 'bg-[#f59e0b] hover:bg-[#d97706]' : 'bg-[#1d4ed8] hover:bg-[#1a3fb0]',
+                        )}
+                      >
+                        <Phone className="size-3.5" />
+                        Call
+                      </button>
+                    ) : null}
                     {canOperate ? (
                       <button
                         type="button"
@@ -2225,37 +2423,24 @@ function TeleFollowUpsPage({
                               mobile_number: item.lead_mobile_number,
                             })
                         )}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#1d4ed8] bg-white px-3 text-[12px] font-extrabold text-[#1d4ed8] transition hover:bg-[#e7efff]"
+                        className="inline-flex h-10 items-center justify-center gap-1 rounded-[10px] border border-[#1d4ed8] bg-white px-2 text-[11px] font-extrabold text-[#1d4ed8] transition active:bg-[#e7efff] sm:h-9 sm:gap-1.5 sm:px-3 sm:text-[12px]"
                       >
                         <StickyNote className="size-3.5" />
-                        Log Follow-up
+                        Log
                       </button>
                     ) : (
-                      <span className="inline-flex h-9 items-center rounded-[8px] px-3 text-[11px] font-bold uppercase tracking-wide text-[#a5b1c7]">
+                      <span className="inline-flex h-10 items-center justify-center rounded-[10px] px-2 text-[10px] font-bold uppercase tracking-wide text-[#a5b1c7] sm:h-9 sm:px-3 sm:text-[11px]">
                         View only
                       </span>
                     )}
                     <button
                       type="button"
                       onClick={() => onViewLead(item.lead)}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe4f0] bg-white px-3 text-[12px] font-extrabold text-[#1d4ed8] transition hover:bg-[#f8fbff]"
+                      className="inline-flex h-10 items-center justify-center gap-1 rounded-[10px] border border-[#dbe4f0] bg-white px-2 text-[11px] font-extrabold text-[#1d4ed8] transition active:bg-[#f8fbff] sm:h-9 sm:gap-1.5 sm:px-3 sm:text-[12px]"
                     >
                       <Eye className="size-3.5" />
-                      Full Timeline
+                      Timeline
                     </button>
-                    {canOperate ? (
-                      <button
-                        type="button"
-                        onClick={() => onAlertCall?.(item)}
-                        className={cx(
-                          'inline-flex h-9 items-center gap-1.5 rounded-[8px] px-3 text-[12px] font-extrabold text-white transition',
-                          isExtraAlert ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : isTodayAlert ? 'bg-[#f59e0b] hover:bg-[#d97706]' : 'bg-[#1d4ed8] hover:bg-[#1a3fb0]',
-                        )}
-                      >
-                        <Phone className="size-3.5" />
-                        Call Now
-                      </button>
-                    ) : null}
                   </div>
                 </div>
               </article>
