@@ -435,8 +435,6 @@ class SiteSurvey(models.Model):
         ('Completed', 'Completed'),
     ]
     ROOF_TYPE_CHOICES = [
-        ('RCC', 'RCC'),
-        ('Tin Shed', 'Tin Shed'),
         ('RBC Roof', 'RBC Roof'),
         ('Ground Mount', 'Ground Mount'),
     ]

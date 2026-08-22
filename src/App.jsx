@@ -14790,7 +14790,7 @@ function getMultiPhotoVisibleCount(slots, photos) {
   const filled = slots.filter((slot) => (photos ?? []).some((photo) => photo.slot === slot && photo.image)).length;
   return Math.min(slots.length, Math.max(1, filled));
 }
-const SURVEY_ROOF_TYPE_OPTIONS = ['RCC', 'Tin Shed', 'RBC Roof', 'Ground Mount'];
+const SURVEY_ROOF_TYPE_OPTIONS = ['RBC Roof', 'Ground Mount'];
 const SURVEY_PROJECT_CATEGORY_OPTIONS = ['Residential', 'Commercial', 'Industrial', 'Other'];
 const SURVEY_PURPOSE_OPTIONS = ['On-Grid', 'Off-Grid', 'Hybrid'];
 const SURVEY_ROOF_CONDITION_OPTIONS = ['Excellent', 'Good', 'Average', 'Poor'];
@@ -15176,7 +15176,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
         supply_voltage: data.supply_voltage || '',
         building_type: data.building_type || '',
         floor_count: data.floor_count || '',
-        roof_type: data.roof_type || '',
+        roof_type: ['RCC', 'Tin Shed'].includes(data.roof_type) ? '' : (data.roof_type || ''),
         roof_height_ft: data.roof_height_ft || '',
         rooftop_area_sqft: data.rooftop_area_sqft || '',
         roof_length_ft: data.roof_length_ft || '',
@@ -15698,72 +15698,57 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             {!survey?.id ? <p className="mt-2 text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
           </SurveySection>
 
-          <section className="rounded-[14px] border border-[#8fa0b8] bg-white p-4 sm:p-5">
-            <label className="flex cursor-pointer items-center gap-3">
-              <input
-                type="checkbox"
-                checked={form.shadow_present}
-                onChange={(e) => updateField('shadow_present', e.target.checked)}
-                className="size-5 shrink-0 accent-[#0b65e5]"
-              />
-              <span className="text-[14px] font-extrabold text-[#1e3261]">5. Shadow Analysis</span>
-            </label>
-            {form.shadow_present ? (
-              <div className="mt-3 space-y-3 border-t border-[#e7eef7] pt-3">
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  <SurveyCheckbox label="Water Tank Present" checked={form.water_tank_present} onChange={(v) => updateField('water_tank_present', v)} />
-                  <SurveyCheckbox label="Tree Nearby" checked={form.tree_nearby} onChange={(v) => updateField('tree_nearby', v)} />
-                  <SurveyCheckbox label="Obstacle Present" checked={form.obstacle_present} onChange={(v) => updateField('obstacle_present', v)} />
+          <SurveySection number={5} title="Shadow Analysis">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <SurveyCheckbox label="Water Tank Present" checked={form.water_tank_present} onChange={(v) => updateField('water_tank_present', v)} />
+              <SurveyCheckbox label="Tree Nearby" checked={form.tree_nearby} onChange={(v) => updateField('tree_nearby', v)} />
+              <SurveyCheckbox label="Obstacle Present" checked={form.obstacle_present} onChange={(v) => updateField('obstacle_present', v)} />
+            </div>
+            <div className="overflow-x-auto rounded-[10px] border border-[#e7eef7]">
+              <table className="w-full min-w-[520px] text-left text-[12px]">
+                <thead className="bg-[#f8fafc] text-[11px] font-extrabold text-[#7386a3]">
+                  <tr>
+                    <th className="px-3 py-2">Time</th>
+                    <th className="px-3 py-2">From</th>
+                    <th className="px-3 py-2">To</th>
+                    <th className="px-3 py-2">Shadow %</th>
+                  </tr>
+                </thead>
+                <tbody className="font-bold text-[#1e3261]">
+                  {[
+                    { label: 'Morning', from: 'shadow_morning_from', to: 'shadow_morning_to', pct: 'shadow_morning_percent' },
+                    { label: 'Afternoon', from: 'shadow_afternoon_from', to: 'shadow_afternoon_to', pct: 'shadow_afternoon_percent' },
+                    { label: 'Evening', from: 'shadow_evening_from', to: 'shadow_evening_to', pct: 'shadow_evening_percent' },
+                  ].map((row) => (
+                    <tr key={row.label} className="border-t border-[#eef2f8]">
+                      <td className="px-3 py-2">{row.label}</td>
+                      <td className="px-2 py-1.5"><input value={form[row.from]} onChange={(e) => updateField(row.from, e.target.value)} placeholder="e.g. 8:00" className={surveyFieldClass} /></td>
+                      <td className="px-2 py-1.5"><input value={form[row.to]} onChange={(e) => updateField(row.to, e.target.value)} placeholder="e.g. 11:00" className={surveyFieldClass} /></td>
+                      <td className="px-2 py-1.5"><input value={form[row.pct]} onChange={(e) => updateField(row.pct, e.target.value)} placeholder="%" className={surveyFieldClass} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {form.obstacle_present ? (
+              <>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <SurveyCheckbox label="Mobile Tower" checked={form.obstacle_mobile_tower} onChange={(v) => updateField('obstacle_mobile_tower', v)} />
+                  <SurveyCheckbox label="Building" checked={form.obstacle_building} onChange={(v) => updateField('obstacle_building', v)} />
+                  <SurveyCheckbox label="Electric Pole" checked={form.obstacle_electric_pole} onChange={(v) => updateField('obstacle_electric_pole', v)} />
+                  <SurveyCheckbox label="Other Obstacle" checked={form.obstacle_other} onChange={(v) => updateField('obstacle_other', v)} />
                 </div>
-                <div className="overflow-x-auto rounded-[10px] border border-[#e7eef7]">
-                  <table className="w-full min-w-[520px] text-left text-[12px]">
-                    <thead className="bg-[#f8fafc] text-[11px] font-extrabold text-[#7386a3]">
-                      <tr>
-                        <th className="px-3 py-2">Time</th>
-                        <th className="px-3 py-2">From</th>
-                        <th className="px-3 py-2">To</th>
-                        <th className="px-3 py-2">Shadow %</th>
-                      </tr>
-                    </thead>
-                    <tbody className="font-bold text-[#1e3261]">
-                      {[
-                        { label: 'Morning', from: 'shadow_morning_from', to: 'shadow_morning_to', pct: 'shadow_morning_percent' },
-                        { label: 'Afternoon', from: 'shadow_afternoon_from', to: 'shadow_afternoon_to', pct: 'shadow_afternoon_percent' },
-                        { label: 'Evening', from: 'shadow_evening_from', to: 'shadow_evening_to', pct: 'shadow_evening_percent' },
-                      ].map((row) => (
-                        <tr key={row.label} className="border-t border-[#eef2f8]">
-                          <td className="px-3 py-2">{row.label}</td>
-                          <td className="px-2 py-1.5"><input value={form[row.from]} onChange={(e) => updateField(row.from, e.target.value)} placeholder="e.g. 8:00" className={surveyFieldClass} /></td>
-                          <td className="px-2 py-1.5"><input value={form[row.to]} onChange={(e) => updateField(row.to, e.target.value)} placeholder="e.g. 11:00" className={surveyFieldClass} /></td>
-                          <td className="px-2 py-1.5"><input value={form[row.pct]} onChange={(e) => updateField(row.pct, e.target.value)} placeholder="%" className={surveyFieldClass} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {form.obstacle_present ? (
-                  <>
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                      <SurveyCheckbox label="Mobile Tower" checked={form.obstacle_mobile_tower} onChange={(v) => updateField('obstacle_mobile_tower', v)} />
-                      <SurveyCheckbox label="Building" checked={form.obstacle_building} onChange={(v) => updateField('obstacle_building', v)} />
-                      <SurveyCheckbox label="Electric Pole" checked={form.obstacle_electric_pole} onChange={(v) => updateField('obstacle_electric_pole', v)} />
-                      <SurveyCheckbox label="Other Obstacle" checked={form.obstacle_other} onChange={(v) => updateField('obstacle_other', v)} />
-                    </div>
-                    {form.obstacle_other ? (
-                      <SurveyField label="Other Obstacle Details">
-                        <input value={form.obstacle_other_text} onChange={(e) => updateField('obstacle_other_text', e.target.value)} className={surveyFieldClass} />
-                      </SurveyField>
-                    ) : null}
-                  </>
+                {form.obstacle_other ? (
+                  <SurveyField label="Other Obstacle Details">
+                    <input value={form.obstacle_other_text} onChange={(e) => updateField('obstacle_other_text', e.target.value)} className={surveyFieldClass} />
+                  </SurveyField>
                 ) : null}
-                <SurveyField label="Shadow Analysis Remarks">
-                  <textarea value={form.shadow_analysis_remarks} onChange={(e) => updateField('shadow_analysis_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
-                </SurveyField>
-              </div>
-            ) : (
-              <p className="mt-2 text-[12px] font-bold text-[#7585a2]">Tick the checkbox to open shadow analysis details.</p>
-            )}
-          </section>
+              </>
+            ) : null}
+            <SurveyField label="Shadow Analysis Remarks">
+              <textarea value={form.shadow_analysis_remarks} onChange={(e) => updateField('shadow_analysis_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            </SurveyField>
+          </SurveySection>
 
           <SurveySection number={6} title="Earthing Details">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
