@@ -15,15 +15,34 @@ def is_lead_scoped(user):
 def lead_owner_filter(user, prefix=''):
     """Queryset filter kwargs scoping to this user's own leads, keyed by role.
 
-    A Sales Executive owns whatever leads are assigned to them; a Tele Sales
-    Executive owns leads they personally added. (Assigned tele leads are also
-    operable via `is_own_lead` / Q filters where an OR is needed.) Returns
-    None if the user isn't lead-scoped (i.e. they see everything)."""
+    Prefer `lead_owner_q()` when both created-by and assigned-to must match
+    (OR). This helper remains for simple single-field scopes. Returns None if
+    the user isn't lead-scoped (i.e. they see everything)."""
     role = getattr(getattr(user, 'role', None), 'name', '')
     if role == 'Sales Executive':
+        # Sales Executive uses OR (created | assigned) — callers should use
+        # lead_owner_q(); keep assigned_to here as a conservative fallback.
         return {f'{prefix}assigned_to': user}
     if role == 'Tele Sales Executive':
         return {f'{prefix}created_by': user}
+    return None
+
+
+def lead_owner_q(user, prefix=''):
+    """Q() scoping lead-scoped roles to leads they created or are assigned.
+
+    `prefix` is prepended to field names (e.g. 'lead__' for FollowUp). Returns
+    None when the user is not lead-scoped."""
+    from django.db.models import Q
+
+    role = getattr(getattr(user, 'role', None), 'name', '')
+    created = f'{prefix}created_by'
+    assigned = f'{prefix}assigned_to'
+    if role == 'Sales Executive':
+        return Q(**{created: user}) | Q(**{assigned: user})
+    if role == 'Tele Sales Executive':
+        # Unassigned leads they created, or leads explicitly assigned to them.
+        return Q(**{created: user, f'{prefix}assigned_to__isnull': True}) | Q(**{assigned: user})
     return None
 
 
@@ -34,7 +53,7 @@ def is_own_lead(user, lead):
     directly apply. Non-scoped roles always own everything."""
     role = getattr(getattr(user, 'role', None), 'name', '')
     if role == 'Sales Executive':
-        return lead.assigned_to_id == user.id
+        return lead.assigned_to_id == user.id or lead.created_by_id == user.id
     if role == 'Tele Sales Executive':
         # Unassigned leads they created, or leads explicitly assigned to them.
         # Once a manager assigns the lead to a field Sales Executive, tele

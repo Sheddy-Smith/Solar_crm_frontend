@@ -46,6 +46,7 @@ import { hasModuleAccess } from './settingsHubPages.jsx';
 import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
 
 export const TELE_ROLE_NAME = 'Tele Sales Executive';
+export const SALES_EXEC_ROLE_NAME = 'Sales Executive';
 
 /** Accept exact name plus common plural / typo variants from admin UI. */
 export function isTeleExecutiveRole(roleName) {
@@ -56,6 +57,13 @@ export function isTeleExecutiveRole(roleName) {
     n === 'tele sales exccutives' ||
     n === 'telecaller'
   );
+}
+
+/** Roles allowed into the Tele Executive portal (not CRM Operations). */
+export function canAccessTelePortal(roleName) {
+  const n = String(roleName || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (isTeleExecutiveRole(roleName)) return true;
+  return n === 'sales executive' || n === 'sales executives';
 }
 
 // ─── Shared bits ──────────────────────────────────────────────────────────────
@@ -844,11 +852,11 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
       }
       const roleName = data?.user?.role_name || '';
       const isSuperAdmin = Boolean(data?.user?.is_super_admin);
-      // Only Tele Sales Executives (plus Super Admin for administration)
-      // may enter the Tele Executive portal.
-      if (!isTeleExecutiveRole(roleName) && !isSuperAdmin) {
+      // Tele Sales + Sales Executives (plus Super Admin) may enter this portal.
+      // Each role only sees leads they created or that are assigned to them.
+      if (!canAccessTelePortal(roleName) && !isSuperAdmin) {
         authApi.logout();
-        setLoginError('This portal is only for Tele Sales Executives. Please use the CRM Operations portal.');
+        setLoginError('This portal is for Tele Sales / Sales Executives. Please use the CRM Operations portal.');
         return;
       }
       onLogin(data.user);
@@ -892,7 +900,7 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
             </ul>
           </div>
           <p className="relative z-10 mt-auto pt-10 text-[12px] font-semibold text-white/70">
-            Access limited to your own assigned leads and follow-ups.
+            Access limited to leads you added or that are assigned to you.
           </p>
         </section>
 

@@ -15,7 +15,8 @@ from .serializers import (
     LeadSiteSurveySerializer, LeadSurveyPhotoSerializer,
 )
 from apps.accounts.permissions import (
-    HasModulePermission, is_lead_scoped, lead_owner_filter, is_own_lead, can_manage_leads,
+    HasModulePermission, is_lead_scoped, lead_owner_q,
+    is_own_lead, can_manage_leads,
 )
 from .datetime_filters import filter_field_on_local_date, period_created_at_queryset
 from .followup_sync import sync_lead_next_follow_up
@@ -34,18 +35,9 @@ class LeadViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = Lead.objects.select_related('assigned_to', 'created_by', 'site_survey').filter(is_deleted=False)
-        role = getattr(getattr(user, 'role', None), 'name', '')
-        if role == 'Sales Executive':
-            # Sales Executives see only leads assigned to them
-            qs = qs.filter(assigned_to=user)
-        elif role == 'Tele Sales Executive':
-            # Tele portal: only the leads this executive created that are still
-            # unassigned, or leads explicitly assigned to them. Once a manager
-            # hands a lead to a field Sales Executive, it leaves the tele list —
-            # Tele Sales Executives are never valid field assignees.
-            qs = qs.filter(
-                Q(created_by=user, assigned_to__isnull=True) | Q(assigned_to=user)
-            )
+        owner_q = lead_owner_q(user)
+        if owner_q is not None:
+            qs = qs.filter(owner_q)
         return qs
 
     def get_serializer_class(self):
@@ -56,40 +48,34 @@ class LeadViewSet(viewsets.ModelViewSet):
         return LeadListSerializer
 
     def perform_create(self, serializer):
-        # Newly created leads are never auto-assigned to their creator —
-        # they land unassigned in the Manager/Super Admin pool until
-        # explicitly handed out via the `assign` action.
-        if is_lead_scoped(self.request.user):
-            serializer.save(created_by=self.request.user, assigned_to=None)
+        user = self.request.user
+        # Tele Sales: land unassigned in the manager pool.
+        # Sales Executive (tele/CRM): auto-own the lead they personally add.
+        if is_lead_scoped(user):
+            role = getattr(getattr(user, 'role', None), 'name', '')
+            if role == 'Sales Executive':
+                serializer.save(created_by=user, assigned_to=user)
+            else:
+                serializer.save(created_by=user, assigned_to=None)
         else:
-            serializer.save(created_by=self.request.user)
+            serializer.save(created_by=user)
 
     def perform_update(self, serializer):
         user = self.request.user
-        role = getattr(getattr(user, 'role', None), 'name', '')
-        if role == 'Tele Sales Executive' and serializer.instance.created_by_id != user.id:
-            raise PermissionDenied('You can only edit leads you added.')
+        if is_lead_scoped(user) and not is_own_lead(user, serializer.instance):
+            raise PermissionDenied('You can only edit leads you added or that are assigned to you.')
         # Scoped executives cannot reassign leads via PATCH unless they have
         # Lead → Assign in the permission matrix (Settings → Roles).
         if is_lead_scoped(user) and not can_manage_leads(user):
-            locked = {'assigned_to': serializer.instance.assigned_to}
-            # A Sales Executive can update lead details/follow-ups but must never
-            # change the pipeline status — a Won lead stays Won in their account.
-            if role == 'Sales Executive':
-                locked['status'] = serializer.instance.status
-            serializer.save(**locked)
+            serializer.save(assigned_to=serializer.instance.assigned_to)
         else:
             serializer.save()
 
     def perform_destroy(self, instance):
         user = self.request.user
-        role = getattr(getattr(user, 'role', None), 'name', '')
-        if role == 'Tele Sales Executive' and instance.created_by_id != user.id:
-            raise PermissionDenied('You can only delete leads you added.')
-        # Won leads may only be deleted by the management tier (Super Admin /
-        # Admin / Branch Manager). A Sales Executive can never delete a lead.
-        if role == 'Sales Executive':
-            raise PermissionDenied('Sales Executives cannot delete leads.')
+        if is_lead_scoped(user) and not is_own_lead(user, instance):
+            raise PermissionDenied('You can only delete leads you added or that are assigned to you.')
+        # Won leads may only be deleted by the management tier (or Assign perm).
         if instance.status == 'Won' and not can_manage_leads(user):
             raise PermissionDenied('Only a Manager or Super Admin can delete a Won lead.')
         # Soft-delete → CRM Settings Recycle Bin (auto-purge after 30 days).
@@ -173,14 +159,7 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None):
-        # A Sales Executive must never change a lead's pipeline status — the
-        # status their manager set (e.g. Won) stays fixed in their account.
-        role = getattr(getattr(request.user, 'role', None), 'name', '')
-        if role == 'Sales Executive':
-            return Response(
-                {'error': 'Sales Executives cannot change lead status.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        # get_object() already scopes lead-scoped roles to their own leads.
         lead = self.get_object()
         new_status = request.data.get('status')
         if new_status not in dict(Lead.STATUS_CHOICES):
@@ -271,17 +250,9 @@ class FollowUpViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset().filter(is_deleted=False, lead__is_deleted=False)
         user = self.request.user
-        role = getattr(getattr(user, 'role', None), 'name', '')
-        # Match LeadViewSet: tele only sees follow-ups on their unassigned
-        # created leads, or leads assigned to them — not leads already handed
-        # to a field Sales Executive.
-        if role == 'Tele Sales Executive':
-            return qs.filter(
-                Q(lead__created_by=user, lead__assigned_to__isnull=True) | Q(lead__assigned_to=user)
-            )
-        filt = lead_owner_filter(user, prefix='lead__')
-        if filt:
-            qs = qs.filter(**filt)
+        owner_q = lead_owner_q(user, prefix='lead__')
+        if owner_q is not None:
+            return qs.filter(owner_q)
         return qs
 
     def perform_create(self, serializer):
@@ -390,9 +361,9 @@ class QuotationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset().filter(is_deleted=False, lead__is_deleted=False)
         # Sales / Tele Sales Executives see only quotations on their own leads
-        filt = lead_owner_filter(self.request.user, prefix='lead__')
-        if filt:
-            qs = qs.filter(**filt)
+        owner_q = lead_owner_q(self.request.user, prefix='lead__')
+        if owner_q is not None:
+            qs = qs.filter(owner_q)
         return qs
 
     def perform_create(self, serializer):
