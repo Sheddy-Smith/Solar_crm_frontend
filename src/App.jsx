@@ -112,6 +112,7 @@ import {
   ShieldCheck,
   Star,
   Trash2,
+  Truck,
   TrendingUp,
   Trophy,
   Wallet,
@@ -503,7 +504,7 @@ const projectSubItems = [
   'Project List',
   'Project Site Survey',
   'Project Material Planning',
-  'Project Team Assignment',
+  'Project Dispatch',
   'Project Installation',
   'Project Expenses',
 ];
@@ -765,7 +766,7 @@ const projectSubRoutes = {
   'Project Timeline': '/projects/timeline/:projectId',
   'Project Site Survey': '/projects/site-survey/:projectId',
   'Project Installation': '/projects/installation',
-  'Project Team Assignment': '/projects/team-assignment/:projectId',
+  'Project Dispatch': '/projects/dispatch/:projectId',
   'Project Material Planning': '/projects/material-planning/:projectId',
   'Subsidy': '/projects/subsidy/:projectId',
   'Project Work Orders': '/projects/work-orders/:projectId',
@@ -9442,7 +9443,7 @@ function getModuleSubnavLabel(item) {
     return 'Installation';
   }
 
-  if (item === 'Project Team Assignment') {
+  if (item === 'Project Dispatch') {
     return 'Dispatch';
   }
 
@@ -12961,7 +12962,7 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     }
     const directTarget = {
       create: 'Project List',
-      'team-add': 'Project Team Assignment',
+      'team-add': 'Project Team Add',
       'work-order': 'Project Work Orders',
       'expense-create': 'Project Expenses',
       'expense-detail': 'Project Expenses',
@@ -13018,8 +13019,8 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     return <ProjectInstallationPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
-  if (activeSection === 'Project Team Assignment') {
-    return <ProjectTeamAssignmentPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (activeSection === 'Project Dispatch' || activeSection === 'Project Team Assignment') {
+    return <ProjectMaterialDispatchPage activeSection="Project Dispatch" onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Material Planning') {
@@ -21736,789 +21737,431 @@ function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
     </div>
   );
 }
-function ProjectTeamAssignmentPage({ activeSection, onOpenSection, onNotify }) {
-  const TASK_STATUS_OPTIONS = ['Pending', 'In Progress', 'On Hold', 'Completed'];
-  const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
-  const DEPARTMENTS = ['Installation', 'Engineering', 'Electrical', 'Sales', 'Quality', 'Logistics', 'HSE', 'Operations', 'Administration', 'Other'];
-  const EMP_STATUS_OPTIONS = ['Available', 'Assigned', 'In Progress', 'On Leave', 'Completed'];
-  const emptyEmpForm = { name: '', mobile: '', email: '', department: 'Installation', role: '', joining_date: '', status: 'Available', notes: '' };
-  const emptyAssignForm = { employee: '', task_name: '', assigned_date: '', expected_completion: '', priority: 'Medium', progress_percent: 0, status: 'Pending', notes: '' };
+function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNotify }) {
+  const DISPATCH_STATUS = ['Pending', 'Partial', 'Dispatched'];
+  const parseQty = (value) => {
+    const n = Number(String(value ?? '').replace(/,/g, '').trim());
+    return Number.isFinite(n) ? n : 0;
+  };
+  const remainingQty = (row) => Math.max(0, parseQty(row.planned_qty) - parseQty(row.dispatched_qty));
+  const resolveDispatchStatus = (planned, dispatched) => {
+    const p = parseQty(planned);
+    const d = parseQty(dispatched);
+    if (d <= 0) return 'Pending';
+    if (p > 0 && d >= p) return 'Dispatched';
+    return 'Partial';
+  };
+  const statusTone = (status) => (
+    status === 'Dispatched' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
+      : status === 'Partial' ? 'bg-[#fff0dc] text-[#f59e0b]'
+        : 'bg-[#eef2f7] text-[#7585a2]'
+  );
 
-  const [viewMode, setViewMode] = useState('project');
-  const [allEmployees, setAllEmployees] = useState([]);
+  const emptyDispatchForm = {
+    dispatched_qty: '',
+    dispatch_date: formatIsoDate(new Date()),
+    vehicle_no: '',
+    challan_no: '',
+    dispatch_notes: '',
+  };
+
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [loadingRows, setLoadingRows] = useState(false);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
   const [allProjects, setAllProjects] = useState([]);
-  const [saving, setSaving] = useState(false);
-  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [projectPlanCounts, setProjectPlanCounts] = useState({});
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [dispatchModalOpen, setDispatchModalOpen] = useState(false);
+  const [activeRow, setActiveRow] = useState(null);
+  const [form, setForm] = useState(emptyDispatchForm);
+  const [saving, setSaving] = useState(false);
 
-  // Project Wise
-  const [pwProject, setPwProject] = useState(null);
-  const [pwAssignments, setPwAssignments] = useState([]);
-  const [pwLoading, setPwLoading] = useState(false);
-  const [pwPickerOpen, setPwPickerOpen] = useState(false);
-  const [pwPickerSearch, setPwPickerSearch] = useState('');
-  const [pwAssignSearch, setPwAssignSearch] = useState('');
-  const [pwAssignStatus, setPwAssignStatus] = useState('All');
-  const [pwViewOpen, setPwViewOpen] = useState(false);
-  const [pwViewData, setPwViewData] = useState(null);
-  const [pwAssignModalOpen, setPwAssignModalOpen] = useState(false);
-  const [pwEditAssignId, setPwEditAssignId] = useState(null);
-  const [pwAssignForm, setPwAssignForm] = useState(emptyAssignForm);
-
-  // Employee Wise
-  const [ewSelected, setEwSelected] = useState(null);
-  const [ewSummary, setEwSummary] = useState(null);
-  const [ewHistory, setEwHistory] = useState([]);
-  const [ewLoading, setEwLoading] = useState(false);
-  const [ewPickerOpen, setEwPickerOpen] = useState(false);
-  const [ewPickerSearch, setEwPickerSearch] = useState('');
-  const [ewHistSearch, setEwHistSearch] = useState('');
-  const [ewHistStatus, setEwHistStatus] = useState('All');
-  const [ewHistDateFrom, setEwHistDateFrom] = useState('');
-  const [ewHistDateTo, setEwHistDateTo] = useState('');
-  const [ewDetailOpen, setEwDetailOpen] = useState(false);
-  const [ewDetailData, setEwDetailData] = useState(null);
-
-  // Add Employee Modal
-  const [empModalOpen, setEmpModalOpen] = useState(false);
-  const [editEmpId, setEditEmpId] = useState(null);
-  const [empForm, setEmpForm] = useState(emptyEmpForm);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-
-  const loadEmployees = useCallback(async () => {
-    setLoadingEmployees(true);
-    try { const d = await workforceApi.listEmployees({ page_size: 500 }); setAllEmployees(normalizeApiRows(d)); } catch {}
-    finally { setLoadingEmployees(false); }
-  }, []);
-
-  const loadProjects = useCallback(async () => {
-    setLoadingProjects(true);
-    try { const d = await projectApi.list({ page_size: 500 }); setAllProjects(normalizeApiRows(d)); } catch {}
-    finally { setLoadingProjects(false); }
-  }, []);
-
-  useEffect(() => { loadEmployees(); loadProjects(); }, [loadEmployees, loadProjects]);
-
-  const loadPwAssignments = useCallback(async (projId) => {
-    setPwLoading(true);
-    try { const d = await workforceApi.listAssignments({ project: projId, page_size: 500 }); setPwAssignments(normalizeApiRows(d)); } catch { onNotify('Failed to load assignments'); }
-    finally { setPwLoading(false); }
-  }, [onNotify]);
-
-  useEffect(() => { if (pwProject) loadPwAssignments(pwProject.id); }, [pwProject, loadPwAssignments]);
-
-  const loadEwData = useCallback(async (id) => {
-    setEwLoading(true);
+  const loadProjectData = useCallback(async (proj) => {
+    if (!proj) return;
+    setLoadingRows(true);
     try {
-      const [summary, history] = await Promise.all([
-        workforceApi.employeeSummary(id),
-        workforceApi.employeeHistory(id),
-      ]);
-      setEwSummary(summary);
-      setEwHistory(history || []);
-    } catch { onNotify('Failed to load employee history'); }
-    finally { setEwLoading(false); }
-  }, [onNotify]);
-
-  useEffect(() => { if (ewSelected) loadEwData(ewSelected.id); }, [ewSelected, loadEwData]);
-
-  const handleSavePwAssign = async () => {
-    if (!pwAssignForm.employee) { onNotify('Select an employee'); return; }
-    if (!pwAssignForm.task_name.trim()) { onNotify('Task name required'); return; }
-    setSaving(true);
-    try {
-      const payload = { ...pwAssignForm, project: pwProject.id, employee: Number(pwAssignForm.employee), progress_percent: Number(pwAssignForm.progress_percent) || 0 };
-      if (pwEditAssignId !== null) { await workforceApi.updateAssignment(pwEditAssignId, payload); onNotify('Assignment updated'); }
-      else { await workforceApi.createAssignment(payload); onNotify('Assignment created'); }
-      setPwAssignModalOpen(false);
-      loadPwAssignments(pwProject.id);
-      loadEmployees();
-    } catch (e) { onNotify(e.message || 'Save failed'); }
-    finally { setSaving(false); }
-  };
-
-  const handleSaveEmployee = async () => {
-    if (!empForm.name.trim()) { onNotify('Employee name required'); return; }
-    setSaving(true);
-    try {
-      if (editEmpId !== null) { await workforceApi.updateEmployee(editEmpId, empForm); onNotify('Employee updated'); }
-      else { await workforceApi.createEmployee(empForm); onNotify('Employee added'); }
-      setEmpModalOpen(false);
-      loadEmployees();
-    } catch (e) { onNotify(e.message || 'Save failed'); }
-    finally { setSaving(false); }
-  };
-
-  const statusTone = (s) => {
-    if (s === 'Available') return 'green';
-    if (s === 'Assigned' || s === 'In Progress' || s === 'Active') return 'blue';
-    if (s === 'On Leave' || s === 'On Hold' || s === 'Planning') return 'amber';
-    if (s === 'Completed') return 'green';
-    if (s === 'Cancelled') return 'red';
-    return 'amber';
-  };
-  const taskStatusTone = (s) => s === 'Completed' ? 'green' : s === 'In Progress' ? 'blue' : 'amber';
-  const priorityTone = (p) => p === 'High' ? 'red' : p === 'Medium' ? 'amber' : 'green';
-
-  const pwFiltered = pwAssignments.filter((a) => {
-    if (pwAssignStatus !== 'All' && a.status !== pwAssignStatus) return false;
-    if (pwAssignSearch) {
-      const q = pwAssignSearch.toLowerCase();
-      if (!(a.employee_name || '').toLowerCase().includes(q) && !(a.employee_emp_id || '').toLowerCase().includes(q) && !(a.task_name || '').toLowerCase().includes(q)) return false;
+      const planData = await materialPlanApi.list({ project: proj.id, page_size: 500 });
+      setRows(normalizeApiRows(planData));
+    } catch {
+      onNotify('Failed to load planned materials');
+    } finally {
+      setLoadingRows(false);
     }
-    return true;
+  }, [onNotify]);
+
+  useEffect(() => {
+    if (selectedProject) loadProjectData(selectedProject);
+  }, [selectedProject, loadProjectData]);
+
+  const openProjectPicker = async () => {
+    setProjectPickerOpen(true);
+    if (allProjects.length > 0) return;
+    setLoadingProjects(true);
+    try {
+      const [projData, planData] = await Promise.all([
+        projectApi.list({ page_size: 200 }),
+        materialPlanApi.list({ page_size: 1000 }),
+      ]);
+      setAllProjects(normalizeApiRows(projData));
+      const counts = {};
+      normalizeApiRows(planData).forEach((p) => {
+        counts[p.project] = (counts[p.project] || 0) + 1;
+      });
+      setProjectPlanCounts(counts);
+    } catch {
+      onNotify('Failed to load projects');
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  const handleProjectSelect = (proj) => {
+    setSelectedProject(proj);
+    setProjectPickerOpen(false);
+    setProjectSearch('');
+    setRows([]);
+  };
+
+  const openDispatch = (row) => {
+    setActiveRow(row);
+    setForm({
+      dispatched_qty: row.dispatched_qty || row.planned_qty || '',
+      dispatch_date: row.dispatch_date || formatIsoDate(new Date()),
+      vehicle_no: row.vehicle_no || '',
+      challan_no: row.challan_no || '',
+      dispatch_notes: row.dispatch_notes || '',
+    });
+    setDispatchModalOpen(true);
+  };
+
+  const handleSaveDispatch = async () => {
+    if (!activeRow) return;
+    if (!form.dispatched_qty && form.dispatched_qty !== 0) {
+      onNotify('Dispatched quantity is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const dispatch_status = resolveDispatchStatus(activeRow.planned_qty, form.dispatched_qty);
+      const updated = await materialPlanApi.update(activeRow.id, {
+        dispatched_qty: String(form.dispatched_qty),
+        dispatch_status,
+        dispatch_date: form.dispatch_date || null,
+        vehicle_no: form.vehicle_no,
+        challan_no: form.challan_no,
+        dispatch_notes: form.dispatch_notes,
+      });
+      setRows((prev) => prev.map((r) => (r.id === activeRow.id ? { ...r, ...updated } : r)));
+      setDispatchModalOpen(false);
+      setActiveRow(null);
+      onNotify(dispatch_status === 'Dispatched' ? 'Material fully dispatched' : 'Dispatch updated');
+    } catch (error) {
+      onNotify(error.message || 'Failed to save dispatch');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const filteredRows = rows.filter((row) => {
+    const q = query.trim().toLowerCase();
+    const matchesQuery = !q
+      || String(row.category || '').toLowerCase().includes(q)
+      || String(row.items || '').toLowerCase().includes(q)
+      || String(row.challan_no || '').toLowerCase().includes(q);
+    const status = row.dispatch_status || resolveDispatchStatus(row.planned_qty, row.dispatched_qty);
+    const matchesStatus = statusFilter === 'All' || status === statusFilter;
+    return matchesQuery && matchesStatus;
   });
 
-  const ewFiltered = ewHistory.filter((r) => {
-    if (ewHistStatus !== 'All' && r.status !== ewHistStatus) return false;
-    if (ewHistSearch) {
-      const q = ewHistSearch.toLowerCase();
-      if (!(r.project_name || '').toLowerCase().includes(q) && !(r.task_name || '').toLowerCase().includes(q)) return false;
-    }
-    if (ewHistDateFrom && r.assigned_date && r.assigned_date < ewHistDateFrom) return false;
-    if (ewHistDateTo && r.assigned_date && r.assigned_date > ewHistDateTo) return false;
-    return true;
+  const stats = {
+    total: rows.length,
+    pending: rows.filter((r) => (r.dispatch_status || 'Pending') === 'Pending').length,
+    partial: rows.filter((r) => r.dispatch_status === 'Partial').length,
+    dispatched: rows.filter((r) => r.dispatch_status === 'Dispatched').length,
+  };
+
+  const filteredProjects = allProjects.filter((p) => {
+    const q = projectSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [p.project_name, p.customer_name, p.project_id, p.site]
+      .some((v) => String(v || '').toLowerCase().includes(q));
   });
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <PageHeading
-        title="Team Assignment"
+        title="Material Dispatch"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Team Assignment' },
+          { label: 'Dispatch' },
         ]}
         actions={(
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setViewMode('project')} className={cx('inline-flex h-11 items-center gap-2 rounded-[8px] border px-4 text-[13px] font-extrabold transition', viewMode === 'project' ? 'border-[#0b65e5] bg-[#0b65e5] text-white' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
-              <FolderKanban className="size-4" />Project Wise
+          <>
+            <button
+              type="button"
+              onClick={() => onOpenSection('Project Material Planning')}
+              className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-4 text-[14px] font-semibold text-[#284276]"
+            >
+              <ClipboardList className="size-4" />
+              Material Planning
             </button>
-            <button type="button" onClick={() => setViewMode('employee')} className={cx('inline-flex h-11 items-center gap-2 rounded-[8px] border px-4 text-[13px] font-extrabold transition', viewMode === 'employee' ? 'border-[#0b65e5] bg-[#0b65e5] text-white' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
-              <Users className="size-4" />Employee Wise
+            <button
+              type="button"
+              onClick={openProjectPicker}
+              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[14px] font-semibold text-white shadow-[0_10px_20px_rgba(22,163,74,0.22)]"
+            >
+              <FolderKanban className="size-4" />
+              {selectedProject ? 'Change Project' : 'Select Project'}
             </button>
-            <button type="button" onClick={() => { setEmpForm(emptyEmpForm); setEditEmpId(null); setEmpModalOpen(true); }} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]">
-              <Plus className="size-4" />Add Employee
-            </button>
-          </div>
+          </>
         )}
       />
 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
-      {/* ══ PROJECT WISE ══ */}
-      {viewMode === 'project' && (
-        <>
-        {/* Toolbar */}
-        <section className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            <label className="flex h-11 flex-1 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 200 }}>
-              <Search className="size-4 shrink-0 text-[#7e8fab]" />
-              <input value={pwAssignSearch} onChange={(e) => setPwAssignSearch(e.target.value)} type="search" placeholder="Search employee or task..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+      {selectedProject ? (
+        <section className={`${panelClass} p-3 sm:p-3.5`}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-display text-[18px] font-semibold text-[#1e3261]">{selectedProject.project_name || selectedProject.project_id}</p>
+              <p className="mt-0.5 text-[13px] font-medium text-[#7585a2]">
+                {selectedProject.customer_name || '—'}
+                <span className="mx-1.5 text-[#c5d0e0]">·</span>
+                {selectedProject.project_id}
+                <span className="mx-1.5 text-[#c5d0e0]">·</span>
+                Dispatch from Material Planning list
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-[13px] font-semibold">
+              <span className="rounded-[8px] border border-[#e7eef7] bg-[#f8fbff] px-2.5 py-1.5 text-[#284276]">Total {stats.total}</span>
+              <span className="rounded-[8px] border border-[#e7eef7] bg-[#f8fbff] px-2.5 py-1.5 text-[#7585a2]">Pending {stats.pending}</span>
+              <span className="rounded-[8px] border border-[#fff0dc] bg-[#fffaf0] px-2.5 py-1.5 text-[#f59e0b]">Partial {stats.partial}</span>
+              <span className="rounded-[8px] border border-[#d9f5e4] bg-[#f1fff6] px-2.5 py-1.5 text-[#078c3e]">Dispatched {stats.dispatched}</span>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {!selectedProject ? (
+        <section className={`${panelClass} flex flex-col items-center justify-center px-6 py-16 text-center`}>
+          <span className="grid size-16 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]">
+            <Truck className="size-8" />
+          </span>
+          <p className="mt-4 text-[24px] font-bold text-[#1e3261]">Select a Project</p>
+          <p className="mt-2 max-w-md text-[15px] font-medium text-[#53647f]">
+            Choose a project to dispatch materials that were added in Material Planning.
+          </p>
+          <button type="button" onClick={openProjectPicker} className="mt-5 inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-5 text-[14px] font-semibold text-white">
+            <FolderKanban className="size-4" />
+            Select Project
+          </button>
+        </section>
+      ) : (
+        <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4">
+              <Search className="size-4 text-[#7e8fab]" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search category, item, challan..."
+                className="w-full bg-transparent text-[15px] font-medium text-[#1e3261] outline-none placeholder:text-[#8a98af]"
+              />
             </label>
-            <select value={pwAssignStatus} onChange={(e) => setPwAssignStatus(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[14px] font-semibold text-[#284276] outline-none"
+            >
               <option value="All">All Status</option>
-              {TASK_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+              {DISPATCH_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <button type="button" onClick={() => setPwPickerOpen(true)} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', pwProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
-              <FolderKanban className="size-4" />
-              {pwProject ? pwProject.project_name : 'Select Project'}
-            </button>
-            {pwProject && (
-              <button type="button" onClick={() => { setPwAssignForm(emptyAssignForm); setPwEditAssignId(null); setPwAssignModalOpen(true); }} className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                <Plus className="size-4" />Add Assignment
-              </button>
-            )}
           </div>
-        </section>
 
-        {/* Empty State / Content */}
-        {!pwProject ? (
-          <article className={`${panelClass} overflow-hidden`}>
-            <div className="flex flex-col items-center justify-center py-6">
-              <FolderKanban className="size-10 text-[#c5d2e8]" />
-              <h3 className="mt-5 font-display text-[16px] font-extrabold text-[#1e3261]">No Project Selected</h3>
-              <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to view Team Assignments.</p>
-              <button type="button" onClick={() => setPwPickerOpen(true)} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-6 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                <FolderKanban className="size-4" />Select Project
+          {loadingRows ? (
+            <PageLoadingState message="Loading planned materials..." compact />
+          ) : filteredRows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-center">
+              <ClipboardList className="size-10 text-[#c9d7ea]" />
+              <p className="mt-3 text-[20px] font-bold text-[#1e3261]">No materials to dispatch</p>
+              <p className="mt-1 max-w-sm text-[14px] font-medium text-[#7585a2]">
+                Pehle Material Planning me items add karo, phir yahan se dispatch karo.
+              </p>
+              <button
+                type="button"
+                onClick={() => onOpenSection('Project Material Planning')}
+                className="mt-4 inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[14px] font-semibold text-white"
+              >
+                Open Material Planning
               </button>
             </div>
-          </article>
-        ) : (
-          <div className="space-y-2">
-            {/* Project Summary Card */}
-            <article className={`${panelClass} p-5`}>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="grid size-14 shrink-0 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
-                    <FolderKanban className="size-5 text-white" />
-                  </span>
-                  <div>
-                    <h2 className="font-display text-[17px] font-extrabold text-[#111827]">{pwProject.project_name}</h2>
-                    <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{pwProject.customer_name} &bull; {pwProject.project_id}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ProjectInfoPill tone={statusTone(pwProject.status)}>{pwProject.status}</ProjectInfoPill>
-                  <button type="button" onClick={() => setPwPickerOpen(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FolderKanban className="size-3.5" />Change Project</button>
-                  <button type="button" onClick={() => { setPwProject(null); setPwAssignments([]); setPwAssignSearch(''); setPwAssignStatus('All'); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><X className="size-3.5" />Close</button>
-                </div>
-              </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                {[
-                  { label: 'Capacity', value: pwProject.capacity_kwp ? `${pwProject.capacity_kwp} kWp` : '—' },
-                  { label: 'Current Status', value: pwProject.status || '—' },
-                  { label: 'Start Date', value: pwProject.start_date || '—' },
-                  { label: 'Expected Completion', value: pwProject.target_date || '—' },
-                  { label: 'Progress', value: `${pwProject.progress_percent ?? 0}%` },
-                  { label: 'Team Members', value: String(pwAssignments.length) },
-                ].map((row) => (
-                  <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-3 py-2">
-                    <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
-                    <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value}</p>
-                  </div>
-                ))}
-              </div>
-              {pwProject.progress_percent !== undefined && (
-                <div className="mt-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[12px] font-extrabold text-[#53647f]">Project Progress</span>
-                    <span className="text-[12px] font-extrabold text-[#1e3261]">{pwProject.progress_percent}%</span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-[#e8f0fb]">
-                    <div className="h-2 rounded-full bg-[linear-gradient(90deg,#2f80ff,#0b65e5)]" style={{ width: `${pwProject.progress_percent}%` }} />
-                  </div>
-                </div>
-              )}
-            </article>
-
-            {/* Team Assignment Table */}
-            <article className={`${panelClass} overflow-hidden`}>
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-4 py-2">
-                <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">Team Assignment</h3>
-                <button type="button" onClick={() => { setPwAssignForm(emptyAssignForm); setPwEditAssignId(null); setPwAssignModalOpen(true); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]"><Plus className="size-3.5" />Add Assignment</button>
-              </div>
-              {pwLoading ? (
-                <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading assignments...</p>
-              ) : pwFiltered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-7">
-                  <Users className="size-8 text-[#c5d2e8]" />
-                  <p className="mt-3 text-[13px] font-bold text-[#8a98af]">No assignments found. Click <strong>Add Assignment</strong> to assign an employee to this project.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="crm-table w-full min-w-[900px]">
-                    <thead><tr>{['#', 'Employee', 'ID', 'Department', 'Role', 'Assigned Task', 'Assigned Date', 'Progress', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {pwFiltered.map((a, idx) => (
-                        <tr key={a.id}>
-                          <td>{idx + 1}</td>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[11px] font-extrabold text-[#0b65e5]">{(a.employee_name || '??').slice(0, 2).toUpperCase()}</span>
-                              <span className="font-extrabold text-[#1e3261]">{a.employee_name || '—'}</span>
-                            </div>
-                          </td>
-                          <td className="font-bold text-[#314a79]">{a.employee_emp_id || '—'}</td>
-                          <td className="font-bold text-[#314a79]">{a.employee_department || '—'}</td>
-                          <td className="font-bold text-[#314a79]">{a.employee_role || '—'}</td>
-                          <td className="max-w-[160px] truncate font-bold text-[#314a79]">{a.task_name}</td>
-                          <td className="font-bold text-[#314a79]">{a.assigned_date || '—'}</td>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <div className="h-2 w-16 rounded-full bg-[#e8f0fb]"><div className="h-2 rounded-full bg-[#2f80ff]" style={{ width: `${a.progress_percent}%` }} /></div>
-                              <span className="text-[12px] font-extrabold text-[#314a79]">{a.progress_percent}%</span>
-                            </div>
-                          </td>
-                          <td><ProjectInfoPill tone={taskStatusTone(a.status)}>{a.status}</ProjectInfoPill></td>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <UserActionButton label="View" icon={Eye} tone="blue" onClick={() => { setPwViewData(a); setPwViewOpen(true); }} />
-                              <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => { setPwAssignForm({ employee: String(a.employee), task_name: a.task_name, assigned_date: a.assigned_date || '', expected_completion: a.expected_completion || '', priority: a.priority || 'Medium', progress_percent: a.progress_percent || 0, status: a.status || 'Pending', notes: a.notes || '' }); setPwEditAssignId(a.id); setPwAssignModalOpen(true); }} />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">Showing {pwFiltered.length} of {pwAssignments.length} assignments</div>
-                </div>
-              )}
-            </article>
-          </div>
-        )}
-
-        {/* Project Picker Popup */}
-        {pwPickerOpen && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setPwPickerOpen(false); setPwPickerSearch(''); } }}>
-            <div className="w-full max-w-[820px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
-                <div>
-                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Project</h2>
-                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose a project to view its team assignments</p>
-                </div>
-                <button type="button" onClick={() => { setPwPickerOpen(false); setPwPickerSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
-              </div>
-              <div className="p-4 pb-2">
-                <label className="flex h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
-                  <Search className="size-4 shrink-0 text-[#7e8fab]" />
-                  <input autoFocus value={pwPickerSearch} onChange={(e) => setPwPickerSearch(e.target.value)} type="search" placeholder="Search project name or customer..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
-                </label>
-              </div>
-              <div className="max-h-[440px] overflow-y-auto">
-                {loadingProjects ? (
-                  <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">Loading projects...</p>
-                ) : (
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
-                        {['Project Name', 'Customer', 'Capacity', 'Project Status', 'Action'].map((h) => (
-                          <th key={h} className="px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
-                        ))}
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="crm-table">
+                <thead>
+                  <tr>
+                    {['#', 'Category', 'Item / Spec', 'UOM', 'Planned', 'Dispatched', 'Remaining', 'Status', 'Action'].map((h) => (
+                      <th key={h}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => {
+                    const status = row.dispatch_status || resolveDispatchStatus(row.planned_qty, row.dispatched_qty);
+                    return (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-semibold text-[#1e3261]">{row.category}</td>
+                        <td>{row.items || '—'}</td>
+                        <td>{row.uom || '—'}</td>
+                        <td>{row.planned_qty || '—'}</td>
+                        <td>{row.dispatched_qty || '0'}</td>
+                        <td>{remainingQty(row)}</td>
+                        <td>
+                          <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[13px] font-semibold', statusTone(status))}>
+                            {status}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() => openDispatch(row)}
+                            className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#cfe8d6] bg-[#f1fff5] px-3 text-[13px] font-semibold text-[#078c3e]"
+                          >
+                            <Truck className="size-3.5" />
+                            {status === 'Pending' ? 'Dispatch' : 'Update'}
+                          </button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {allProjects.filter((p) => {
-                        if (!pwPickerSearch) return true;
-                        const q = pwPickerSearch.toLowerCase();
-                        return (p.project_name || '').toLowerCase().includes(q) || (p.customer_name || '').toLowerCase().includes(q) || (p.project_id || '').toLowerCase().includes(q);
-                      }).map((proj) => (
-                        <tr key={proj.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
-                          <td className="px-4 py-3">
-                            <p className="font-extrabold text-[#1e3261]">{proj.project_name}</p>
-                            <p className="text-[11px] font-bold text-[#8a98af]">{proj.project_id}</p>
-                          </td>
-                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{proj.customer_name}</td>
-                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{proj.capacity_kwp ? `${proj.capacity_kwp} kWp` : '—'}</td>
-                          <td className="px-4 py-3"><ProjectInfoPill tone={statusTone(proj.status)}>{proj.status}</ProjectInfoPill></td>
-                          <td className="px-4 py-3">
-                            <button type="button" onClick={() => { setPwProject(proj); setPwPickerOpen(false); setPwPickerSearch(''); setPwAssignSearch(''); setPwAssignStatus('All'); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                              <Eye className="size-3.5" />View
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </div>
-        )}
-
-        {/* View Assignment Popup */}
-        {pwViewOpen && pwViewData && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setPwViewOpen(false); }}>
-            <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
-                <div>
-                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Assignment Details</h2>
-                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{pwViewData.employee_name} — {pwProject?.project_name}</p>
-                </div>
-                <button type="button" onClick={() => setPwViewOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
-              </div>
-              <div className="space-y-4 p-4">
-                <div>
-                  <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Employee Information</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {[
-                      { label: 'Employee Name', value: pwViewData.employee_name },
-                      { label: 'Employee ID', value: pwViewData.employee_emp_id },
-                      { label: 'Department', value: pwViewData.employee_department },
-                      { label: 'Role', value: pwViewData.employee_role },
-                    ].map((row) => (
-                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-3 py-2">
-                        <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
-                        <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Task Details</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {[
-                      { label: 'Task Name', value: pwViewData.task_name },
-                      { label: 'Priority', value: pwViewData.priority },
-                      { label: 'Assigned Date', value: pwViewData.assigned_date },
-                      { label: 'Expected Completion', value: pwViewData.expected_completion },
-                      { label: 'Status', value: pwViewData.status },
-                      { label: 'Progress', value: `${pwViewData.progress_percent ?? 0}%` },
-                    ].map((row) => (
-                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-3 py-2">
-                        <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
-                        <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-[12px] font-extrabold text-[#53647f]">Task Progress</span>
-                      <span className="text-[12px] font-extrabold text-[#1e3261]">{pwViewData.progress_percent ?? 0}%</span>
-                    </div>
-                    <div className="h-2.5 w-full rounded-full bg-[#e8f0fb]">
-                      <div className="h-2.5 rounded-full bg-[linear-gradient(90deg,#2f80ff,#0b65e5)]" style={{ width: `${pwViewData.progress_percent ?? 0}%` }} />
-                    </div>
-                  </div>
-                  {pwViewData.notes && (
-                    <div className="mt-3 rounded-[10px] bg-[#f8fbff] px-3 py-2">
-                      <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Notes</p>
-                      <p className="mt-1 text-[13px] font-bold text-[#314a79]">{pwViewData.notes}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex justify-end border-t border-[#edf2f8] px-5 py-3">
-                <button type="button" onClick={() => setPwViewOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Add/Edit Assignment Modal */}
-        {pwAssignModalOpen && (
-          <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setPwAssignModalOpen(false); }}>
-            <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{pwEditAssignId !== null ? 'Edit Assignment' : 'Add Assignment'}</h2>
-                <button type="button" onClick={() => setPwAssignModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
-              </div>
-              <div className="grid gap-2 p-4 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Employee *
-                  <select value={pwAssignForm.employee} onChange={(e) => setPwAssignForm((p) => ({ ...p, employee: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                    <option value="">Select Employee...</option>
-                    {allEmployees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name} — {emp.role || emp.department || '—'}</option>)}
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Task Name *
-                  <input value={pwAssignForm.task_name} onChange={(e) => setPwAssignForm((p) => ({ ...p, task_name: e.target.value }))} placeholder="e.g. Panel Installation at Site A" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Assigned Date
-                  <input value={pwAssignForm.assigned_date} onChange={(e) => setPwAssignForm((p) => ({ ...p, assigned_date: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Expected Completion
-                  <input value={pwAssignForm.expected_completion} onChange={(e) => setPwAssignForm((p) => ({ ...p, expected_completion: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Priority
-                  <select value={pwAssignForm.priority} onChange={(e) => setPwAssignForm((p) => ({ ...p, priority: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                    {PRIORITY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Status
-                  <select value={pwAssignForm.status} onChange={(e) => setPwAssignForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                    {TASK_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Progress ({pwAssignForm.progress_percent}%)
-                  <input value={pwAssignForm.progress_percent} onChange={(e) => setPwAssignForm((p) => ({ ...p, progress_percent: e.target.value }))} type="range" min="0" max="100" step="5" className="mt-1 w-full accent-[#0b65e5]" />
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Notes
-                  <textarea value={pwAssignForm.notes} onChange={(e) => setPwAssignForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Task notes..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-                </label>
-              </div>
-              <div className="flex justify-end gap-2 border-t border-[#edf2f8] px-5 py-3">
-                <button type="button" onClick={() => setPwAssignModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
-                <button type="button" onClick={handleSavePwAssign} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{pwEditAssignId !== null ? 'Update' : 'Assign'}</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Add Employee Modal */}
-        {empModalOpen && (
-          <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEmpModalOpen(false); }}>
-            <div className="w-full max-w-[560px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
-                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editEmpId !== null ? 'Edit Employee' : 'Add Employee'}</h2>
-                <button type="button" onClick={() => setEmpModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
-              </div>
-              <div className="grid gap-2 p-4 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Name *
-                  <input value={empForm.name} onChange={(e) => setEmpForm((p) => ({ ...p, name: e.target.value }))} placeholder="Full name" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Mobile
-                  <input value={empForm.mobile} onChange={(e) => setEmpForm((p) => ({ ...p, mobile: e.target.value }))} placeholder="+91 98765 43210" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Email
-                  <input value={empForm.email} onChange={(e) => setEmpForm((p) => ({ ...p, email: e.target.value }))} type="email" placeholder="email@example.com" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Department
-                  <select value={empForm.department} onChange={(e) => setEmpForm((p) => ({ ...p, department: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                    {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Role / Designation
-                  <input value={empForm.role} onChange={(e) => setEmpForm((p) => ({ ...p, role: e.target.value }))} placeholder="e.g. Site Engineer" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Joining Date
-                  <input value={empForm.joining_date} onChange={(e) => setEmpForm((p) => ({ ...p, joining_date: e.target.value }))} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">Status
-                  <select value={empForm.status} onChange={(e) => setEmpForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                    {EMP_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">Notes
-                  <textarea value={empForm.notes} onChange={(e) => setEmpForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Additional notes..." className="rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-                </label>
-              </div>
-              <div className="flex justify-end gap-2 border-t border-[#edf2f8] px-5 py-3">
-                <button type="button" onClick={() => setEmpModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
-                <button type="button" onClick={handleSaveEmployee} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"><Save className="size-4" />{editEmpId !== null ? 'Update' : 'Add Employee'}</button>
-              </div>
-            </div>
-          </div>
-        )}
-        </>
+          )}
+        </section>
       )}
 
-      {/* ══ EMPLOYEE WISE ══ */}
-      {viewMode === 'employee' && (
-        <>
-        {/* Toolbar */}
-        <section className={`${panelClass} p-4 sm:p-5`}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            <label className="flex h-11 flex-1 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10" style={{ minWidth: 180 }}>
-              <Search className="size-4 shrink-0 text-[#7e8fab]" />
-              <input value={ewHistSearch} onChange={(e) => setEwHistSearch(e.target.value)} type="search" placeholder="Search project or task..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
-            </label>
-            <select value={ewHistStatus} onChange={(e) => setEwHistStatus(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
-              <option value="All">All Task Status</option>
-              {TASK_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <input value={ewHistDateFrom} onChange={(e) => setEwHistDateFrom(e.target.value)} type="date" title="From Date" className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-bold text-[#284276]" />
-            <input value={ewHistDateTo} onChange={(e) => setEwHistDateTo(e.target.value)} type="date" title="To Date" className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-bold text-[#284276]" />
-            <button type="button" onClick={() => setEwPickerOpen(true)} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', ewSelected ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
-              <UserRound className="size-4" />
-              {ewSelected ? ewSelected.name : 'Select Employee'}
-            </button>
-          </div>
-        </section>
-
-        {/* Empty State / Content */}
-        {!ewSelected ? (
-          <article className={`${panelClass} overflow-hidden`}>
-            <div className="flex flex-col items-center justify-center py-6">
-              <Users className="size-10 text-[#c5d2e8]" />
-              <h3 className="mt-5 font-display text-[16px] font-extrabold text-[#1e3261]">No Employee Selected</h3>
-              <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Employee</strong> to view employee work history.</p>
-              <button type="button" onClick={() => setEwPickerOpen(true)} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-6 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                <UserRound className="size-4" />Select Employee
-              </button>
+      {projectPickerOpen ? (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setProjectPickerOpen(false); setProjectSearch(''); } }}>
+          <div className="w-full max-w-[720px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
+              <div>
+                <h2 className="font-display text-[18px] font-semibold text-[#111827]">Select Project</h2>
+                <p className="mt-0.5 text-[13px] font-medium text-[#7585a2]">Dispatch materials planned for this project</p>
+              </div>
+              <button type="button" onClick={() => { setProjectPickerOpen(false); setProjectSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
             </div>
-          </article>
-        ) : (
-          <div className="space-y-2">
-            {/* Employee Header */}
-            <article className={`${panelClass} p-5`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="grid size-14 shrink-0 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-[20px] font-extrabold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
-                    {ewSelected.name?.slice(0, 2).toUpperCase()}
+            <div className="p-4 pb-2">
+              <label className="flex h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4">
+                <Search className="size-4 shrink-0 text-[#7e8fab]" />
+                <input autoFocus value={projectSearch} onChange={(e) => setProjectSearch(e.target.value)} type="search" placeholder="Search project, customer, ID..." className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-[#30466d] outline-none" />
+              </label>
+            </div>
+            <div className="max-h-[380px] overflow-y-auto">
+              {loadingProjects ? (
+                <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
+              ) : filteredProjects.length === 0 ? (
+                <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">No projects found</p>
+              ) : filteredProjects.map((proj) => (
+                <button
+                  key={proj.id}
+                  type="button"
+                  onClick={() => handleProjectSelect(proj)}
+                  className="flex w-full items-center justify-between gap-3 border-b border-[#f3f6fb] px-5 py-3 text-left transition hover:bg-[#f8fbff]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-semibold text-[#1e3261]">{proj.project_name || proj.project_id}</p>
+                    <p className="mt-0.5 truncate text-[12px] font-medium text-[#7585a2]">{proj.customer_name || '—'} · {proj.project_id}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-[#eef4ff] px-2.5 py-1 text-[12px] font-semibold text-[#0b65e5]">
+                    {projectPlanCounts[proj.id] || 0} items
                   </span>
-                  <div>
-                    <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{ewSelected.name}</h2>
-                    <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{ewSelected.role || '—'} &bull; {ewSelected.department || '—'} &bull; {ewSelected.employee_id}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ProjectInfoPill tone={statusTone(ewSelected.status)}>{ewSelected.status}</ProjectInfoPill>
-                  <button type="button" onClick={() => setEwPickerOpen(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><UserRound className="size-3.5" />Change Employee</button>
-                  <button type="button" onClick={() => { setEwSelected(null); setEwSummary(null); setEwHistory([]); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><X className="size-3.5" />Close</button>
-                </div>
-              </div>
-            </article>
-
-            {ewLoading ? (
-              <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">Loading history...</p>
-            ) : (
-              <>
-                {/* Summary Cards */}
-                <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                  {[
-                    { label: 'Total Projects', value: ewSummary?.total_assigned_projects ?? 0, icon: FolderKanban, tone: 'blue' },
-                    { label: 'Active Projects', value: ewSummary?.active_projects ?? 0, icon: ClipboardPlus, tone: 'cyan' },
-                    { label: 'Completed Projects', value: ewSummary?.completed_projects ?? 0, icon: CheckCircle2, tone: 'green' },
-                    { label: 'Pending Tasks', value: ewSummary?.pending_tasks ?? 0, icon: Clock3, tone: 'amber' },
-                    { label: 'Completed Tasks', value: ewSummary?.completed_tasks ?? 0, icon: CheckCircle2, tone: 'green' },
-                    { label: 'Working Days', value: ewSummary?.total_working_days ?? 0, icon: CalendarDays, tone: 'blue' },
-                  ].map((c) => <LiaisonApprovalStatCard key={c.label} label={c.label} value={String(c.value)} caption={c.label} icon={c.icon} tone={c.tone} onClick={() => {}} />)}
-                </section>
-
-                {/* Project Work History Table */}
-                <article className={`${panelClass} overflow-hidden`}>
-                  <div className="border-b border-[#edf2f8] px-4 py-2">
-                    <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">Project Work History</h3>
-                  </div>
-                  {ewFiltered.length === 0 ? (
-                    <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No project history found.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="crm-table w-full min-w-[1000px]">
-                        <thead><tr>{['#', 'Project Name', 'Customer', 'Employee Role', 'Assigned Task', 'Assigned Date', 'Completion Date', 'Status', 'Progress', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                        <tbody>
-                          {ewFiltered.map((r, idx) => (
-                            <tr key={r.id}>
-                              <td>{idx + 1}</td>
-                              <td className="max-w-[160px]">
-                                <p className="font-extrabold text-[#1e3261]">{r.project_name}</p>
-                                {r.project_status && r.project_status !== '—' && <ProjectInfoPill tone={statusTone(r.project_status)}>{r.project_status}</ProjectInfoPill>}
-                              </td>
-                              <td className="font-bold text-[#314a79]">{r.customer_name}</td>
-                              <td className="font-bold text-[#314a79]">{r.role || '—'}</td>
-                              <td className="max-w-[160px] truncate font-bold text-[#314a79]">{r.task_name}</td>
-                              <td className="font-bold text-[#314a79]">{r.assigned_date || '—'}</td>
-                              <td className="font-bold text-[#314a79]">{r.expected_completion || '—'}</td>
-                              <td><ProjectInfoPill tone={taskStatusTone(r.status)}>{r.status}</ProjectInfoPill></td>
-                              <td>
-                                <div className="flex items-center gap-2">
-                                  <div className="h-2 w-16 rounded-full bg-[#e8f0fb]"><div className="h-2 rounded-full bg-[#2f80ff]" style={{ width: `${r.progress_percent}%` }} /></div>
-                                  <span className="text-[12px] font-extrabold text-[#314a79]">{r.progress_percent}%</span>
-                                </div>
-                              </td>
-                              <td>
-                                <UserActionButton label="View Details" icon={Eye} tone="blue" onClick={() => { setEwDetailData(r); setEwDetailOpen(true); }} />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">Showing {ewFiltered.length} of {ewHistory.length} records</div>
-                    </div>
-                  )}
-                </article>
-              </>
-            )}
+                </button>
+              ))}
+            </div>
           </div>
-        )}
+        </div>
+      ) : null}
 
-        {/* Select Employee Popup */}
-        {ewPickerOpen && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setEwPickerOpen(false); setEwPickerSearch(''); } }}>
-            <div className="w-full max-w-[640px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
-                <div>
-                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Employee</h2>
-                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose an employee to view their complete work history</p>
-                </div>
-                <button type="button" onClick={() => { setEwPickerOpen(false); setEwPickerSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
+      {dispatchModalOpen && activeRow ? (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4">
+          <div className="w-full max-w-[520px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
+              <div>
+                <h2 className="font-display text-[20px] font-semibold text-[#111827]">Dispatch Material</h2>
+                <p className="mt-0.5 text-[13px] font-medium text-[#7585a2]">{activeRow.category} · Planned {activeRow.planned_qty || 0} {activeRow.uom}</p>
               </div>
-              <div className="p-4 pb-2">
-                <label className="flex h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
-                  <Search className="size-4 shrink-0 text-[#7e8fab]" />
-                  <input autoFocus value={ewPickerSearch} onChange={(e) => setEwPickerSearch(e.target.value)} type="search" placeholder="Search employee name or ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
+              <button type="button" onClick={() => setDispatchModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="grid gap-3 p-5">
+              <label className="grid gap-1.5 text-[14px] font-semibold text-[#34466c]">
+                Dispatched Qty *
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.dispatched_qty}
+                  onChange={(e) => setForm((prev) => ({ ...prev, dispatched_qty: e.target.value }))}
+                  className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[15px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
+                />
+              </label>
+              <label className="grid gap-1.5 text-[14px] font-semibold text-[#34466c]">
+                Dispatch Date
+                <input
+                  type="date"
+                  value={form.dispatch_date}
+                  onChange={(e) => setForm((prev) => ({ ...prev, dispatch_date: e.target.value }))}
+                  className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[15px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-[14px] font-semibold text-[#34466c]">
+                  Vehicle No
+                  <input
+                    value={form.vehicle_no}
+                    onChange={(e) => setForm((prev) => ({ ...prev, vehicle_no: e.target.value }))}
+                    className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[15px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
+                    placeholder="MH12 AB 1234"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-[14px] font-semibold text-[#34466c]">
+                  Challan No
+                  <input
+                    value={form.challan_no}
+                    onChange={(e) => setForm((prev) => ({ ...prev, challan_no: e.target.value }))}
+                    className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[15px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
+                    placeholder="CH-001"
+                  />
                 </label>
               </div>
-              <div className="max-h-[380px] overflow-y-auto">
-                {loadingEmployees ? (
-                  <p className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading...</p>
-                ) : (
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
-                        {['Employee', 'ID', 'Department', 'Role', 'Current Status', 'Action'].map((h) => (
-                          <th key={h} className="px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allEmployees.filter((e) => !ewPickerSearch || e.name.toLowerCase().includes(ewPickerSearch.toLowerCase()) || (e.employee_id || '').toLowerCase().includes(ewPickerSearch.toLowerCase())).map((emp) => (
-                        <tr key={emp.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[11px] font-extrabold text-[#0b65e5]">{emp.name?.slice(0, 2).toUpperCase()}</span>
-                              <span className="text-[13px] font-extrabold text-[#1e3261]">{emp.name}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-[12px] font-bold text-[#8a98af]">{emp.employee_id}</td>
-                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.department || '—'}</td>
-                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{emp.role || '—'}</td>
-                          <td className="px-4 py-3"><ProjectInfoPill tone={statusTone(emp.status)}>{emp.status}</ProjectInfoPill></td>
-                          <td className="px-4 py-3">
-                            <button type="button" onClick={() => { setEwSelected(emp); setEwPickerOpen(false); setEwPickerSearch(''); setEwHistSearch(''); setEwHistStatus('All'); setEwHistDateFrom(''); setEwHistDateTo(''); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                              <Eye className="size-3.5" />View
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+              <label className="grid gap-1.5 text-[14px] font-semibold text-[#34466c]">
+                Notes
+                <textarea
+                  rows={3}
+                  value={form.dispatch_notes}
+                  onChange={(e) => setForm((prev) => ({ ...prev, dispatch_notes: e.target.value }))}
+                  className="rounded-[8px] border border-[#dce6f3] px-3 py-2 text-[15px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
+                  placeholder="Driver name, site notes..."
+                />
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
+              <button type="button" onClick={() => setDispatchModalOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[15px] font-semibold text-[#284276]">Cancel</button>
+              <button type="button" onClick={handleSaveDispatch} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-5 text-[15px] font-semibold text-white disabled:opacity-60">
+                <Truck className="size-4" />
+                Save Dispatch
+              </button>
             </div>
           </div>
-        )}
-
-        {/* Project Detail Popup */}
-        {ewDetailOpen && ewDetailData && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEwDetailOpen(false); }}>
-            <div className="w-full max-w-[580px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
-                <div>
-                  <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Project Details</h2>
-                  <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">{ewDetailData.project_name}</p>
-                </div>
-                <button type="button" onClick={() => setEwDetailOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
-              </div>
-              <div className="space-y-4 p-4">
-                <div>
-                  <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Project Information</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {[
-                      { label: 'Project Name', value: ewDetailData.project_name },
-                      { label: 'Customer Name', value: ewDetailData.customer_name },
-                      { label: 'Project Status', value: ewDetailData.project_status },
-                      { label: 'Project Progress', value: `${ewDetailData.project_progress ?? 0}%` },
-                    ].map((row) => (
-                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-3 py-2">
-                        <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
-                        <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Assignment Details</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {[
-                      { label: 'Task Name', value: ewDetailData.task_name },
-                      { label: 'Role', value: ewDetailData.role },
-                      { label: 'Assigned Date', value: ewDetailData.assigned_date },
-                      { label: 'Completion Date', value: ewDetailData.expected_completion },
-                      { label: 'Task Status', value: ewDetailData.status },
-                      { label: 'Progress', value: `${ewDetailData.progress_percent ?? 0}%` },
-                    ].map((row) => (
-                      <div key={row.label} className="rounded-[10px] bg-[#f8fbff] px-3 py-2">
-                        <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{row.label}</p>
-                        <p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{row.value || '—'}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-[12px] font-extrabold text-[#53647f]">Task Progress</span>
-                      <span className="text-[12px] font-extrabold text-[#1e3261]">{ewDetailData.progress_percent ?? 0}%</span>
-                    </div>
-                    <div className="h-2.5 w-full rounded-full bg-[#e8f0fb]">
-                      <div className="h-2.5 rounded-full bg-[linear-gradient(90deg,#2f80ff,#0b65e5)]" style={{ width: `${ewDetailData.progress_percent ?? 0}%` }} />
-                    </div>
-                  </div>
-                  {ewDetailData.notes && (
-                    <div className="mt-3 rounded-[10px] bg-[#f8fbff] px-3 py-2">
-                      <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Notes</p>
-                      <p className="mt-1 text-[13px] font-bold text-[#314a79]">{ewDetailData.notes}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex justify-end border-t border-[#edf2f8] px-5 py-3">
-                <button type="button" onClick={() => setEwDetailOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Close</button>
-              </div>
-            </div>
-          </div>
-        )}
-        </>
-      )}
+        </div>
+      ) : null}
 
       <DashboardFooter />
     </div>
@@ -23766,7 +23409,7 @@ function ExpenseForm({ form, setForm, projects, CATEGORIES, PAYMENT_MODES, STATU
 
 
 function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
-  const FOLDERS = ['Site Survey', 'Material Planning', 'Team Assignment', 'Subsidy', 'Installation', 'Expenses', 'Approvals', 'Others'];
+  const FOLDERS = ['Site Survey', 'Material Planning', 'Dispatch', 'Subsidy', 'Installation', 'Expenses', 'Approvals', 'Others'];
 
   const [search, setSearch] = useState('');
   const [filterProject, setFilterProject] = useState('');

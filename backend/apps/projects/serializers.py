@@ -243,7 +243,11 @@ class InstallationMaterialSerializer(serializers.ModelSerializer):
 class MaterialPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = MaterialPlan
-        fields = ['id', 'project', 'category', 'items', 'uom', 'planned_qty', 'planned_value', 'status', 'created_at', 'updated_at']
+        fields = [
+            'id', 'project', 'category', 'items', 'uom', 'planned_qty', 'planned_value', 'status',
+            'dispatched_qty', 'dispatch_status', 'dispatch_date', 'vehicle_no', 'challan_no', 'dispatch_notes',
+            'created_at', 'updated_at',
+        ]
         read_only_fields = ['created_at', 'updated_at']
 
 

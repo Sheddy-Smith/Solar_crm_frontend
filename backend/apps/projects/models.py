@@ -766,6 +766,11 @@ class MaterialPlan(models.Model):
         ('Completed', 'Completed'),
         ('Delayed', 'Delayed'),
     ]
+    DISPATCH_STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Partial', 'Partial'),
+        ('Dispatched', 'Dispatched'),
+    ]
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='material_plans')
     category = models.CharField(max_length=100)
@@ -774,6 +779,12 @@ class MaterialPlan(models.Model):
     planned_qty = models.CharField(max_length=50, blank=True, default='')
     planned_value = models.CharField(max_length=50, blank=True, default='')
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Not Started')
+    dispatched_qty = models.CharField(max_length=50, blank=True, default='')
+    dispatch_status = models.CharField(max_length=20, choices=DISPATCH_STATUS_CHOICES, default='Pending')
+    dispatch_date = models.DateField(null=True, blank=True)
+    vehicle_no = models.CharField(max_length=100, blank=True, default='')
+    challan_no = models.CharField(max_length=100, blank=True, default='')
+    dispatch_notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
