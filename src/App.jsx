@@ -15698,15 +15698,23 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             {!survey?.id ? <p className="mt-2 text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
           </SurveySection>
 
-          <SurveySection number={5} title="Shadow Analysis">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <SurveyCheckbox label="Shadow Present" checked={form.shadow_present} onChange={(v) => updateField('shadow_present', v)} />
-              <SurveyCheckbox label="Water Tank Present" checked={form.water_tank_present} onChange={(v) => updateField('water_tank_present', v)} />
-              <SurveyCheckbox label="Tree Nearby" checked={form.tree_nearby} onChange={(v) => updateField('tree_nearby', v)} />
-              <SurveyCheckbox label="Obstacle Present" checked={form.obstacle_present} onChange={(v) => updateField('obstacle_present', v)} />
-            </div>
+          <section className="rounded-[14px] border border-[#8fa0b8] bg-white p-4 sm:p-5">
+            <label className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={form.shadow_present}
+                onChange={(e) => updateField('shadow_present', e.target.checked)}
+                className="size-5 shrink-0 accent-[#0b65e5]"
+              />
+              <span className="text-[14px] font-extrabold text-[#1e3261]">5. Shadow Analysis</span>
+            </label>
             {form.shadow_present ? (
-              <>
+              <div className="mt-3 space-y-3 border-t border-[#e7eef7] pt-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <SurveyCheckbox label="Water Tank Present" checked={form.water_tank_present} onChange={(v) => updateField('water_tank_present', v)} />
+                  <SurveyCheckbox label="Tree Nearby" checked={form.tree_nearby} onChange={(v) => updateField('tree_nearby', v)} />
+                  <SurveyCheckbox label="Obstacle Present" checked={form.obstacle_present} onChange={(v) => updateField('obstacle_present', v)} />
+                </div>
                 <div className="overflow-x-auto rounded-[10px] border border-[#e7eef7]">
                   <table className="w-full min-w-[520px] text-left text-[12px]">
                     <thead className="bg-[#f8fafc] text-[11px] font-extrabold text-[#7386a3]">
@@ -15751,13 +15759,11 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                 <SurveyField label="Shadow Analysis Remarks">
                   <textarea value={form.shadow_analysis_remarks} onChange={(e) => updateField('shadow_analysis_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
                 </SurveyField>
-              </>
+              </div>
             ) : (
-              <p className="rounded-[10px] border border-dashed border-[#d9e4f2] bg-[#f8fafc] px-3 py-2.5 text-[12px] font-bold text-[#7585a2]">
-                Tick Shadow Present to open the shadow analysis details.
-              </p>
+              <p className="mt-2 text-[12px] font-bold text-[#7585a2]">Tick the checkbox to open shadow analysis details.</p>
             )}
-          </SurveySection>
+          </section>
 
           <SurveySection number={6} title="Earthing Details">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
