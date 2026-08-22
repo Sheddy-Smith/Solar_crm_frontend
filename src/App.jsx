@@ -28252,15 +28252,15 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
   });
   const cardRef = useRef(null);
 
-  const loadEmployees = useCallback(async () => {
-    setLoading(true);
+  const loadEmployees = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const data = await workforceApi.listEmployees({ page_size: 500 });
       setEmployees(normalizeApiRows(data));
     } catch {
       onNotify('Failed to load employees');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [onNotify]);
 
@@ -28276,12 +28276,12 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
     return { start: customStart, end: customEnd };
   }, [rangeMode, weekStart, monthValue, customStart, customEnd]);
 
-  const loadLedger = useCallback(async () => {
+  const loadLedger = useCallback(async ({ silent = false } = {}) => {
     if (!selectedEmployeeId) {
       setLedger(null);
       return;
     }
-    setLedgerLoading(true);
+    if (!silent) setLedgerLoading(true);
     try {
       const data = await workforceApi.attendanceLedger(selectedEmployeeId, {
         start_date: periodRange.start,
@@ -28291,7 +28291,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
     } catch {
       onNotify('Failed to load attendance ledger');
     } finally {
-      setLedgerLoading(false);
+      if (!silent) setLedgerLoading(false);
     }
   }, [selectedEmployeeId, periodRange, onNotify]);
 
@@ -28450,25 +28450,32 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
   };
 
   const handleMarkPresent = async (record) => {
+    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+    const dutyHours = Number(selectedEmployee?.duty_hours_per_day || ledger?.employee?.duty_hours_per_day || 9);
     try {
       if (String(record.id).startsWith('missing-')) {
         await workforceApi.markAttendanceByDate({
           employee: selectedEmployeeId,
           date: record.date,
           status: 'Present',
+          hours: dutyHours,
         });
       } else {
-        await workforceApi.markAttendancePresent(record.id);
+        await workforceApi.markAttendancePresent(record.id, { hours: dutyHours });
       }
       onNotify('Attendance marked as present');
-      loadLedger();
-      loadEmployees();
+      await loadLedger({ silent: true });
+      loadEmployees({ silent: true });
+      requestAnimationFrame(() => {
+        if (typeof window !== 'undefined') window.scrollTo({ top: scrollY });
+      });
     } catch (error) {
       onNotify(error.message || 'Failed to mark present');
     }
   };
 
   const handleMarkAbsent = async (record) => {
+    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
     try {
       if (String(record.id).startsWith('missing-')) {
         await workforceApi.markAttendanceByDate({
@@ -28480,7 +28487,10 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
         await workforceApi.markAttendanceAbsent(record.id);
       }
       onNotify('Attendance marked as absent');
-      loadLedger();
+      await loadLedger({ silent: true });
+      requestAnimationFrame(() => {
+        if (typeof window !== 'undefined') window.scrollTo({ top: scrollY });
+      });
     } catch (error) {
       onNotify(error.message || 'Failed to mark absent');
     }
@@ -28488,21 +28498,37 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
 
   const handleSaveAttendanceEdit = async () => {
     if (!editAttRow) return;
+    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
     setSaving(true);
     try {
-      await workforceApi.updateAttendance(editAttRow.id, {
-        employee: selectedEmployeeId,
-        date: editAttRow.date,
-        status: attForm.status,
-        hours: Number(attForm.hours) || 0,
-        ot_hours: Number(attForm.ot_hours) || 0,
-        payment_mode: attForm.payment_mode,
-        notes: attForm.notes,
-      });
+      if (String(editAttRow.id).startsWith('missing-')) {
+        await workforceApi.markAttendanceByDate({
+          employee: selectedEmployeeId,
+          date: editAttRow.date,
+          status: attForm.status,
+          hours: Number(attForm.hours) || 0,
+          ot_hours: Number(attForm.ot_hours) || 0,
+          payment_mode: attForm.payment_mode,
+          notes: attForm.notes,
+        });
+      } else {
+        await workforceApi.updateAttendance(editAttRow.id, {
+          employee: selectedEmployeeId,
+          date: editAttRow.date,
+          status: attForm.status,
+          hours: Number(attForm.hours) || 0,
+          ot_hours: Number(attForm.ot_hours) || 0,
+          payment_mode: attForm.payment_mode,
+          notes: attForm.notes,
+        });
+      }
       onNotify('Attendance updated');
       setEditAttRow(null);
-      loadLedger();
-      loadEmployees();
+      await loadLedger({ silent: true });
+      loadEmployees({ silent: true });
+      requestAnimationFrame(() => {
+        if (typeof window !== 'undefined') window.scrollTo({ top: scrollY });
+      });
     } catch (error) {
       onNotify(error.message || 'Failed to update attendance');
     } finally {
@@ -28527,8 +28553,8 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
       onNotify('Payment voucher processed');
       setVoucherOpen(false);
       setVoucherForm({ voucher_date: formatIsoDate(new Date()), amount: '', payment_mode: 'Cash', notes: '' });
-      loadLedger();
-      loadEmployees();
+      await loadLedger({ silent: true });
+      loadEmployees({ silent: true });
     } catch (error) {
       onNotify(error.message || 'Failed to process voucher');
     } finally {
