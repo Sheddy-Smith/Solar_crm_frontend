@@ -28584,7 +28584,6 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
           status: attForm.status,
           hours: Number(attForm.hours) || 0,
           ot_hours: Number(attForm.ot_hours) || 0,
-          payment_mode: attForm.payment_mode,
           notes: attForm.notes,
         });
       } else {
@@ -28594,7 +28593,6 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
           status: attForm.status,
           hours: Number(attForm.hours) || 0,
           ot_hours: Number(attForm.ot_hours) || 0,
-          payment_mode: attForm.payment_mode,
           notes: attForm.notes,
         });
       }
@@ -29172,11 +29170,6 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
               </label>
               <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">OT Hours
                 <input type="number" min="0" step="0.5" value={attForm.ot_hours} onChange={(e) => setAttForm((prev) => ({ ...prev, ot_hours: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
-              </label>
-              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Payment Mode
-                <select value={attForm.payment_mode} onChange={(e) => setAttForm((prev) => ({ ...prev, payment_mode: e.target.value }))} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
-                  {paymentModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
-                </select>
               </label>
             </div>
             <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">

@@ -146,7 +146,7 @@ def week_start_for(day):
 
 
 def sync_attendance_voucher_amounts(employee, dates, create_missing=True):
-    """Denormalizes same-day EmployeeVoucher totals onto EmployeeAttendance.voucher_amount
+    """Denormalizes same-day EmployeeVoucher totals + payment mode onto EmployeeAttendance
     for ledger row display (BUG-006). Not summed into ledger totals — see employee_voucher_total.
 
     `create_missing=False` is used when called from a voucher's post_delete signal: the
@@ -162,12 +162,24 @@ def sync_attendance_voucher_amounts(employee, dates, create_missing=True):
             record = EmployeeAttendance.objects.filter(employee=employee, date=d).first()
             if not record:
                 continue
-        total = EmployeeVoucher.objects.filter(employee=employee, voucher_date=d).aggregate(
+        day_vouchers = EmployeeVoucher.objects.filter(
+            employee=employee, voucher_date=d,
+        ).order_by('-created_at', '-id')
+        total = day_vouchers.aggregate(
             total=Coalesce(Sum('amount'), Decimal('0.00'))
         )['total'] or Decimal('0.00')
+        # Latest same-day voucher mode drives the ledger "Mode" column.
+        latest = day_vouchers.first()
+        mode = (latest.payment_mode if latest else '') or ''
+        updates = {}
         if record.voucher_amount != total:
-            record.voucher_amount = total
-            record.save(update_fields=['voucher_amount'])
+            updates['voucher_amount'] = total
+        if (record.payment_mode or '') != mode:
+            updates['payment_mode'] = mode
+        if updates:
+            for key, value in updates.items():
+                setattr(record, key, value)
+            record.save(update_fields=list(updates.keys()))
 
 
 def ensure_attendance_range(employee, start_date, end_date):
@@ -186,6 +198,13 @@ def ensure_attendance_range(employee, start_date, end_date):
 
 def attendance_ledger_payload(employee, start_date, end_date, user=None):
     ensure_attendance_range(employee, start_date, end_date)
+    # Keep Mode / voucher columns in sync for existing vouchers (not only on create).
+    period_dates = []
+    current = start_date
+    while current <= end_date:
+        period_dates.append(current)
+        current += timedelta(days=1)
+    sync_attendance_voucher_amounts(employee, period_dates, create_missing=False)
     records = employee.attendance_records.filter(date__gte=start_date, date__lte=end_date).order_by('date')
 
     period_earning = records.filter(status='Present').aggregate(
