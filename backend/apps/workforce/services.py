@@ -12,6 +12,92 @@ from apps.accounts.permissions import is_super_admin
 WORK_HOURS_PER_DAY = Decimal('9')
 
 
+def department_for_role_name(role_name):
+    name = (role_name or '').strip().lower()
+    if not name:
+        return 'Other'
+    if 'sales' in name or 'tele' in name:
+        return 'Sales'
+    if 'engineer' in name or 'site' in name:
+        return 'Engineering'
+    if 'electric' in name:
+        return 'Electrical'
+    if 'install' in name:
+        return 'Installation'
+    if 'quality' in name or 'qc' in name:
+        return 'Quality'
+    if 'logistic' in name or 'store' in name or 'inventory' in name:
+        return 'Logistics'
+    if 'admin' in name or 'hr' in name or 'account' in name:
+        return 'Administration'
+    if 'operation' in name or 'ops' in name:
+        return 'Operations'
+    return 'Other'
+
+
+def ensure_employee_for_user(user):
+    """Keep a workforce Employee row for each Settings user so they appear under Employee."""
+    if not user or not getattr(user, 'pk', None):
+        return None
+
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    if not isinstance(user, User):
+        return None
+
+    role_name = getattr(getattr(user, 'role', None), 'name', '') or ''
+    emp = Employee.objects.filter(user_id=user.pk).first()
+    if not emp and user.email:
+        emp = Employee.objects.filter(user__isnull=True, email__iexact=user.email).first()
+    if not emp and user.mobile:
+        emp = Employee.objects.filter(user__isnull=True, mobile=user.mobile).first()
+
+    if getattr(user, 'is_deleted', False):
+        if emp:
+            emp.user = user
+            emp.name = 'Deleted User'
+            emp.email = user.email or emp.email
+            emp.mobile = user.mobile or ''
+            emp.status = 'On Leave'
+            emp.save()
+        return emp
+
+    created = False
+    if not emp:
+        emp = Employee(user=user)
+        created = True
+
+    emp.user = user
+    emp.name = (user.name or user.email or 'User').strip()
+    emp.mobile = user.mobile or ''
+    emp.email = user.email or ''
+    if role_name:
+        emp.role = role_name
+        if not emp.department or created:
+            emp.department = department_for_role_name(role_name)
+    if not user.is_active:
+        emp.status = 'On Leave'
+    elif created:
+        emp.status = 'Available'
+    emp.save()
+    return emp
+
+
+def sync_employees_from_users():
+    """Backfill Employee rows for active Settings users (idempotent)."""
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    created = 0
+    for user in User.objects.filter(is_deleted=False).select_related('role'):
+        before = Employee.objects.filter(user_id=user.pk).exists()
+        ensure_employee_for_user(user)
+        if not before and Employee.objects.filter(user_id=user.pk).exists():
+            created += 1
+    return created
+
+
 def hourly_rate_for(employee):
     daily = employee.daily_rate or Decimal('0.00')
     if not daily:

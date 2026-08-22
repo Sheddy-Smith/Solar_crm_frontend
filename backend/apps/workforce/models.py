@@ -69,6 +69,13 @@ class Employee(models.Model):
     ]
 
     employee_id = models.CharField(max_length=50, unique=True, blank=True)
+    user = models.OneToOneField(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='employee_profile',
+    )
     name = models.CharField(max_length=200)
     mobile = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)

@@ -14,7 +14,7 @@ from .serializers import (
     EmployeeAssignmentSerializer, EmployeeDocumentSerializer,
     EmployeeAttendanceSerializer, EmployeeVoucherSerializer,
 )
-from .services import attendance_ledger_payload, week_start_for
+from .services import attendance_ledger_payload, week_start_for, sync_employees_from_users
 from apps.accounts.permissions import HasModulePermission
 
 
@@ -26,6 +26,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status', 'department']
     search_fields = ['name', 'employee_id', 'role', 'mobile', 'skill_trade', 'aadhaar_number']
     ordering_fields = ['name', 'created_at', 'status']
+
+    def list(self, request, *args, **kwargs):
+        # Settings → Users should always appear under Employee (backfill + live sync).
+        try:
+            sync_employees_from_users()
+        except Exception:
+            pass
+        return super().list(request, *args, **kwargs)
 
     def get_serializer_class(self):
         # Only the bulk `list` action uses the trimmed serializer (BUG-050 — it

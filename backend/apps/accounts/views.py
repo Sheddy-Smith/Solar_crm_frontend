@@ -235,6 +235,11 @@ class UserViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         user.soft_delete()
+        try:
+            from apps.workforce.services import ensure_employee_for_user
+            ensure_employee_for_user(user)
+        except Exception:
+            pass
         return Response(UserSerializer(user).data)
 
     def update(self, request, *args, **kwargs):
@@ -244,7 +249,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 {'detail': 'Deleted users cannot be edited.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return super().update(request, *args, **kwargs)
+        response = super().update(request, *args, **kwargs)
+        try:
+            from apps.workforce.services import ensure_employee_for_user
+            ensure_employee_for_user(self.get_object())
+        except Exception:
+            pass
+        return response
 
     def partial_update(self, request, *args, **kwargs):
         kwargs['partial'] = True
@@ -325,4 +336,9 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         user.is_active = not user.is_active
         user.save(update_fields=['is_active', 'updated_at'])
+        try:
+            from apps.workforce.services import ensure_employee_for_user
+            ensure_employee_for_user(user)
+        except Exception:
+            pass
         return Response({'is_active': user.is_active})

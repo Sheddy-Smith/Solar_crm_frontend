@@ -78,6 +78,12 @@ class UserCreateSerializer(serializers.ModelSerializer):
         user = User(**validated_data)
         user.set_password(password)
         user.save()
+        try:
+            from apps.workforce.services import ensure_employee_for_user
+            ensure_employee_for_user(user)
+        except Exception:
+            # User creation must not fail if workforce sync has a transient issue.
+            pass
         return user
 
 
