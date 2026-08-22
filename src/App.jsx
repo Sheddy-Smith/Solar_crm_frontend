@@ -28276,30 +28276,95 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
     return { start: customStart, end: customEnd };
   }, [rangeMode, weekStart, monthValue, customStart, customEnd]);
 
-  const loadLedger = useCallback(async ({ silent = false } = {}) => {
-    if (!selectedEmployeeId) {
-      setLedger(null);
-      return;
-    }
-    if (!silent) setLedgerLoading(true);
+  const periodStart = periodRange.start;
+  const periodEnd = periodRange.end;
+
+  const captureLedgerScroll = () => {
+    const main = typeof document !== 'undefined' ? document.querySelector('.main-scroll-area') : null;
+    return {
+      windowY: typeof window !== 'undefined' ? window.scrollY : 0,
+      mainY: main ? main.scrollTop : 0,
+    };
+  };
+
+  const restoreLedgerScroll = (snap) => {
+    if (!snap) return;
+    const apply = () => {
+      if (typeof window !== 'undefined') window.scrollTo(0, snap.windowY);
+      const main = typeof document !== 'undefined' ? document.querySelector('.main-scroll-area') : null;
+      if (main) main.scrollTop = snap.mainY;
+    };
+    apply();
+    requestAnimationFrame(apply);
+    setTimeout(apply, 0);
+    setTimeout(apply, 50);
+  };
+
+  const refreshLedgerSilent = useCallback(async () => {
+    if (!selectedEmployeeId || !periodStart || !periodEnd) return;
     try {
       const data = await workforceApi.attendanceLedger(selectedEmployeeId, {
-        start_date: periodRange.start,
-        end_date: periodRange.end,
+        start_date: periodStart,
+        end_date: periodEnd,
       });
       setLedger(data);
     } catch {
       onNotify('Failed to load attendance ledger');
-    } finally {
-      if (!silent) setLedgerLoading(false);
     }
-  }, [selectedEmployeeId, periodRange, onNotify]);
+  }, [selectedEmployeeId, periodStart, periodEnd, onNotify]);
 
+  // Initial / filter load only — do NOT depend on unstable notify/loadLedger identities,
+  // or every toast after Present/Absent will remount the table and jump scroll to top.
   useEffect(() => {
-    if (isAttendanceView && selectedEmployeeId) {
-      loadLedger();
-    }
-  }, [isAttendanceView, selectedEmployeeId, loadLedger]);
+    if (!isAttendanceView || !selectedEmployeeId || !periodStart || !periodEnd) return undefined;
+    let cancelled = false;
+    setLedgerLoading(true);
+    workforceApi.attendanceLedger(selectedEmployeeId, {
+      start_date: periodStart,
+      end_date: periodEnd,
+    }).then((data) => {
+      if (!cancelled) setLedger(data);
+    }).catch(() => {
+      if (!cancelled) onNotify('Failed to load attendance ledger');
+    }).finally(() => {
+      if (!cancelled) setLedgerLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [isAttendanceView, selectedEmployeeId, periodStart, periodEnd]);
+
+  const patchLedgerRow = (date, patch) => {
+    setLedger((prev) => {
+      if (!prev) return prev;
+      const records = [...(prev.records || [])];
+      const idx = records.findIndex((row) => row.date === date);
+      if (idx >= 0) {
+        records[idx] = { ...records[idx], ...patch };
+      } else {
+        records.push({
+          id: `tmp-${date}`,
+          date,
+          day: new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short' }),
+          status: 'Not Marked',
+          hours: '0.00',
+          ot_hours: '0.00',
+          payment: '0.00',
+          voucher_amount: '0.00',
+          payment_mode: '',
+          notes: '',
+          ...patch,
+        });
+      }
+      const presentDays = records.filter((row) => row.status === 'Present').length;
+      return {
+        ...prev,
+        records,
+        summary: {
+          ...(prev.summary || {}),
+          present_days: presentDays,
+        },
+      };
+    });
+  };
 
   const filteredEmployees = employees.filter((row) => {
     if (!search.trim()) return true;
@@ -28450,10 +28515,16 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
   };
 
   const handleMarkPresent = async (record) => {
-    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+    const snap = captureLedgerScroll();
     const dutyHours = Number(selectedEmployee?.duty_hours_per_day || ledger?.employee?.duty_hours_per_day || 9);
+    const hoursStr = Number.isFinite(dutyHours) ? dutyHours.toFixed(2) : '9.00';
+    patchLedgerRow(record.date, {
+      status: 'Present',
+      hours: hoursStr,
+      ot_hours: record.ot_hours || '0.00',
+    });
     try {
-      if (String(record.id).startsWith('missing-')) {
+      if (String(record.id).startsWith('missing-') || String(record.id).startsWith('tmp-')) {
         await workforceApi.markAttendanceByDate({
           employee: selectedEmployeeId,
           date: record.date,
@@ -28464,20 +28535,25 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
         await workforceApi.markAttendancePresent(record.id, { hours: dutyHours });
       }
       onNotify('Attendance marked as present');
-      await loadLedger({ silent: true });
-      loadEmployees({ silent: true });
-      requestAnimationFrame(() => {
-        if (typeof window !== 'undefined') window.scrollTo({ top: scrollY });
-      });
+      await refreshLedgerSilent();
+      restoreLedgerScroll(snap);
     } catch (error) {
       onNotify(error.message || 'Failed to mark present');
+      await refreshLedgerSilent();
+      restoreLedgerScroll(snap);
     }
   };
 
   const handleMarkAbsent = async (record) => {
-    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+    const snap = captureLedgerScroll();
+    patchLedgerRow(record.date, {
+      status: 'Absent',
+      hours: '0.00',
+      ot_hours: '0.00',
+      payment: '0.00',
+    });
     try {
-      if (String(record.id).startsWith('missing-')) {
+      if (String(record.id).startsWith('missing-') || String(record.id).startsWith('tmp-')) {
         await workforceApi.markAttendanceByDate({
           employee: selectedEmployeeId,
           date: record.date,
@@ -28487,21 +28563,21 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
         await workforceApi.markAttendanceAbsent(record.id);
       }
       onNotify('Attendance marked as absent');
-      await loadLedger({ silent: true });
-      requestAnimationFrame(() => {
-        if (typeof window !== 'undefined') window.scrollTo({ top: scrollY });
-      });
+      await refreshLedgerSilent();
+      restoreLedgerScroll(snap);
     } catch (error) {
       onNotify(error.message || 'Failed to mark absent');
+      await refreshLedgerSilent();
+      restoreLedgerScroll(snap);
     }
   };
 
   const handleSaveAttendanceEdit = async () => {
     if (!editAttRow) return;
-    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+    const snap = captureLedgerScroll();
     setSaving(true);
     try {
-      if (String(editAttRow.id).startsWith('missing-')) {
+      if (String(editAttRow.id).startsWith('missing-') || String(editAttRow.id).startsWith('tmp-')) {
         await workforceApi.markAttendanceByDate({
           employee: selectedEmployeeId,
           date: editAttRow.date,
@@ -28524,11 +28600,8 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
       }
       onNotify('Attendance updated');
       setEditAttRow(null);
-      await loadLedger({ silent: true });
-      loadEmployees({ silent: true });
-      requestAnimationFrame(() => {
-        if (typeof window !== 'undefined') window.scrollTo({ top: scrollY });
-      });
+      await refreshLedgerSilent();
+      restoreLedgerScroll(snap);
     } catch (error) {
       onNotify(error.message || 'Failed to update attendance');
     } finally {
@@ -28539,6 +28612,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
   const handleSaveVoucher = async () => {
     if (!selectedEmployeeId) { onNotify('Select an employee first'); return; }
     if (!voucherForm.amount) { onNotify('Payment amount is required'); return; }
+    const snap = captureLedgerScroll();
     setSaving(true);
     try {
       await workforceApi.createVoucher({
@@ -28553,8 +28627,8 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
       onNotify('Payment voucher processed');
       setVoucherOpen(false);
       setVoucherForm({ voucher_date: formatIsoDate(new Date()), amount: '', payment_mode: 'Cash', notes: '' });
-      await loadLedger({ silent: true });
-      loadEmployees({ silent: true });
+      await refreshLedgerSilent();
+      restoreLedgerScroll(snap);
     } catch (error) {
       onNotify(error.message || 'Failed to process voucher');
     } finally {
