@@ -34668,7 +34668,7 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
   if (!lead?.id) return <NoLeadSelected title="Lead Details" onGoToList={onBackToList} />;
 
   const detailsRole = loggedInUser?.role_name || '';
-  const detailsIsManager = Boolean(loggedInUser?.is_super_admin) || ['Admin', 'Branch Manager'].includes(detailsRole);
+  const detailsIsManager = Boolean(loggedInUser?.is_super_admin) || ['Admin', 'Branch Manager', 'Sales Manager'].includes(detailsRole);
   const detailsIsSalesExec = detailsRole === 'Sales Executive';
 
   const quickDetailActions = [

@@ -59,11 +59,16 @@ export function isTeleExecutiveRole(roleName) {
   );
 }
 
-/** Roles allowed into the Tele Executive portal (not CRM Operations). */
+/** Roles allowed into the Tele Executive portal. */
 export function canAccessTelePortal(roleName) {
   const n = String(roleName || '').trim().toLowerCase().replace(/\s+/g, ' ');
   if (isTeleExecutiveRole(roleName)) return true;
-  return n === 'sales executive' || n === 'sales executives';
+  return (
+    n === 'sales executive' ||
+    n === 'sales executives' ||
+    n === 'sales manager' ||
+    n === 'sales managers'
+  );
 }
 
 // ─── Shared bits ──────────────────────────────────────────────────────────────
@@ -856,7 +861,7 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
       // Each role only sees leads they created or that are assigned to them.
       if (!canAccessTelePortal(roleName) && !isSuperAdmin) {
         authApi.logout();
-        setLoginError('This portal is for Tele Sales / Sales Executives. Please use the CRM Operations portal.');
+        setLoginError('This portal is for Tele Sales, Sales Executive, or Sales Manager. Please use the CRM Operations portal if your role is not allowed.');
         return;
       }
       onLogin(data.user);
