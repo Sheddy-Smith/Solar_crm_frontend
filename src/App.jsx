@@ -13016,72 +13016,22 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project Installation') {
-    if (!selectedProject?.id) {
-      return (
-        <ProjectListPage
-          activeSection={activeSection}
-          onOpenSection={onOpenSection}
-          onSelectProject={(project, target = 'Project Installation') => onSelectProject?.(project, target)}
-          onNotify={onNotify}
-        />
-      );
-    }
-    return <ProjectInstallationPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
+    return <ProjectInstallationPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Dispatch' || activeSection === 'Project Team Assignment') {
-    if (!selectedProject?.id) {
-      return (
-        <ProjectListPage
-          activeSection="Project Dispatch"
-          onOpenSection={onOpenSection}
-          onSelectProject={(project, target = 'Project Dispatch') => onSelectProject?.(project, target)}
-          onNotify={onNotify}
-        />
-      );
-    }
-    return <ProjectMaterialDispatchPage activeSection="Project Dispatch" onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
+    return <ProjectMaterialDispatchPage activeSection="Project Dispatch" onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Material Planning') {
-    if (!selectedProject?.id) {
-      return (
-        <ProjectListPage
-          activeSection={activeSection}
-          onOpenSection={onOpenSection}
-          onSelectProject={(project, target = 'Project Material Planning') => onSelectProject?.(project, target)}
-          onNotify={onNotify}
-        />
-      );
-    }
-    return <ProjectMaterialPlanningPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
+    return <ProjectMaterialPlanningPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Subsidy') {
-    if (!selectedProject?.id) {
-      return (
-        <ProjectListPage
-          activeSection={activeSection}
-          onOpenSection={onOpenSection}
-          onSelectProject={(project, target = 'Subsidy') => onSelectProject?.(project, target)}
-          onNotify={onNotify}
-        />
-      );
-    }
-    return <ProjectSubsidyPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
+    return <ProjectSubsidyPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Work Orders') {
-    if (!selectedProject?.id) {
-      return (
-        <ProjectListPage
-          activeSection={activeSection}
-          onOpenSection={onOpenSection}
-          onSelectProject={(project, target = 'Project Work Orders') => onSelectProject?.(project, target)}
-          onNotify={onNotify}
-        />
-      );
-    }
     return <ProjectWorkOrdersPage activeSection={activeSection} onOpenSection={onOpenSection} selectedProject={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
@@ -13950,15 +13900,6 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   }, [refreshKey]);
 
   const isSiteSurveyPicker = activeSection === 'Project Site Survey';
-  const modulePickerTitles = {
-    'Project Material Planning': 'Material Planning',
-    'Project Dispatch': 'Dispatch',
-    'Project Installation': 'Installation',
-    'Project Work Orders': 'Work Orders',
-    Subsidy: 'Subsidy',
-  };
-  const modulePickerTitle = modulePickerTitles[activeSection] || null;
-  const isModuleProjectPicker = Boolean(modulePickerTitle);
 
   // Survey stat cards (Total / Pending / In Progress / Completed) — previously
   // their own "Survey Dashboard" tab, now merged into the Site Survey page.
@@ -14100,12 +14041,12 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     onNotify(`${filteredRows.length} projects exported`);
   };
 
-  const pageTitle = isSiteSurveyPicker ? 'Site Survey' : (modulePickerTitle || 'Project Management');
-  const pageCrumbs = (isSiteSurveyPicker || isModuleProjectPicker)
+  const pageTitle = isSiteSurveyPicker ? 'Site Survey' : 'Project Management';
+  const pageCrumbs = isSiteSurveyPicker
     ? [
         { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
         { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-        { label: isSiteSurveyPicker ? 'Site Survey' : modulePickerTitle },
+        { label: 'Site Survey' },
       ]
     : [
         { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
@@ -20819,7 +20760,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
   );
 }
 
-function ProjectInstallationPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
+function ProjectInstallationPage({ activeSection, onOpenSection, onNotify }) {
   const TASK_STATUSES = ['Pending', 'In Progress', 'Completed', 'Delayed'];
   const MAT_UNITS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Roll', 'Pair'];
   const MAT_STATUS = ['Pending', 'In Progress', 'Completed'];
@@ -20829,7 +20770,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
   const emptyQaForm = { label: '', category: 'QA', is_checked: false, notes: '' };
 
   // â”€â”€ Project selection â”€â”€
-  const [selectedProject, setSelectedProject] = useState(projectProp || null);
+  const [selectedProject, setSelectedProject] = useState(null);
   const [allProjects, setAllProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -20907,19 +20848,22 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
   }, []);
 
   useEffect(() => {
-    if (!projectProp?.id) return;
-    setSelectedProject(projectProp);
-    loadData(projectProp);
-  }, [projectProp?.id, loadData]);
-
-  useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingProjects(true);
       try {
         const d = await projectApi.list({ page_size: 200 });
         const rows = normalizeApiRows(d);
-        if (!cancelled) setAllProjects(rows);
+        if (cancelled) return;
+        setAllProjects(rows);
+        const preferred = rows.find((p) => p.status === 'Active')
+          || rows.find((p) => p.status === 'Planning')
+          || rows.find((p) => p.status === 'On Hold')
+          || rows[0];
+        if (preferred) {
+          setSelectedProject(preferred);
+          loadData(preferred);
+        }
       } catch {
         if (!cancelled) setAllProjects([]);
       } finally {
@@ -20927,7 +20871,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [loadData]);
 
   useEffect(() => {
     userApi.list({ is_active: true }).then((res) => {
@@ -20941,10 +20885,9 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
     setPickerSearch('');
     setActiveTab('Overview');
     loadData(proj);
-    onSelectProject?.(proj, activeSection);
   };
 
-  const openPicker = () => { onOpenSection(activeSection); };
+  const openPicker = () => { setPickerOpen(true); };
 
   // â”€â”€ Task handlers â”€â”€
   const openAddTask = () => { setEditTask(null); setTaskForm(emptyTaskForm); setTaskModalOpen(true); };
@@ -21143,10 +21086,24 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
         }
       />
 
-      {/* Empty State */}
+      {/* â”€â”€ Empty State â”€â”€ */}
       {!selectedProject ? (
-        <article className={`${panelClass} p-8`}>
-          <PageLoadingState message="Loading project..." />
+        <article className={`${panelClass} flex flex-col items-center justify-center gap-4 p-14 text-center`}>
+          <span className="grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]">
+            <FolderKanban className="size-8" />
+          </span>
+          <div>
+            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">No Project Selected</h2>
+            <p className="mt-2 text-[13px] font-bold text-[#53647f]">Please click "Select Project" to manage Installation.</p>
+          </div>
+          <button
+            type="button"
+            onClick={openPicker}
+            className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white transition hover:bg-[#0e9145]"
+          >
+            <FolderKanban className="size-4" />
+            Select Project
+          </button>
         </article>
       ) : loading ? (
         <article className={`${panelClass} p-8`}>
@@ -21780,7 +21737,7 @@ function ProjectInstallationPage({ activeSection, onOpenSection, project: projec
     </div>
   );
 }
-function ProjectMaterialDispatchPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
+function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNotify }) {
   const DISPATCH_STATUS = ['Pending', 'Partial', 'Dispatched'];
   const parseQty = (value) => {
     const n = Number(String(value ?? '').replace(/,/g, '').trim());
@@ -21808,7 +21765,7 @@ function ProjectMaterialDispatchPage({ activeSection, onOpenSection, project: pr
     dispatch_notes: '',
   };
 
-  const [selectedProject, setSelectedProject] = useState(projectProp || null);
+  const [selectedProject, setSelectedProject] = useState(null);
   const [rows, setRows] = useState([]);
   const [loadingRows, setLoadingRows] = useState(false);
   const [query, setQuery] = useState('');
@@ -21837,30 +21794,36 @@ function ProjectMaterialDispatchPage({ activeSection, onOpenSection, project: pr
   }, [onNotify]);
 
   useEffect(() => {
-    if (!projectProp?.id) return undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const full = projectProp.project_name ? projectProp : await projectApi.get(projectProp.id);
-        if (cancelled) return;
-        setSelectedProject(full);
-        setRows([]);
-        await loadProjectData(full);
-      } catch {
-        if (!cancelled) onNotify('Failed to load project');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [projectProp?.id, loadProjectData, onNotify]);
+    if (selectedProject) loadProjectData(selectedProject);
+  }, [selectedProject, loadProjectData]);
 
-  const openProjectPicker = () => { onOpenSection(activeSection); };
+  const openProjectPicker = async () => {
+    setProjectPickerOpen(true);
+    if (allProjects.length > 0) return;
+    setLoadingProjects(true);
+    try {
+      const [projData, planData] = await Promise.all([
+        projectApi.list({ page_size: 200 }),
+        materialPlanApi.list({ page_size: 1000 }),
+      ]);
+      setAllProjects(normalizeApiRows(projData));
+      const counts = {};
+      normalizeApiRows(planData).forEach((p) => {
+        counts[p.project] = (counts[p.project] || 0) + 1;
+      });
+      setProjectPlanCounts(counts);
+    } catch {
+      onNotify('Failed to load projects');
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
 
   const handleProjectSelect = (proj) => {
     setSelectedProject(proj);
     setProjectPickerOpen(false);
     setProjectSearch('');
     setRows([]);
-    onSelectProject?.(proj, activeSection);
   };
 
   const openDispatch = (row) => {
@@ -21985,8 +21948,18 @@ function ProjectMaterialDispatchPage({ activeSection, onOpenSection, project: pr
       ) : null}
 
       {!selectedProject ? (
-        <section className={`${panelClass} p-8`}>
-          <PageLoadingState message="Loading project..." compact />
+        <section className={`${panelClass} flex flex-col items-center justify-center px-6 py-16 text-center`}>
+          <span className="grid size-16 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]">
+            <Truck className="size-8" />
+          </span>
+          <p className="mt-4 text-[24px] font-bold text-[#1e3261]">Select a Project</p>
+          <p className="mt-2 max-w-md text-[15px] font-medium text-[#53647f]">
+            Choose a project to dispatch materials that were added in Material Planning.
+          </p>
+          <button type="button" onClick={openProjectPicker} className="mt-5 inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-5 text-[14px] font-semibold text-white">
+            <FolderKanban className="size-4" />
+            Select Project
+          </button>
         </section>
       ) : (
         <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
@@ -22195,14 +22168,14 @@ function ProjectMaterialDispatchPage({ activeSection, onOpenSection, project: pr
   );
 }
 
-function ProjectMaterialPlanningPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
+function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify }) {
   const MATERIAL_CATEGORIES = ['Solar Panels', 'Inverters', 'Mounting Structure', 'DC Cables', 'AC Cables', 'Connectors (MC4)', 'ACDB / DCDB', 'Earthing Material', 'Consumables', 'Safety & Others', 'Battery', 'Other'];
   const MATERIAL_STATUS = ['Not Started', 'In Progress', 'Partially Completed', 'Completed', 'Delayed'];
   const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair'];
   const emptyForm = { category: 'Solar Panels', items: '', uom: 'Nos', planned_qty: '', planned_value: '', status: 'Not Started' };
   const CHART_COLORS = ['#94a3b8', '#2f80ff', '#22c7d6', '#16a34a', '#ef4444'];
 
-  const [selectedProject, setSelectedProject] = useState(projectProp || null);
+  const [selectedProject, setSelectedProject] = useState(null);
   const [projectSurvey, setProjectSurvey] = useState(null);
   const [rows, setRows] = useState([]);
   const [loadingRows, setLoadingRows] = useState(false);
@@ -22239,33 +22212,24 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, project: pr
     }
   }, [onNotify]);
 
-  useEffect(() => {
-    if (!projectProp?.id) return undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const full = projectProp.project_name ? projectProp : await projectApi.get(projectProp.id);
-        if (cancelled) return;
-        setSelectedProject(full);
-        setRows([]);
-        setProjectSurvey(full?.site_survey || null);
-        await loadProjectData(full);
-        if (!full?.site_survey) {
-          projectApi.get(full.id).then((detail) => {
-            if (!cancelled) {
-              setSelectedProject(detail);
-              setProjectSurvey(detail?.site_survey || null);
-            }
-          }).catch(() => {});
-        }
-      } catch {
-        if (!cancelled) onNotify('Failed to load project');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [projectProp?.id, loadProjectData, onNotify]);
+  useEffect(() => { if (selectedProject) loadProjectData(selectedProject); }, [selectedProject, loadProjectData]);
 
-  const openProjectPicker = () => { onOpenSection(activeSection); };
+  const openProjectPicker = async () => {
+    setProjectPickerOpen(true);
+    if (allProjects.length > 0) return;
+    setLoadingProjects(true);
+    try {
+      const [projData, planData] = await Promise.all([
+        projectApi.list({ page_size: 200 }),
+        materialPlanApi.list({ page_size: 1000 }),
+      ]);
+      setAllProjects(normalizeApiRows(projData));
+      const counts = {};
+      normalizeApiRows(planData).forEach((p) => { counts[p.project] = (counts[p.project] || 0) + 1; });
+      setProjectPlanCounts(counts);
+    } catch { onNotify('Failed to load projects'); }
+    finally { setLoadingProjects(false); }
+  };
 
   const handleProjectSelect = (proj) => {
     setSelectedProject(proj);
@@ -22273,7 +22237,8 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, project: pr
     setProjectSearch('');
     setRows([]);
     setProjectSurvey(null);
-    onSelectProject?.(proj, activeSection);
+    // Site survey already captured structure layout/capacity — pull it in so
+    // the mounting-structure/panel rows don't need those numbers re-typed.
     projectApi.get(proj.id).then((full) => setProjectSurvey(full?.site_survey || null)).catch(() => {});
   };
 
@@ -22379,7 +22344,7 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, project: pr
             </select>
             <button type="button" onClick={openProjectPicker} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5] hover:text-[#0b65e5]')}>
               <FolderKanban className="size-4" />
-              {selectedProject ? 'Change Project' : 'Select Project'}
+              {selectedProject ? (selectedProject.project_name || selectedProject.name) : 'Select Project'}
             </button>
             {selectedProject && (
               <button type="button" onClick={openAdd} className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#11a650] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0e9748]">
@@ -22406,8 +22371,13 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, project: pr
       )}
 
       {!selectedProject ? (
-        <article className={`${panelClass} p-8`}>
-          <PageLoadingState message="Loading project..." compact />
+        <article className={`${panelClass} flex flex-col items-center justify-center py-20`}>
+          <FolderKanban className="size-14 text-[#c5d2e8]" />
+          <h3 className="mt-4 font-display text-[18px] font-extrabold text-[#1e3261]">No Project Selected</h3>
+          <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to create or manage Material Planning.</p>
+          <button type="button" onClick={openProjectPicker} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
+            <FolderKanban className="size-4" />Select Project
+          </button>
         </article>
       ) : (
         <article className={`${panelClass} overflow-hidden`}>
@@ -22671,7 +22641,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
     setPickerSearch('');
   };
 
-  const openPicker = () => { onOpenSection(activeSection); };
+  const openPicker = () => { loadProjects(); setPickerOpen(true); };
 
   const todayIso = new Date().toISOString().slice(0, 10);
 
@@ -22810,7 +22780,14 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
       <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       {!activeProject ? (
-        <article className={`${panelClass} p-8`}><PageLoadingState message="Loading project..." /></article>
+        <article className={`${panelClass} flex flex-col items-center justify-center gap-4 p-14 text-center`}>
+          <span className="grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
+          <div>
+            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">No Project Selected</h2>
+            <p className="mt-2 text-[13px] font-bold text-[#53647f]">Select a project from the list to view and manage its work orders.</p>
+          </div>
+          <button type="button" onClick={openPicker} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white transition hover:bg-[#0e9145]"><FolderKanban className="size-4" />Select Project</button>
+        </article>
       ) : loading ? (
         <article className={`${panelClass} p-8`}><PageLoadingState message="Loading work orders..." /></article>
       ) : (
@@ -25113,13 +25090,13 @@ function ProjectModulePlaceholderPage({ activeSection, onOpenSection, onNotify }
   );
 }
 
-function ProjectSubsidyPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
+function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
   const STATUS_OPTIONS = ['Draft', 'Submitted', 'Under Process', 'Approved', 'Rejected', 'Completed'];
   const DOC_TYPES = ['Electricity Bill', 'Aadhaar', 'PAN', 'Approval Letter', 'Other'];
   const emptyForm = { application_number: '', application_date: '', discom: '', status: 'Draft', assigned_employee: '', remarks: '' };
 
   // Project selection
-  const [selectedProject, setSelectedProject] = useState(projectProp || null);
+  const [selectedProject, setSelectedProject] = useState(null);
   const [allProjects, setAllProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
@@ -25177,21 +25154,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, project: projectProp
     finally { setLoadingRows(false); }
   }, []);
 
-  useEffect(() => {
-    if (!projectProp?.id) return undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const full = projectProp.project_name ? projectProp : await projectApi.get(projectProp.id);
-        if (cancelled) return;
-        setSelectedProject(full);
-        loadData(full);
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [projectProp?.id, loadData]);
-
-  useEffect(() => { if (selectedProject && !projectProp?.id) loadData(selectedProject); }, [selectedProject, loadData, projectProp?.id]);
+  useEffect(() => { if (selectedProject) loadData(selectedProject); }, [selectedProject, loadData]);
 
   // ── CRUD ──
   const openAdd = () => { setForm(emptyForm); setEditRow(null); setDocFile(null); setDocName(''); setDocType('Other'); setModalOpen(true); };
@@ -25298,8 +25261,8 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, project: projectProp
             <option value="All">All Status</option>
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <button type="button" onClick={() => onOpenSection(activeSection)} className={cx('inline-flex h-10 items-center gap-2 rounded-[10px] border px-3 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
-            <FolderKanban className="size-4" />{selectedProject ? 'Change Project' : 'Select Project'}
+          <button type="button" onClick={() => setProjectPickerOpen(true)} className={cx('inline-flex h-10 items-center gap-2 rounded-[10px] border px-3 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
+            <FolderKanban className="size-4" />{selectedProject ? selectedProject.project_name : 'Select Project'}
           </button>
           {selectedProject && (
             <button type="button" onClick={openAdd} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
@@ -25311,8 +25274,15 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, project: projectProp
 
       {/* Empty state or content */}
       {!selectedProject ? (
-        <article className={`${panelClass} overflow-hidden p-8`}>
-          <PageLoadingState message="Loading project..." compact />
+        <article className={`${panelClass} overflow-hidden`}>
+          <div className="flex flex-col items-center justify-center py-16">
+            <FolderKanban className="size-12 text-[#c5d2e8]" />
+            <h3 className="mt-3 font-display text-[17px] font-extrabold text-[#1e3261]">No Project Selected</h3>
+            <p className="mt-1 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to manage Subsidy.</p>
+            <button type="button" onClick={() => setProjectPickerOpen(true)} className="mt-4 inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
+              <FolderKanban className="size-4" />Select Project
+            </button>
+          </div>
         </article>
       ) : (
         <div className="space-y-2">
