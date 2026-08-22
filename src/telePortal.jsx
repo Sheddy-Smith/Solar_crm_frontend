@@ -71,6 +71,20 @@ export function canAccessTelePortal(roleName) {
   );
 }
 
+/** Managers who should see the full tele team (all leads / follow-ups), not only their own. */
+export function isTelePortalManager(roleName) {
+  const n = String(roleName || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return (
+    n === 'sales manager' ||
+    n === 'sales managers' ||
+    n === 'branch manager' ||
+    n === 'branch managers' ||
+    n === 'admin' ||
+    n === 'team leader' ||
+    n === 'team leaders'
+  );
+}
+
 // ─── Shared bits ──────────────────────────────────────────────────────────────
 
 const BRAND_LOGO_SRC = '/brand/malwa-logo-wordmark-light.png';
@@ -1126,32 +1140,34 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const refreshData = () => { loadLeads(); loadFollowUps(); };
 
   // `leadRows` / full `followUps` are every tele-sourced record (needed for the
-  // "Add By" filter on My Leads + Follow-ups). Dashboard, Reminders and Reports
-  // stay personal — leads this account added.
+  // "Add By" filter on My Leads + Follow-ups). Executives stay personal;
+  // Sales Manager / Super Admin see the full team.
   const leadRows = leads ?? [];
   const sameId = (a, b) => a != null && b != null && String(a) === String(b);
   const isSuperAdminUser = Boolean(me?.is_super_admin);
+  const canViewTeamTele = isSuperAdminUser || isTelePortalManager(me?.role_name);
   const teleNavItems = useMemo(() => {
     if (!me || hasModuleAccess(me, 'Daily Tasks', 'View')) return TELE_NAV_ITEMS;
     return TELE_NAV_ITEMS.filter((item) => item.label !== 'Daily Tasks');
   }, [me]);
   const isOwnLeadRow = (lead) => sameId(lead?.created_by, me?.id);
   const ownLeadRows = leadRows.filter(isOwnLeadRow);
+  const teamLeadRows = canViewTeamTele ? leadRows : ownLeadRows;
   const ownLeadIds = useMemo(
     () => new Set(ownLeadRows.map((lead) => String(lead.id))),
     [ownLeadRows],
   );
   const scopedFollowUps = useMemo(() => {
     const rows = followUps ?? [];
-    if (isSuperAdminUser) return rows;
+    if (canViewTeamTele) return rows;
     return rows.filter((item) => (
       ownLeadIds.has(String(item.lead)) || sameId(item.created_by, me?.id)
     ));
-  }, [followUps, ownLeadIds, isSuperAdminUser, me?.id]);
-  const reportLeadRows = isSuperAdminUser ? leadRows : ownLeadRows;
+  }, [followUps, ownLeadIds, canViewTeamTele, me?.id]);
+  const reportLeadRows = teamLeadRows;
   const reportFollowUps = scopedFollowUps;
-  const wonCount = ownLeadRows.filter((lead) => lead.status === 'Won' || teleDisplayStatus(lead) === 'Won').length;
-  const lostCount = ownLeadRows.filter((lead) => lead.status === 'Lost' || teleDisplayStatus(lead) === 'Lost').length;
+  const wonCount = teamLeadRows.filter((lead) => lead.status === 'Won' || teleDisplayStatus(lead) === 'Won').length;
+  const lostCount = teamLeadRows.filter((lead) => lead.status === 'Lost' || teleDisplayStatus(lead) === 'Lost').length;
 
   const scheduledFollowUps = useMemo(
     () => scopedFollowUps.filter((item) => item.status === 'Scheduled').sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)),
@@ -1207,7 +1223,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       case 'Dashboard':
         return (
           <TeleDashboard
-            leads={ownLeadRows}
+            leads={teamLeadRows}
             allLeads={leadRows}
             leadsLoaded={leads !== null}
             todayFollowUps={todayFollowUps}
@@ -1217,7 +1233,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             wonCount={wonCount}
             lostCount={lostCount}
             currentUserId={me?.id}
-            isSuperAdmin={Boolean(me?.is_super_admin)}
+            isSuperAdmin={canViewTeamTele}
             onView={setHistoryLead}
             onEdit={setEditLead}
             onDelete={setDeleteLead}
@@ -1236,7 +1252,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             leads={leadRows}
             leadsLoaded={leads !== null}
             currentUserId={me?.id}
-            isSuperAdmin={Boolean(me?.is_super_admin)}
+            isSuperAdmin={canViewTeamTele}
             onView={setHistoryLead}
             onEdit={setEditLead}
             onDelete={setDeleteLead}
@@ -1251,7 +1267,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             loaded={followUps !== null}
             leads={leadRows}
             currentUserId={me?.id}
-            isSuperAdmin={isSuperAdminUser}
+            isSuperAdmin={canViewTeamTele}
             initialTab={followUpsTab}
             onAddFollowUp={openFollowUpForm}
             onViewLead={(leadId) => {
@@ -1486,7 +1502,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       )}
       {followUpModal && (
         <TeleFollowUpCreateModal
-          leads={isSuperAdminUser ? leadRows : ownLeadRows}
+          leads={canViewTeamTele ? leadRows : ownLeadRows}
           initialLead={followUpModal.lead}
           onClose={() => setFollowUpModal(null)}
           onSaved={() => { setFollowUpModal(null); refreshData(); }}
@@ -1926,21 +1942,30 @@ function TeleFollowUpsPage({
 
   const addByOptions = useMemo(() => {
     const map = new Map();
+    followUps.forEach((item) => {
+      if (item.created_by != null && !map.has(String(item.created_by))) {
+        map.set(String(item.created_by), item.created_by_name || 'Deleted User');
+      }
+    });
     leads.forEach((lead) => {
       if (lead.created_by != null && !map.has(String(lead.created_by))) {
         map.set(String(lead.created_by), lead.created_by_name || 'Deleted User');
       }
     });
     return Array.from(map, ([id, name]) => ({ id, name }));
-  }, [leads]);
+  }, [followUps, leads]);
 
   const matchesAddBy = useCallback((item) => {
     if (addByFilter === 'All') return true;
+    // Prefer who logged the follow-up; fall back to lead creator if needed.
+    if (item.created_by != null) {
+      return String(item.created_by) === String(addByFilter);
+    }
     const lead = leadById.get(String(item.lead));
-    if (lead) {
+    if (lead?.created_by != null) {
       return String(lead.created_by) === String(addByFilter);
     }
-    return String(item.created_by) === String(addByFilter);
+    return false;
   }, [addByFilter, leadById]);
 
   const canOperateFollowUp = useCallback((item) => {

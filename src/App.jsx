@@ -2318,7 +2318,18 @@ function App() {
   );
 
   const notify = (message, type = 'info') => {
-    setToast({ id: Date.now(), message, type });
+    const msg = String(message ?? '');
+    // Mobile: hide noisy navigation / filter toasts that cover the bottom nav
+    // and feel like desktop chrome. Keep success + error toasts.
+    if (
+      type === 'info'
+      && typeof window !== 'undefined'
+      && window.matchMedia('(max-width: 767px)').matches
+      && (/\bopened\b/i.test(msg) || /filter applied/i.test(msg) || /filters reset/i.test(msg))
+    ) {
+      return;
+    }
+    setToast({ id: Date.now(), message: msg, type });
   };
 
   const handlePwaInstall = async () => {
@@ -4201,15 +4212,19 @@ function Toast({ toast }) {
   }
 
   const isError = toast.type === 'error';
+  const isSuccess = toast.type === 'success';
 
   return (
     <div
       key={toast.id}
       className={cx(
-        'fixed bottom-5 left-4 right-4 z-[220] rounded-[12px] border px-4 py-3 text-center text-[13px] font-extrabold shadow-[0_16px_34px_rgba(21,43,83,0.16)] sm:left-auto sm:right-5 sm:max-w-[360px] sm:text-left',
+        // Sit above the mobile bottom nav (≈4.5rem + safe area); desktop stays bottom-right.
+        'fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-[220] rounded-[14px] border px-4 py-3 text-center text-[13px] font-extrabold shadow-[0_16px_34px_rgba(21,43,83,0.16)] md:bottom-5 md:left-auto md:right-5 md:max-w-[360px] md:text-left',
         isError
           ? 'border-[#fecaca] bg-[#fff1f1] text-[#b91c1c]'
-          : 'border-[#dce7f5] bg-white text-[#223768]',
+          : isSuccess
+            ? 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]'
+            : 'border-[#dce7f5] bg-white text-[#223768]',
       )}
       role="status"
       aria-live="polite"
@@ -4492,6 +4507,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   // leads never showed up and the filter felt broken.
   const [executiveList, setExecutiveList] = useState([]);
   const [assignLead, setAssignLead] = useState(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   useEffect(() => {
     userApi.list({ is_active: true }).then((data) => {
@@ -4722,18 +4738,27 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   }, [activeLeadCategory]);
 
   return (
-    <div className="lead-list-page -mx-1 flex min-h-0 flex-1 flex-col gap-1 overflow-visible lg:overflow-hidden md:mx-0 xl:-mx-1">
-      <section className={`${panelClass} shrink-0 overflow-hidden p-2 sm:p-2.5`}>
-        <div className="flex items-center justify-end gap-2">
-          <div className="flex shrink-0 items-center gap-2">
+    <div className="lead-list-page -mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-visible pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 lg:overflow-hidden md:mx-0 xl:-mx-1">
+      <section className={`${panelClass} shrink-0 overflow-hidden p-3 sm:p-2.5`}>
+        {/* Mobile action bar — full-width primary CTA + secondary actions */}
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-end">
+          <button
+            type="button"
+            onClick={() => setCreateModalOpen(true)}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-[#12a54f] px-4 text-[14px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition active:scale-[0.98] md:h-8 md:w-auto md:rounded-[7px] md:px-2.5 md:text-[12px] md:order-3"
+          >
+            <Plus className="size-4 md:size-3.5" />
+            Create Lead
+          </button>
+          <div className="grid grid-cols-2 gap-2 md:flex md:shrink-0 md:items-center md:order-1">
             <button
               type="button"
               onClick={() => onOpenSection('Follow-ups', 'Follow-ups opened', null, 'today')}
               data-action="lead-view-followups"
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 text-[12px] font-extrabold text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[12px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-extrabold text-[#284276] shadow-sm transition active:bg-[#f8fbff] md:h-8 md:rounded-[7px] md:px-2.5 md:text-[12px]"
             >
-              <CalendarDays className="size-3.5" />
-              View Follow-up
+              <CalendarDays className="size-4 md:size-3.5" />
+              <span className="truncate">Follow-ups</span>
             </button>
             <button
               type="button"
@@ -4741,26 +4766,21 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               data-action="lead-export"
               aria-label="Export"
               title="Export"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-[7px] border border-[#d9e4f2] bg-white text-[#284276] shadow-[0_8px_18px_rgba(17,39,84,0.04)] transition hover:border-[#c8d8ed] hover:bg-[#f8fbff]"
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[12px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-extrabold text-[#284276] shadow-sm transition active:bg-[#f8fbff] md:h-8 md:size-8 md:rounded-[7px] md:px-0 md:text-[0px]"
             >
-              <Download className="size-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setCreateModalOpen(true)}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] bg-[#12a54f] px-2.5 text-[12px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9145]"
-            >
-              <Plus className="size-3.5" />
-              Create Lead
+              <Download className="size-4 md:size-3.5" />
+              <span className="md:hidden">Export</span>
             </button>
           </div>
         </div>
 
-        <div className="mt-1.5">
-          <div className="flex flex-wrap items-center gap-1.5">
+        {/* Category chips — 2-col cards on phone, wrap row on desktop */}
+        <div className="mt-3 md:mt-1.5">
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center md:gap-1.5">
             {leadCategoryTabs.map((category) => {
               const Icon = category.icon;
               const tone = leadCategoryToneClasses[category.tone];
+              const selected = activeLeadCategory?.label === category.label;
 
               return (
                 <button
@@ -4774,21 +4794,21 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                   }}
                   data-action={`open-${category.shortLabel.toLowerCase()}-leads`}
                   className={cx(
-                    'group inline-flex h-[38px] w-max shrink-0 items-center justify-between gap-2 rounded-[9px] border px-2.5 text-left shadow-[0_8px_16px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
+                    'group flex min-h-[52px] w-full items-center justify-between gap-2 rounded-[12px] border px-3 py-2 text-left shadow-sm transition active:scale-[0.98] md:inline-flex md:h-[38px] md:w-max md:min-h-0 md:shrink-0 md:rounded-[9px] md:px-2.5 md:py-0 md:hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
                     tone.button,
-                    activeLeadCategory?.label === category.label ? 'ring-2 ring-[#0b65e5] ring-offset-1 ring-offset-white' : '',
+                    selected ? 'ring-2 ring-[#0b65e5] ring-offset-1 ring-offset-white' : '',
                   )}
                 >
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className={cx('grid size-6 shrink-0 place-items-center rounded-[7px]', tone.icon)}>
-                      <Icon className="size-[14px]" />
+                  <span className="inline-flex min-w-0 items-center gap-2">
+                    <span className={cx('grid size-8 shrink-0 place-items-center rounded-[9px] md:size-6 md:rounded-[7px]', tone.icon)}>
+                      <Icon className="size-4 md:size-[14px]" />
                     </span>
-                    <span>
-                      <span className="block whitespace-nowrap text-[11px] font-extrabold">{category.label}</span>
-                      <span className="block whitespace-nowrap text-[9px] font-bold opacity-75">{category.priority}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[12px] font-extrabold md:whitespace-nowrap md:text-[11px]">{category.label}</span>
+                      <span className="block truncate text-[10px] font-bold opacity-75 md:whitespace-nowrap md:text-[9px]">{category.priority}</span>
                     </span>
                   </span>
-                  <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold', tone.count)}>
+                  <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[11px] font-extrabold md:text-[10px]', tone.count)}>
                     {categoryLeadCount ? (categoryLeadCount[category.label] ?? 0) : '—'}
                   </span>
                 </button>
@@ -4798,62 +4818,130 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
       </section>
 
-      <section className={`${panelClass} relative z-40 shrink-0 overflow-visible p-2 sm:p-2.5`}>
+      <section className={`${panelClass} relative z-40 shrink-0 overflow-visible p-3 sm:p-2.5`}>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="flex h-11 flex-1 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+          <label className="flex h-11 flex-1 items-center gap-3 rounded-[12px] border border-black/15 bg-white px-3.5 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 md:rounded-[8px] md:border-black/20 md:px-4">
+            <Search className="size-4 shrink-0 text-[#7386a3]" />
             <input
               value={searchQuery}
               onChange={(event) => { setSearchQuery(event.target.value); setActivePage(1); }}
               type="search"
-              placeholder="Search by name, mobile, IVRS..."
-              className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
+              placeholder="Search name, mobile, IVRS..."
+              className="min-w-0 flex-1 bg-transparent text-[14px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab] md:text-[13px]"
             />
-            <Search className="size-4 text-[#7386a3]" />
           </label>
 
-          <button
-            type="button"
-            onClick={resetLeadFilters}
-            data-action="lead-reset-filters"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-          >
-            <RefreshCw className="size-4 text-[#0b65e5]" />
-            Reset Filters
-            {activeFilterCount > 0 ? (
-              <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#0b65e5] text-[11px] font-extrabold text-white">{activeFilterCount}</span>
-            ) : null}
-          </button>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen((open) => !open)}
+              className={cx(
+                'inline-flex h-11 items-center justify-center gap-2 rounded-[12px] border px-3 text-[13px] font-extrabold transition md:hidden',
+                mobileFiltersOpen || activeFilterCount > 0
+                  ? 'border-[#0b65e5] bg-[#eef5ff] text-[#0b65e5]'
+                  : 'border-black/15 bg-white text-[#284276]',
+              )}
+            >
+              <Filter className="size-4" />
+              Filters
+              {activeFilterCount > 0 ? (
+                <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#0b65e5] text-[11px] font-extrabold text-white">{activeFilterCount}</span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={resetLeadFilters}
+              data-action="lead-reset-filters"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] border border-black/15 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition active:bg-[#f8fbff] md:rounded-[8px] md:border-black/20 md:px-4 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            >
+              <RefreshCw className="size-4 text-[#0b65e5]" />
+              <span className="truncate">Reset</span>
+              {activeFilterCount > 0 ? (
+                <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#0b65e5] text-[11px] font-extrabold text-white">{activeFilterCount}</span>
+              ) : null}
+            </button>
+          </div>
         </div>
-        <p className="mt-1.5 text-[11px] font-semibold text-[#8a98af]">Double-click a row to view details. Use column arrows to filter.</p>
+
+        {mobileFiltersOpen ? (
+          <div className="mt-3 grid gap-2 rounded-[14px] border border-[#e7eef7] bg-[#f8fafd] p-3 md:hidden">
+            <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+              Project type
+              <select
+                value={projectTypeFilter}
+                onChange={(e) => { setProjectTypeFilter(e.target.value); setActivePage(1); }}
+                className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]"
+              >
+                {['All', 'On-Grid', 'Off-Grid', 'Hybrid'].map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+              Assigned to
+              <select
+                value={assignedToFilter}
+                onChange={(e) => { setAssignedToFilter(e.target.value); setActivePage(1); }}
+                className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]"
+              >
+                {assigneeOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+              Added by
+              <select
+                value={addByFilter}
+                onChange={(e) => { setAddByFilter(e.target.value); setActivePage(1); }}
+                className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]"
+              >
+                {addByOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+              Next follow-up date
+              <input
+                type="date"
+                value={followUpDate}
+                onChange={(e) => { setFollowUpDate(e.target.value); setActivePage(1); }}
+                className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]"
+              />
+            </label>
+          </div>
+        ) : null}
+
+        <p className="mt-2 text-[11px] font-semibold text-[#8a98af] md:hidden">Tap a lead to open details. Use Filters for type / assignee.</p>
+        <p className="mt-1.5 hidden text-[11px] font-semibold text-[#8a98af] md:block">Double-click a row to view details. Use column arrows to filter.</p>
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col overflow-visible lg:overflow-hidden p-1.5 sm:p-2`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col overflow-visible lg:overflow-hidden p-2 sm:p-2`}>
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
         ) : (
           <>
-        <div className="lead-list-table-scroll flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white lg:hidden">
-          <div className="grid shrink-0 grid-cols-[minmax(0,1.45fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_30px] items-center gap-1.5 border-b border-[#eef2f8] bg-[#f8fafd] px-3 py-2 text-[10px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
-            <span>Customer Name</span>
-            <span>Status</span>
-            <span>Next Follow-up</span>
-            <span aria-hidden="true" />
-          </div>
-          <div className="min-h-0 flex-1 divide-y divide-[#eef2f8] overflow-y-auto">
+        <div className="lead-list-table-scroll flex min-h-0 flex-1 flex-col lg:hidden">
+          <div className="flex flex-col gap-2.5">
             {pagedLeadRows.length === 0 ? (
-              <LeadListEmptyState
-                hasFilters={hasLeadFilters}
-                filterLabels={activeFilterLabels}
-                totalCount={totalLeadCount}
-                onReset={hasLeadFilters ? resetLeadFilters : null}
-              />
+              <div className="overflow-hidden rounded-[14px] border border-[#e7eef7] bg-white">
+                <LeadListEmptyState
+                  hasFilters={hasLeadFilters}
+                  filterLabels={activeFilterLabels}
+                  totalCount={totalLeadCount}
+                  onReset={hasLeadFilters ? resetLeadFilters : null}
+                />
+              </div>
             ) : pagedLeadRows.map((lead) => (
               <LeadListMobileRow
                 key={lead.id}
                 lead={lead}
                 onOpenLead={() => setViewLeadId(lead.id)}
                 onOpenSurvey={() => setSurveyLead(lead)}
+                onAssign={isLeadManager ? (() => setAssignLead(lead)) : null}
+                onDelete={(!isSalesExecutive && (lead.status !== 'Won' || isLeadManager)) ? (() => deleteLead(lead)) : null}
               />
             ))}
           </div>
@@ -36435,58 +36523,117 @@ function LeadListEmptyState({ hasFilters, filterLabels = [], totalCount = 0, onR
   );
 }
 
-function LeadListMobileRow({ lead, onOpenLead, onOpenSurvey }) {
+function LeadListMobileRow({ lead, onOpenLead, onOpenSurvey, onAssign = null, onDelete = null }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const initials = (lead.customer || 'NA').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
   const surveyLabel = lead.surveyStatus === 'Completed' ? 'View Survey' : lead.surveyStatus === 'In Progress' ? 'Continue Survey' : 'Start Survey';
+  const dialHref = lead.mobile ? `tel:${String(lead.mobile).replace(/\D/g, '')}` : null;
+  const overdue = isFollowUpOverdue(lead.nextFollowUp);
 
   return (
-    <div className="relative">
-      <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_30px] items-center gap-1.5 px-3 py-2.5">
-        <button type="button" onClick={() => onOpenLead(lead)} className="flex min-w-0 items-center gap-2.5 text-left">
-          <span className={cx('grid size-9 shrink-0 place-items-center rounded-full text-[11px] font-extrabold text-white', mobileAvatarTone(lead.customer))}>
-            {initials}
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{lead.customer}</span>
-            <span className="block truncate text-[11px] font-semibold text-[#8895ab]">{lead.type}</span>
-            {lead.createdByName && lead.createdByName !== '—' && (
-              <span className="block truncate text-[10px] font-semibold text-[#a5b1c7]">Added by {lead.createdByName}</span>
-            )}
-          </span>
-        </button>
-        <span className="min-w-0">
-          <span className={cx(
-            'inline-block max-w-full truncate whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-extrabold leading-none',
-            lead.surveyStatus === 'Completed' ? 'bg-[#e8f8eb] text-[#18a34a]' : lead.surveyStatus === 'In Progress' ? 'bg-[#fff4df] text-[#b45309]' : 'bg-[#ffe9e6] text-[#e2594c]',
-          )}
-          >
-            {lead.surveyStatus || 'Pending'}
-          </span>
+    <article className="overflow-hidden rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_8px_20px_rgba(17,39,84,0.06)]">
+      <button
+        type="button"
+        onClick={() => onOpenLead(lead)}
+        className="flex w-full items-start gap-3 px-3.5 pb-2.5 pt-3.5 text-left active:bg-[#f8fbff]"
+      >
+        <span className={cx('mt-0.5 grid size-11 shrink-0 place-items-center rounded-full text-[13px] font-extrabold text-white', mobileAvatarTone(lead.customer))}>
+          {initials}
         </span>
-        <span className="truncate text-[11px] font-bold text-[#53647f]">{lead.nextFollowUp}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-extrabold leading-snug text-[#1e3261]">{lead.customer}</span>
+          <span className="mt-0.5 block text-[12px] font-bold text-[#53647f]">
+            {lead.mobile || 'No mobile'}
+            {lead.type ? ` · ${lead.type}` : ''}
+          </span>
+          {lead.createdByName && lead.createdByName !== '—' ? (
+            <span className="mt-0.5 block text-[11px] font-semibold text-[#a5b1c7]">Added by {lead.createdByName}</span>
+          ) : null}
+          <span className="mt-2 flex flex-wrap items-center gap-1.5">
+            <StatusBadge status={lead.status} />
+            <span className={cx(
+              'inline-flex rounded-full px-2 py-1 text-[10px] font-extrabold leading-none',
+              lead.surveyStatus === 'Completed' ? 'bg-[#e8f8eb] text-[#18a34a]' : lead.surveyStatus === 'In Progress' ? 'bg-[#fff4df] text-[#b45309]' : 'bg-[#ffe9e6] text-[#e2594c]',
+            )}
+            >
+              Survey: {lead.surveyStatus || 'Pending'}
+            </span>
+          </span>
+          <span className={cx('mt-2 block text-[12px] font-extrabold', overdue ? 'text-[#f04438]' : 'text-[#53647f]')}>
+            Next follow-up · {lead.nextFollowUp || '—'}
+          </span>
+          {lead.assignedTo?.name ? (
+            <span className="mt-0.5 block text-[11px] font-semibold text-[#8895ab]">
+              Assigned · {lead.assignedTo.name}
+            </span>
+          ) : null}
+        </span>
+        <ChevronRight className="mt-1 size-5 shrink-0 text-[#b0bdd4]" />
+      </button>
+
+      <div className="relative grid grid-cols-3 gap-1 border-t border-[#eef2f8] bg-[#fbfcfe] p-1.5">
+        {dialHref ? (
+          <a
+            href={dialHref}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] text-[12px] font-extrabold text-[#0d9f4a] transition active:bg-[#e8f8eb]"
+          >
+            <Phone className="size-3.5" />
+            Call
+          </a>
+        ) : (
+          <span className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] text-[12px] font-extrabold text-[#b0bdd4]">
+            <Phone className="size-3.5" />
+            Call
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => onOpenSurvey()}
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] text-[12px] font-extrabold text-[#7c3aed] transition active:bg-[#f5f3ff]"
+        >
+          <MapPin className="size-3.5" />
+          Survey
+        </button>
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
-          aria-label={`Actions for ${lead.customer}`}
-          className="grid size-8 place-items-center rounded-[8px] text-[#7b88a2] transition hover:bg-[#f3f7fc]"
+          aria-label={`More actions for ${lead.customer}`}
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] text-[12px] font-extrabold text-[#284276] transition active:bg-[#eef3fb]"
         >
-          <MoreVertical className="size-4" />
+          <MoreVertical className="size-3.5" />
+          More
         </button>
-      </div>
 
-      {menuOpen ? (
-        <>
-          <button type="button" aria-label="Close menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setMenuOpen(false)} />
-          <div className="absolute right-2 top-11 z-50 w-[170px] overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white shadow-[0_18px_38px_rgba(17,39,84,0.16)]">
-            <button type="button" onClick={() => { setMenuOpen(false); onOpenSurvey(); }} className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12px] font-extrabold text-[#7c3aed] transition hover:bg-[#f8fbff]">
-              <MapPin className="size-4" />
-              {surveyLabel}
-            </button>
-          </div>
-        </>
-      ) : null}
-    </div>
+        {menuOpen ? (
+          <>
+            <button type="button" aria-label="Close menu" className="fixed inset-0 z-40 cursor-default bg-black/20" onClick={() => setMenuOpen(false)} />
+            <div className="absolute bottom-[calc(100%+6px)] right-1.5 z-50 w-[min(220px,calc(100vw-2rem))] overflow-hidden rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_18px_38px_rgba(17,39,84,0.18)]">
+              <button type="button" onClick={() => { setMenuOpen(false); onOpenLead(lead); }} className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-[13px] font-extrabold text-[#1e3261] transition active:bg-[#f8fbff]">
+                <Eye className="size-4 text-[#0b65e5]" />
+                View details
+              </button>
+              <button type="button" onClick={() => { setMenuOpen(false); onOpenSurvey(); }} className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-[13px] font-extrabold text-[#7c3aed] transition active:bg-[#f8fbff]">
+                <MapPin className="size-4" />
+                {surveyLabel}
+              </button>
+              {onAssign ? (
+                <button type="button" onClick={() => { setMenuOpen(false); onAssign(); }} className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-[13px] font-extrabold text-[#3538cd] transition active:bg-[#f8fbff]">
+                  <Users className="size-4" />
+                  Assign executive
+                </button>
+              ) : null}
+              {onDelete ? (
+                <button type="button" onClick={() => { setMenuOpen(false); onDelete(); }} className="flex w-full items-center gap-2.5 border-t border-[#f1f5f9] px-3.5 py-3 text-left text-[13px] font-extrabold text-[#ef4444] transition active:bg-[#fff5f5]">
+                  <Trash2 className="size-4" />
+                  Delete lead
+                </button>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </div>
+    </article>
   );
 }
 
