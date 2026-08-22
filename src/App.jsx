@@ -13024,7 +13024,15 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project Material Planning') {
-    return <ProjectMaterialPlanningPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return (
+      <ProjectMaterialPlanningPage
+        activeSection={activeSection}
+        onOpenSection={onOpenSection}
+        project={selectedProject}
+        onSelectProject={onSelectProject}
+        onNotify={onNotify}
+      />
+    );
   }
 
   if (activeSection === 'Subsidy') {
@@ -22168,14 +22176,243 @@ function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNotify })
   );
 }
 
-function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify }) {
+function ProjectMaterialPlanningPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
+  if (!projectProp?.id) {
+    return (
+      <MaterialPlanningProjectHub
+        activeSection={activeSection}
+        onOpenSection={onOpenSection}
+        onSelectProject={onSelectProject}
+        onNotify={onNotify}
+      />
+    );
+  }
+  return (
+    <ProjectMaterialPlanningDetail
+      activeSection={activeSection}
+      onOpenSection={onOpenSection}
+      project={projectProp}
+      onSelectProject={onSelectProject}
+      onNotify={onNotify}
+    />
+  );
+}
+
+function MaterialPlanningProjectHub({ activeSection, onOpenSection, onSelectProject, onNotify }) {
+  const [projects, setProjects] = useState([]);
+  const [planByProject, setPlanByProject] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const deferredQuery = useDeferredValue(query);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      projectApi.list({ page_size: 1000 }),
+      materialPlanApi.list({ page_size: 2000 }),
+    ]).then(([projData, planData]) => {
+      if (cancelled) return;
+      const list = normalizeApiRows(projData).filter((p) => p.lead_status === 'Won');
+      setProjects(list);
+      const map = {};
+      normalizeApiRows(planData).forEach((row) => {
+        const key = row.project;
+        if (!map[key]) map[key] = { total: 0, completed: 0, delayed: 0, inProgress: 0 };
+        map[key].total += 1;
+        if (row.status === 'Completed') map[key].completed += 1;
+        else if (row.status === 'Delayed') map[key].delayed += 1;
+        else if (row.status === 'In Progress' || row.status === 'Partially Completed') map[key].inProgress += 1;
+      });
+      setPlanByProject(map);
+    }).catch(() => {
+      if (!cancelled) onNotify('Failed to load projects for material planning');
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [onNotify]);
+
+  const planStatusFor = (projectId) => {
+    const stats = planByProject[projectId];
+    if (!stats || stats.total === 0) return 'Not Planned';
+    if (stats.delayed > 0) return 'Delayed';
+    if (stats.completed >= stats.total) return 'Ready';
+    if (stats.inProgress > 0 || stats.completed > 0) return 'In Progress';
+    return 'Not Started';
+  };
+
+  const filtered = projects.filter((p) => {
+    const q = deferredQuery.trim().toLowerCase();
+    const hay = `${p.project_name || ''} ${p.customer_name || ''} ${p.project_id || ''} ${p.site || ''}`.toLowerCase();
+    if (q && !hay.includes(q)) return false;
+    if (statusFilter === 'All') return true;
+    return planStatusFor(p.id) === statusFilter;
+  });
+
+  const summary = {
+    total: projects.length,
+    notPlanned: projects.filter((p) => planStatusFor(p.id) === 'Not Planned').length,
+    inProgress: projects.filter((p) => planStatusFor(p.id) === 'In Progress' || planStatusFor(p.id) === 'Not Started').length,
+    ready: projects.filter((p) => planStatusFor(p.id) === 'Ready').length,
+    delayed: projects.filter((p) => planStatusFor(p.id) === 'Delayed').length,
+  };
+
+  const openPlan = (project) => {
+    onSelectProject?.(project, 'Project Material Planning');
+  };
+
+  const statusTone = (status) => (
+    status === 'Ready' ? 'green'
+      : status === 'Delayed' ? 'red'
+        : status === 'In Progress' ? 'blue'
+          : status === 'Not Started' ? 'amber'
+            : 'amber'
+  );
+
+  return (
+    <div className="space-y-2.5">
+      <PageHeading
+        title="Material Planning"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+          { label: 'Material Planning' },
+        ]}
+      />
+
+      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          { label: 'Won Projects', value: summary.total, note: 'Ready for BOM', tone: 'text-[#0b65e5]', icon: FolderKanban },
+          { label: 'Not Planned', value: summary.notPlanned, note: 'BOM pending', tone: 'text-[#7585a2]', icon: ClipboardList },
+          { label: 'Planning On', value: summary.inProgress, note: 'Panels / structure / cables', tone: 'text-[#f59e0b]', icon: Boxes },
+          { label: 'BOM Ready', value: summary.ready, note: 'Ready to dispatch', tone: 'text-[#078c3e]', icon: CheckCircle2 },
+          { label: 'Delayed', value: summary.delayed, note: 'Needs follow-up', tone: 'text-[#ea5a4c]', icon: AlertTriangle },
+        ].map((card) => {
+          const Icon = card.icon;
+          return (
+            <article key={card.label} className="rounded-[10px] border border-[#e7eef7] bg-white p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[12px] font-semibold text-[#53647f]">{card.label}</p>
+                <span className={cx('grid size-8 place-items-center rounded-full bg-[#f4f8ff]', card.tone)}><Icon className="size-4" /></span>
+              </div>
+              <p className={cx('mt-1 text-[22px] font-bold', card.tone)}>{card.value}</p>
+              <p className="text-[12px] font-medium text-[#8a98af]">{card.note}</p>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4">
+            <Search className="size-4 text-[#7e8fab]" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search project, customer, site, capacity..."
+              className="w-full bg-transparent text-[15px] font-medium text-[#1e3261] outline-none placeholder:text-[#8a98af]"
+            />
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[14px] font-semibold text-[#284276]"
+          >
+            {['All', 'Not Planned', 'Not Started', 'In Progress', 'Ready', 'Delayed'].map((s) => (
+              <option key={s} value={s}>{s === 'All' ? 'All Plan Status' : s}</option>
+            ))}
+          </select>
+        </div>
+
+        {loading ? (
+          <PageLoadingState message="Loading projects..." compact />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="crm-table">
+              <thead>
+                <tr>
+                  {['#', 'Project', 'Customer / Site', 'Capacity', 'Project Status', 'BOM Items', 'Plan Status', 'Action'].map((h) => (
+                    <th key={h}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-[14px] font-semibold text-[#8a98af]">
+                      No won projects found for material planning.
+                    </td>
+                  </tr>
+                ) : filtered.map((project, index) => {
+                  const stats = planByProject[project.id] || { total: 0 };
+                  const planStatus = planStatusFor(project.id);
+                  return (
+                    <tr key={project.id} className="cursor-pointer hover:bg-[#f8fbff]" onClick={() => openPlan(project)}>
+                      <td>{index + 1}</td>
+                      <td>
+                        <div className="font-semibold text-[#1e3261]">{project.project_name || project.project_id}</div>
+                        <div className="text-[12px] font-medium text-[#8a98af]">{project.project_id}</div>
+                      </td>
+                      <td>
+                        <div className="font-medium text-[#314a79]">{project.customer_name || '—'}</div>
+                        <div className="text-[12px] font-medium text-[#8a98af]">{project.site || '—'}</div>
+                      </td>
+                      <td className="font-semibold text-[#0b65e5]">
+                        {project.capacity_kwp ? `${project.capacity_kwp} kWp` : '—'}
+                      </td>
+                      <td>
+                        <span className={cx(
+                          'inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold',
+                          project.status === 'Active' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
+                            : project.status === 'Completed' ? 'bg-[#e8f2ff] text-[#0b65e5]'
+                              : 'bg-[#eef2f7] text-[#7585a2]',
+                        )}
+                        >
+                          {project.status || '—'}
+                        </span>
+                      </td>
+                      <td className="font-semibold text-[#1e3261]">{stats.total}</td>
+                      <td>
+                        <ProjectInfoPill tone={statusTone(planStatus)}>{planStatus}</ProjectInfoPill>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); openPlan(project); }}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-3 text-[13px] font-semibold text-white"
+                        >
+                          <Boxes className="size-3.5" />
+                          {stats.total > 0 ? 'Open BOM' : 'Create BOM'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function ProjectMaterialPlanningDetail({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
+
   const MATERIAL_CATEGORIES = ['Solar Panels', 'Inverters', 'Mounting Structure', 'DC Cables', 'AC Cables', 'Connectors (MC4)', 'ACDB / DCDB', 'Earthing Material', 'Consumables', 'Safety & Others', 'Battery', 'Other'];
   const MATERIAL_STATUS = ['Not Started', 'In Progress', 'Partially Completed', 'Completed', 'Delayed'];
   const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair'];
   const emptyForm = { category: 'Solar Panels', items: '', uom: 'Nos', planned_qty: '', planned_value: '', status: 'Not Started' };
   const CHART_COLORS = ['#94a3b8', '#2f80ff', '#22c7d6', '#16a34a', '#ef4444'];
 
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(projectProp || null);
   const [projectSurvey, setProjectSurvey] = useState(null);
   const [rows, setRows] = useState([]);
   const [loadingRows, setLoadingRows] = useState(false);
@@ -22186,11 +22423,6 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
   const [modalOpen, setModalOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
-  const [projectSearch, setProjectSearch] = useState('');
-  const [allProjects, setAllProjects] = useState([]);
-  const [projectPlanCounts, setProjectPlanCounts] = useState({});
-  const [loadingProjects, setLoadingProjects] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const loadProjectData = useCallback(async (proj) => {
@@ -22212,35 +22444,33 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
     }
   }, [onNotify]);
 
-  useEffect(() => { if (selectedProject) loadProjectData(selectedProject); }, [selectedProject, loadProjectData]);
+  useEffect(() => {
+    if (!projectProp?.id) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const full = projectProp.project_name ? projectProp : await projectApi.get(projectProp.id);
+        if (cancelled) return;
+        setSelectedProject(full);
+        setRows([]);
+        setProjectSurvey(full?.site_survey || null);
+        await loadProjectData(full);
+        if (!full?.site_survey) {
+          projectApi.get(full.id).then((detail) => {
+            if (!cancelled) {
+              setSelectedProject(detail);
+              setProjectSurvey(detail?.site_survey || null);
+            }
+          }).catch(() => {});
+        }
+      } catch {
+        if (!cancelled) onNotify('Failed to load project');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectProp?.id, loadProjectData, onNotify]);
 
-  const openProjectPicker = async () => {
-    setProjectPickerOpen(true);
-    if (allProjects.length > 0) return;
-    setLoadingProjects(true);
-    try {
-      const [projData, planData] = await Promise.all([
-        projectApi.list({ page_size: 200 }),
-        materialPlanApi.list({ page_size: 1000 }),
-      ]);
-      setAllProjects(normalizeApiRows(projData));
-      const counts = {};
-      normalizeApiRows(planData).forEach((p) => { counts[p.project] = (counts[p.project] || 0) + 1; });
-      setProjectPlanCounts(counts);
-    } catch { onNotify('Failed to load projects'); }
-    finally { setLoadingProjects(false); }
-  };
-
-  const handleProjectSelect = (proj) => {
-    setSelectedProject(proj);
-    setProjectPickerOpen(false);
-    setProjectSearch('');
-    setRows([]);
-    setProjectSurvey(null);
-    // Site survey already captured structure layout/capacity — pull it in so
-    // the mounting-structure/panel rows don't need those numbers re-typed.
-    projectApi.get(proj.id).then((full) => setProjectSurvey(full?.site_survey || null)).catch(() => {});
-  };
+  const openProjectPicker = () => { onOpenSection(activeSection); };
 
   const openAdd = () => {
     if (!selectedProject) { onNotify('Please select a project first'); return; }
@@ -22309,15 +22539,6 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
     name: label, value: (statusOverview.values || [])[i] || 0, color: CHART_COLORS[i],
   })).filter((d) => d.value > 0);
 
-  const filteredPickerProjects = allProjects.filter((p) =>
-    projectSearch === '' ||
-    (p.project_name || '').toLowerCase().includes(projectSearch.toLowerCase()) ||
-    (p.customer_name || '').toLowerCase().includes(projectSearch.toLowerCase()) ||
-    (p.project_id || '').toLowerCase().includes(projectSearch.toLowerCase()),
-  );
-
-  const projStatusTone = (s) => s === 'Active' ? 'green' : s === 'Completed' ? 'blue' : s === 'Cancelled' ? 'red' : 'amber';
-
   return (
     <div className="space-y-4">
       <PageHeading
@@ -22342,21 +22563,18 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
               <option value="All">All Status</option>
               {MATERIAL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <button type="button" onClick={openProjectPicker} className={cx('inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5] hover:text-[#0b65e5]')}>
+            <button type="button" onClick={openProjectPicker} className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#0b65e5] bg-[#eff6ff] px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#e8f2ff]">
               <FolderKanban className="size-4" />
-              {selectedProject ? (selectedProject.project_name || selectedProject.name) : 'Select Project'}
+              Change Project
             </button>
-            {selectedProject && (
-              <button type="button" onClick={openAdd} className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#11a650] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0e9748]">
-                <Plus className="size-4" />Add Material
-              </button>
-            )}
+            <button type="button" onClick={openAdd} className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#11a650] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0e9748]">
+              <Plus className="size-4" />Add Material
+            </button>
           </div>
         </div>
       </section>
 
-      {selectedProject && (
-        <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-6">
+      <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-6">
           {[
             { label: 'Total Plans', value: dashStats.total, icon: Boxes, tone: 'blue', caption: 'All materials', filter: 'All' },
             { label: 'Not Started', value: dashStats.not_started, icon: Clock3, tone: 'amber', caption: 'Pending action', filter: 'Not Started' },
@@ -22367,17 +22585,11 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
           ].map((card) => (
             <LiaisonApprovalStatCard key={card.label} label={card.label} value={String(card.value)} caption={card.caption} icon={card.icon} tone={card.tone} onClick={() => setStatusFilter(card.filter)} />
           ))}
-        </section>
-      )}
+      </section>
 
       {!selectedProject ? (
-        <article className={`${panelClass} flex flex-col items-center justify-center py-20`}>
-          <FolderKanban className="size-14 text-[#c5d2e8]" />
-          <h3 className="mt-4 font-display text-[18px] font-extrabold text-[#1e3261]">No Project Selected</h3>
-          <p className="mt-2 text-[13px] font-bold text-[#7585a2]">Please click <strong>Select Project</strong> to create or manage Material Planning.</p>
-          <button type="button" onClick={openProjectPicker} className="mt-6 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
-            <FolderKanban className="size-4" />Select Project
-          </button>
+        <article className={`${panelClass} p-8`}>
+          <PageLoadingState message="Loading project BOM..." compact />
         </article>
       ) : (
         <article className={`${panelClass} overflow-hidden`}>
@@ -22444,73 +22656,6 @@ function ProjectMaterialPlanningPage({ activeSection, onOpenSection, onNotify })
             </div>
           </div>
         </article>
-      )}
-
-      {projectPickerOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) { setProjectPickerOpen(false); setProjectSearch(''); } }}>
-          <div className="w-full max-w-[760px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-              <div>
-                <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Select Project</h2>
-                <p className="mt-0.5 text-[13px] font-bold text-[#7585a2]">Choose a project to view or create its material plan</p>
-              </div>
-              <button type="button" onClick={() => { setProjectPickerOpen(false); setProjectSearch(''); }} className="text-[#7585a2]"><X className="size-5" /></button>
-            </div>
-            <div className="p-4 pb-2">
-              <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-[#f8fbff] px-4 focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
-                <Search className="size-4 shrink-0 text-[#7e8fab]" />
-                <input autoFocus value={projectSearch} onChange={(e) => setProjectSearch(e.target.value)} type="search" placeholder="Search project name, customer, project ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
-              </label>
-            </div>
-            <div className="max-h-[420px] overflow-y-auto">
-              {loadingProjects ? (
-                <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">Loading projects...</p>
-              ) : filteredPickerProjects.length === 0 ? (
-                <p className="py-12 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</p>
-              ) : (
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[#edf2f8] bg-[#f8fbff]">
-                      {['Project Name', 'Customer', 'Capacity', 'Status', 'Material Plan', 'Action'].map((h) => (
-                        <th key={h} className="px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredPickerProjects.map((proj) => {
-                      const planCount = projectPlanCounts[proj.id] || 0;
-                      return (
-                        <tr key={proj.id} className="border-b border-[#f3f6fb] last:border-0 hover:bg-[#f8fbff]">
-                          <td className="px-4 py-3">
-                            <p className="text-[13px] font-extrabold text-[#1e3261]">{proj.project_name || proj.name}</p>
-                            <p className="text-[11px] font-bold text-[#8a98af]">{proj.project_id}</p>
-                          </td>
-                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{proj.customer_name || '—'}</td>
-                          <td className="px-4 py-3 text-[13px] font-bold text-[#314a79]">{proj.capacity_kwp ? `${proj.capacity_kwp} kW` : '—'}</td>
-                          <td className="px-4 py-3"><ProjectInfoPill tone={projStatusTone(proj.status)}>{proj.status || '—'}</ProjectInfoPill></td>
-                          <td className="px-4 py-3">
-                            {planCount > 0 ? <ProjectInfoPill tone="green">{planCount} {planCount === 1 ? 'entry' : 'entries'}</ProjectInfoPill> : <ProjectInfoPill tone="amber">Not Created</ProjectInfoPill>}
-                          </td>
-                          <td className="px-4 py-3">
-                            {planCount > 0 ? (
-                              <button type="button" onClick={() => handleProjectSelect(proj)} title="Edit material plan" className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#caeed8] bg-[#f0fdf4] text-[#0d9f4a] transition hover:bg-[#dcfce7]">
-                                <Pencil className="size-4" />
-                              </button>
-                            ) : (
-                              <button type="button" onClick={() => handleProjectSelect(proj)} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white transition hover:bg-[#0952c6]">
-                                <Plus className="size-3.5" />Create
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        </div>
       )}
 
       {modalOpen && (
