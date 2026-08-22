@@ -28217,6 +28217,7 @@ function exportEmployeesCsv(rows) {
 
 function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
   const isAttendanceView = activeSection === 'Employee Ledger';
+  const pageTitle = isAttendanceView ? 'Employee Ledger' : 'Employee Management';
   const emptyEmpForm = { name: '', mobile: '', skill_trade: '', daily_rate: '', duty_hours_per_day: '9', address: '', aadhaar_number: '', opening_balance: '0' };
   const paymentModes = ['Cash', 'Bank Transfer', 'UPI', 'Cheque'];
 
@@ -28643,43 +28644,19 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
     onNotify('Use Print Card to export, or save screenshot from the generated card preview.');
   };
 
-  const openAttendanceFor = (empId) => {
-    setSelectedEmployeeId(String(empId));
-    onOpenSection('Employee Ledger');
-  };
-
-  useEffect(() => {
-    if (!isAttendanceView || selectedEmployeeId || employees.length === 0) return;
-    setSelectedEmployeeId(String(employees[0].id));
-  }, [isAttendanceView, selectedEmployeeId, employees]);
-
   const employeeTabs = [
-    {
-      key: 'Employee Details',
-      label: 'Team',
-      hint: 'Profiles, rates & balances',
-      icon: UsersRound,
-    },
-    {
-      key: 'Employee Ledger',
-      label: 'Attendance & Pay',
-      hint: 'Mark days, vouchers & cards',
-      icon: CalendarDays,
-    },
+    { key: 'Employee Details', label: 'Employee Details' },
+    { key: 'Employee Ledger', label: 'Weekly Attendance Card' },
   ];
-
-  const todayIso = formatIsoDate(new Date());
-  const todayRow = displayedLedgerRows.find((row) => row.date === todayIso) || null;
-  const settlementsDue = employees.filter((row) => Number(row.net_balance || 0) > 0).length;
 
   return (
     <div className="space-y-2.5">
       <PageHeading
-        title={isAttendanceView ? 'Attendance & Pay' : 'Team'}
+        title={pageTitle}
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Employee' },
-          { label: isAttendanceView ? 'Attendance & Pay' : 'Team' },
+          { label: isAttendanceView ? 'Employee Ledger' : 'Employee Details' },
         ]}
         actions={(
           <>
@@ -28689,12 +28666,12 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
               className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[15px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
             >
               <Users className="size-4 text-[#0b65e5]" />
-              Project Team
+              Project Team (per project)
             </button>
             <button
               type="button"
               onClick={openCreateEmployee}
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#078c3e] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(7,140,62,0.22)] transition hover:-translate-y-0.5 hover:bg-[#067832]"
+              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(22,163,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#15803d]"
             >
               <Plus className="size-4" />
               Add Employee
@@ -28703,37 +28680,21 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
         )}
       />
 
-      <section className={`${panelClass} overflow-hidden p-2 sm:p-2.5`}>
-        <div className="grid gap-2 sm:grid-cols-2">
+      <section className={`${panelClass} overflow-hidden`}>
+        <div className="flex overflow-x-auto border-b border-[#e8eef6]">
           {employeeTabs.map((tab) => {
-            const active = (tab.key === 'Employee Ledger') === isAttendanceView;
-            const Icon = tab.icon;
+            const active = activeSection === tab.key;
             return (
               <button
                 key={tab.key}
                 type="button"
                 onClick={() => onOpenSection(tab.key)}
                 className={cx(
-                  'flex items-start gap-3 rounded-[10px] border px-3.5 py-3 text-left transition',
-                  active
-                    ? 'border-[#078c3e] bg-[#e8f8eb] shadow-[0_8px_18px_rgba(7,140,62,0.12)]'
-                    : 'border-[#e7eef7] bg-white hover:border-[#cfe0f5] hover:bg-[#f8fbff]',
+                  'min-w-[180px] flex-1 px-4 py-3 text-[15px] font-semibold transition',
+                  active ? 'border-b-2 border-[#16a34a] text-[#16a34a]' : 'border-b-2 border-transparent text-[#53647f] hover:text-[#1e3261]',
                 )}
               >
-                <span
-                  className={cx(
-                    'mt-0.5 grid size-10 shrink-0 place-items-center rounded-[9px]',
-                    active ? 'bg-[#078c3e] text-white' : 'bg-[#eef4ff] text-[#0b65e5]',
-                  )}
-                >
-                  <Icon className="size-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className={cx('block text-[16px] font-bold', active ? 'text-[#078c3e]' : 'text-[#1e3261]')}>
-                    {tab.label}
-                  </span>
-                  <span className="mt-0.5 block text-[13px] font-medium text-[#7585a2]">{tab.hint}</span>
-                </span>
+                {tab.label}
               </button>
             );
           })}
@@ -28742,594 +28703,294 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
 
       {!isAttendanceView ? (
         <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
-          <div className="mb-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
             {[
-              { label: 'Team', value: employeeStats.total, tone: 'text-[#1e3261]', icon: UsersRound },
-              { label: 'Active', value: employeeStats.active, tone: 'text-[#0d9f4a]', icon: CheckCircle2 },
-              { label: 'On Leave', value: employeeStats.onLeave, tone: 'text-[#f59e0b]', icon: CalendarDays },
-              { label: 'To Pay', value: settlementsDue, tone: 'text-[#0b65e5]', icon: Wallet },
+              { label: 'Total Employees', value: employeeStats.total, note: 'All Registered', tone: 'text-[#0d9f4a]', icon: UsersRound },
+              { label: 'Active Employees', value: employeeStats.active, note: 'Currently Working', tone: 'text-[#0b65e5]', icon: UserRound },
+              { label: 'On Leave', value: employeeStats.onLeave, note: 'Not Available', tone: 'text-[#f59e0b]', icon: Clock3 },
+              { label: 'Today Present', value: employeeStats.todayPresent, note: 'Marked Present', tone: 'text-[#7c3aed]', icon: CalendarDays },
+              { label: 'Total Payroll', value: formatInrAmount(employeeStats.totalPayroll), note: 'This Month', tone: 'text-[#0f766e]', icon: IndianRupee },
             ].map((card) => {
               const Icon = card.icon;
               return (
-                <article key={card.label} className="flex items-center gap-3 rounded-[10px] border border-[#e7eef7] bg-[#f8fbff] px-3 py-2.5">
-                  <span className={cx('grid size-9 shrink-0 place-items-center rounded-full bg-white', card.tone)}>
-                    <Icon className="size-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[12px] font-semibold uppercase tracking-wide text-[#8a98af]">{card.label}</p>
-                    <p className={cx('text-[20px] font-bold leading-tight', card.tone)}>{card.value}</p>
+                <article key={card.label} className="rounded-[10px] border border-[#e7eef7] bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[13px] font-semibold text-[#53647f]">{card.label}</p>
+                    <span className={cx('grid size-9 place-items-center rounded-full bg-[#f4f8ff]', card.tone)}><Icon className="size-4" /></span>
                   </div>
+                  <p className={cx('mt-1 text-[22px] font-bold', card.tone)}>{card.value}</p>
+                  <p className="text-[13px] font-medium text-[#8a98af]">{card.note}</p>
                 </article>
               );
             })}
           </div>
 
-          <div className="mb-3 flex flex-col gap-2.5 lg:flex-row lg:items-center">
+          <div className="mb-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
               <Search className="size-4 text-[#7e8fab]" />
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, phone, or skill..."
+                placeholder="Search by name, phone, or skill..."
                 className="w-full bg-transparent text-[16px] font-medium text-[#1e3261] outline-none placeholder:text-[#8a98af]"
               />
             </label>
-            <div className="flex flex-wrap gap-2">
-              <select
-                value={skillFilter}
-                onChange={(e) => setSkillFilter(e.target.value)}
-                className="h-10 min-w-[132px] rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[14px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
-              >
+            <label className="relative">
+              <Filter className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
+              <select value={skillFilter} onChange={(e) => setSkillFilter(e.target.value)} className="h-10 min-w-[120px] appearance-none rounded-[8px] border border-[#dce6f3] bg-white pl-8 pr-8 text-[15px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
                 {skillOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-10 min-w-[132px] rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[14px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
-              >
+            </label>
+            <label className="relative">
+              <Filter className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-10 min-w-[126px] appearance-none rounded-[8px] border border-[#dce6f3] bg-white pl-8 pr-8 text-[15px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
                 {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
-              <button
-                type="button"
-                onClick={() => { exportEmployeesCsv(filteredEmployees); onNotify('Employee list exported'); }}
-                className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-4 text-[14px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
-              >
-                <Download className="size-4" />
-                Export
-              </button>
-            </div>
+            </label>
+            <button
+              type="button"
+              onClick={() => { exportEmployeesCsv(filteredEmployees); onNotify('Employee list exported'); }}
+              className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-4 text-[15px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
+            >
+              <Download className="size-4" />
+              Export CSV
+            </button>
           </div>
 
           {loading ? (
             <PageLoadingState message="Loading employees..." compact />
-          ) : filteredEmployees.length === 0 ? (
-            <div className="rounded-[10px] border border-dashed border-[#dce6f3] px-4 py-12 text-center">
-              <UsersRound className="mx-auto size-10 text-[#c9d7ea]" />
-              <p className="mt-3 text-[18px] font-bold text-[#1e3261]">No employees found</p>
-              <p className="mt-1 text-[14px] font-medium text-[#7585a2]">Add an employee to start tracking attendance and pay.</p>
-              <button
-                type="button"
-                onClick={openCreateEmployee}
-                className="mt-4 inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#078c3e] px-4 text-[14px] font-semibold text-white"
-              >
-                <Plus className="size-4" />
-                Add Employee
-              </button>
-            </div>
           ) : (
-            <>
-              <div className="grid gap-2.5 md:hidden">
-                {filteredEmployees.map((row) => {
-                  const balance = Number(row.net_balance || 0);
-                  return (
-                    <article key={row.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-3.5 shadow-[0_6px_16px_rgba(24,48,87,0.05)]">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-[16px] font-bold text-[#1e3261]">{row.name}</p>
-                          <p className="mt-0.5 text-[13px] font-medium text-[#7585a2]">{row.skill_trade || row.role || 'Unassigned'} · {row.mobile || 'No phone'}</p>
-                        </div>
-                        <span className={cx(
-                          'shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold',
-                          row.status === 'On Leave' ? 'bg-[#fff0dc] text-[#f59e0b]'
-                            : row.status === 'Available' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
-                              : 'bg-[#e8f2ff] text-[#0b65e5]',
-                        )}
-                        >
-                          {row.status || 'Available'}
-                        </span>
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-[13px]">
-                        <div className="rounded-[8px] bg-[#f8fbff] px-2.5 py-2">
-                          <p className="font-semibold text-[#8a98af]">Daily rate</p>
-                          <p className="font-bold text-[#1e3261]">{formatInrAmount(row.daily_rate)}</p>
-                        </div>
-                        <div className="rounded-[8px] bg-[#f8fbff] px-2.5 py-2">
-                          <p className="font-semibold text-[#8a98af]">Net balance</p>
-                          <p className={cx('font-bold', balance > 0 ? 'text-[#ea5a4c]' : 'text-[#0d9f4a]')}>{formatInrAmount(balance)}</p>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openAttendanceFor(row.id)}
-                          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] bg-[#078c3e] px-2 text-[13px] font-semibold text-white"
-                        >
-                          <CalendarDays className="size-3.5" />
-                          Attendance
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openEditEmployee(row)}
-                          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] border border-[#dcecff] bg-[#f3f8ff] px-2 text-[13px] font-semibold text-[#0b65e5]"
-                        >
-                          <Pencil className="size-3.5" />
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteEmployee(row)}
-                          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] border border-[#ffe1de] bg-[#fff5f4] px-2 text-[13px] font-semibold text-[#ea5a4c]"
-                        >
-                          <Trash2 className="size-3.5" />
-                          Delete
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-
-              <div className="hidden overflow-x-auto md:block">
-                <table className="crm-table">
-                  <thead>
+            <div className="overflow-x-auto">
+              <table className="crm-table">
+                <thead>
+                  <tr>
+                    {['#', 'Name', 'Phone', 'Aadhaar', 'Skill / Role', 'Rate (₹)', 'Net Balance', 'Status', 'Actions'].map((heading) => (
+                      <th key={heading}>{heading}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEmployees.length === 0 ? (
                     <tr>
-                      {['#', 'Name', 'Phone', 'Aadhaar', 'Skill / Role', 'Rate (₹)', 'Net Balance', 'Status', 'Actions'].map((heading) => (
-                        <th key={heading}>{heading}</th>
-                      ))}
+                      <td colSpan={9} className="py-14 text-center">
+                        <UsersRound className="mx-auto size-10 text-[#c9d7ea]" />
+                        <p className="mt-3 text-[20px] font-bold text-[#1e3261]">No employees found</p>
+                        <p className="mt-1 text-[14px] font-medium text-[#7585a2]">Click on \"Add Employee\" to create a new employee record.</p>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filteredEmployees.map((row, index) => {
-                      const balance = Number(row.net_balance || 0);
-                      const hourly = Number(row.hourly_rate || 0);
-                      return (
-                        <tr key={row.id}>
-                          <td>{index + 1}</td>
-                          <td className="font-semibold text-[#1e3261]">{row.name}</td>
-                          <td>{row.mobile || '-'}</td>
-                          <td>{row.aadhaar_number || '-'}</td>
-                          <td>{row.skill_trade || row.role || '-'}</td>
-                          <td>
-                            <div>{formatInrAmount(row.daily_rate)}</div>
-                            <div className="text-[13px] font-medium text-[#8a98af]">{formatInrAmount(hourly)}/hr</div>
-                          </td>
-                          <td>
-                            <div className={cx('font-semibold', balance > 0 ? 'text-[#ea5a4c]' : 'text-[#0d9f4a]')}>{formatInrAmount(balance)}</div>
-                            <div className="text-[13px] font-medium text-[#8a98af]">{balance > 0 ? 'To Pay' : 'Settled'}</div>
-                          </td>
-                          <td>
-                            <span className={cx(
-                              'inline-flex rounded-full px-2.5 py-1 text-[13px] font-semibold',
-                              row.status === 'On Leave' ? 'bg-[#fff0dc] text-[#f59e0b]'
-                                : row.status === 'Available' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
-                                  : 'bg-[#e8f2ff] text-[#0b65e5]',
-                            )}
-                            >
-                              {row.status || 'Available'}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => openAttendanceFor(row.id)}
-                                className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-[#078c3e] px-2.5 text-[12px] font-semibold text-white"
-                              >
-                                <CalendarDays className="size-3.5" />
-                                Attendance
-                              </button>
-                              <button type="button" onClick={() => openEditEmployee(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]" aria-label="Edit employee"><Pencil className="size-4" /></button>
-                              <button type="button" onClick={() => handleDeleteEmployee(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffe1de] bg-[#fff5f4] text-[#ea5a4c]" aria-label="Delete employee"><Trash2 className="size-4" /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
+                  ) : filteredEmployees.map((row, index) => {
+                    const balance = Number(row.net_balance || 0);
+                    const hourly = Number(row.hourly_rate || 0);
+                    return (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-semibold text-[#1e3261]">{row.name}</td>
+                        <td>{row.mobile || '-'}</td>
+                        <td>{row.aadhaar_number || '-'}</td>
+                        <td>{row.skill_trade || row.role || '-'}</td>
+                        <td>
+                          <div>{formatInrAmount(row.daily_rate)}</div>
+                          <div className="text-[13px] font-medium text-[#8a98af]">{formatInrAmount(hourly)}/hr</div>
+                        </td>
+                        <td>
+                          <div className={cx('font-semibold', balance > 0 ? 'text-[#ea5a4c]' : 'text-[#0d9f4a]')}>{formatInrAmount(balance)}</div>
+                          <div className="text-[13px] font-medium text-[#8a98af]">{balance > 0 ? 'To Pay' : 'Settled'}</div>
+                        </td>
+                        <td>
+                          <span className={cx(
+                            'inline-flex rounded-full px-2.5 py-1 text-[13px] font-semibold',
+                            row.status === 'On Leave' ? 'bg-[#fff0dc] text-[#f59e0b]'
+                              : row.status === 'Available' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
+                                : 'bg-[#e8f2ff] text-[#0b65e5]',
+                          )}
+                          >
+                            {row.status || 'Available'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <button type="button" onClick={() => openEditEmployee(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]" aria-label="Edit employee"><Pencil className="size-4" /></button>
+                            <button type="button" onClick={() => handleDeleteEmployee(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffe1de] bg-[#fff5f4] text-[#ea5a4c]" aria-label="Delete employee"><Trash2 className="size-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       ) : (
         <div className="space-y-2.5">
           <section className={`${panelClass} p-2.5 sm:p-3`}>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="mb-1.5 text-[12px] font-bold uppercase tracking-wide text-[#8a98af]">Date range</p>
-                <div className="inline-flex rounded-[10px] border border-[#dce6f3] bg-[#f4f8ff] p-1">
-                  {[
-                    { value: 'weekly', label: 'Week' },
-                    { value: 'monthly', label: 'Month' },
-                    { value: 'custom', label: 'Custom' },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setRangeMode(option.value)}
-                      className={cx(
-                        'h-9 rounded-[8px] px-3.5 text-[14px] font-semibold transition',
-                        rangeMode === option.value
-                          ? 'bg-[#078c3e] text-white shadow-[0_6px_14px_rgba(7,140,62,0.22)]'
-                          : 'text-[#53647f] hover:bg-white hover:text-[#1e3261]',
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid flex-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <label className="grid gap-1 text-[13px] font-semibold text-[#34466c] sm:col-span-2 xl:col-span-1">
-                  Employee
-                  <select
-                    value={selectedEmployeeId}
-                    onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                    className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[15px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
-                  >
-                    <option value="">-- Choose Employee --</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>{emp.name} ({emp.skill_trade || emp.role || 'Employee'})</option>
-                    ))}
-                  </select>
+            <p className="mb-2 text-[14px] font-semibold text-[#53647f]">Date Range Mode</p>
+            <div className="flex flex-wrap gap-4">
+              {[
+                { value: 'weekly', label: 'Weekly View' },
+                { value: 'monthly', label: 'Monthly View' },
+                { value: 'custom', label: 'Custom Date Range' },
+              ].map((option) => (
+                <label key={option.value} className="inline-flex items-center gap-2 text-[15px] font-medium text-[#1e3261]">
+                  <input type="radio" name="employee-range-mode" checked={rangeMode === option.value} onChange={() => setRangeMode(option.value)} className="size-4 accent-[#ea5a4c]" />
+                  {option.label}
                 </label>
+              ))}
+            </div>
 
-                {rangeMode === 'weekly' ? (
-                  <label className="grid gap-1 text-[13px] font-semibold text-[#34466c]">
-                    Week starting
-                    <input
-                      type="date"
-                      value={weekStart}
-                      onChange={(e) => setWeekStart(getMondayIso(e.target.value))}
-                      className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[15px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
-                    />
+            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
+                Select Employee *
+                <select value={selectedEmployeeId} onChange={(e) => setSelectedEmployeeId(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
+                  <option value="">-- Choose Employee --</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.skill_trade || emp.role || 'Employee'})</option>
+                  ))}
+                </select>
+              </label>
+
+              {rangeMode === 'weekly' ? (
+                <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
+                  Week Starting
+                  <input type="date" value={weekStart} onChange={(e) => setWeekStart(getMondayIso(e.target.value))} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+                </label>
+              ) : null}
+
+              {rangeMode === 'monthly' ? (
+                <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
+                  Select Month
+                  <input type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
+                </label>
+              ) : null}
+
+              {rangeMode === 'custom' ? (
+                <>
+                  <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
+                    Start Date
+                    <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
                   </label>
-                ) : null}
-
-                {rangeMode === 'monthly' ? (
-                  <label className="grid gap-1 text-[13px] font-semibold text-[#34466c]">
-                    Month
-                    <input
-                      type="month"
-                      value={monthValue}
-                      onChange={(e) => setMonthValue(e.target.value)}
-                      className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[15px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
-                    />
+                  <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">
+                    End Date
+                    <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[16px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
                   </label>
-                ) : null}
-
-                {rangeMode === 'custom' ? (
-                  <>
-                    <label className="grid gap-1 text-[13px] font-semibold text-[#34466c]">
-                      Start
-                      <input
-                        type="date"
-                        value={customStart}
-                        onChange={(e) => setCustomStart(e.target.value)}
-                        className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[15px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
-                      />
-                    </label>
-                    <label className="grid gap-1 text-[13px] font-semibold text-[#34466c]">
-                      End
-                      <input
-                        type="date"
-                        value={customEnd}
-                        onChange={(e) => setCustomEnd(e.target.value)}
-                        className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[15px] font-medium text-[#1e3261] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10"
-                      />
-                    </label>
-                  </>
-                ) : null}
-              </div>
+                </>
+              ) : null}
             </div>
           </section>
 
           {!selectedEmployeeId ? (
             <section className={`${panelClass} flex flex-col items-center justify-center px-6 py-16 text-center`}>
-              <span className="grid size-16 place-items-center rounded-full bg-[#e8f8eb] text-[#078c3e]">
+              <span className="grid size-16 place-items-center rounded-full bg-[#e8f8eb] text-[#16a34a]">
                 <CalendarDays className="size-8" />
               </span>
-              <p className="mt-4 text-[24px] font-bold text-[#1e3261]">No Employee Selected</p>
-              <p className="mt-2 text-[15px] font-medium text-[#53647f]">Pick an employee to view attendance and pay.</p>
+              <p className="mt-4 text-[28px] font-bold text-[#1e3261]">No Employee Selected</p>
+              <p className="mt-2 text-[15px] font-medium text-[#53647f]">Select an employee to view their attendance ledger.</p>
             </section>
-          ) : ledgerLoading && !ledger ? (
+          ) : ledgerLoading ? (
             <PageLoadingState message="Loading attendance card..." compact />
           ) : ledger ? (
             <>
-              <section className={`${panelClass} p-3 sm:p-3.5`}>
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0">
-                    <p className="truncate font-display text-[20px] font-semibold text-[#1e3261]">{ledger.employee.name}</p>
-                    <p className="mt-0.5 text-[13px] font-medium text-[#7585a2]">
-                      {ledger.employee.mobile || 'No phone'} · {ledger.employee.skill_trade || ledger.employee.role || 'Employee'} · {formatInrAmount(ledger.employee.daily_rate)}/day
-                    </p>
-                    <p className="mt-1 text-[12px] font-semibold text-[#8a98af]">
-                      {periodRange.start} → {periodRange.end}
-                      {todayRow ? ` · Today: ${todayRow.status}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={!todayRow}
-                      onClick={() => todayRow && handleMarkPresent(todayRow)}
-                      className="inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#078c3e] px-3 text-[13px] font-semibold text-white disabled:opacity-50"
-                    >
-                      <CheckCircle2 className="size-4" />
-                      Present today
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!todayRow}
-                      onClick={() => todayRow && handleMarkAbsent(todayRow)}
-                      className="inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#ffe1de] bg-[#fff5f4] px-3 text-[13px] font-semibold text-[#ea5a4c] disabled:opacity-50"
-                    >
-                      <XCircle className="size-4" />
-                      Absent
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setVoucherOpen(true)}
-                      className="inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[13px] font-semibold text-white"
-                    >
-                      <Wallet className="size-4" />
-                      Pay voucher
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCardOpen(true)}
-                      className="inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[13px] font-semibold text-[#284276]"
-                    >
-                      <FileText className="size-4" />
-                      Card
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handlePrintCard}
-                      className="inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[13px] font-semibold text-[#284276]"
-                    >
-                      <Printer className="size-4" />
-                      Print
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-5">
-                  {[
-                    { label: 'Present', value: ledger.summary.present_days, tone: 'text-[#0d9f4a]' },
-                    { label: 'Prev. bal.', value: formatInrAmount(ledger.summary.net_previous_balance), tone: 'text-[#f59e0b]' },
-                    { label: 'Earned', value: formatInrAmount(ledger.summary.period_earning), tone: 'text-[#0b65e5]' },
-                    { label: 'Paid', value: formatInrAmount(ledger.summary.period_paid), tone: 'text-[#ea5a4c]' },
-                    { label: 'Net', value: formatInrAmount(ledger.summary.net_balance), tone: 'text-[#1e3261]' },
-                  ].map((card) => (
-                    <article key={card.label} className="rounded-[10px] border border-[#e7eef7] bg-[#f8fbff] px-3 py-2.5">
-                      <p className="text-[12px] font-semibold uppercase tracking-wide text-[#8a98af]">{card.label}</p>
-                      <p className={cx('mt-0.5 text-[17px] font-bold', card.tone)}>{card.value}</p>
-                    </article>
-                  ))}
+              <section className="rounded-[10px] border border-[#d9ecff] bg-[#f3f9ff] px-4 py-3">
+                <div className="flex flex-wrap gap-x-8 gap-y-2 text-[14px] font-medium text-[#1e3261]">
+                  <span><strong>Name:</strong> {ledger.employee.name}</span>
+                  <span><strong>Phone:</strong> {ledger.employee.mobile || '-'}</span>
+                  <span><strong>Aadhaar:</strong> {ledger.employee.aadhaar_number || '-'}</span>
+                  <span><strong>Daily Rate:</strong> {formatInrAmount(ledger.employee.daily_rate)} / {formatInrAmount(ledger.employee.hourly_rate)}/hr</span>
                 </div>
               </section>
 
               <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
-                {rangeMode === 'weekly' ? (
-                  <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {displayedLedgerRows.map((row) => (
-                      <article
-                        key={row.id}
-                        className={cx(
-                          'rounded-[12px] border p-3',
-                          row.date === todayIso ? 'border-[#078c3e] bg-[#e8f8eb]' : 'border-[#e7eef7] bg-white',
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="text-[15px] font-bold text-[#1e3261]">{row.day}</p>
-                            <p className="text-[12px] font-medium text-[#8a98af]">
-                              {new Date(`${row.date}T00:00:00`).toLocaleDateString('en-IN')}
-                            </p>
-                          </div>
-                          <span className={cx(
-                            'rounded-full px-2 py-0.5 text-[12px] font-semibold',
-                            row.status === 'Present' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
-                              : row.status === 'Absent' ? 'bg-[#ffe9e6] text-[#ea5a4c]'
-                                : 'bg-[#eef2f7] text-[#7585a2]',
-                          )}
-                          >
-                            {row.status}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-[13px] font-medium text-[#53647f]">
-                          {row.hours}h · OT {row.ot_hours} · {formatInrAmount(row.payment)}
-                        </p>
-                        <div className="mt-3 grid grid-cols-3 gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleMarkPresent(row)}
-                            className="inline-flex h-9 items-center justify-center gap-1 rounded-[8px] bg-[#078c3e] text-[12px] font-semibold text-white"
-                          >
-                            <CheckCircle2 className="size-3.5" />
-                            P
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMarkAbsent(row)}
-                            className="inline-flex h-9 items-center justify-center gap-1 rounded-[8px] border border-[#ffe1de] bg-[#fff5f4] text-[12px] font-semibold text-[#ea5a4c]"
-                          >
-                            <XCircle className="size-3.5" />
-                            A
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditAttRow(row);
-                              setAttForm({
-                                hours: row.hours,
-                                ot_hours: row.ot_hours,
-                                status: row.status === 'Not Marked' ? 'Present' : row.status,
-                                payment_mode: row.payment_mode || 'Cash',
-                                notes: row.notes || '',
-                              });
-                            }}
-                            className="inline-flex h-9 items-center justify-center gap-1 rounded-[8px] border border-[#dcecff] bg-[#f3f8ff] text-[12px] font-semibold text-[#0b65e5]"
-                          >
-                            <Pencil className="size-3.5" />
-                            Edit
-                          </button>
-                        </div>
-                      </article>
-                    ))}
+                <div className="mb-3 flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+                  <h2 className="font-display text-[20px] font-semibold text-[#111827]">
+                    {periodRange.start} to {periodRange.end} — Attendance Ledger
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setCardOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-4 text-[14px] font-semibold text-[#284276]"><FileText className="size-4" />Card Generate</button>
+                    <button type="button" onClick={handlePrintCard} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-4 text-[14px] font-semibold text-[#284276]"><Printer className="size-4" />Print Ledger</button>
+                    <button type="button" onClick={() => setVoucherOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#7c3aed] px-4 text-[14px] font-semibold text-white"><Wallet className="size-4" />Voucher</button>
                   </div>
-                ) : (
-                  <>
-                    <div className="grid gap-2.5 md:hidden">
+                </div>
+
+                <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                  {[
+                    { label: 'Present Days', value: ledger.summary.present_days, tone: 'text-[#0d9f4a]' },
+                    { label: 'Net Previous Balance', value: formatInrAmount(ledger.summary.net_previous_balance), tone: 'text-[#f59e0b]' },
+                    { label: 'Period Earning', value: formatInrAmount(ledger.summary.period_earning), tone: 'text-[#0b65e5]' },
+                    { label: 'Period Paid', value: formatInrAmount(ledger.summary.period_paid), tone: 'text-[#ea5a4c]' },
+                    { label: 'Net Balance', value: formatInrAmount(ledger.summary.net_balance), tone: 'text-[#7c3aed]' },
+                  ].map((card) => (
+                    <article key={card.label} className="rounded-[10px] border border-[#e7eef7] bg-white p-3">
+                      <p className="text-[13px] font-semibold text-[#53647f]">{card.label}</p>
+                      <p className={cx('mt-1 text-[18px] font-bold', card.tone)}>{card.value}</p>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="crm-table">
+                    <thead>
+                      <tr>{['Date', 'Day', 'Status', 'Hours', 'OT Hours', 'Payment', 'Voucher', 'Mode', 'Action'].map((heading) => <th key={heading}>{heading}</th>)}</tr>
+                    </thead>
+                    <tbody>
                       {displayedLedgerRows.map((row) => (
-                        <article key={row.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className="text-[15px] font-bold text-[#1e3261]">{row.day} · {new Date(`${row.date}T00:00:00`).toLocaleDateString('en-IN')}</p>
-                              <p className="mt-1 text-[13px] font-medium text-[#53647f]">
-                                {row.hours}h · OT {row.ot_hours} · {formatInrAmount(row.payment)}
-                              </p>
-                            </div>
+                        <tr key={row.id}>
+                          <td>{new Date(`${row.date}T00:00:00`).toLocaleDateString('en-IN')}</td>
+                          <td>{row.day}</td>
+                          <td>
                             <span className={cx(
-                              'rounded-full px-2 py-0.5 text-[12px] font-semibold',
-                              row.status === 'Present' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
-                                : row.status === 'Absent' ? 'bg-[#ffe9e6] text-[#ea5a4c]'
-                                  : 'bg-[#eef2f7] text-[#7585a2]',
+                              'inline-flex rounded-full px-2.5 py-1 text-[13px] font-semibold',
+                              row.status === 'Present' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : row.status === 'Absent' ? 'bg-[#ffe9e6] text-[#ea5a4c]' : 'bg-[#eef2f7] text-[#7585a2]',
                             )}
                             >
                               {row.status}
                             </span>
-                          </div>
-                          <div className="mt-3 grid grid-cols-3 gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleMarkPresent(row)}
-                              className="inline-flex h-10 items-center justify-center gap-1 rounded-[8px] bg-[#078c3e] text-[12px] font-semibold text-white"
-                            >
-                              <CheckCircle2 className="size-3.5" />
-                              Present
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleMarkAbsent(row)}
-                              className="inline-flex h-10 items-center justify-center gap-1 rounded-[8px] border border-[#ffe1de] bg-[#fff5f4] text-[12px] font-semibold text-[#ea5a4c]"
-                            >
-                              <XCircle className="size-3.5" />
-                              Absent
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditAttRow(row);
-                                setAttForm({
-                                  hours: row.hours,
-                                  ot_hours: row.ot_hours,
-                                  status: row.status === 'Not Marked' ? 'Present' : row.status,
-                                  payment_mode: row.payment_mode || 'Cash',
-                                  notes: row.notes || '',
-                                });
-                              }}
-                              className="inline-flex h-10 items-center justify-center gap-1 rounded-[8px] border border-[#dcecff] bg-[#f3f8ff] text-[12px] font-semibold text-[#0b65e5]"
-                            >
-                              <Pencil className="size-3.5" />
-                              Edit
-                            </button>
-                          </div>
-                        </article>
+                          </td>
+                          <td>{row.hours}</td>
+                          <td>{row.ot_hours}</td>
+                          <td>{formatInrAmount(row.payment)}</td>
+                          <td>{row.voucher_amount !== '0.00' ? formatInrAmount(row.voucher_amount) : '-'}</td>
+                          <td>{row.payment_mode || '-'}</td>
+                          <td>
+                            <div className="flex items-center gap-1.5">
+                              <button type="button" onClick={() => handleMarkPresent(row)} className="inline-flex size-8 items-center justify-center rounded-full border border-[#cfe8d6] bg-[#f1fff5] text-[#0d9f4a]" aria-label="Mark present"><CheckCircle2 className="size-4" /></button>
+                              <button type="button" onClick={() => handleMarkAbsent(row)} className="inline-flex size-8 items-center justify-center rounded-full border border-[#ffe1de] bg-[#fff5f4] text-[#ea5a4c]" aria-label="Mark absent"><XCircle className="size-4" /></button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditAttRow(row);
+                                  setAttForm({
+                                    hours: row.hours,
+                                    ot_hours: row.ot_hours,
+                                    status: row.status,
+                                    payment_mode: row.payment_mode || 'Cash',
+                                    notes: row.notes || '',
+                                  });
+                                }}
+                                className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]"
+                                aria-label="Edit attendance"
+                              >
+                                <Pencil className="size-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
                       ))}
-                    </div>
-
-                    <div className="hidden overflow-x-auto md:block">
-                      <table className="crm-table">
-                        <thead>
-                          <tr>{['Date', 'Day', 'Status', 'Hours', 'OT Hours', 'Payment', 'Voucher', 'Mode', 'Action'].map((heading) => <th key={heading}>{heading}</th>)}</tr>
-                        </thead>
-                        <tbody>
-                          {displayedLedgerRows.map((row) => (
-                            <tr key={row.id}>
-                              <td>{new Date(`${row.date}T00:00:00`).toLocaleDateString('en-IN')}</td>
-                              <td>{row.day}</td>
-                              <td>
-                                <span className={cx(
-                                  'inline-flex rounded-full px-2.5 py-1 text-[13px] font-semibold',
-                                  row.status === 'Present' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : row.status === 'Absent' ? 'bg-[#ffe9e6] text-[#ea5a4c]' : 'bg-[#eef2f7] text-[#7585a2]',
-                                )}
-                                >
-                                  {row.status}
-                                </span>
-                              </td>
-                              <td>{row.hours}</td>
-                              <td>{row.ot_hours}</td>
-                              <td>{formatInrAmount(row.payment)}</td>
-                              <td>{row.voucher_amount !== '0.00' ? formatInrAmount(row.voucher_amount) : '-'}</td>
-                              <td>{row.payment_mode || '-'}</td>
-                              <td>
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMarkPresent(row)}
-                                    className="inline-flex h-8 items-center gap-1 rounded-[8px] bg-[#078c3e] px-2.5 text-[12px] font-semibold text-white"
-                                  >
-                                    <CheckCircle2 className="size-3.5" />
-                                    Present
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMarkAbsent(row)}
-                                    className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#ffe1de] bg-[#fff5f4] px-2.5 text-[12px] font-semibold text-[#ea5a4c]"
-                                  >
-                                    <XCircle className="size-3.5" />
-                                    Absent
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditAttRow(row);
-                                      setAttForm({
-                                        hours: row.hours,
-                                        ot_hours: row.ot_hours,
-                                        status: row.status === 'Not Marked' ? 'Present' : row.status,
-                                        payment_mode: row.payment_mode || 'Cash',
-                                        notes: row.notes || '',
-                                      });
-                                    }}
-                                    className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]"
-                                    aria-label="Edit attendance"
-                                  >
-                                    <Pencil className="size-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr className="bg-[#f8fbff] font-semibold text-[#1e3261]">
-                            <td colSpan={3}>Total</td>
-                            <td>{displayedLedgerRows.reduce((sum, row) => sum + Number(row.hours || 0), 0)}</td>
-                            <td>{displayedLedgerRows.reduce((sum, row) => sum + Number(row.ot_hours || 0), 0)}</td>
-                            <td>{formatInrAmount(displayedLedgerRows.reduce((sum, row) => sum + Number(row.payment || 0), 0))}</td>
-                            <td>{formatInrAmount(displayedLedgerRows.reduce((sum, row) => sum + Number(row.voucher_amount || 0), 0))}</td>
-                            <td colSpan={2} />
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </>
-                )}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-[#f8fbff] font-semibold text-[#1e3261]">
+                        <td colSpan={3}>Total</td>
+                        <td>{displayedLedgerRows.reduce((sum, row) => sum + Number(row.hours || 0), 0)}</td>
+                        <td>{displayedLedgerRows.reduce((sum, row) => sum + Number(row.ot_hours || 0), 0)}</td>
+                        <td>{formatInrAmount(displayedLedgerRows.reduce((sum, row) => sum + Number(row.payment || 0), 0))}</td>
+                        <td>{formatInrAmount(displayedLedgerRows.reduce((sum, row) => sum + Number(row.voucher_amount || 0), 0))}</td>
+                        <td colSpan={2} />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </section>
             </>
           ) : null}
@@ -29337,8 +28998,8 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
       )}
 
       {empModalOpen ? (
-        <div className="fixed inset-0 z-90 flex items-end justify-center bg-[#111827]/45 p-0 sm:items-center sm:p-4">
-          <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:rounded-[16px]">
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
+          <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
               <h2 className="font-display text-[20px] font-semibold text-[#111827]">{editEmpId !== null ? 'Edit Employee' : 'Add Employee'}</h2>
               <button type="button" onClick={() => setEmpModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
@@ -29376,15 +29037,15 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
             </div>
             <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
               <button type="button" onClick={() => setEmpModalOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[15px] font-semibold text-[#284276]">Cancel</button>
-              <button type="button" onClick={handleSaveEmployee} disabled={saving} className="h-10 rounded-[8px] bg-[#078c3e] px-5 text-[15px] font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save'}</button>
+              <button type="button" onClick={handleSaveEmployee} disabled={saving} className="h-10 rounded-[8px] bg-[#ea5a4c] px-5 text-[15px] font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save'}</button>
             </div>
           </div>
         </div>
       ) : null}
 
       {voucherOpen ? (
-        <div className="fixed inset-0 z-90 flex items-end justify-center bg-[#111827]/45 p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-[520px] rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:rounded-[16px]">
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
+          <div className="w-full max-w-[520px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
               <h2 className="font-display text-[20px] font-semibold text-[#111827]">Add Payment Voucher</h2>
               <button type="button" onClick={() => setVoucherOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
@@ -29411,15 +29072,15 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
             </div>
             <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
               <button type="button" onClick={() => setVoucherOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[15px] font-semibold text-[#284276]">Cancel</button>
-              <button type="button" onClick={handleSaveVoucher} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[15px] font-semibold text-white disabled:opacity-60"><Wallet className="size-4" />Process Payment</button>
+              <button type="button" onClick={handleSaveVoucher} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#ea5a4c] px-5 text-[15px] font-semibold text-white disabled:opacity-60"><Wallet className="size-4" />Process Payment</button>
             </div>
           </div>
         </div>
       ) : null}
 
       {editAttRow ? (
-        <div className="fixed inset-0 z-90 flex items-end justify-center bg-[#111827]/45 p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-[480px] rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:rounded-[16px]">
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
+          <div className="w-full max-w-[480px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
               <h2 className="font-display text-[20px] font-semibold text-[#111827]">Edit Attendance</h2>
               <button type="button" onClick={() => setEditAttRow(null)} className="text-[#7585a2]"><X className="size-5" /></button>
@@ -29441,25 +29102,22 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
                   {paymentModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
                 </select>
               </label>
-              <label className="grid gap-1.5 text-[15px] font-semibold text-[#34466c]">Notes
-                <textarea rows={2} value={attForm.notes} onChange={(e) => setAttForm((prev) => ({ ...prev, notes: e.target.value }))} className="rounded-[8px] border border-[#dce6f3] px-3 py-2 text-[16px] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10" />
-              </label>
             </div>
             <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
               <button type="button" onClick={() => setEditAttRow(null)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[15px] font-semibold text-[#284276]">Cancel</button>
-              <button type="button" onClick={handleSaveAttendanceEdit} disabled={saving} className="h-10 rounded-[8px] bg-[#078c3e] px-5 text-[15px] font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save'}</button>
+              <button type="button" onClick={handleSaveAttendanceEdit} disabled={saving} className="h-10 rounded-[8px] bg-[#0b65e5] px-5 text-[15px] font-semibold text-white disabled:opacity-60">Save</button>
             </div>
           </div>
         </div>
       ) : null}
 
       {cardOpen && ledger ? (
-        <div className="fixed inset-0 z-90 flex items-end justify-center bg-[#111827]/45 p-0 sm:items-center sm:p-4">
-          <div className="max-h-[92vh] w-full max-w-[900px] overflow-y-auto rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:rounded-[16px]">
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
+          <div className="max-h-[92vh] w-full max-w-[900px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
               <h2 className="font-display text-[20px] font-semibold text-[#111827]">Weekly Attendance Card — {ledger.employee.name}</h2>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={handleSaveCardPng} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#078c3e] px-3 text-[13px] font-semibold text-white"><Download className="size-4" />Save PNG</button>
+                <button type="button" onClick={handleSaveCardPng} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#ea5a4c] px-3 text-[13px] font-semibold text-white"><Download className="size-4" />Save PNG</button>
                 <button type="button" onClick={() => setCardOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
             </div>
