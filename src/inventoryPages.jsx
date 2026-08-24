@@ -8,8 +8,17 @@ import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { exportNotifyCsv } from './lib/utils.js';
 
 const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'kg', 'Ltr', 'ltr', 'Roll', 'Set'];
+const STRUCTURE_EXTRA_UNITS = ['Unit', 'Packet', 'Bundels'];
 const STOCK_STATUS_OPTIONS = ['All Stock', 'In Stock', 'Low Stock', 'Out of Stock'];
 const PRODUCT_CATEGORIES = ['Structure', 'Electrical', 'Invertor', 'Panel', 'Battery'];
+
+function unitsForCategory(category, currentUnit = '') {
+  const base = category === 'Structure'
+    ? [...INV_UNITS, ...STRUCTURE_EXTRA_UNITS]
+    : [...INV_UNITS];
+  if (currentUnit && !base.includes(currentUnit)) base.push(currentUnit);
+  return [...new Set(base)];
+}
 
 export function fmtInvRs(v) {
   return v != null && v !== '' ? `Rs ${Number(v).toLocaleString('en-IN')}` : '—';
@@ -326,7 +335,14 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
               <select
                 className="h-9 min-w-[140px] rounded-[8px] border border-[#d9e2ec] bg-white px-2.5 text-[13px] font-semibold text-[#1e3261]"
                 value={modal.form.category || 'Structure'}
-                onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, category: e.target.value } }))}
+                onChange={(e) => {
+                  const nextCategory = e.target.value;
+                  setModal((m) => {
+                    const nextUnits = unitsForCategory(nextCategory, m.form.unit);
+                    const unit = nextUnits.includes(m.form.unit) ? m.form.unit : nextUnits[0];
+                    return { ...m, form: { ...m.form, category: nextCategory, unit } };
+                  });
+                }}
               >
                 {(PRODUCT_CATEGORIES.includes(modal.form.category) || !modal.form.category
                   ? PRODUCT_CATEGORIES
@@ -345,7 +361,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-[12px] font-bold text-[#53647f]">Item Code<input className="mt-1 h-10 w-full rounded-[8px] border px-3" placeholder="Auto-generated if empty" value={modal.form.item_code || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, item_code: e.target.value } }))} /></label>
             <label className="text-[12px] font-bold text-[#53647f]">Name *<input className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.name || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, name: e.target.value } }))} /></label>
-            <label className="text-[12px] font-bold text-[#53647f]">Unit<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.unit} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, unit: e.target.value } }))}>{INV_UNITS.map((u) => <option key={u}>{u}</option>)}</select></label>
+            <label className="text-[12px] font-bold text-[#53647f]">Unit<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.unit} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, unit: e.target.value } }))}>{unitsForCategory(modal.form.category, modal.form.unit).map((u) => <option key={u} value={u}>{u}</option>)}</select></label>
             {!modal.editId ? <label className="text-[12px] font-bold text-[#53647f]">Opening Stock<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.initial_stock} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, initial_stock: e.target.value } }))} /><span className="text-[11px] text-[#7a8fa6]">Creates an inward movement record</span></label> : null}
             <label className="text-[12px] font-bold text-[#53647f]">Reorder Level<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.minimum_stock} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, minimum_stock: e.target.value } }))} /></label>
             <label className="text-[12px] font-bold text-[#53647f]">Warehouse<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.warehouse || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, warehouse: e.target.value } }))}><option value="">Select...</option>{warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>

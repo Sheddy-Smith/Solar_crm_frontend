@@ -40,6 +40,9 @@ class InventoryItem(models.Model):
         ('ltr', 'ltr'),
         ('Roll', 'Roll'),
         ('Set', 'Set'),
+        ('Unit', 'Unit'),
+        ('Packet', 'Packet'),
+        ('Bundels', 'Bundels'),
     ]
 
     item_code = models.CharField(max_length=30, unique=True, blank=True, null=True)
