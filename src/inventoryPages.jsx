@@ -9,6 +9,7 @@ import { exportNotifyCsv } from './lib/utils.js';
 
 const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'kg', 'Ltr', 'ltr', 'Roll', 'Set'];
 const STOCK_STATUS_OPTIONS = ['All Stock', 'In Stock', 'Low Stock', 'Out of Stock'];
+const PRODUCT_CATEGORIES = ['Structure', 'Electrical', 'Invertor', 'Panel', 'Battery'];
 
 export function fmtInvRs(v) {
   return v != null && v !== '' ? `Rs ${Number(v).toLocaleString('en-IN')}` : '—';
@@ -152,7 +153,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   const [modal, setModal] = useState(null);
   const [adjustItem, setAdjustItem] = useState(null);
   const [saving, setSaving] = useState(false);
-  const emptyForm = { item_code: '', name: '', category: 'Other', unit: 'Nos', hsn_code: '', rate: '', selling_price: '', initial_stock: '', minimum_stock: '', location: '', warehouse: '', is_active: true, auto_sell: true };
+  const emptyForm = { item_code: '', name: '', category: 'Structure', unit: 'Nos', hsn_code: '', rate: '', selling_price: '', initial_stock: '', minimum_stock: '', location: '', warehouse: '', is_active: true, auto_sell: false };
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput), 350);
@@ -196,11 +197,11 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
         name: f.name,
         category: f.category,
         unit: f.unit,
-        hsn_code: f.hsn_code,
-        rate: f.rate === '' ? 0 : Number(f.rate),
-        selling_price: f.auto_sell && f.rate ? Number(f.rate) * 1.5 : (f.selling_price === '' ? 0 : Number(f.selling_price)),
+        hsn_code: f.hsn_code || '',
+        rate: f.rate === '' || f.rate == null ? 0 : Number(f.rate),
+        selling_price: f.selling_price === '' || f.selling_price == null ? 0 : Number(f.selling_price),
         minimum_stock: f.minimum_stock === '' ? 0 : Number(f.minimum_stock),
-        location: f.location,
+        location: f.location || '',
         warehouse: f.warehouse || null,
         is_active: f.is_active !== false,
       };
@@ -236,7 +237,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
     }
   };
 
-  const catOptions = ['All Categories', ...new Set([...categories.map((c) => c.name), ...rows.map((r) => r.category)].filter(Boolean))];
+  const catOptions = ['All Categories', ...new Set([...PRODUCT_CATEGORIES, ...categories.map((c) => c.name), ...rows.map((r) => r.category)].filter(Boolean))];
 
   return (
     <div className="space-y-4">
@@ -244,7 +245,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
         actions={(
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => exportNotifyCsv(onNotify, 'inventory-products', ['Code', 'Name', 'Category', 'Stock', 'Unit', 'Cost', 'Selling', 'Valuation'], filtered.map((r) => [r.item_code, r.name, r.category, r.current_stock, r.unit, r.rate, r.selling_price, r.valuation]))} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#284276]"><Download className="size-4" />Export CSV</button>
-            <button type="button" onClick={() => setModal({ form: { ...emptyForm, category: catOptions[1] || 'Other' } })} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Product</button>
+            <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Product</button>
           </div>
         )}
       />
@@ -328,15 +329,11 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-[12px] font-bold text-[#53647f]">Item Code<input className="mt-1 h-10 w-full rounded-[8px] border px-3" placeholder="Auto-generated if empty" value={modal.form.item_code || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, item_code: e.target.value } }))} /></label>
             <label className="text-[12px] font-bold text-[#53647f]">Name *<input className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.name || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, name: e.target.value } }))} /></label>
-            <label className="text-[12px] font-bold text-[#53647f]">Category<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.category} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, category: e.target.value } }))}>{catOptions.filter((c) => c !== 'All Categories').map((c) => <option key={c}>{c}</option>)}</select></label>
+            <label className="text-[12px] font-bold text-[#53647f]">Category<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.category || 'Structure'} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, category: e.target.value } }))}>{(PRODUCT_CATEGORIES.includes(modal.form.category) || !modal.form.category ? PRODUCT_CATEGORIES : [...PRODUCT_CATEGORIES, modal.form.category]).map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
             <label className="text-[12px] font-bold text-[#53647f]">Unit<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.unit} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, unit: e.target.value } }))}>{INV_UNITS.map((u) => <option key={u}>{u}</option>)}</select></label>
             {!modal.editId ? <label className="text-[12px] font-bold text-[#53647f]">Opening Stock<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.initial_stock} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, initial_stock: e.target.value } }))} /><span className="text-[11px] text-[#7a8fa6]">Creates an inward movement record</span></label> : null}
             <label className="text-[12px] font-bold text-[#53647f]">Reorder Level<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.minimum_stock} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, minimum_stock: e.target.value } }))} /></label>
-            <label className="text-[12px] font-bold text-[#53647f]">Location<input className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.location || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, location: e.target.value } }))} /></label>
             <label className="text-[12px] font-bold text-[#53647f]">Warehouse<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.warehouse || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, warehouse: e.target.value } }))}><option value="">Select...</option>{warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
-            <label className="text-[12px] font-bold text-[#53647f]">Cost Price<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.rate} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, rate: e.target.value, selling_price: m.form.auto_sell ? String(Number(e.target.value || 0) * 1.5) : m.form.selling_price } }))} /></label>
-            <label className="text-[12px] font-bold text-[#53647f]">Selling Price<label className="ml-2 text-[11px] font-normal"><input type="checkbox" checked={modal.form.auto_sell} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, auto_sell: e.target.checked, selling_price: e.target.checked ? String(Number(m.form.rate || 0) * 1.5) : m.form.selling_price } }))} /> Auto (Cost × 1.5)</label><input type="number" disabled={modal.form.auto_sell} className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.selling_price} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, selling_price: e.target.value, auto_sell: false } }))} /></label>
-            <label className="text-[12px] font-bold text-[#53647f]">HSN<input className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.hsn_code || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, hsn_code: e.target.value } }))} /></label>
           </div>
         </InvModal>
       ) : null}
