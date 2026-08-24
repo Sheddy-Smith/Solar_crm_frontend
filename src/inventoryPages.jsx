@@ -40,13 +40,16 @@ function InvStatusBadge({ status }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-extrabold ${cls}`}>{status}</span>;
 }
 
-function InvModal({ title, onClose, children, footer }) {
+function InvModal({ title, onClose, children, footer, headerRight = null }) {
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-[14px] bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#e5eaf2] px-5 py-4">
-          <h3 className="text-[16px] font-extrabold text-[#1e3261]">{title}</h3>
-          <button type="button" onClick={onClose} className="text-[#53647f]">✕</button>
+        <div className="flex items-center justify-between gap-3 border-b border-[#e5eaf2] px-5 py-4">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+            <h3 className="text-[16px] font-extrabold text-[#1e3261]">{title}</h3>
+            {headerRight}
+          </div>
+          <button type="button" onClick={onClose} className="shrink-0 text-[#53647f]">✕</button>
         </div>
         <div className="p-5">{children}</div>
         {footer ? <div className="flex justify-end gap-2 border-t border-[#e5eaf2] px-5 py-4">{footer}</div> : null}
@@ -243,7 +246,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
     <div className="space-y-4">
       <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Products' }]}
         actions={(
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => exportNotifyCsv(onNotify, 'inventory-products', ['Code', 'Name', 'Category', 'Stock', 'Unit', 'Cost', 'Selling', 'Valuation'], filtered.map((r) => [r.item_code, r.name, r.category, r.current_stock, r.unit, r.rate, r.selling_price, r.valuation]))} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#284276]"><Download className="size-4" />Export CSV</button>
             <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Product</button>
           </div>
@@ -320,16 +323,34 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
       <DashboardFooter />
 
       {modal ? (
-        <InvModal title={modal.editId ? 'Edit Product' : 'Add Product'} onClose={() => setModal(null)} footer={(
-          <>
-            <button type="button" onClick={() => setModal(null)} className="rounded-[8px] border px-4 py-2 text-[13px] font-bold">Cancel</button>
-            <button type="button" disabled={saving} onClick={saveProduct} className="rounded-[8px] bg-[#0b65e5] px-4 py-2 text-[13px] font-extrabold text-white">{saving ? 'Saving...' : 'Save'}</button>
-          </>
-        )}>
+        <InvModal
+          title={modal.editId ? 'Edit Product' : 'Add Product'}
+          onClose={() => setModal(null)}
+          headerRight={(
+            <label className="inline-flex items-center gap-2 text-[12px] font-bold text-[#53647f]">
+              <span className="shrink-0">Category</span>
+              <select
+                className="h-9 min-w-[140px] rounded-[8px] border border-[#d9e2ec] bg-white px-2.5 text-[13px] font-semibold text-[#1e3261]"
+                value={modal.form.category || 'Structure'}
+                onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, category: e.target.value } }))}
+              >
+                {(PRODUCT_CATEGORIES.includes(modal.form.category) || !modal.form.category
+                  ? PRODUCT_CATEGORIES
+                  : [...PRODUCT_CATEGORIES, modal.form.category]
+                ).map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+          )}
+          footer={(
+            <>
+              <button type="button" onClick={() => setModal(null)} className="rounded-[8px] border px-4 py-2 text-[13px] font-bold">Cancel</button>
+              <button type="button" disabled={saving} onClick={saveProduct} className="rounded-[8px] bg-[#0b65e5] px-4 py-2 text-[13px] font-extrabold text-white">{saving ? 'Saving...' : 'Save'}</button>
+            </>
+          )}
+        >
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-[12px] font-bold text-[#53647f]">Item Code<input className="mt-1 h-10 w-full rounded-[8px] border px-3" placeholder="Auto-generated if empty" value={modal.form.item_code || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, item_code: e.target.value } }))} /></label>
             <label className="text-[12px] font-bold text-[#53647f]">Name *<input className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.name || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, name: e.target.value } }))} /></label>
-            <label className="text-[12px] font-bold text-[#53647f]">Category<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.category || 'Structure'} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, category: e.target.value } }))}>{(PRODUCT_CATEGORIES.includes(modal.form.category) || !modal.form.category ? PRODUCT_CATEGORIES : [...PRODUCT_CATEGORIES, modal.form.category]).map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
             <label className="text-[12px] font-bold text-[#53647f]">Unit<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.unit} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, unit: e.target.value } }))}>{INV_UNITS.map((u) => <option key={u}>{u}</option>)}</select></label>
             {!modal.editId ? <label className="text-[12px] font-bold text-[#53647f]">Opening Stock<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.initial_stock} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, initial_stock: e.target.value } }))} /><span className="text-[11px] text-[#7a8fa6]">Creates an inward movement record</span></label> : null}
             <label className="text-[12px] font-bold text-[#53647f]">Reorder Level<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.minimum_stock} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, minimum_stock: e.target.value } }))} /></label>
