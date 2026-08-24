@@ -259,8 +259,6 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#7a8fa6]" />
             <input className="h-10 w-full rounded-[8px] border border-[#d9e2ec] pl-9 pr-3 text-[13px]" placeholder="Search by name, code, category..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
           </div>
-          <select className="h-10 rounded-[8px] border border-[#d9e2ec] px-3 text-[13px]" value={category} onChange={(e) => setCategory(e.target.value)}>{catOptions.map((o) => <option key={o}>{o}</option>)}</select>
-          <select className="h-10 rounded-[8px] border border-[#d9e2ec] px-3 text-[13px]" value={stockFilter} onChange={(e) => setStockFilter(e.target.value)}>{STOCK_STATUS_OPTIONS.map((o) => <option key={o}>{o}</option>)}</select>
         </div>
         {loading ? <p className="py-12 text-center text-[#7a8fa6]">Loading...</p> : (
           <div className="overflow-auto rounded-[12px] border border-[#e5eaf2]">
