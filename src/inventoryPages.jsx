@@ -8,19 +8,17 @@ import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { exportNotifyCsv } from './lib/utils.js';
 
 const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'kg', 'Ltr', 'ltr', 'Roll', 'Set'];
-const STRUCTURE_EXTRA_UNITS = ['Unit', 'Packet', 'Bundels'];
+const STRUCTURE_PACK_TYPES = ['Unit', 'Packet', 'Bundels'];
 const STOCK_STATUS_OPTIONS = ['All Stock', 'In Stock', 'Low Stock', 'Out of Stock'];
 const PRODUCT_CATEGORIES = ['Structure', 'Electrical', 'Invertor', 'Panel', 'Battery'];
 const INVERTOR_TYPES = ['On-Grid', 'Off-Grid', 'Hybrid'];
 const PANEL_TYPES = ['DCR Bifacial', 'DCR Topcon', 'NDCR Bifacial', 'NDCR Topcon'];
 const BATTERY_TYPES = ['LFP', 'LTB', 'Lead Acid'];
-const INVERTOR_UNITS = ['Nos', 'Unit', 'Set', 'kW'];
+const INVERTOR_UNITS = ['Nos', 'Set', 'kW'];
 
 function unitsForCategory(category, currentUnit = '') {
   let base;
-  if (category === 'Structure' || category === 'Electrical') {
-    base = [...STRUCTURE_EXTRA_UNITS, ...INV_UNITS];
-  } else if (category === 'Invertor') {
+  if (category === 'Invertor') {
     base = [...INVERTOR_UNITS, ...INV_UNITS];
   } else {
     base = [...INV_UNITS];
@@ -50,7 +48,7 @@ function defaultsForCategory(category) {
     auto_sell: false,
   };
   if (category === 'Structure' || category === 'Electrical') {
-    return { ...base, unit: 'Unit' };
+    return { ...base, product_type: 'Unit', unit: 'Unit' };
   }
   if (category === 'Invertor') {
     return { ...base, product_type: 'On-Grid', unit: 'Nos' };
@@ -551,18 +549,41 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
               );
             }
 
-            // Structure + Electrical (same form)
+            // Structure + Electrical — Unit / Packet / Bundels as option tabs (not dropdown)
+            const packType = STRUCTURE_PACK_TYPES.includes(f.product_type) ? f.product_type : 'Unit';
             return (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {codeName}
-                <Field label="Unit">
-                  <select className={selectClass} value={f.unit || 'Nos'} onChange={(e) => patchForm({ unit: e.target.value })}>
-                    {unitsForCategory(cat, f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </Field>
-                {openingField}
-                {reorderField}
-                {warehouseField}
+              <div className="space-y-4">
+                <div>
+                  <p className="mb-2 text-[12px] font-bold text-[#53647f]">Select option</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {STRUCTURE_PACK_TYPES.map((t) => {
+                      const active = packType === t;
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => patchForm({ product_type: t, unit: t })}
+                          className={`h-11 rounded-[10px] border text-[13px] font-extrabold transition ${
+                            active
+                              ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5] shadow-[0_0_0_3px_rgba(11,101,229,0.12)]'
+                              : 'border-[#d9e2ec] bg-white text-[#314a79] hover:bg-[#f8fbff]'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="rounded-[12px] border border-[#e7eef7] bg-[#fbfdff] p-3 sm:p-4">
+                  <p className="mb-3 text-[13px] font-extrabold text-[#1e3261]">{packType} details</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {codeName}
+                    {openingField}
+                    {reorderField}
+                    {warehouseField}
+                  </div>
+                </div>
               </div>
             );
           })()}
