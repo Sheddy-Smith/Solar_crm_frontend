@@ -22428,9 +22428,6 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
           project={bomProject}
           onClose={closeBom}
           onNotify={onNotify}
-          onOpenProjectDetails={() => {
-            onSelectProject?.(bomProject, 'Project Details');
-          }}
           onPlansChanged={reloadPlans}
         />
       ) : null}
@@ -22440,7 +22437,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
   );
 }
 
-function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onOpenProjectDetails, onPlansChanged }) {
+function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onPlansChanged }) {
   const MATERIAL_CATEGORIES = ['Solar Panels', 'Inverters', 'Mounting Structure', 'DC Cables', 'AC Cables', 'Connectors (MC4)', 'ACDB / DCDB', 'Earthing Material', 'Consumables', 'Safety & Others', 'Battery', 'Other'];
   const MATERIAL_STATUS = ['Not Started', 'In Progress', 'Partially Completed', 'Completed', 'Delayed'];
   const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair'];
@@ -22459,6 +22456,7 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onO
   const [rows, setRows] = useState([]);
   const [loadingRows, setLoadingRows] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -22480,19 +22478,11 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onO
     let cancelled = false;
     (async () => {
       try {
-        const full = projectProp?.project_name ? projectProp : await projectApi.get(projectProp.id);
+        const full = await projectApi.get(projectProp.id);
         if (cancelled) return;
         setProject(full);
         setProjectSurvey(full?.site_survey || null);
         await loadRows(full);
-        if (!full?.site_survey) {
-          projectApi.get(full.id).then((detail) => {
-            if (!cancelled) {
-              setProject(detail);
-              setProjectSurvey(detail?.site_survey || null);
-            }
-          }).catch(() => {});
-        }
       } catch {
         if (!cancelled) onNotify('Failed to load project');
       }
@@ -22590,72 +22580,40 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onO
         className="fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4"
         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <div className="flex max-h-[96vh] w-full max-w-[980px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:max-h-[90vh] sm:rounded-[16px]">
-          <div className="flex shrink-0 items-center justify-between border-b border-[#edf2f8] px-4 py-3 sm:px-5">
-            <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Project BOM</h2>
-            <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]" aria-label="Close">
-              <X className="size-5" />
-            </button>
+        <div className="flex max-h-[96vh] w-full max-w-[920px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:max-h-[90vh] sm:rounded-[16px]">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3 sm:px-5">
+            <div className="min-w-0">
+              <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Project BOM</h2>
+              <button type="button" onClick={() => setInfoOpen(true)} className="mt-0.5 truncate text-left text-[13px] font-semibold text-[#0b65e5] hover:underline">
+                {project?.project_name || project?.project_id || 'Project'}
+                {project?.project_id ? ` · ${project.project_id}` : ''}
+              </button>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={openAdd}
+                className="inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-3 text-[13px] font-semibold text-white"
+              >
+                <Plus className="size-4" />
+                Add Material
+              </button>
+              <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]" aria-label="Close">
+                <X className="size-5" />
+              </button>
+            </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="truncate text-[16px] font-extrabold text-[#1e3261]">{project?.project_name || project?.project_id || 'Project'}</h3>
-                  {project?.status ? (
-                    <span className={cx(
-                      'inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold',
-                      project.status === 'Active' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : 'bg-[#eef2f7] text-[#7585a2]',
-                    )}
-                    >
-                      {project.status}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-[13px] font-medium text-[#7386a3]">
-                  {project?.customer_name || '—'}
-                  {capacityLabel ? ` · ${capacityLabel}` : ''}
-                  {project?.project_id ? ` · ${project.project_id}` : ''}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={onOpenProjectDetails}
-                  className="inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#16a34a] bg-white px-3 text-[13px] font-semibold text-[#16a34a]"
-                >
-                  Project Details
-                </button>
-                <button
-                  type="button"
-                  onClick={openAdd}
-                  className="inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-3 text-[13px] font-semibold text-white"
-                >
-                  <Plus className="size-4" />
-                  Add Material
-                </button>
-              </div>
-            </div>
-
-            <div className="mb-4 grid grid-cols-3 gap-2">
-              {[
-                { label: 'Total Items', value: rows.length, tone: 'text-[#0b65e5]', bg: 'bg-[#eff6ff]', icon: Boxes },
-                { label: 'Pending Items', value: pendingCount, tone: 'text-[#f59e0b]', bg: 'bg-[#fff7ed]', icon: Clock3 },
-                { label: 'Ready Items', value: readyCount, tone: 'text-[#16a34a]', bg: 'bg-[#f0fdf4]', icon: CheckCircle2 },
-              ].map((card) => {
-                const Icon = card.icon;
-                return (
-                  <div key={card.label} className="rounded-[10px] border border-[#e7eef7] bg-white px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-semibold text-[#7386a3]">{card.label}</p>
-                      <span className={cx('grid size-7 place-items-center rounded-full', card.bg, card.tone)}><Icon className="size-3.5" /></span>
-                    </div>
-                    <p className={cx('mt-1 text-[20px] font-extrabold', card.tone)}>{loadingRows ? '—' : card.value}</p>
-                  </div>
-                );
-              })}
-            </div>
+            {!loadingRows && rows.length > 0 ? (
+              <p className="mb-3 text-[13px] font-semibold text-[#7386a3]">
+                {rows.length} item{rows.length === 1 ? '' : 's'}
+                {' · '}
+                <span className="text-[#f59e0b]">{pendingCount} pending</span>
+                {' · '}
+                <span className="text-[#16a34a]">{readyCount} ready</span>
+              </p>
+            ) : null}
 
             {loadingRows ? (
               <PageLoadingState message="Loading BOM..." compact />
@@ -22664,7 +22622,7 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onO
                 <Package className="mb-3 size-10 text-[#94a3b8]" />
                 <p className="text-[15px] font-extrabold text-[#1e3261]">Add materials to build your BOM</p>
                 <p className="mt-1 max-w-md text-[13px] font-medium text-[#7386a3]">
-                  Is project ke liye abhi koi material nahi hai. Add Material se panels, inverter, structure, cables etc. add karo.
+                  Panels, inverter, structure, cables — Add Material se BOM banao.
                 </p>
                 <button type="button" onClick={openAdd} className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white">
                   <Plus className="size-4" />
@@ -22676,8 +22634,8 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onO
                 <table className="crm-table">
                   <thead>
                     <tr>
-                      {['#', 'Category', 'Item / Specification', 'UOM', 'Planned Qty', 'Value (Rs)', 'Status', 'Action'].map((h) => (
-                        <th key={h}>{h}</th>
+                      {['#', 'Category', 'Specification', 'Qty', 'UOM', 'Value', 'Status', ''].map((h) => (
+                        <th key={h || 'actions'}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -22700,13 +22658,13 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onO
                               <span className="font-medium text-[#314a79]">{row.items}</span>
                             ) : (
                               <button type="button" onClick={() => openEditRow(row)} className="text-[13px] font-semibold text-[#0b65e5] hover:underline">
-                                — Add specification
+                                Add spec
                               </button>
                             )}
                           </td>
-                          <td className="font-medium text-[#314a79]">{row.uom || '—'}</td>
                           <td className="font-semibold text-[#1e3261]">{row.planned_qty ?? '—'}</td>
-                          <td className="font-medium text-[#314a79]">{row.planned_value ? `Rs ${row.planned_value}` : '—'}</td>
+                          <td className="font-medium text-[#314a79]">{row.uom || '—'}</td>
+                          <td className="font-medium text-[#314a79]">{row.planned_value ? `₹${row.planned_value}` : '—'}</td>
                           <td><ProjectInfoPill tone={statusTone(row.status)}>{displayStatus(row.status)}</ProjectInfoPill></td>
                           <td>
                             <div className="flex items-center gap-2">
@@ -22730,6 +22688,15 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onO
           </div>
         </div>
       </div>
+
+      {infoOpen ? (
+        <ProjectQuickInfoPopup
+          project={project}
+          survey={projectSurvey}
+          capacityLabel={capacityLabel}
+          onClose={() => setInfoOpen(false)}
+        />
+      ) : null}
 
       {modalOpen ? (
         <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
@@ -22795,6 +22762,74 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onO
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
     </>
+  );
+}
+
+function ProjectQuickInfoPopup({ project, survey, capacityLabel, onClose }) {
+  const phone = project?.lead_mobile_number || project?.mobile_number || '';
+  const address = project?.site_address || project?.site || survey?.site_address || '';
+  const rows = [
+    { label: 'Project ID', value: project?.project_id },
+    { label: 'Customer', value: project?.customer_name },
+    { label: 'Phone', value: phone },
+    { label: 'Site / Address', value: address },
+    { label: 'Type', value: project?.project_type },
+    { label: 'Capacity', value: capacityLabel },
+    { label: 'Status', value: project?.status },
+    { label: 'Survey', value: project?.survey_status || survey?.status },
+    { label: 'Manager', value: project?.manager_name || project?.manager_detail?.name },
+  ].filter((r) => r.value && String(r.value).trim() && String(r.value) !== '0' && String(r.value) !== '0.00');
+
+  const surveyBits = [
+    survey?.rooftop_area_sqft ? `Roof ${survey.rooftop_area_sqft} sq.ft` : null,
+    survey?.structure_rows && survey?.structure_columns ? `Structure ${survey.structure_rows}×${survey.structure_columns}` : null,
+    survey?.module_orientation || null,
+    survey?.approx_plant_capacity ? `Survey cap ${survey.approx_plant_capacity}` : null,
+  ].filter(Boolean);
+
+  return (
+    <div
+      className="fixed inset-0 z-[96] flex items-center justify-center bg-[#0f172a]/50 p-4"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-[440px] overflow-hidden rounded-[16px] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.28)]">
+        <div className="flex items-start justify-between gap-3 border-b border-[#edf2f8] px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a98af]">Project Info</p>
+            <h3 className="mt-0.5 truncate text-[16px] font-extrabold text-[#1e3261]">
+              {project?.project_name || project?.project_id || 'Project'}
+            </h3>
+          </div>
+          <button type="button" onClick={onClose} className="grid size-8 shrink-0 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]" aria-label="Close">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="space-y-0 px-5 py-2">
+          {rows.length === 0 ? (
+            <p className="py-6 text-center text-[13px] font-semibold text-[#8a98af]">No project details available.</p>
+          ) : rows.map((row) => (
+            <div key={row.label} className="flex items-start justify-between gap-4 border-b border-[#f1f5f9] py-2.5 last:border-b-0">
+              <span className="shrink-0 text-[12px] font-semibold text-[#8a98af]">{row.label}</span>
+              <span className="text-right text-[13px] font-bold text-[#1e3261]">{row.value}</span>
+            </div>
+          ))}
+        </div>
+
+        {surveyBits.length > 0 ? (
+          <div className="mx-5 mb-4 rounded-[10px] border border-[#e7eef7] bg-[#f8fbff] px-3 py-2.5">
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[#8a98af]">Site Survey</p>
+            <p className="text-[13px] font-semibold text-[#314a79]">{surveyBits.join(' · ')}</p>
+          </div>
+        ) : null}
+
+        <div className="flex justify-end border-t border-[#edf2f8] px-5 py-3">
+          <button type="button" onClick={onClose} className="h-10 rounded-[8px] bg-[#16a34a] px-5 text-[13px] font-semibold text-white">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
