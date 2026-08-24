@@ -22199,7 +22199,8 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
   const [planByProject, setPlanByProject] = useState({});
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [projectStatusFilter, setProjectStatusFilter] = useState('All');
+  const [planStatusFilter, setPlanStatusFilter] = useState('All');
   const [bomProject, setBomProject] = useState(null);
   const deferredQuery = useDeferredValue(query);
 
@@ -22265,9 +22266,14 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
     const q = deferredQuery.trim().toLowerCase();
     const hay = `${p.project_name || ''} ${p.customer_name || ''} ${p.project_id || ''} ${p.site || ''}`.toLowerCase();
     if (q && !hay.includes(q)) return false;
-    if (statusFilter === 'All') return true;
-    return planStatusFor(p.id) === statusFilter;
+    if (projectStatusFilter !== 'All' && (p.status || '') !== projectStatusFilter) return false;
+    if (planStatusFilter !== 'All' && planStatusFor(p.id) !== planStatusFilter) return false;
+    return true;
   });
+
+  const projectStatusOptions = ['All', 'Planning', 'Active', 'On Hold', 'Completed', 'Cancelled'];
+  const planStatusOptions = ['All', 'Not Planned', 'Not Started', 'In Progress', 'Ready', 'Delayed'];
+  const headerSelectClass = 'mt-1 h-7 w-full min-w-[88px] max-w-[120px] rounded-[6px] border border-[#d5e0ef] bg-white px-1.5 text-[11px] font-semibold text-[#314a79] outline-none';
 
   const summary = {
     total: projects.length,
@@ -22342,33 +22348,53 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
               className="w-full bg-transparent text-[15px] font-medium text-[#1e3261] outline-none placeholder:text-[#8a98af]"
             />
           </label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-11 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[14px] font-semibold text-[#284276]"
-          >
-            {['All', 'Not Planned', 'Not Started', 'In Progress', 'Ready', 'Delayed'].map((s) => (
-              <option key={s} value={s}>{s === 'All' ? 'All Plan Status' : s}</option>
-            ))}
-          </select>
         </div>
 
         {loading ? (
           <PageLoadingState message="Loading projects..." compact />
         ) : (
           <div className="overflow-x-auto">
-            <table className="crm-table">
+            <table className="crm-table crm-table--lead-dense w-full min-w-[920px]">
               <thead>
                 <tr>
-                  {['#', 'Project', 'Customer / Site', 'Capacity', 'Project Status', 'BOM Items', 'Plan Status', 'Action'].map((h) => (
-                    <th key={h}>{h}</th>
-                  ))}
+                  <th className="crm-col-index">#</th>
+                  <th>Project</th>
+                  <th>Customer / Site</th>
+                  <th>Capacity</th>
+                  <th className="crm-header-filter-anchor">
+                    <span className="block">Project Status</span>
+                    <select
+                      value={projectStatusFilter}
+                      onChange={(e) => setProjectStatusFilter(e.target.value)}
+                      className={headerSelectClass}
+                      aria-label="Filter by Project Status"
+                    >
+                      {projectStatusOptions.map((s) => (
+                        <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
+                      ))}
+                    </select>
+                  </th>
+                  <th>BOM Items</th>
+                  <th className="crm-header-filter-anchor">
+                    <span className="block">Plan Status</span>
+                    <select
+                      value={planStatusFilter}
+                      onChange={(e) => setPlanStatusFilter(e.target.value)}
+                      className={headerSelectClass}
+                      aria-label="Filter by Plan Status"
+                    >
+                      {planStatusOptions.map((s) => (
+                        <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
+                      ))}
+                    </select>
+                  </th>
+                  <th className="crm-col-sticky-right">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-[14px] font-semibold text-[#8a98af]">
+                    <td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">
                       No won projects found for material planning.
                     </td>
                   </tr>
@@ -22377,21 +22403,21 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
                   const planStatus = planStatusFor(project.id);
                   return (
                     <tr key={project.id} className="cursor-pointer hover:bg-[#f8fbff]" onClick={() => openPlan(project)}>
-                      <td>{index + 1}</td>
+                      <td className="crm-col-index">{index + 1}</td>
                       <td>
-                        <div className="font-semibold text-[#1e3261]">{project.project_name || project.project_id}</div>
-                        <div className="text-[12px] font-medium text-[#8a98af]">{project.project_id}</div>
+                        <div className="font-semibold text-[#1e3261] leading-tight">{project.project_name || project.project_id}</div>
+                        <div className="text-[11px] font-medium text-[#8a98af] leading-tight">{project.project_id}</div>
                       </td>
                       <td>
-                        <div className="font-medium text-[#314a79]">{project.customer_name || '—'}</div>
-                        <div className="text-[12px] font-medium text-[#8a98af]">{project.site || '—'}</div>
+                        <div className="font-medium text-[#314a79] leading-tight">{project.customer_name || '—'}</div>
+                        <div className="text-[11px] font-medium text-[#8a98af] leading-tight">{project.site || '—'}</div>
                       </td>
                       <td className="font-semibold text-[#0b65e5]">
                         {Number(project.capacity_kwp) > 0 ? `${project.capacity_kwp} kWp` : '—'}
                       </td>
                       <td>
                         <span className={cx(
-                          'inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold',
+                          'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold',
                           project.status === 'Active' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
                             : project.status === 'Completed' ? 'bg-[#e8f2ff] text-[#0b65e5]'
                               : 'bg-[#eef2f7] text-[#7585a2]',
@@ -22404,11 +22430,11 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
                       <td>
                         <ProjectInfoPill tone={statusTone(planStatus)}>{planStatus}</ProjectInfoPill>
                       </td>
-                      <td>
+                      <td className="crm-col-sticky-right">
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); openPlan(project); }}
-                          className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-3 text-[13px] font-semibold text-white"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white"
                         >
                           <Boxes className="size-3.5" />
                           {stats.total > 0 ? 'Open BOM' : 'Create BOM'}
@@ -22460,6 +22486,8 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
   const [editRow, setEditRow] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [uomFilter, setUomFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
 
   const loadRows = useCallback(async (proj) => {
     if (!proj?.id) return;
@@ -22574,6 +22602,14 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
     } catch (e) { onNotify(e.message || 'Save failed'); }
   };
 
+  const filteredRows = rows.filter((r) => {
+    if (uomFilter !== 'All' && (r.uom || '') !== uomFilter) return false;
+    if (statusFilter !== 'All' && (r.status || '') !== statusFilter) return false;
+    return true;
+  });
+
+  const headerSelectClass = 'mt-1 h-7 w-full min-w-[72px] max-w-[110px] rounded-[6px] border border-[#d5e0ef] bg-white px-1.5 text-[11px] font-semibold text-[#314a79] outline-none';
+
   return (
     <>
       <div
@@ -22607,7 +22643,9 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
             {!loadingRows && rows.length > 0 ? (
               <p className="mb-3 text-[13px] font-semibold text-[#7386a3]">
-                {rows.length} item{rows.length === 1 ? '' : 's'}
+                {filteredRows.length === rows.length
+                  ? `${rows.length} item${rows.length === 1 ? '' : 's'}`
+                  : `${filteredRows.length} of ${rows.length} items`}
                 {' · '}
                 <span className="text-[#f59e0b]">{pendingCount} pending</span>
                 {' · '}
@@ -22631,24 +22669,59 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
               </div>
             ) : (
               <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7]">
-                <table className="crm-table">
+                <table className="crm-table crm-table--lead-dense crm-table-sticky-head w-full min-w-[760px]">
                   <thead>
                     <tr>
-                      {['#', 'Category', 'Specification', 'Qty', 'UOM', 'Value', 'Status', ''].map((h) => (
-                        <th key={h || 'actions'}>{h}</th>
-                      ))}
+                      <th className="crm-col-index">#</th>
+                      <th>Category</th>
+                      <th>Specification</th>
+                      <th>Qty</th>
+                      <th className="crm-header-filter-anchor">
+                        <span className="block">UOM</span>
+                        <select
+                          value={uomFilter}
+                          onChange={(e) => setUomFilter(e.target.value)}
+                          className={headerSelectClass}
+                          aria-label="Filter by UOM"
+                        >
+                          <option value="All">All</option>
+                          {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </th>
+                      <th>Value</th>
+                      <th className="crm-header-filter-anchor">
+                        <span className="block">Status</span>
+                        <select
+                          value={statusFilter}
+                          onChange={(e) => setStatusFilter(e.target.value)}
+                          className={headerSelectClass}
+                          aria-label="Filter by Status"
+                        >
+                          <option value="All">All</option>
+                          {MATERIAL_STATUS.map((s) => (
+                            <option key={s} value={s}>{displayStatus(s)}</option>
+                          ))}
+                        </select>
+                      </th>
+                      <th className="crm-col-sticky-right">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row, idx) => {
+                    {filteredRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">
+                          No materials match these filters.
+                        </td>
+                      </tr>
+                    ) : filteredRows.map((row, idx) => {
                       const Icon = categoryIcon(row.category);
                       return (
                         <tr key={row.id}>
-                          <td>{idx + 1}</td>
+                          <td className="crm-col-index">{idx + 1}</td>
                           <td>
                             <div className="flex items-center gap-2 font-semibold text-[#1e3261]">
-                              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#f0fdf4] text-[#16a34a]">
-                                <Icon className="size-3.5" />
+                              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f0fdf4] text-[#16a34a]">
+                                <Icon className="size-3" />
                               </span>
                               {row.category}
                             </div>
@@ -22657,7 +22730,7 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                             {row.items ? (
                               <span className="font-medium text-[#314a79]">{row.items}</span>
                             ) : (
-                              <button type="button" onClick={() => openEditRow(row)} className="text-[13px] font-semibold text-[#0b65e5] hover:underline">
+                              <button type="button" onClick={() => openEditRow(row)} className="text-[12px] font-semibold text-[#0b65e5] hover:underline">
                                 Add spec
                               </button>
                             )}
@@ -22666,8 +22739,8 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                           <td className="font-medium text-[#314a79]">{row.uom || '—'}</td>
                           <td className="font-medium text-[#314a79]">{row.planned_value ? `₹${row.planned_value}` : '—'}</td>
                           <td><ProjectInfoPill tone={statusTone(row.status)}>{displayStatus(row.status)}</ProjectInfoPill></td>
-                          <td>
-                            <div className="flex items-center gap-2">
+                          <td className="crm-col-sticky-right">
+                            <div className="flex items-center gap-1.5">
                               <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEditRow(row)} />
                               <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDelete(row.id)} />
                             </div>
