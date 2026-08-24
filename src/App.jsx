@@ -111,6 +111,9 @@ import {
   Settings,
   ShieldCheck,
   Star,
+  Sun,
+  Package,
+  Cable,
   Trash2,
   Truck,
   TrendingUp,
@@ -22177,34 +22180,44 @@ function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNotify })
 }
 
 function ProjectMaterialPlanningPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
-  if (!projectProp?.id) {
-    return (
-      <MaterialPlanningProjectHub
-        activeSection={activeSection}
-        onOpenSection={onOpenSection}
-        onSelectProject={onSelectProject}
-        onNotify={onNotify}
-      />
-    );
-  }
   return (
-    <ProjectMaterialPlanningDetail
+    <MaterialPlanningProjectHub
       activeSection={activeSection}
       onOpenSection={onOpenSection}
-      project={projectProp}
+      initialBomProject={projectProp}
+      onClearBomProject={() => {
+        if (projectProp?.id) onSelectProject?.(null, 'Project Material Planning');
+      }}
       onSelectProject={onSelectProject}
       onNotify={onNotify}
     />
   );
 }
 
-function MaterialPlanningProjectHub({ activeSection, onOpenSection, onSelectProject, onNotify }) {
+function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomProject, onClearBomProject, onSelectProject, onNotify }) {
   const [projects, setProjects] = useState([]);
   const [planByProject, setPlanByProject] = useState({});
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [bomProject, setBomProject] = useState(null);
   const deferredQuery = useDeferredValue(query);
+
+  const reloadPlans = useCallback(async () => {
+    try {
+      const planData = await materialPlanApi.list({ page_size: 2000 });
+      const map = {};
+      normalizeApiRows(planData).forEach((row) => {
+        const key = row.project;
+        if (!map[key]) map[key] = { total: 0, completed: 0, delayed: 0, inProgress: 0 };
+        map[key].total += 1;
+        if (row.status === 'Completed') map[key].completed += 1;
+        else if (row.status === 'Delayed') map[key].delayed += 1;
+        else if (row.status === 'In Progress' || row.status === 'Partially Completed') map[key].inProgress += 1;
+      });
+      setPlanByProject(map);
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -22234,6 +22247,11 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, onSelectProj
     return () => { cancelled = true; };
   }, [onNotify]);
 
+  useEffect(() => {
+    if (!initialBomProject?.id) return;
+    setBomProject(initialBomProject);
+  }, [initialBomProject?.id]);
+
   const planStatusFor = (projectId) => {
     const stats = planByProject[projectId];
     if (!stats || stats.total === 0) return 'Not Planned';
@@ -22260,7 +22278,13 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, onSelectProj
   };
 
   const openPlan = (project) => {
-    onSelectProject?.(project, 'Project Material Planning');
+    setBomProject(project);
+  };
+
+  const closeBom = () => {
+    setBomProject(null);
+    onClearBomProject?.();
+    reloadPlans();
   };
 
   const statusTone = (status) => (
@@ -22363,7 +22387,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, onSelectProj
                         <div className="text-[12px] font-medium text-[#8a98af]">{project.site || '—'}</div>
                       </td>
                       <td className="font-semibold text-[#0b65e5]">
-                        {project.capacity_kwp ? `${project.capacity_kwp} kWp` : '—'}
+                        {Number(project.capacity_kwp) > 0 ? `${project.capacity_kwp} kWp` : '—'}
                       </td>
                       <td>
                         <span className={cx(
@@ -22399,44 +22423,52 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, onSelectProj
         )}
       </section>
 
+      {bomProject ? (
+        <MaterialPlanningBomModal
+          project={bomProject}
+          onClose={closeBom}
+          onNotify={onNotify}
+          onOpenProjectDetails={() => {
+            onSelectProject?.(bomProject, 'Project Details');
+          }}
+          onPlansChanged={reloadPlans}
+        />
+      ) : null}
+
       <DashboardFooter />
     </div>
   );
 }
 
-function ProjectMaterialPlanningDetail({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
-
+function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onOpenProjectDetails, onPlansChanged }) {
   const MATERIAL_CATEGORIES = ['Solar Panels', 'Inverters', 'Mounting Structure', 'DC Cables', 'AC Cables', 'Connectors (MC4)', 'ACDB / DCDB', 'Earthing Material', 'Consumables', 'Safety & Others', 'Battery', 'Other'];
   const MATERIAL_STATUS = ['Not Started', 'In Progress', 'Partially Completed', 'Completed', 'Delayed'];
   const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair'];
   const emptyForm = { category: 'Solar Panels', items: '', uom: 'Nos', planned_qty: '', planned_value: '', status: 'Not Started' };
-  const CHART_COLORS = ['#94a3b8', '#2f80ff', '#22c7d6', '#16a34a', '#ef4444'];
 
-  const [selectedProject, setSelectedProject] = useState(projectProp || null);
+  const categoryIcon = (cat) => {
+    if (cat === 'Solar Panels') return Sun;
+    if (cat === 'Inverters') return Zap;
+    if (cat === 'Mounting Structure') return Boxes;
+    if (String(cat || '').includes('Cable')) return Cable;
+    return Package;
+  };
+
+  const [project, setProject] = useState(projectProp);
   const [projectSurvey, setProjectSurvey] = useState(null);
   const [rows, setRows] = useState([]);
-  const [loadingRows, setLoadingRows] = useState(false);
-  const [dashStats, setDashStats] = useState({ total: 0, not_started: 0, in_progress: 0, partially_completed: 0, completed: 0, delayed: 0 });
-  const [statusOverview, setStatusOverview] = useState({ labels: [], values: [] });
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [loadingRows, setLoadingRows] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const loadProjectData = useCallback(async (proj) => {
-    if (!proj) return;
+  const loadRows = useCallback(async (proj) => {
+    if (!proj?.id) return;
     setLoadingRows(true);
     try {
-      const [planData, stats, overview] = await Promise.all([
-        materialPlanApi.list({ project: proj.id }),
-        materialPlanApi.dashboard({ project: proj.id }),
-        materialPlanApi.statusOverview({ project: proj.id }),
-      ]);
+      const planData = await materialPlanApi.list({ project: proj.id, page_size: 500 });
       setRows(normalizeApiRows(planData));
-      setDashStats(stats || { total: 0, not_started: 0, in_progress: 0, partially_completed: 0, completed: 0, delayed: 0 });
-      setStatusOverview(overview || { labels: [], values: [] });
     } catch {
       onNotify('Failed to load material plans');
     } finally {
@@ -22445,20 +22477,18 @@ function ProjectMaterialPlanningDetail({ activeSection, onOpenSection, project: 
   }, [onNotify]);
 
   useEffect(() => {
-    if (!projectProp?.id) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const full = projectProp.project_name ? projectProp : await projectApi.get(projectProp.id);
+        const full = projectProp?.project_name ? projectProp : await projectApi.get(projectProp.id);
         if (cancelled) return;
-        setSelectedProject(full);
-        setRows([]);
+        setProject(full);
         setProjectSurvey(full?.site_survey || null);
-        await loadProjectData(full);
+        await loadRows(full);
         if (!full?.site_survey) {
           projectApi.get(full.id).then((detail) => {
             if (!cancelled) {
-              setSelectedProject(detail);
+              setProject(detail);
               setProjectSurvey(detail?.site_survey || null);
             }
           }).catch(() => {});
@@ -22468,34 +22498,65 @@ function ProjectMaterialPlanningDetail({ activeSection, onOpenSection, project: 
       }
     })();
     return () => { cancelled = true; };
-  }, [projectProp?.id, loadProjectData, onNotify]);
+  }, [projectProp?.id, loadRows, onNotify]);
 
-  const openProjectPicker = () => { onOpenSection(activeSection); };
+  const pendingCount = rows.filter((r) => r.status !== 'Completed').length;
+  const readyCount = rows.filter((r) => r.status === 'Completed').length;
+  const capacityLabel = (() => {
+    const cap = Number(project?.capacity_kwp);
+    if (cap > 0) return `${cap} kWp`;
+    const surveyCap = projectSurvey?.approx_plant_capacity;
+    if (surveyCap) return String(surveyCap);
+    return null;
+  })();
+
+  const displayStatus = (s) => {
+    if (s === 'Not Started') return 'Pending';
+    if (s === 'Completed') return 'Ready';
+    return s;
+  };
+
+  const statusTone = (s) => {
+    if (s === 'Completed') return 'green';
+    if (s === 'In Progress') return 'blue';
+    if (s === 'Partially Completed') return 'cyan';
+    if (s === 'Delayed') return 'red';
+    return 'amber';
+  };
 
   const openAdd = () => {
-    if (!selectedProject) { onNotify('Please select a project first'); return; }
     const survey = projectSurvey;
-    // Structure layout from the survey (rows × columns) is the most reliable
-    // starting point for how many mounting-structure units are needed.
-    const suggestedItems = survey?.structure_rows && survey?.structure_columns
+    const suggestedQty = survey?.structure_rows && survey?.structure_columns
       ? String(Number(survey.structure_rows) * Number(survey.structure_columns))
       : '';
-    setForm({ ...emptyForm, category: 'Mounting Structure', items: suggestedItems });
+    setForm({ ...emptyForm, category: 'Solar Panels', planned_qty: suggestedQty || '' });
     setEditRow(null);
     setModalOpen(true);
   };
-  const openEditRow = (row) => { setForm({ ...row }); setEditRow(row.id); setModalOpen(true); };
+
+  const openEditRow = (row) => {
+    setForm({
+      category: row.category || 'Solar Panels',
+      items: row.items || '',
+      uom: row.uom || 'Nos',
+      planned_qty: row.planned_qty ?? '',
+      planned_value: row.planned_value ?? '',
+      status: row.status || 'Not Started',
+    });
+    setEditRow(row.id);
+    setModalOpen(true);
+  };
 
   const handleDelete = (id) => {
     setDeleteConfirm({
-      message: 'this material plan entry',
+      message: 'this material from BOM',
       onConfirm: async () => {
         try {
           await materialPlanApi.delete(id);
           setDeleteConfirm(null);
           setRows((prev) => prev.filter((r) => r.id !== id));
           onNotify('Material removed');
-          loadProjectData(selectedProject);
+          onPlansChanged?.();
         } catch {
           setDeleteConfirm(null);
           onNotify('Delete failed');
@@ -22507,159 +22568,171 @@ function ProjectMaterialPlanningDetail({ activeSection, onOpenSection, project: 
   const handleSave = async () => {
     if (!form.category || !form.planned_qty) { onNotify('Category and Qty required'); return; }
     try {
+      const payload = { ...form, project: project.id };
       if (editRow !== null) {
-        const updated = await materialPlanApi.update(editRow, { ...form, project: selectedProject.id });
+        const updated = await materialPlanApi.update(editRow, payload);
         setRows((prev) => prev.map((r) => (r.id === editRow ? updated : r)));
         onNotify('Material updated');
       } else {
-        const created = await materialPlanApi.create({ ...form, project: selectedProject.id });
+        const created = await materialPlanApi.create(payload);
         setRows((prev) => [...prev, created]);
         onNotify('Material added');
       }
       setModalOpen(false);
-      loadProjectData(selectedProject);
+      onPlansChanged?.();
+      loadRows(project);
     } catch (e) { onNotify(e.message || 'Save failed'); }
   };
 
-  const filtered = rows.filter((r) => {
-    if (statusFilter !== 'All' && r.status !== statusFilter) return false;
-    if (query && !r.category.toLowerCase().includes(query.toLowerCase())) return false;
-    return true;
-  });
-
-  const statusTone = (s) => {
-    if (s === 'Completed') return 'green';
-    if (s === 'In Progress') return 'blue';
-    if (s === 'Partially Completed') return 'cyan';
-    if (s === 'Delayed') return 'red';
-    return 'amber';
-  };
-
-  const pieData = (statusOverview.labels || []).map((label, i) => ({
-    name: label, value: (statusOverview.values || [])[i] || 0, color: CHART_COLORS[i],
-  })).filter((d) => d.value > 0);
-
   return (
-    <div className="space-y-4">
-      <PageHeading
-        title={selectedProject ? `Material Planning — ${selectedProject.project_name || selectedProject.name}` : 'Material Planning'}
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Material Planning' },
-        ]}
-      />
-
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
-      <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <label className="flex h-11 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
-            <Search className="size-4 shrink-0 text-[#7e8fab]" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search by material category..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
-          </label>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276]">
-              <option value="All">All Status</option>
-              {MATERIAL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <button type="button" onClick={openProjectPicker} className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#0b65e5] bg-[#eff6ff] px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#e8f2ff]">
-              <FolderKanban className="size-4" />
-              Change Project
+    <>
+      <div
+        className="fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4"
+        onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <div className="flex max-h-[96vh] w-full max-w-[980px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:max-h-[90vh] sm:rounded-[16px]">
+          <div className="flex shrink-0 items-center justify-between border-b border-[#edf2f8] px-4 py-3 sm:px-5">
+            <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Project BOM</h2>
+            <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]" aria-label="Close">
+              <X className="size-5" />
             </button>
-            <button type="button" onClick={openAdd} className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#11a650] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0e9748]">
-              <Plus className="size-4" />Add Material
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="truncate text-[16px] font-extrabold text-[#1e3261]">{project?.project_name || project?.project_id || 'Project'}</h3>
+                  {project?.status ? (
+                    <span className={cx(
+                      'inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold',
+                      project.status === 'Active' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : 'bg-[#eef2f7] text-[#7585a2]',
+                    )}
+                    >
+                      {project.status}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-[13px] font-medium text-[#7386a3]">
+                  {project?.customer_name || '—'}
+                  {capacityLabel ? ` · ${capacityLabel}` : ''}
+                  {project?.project_id ? ` · ${project.project_id}` : ''}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={onOpenProjectDetails}
+                  className="inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#16a34a] bg-white px-3 text-[13px] font-semibold text-[#16a34a]"
+                >
+                  Project Details
+                </button>
+                <button
+                  type="button"
+                  onClick={openAdd}
+                  className="inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-3 text-[13px] font-semibold text-white"
+                >
+                  <Plus className="size-4" />
+                  Add Material
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-4 grid grid-cols-3 gap-2">
+              {[
+                { label: 'Total Items', value: rows.length, tone: 'text-[#0b65e5]', bg: 'bg-[#eff6ff]', icon: Boxes },
+                { label: 'Pending Items', value: pendingCount, tone: 'text-[#f59e0b]', bg: 'bg-[#fff7ed]', icon: Clock3 },
+                { label: 'Ready Items', value: readyCount, tone: 'text-[#16a34a]', bg: 'bg-[#f0fdf4]', icon: CheckCircle2 },
+              ].map((card) => {
+                const Icon = card.icon;
+                return (
+                  <div key={card.label} className="rounded-[10px] border border-[#e7eef7] bg-white px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-semibold text-[#7386a3]">{card.label}</p>
+                      <span className={cx('grid size-7 place-items-center rounded-full', card.bg, card.tone)}><Icon className="size-3.5" /></span>
+                    </div>
+                    <p className={cx('mt-1 text-[20px] font-extrabold', card.tone)}>{loadingRows ? '—' : card.value}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {loadingRows ? (
+              <PageLoadingState message="Loading BOM..." compact />
+            ) : rows.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-[12px] border border-dashed border-[#d5e0ef] bg-[#f8fbff] px-6 py-12 text-center">
+                <Package className="mb-3 size-10 text-[#94a3b8]" />
+                <p className="text-[15px] font-extrabold text-[#1e3261]">Add materials to build your BOM</p>
+                <p className="mt-1 max-w-md text-[13px] font-medium text-[#7386a3]">
+                  Is project ke liye abhi koi material nahi hai. Add Material se panels, inverter, structure, cables etc. add karo.
+                </p>
+                <button type="button" onClick={openAdd} className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white">
+                  <Plus className="size-4" />
+                  Add Material
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7]">
+                <table className="crm-table">
+                  <thead>
+                    <tr>
+                      {['#', 'Category', 'Item / Specification', 'UOM', 'Planned Qty', 'Value (Rs)', 'Status', 'Action'].map((h) => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, idx) => {
+                      const Icon = categoryIcon(row.category);
+                      return (
+                        <tr key={row.id}>
+                          <td>{idx + 1}</td>
+                          <td>
+                            <div className="flex items-center gap-2 font-semibold text-[#1e3261]">
+                              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#f0fdf4] text-[#16a34a]">
+                                <Icon className="size-3.5" />
+                              </span>
+                              {row.category}
+                            </div>
+                          </td>
+                          <td>
+                            {row.items ? (
+                              <span className="font-medium text-[#314a79]">{row.items}</span>
+                            ) : (
+                              <button type="button" onClick={() => openEditRow(row)} className="text-[13px] font-semibold text-[#0b65e5] hover:underline">
+                                — Add specification
+                              </button>
+                            )}
+                          </td>
+                          <td className="font-medium text-[#314a79]">{row.uom || '—'}</td>
+                          <td className="font-semibold text-[#1e3261]">{row.planned_qty ?? '—'}</td>
+                          <td className="font-medium text-[#314a79]">{row.planned_value ? `Rs ${row.planned_value}` : '—'}</td>
+                          <td><ProjectInfoPill tone={statusTone(row.status)}>{displayStatus(row.status)}</ProjectInfoPill></td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEditRow(row)} />
+                              <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDelete(row.id)} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3 sm:px-5">
+            <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] bg-white px-5 text-[13px] font-semibold text-[#314a79]">
+              Close
             </button>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-6">
-          {[
-            { label: 'Total Plans', value: dashStats.total, icon: Boxes, tone: 'blue', caption: 'All materials', filter: 'All' },
-            { label: 'Not Started', value: dashStats.not_started, icon: Clock3, tone: 'amber', caption: 'Pending action', filter: 'Not Started' },
-            { label: 'In Progress', value: dashStats.in_progress, icon: ClipboardPlus, tone: 'blue', caption: 'Being procured', filter: 'In Progress' },
-            { label: 'Partial', value: dashStats.partially_completed, icon: FolderKanban, tone: 'cyan', caption: 'Partially done', filter: 'Partially Completed' },
-            { label: 'Completed', value: dashStats.completed, icon: CheckCircle2, tone: 'green', caption: 'Fully done', filter: 'Completed' },
-            { label: 'Delayed', value: dashStats.delayed, icon: CalendarDays, tone: 'red', caption: 'Needs attention', filter: 'Delayed' },
-          ].map((card) => (
-            <LiaisonApprovalStatCard key={card.label} label={card.label} value={String(card.value)} caption={card.caption} icon={card.icon} tone={card.tone} onClick={() => setStatusFilter(card.filter)} />
-          ))}
-      </section>
-
-      {!selectedProject ? (
-        <article className={`${panelClass} p-8`}>
-          <PageLoadingState message="Loading project BOM..." compact />
-        </article>
-      ) : (
-        <article className={`${panelClass} overflow-hidden`}>
-          <div className="overflow-x-auto">
-            <table className="crm-table w-full min-w-[700px]">
-              <thead>
-                <tr>{['#', 'Category', 'Items', 'UOM', 'Planned Qty', 'Value (Rs)', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {loadingRows ? (
-                  <tr><td colSpan={8} className="py-10 text-center text-[13px] font-bold text-[#8a98af]">Loading...</td></tr>
-                ) : filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="py-10 text-center text-[13px] font-bold text-[#8a98af]">No materials. Click <strong>Add Material</strong> to create one.</td></tr>
-                ) : filtered.map((row, idx) => (
-                  <tr key={row.id}>
-                    <td>{idx + 1}</td>
-                    <td className="font-extrabold text-[#1e3261]">{row.category}</td>
-                    <td className="font-bold text-[#314a79]">{row.items || '—'}</td>
-                    <td className="font-bold text-[#314a79]">{row.uom}</td>
-                    <td className="font-bold text-[#314a79]">{row.planned_qty}</td>
-                    <td className="font-bold text-[#314a79]">{row.planned_value ? `Rs ${row.planned_value}` : '—'}</td>
-                    <td><ProjectInfoPill tone={statusTone(row.status)}>{row.status}</ProjectInfoPill></td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEditRow(row)} />
-                        <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDelete(row.id)} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="border-t border-[#edf2f8] px-5 py-3 text-[12px] font-bold text-[#7386a3]">
-            Showing {filtered.length} of {rows.length} materials
-          </div>
-        </article>
-      )}
-
-      {selectedProject && pieData.length > 0 && (
-        <article className={`${panelClass} p-5`}>
-          <h3 className="mb-4 font-display text-[15px] font-extrabold text-[#1e3261]">Material Planning Status Overview</h3>
-          <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
-            <div className="h-[220px] w-full max-w-[240px] shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2}>
-                    {pieData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex flex-1 flex-col gap-2">
-              {pieData.map((entry) => (
-                <div key={entry.name} className="flex items-center justify-between rounded-[8px] bg-[#f8fbff] px-4 py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <span className="inline-block size-3 shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />
-                    <span className="text-[13px] font-extrabold text-[#314a79]">{entry.name}</span>
-                  </div>
-                  <span className="font-display text-[15px] font-extrabold text-[#111827]">{entry.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </article>
-      )}
-
-      {modalOpen && (
-        <div className="fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
+      {modalOpen ? (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
           <div className="w-full max-w-[500px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
               <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editRow !== null ? 'Edit Material' : 'Add Material'}</h2>
@@ -22683,9 +22756,13 @@ function ProjectMaterialPlanningDetail({ activeSection, onOpenSection, project: 
                   {MATERIAL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">
+                Item / Specification
+                <input value={form.items} onChange={(e) => setForm((p) => ({ ...p, items: e.target.value }))} placeholder="e.g. 540W Mono PERC / 5kW String" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+              </label>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                No. of Items
-                <input value={form.items} onChange={(e) => setForm((p) => ({ ...p, items: e.target.value }))} type="number" min="1" placeholder="e.g. 2" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                Planned Qty *
+                <input value={form.planned_qty} onChange={(e) => setForm((p) => ({ ...p, planned_qty: e.target.value }))} type="number" min="0" placeholder="e.g. 40" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
               </label>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
                 UOM
@@ -22694,17 +22771,13 @@ function ProjectMaterialPlanningDetail({ activeSection, onOpenSection, project: 
                 </select>
               </label>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Planned Qty *
-                <input value={form.planned_qty} onChange={(e) => setForm((p) => ({ ...p, planned_qty: e.target.value }))} type="number" min="0" placeholder="e.g. 40" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
                 Planned Value (Rs)
                 <input value={form.planned_value} onChange={(e) => setForm((p) => ({ ...p, planned_value: e.target.value }))} placeholder="e.g. 1,20,000" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
               </label>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
                 Status
                 <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  {MATERIAL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {MATERIAL_STATUS.map((s) => <option key={s} value={s}>{s === 'Not Started' ? 'Pending' : s === 'Completed' ? 'Ready' : s}</option>)}
                 </select>
               </label>
             </div>
@@ -22716,13 +22789,12 @@ function ProjectMaterialPlanningDetail({ activeSection, onOpenSection, project: 
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
-      <DashboardFooter />
       {deleteConfirm ? (
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
-    </div>
+    </>
   );
 }
 
