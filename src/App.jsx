@@ -14019,7 +14019,6 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const feasibilityOptions = ['All', 'Pending', 'Feasible', 'Feasible with Conditions', 'Not Feasible'];
   const projectTypeOptions = ['All', 'On-Grid', 'Off-Grid', 'Hybrid'];
   const projectStatusOptions = ['All', 'Planning', 'Active', 'On Hold', 'Completed', 'Cancelled'];
-  const headerSelectClass = 'mt-1 h-7 w-full min-w-[88px] max-w-[130px] rounded-[6px] border border-[#d5e0ef] bg-white px-1.5 text-[11px] font-semibold text-[#314a79] outline-none';
 
   const projectStatusCounts = useMemo(() => {
     const counts = { Planning: 0, Active: 0, 'On Hold': 0, Completed: 0, Cancelled: 0 };
@@ -14220,113 +14219,85 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
               <tr>
                 {isSiteSurveyPicker ? (
                   <>
-                    <th>#</th>
-                    <th>Project Name</th>
-                    <th>Customer / Site</th>
-                    <th className="crm-header-filter-anchor">
-                      <span className="block">Survey Status</span>
-                      <select
+                    <th className="crm-col-index" title="#"><span className="block truncate">#</span></th>
+                    <th title="Project Name"><span className="block truncate">Project Name</span></th>
+                    <th title="Customer / Site"><span className="block truncate">Customer / Site</span></th>
+                    <th title="Survey Status">
+                      <TableHeaderFilter
+                        label="Survey Status"
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className={headerSelectClass}
-                        aria-label="Filter by Survey Status"
-                      >
-                        {surveyStatusOptions.map((s) => (
-                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
-                        ))}
-                      </select>
+                        active={statusFilter !== 'All'}
+                        options={surveyStatusOptions}
+                        onChange={(v) => { setStatusFilter(v); setActivePage(1); }}
+                      />
                     </th>
-                    <th>Survey Date</th>
-                    <th className="crm-header-filter-anchor">
-                      <span className="block">Surveyed By</span>
-                      <select
+                    <th title="Survey Date"><span className="block truncate">Survey Date</span></th>
+                    <th title="Surveyed By">
+                      <TableHeaderFilter
+                        label="Surveyed By"
                         value={surveyedByFilter}
-                        onChange={(e) => setSurveyedByFilter(e.target.value)}
-                        className={headerSelectClass}
-                        aria-label="Filter by Surveyed By"
-                      >
-                        {surveyedByOptions.map((s) => (
-                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
-                        ))}
-                      </select>
+                        active={surveyedByFilter !== 'All'}
+                        options={surveyedByOptions}
+                        onChange={(v) => { setSurveyedByFilter(v); setActivePage(1); }}
+                      />
                     </th>
-                    <th className="crm-header-filter-anchor">
-                      <span className="block">Feasibility</span>
-                      <select
+                    <th title="Feasibility">
+                      <TableHeaderFilter
+                        label="Feasibility"
                         value={feasibilityFilter}
-                        onChange={(e) => setFeasibilityFilter(e.target.value)}
-                        className={headerSelectClass}
-                        aria-label="Filter by Feasibility"
-                      >
-                        {feasibilityOptions.map((s) => (
-                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
-                        ))}
-                      </select>
+                        active={feasibilityFilter !== 'All'}
+                        options={feasibilityOptions}
+                        onChange={(v) => { setFeasibilityFilter(v); setActivePage(1); }}
+                      />
                     </th>
-                    <th className="crm-header-filter-anchor">
-                      <span className="block">Project Manager</span>
-                      <select
+                    <th title="Project Manager">
+                      <TableHeaderFilter
+                        label="Project Manager"
                         value={managerFilter}
-                        onChange={(e) => setManagerFilter(e.target.value)}
-                        className={headerSelectClass}
-                        aria-label="Filter by Project Manager"
-                      >
-                        {managerOptions.map((s) => (
-                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
-                        ))}
-                      </select>
+                        active={managerFilter !== 'All'}
+                        options={managerOptions}
+                        onChange={(v) => { setManagerFilter(v); setActivePage(1); }}
+                      />
                     </th>
-                    <th>Action</th>
+                    <th title="Action"><span className="block truncate">Action</span></th>
                   </>
                 ) : (
                   <>
-                    <th>#</th>
-                    <th>Project Name</th>
-                    <th>Customer / Site</th>
-                    <th className="crm-header-filter-anchor">
-                      <span className="block">Project Type</span>
-                      <select
+                    <th className="crm-col-index" title="#"><span className="block truncate">#</span></th>
+                    <th title="Project Name"><span className="block truncate">Project Name</span></th>
+                    <th title="Customer / Site"><span className="block truncate">Customer / Site</span></th>
+                    <th title="Project Type">
+                      <TableHeaderFilter
+                        label="Project Type"
                         value={projectTypeFilter}
-                        onChange={(e) => setProjectTypeFilter(e.target.value)}
-                        className={headerSelectClass}
-                        aria-label="Filter by Project Type"
-                      >
-                        {projectTypeOptions.map((s) => (
-                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
-                        ))}
-                      </select>
+                        active={projectTypeFilter !== 'All'}
+                        options={projectTypeOptions}
+                        onChange={(v) => { setProjectTypeFilter(v); setActivePage(1); }}
+                      />
                     </th>
-                    <th>Capacity (KWp)</th>
-                    <th className="crm-header-filter-anchor">
-                      <span className="block">Status</span>
-                      <select
+                    <th title="Capacity (KWp)"><span className="block truncate">Capacity (KWp)</span></th>
+                    <th title="Status">
+                      <TableHeaderFilter
+                        label="Status"
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className={headerSelectClass}
-                        aria-label="Filter by Status"
-                      >
-                        {projectStatusOptions.map((s) => (
-                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
-                        ))}
-                      </select>
+                        active={statusFilter !== 'All'}
+                        options={projectStatusOptions}
+                        onChange={(v) => { setStatusFilter(v); setActivePage(1); }}
+                      />
                     </th>
-                    <th className="crm-header-filter-anchor">
-                      <span className="block">Project Manager</span>
-                      <select
+                    <th title="Project Manager">
+                      <TableHeaderFilter
+                        label="Project Manager"
                         value={managerFilter}
-                        onChange={(e) => setManagerFilter(e.target.value)}
-                        className={headerSelectClass}
-                        aria-label="Filter by Project Manager"
-                      >
-                        {managerOptions.map((s) => (
-                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
-                        ))}
-                      </select>
+                        active={managerFilter !== 'All'}
+                        options={managerOptions}
+                        onChange={(v) => { setManagerFilter(v); setActivePage(1); }}
+                      />
                     </th>
-                    <th>Start Date</th>
-                    <th>Target Date</th>
-                    <th>Progress</th>
-                    <th>Action</th>
+                    <th title="Start Date"><span className="block truncate">Start Date</span></th>
+                    <th title="Target Date"><span className="block truncate">Target Date</span></th>
+                    <th title="Progress"><span className="block truncate">Progress</span></th>
+                    <th title="Action"><span className="block truncate">Action</span></th>
                   </>
                 )}
               </tr>
@@ -21025,7 +20996,6 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
 
   const projectStatusOptions = ['All', 'Planning', 'Active', 'On Hold', 'Completed', 'Cancelled'];
   const planStatusOptions = ['All', 'Not Planned', 'Not Started', 'In Progress', 'Ready', 'Delayed'];
-  const headerSelectClass = 'mt-1 h-7 w-full min-w-[88px] max-w-[120px] rounded-[6px] border border-[#d5e0ef] bg-white px-1.5 text-[11px] font-semibold text-[#314a79] outline-none';
 
   const summary = {
     total: projects.length,
@@ -21109,38 +21079,30 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
             <table className="crm-table crm-table--lead-dense w-full min-w-[920px]">
               <thead>
                 <tr>
-                  <th className="crm-col-index">#</th>
-                  <th>Project</th>
-                  <th>Customer / Site</th>
-                  <th>Capacity</th>
-                  <th className="crm-header-filter-anchor">
-                    <span className="block">Project Status</span>
-                    <select
+                  <th className="crm-col-index" title="#"><span className="block truncate">#</span></th>
+                  <th title="Project"><span className="block truncate">Project</span></th>
+                  <th title="Customer / Site"><span className="block truncate">Customer / Site</span></th>
+                  <th title="Capacity"><span className="block truncate">Capacity</span></th>
+                  <th title="Project Status">
+                    <TableHeaderFilter
+                      label="Project Status"
                       value={projectStatusFilter}
-                      onChange={(e) => setProjectStatusFilter(e.target.value)}
-                      className={headerSelectClass}
-                      aria-label="Filter by Project Status"
-                    >
-                      {projectStatusOptions.map((s) => (
-                        <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
-                      ))}
-                    </select>
+                      active={projectStatusFilter !== 'All'}
+                      options={projectStatusOptions}
+                      onChange={setProjectStatusFilter}
+                    />
                   </th>
-                  <th>BOM Items</th>
-                  <th className="crm-header-filter-anchor">
-                    <span className="block">Plan Status</span>
-                    <select
+                  <th title="BOM Items"><span className="block truncate">BOM Items</span></th>
+                  <th title="Plan Status">
+                    <TableHeaderFilter
+                      label="Plan Status"
                       value={planStatusFilter}
-                      onChange={(e) => setPlanStatusFilter(e.target.value)}
-                      className={headerSelectClass}
-                      aria-label="Filter by Plan Status"
-                    >
-                      {planStatusOptions.map((s) => (
-                        <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
-                      ))}
-                    </select>
+                      active={planStatusFilter !== 'All'}
+                      options={planStatusOptions}
+                      onChange={setPlanStatusFilter}
+                    />
                   </th>
-                  <th className="crm-col-sticky-right">Action</th>
+                  <th className="crm-col-sticky-right" title="Action"><span className="block truncate">Action</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -21360,8 +21322,6 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
     return true;
   });
 
-  const headerSelectClass = 'mt-1 h-7 w-full min-w-[72px] max-w-[110px] rounded-[6px] border border-[#d5e0ef] bg-white px-1.5 text-[11px] font-semibold text-[#314a79] outline-none';
-
   return (
     <>
       <div
@@ -21424,38 +21384,33 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                 <table className="crm-table crm-table--lead-dense crm-table-sticky-head w-full min-w-[760px]">
                   <thead>
                     <tr>
-                      <th className="crm-col-index">#</th>
-                      <th>Category</th>
-                      <th>Specification</th>
-                      <th>Qty</th>
-                      <th className="crm-header-filter-anchor">
-                        <span className="block">UOM</span>
-                        <select
+                      <th className="crm-col-index" title="#"><span className="block truncate">#</span></th>
+                      <th title="Category"><span className="block truncate">Category</span></th>
+                      <th title="Specification"><span className="block truncate">Specification</span></th>
+                      <th title="Qty"><span className="block truncate">Qty</span></th>
+                      <th title="UOM">
+                        <TableHeaderFilter
+                          label="UOM"
                           value={uomFilter}
-                          onChange={(e) => setUomFilter(e.target.value)}
-                          className={headerSelectClass}
-                          aria-label="Filter by UOM"
-                        >
-                          <option value="All">All</option>
-                          {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-                        </select>
+                          active={uomFilter !== 'All'}
+                          options={['All', ...UOM_OPTIONS]}
+                          onChange={setUomFilter}
+                        />
                       </th>
-                      <th>Value</th>
-                      <th className="crm-header-filter-anchor">
-                        <span className="block">Status</span>
-                        <select
+                      <th title="Value"><span className="block truncate">Value</span></th>
+                      <th title="Status">
+                        <TableHeaderFilter
+                          label="Status"
                           value={statusFilter}
-                          onChange={(e) => setStatusFilter(e.target.value)}
-                          className={headerSelectClass}
-                          aria-label="Filter by Status"
-                        >
-                          <option value="All">All</option>
-                          {MATERIAL_STATUS.map((s) => (
-                            <option key={s} value={s}>{displayStatus(s)}</option>
-                          ))}
-                        </select>
+                          active={statusFilter !== 'All'}
+                          options={[
+                            { value: 'All', label: 'All' },
+                            ...MATERIAL_STATUS.map((s) => ({ value: s, label: displayStatus(s) })),
+                          ]}
+                          onChange={setStatusFilter}
+                        />
                       </th>
-                      <th className="crm-col-sticky-right">Action</th>
+                      <th className="crm-col-sticky-right" title="Action"><span className="block truncate">Action</span></th>
                     </tr>
                   </thead>
                   <tbody>
