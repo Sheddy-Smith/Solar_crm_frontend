@@ -13879,6 +13879,9 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [managerFilter, setManagerFilter] = useState('All');
+  const [projectTypeFilter, setProjectTypeFilter] = useState('All');
+  const [surveyedByFilter, setSurveyedByFilter] = useState('All');
+  const [feasibilityFilter, setFeasibilityFilter] = useState('All');
   const [activePage, setActivePage] = useState(1);
   const [projectRows, setProjectRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13995,8 +13998,23 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
 
   const managerOptions = useMemo(() => {
     const names = [...new Set(projectRows.map((row) => row.manager.name).filter((n) => n && n !== 'Unassigned'))].sort();
+    return ['All', ...names, ...(projectRows.some((row) => !row.manager?.name || row.manager.name === 'Unassigned') ? ['Unassigned'] : [])];
+  }, [projectRows]);
+
+  const surveyedByOptions = useMemo(() => {
+    const names = [...new Set(projectRows.map((row) => row.surveyedBy || 'Unassigned'))].sort((a, b) => {
+      if (a === 'Unassigned') return 1;
+      if (b === 'Unassigned') return -1;
+      return a.localeCompare(b);
+    });
     return ['All', ...names];
   }, [projectRows]);
+
+  const surveyStatusOptions = ['All', 'Not Started', 'Pending', 'In Progress', 'Completed', 'Draft'];
+  const feasibilityOptions = ['All', 'Pending', 'Feasible', 'Feasible with Conditions', 'Not Feasible'];
+  const projectTypeOptions = ['All', 'On-Grid', 'Off-Grid', 'Hybrid'];
+  const projectStatusOptions = ['All', 'Planning', 'Active', 'On Hold', 'Completed', 'Cancelled'];
+  const headerSelectClass = 'mt-1 h-7 w-full min-w-[88px] max-w-[130px] rounded-[6px] border border-[#d5e0ef] bg-white px-1.5 text-[11px] font-semibold text-[#314a79] outline-none';
 
   const projectStatusCounts = useMemo(() => {
     const counts = { Planning: 0, Active: 0, 'On Hold': 0, Completed: 0, Cancelled: 0 };
@@ -14010,25 +14028,33 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     const normalizedQuery = deferredQuery.trim().toLowerCase();
     return projectRows.filter((row) => {
       if (normalizedQuery) {
-        const haystack = [row.projectName, row.projectId, row.customer, row.site, row.manager.name, row.ivrs, row.mobile].join(' ').toLowerCase();
+        const haystack = [row.projectName, row.projectId, row.customer, row.site, row.manager.name, row.ivrs, row.mobile, row.surveyedBy].join(' ').toLowerCase();
         if (!haystack.includes(normalizedQuery)) return false;
       }
-      if (statusFilter !== 'All') {
-        const compareValue = isSiteSurveyPicker ? (row.surveyStatus || '') : row.status;
-        if (compareValue !== statusFilter) return false;
+      if (isSiteSurveyPicker) {
+        if (statusFilter !== 'All') {
+          const surveyStatus = row.surveyStatus || 'Not Started';
+          if (surveyStatus !== statusFilter) return false;
+        }
+        if (surveyedByFilter !== 'All' && (row.surveyedBy || 'Unassigned') !== surveyedByFilter) return false;
+        if (feasibilityFilter !== 'All' && (row.surveyFeasibility || 'Pending') !== feasibilityFilter) return false;
+        if (managerFilter !== 'All' && row.manager.name !== managerFilter) return false;
+      } else {
+        if (projectTypeFilter !== 'All' && (row.type || '') !== projectTypeFilter) return false;
+        if (statusFilter !== 'All' && row.status !== statusFilter) return false;
+        if (managerFilter !== 'All' && row.manager.name !== managerFilter) return false;
       }
-      if (managerFilter !== 'All' && row.manager.name !== managerFilter) return false;
       if (dateFrom && row.startDate && row.startDate < dateFrom) return false;
       if (dateTo && row.startDate && row.startDate > dateTo) return false;
       return true;
     });
-  }, [deferredQuery, projectRows, statusFilter, managerFilter, dateFrom, dateTo]);
+  }, [deferredQuery, projectRows, statusFilter, managerFilter, projectTypeFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo, isSiteSurveyPicker]);
 
   const PROJECT_PAGE_SIZE = 10;
   const totalProjectPages = Math.max(1, Math.ceil(filteredRows.length / PROJECT_PAGE_SIZE));
   const pagedProjectRows = filteredRows.slice((activePage - 1) * PROJECT_PAGE_SIZE, activePage * PROJECT_PAGE_SIZE);
 
-  useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, managerFilter, dateFrom, dateTo]);
+  useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, managerFilter, projectTypeFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo]);
 
   const exportProjects = () => {
     if (loading) {
@@ -14167,46 +14193,11 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       ) : null}
 
       <section className={`${panelClass} p-2.5 sm:p-3`}>
-        <div className={cx('grid gap-3 xl:items-center', isSiteSurveyPicker ? 'xl:grid-cols-[minmax(0,1fr)_124px_140px]' : 'xl:grid-cols-[minmax(0,1fr)_124px_160px_140px]')}>
+        <div className={cx('grid gap-3 xl:items-center', isSiteSurveyPicker ? 'xl:grid-cols-[minmax(0,1fr)]' : 'xl:grid-cols-[minmax(0,1fr)_140px]')}>
           <label className="flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
             <Search className="size-4 text-[#7e8fab]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by IVRS no, customer, project name, site, manager, mobile number..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
           </label>
-          <label className={cx(
-            'relative h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]',
-            isSiteSurveyPicker ? 'flex' : 'hidden md:flex',
-          )}
-          >
-            <Filter className="size-4 text-[#0b65e5]" />
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none">
-              <option value="All">All Status</option>
-              {isSiteSurveyPicker ? (
-                <>
-                  <option value="Draft">Draft</option>
-                  <option value="Completed">Completed</option>
-                </>
-              ) : (
-                <>
-                  <option value="Planning">Planning</option>
-                  <option value="Active">Active</option>
-                  <option value="On Hold">On Hold</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancelled">Cancelled</option>
-                </>
-              )}
-            </select>
-          </label>
-          {!isSiteSurveyPicker ? (
-            <label className="relative flex h-11 items-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
-              <UserRound className="size-4 shrink-0 text-[#0b65e5]" />
-              <select value={managerFilter} onChange={(event) => setManagerFilter(event.target.value)} aria-label="Assigned Manager" className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[13px] font-extrabold text-[#284276] outline-none">
-                <option value="All">All Managers</option>
-                {managerOptions.filter((name) => name !== 'All').map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-            </label>
-          ) : null}
           {!isSiteSurveyPicker ? (
             <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Project</button>
           ) : null}
@@ -14222,10 +14213,117 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           <table className={cx('crm-table w-full', isSiteSurveyPicker ? 'min-w-[1180px]' : 'min-w-[1420px]')}>
             <thead>
               <tr>
-                {(isSiteSurveyPicker
-                  ? ['#', 'Project Name', 'Customer / Site', 'Survey Status', 'Survey Date', 'Surveyed By', 'Feasibility', 'Project Manager', 'Action']
-                  : ['#', 'Project Name', 'Customer / Site', 'Project Type', 'Capacity (KWp)', 'Status', 'Project Manager', 'Start Date', 'Target Date', 'Progress', 'Action']
-                ).map((header) => <th key={header}>{header}</th>)}
+                {isSiteSurveyPicker ? (
+                  <>
+                    <th>#</th>
+                    <th>Project Name</th>
+                    <th>Customer / Site</th>
+                    <th className="crm-header-filter-anchor">
+                      <span className="block">Survey Status</span>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className={headerSelectClass}
+                        aria-label="Filter by Survey Status"
+                      >
+                        {surveyStatusOptions.map((s) => (
+                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
+                        ))}
+                      </select>
+                    </th>
+                    <th>Survey Date</th>
+                    <th className="crm-header-filter-anchor">
+                      <span className="block">Surveyed By</span>
+                      <select
+                        value={surveyedByFilter}
+                        onChange={(e) => setSurveyedByFilter(e.target.value)}
+                        className={headerSelectClass}
+                        aria-label="Filter by Surveyed By"
+                      >
+                        {surveyedByOptions.map((s) => (
+                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
+                        ))}
+                      </select>
+                    </th>
+                    <th className="crm-header-filter-anchor">
+                      <span className="block">Feasibility</span>
+                      <select
+                        value={feasibilityFilter}
+                        onChange={(e) => setFeasibilityFilter(e.target.value)}
+                        className={headerSelectClass}
+                        aria-label="Filter by Feasibility"
+                      >
+                        {feasibilityOptions.map((s) => (
+                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
+                        ))}
+                      </select>
+                    </th>
+                    <th className="crm-header-filter-anchor">
+                      <span className="block">Project Manager</span>
+                      <select
+                        value={managerFilter}
+                        onChange={(e) => setManagerFilter(e.target.value)}
+                        className={headerSelectClass}
+                        aria-label="Filter by Project Manager"
+                      >
+                        {managerOptions.map((s) => (
+                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
+                        ))}
+                      </select>
+                    </th>
+                    <th>Action</th>
+                  </>
+                ) : (
+                  <>
+                    <th>#</th>
+                    <th>Project Name</th>
+                    <th>Customer / Site</th>
+                    <th className="crm-header-filter-anchor">
+                      <span className="block">Project Type</span>
+                      <select
+                        value={projectTypeFilter}
+                        onChange={(e) => setProjectTypeFilter(e.target.value)}
+                        className={headerSelectClass}
+                        aria-label="Filter by Project Type"
+                      >
+                        {projectTypeOptions.map((s) => (
+                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
+                        ))}
+                      </select>
+                    </th>
+                    <th>Capacity (KWp)</th>
+                    <th className="crm-header-filter-anchor">
+                      <span className="block">Status</span>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className={headerSelectClass}
+                        aria-label="Filter by Status"
+                      >
+                        {projectStatusOptions.map((s) => (
+                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
+                        ))}
+                      </select>
+                    </th>
+                    <th className="crm-header-filter-anchor">
+                      <span className="block">Project Manager</span>
+                      <select
+                        value={managerFilter}
+                        onChange={(e) => setManagerFilter(e.target.value)}
+                        className={headerSelectClass}
+                        aria-label="Filter by Project Manager"
+                      >
+                        {managerOptions.map((s) => (
+                          <option key={s} value={s}>{s === 'All' ? 'All' : s}</option>
+                        ))}
+                      </select>
+                    </th>
+                    <th>Start Date</th>
+                    <th>Target Date</th>
+                    <th>Progress</th>
+                    <th>Action</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -14275,6 +14373,55 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         </div>
 
         <div className="space-y-2 lg:hidden">
+          {isSiteSurveyPicker ? (
+            <div className="grid grid-cols-2 gap-2 rounded-[12px] border border-[#e7eef7] bg-white p-2.5">
+              <label className="grid gap-1 text-[10px] font-bold uppercase text-[#8a98af]">
+                Survey Status
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-2 text-[12px] font-semibold text-[#314a79]">
+                  {surveyStatusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase text-[#8a98af]">
+                Surveyed By
+                <select value={surveyedByFilter} onChange={(e) => setSurveyedByFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-2 text-[12px] font-semibold text-[#314a79]">
+                  {surveyedByOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase text-[#8a98af]">
+                Feasibility
+                <select value={feasibilityFilter} onChange={(e) => setFeasibilityFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-2 text-[12px] font-semibold text-[#314a79]">
+                  {feasibilityOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase text-[#8a98af]">
+                Project Manager
+                <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-2 text-[12px] font-semibold text-[#314a79]">
+                  {managerOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 rounded-[12px] border border-[#e7eef7] bg-white p-2.5 sm:grid-cols-3">
+              <label className="grid gap-1 text-[10px] font-bold uppercase text-[#8a98af]">
+                Project Type
+                <select value={projectTypeFilter} onChange={(e) => setProjectTypeFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-2 text-[12px] font-semibold text-[#314a79]">
+                  {projectTypeOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase text-[#8a98af]">
+                Status
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-2 text-[12px] font-semibold text-[#314a79]">
+                  {projectStatusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase text-[#8a98af] col-span-2 sm:col-span-1">
+                Project Manager
+                <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-2 text-[12px] font-semibold text-[#314a79]">
+                  {managerOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
           {pagedProjectRows.map((row) => (
             <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-3 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
               <div className="flex items-start justify-between gap-3">
