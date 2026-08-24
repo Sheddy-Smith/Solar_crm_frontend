@@ -43,12 +43,17 @@ class InventoryItem(models.Model):
         ('Unit', 'Unit'),
         ('Packet', 'Packet'),
         ('Bundels', 'Bundels'),
+        ('kW', 'kW'),
     ]
 
     item_code = models.CharField(max_length=30, unique=True, blank=True, null=True)
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=100, default='Other')
     unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default='Nos')
+    product_type = models.CharField(max_length=100, blank=True, default='')
+    capacity = models.CharField(max_length=50, blank=True, default='')
+    panel_wp = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    panel_count = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     hsn_code = models.CharField(max_length=20, blank=True)
     rate = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     selling_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)

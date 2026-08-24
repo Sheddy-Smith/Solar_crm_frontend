@@ -11,15 +11,67 @@ const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'kg', 'Ltr', 'ltr', 'Roll', 'Set
 const STRUCTURE_EXTRA_UNITS = ['Unit', 'Packet', 'Bundels'];
 const STOCK_STATUS_OPTIONS = ['All Stock', 'In Stock', 'Low Stock', 'Out of Stock'];
 const PRODUCT_CATEGORIES = ['Structure', 'Electrical', 'Invertor', 'Panel', 'Battery'];
+const INVERTOR_TYPES = ['On-Grid', 'Off-Grid', 'Hybrid'];
+const PANEL_TYPES = ['DCR Bifacial', 'DCR Topcon', 'NDCR Bifacial', 'NDCR Topcon'];
+const BATTERY_TYPES = ['LFP', 'LTB', 'Lead Acid'];
+const INVERTOR_UNITS = ['Nos', 'Unit', 'Set', 'kW'];
 
 function unitsForCategory(category, currentUnit = '') {
-  // Structure: show Unit/Packet/Bundels first so they are visible without scrolling.
-  const base = category === 'Structure'
-    ? [...STRUCTURE_EXTRA_UNITS, ...INV_UNITS]
-    : [...INV_UNITS];
+  let base;
+  if (category === 'Structure') base = [...STRUCTURE_EXTRA_UNITS, ...INV_UNITS];
+  else if (category === 'Invertor') base = [...INVERTOR_UNITS, ...INV_UNITS];
+  else base = [...INV_UNITS];
   if (currentUnit && !base.includes(currentUnit)) base.push(currentUnit);
   return [...new Set(base)];
 }
+
+function defaultsForCategory(category) {
+  const base = {
+    item_code: '',
+    name: '',
+    category,
+    unit: 'Nos',
+    product_type: '',
+    capacity: '',
+    panel_wp: '',
+    panel_count: '',
+    hsn_code: '',
+    rate: '',
+    selling_price: '',
+    initial_stock: '',
+    minimum_stock: '',
+    location: '',
+    warehouse: '',
+    is_active: true,
+    auto_sell: false,
+  };
+  if (category === 'Structure' || category === 'Electrical') {
+    return { ...base, unit: category === 'Structure' ? 'Unit' : 'Nos' };
+  }
+  if (category === 'Invertor') {
+    return { ...base, product_type: 'On-Grid', unit: 'Nos' };
+  }
+  if (category === 'Panel') {
+    return { ...base, product_type: 'DCR Bifacial', unit: 'Nos' };
+  }
+  if (category === 'Battery') {
+    return { ...base, product_type: 'LFP', unit: 'Nos' };
+  }
+  return base;
+}
+
+function Field({ label, children, hint }) {
+  return (
+    <label className="block text-[12px] font-bold text-[#53647f]">
+      {label}
+      <div className="mt-1">{children}</div>
+      {hint ? <span className="mt-0.5 block text-[11px] font-semibold text-[#7a8fa6]">{hint}</span> : null}
+    </label>
+  );
+}
+
+const inputClass = 'h-10 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#1e3261] outline-none focus:border-[#0b65e5]';
+const selectClass = inputClass;
 
 export function fmtInvRs(v) {
   return v != null && v !== '' ? `Rs ${Number(v).toLocaleString('en-IN')}` : '—';
@@ -166,7 +218,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   const [modal, setModal] = useState(null);
   const [adjustItem, setAdjustItem] = useState(null);
   const [saving, setSaving] = useState(false);
-  const emptyForm = { item_code: '', name: '', category: 'Structure', unit: 'Unit', hsn_code: '', rate: '', selling_price: '', initial_stock: '', minimum_stock: '', location: '', warehouse: '', is_active: true, auto_sell: false };
+  const emptyForm = defaultsForCategory('Structure');
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput), 350);
@@ -195,6 +247,8 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
 
   const filtered = rows;
 
+  const patchForm = (patch) => setModal((m) => ({ ...m, form: { ...m.form, ...patch } }));
+
   const saveProduct = async () => {
     if (!modal?.form.name?.trim()) { onNotify('Product name is required', 'error'); return; }
     const f = modal.form;
@@ -204,12 +258,16 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
     }
     setSaving(true);
     try {
-      const f = modal.form;
+      const cat = f.category || 'Structure';
       const body = {
         item_code: f.item_code || undefined,
         name: f.name,
-        category: f.category,
-        unit: f.unit,
+        category: cat,
+        unit: f.unit || 'Nos',
+        product_type: f.product_type || '',
+        capacity: f.capacity || '',
+        panel_wp: f.panel_wp === '' || f.panel_wp == null ? null : Number(f.panel_wp),
+        panel_count: f.panel_count === '' || f.panel_count == null ? null : Number(f.panel_count),
         hsn_code: f.hsn_code || '',
         rate: f.rate === '' || f.rate == null ? 0 : Number(f.rate),
         selling_price: f.selling_price === '' || f.selling_price == null ? 0 : Number(f.selling_price),
@@ -218,6 +276,8 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
         warehouse: f.warehouse || null,
         is_active: f.is_active !== false,
       };
+      if (cat === 'Panel' && !body.unit) body.unit = 'Nos';
+      if (cat === 'Battery' && !body.unit) body.unit = 'Nos';
       if (!modal.editId && f.initial_stock !== '') body.initial_stock = Number(f.initial_stock) || 0;
       if (modal.editId) await inventoryApi.items.update(modal.editId, body);
       else await inventoryApi.items.create(body);
@@ -312,7 +372,23 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                     <td className="px-3 py-2">
                       <div className="flex gap-1">
                         <button type="button" title={r.warehouse ? 'Adjust stock' : 'Assign a warehouse first'} disabled={!r.warehouse} onClick={() => r.warehouse && setAdjustItem({ id: r.id, name: r.name, quantity: '', direction: 'add', notes: '' })} className="rounded-[6px] border px-2 py-1 text-[11px] font-bold text-[#0b65e5] disabled:cursor-not-allowed disabled:opacity-40">Adjust</button>
-                        <button type="button" onClick={() => setModal({ editId: r.id, form: { ...r, warehouse: r.warehouse || '', rate: r.rate, selling_price: r.selling_price, auto_sell: false, is_active: r.is_active !== false } })} className="grid size-7 place-items-center rounded-[6px] border"><Pencil className="size-3.5" /></button>
+                        <button type="button" onClick={() => setModal({
+                          editId: r.id,
+                          form: {
+                            ...defaultsForCategory(r.category || 'Structure'),
+                            ...r,
+                            warehouse: r.warehouse || '',
+                            rate: r.rate ?? '',
+                            selling_price: r.selling_price ?? '',
+                            product_type: r.product_type || '',
+                            capacity: r.capacity || '',
+                            panel_wp: r.panel_wp ?? '',
+                            panel_count: r.panel_count ?? '',
+                            auto_sell: false,
+                            is_active: r.is_active !== false,
+                            initial_stock: '',
+                          },
+                        })} className="grid size-7 place-items-center rounded-[6px] border"><Pencil className="size-3.5" /></button>
                         <button type="button" onClick={() => inventoryApi.items.delete(r.id).then(load).catch((e) => onNotify(e.message, 'error'))} className="grid size-7 place-items-center rounded-[6px] border text-[#ef4444]"><Trash2 className="size-3.5" /></button>
                       </div>
                     </td>
@@ -328,7 +404,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
 
       {modal ? (
         <InvModal
-          title={modal.editId ? 'Edit Product' : 'Add Product'}
+          title={modal.editId ? `Edit ${modal.form.category || 'Product'}` : `Add ${modal.form.category || 'Product'}`}
           onClose={() => setModal(null)}
           headerRight={(
             <label className="inline-flex items-center gap-2 text-[12px] font-bold text-[#53647f]">
@@ -339,9 +415,18 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                 onChange={(e) => {
                   const nextCategory = e.target.value;
                   setModal((m) => {
-                    const nextUnits = unitsForCategory(nextCategory, m.form.unit);
-                    const unit = nextUnits.includes(m.form.unit) ? m.form.unit : nextUnits[0];
-                    return { ...m, form: { ...m.form, category: nextCategory, unit } };
+                    const next = defaultsForCategory(nextCategory);
+                    return {
+                      ...m,
+                      form: {
+                        ...next,
+                        item_code: m.form.item_code,
+                        name: m.form.name,
+                        warehouse: m.form.warehouse,
+                        initial_stock: m.form.initial_stock,
+                        minimum_stock: m.form.minimum_stock,
+                      },
+                    };
                   });
                 }}
               >
@@ -359,14 +444,124 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
             </>
           )}
         >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-[12px] font-bold text-[#53647f]">Item Code<input className="mt-1 h-10 w-full rounded-[8px] border px-3" placeholder="Auto-generated if empty" value={modal.form.item_code || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, item_code: e.target.value } }))} /></label>
-            <label className="text-[12px] font-bold text-[#53647f]">Name *<input className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.name || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, name: e.target.value } }))} /></label>
-            <label className="text-[12px] font-bold text-[#53647f]">Unit<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.unit} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, unit: e.target.value } }))}>{unitsForCategory(modal.form.category, modal.form.unit).map((u) => <option key={u} value={u}>{u}</option>)}</select></label>
-            {!modal.editId ? <label className="text-[12px] font-bold text-[#53647f]">Opening Stock<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.initial_stock} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, initial_stock: e.target.value } }))} /><span className="text-[11px] text-[#7a8fa6]">Creates an inward movement record</span></label> : null}
-            <label className="text-[12px] font-bold text-[#53647f]">Reorder Level<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.minimum_stock} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, minimum_stock: e.target.value } }))} /></label>
-            <label className="text-[12px] font-bold text-[#53647f]">Warehouse<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.warehouse || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, warehouse: e.target.value } }))}><option value="">Select...</option>{warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
-          </div>
+          {(() => {
+            const cat = modal.form.category || 'Structure';
+            const f = modal.form;
+            const warehouseField = (
+              <Field label="Warehouse">
+                <select className={selectClass} value={f.warehouse || ''} onChange={(e) => patchForm({ warehouse: e.target.value })}>
+                  <option value="">Select...</option>
+                  {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </Field>
+            );
+            const openingField = !modal.editId ? (
+              <Field label="Opening Stock" hint="Creates an inward movement record">
+                <input type="number" className={inputClass} value={f.initial_stock} onChange={(e) => patchForm({ initial_stock: e.target.value })} />
+              </Field>
+            ) : null;
+            const reorderField = (
+              <Field label={cat === 'Panel' ? 'Reorder Stock' : 'Reorder Level'}>
+                <input type="number" className={inputClass} value={f.minimum_stock} onChange={(e) => patchForm({ minimum_stock: e.target.value })} />
+              </Field>
+            );
+            const codeName = (
+              <>
+                <Field label="Item Code">
+                  <input className={inputClass} placeholder="Auto-generated if empty" value={f.item_code || ''} onChange={(e) => patchForm({ item_code: e.target.value })} />
+                </Field>
+                <Field label="Name *">
+                  <input className={inputClass} value={f.name || ''} onChange={(e) => patchForm({ name: e.target.value })} />
+                </Field>
+              </>
+            );
+
+            if (cat === 'Invertor') {
+              return (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {codeName}
+                  <Field label="Type">
+                    <select className={selectClass} value={f.product_type || 'On-Grid'} onChange={(e) => patchForm({ product_type: e.target.value })}>
+                      {INVERTOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Invertor Capacity">
+                    <input className={inputClass} placeholder="e.g. 5 kW" value={f.capacity || ''} onChange={(e) => patchForm({ capacity: e.target.value })} />
+                  </Field>
+                  <Field label="Unit">
+                    <select className={selectClass} value={f.unit || 'Nos'} onChange={(e) => patchForm({ unit: e.target.value })}>
+                      {unitsForCategory('Invertor', f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </Field>
+                  {openingField}
+                  {reorderField}
+                  {warehouseField}
+                </div>
+              );
+            }
+
+            if (cat === 'Panel') {
+              return (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {codeName}
+                  <Field label="Type">
+                    <select className={selectClass} value={f.product_type || 'DCR Bifacial'} onChange={(e) => patchForm({ product_type: e.target.value })}>
+                      {PANEL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Panel Wp">
+                    <input type="number" className={inputClass} placeholder="e.g. 540" value={f.panel_wp ?? ''} onChange={(e) => patchForm({ panel_wp: e.target.value })} />
+                  </Field>
+                  <Field label="Number of Panels">
+                    <input type="number" className={inputClass} value={f.panel_count ?? ''} onChange={(e) => patchForm({ panel_count: e.target.value })} />
+                  </Field>
+                  {openingField}
+                  {reorderField}
+                  {warehouseField}
+                  <Field label="Cost">
+                    <input type="number" className={inputClass} value={f.rate ?? ''} onChange={(e) => patchForm({ rate: e.target.value })} />
+                  </Field>
+                </div>
+              );
+            }
+
+            if (cat === 'Battery') {
+              return (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {codeName}
+                  <Field label="Type">
+                    <select className={selectClass} value={f.product_type || 'LFP'} onChange={(e) => patchForm({ product_type: e.target.value })}>
+                      {BATTERY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Capacity">
+                    <input className={inputClass} placeholder="e.g. 100 Ah / 5 kWh" value={f.capacity || ''} onChange={(e) => patchForm({ capacity: e.target.value })} />
+                  </Field>
+                  {openingField}
+                  {reorderField}
+                  {warehouseField}
+                  <Field label="Cost">
+                    <input type="number" className={inputClass} value={f.rate ?? ''} onChange={(e) => patchForm({ rate: e.target.value })} />
+                  </Field>
+                </div>
+              );
+            }
+
+            // Structure + Electrical (same form)
+            return (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {codeName}
+                <Field label="Unit">
+                  <select className={selectClass} value={f.unit || 'Nos'} onChange={(e) => patchForm({ unit: e.target.value })}>
+                    {unitsForCategory(cat, f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </Field>
+                {openingField}
+                {reorderField}
+                {warehouseField}
+              </div>
+            );
+          })()}
         </InvModal>
       ) : null}
 
