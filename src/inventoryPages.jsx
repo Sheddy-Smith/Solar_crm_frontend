@@ -13,8 +13,9 @@ const STOCK_STATUS_OPTIONS = ['All Stock', 'In Stock', 'Low Stock', 'Out of Stoc
 const PRODUCT_CATEGORIES = ['Structure', 'Electrical', 'Invertor', 'Panel', 'Battery'];
 
 function unitsForCategory(category, currentUnit = '') {
+  // Structure: show Unit/Packet/Bundels first so they are visible without scrolling.
   const base = category === 'Structure'
-    ? [...INV_UNITS, ...STRUCTURE_EXTRA_UNITS]
+    ? [...STRUCTURE_EXTRA_UNITS, ...INV_UNITS]
     : [...INV_UNITS];
   if (currentUnit && !base.includes(currentUnit)) base.push(currentUnit);
   return [...new Set(base)];
@@ -165,7 +166,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   const [modal, setModal] = useState(null);
   const [adjustItem, setAdjustItem] = useState(null);
   const [saving, setSaving] = useState(false);
-  const emptyForm = { item_code: '', name: '', category: 'Structure', unit: 'Nos', hsn_code: '', rate: '', selling_price: '', initial_stock: '', minimum_stock: '', location: '', warehouse: '', is_active: true, auto_sell: false };
+  const emptyForm = { item_code: '', name: '', category: 'Structure', unit: 'Unit', hsn_code: '', rate: '', selling_price: '', initial_stock: '', minimum_stock: '', location: '', warehouse: '', is_active: true, auto_sell: false };
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput), 350);
