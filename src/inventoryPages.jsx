@@ -247,7 +247,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
       <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Products' }]}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => exportNotifyCsv(onNotify, 'inventory-products', ['Code', 'Name', 'Category', 'Stock', 'Unit', 'Cost', 'Selling', 'Valuation'], filtered.map((r) => [r.item_code, r.name, r.category, r.current_stock, r.unit, r.rate, r.selling_price, r.valuation]))} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#284276]"><Download className="size-4" />Export CSV</button>
+            <button type="button" onClick={() => exportNotifyCsv(onNotify, 'inventory-products', ['Code', 'Name', 'Category', 'Stock', 'Unit', 'Valuation'], filtered.map((r) => [r.item_code, r.name, r.category, r.current_stock, r.unit, r.valuation]))} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#284276]"><Download className="size-4" />Export CSV</button>
             <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Product</button>
           </div>
         )}
@@ -279,8 +279,6 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                 </th>
                 <th className="px-3 py-3">Stock</th>
                 <th className="px-3 py-3">Reorder</th>
-                <th className="px-3 py-3">Cost</th>
-                <th className="px-3 py-3">Selling</th>
                 <th className="px-3 py-3">Valuation</th>
                 <th className="px-3 py-3">
                   <TableHeaderFilter
@@ -301,8 +299,6 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                     <td className="px-3 py-2">{r.category}</td>
                     <td className="px-3 py-2">{r.current_stock} {r.unit}</td>
                     <td className="px-3 py-2">{r.minimum_stock}</td>
-                    <td className="px-3 py-2">{fmtInvRs(r.rate)}</td>
-                    <td className="px-3 py-2">{fmtInvRs(r.selling_price)}</td>
                     <td className="px-3 py-2">{fmtInvRs(r.valuation)}</td>
                     <td className="px-3 py-2"><InvStatusBadge status={r.stock_status} /></td>
                     <td className="px-3 py-2">
