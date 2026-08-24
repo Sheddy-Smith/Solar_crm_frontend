@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { settingsApi } from './api.js';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { cx } from './lib/utils.js';
 
 function formatWhen(iso) {
@@ -267,9 +268,21 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
           <table className="crm-table w-full min-w-[860px] border-collapse text-left">
             <thead>
               <tr>
-                {['Item', 'Type', 'Source', 'Deleted by', 'Deleted on', 'Auto-delete', 'Action'].map((header) => (
-                  <th key={header}>{header}</th>
-                ))}
+                <th>Item</th>
+                <th>
+                  <TableHeaderFilter
+                    label="Type"
+                    value={entityFilter}
+                    active={entityFilter !== 'All'}
+                    options={['All', 'Lead', 'Follow-up', 'Quotation', 'Project']}
+                    onChange={setEntityFilter}
+                  />
+                </th>
+                <th>Source</th>
+                <th>Deleted by</th>
+                <th>Deleted on</th>
+                <th>Auto-delete</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>

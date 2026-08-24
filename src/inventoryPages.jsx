@@ -4,6 +4,7 @@ import {
   Search, Tags, Trash2, Upload,
 } from 'lucide-react';
 import { inventoryApi } from './api.js';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { exportNotifyCsv } from './lib/utils.js';
 
 const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'kg', 'Ltr', 'ltr', 'Roll', 'Set'];
@@ -261,7 +262,32 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
           <div className="overflow-auto rounded-[12px] border border-[#e5eaf2]">
             <table className="w-full min-w-[1000px] text-left text-[13px]">
               <thead><tr className="bg-[#f8fafc] text-[11px] font-extrabold uppercase text-[#7a8fa6]">
-                {['Code', 'Name', 'Category', 'Stock', 'Reorder', 'Cost', 'Selling', 'Valuation', 'Status', 'Actions'].map((h) => <th key={h} className="px-3 py-3">{h}</th>)}
+                <th className="px-3 py-3">Code</th>
+                <th className="px-3 py-3">Name</th>
+                <th className="px-3 py-3">
+                  <TableHeaderFilter
+                    label="Category"
+                    value={category}
+                    active={category !== 'All Categories'}
+                    options={catOptions}
+                    onChange={setCategory}
+                  />
+                </th>
+                <th className="px-3 py-3">Stock</th>
+                <th className="px-3 py-3">Reorder</th>
+                <th className="px-3 py-3">Cost</th>
+                <th className="px-3 py-3">Selling</th>
+                <th className="px-3 py-3">Valuation</th>
+                <th className="px-3 py-3">
+                  <TableHeaderFilter
+                    label="Status"
+                    value={stockFilter}
+                    active={stockFilter !== 'All Stock'}
+                    options={STOCK_STATUS_OPTIONS}
+                    onChange={setStockFilter}
+                  />
+                </th>
+                <th className="px-3 py-3">Actions</th>
               </tr></thead>
               <tbody className="divide-y divide-[#f1f5f9]">
                 {filtered.map((r) => (

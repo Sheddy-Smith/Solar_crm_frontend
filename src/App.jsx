@@ -31,6 +31,7 @@ import {
   LEAD_STATUS_FILTER_OPTIONS,
 } from './unifiedDashboard.jsx';
 import { DailyTasksPage } from './dailyTasksPages.jsx';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import {
   ProjectInstallationPage as OpsInstallationPage,
   ProjectMaterialDispatchPage as OpsDispatchPage,
@@ -4494,6 +4495,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   }, [searchNonce]);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [projectTypeFilter, setProjectTypeFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [assignedToFilter, setAssignedToFilter] = useState('All');
   const [addByFilter, setAddByFilter] = useState('All');
   const [followUpDate, setFollowUpDate] = useState('');
@@ -4674,11 +4676,12 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     ];
   }, [apiLeads]);
 
-  const activeFilterCount = [projectTypeFilter, assignedToFilter, addByFilter].filter((v) => v !== 'All').length + (followUpDate ? 1 : 0) + (activeLeadCategory ? 1 : 0) + (searchQuery.trim() ? 1 : 0);
+  const activeFilterCount = [projectTypeFilter, statusFilter, assignedToFilter, addByFilter].filter((v) => v !== 'All').length + (followUpDate ? 1 : 0) + (activeLeadCategory ? 1 : 0) + (searchQuery.trim() ? 1 : 0);
 
   const resetLeadFilters = () => {
     setSearchQuery('');
     setProjectTypeFilter('All');
+    setStatusFilter('All');
     setAssignedToFilter('All');
     setAddByFilter('All');
     setFollowUpDate('');
@@ -4692,6 +4695,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     if (activeLeadCategory) labels.push(activeLeadCategory.label);
     if (searchQuery.trim()) labels.push(`Search: "${searchQuery.trim()}"`);
     if (projectTypeFilter !== 'All') labels.push(`Type: ${projectTypeFilter}`);
+    if (statusFilter !== 'All') labels.push(`Status: ${statusFilter}`);
     if (assignedToFilter !== 'All') {
       const match = assigneeOptions.find((option) => String(option.value) === String(assignedToFilter));
       labels.push(`Assigned: ${match?.label || assignedToFilter}`);
@@ -4704,7 +4708,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
       labels.push(`Follow-up: ${new Date(`${followUpDate}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`);
     }
     return labels;
-  }, [activeLeadCategory, searchQuery, projectTypeFilter, assignedToFilter, addByFilter, followUpDate, assigneeOptions, addByOptions]);
+  }, [activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, addByFilter, followUpDate, assigneeOptions, addByOptions]);
 
   const hasLeadFilters = activeFilterLabels.length > 0;
   const totalLeadCount = apiLeads?.length ?? 0;
@@ -4723,6 +4727,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
       const query = searchQuery.trim().toLowerCase();
       const queryMatch = !query || [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name, lead.createdByName].some((value) => String(value).toLowerCase().includes(query));
       const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
+      const statusMatch = statusFilter === 'All' || lead.status === statusFilter;
       const assignedMatch =
         assignedToFilter === 'All'
           ? true
@@ -4731,9 +4736,9 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             : String(lead.assignedTo.id) === assignedToFilter;
       const addByMatch = addByFilter === 'All' || String(lead.createdById) === String(addByFilter);
       const followUpMatch = !followUpDate || (lead.nextFollowUpRaw && lead.nextFollowUpRaw.slice(0, 10) === followUpDate);
-      return queryMatch && projectTypeMatch && assignedMatch && addByMatch && followUpMatch;
+      return queryMatch && projectTypeMatch && statusMatch && assignedMatch && addByMatch && followUpMatch;
     });
-  }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, assignedToFilter, addByFilter, followUpDate]);
+  }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, addByFilter, followUpDate]);
 
   const LEAD_PAGE_SIZE = pageSize;
   const totalLeadPages = Math.max(1, Math.ceil(visibleLeadRows.length / LEAD_PAGE_SIZE));
@@ -5012,7 +5017,15 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                       onChange={(v) => { setProjectTypeFilter(v); setActivePage(1); }}
                     />
                   </th>
-                  <th title="Status"><span className="block truncate">Status</span></th>
+                  <th title="Status">
+                    <TableHeaderFilter
+                      label="Status"
+                      value={statusFilter}
+                      active={statusFilter !== 'All'}
+                      options={['All', 'New', 'Follow-up', 'Quotation', 'Won', 'Lost']}
+                      onChange={(v) => { setStatusFilter(v); setActivePage(1); }}
+                    />
+                  </th>
                   <th title="Assigned To">
                     <TableHeaderFilter
                       label="Assigned To"
@@ -23970,7 +23983,23 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
             ) : (
               <div className="overflow-x-auto">
                 <table className="crm-table w-full min-w-[700px]">
-                  <thead><tr>{['#', 'Application No.', 'Application Date', 'Status', 'Assigned Employee', 'Last Updated', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                  <thead><tr>
+                    <th>#</th>
+                    <th>Application No.</th>
+                    <th>Application Date</th>
+                    <th title="Status">
+                      <TableHeaderFilter
+                        label="Status"
+                        value={statusFilter}
+                        active={statusFilter !== 'All'}
+                        options={['All', ...STATUS_OPTIONS]}
+                        onChange={setStatusFilter}
+                      />
+                    </th>
+                    <th>Assigned Employee</th>
+                    <th>Last Updated</th>
+                    <th>Action</th>
+                  </tr></thead>
                   <tbody>
                     {filtered.map((row, idx) => (
                       <tr key={row.id}>
@@ -25114,7 +25143,41 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
         <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
           <table className="crm-table min-w-[1300px] w-full">
             <thead>
-              <tr>{['#', 'User Name', 'Email', 'Phone Number', 'Role', 'Branch / Location', 'Status', 'Last Login', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr>
+              <tr>
+                <th>#</th>
+                <th>User Name</th>
+                <th>Email</th>
+                <th>Phone Number</th>
+                <th title="Role">
+                  <TableHeaderFilter
+                    label="Role"
+                    value={role}
+                    active={role !== 'All Roles'}
+                    options={['All Roles', ...new Set(users.map((user) => user.role))]}
+                    onChange={setRole}
+                  />
+                </th>
+                <th title="Branch / Location">
+                  <TableHeaderFilter
+                    label="Branch / Location"
+                    value={branch}
+                    active={branch !== 'All Branches'}
+                    options={['All Branches', ...new Set(users.map((user) => user.branch))]}
+                    onChange={setBranch}
+                  />
+                </th>
+                <th title="Status">
+                  <TableHeaderFilter
+                    label="Status"
+                    value={status}
+                    active={status !== 'All Status'}
+                    options={['All Status', 'Active', 'Inactive', 'Deleted']}
+                    onChange={setStatus}
+                  />
+                </th>
+                <th>Last Login</th>
+                <th>Actions</th>
+              </tr>
             </thead>
             <tbody>
               {!loading ? filteredUsers.map((user, index) => (
@@ -25396,6 +25459,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
   const [selectedRoleName, setSelectedRoleName] = useState('');
   const [activeTab, setActiveTab] = useState('Permissions');
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [permissionRows, setPermissionRows] = useState([]);
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [manageRoleOpen, setManageRoleOpen] = useState(false);
@@ -25431,7 +25495,11 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
       .finally(() => setLoading(false));
   }, []);  
 
-  const filteredRoles = roles.filter((role) => role.name.toLowerCase().includes(query.toLowerCase()));
+  const filteredRoles = roles.filter((role) => {
+    if (!role.name.toLowerCase().includes(query.toLowerCase())) return false;
+    if (statusFilter !== 'All' && role.status !== statusFilter) return false;
+    return true;
+  });
 
   const selectedRole = roles.find((role) => role.name === selectedRoleName) ?? roles[0];
   const selectedRoleUsers = selectedRole ? users.filter((user) => user.role === selectedRole.name) : [];
@@ -25586,7 +25654,21 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
 
           <div className="mt-4 hidden w-full overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
             <table className="crm-table w-full min-w-[640px]">
-              <thead><tr>{['#', 'Role Name', 'Users', 'Status', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <thead><tr>
+                <th>#</th>
+                <th>Role Name</th>
+                <th>Users</th>
+                <th title="Status">
+                  <TableHeaderFilter
+                    label="Status"
+                    value={statusFilter}
+                    active={statusFilter !== 'All'}
+                    options={['All', 'Active', 'Inactive']}
+                    onChange={setStatusFilter}
+                  />
+                </th>
+                <th>Actions</th>
+              </tr></thead>
               <tbody>
                 {filteredRoles.map((role, index) => (
                   <tr key={role.id} className={cx(selectedRoleName === role.name && 'bg-[#f7fff9]')}>
@@ -26011,7 +26093,49 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
               <col className="w-[100px]" />
               <col className="w-[72px]" />
             </colgroup>
-            <thead><tr>{['#', 'Date & Time', 'User', 'Action', 'Module', 'Description', 'IP Address', 'Status', 'Details'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+            <thead><tr>
+              <th>#</th>
+              <th>Date & Time</th>
+              <th title="User">
+                <TableHeaderFilter
+                  label="User"
+                  value={user}
+                  active={user !== 'All Users'}
+                  options={['All Users', ...uniqueUsers]}
+                  onChange={setUser}
+                />
+              </th>
+              <th title="Action">
+                <TableHeaderFilter
+                  label="Action"
+                  value={action}
+                  active={action !== 'All Actions'}
+                  options={['All Actions', ...uniqueActions]}
+                  onChange={setAction}
+                />
+              </th>
+              <th title="Module">
+                <TableHeaderFilter
+                  label="Module"
+                  value={moduleName}
+                  active={moduleName !== 'All Modules'}
+                  options={['All Modules', ...uniqueModules]}
+                  onChange={setModuleName}
+                />
+              </th>
+              <th>Description</th>
+              <th>IP Address</th>
+              <th title="Status">
+                <TableHeaderFilter
+                  label="Status"
+                  value={status}
+                  active={status !== 'All Status'}
+                  options={['All Status', 'Success', 'Failed']}
+                  onChange={setStatus}
+                />
+              </th>
+              <th>Details</th>
+            </tr></thead>
             <tbody>
               {!loading ? filteredLogs.map((log, index) => (
                 <tr key={log.id}>
@@ -27056,9 +27180,31 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
               <table className="crm-table">
                 <thead>
                   <tr>
-                    {['#', 'Name', 'Phone', 'Aadhaar', 'Skill / Role', 'Rate (₹)', 'Net Balance', 'Status', 'Actions'].map((heading) => (
-                      <th key={heading}>{heading}</th>
-                    ))}
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Aadhaar</th>
+                    <th title="Skill / Role">
+                      <TableHeaderFilter
+                        label="Skill / Role"
+                        value={skillFilter}
+                        active={skillFilter !== 'All Skills'}
+                        options={skillOptions}
+                        onChange={setSkillFilter}
+                      />
+                    </th>
+                    <th>Rate (₹)</th>
+                    <th>Net Balance</th>
+                    <th title="Status">
+                      <TableHeaderFilter
+                        label="Status"
+                        value={statusFilter}
+                        active={statusFilter !== 'All Status'}
+                        options={statusOptions}
+                        onChange={setStatusFilter}
+                      />
+                    </th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -27730,7 +27876,41 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
         <div className="hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
           <table className="crm-table min-w-[1180px] w-full">
             <thead>
-              <tr>{['#', 'User Name', 'Email', 'Mobile Number', 'Role', 'Assigned Branch', 'Status', 'Created On', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr>
+              <tr>
+                <th>#</th>
+                <th>User Name</th>
+                <th>Email</th>
+                <th>Mobile Number</th>
+                <th title="Role">
+                  <TableHeaderFilter
+                    label="Role"
+                    value={role}
+                    active={role !== 'All'}
+                    options={['All', 'Super Admin', 'Branch Manager', 'Team Leader', 'Sales Executive']}
+                    onChange={setRole}
+                  />
+                </th>
+                <th title="Assigned Branch">
+                  <TableHeaderFilter
+                    label="Assigned Branch"
+                    value={branch}
+                    active={branch !== 'All'}
+                    options={['All', 'Head Office', 'Indore Branch', 'Ujjain Branch', 'Dewas Branch']}
+                    onChange={setBranch}
+                  />
+                </th>
+                <th title="Status">
+                  <TableHeaderFilter
+                    label="Status"
+                    value={status}
+                    active={status !== 'All'}
+                    options={['All', 'Active', 'Inactive']}
+                    onChange={setStatus}
+                  />
+                </th>
+                <th>Created On</th>
+                <th>Action</th>
+              </tr>
             </thead>
             <tbody>
               {loading ? (
@@ -32668,9 +32848,35 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
               </colgroup>
               <thead>
                 <tr>
-                  {['Quotation No', 'Customer', 'Template', 'Status', 'Grand Total', 'Date', 'Action'].map((h) => (
-                    <th key={h}><span className="block truncate">{h}</span></th>
-                  ))}
+                  <th><span className="block truncate">Quotation No</span></th>
+                  <th><span className="block truncate">Customer</span></th>
+                  <th title="Template">
+                    <TableHeaderFilter
+                      label="Template"
+                      value={templateFilter}
+                      active={templateFilter !== 'All'}
+                      options={['All', ...QUOTATION_TEMPLATE_OPTIONS]}
+                      onChange={(v) => { setTemplateFilter(v); setActivePage(1); }}
+                    />
+                  </th>
+                  <th title="Status">
+                    <TableHeaderFilter
+                      label="Status"
+                      value={expiredFilter ? 'Expired' : statusFilter}
+                      active={expiredFilter || statusFilter !== 'All'}
+                      options={['All', 'Draft', 'Sent', 'Accepted', 'Rejected', 'Expired']}
+                      onChange={(value) => {
+                        setExpiredFilter(false);
+                        if (value === 'All') setStatusFilter('All');
+                        else if (value === 'Expired') setExpiredFilter(true);
+                        else setStatusFilter(value);
+                        setActivePage(1);
+                      }}
+                    />
+                  </th>
+                  <th><span className="block truncate">Grand Total</span></th>
+                  <th><span className="block truncate">Date</span></th>
+                  <th><span className="block truncate">Action</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -34142,6 +34348,7 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
   const [rows, setRows] = useState(null);
   const [activeTab, setActiveTab] = useState('Pending');
   const [searchQuery, setSearchQuery] = useState('');
+  const [projectTypeFilter, setProjectTypeFilter] = useState('All');
   const [selectedId, setSelectedId] = useState(null);
   const [actingId, setActingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -34169,13 +34376,15 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
 
   const filteredRows = (rows ?? []).filter((row) => {
     const matchesTab = activeTab === 'All' || row.status === activeTab;
+    const projectType = approvalProjectType(row);
+    const matchesType = projectTypeFilter === 'All' || projectType === projectTypeFilter;
     const q = searchQuery.trim().toLowerCase();
     const matchesSearch = !q
       || row.ivrs_number?.toLowerCase().includes(q)
       || approvalCustomerName(row).toLowerCase().includes(q)
       || approvalMobileNumber(row).includes(q)
       || approvalProjectName(row).toLowerCase().includes(q);
-    return matchesTab && matchesSearch;
+    return matchesTab && matchesType && matchesSearch;
   });
 
   const selectedRow = filteredRows.find((r) => r.id === selectedId) || filteredRows[0] || null;
@@ -34291,7 +34500,25 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
           </div>
           <div className="overflow-x-auto">
             <table className="crm-table min-w-[880px] w-full">
-              <thead><tr>{['#', 'IVRS Number', 'Customer Name', 'Mobile Number', 'Project Type', 'Requested By', 'Requested On', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+              <thead><tr>
+                <th>#</th>
+                <th>IVRS Number</th>
+                <th>Customer Name</th>
+                <th>Mobile Number</th>
+                <th title="Project Type">
+                  <TableHeaderFilter
+                    label="Project Type"
+                    value={projectTypeFilter}
+                    active={projectTypeFilter !== 'All'}
+                    options={['All', 'On-Grid', 'Off-Grid', 'Hybrid']}
+                    onChange={setProjectTypeFilter}
+                  />
+                </th>
+                <th>Requested By</th>
+                <th>Requested On</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr></thead>
               <tbody>
                 {rows === null ? (
                   <tr><td colSpan={9}><PageLoadingState message="Loading approvals..." compact /></td></tr>
@@ -34974,102 +35201,6 @@ function FilterSelect({ label, value, onChange, options }) {
         ))}
       </select>
     </label>
-  );
-}
-
-function TableHeaderFilter({ label, value, options, onChange, active = false }) {
-  const [open, setOpen] = useState(false);
-  const anchorRef = useRef(null);
-  const menuRef = useRef(null);
-  const [menuStyle, setMenuStyle] = useState({ top: 0, left: 0, minWidth: 190 });
-
-  const updateMenuPosition = useCallback(() => {
-    const anchor = anchorRef.current;
-    if (!anchor) return;
-    const rect = anchor.getBoundingClientRect();
-    const viewportPadding = 8;
-    const menuWidth = Math.max(190, rect.width);
-    const left = Math.min(rect.left, window.innerWidth - menuWidth - viewportPadding);
-    setMenuStyle({
-      top: rect.bottom + 4,
-      left: Math.max(viewportPadding, left),
-      minWidth: menuWidth,
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    updateMenuPosition();
-    const close = (event) => {
-      const target = event.target;
-      if (anchorRef.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    const reposition = () => updateMenuPosition();
-    document.addEventListener('mousedown', close);
-    window.addEventListener('resize', reposition);
-    window.addEventListener('scroll', reposition, true);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      window.removeEventListener('resize', reposition);
-      window.removeEventListener('scroll', reposition, true);
-    };
-  }, [open, updateMenuPosition]);
-
-  return (
-    <>
-      <div ref={anchorRef} className="crm-header-filter-anchor relative inline-flex max-w-full min-w-0 items-center gap-0.5">
-        <span className="truncate">{label}</span>
-        <button
-          type="button"
-          onClick={(event) => { event.stopPropagation(); setOpen((current) => !current); }}
-          aria-label={`Filter ${label}`}
-          aria-expanded={open}
-          className={cx(
-            'grid size-5 shrink-0 place-items-center rounded-[5px] transition',
-            active || open ? 'bg-[#e8f1ff] text-[#0b65e5]' : 'text-[#8a98af] hover:bg-[#eef3fb] hover:text-[#284276]',
-          )}
-        >
-          <ChevronDown className={cx('size-3.5 transition-transform', open && 'rotate-180')} />
-        </button>
-      </div>
-      {open && typeof document !== 'undefined' ? createPortal(
-        <div
-          ref={menuRef}
-          role="listbox"
-          aria-label={`${label} filter options`}
-          className="fixed z-[200] max-h-64 min-w-[190px] overflow-y-auto rounded-[10px] border border-[#e2e9f3] bg-white py-1 shadow-[0_16px_32px_rgba(17,39,84,0.16)]"
-          style={{ top: menuStyle.top, left: menuStyle.left, minWidth: menuStyle.minWidth }}
-        >
-          {options.map((option) => {
-            const optionValue = typeof option === 'object' ? option.value : option;
-            const optionLabel = typeof option === 'object' ? option.label : option;
-            const selected = String(value) === String(optionValue);
-            return (
-              <button
-                key={String(optionValue)}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onChange(optionValue);
-                  setOpen(false);
-                }}
-                className={cx(
-                  'flex w-full items-center px-3 py-1.5 text-left text-[12px] font-bold transition',
-                  selected ? 'bg-[#eef6ff] text-[#0b65e5]' : 'text-[#314a79] hover:bg-[#f7fbff]',
-                )}
-              >
-                {optionLabel}
-              </button>
-            );
-          })}
-        </div>,
-        document.body,
-      ) : null}
-    </>
   );
 }
 

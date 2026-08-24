@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Pencil, Trash2, Eye, Download, Printer } from 'lucide-react';
 import Button from './components/ui/Button.jsx';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { accountsModuleApi, projectApi } from './api.js';
 
 const panelClass =
@@ -411,7 +412,15 @@ export function AccountsLineDocumentPage({
                 <th className="px-4 py-3">{partyConfig.label}</th>
                 <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">
+                  <TableHeaderFilter
+                    label="Status"
+                    value={statusFilter || 'All'}
+                    active={Boolean(statusFilter)}
+                    options={[{ value: 'All', label: 'All' }, ...statuses.map((s) => ({ value: s, label: s }))]}
+                    onChange={(v) => setStatusFilter(v === 'All' ? '' : v)}
+                  />
+                </th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>

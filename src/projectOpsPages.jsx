@@ -7,6 +7,7 @@ import {
   installationMaterialApi, materialPlanApi, projectApi, projectChecklistApi,
   projectExpenseApi, projectMilestoneApi, userApi,
 } from './api.js';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
 const HEADER_SELECT = 'mt-1 h-7 w-full min-w-[88px] max-w-[120px] rounded-[6px] border border-[#d5e0ef] bg-white px-1.5 text-[11px] font-semibold text-[#314a79] outline-none';
@@ -373,9 +374,6 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[13px] font-semibold text-[#284276]">
-                {['All', 'Pending', 'Partial', 'Dispatched'].map((s) => <option key={s} value={s}>{s === 'All' ? 'All Status' : s}</option>)}
-              </select>
               <p className="text-[13px] font-semibold text-[#7386a3]">{filtered.length} item{filtered.length === 1 ? '' : 's'}</p>
             </div>
             {loading ? (
@@ -391,7 +389,22 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
                 <table className="crm-table crm-table--lead-dense w-full min-w-[720px]">
                   <thead>
                     <tr>
-                      {['#', 'Category', 'Spec', 'Planned', 'Dispatched', 'Left', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}
+                      <th>#</th>
+                      <th>Category</th>
+                      <th>Spec</th>
+                      <th>Planned</th>
+                      <th>Dispatched</th>
+                      <th>Left</th>
+                      <th title="Status">
+                        <TableHeaderFilter
+                          label="Status"
+                          value={statusFilter}
+                          active={statusFilter !== 'All'}
+                          options={['All', 'Pending', 'Partial', 'Dispatched']}
+                          onChange={setStatusFilter}
+                        />
+                      </th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1058,12 +1071,6 @@ function ExpensesDetailModal({ project, onClose, onNotify }) {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-            <div className="mb-3">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[13px] font-semibold text-[#284276]">
-                <option value="All">All Status</option>
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
             {loading ? (
               <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
             ) : filtered.length === 0 ? (
@@ -1076,7 +1083,23 @@ function ExpensesDetailModal({ project, onClose, onNotify }) {
               <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7]">
                 <table className="crm-table crm-table--lead-dense w-full min-w-[700px]">
                   <thead>
-                    <tr>{['#', 'Date', 'Category', 'Description', 'Amount', 'Status', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr>
+                    <tr>
+                      <th>#</th>
+                      <th>Date</th>
+                      <th>Category</th>
+                      <th>Description</th>
+                      <th>Amount</th>
+                      <th title="Status">
+                        <TableHeaderFilter
+                          label="Status"
+                          value={statusFilter}
+                          active={statusFilter !== 'All'}
+                          options={['All', ...STATUSES]}
+                          onChange={setStatusFilter}
+                        />
+                      </th>
+                      <th>Action</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {filtered.map((row, idx) => (

@@ -41,6 +41,7 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { cx } from './lib/utils.js';
 import { authApi, leadApi, followUpApi } from './api.js';
 import { PwaInstallBanner, PwaInstallIconButton } from './components/mobile/PwaInstallControls.jsx';
@@ -1858,8 +1859,24 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
               <th className="px-2.5 py-2">Customer Name</th>
               <th className="px-2.5 py-2">Mobile No.</th>
               <th className="px-2.5 py-2">Project Name</th>
-              <th className="px-2.5 py-2">Added By</th>
-              <th className="px-2.5 py-2">Status</th>
+              <th className="px-2.5 py-2">
+                <TableHeaderFilter
+                  label="Added By"
+                  value={addByFilter}
+                  active={addByFilter !== 'All'}
+                  options={[{ value: 'All', label: 'All' }, ...addByOptions.map((p) => ({ value: String(p.id), label: p.name }))]}
+                  onChange={(v) => { setAddByFilter(v); setPage(1); }}
+                />
+              </th>
+              <th className="px-2.5 py-2">
+                <TableHeaderFilter
+                  label="Status"
+                  value={statusFilter}
+                  active={statusFilter !== 'All'}
+                  options={['All', ...TELE_LEAD_STATUSES]}
+                  onChange={(v) => { setStatusFilter(v); setPage(1); }}
+                />
+              </th>
               <th className="px-2.5 py-2">Next Follow-up</th>
               <th className="px-2.5 py-2">Remarks</th>
               <th className="crm-col-sticky-right px-2.5 py-2 text-right">Action</th>

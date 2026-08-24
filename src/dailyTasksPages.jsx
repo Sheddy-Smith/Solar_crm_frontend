@@ -3,6 +3,7 @@ import {
   AlertCircle, Boxes, ClipboardCheck, MapPin, Pencil, Save, Search, Trash2, Truck, Wrench, X,
 } from 'lucide-react';
 import { dailyTasksApi, inventoryApi, leadApi, projectApi, workforceApi } from './api.js';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
 
 const CARD = 'rounded-[12px] border border-[#dbe5f2] bg-white shadow-[0_8px_24px_rgba(24,48,87,0.06)]';
@@ -319,6 +320,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const [categoryFilter, setCategoryFilter] = useState('All Categories');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [dateFrom, setDateFrom] = useState(() => monthStartIso());
   const [dateTo, setDateTo] = useState(() => todayIso());
   const [modal, setModal] = useState({ open: false, mode: 'create', categoryId: 'site_visit_log', task: null });
@@ -373,6 +375,11 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
     const row = summary[cat.id] || { total: 0, completed: 0 };
     return { ...cat, total: row.total, completed: row.completed };
   }), [summary]);
+
+  const visibleTasks = useMemo(() => {
+    if (statusFilter === 'All') return tasks;
+    return tasks.filter((task) => task.status === statusFilter);
+  }, [tasks, statusFilter]);
 
   const openCreate = (categoryId) => setModal({ open: true, mode: 'create', categoryId, task: null });
   const openEdit = (task) => setModal({ open: true, mode: 'edit', categoryId: task.category, task });
@@ -502,7 +509,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             <input type="date" className="mt-1.5 h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </label>
         </div>
-        <p className="mt-3 text-[12px] font-bold text-[#7a8fa6]">Showing {tasks.length} task(s)</p>
+        <p className="mt-3 text-[12px] font-bold text-[#7a8fa6]">Showing {visibleTasks.length} task(s)</p>
       </section>
 
       <section className={`${CARD} overflow-hidden`}>
@@ -514,10 +521,26 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Category</th>
+                <th>
+                  <TableHeaderFilter
+                    label="Category"
+                    value={categoryFilter}
+                    active={categoryFilter !== 'All Categories'}
+                    options={[{ value: 'All Categories', label: 'All Categories' }, ...TASK_CATEGORIES.map((c) => ({ value: c.id, label: c.shortLabel }))]}
+                    onChange={setCategoryFilter}
+                  />
+                </th>
                 <th>Details</th>
                 <th>Assigned To</th>
-                <th>Status</th>
+                <th>
+                  <TableHeaderFilter
+                    label="Status"
+                    value={statusFilter}
+                    active={statusFilter !== 'All'}
+                    options={['All', ...STATUS_OPTIONS]}
+                    onChange={setStatusFilter}
+                  />
+                </th>
                 <th>Notes</th>
                 <th>Actions</th>
               </tr>
@@ -525,7 +548,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             <tbody>
               {loading ? (
                 <tr><td colSpan={7} className="py-12 text-center text-[#7a8fa6]">Loading tasks…</td></tr>
-              ) : tasks.length ? tasks.map((task) => {
+              ) : visibleTasks.length ? visibleTasks.map((task) => {
                 const cat = CATEGORY_MAP[task.category];
                 return (
                   <tr key={task.id}>

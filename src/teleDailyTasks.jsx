@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ClipboardList, Eye, Pencil, Plus, X, XCircle } from 'lucide-react';
 import { staffDailyTasksApi } from './api.js';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { hasModuleAccess } from './settingsHubPages.jsx';
 import { cx } from './lib/utils.js';
 
@@ -233,9 +234,22 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
           <table className="min-w-[920px] w-full text-left">
             <thead className="bg-[#f7f9fc] text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">
               <tr>
-                {['Task', 'Description', 'Assigned By', 'Assigned To', 'User ID', 'Date', 'Status', 'Action'].map((header) => (
-                  <th key={header} className="px-4 py-3">{header}</th>
-                ))}
+                <th className="px-4 py-3">Task</th>
+                <th className="px-4 py-3">Description</th>
+                <th className="px-4 py-3">Assigned By</th>
+                <th className="px-4 py-3">Assigned To</th>
+                <th className="px-4 py-3">User ID</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">
+                  <TableHeaderFilter
+                    label="Status"
+                    value={statusFilter}
+                    active={statusFilter !== 'All'}
+                    options={['All', 'Not Completed', 'Completed']}
+                    onChange={setStatusFilter}
+                  />
+                </th>
+                <th className="px-4 py-3">Action</th>
               </tr>
             </thead>
             <tbody className="text-[13px]">
