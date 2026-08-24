@@ -18,9 +18,13 @@ const INVERTOR_UNITS = ['Nos', 'Unit', 'Set', 'kW'];
 
 function unitsForCategory(category, currentUnit = '') {
   let base;
-  if (category === 'Structure') base = [...STRUCTURE_EXTRA_UNITS, ...INV_UNITS];
-  else if (category === 'Invertor') base = [...INVERTOR_UNITS, ...INV_UNITS];
-  else base = [...INV_UNITS];
+  if (category === 'Structure' || category === 'Electrical') {
+    base = [...STRUCTURE_EXTRA_UNITS, ...INV_UNITS];
+  } else if (category === 'Invertor') {
+    base = [...INVERTOR_UNITS, ...INV_UNITS];
+  } else {
+    base = [...INV_UNITS];
+  }
   if (currentUnit && !base.includes(currentUnit)) base.push(currentUnit);
   return [...new Set(base)];
 }
@@ -46,7 +50,7 @@ function defaultsForCategory(category) {
     auto_sell: false,
   };
   if (category === 'Structure' || category === 'Electrical') {
-    return { ...base, unit: category === 'Structure' ? 'Unit' : 'Nos' };
+    return { ...base, unit: 'Unit' };
   }
   if (category === 'Invertor') {
     return { ...base, product_type: 'On-Grid', unit: 'Nos' };

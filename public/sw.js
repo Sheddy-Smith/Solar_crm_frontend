@@ -17,7 +17,7 @@
 //   - Everything else (API calls, cross-origin requests, auth endpoints):
 //     left completely untouched — the browser handles them natively.
 
-const VERSION = 'malwa-solar-crm-v60';
+const VERSION = 'malwa-solar-crm-v61';
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 
 self.addEventListener('install', (event) => {
