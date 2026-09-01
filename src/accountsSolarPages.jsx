@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Pencil, Trash2, Eye, Download, Printer } from 'lucide-react';
 import Button from './components/ui/Button.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
-import { accountsModuleApi, projectApi } from './api.js';
+import { accountsModuleApi, projectApi, inventoryApi } from './api.js';
 
 const panelClass =
   'crm-panel rounded-[12px] border border-[#dbe5f2] bg-white/90 shadow-[0_10px_24px_rgba(24,48,87,0.06)] backdrop-blur-sm';
@@ -46,7 +46,7 @@ function StatusBadge({ status }) {
 }
 
 function emptyLine() {
-  return { material_name: '', category: '', quantity: '1', unit: 'Nos', rate: '' };
+  return { inventory_item: '', material_name: '', category: '', quantity: '1', unit: 'Nos', rate: '' };
 }
 
 function emptyExtra() {
@@ -79,9 +79,22 @@ function Field({ label, children, className = '' }) {
 const inputClass =
   'h-9 w-full rounded-[8px] border border-[#dbe5f2] bg-white px-3 text-[13px] font-semibold text-[#1e3261] outline-none focus:border-[#0b65e5]';
 
-function LineItemsEditor({ lines, onChange, showCategory = true }) {
+function LineItemsEditor({ lines, onChange, showCategory = true, linkInventory = false, inventoryItems = [] }) {
   function updateLine(idx, key, value) {
-    const next = lines.map((row, i) => (i === idx ? { ...row, [key]: value } : row));
+    const next = lines.map((row, i) => {
+      if (i !== idx) return row;
+      const updated = { ...row, [key]: value };
+      if (linkInventory && key === 'inventory_item' && value) {
+        const item = inventoryItems.find((inv) => String(inv.id) === String(value));
+        if (item) {
+          updated.material_name = item.name || updated.material_name;
+          updated.unit = item.unit || updated.unit || 'Nos';
+          updated.rate = item.rate != null ? String(item.rate) : updated.rate;
+          if (item.category && !updated.category) updated.category = item.category;
+        }
+      }
+      return updated;
+    });
     onChange(next);
   }
   function addLine() {
@@ -100,6 +113,7 @@ function LineItemsEditor({ lines, onChange, showCategory = true }) {
         <table className="min-w-full text-left text-[12px]">
           <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#7b8ca8]">
             <tr>
+              {linkInventory ? <th className="px-3 py-2">Inventory Product</th> : null}
               <th className="px-3 py-2">Material / Service</th>
               {showCategory ? <th className="px-3 py-2">Category</th> : null}
               <th className="px-3 py-2">Qty</th>
@@ -114,6 +128,22 @@ function LineItemsEditor({ lines, onChange, showCategory = true }) {
               const total = Number(line.quantity || 0) * Number(line.rate || 0);
               return (
                 <tr key={idx} className="border-t border-[#eef2f7]">
+                  {linkInventory ? (
+                    <td className="px-2 py-2 min-w-[180px]">
+                      <select
+                        className={inputClass}
+                        value={line.inventory_item || ''}
+                        onChange={(e) => updateLine(idx, 'inventory_item', e.target.value)}
+                      >
+                        <option value="">Select product...</option>
+                        {inventoryItems.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name} · Stock {item.current_stock} {item.unit}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  ) : null}
                   <td className="px-2 py-2"><input className={inputClass} value={line.material_name} onChange={(e) => updateLine(idx, 'material_name', e.target.value)} placeholder="Panel / Inverter / Cable" /></td>
                   {showCategory ? <td className="px-2 py-2"><input className={inputClass} value={line.category} onChange={(e) => updateLine(idx, 'category', e.target.value)} placeholder="Solar / O&M" /></td> : null}
                   <td className="px-2 py-2 w-20"><input className={inputClass} type="number" value={line.quantity} onChange={(e) => updateLine(idx, 'quantity', e.target.value)} /></td>
@@ -187,11 +217,14 @@ export function AccountsLineDocumentPage({
   hasExtraCharges = false,
   hasVehicle = false,
   hasSiteAddress = false,
+  linkInventory = false,
+  stockSyncHint = '',
   extraHeaderFields = [],
 }) {
   const [rows, setRows] = useState([]);
   const [parties, setParties] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -214,7 +247,12 @@ export function AccountsLineDocumentPage({
   useEffect(() => {
     accountsModuleApi.parties.list({ page_size: 1000 }).then((r) => setParties(normalizeApiRows(r))).catch(() => {});
     projectApi.list({ page_size: 1000 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
-  }, []);
+    if (linkInventory) {
+      inventoryApi.items.list({ page_size: 2000 })
+        .then((r) => setInventoryItems(normalizeApiRows(r)))
+        .catch(() => {});
+    }
+  }, [linkInventory]);
 
   const filtered = useMemo(() => {
     if (!search) return rows;
@@ -262,6 +300,7 @@ export function AccountsLineDocumentPage({
       id: item.id,
       ...item,
       lines: (item.lines && item.lines.length) ? item.lines.map((l) => ({
+        inventory_item: l.inventory_item ? String(l.inventory_item) : '',
         material_name: l.material_name,
         category: l.category || '',
         quantity: String(l.quantity),
@@ -281,6 +320,7 @@ export function AccountsLineDocumentPage({
   function buildPayload(f) {
     const body = { ...f };
     body.lines = (f.lines || []).filter((l) => l.material_name).map((l) => ({
+      inventory_item: l.inventory_item ? Number(l.inventory_item) : null,
       material_name: l.material_name,
       category: l.category || '',
       quantity: Number(l.quantity || 0),
@@ -518,7 +558,15 @@ export function AccountsLineDocumentPage({
           ) : null}
 
           <div className="mt-4 space-y-4">
-            <LineItemsEditor lines={form.lines || []} onChange={(lines) => setForm((f) => ({ ...f, lines }))} />
+            {stockSyncHint ? (
+              <p className="rounded-[8px] border border-[#cfe8d6] bg-[#f1fff5] px-3 py-2 text-[12px] font-semibold text-[#078c3e]">{stockSyncHint}</p>
+            ) : null}
+            <LineItemsEditor
+              lines={form.lines || []}
+              onChange={(lines) => setForm((f) => ({ ...f, lines }))}
+              linkInventory={linkInventory}
+              inventoryItems={inventoryItems}
+            />
             {hasExtraCharges ? <ExtraChargesEditor rows={form.extra_charges || []} onChange={(extra_charges) => setForm((f) => ({ ...f, extra_charges }))} /> : null}
             <Field label="Remarks"><textarea className={cx(inputClass, 'min-h-[72px] py-2')} value={form.remarks || ''} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} /></Field>
           </div>
@@ -578,6 +626,8 @@ export function PurchaseInvoicePage(props) {
       statuses={['Draft', 'Recorded', 'Paid', 'Cancelled']}
       hasGst
       hasExtraCharges
+      linkInventory
+      stockSyncHint="Status = Recorded/Paid par stock IN + Supplier ledger + journal. Supplier account type hona chahiye."
       extraHeaderFields={[{ name: 'category', label: 'Category', default: '' }]}
     />
   );
@@ -594,6 +644,8 @@ export function SellInvoicePage(props) {
       dateField="invoice_date"
       statuses={['Pending', 'Issued', 'Paid', 'Cancelled']}
       hasGst
+      linkInventory
+      stockSyncHint="Status = Issued/Paid par stock OUT + Customer ledger + journal."
       extraHeaderFields={[
         { name: 'gst_number', label: 'GST No', default: '' },
         { name: 'branch', label: 'Branch', default: '' },
@@ -613,6 +665,8 @@ export function PurchaseChallanPage(props) {
       dateField="challan_date"
       statuses={['Open', 'Received', 'Cancelled']}
       hasVehicle
+      linkInventory
+      stockSyncHint="Status = Received par har line ke liye Stock Movement IN + inventory stock update hoga. Inventory product select karna recommended hai."
     />
   );
 }
@@ -629,6 +683,8 @@ export function SellChallanPage(props) {
       statuses={['Open', 'Dispatched', 'Delivered', 'Cancelled']}
       hasVehicle
       hasSiteAddress
+      linkInventory
+      stockSyncHint="Status = Dispatched/Delivered par har line ke liye Stock Movement OUT + inventory stock kam hoga."
     />
   );
 }

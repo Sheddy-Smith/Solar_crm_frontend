@@ -169,9 +169,15 @@ class EmployeeAttendanceSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         employee = attrs.get('employee') or getattr(self.instance, 'employee', None)
+        target_date = attrs.get('date') or getattr(self.instance, 'date', None)
         status = attrs.get('status', getattr(self.instance, 'status', 'Not Marked'))
         hours = attrs.get('hours', getattr(self.instance, 'hours', Decimal('0.00')))
         ot_hours = attrs.get('ot_hours', getattr(self.instance, 'ot_hours', Decimal('0.00')))
+
+        if target_date:
+            from django.utils import timezone
+            if target_date > timezone.localdate() and status in ('Present', 'Absent'):
+                raise serializers.ValidationError({'date': 'Cannot mark attendance for a future date.'})
 
         if employee and status == 'Present' and not hours:
             attrs['hours'] = Decimal('9.00')

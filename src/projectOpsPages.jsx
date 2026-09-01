@@ -5,9 +5,10 @@ import {
 } from 'lucide-react';
 import {
   installationMaterialApi, materialPlanApi, projectApi, projectChecklistApi,
-  projectExpenseApi, projectMilestoneApi, userApi,
+  projectExpenseApi, projectMilestoneApi, userApi, inventoryApi,
 } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { rowDoubleOpenProps } from './lib/rowDoubleOpen.js';
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
 const HEADER_SELECT = 'mt-1 h-7 w-full min-w-[88px] max-w-[120px] rounded-[6px] border border-[#d5e0ef] bg-white px-1.5 text-[11px] font-semibold text-[#314a79] outline-none';
@@ -24,6 +25,42 @@ function rowsOf(data) {
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function parseQty(v) {
+  const n = Number(String(v ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(n) ? n : 0;
+}
+
+function resolveDispatchStatus(row) {
+  const p = parseQty(row?.planned_qty);
+  const d = parseQty(row?.dispatched_qty);
+  if (d <= 0) return 'Pending';
+  if (p > 0 && d >= p) return 'Dispatched';
+  return 'Partial';
+}
+
+function projectMapKey(id) {
+  return Number(id);
+}
+
+function useAutoOpenProject(filtered, loading, initialProjectId, onMissing) {
+  const [active, setActive] = useState(null);
+  const [autoOpened, setAutoOpened] = useState(false);
+
+  useEffect(() => {
+    if (!initialProjectId || loading || autoOpened) return;
+    const match = filtered.find((p) => String(p.id) === String(initialProjectId));
+    if (match) {
+      setActive(match);
+      setAutoOpened(true);
+    } else if (filtered.length > 0) {
+      onMissing?.('Project not found in won list');
+      setAutoOpened(true);
+    }
+  }, [initialProjectId, loading, filtered, autoOpened, onMissing]);
+
+  return [active, setActive];
 }
 
 function fmtRs(n) {
@@ -173,10 +210,10 @@ function loadDispatchMaps() {
   return materialPlanApi.list({ page_size: 2000 }).then((data) => {
     const map = {};
     rowsOf(data).forEach((row) => {
-      const key = row.project;
+      const key = projectMapKey(row.project);
       if (!map[key]) map[key] = { total: 0, pending: 0, partial: 0, dispatched: 0 };
       map[key].total += 1;
-      const st = row.dispatch_status || 'Pending';
+      const st = resolveDispatchStatus(row);
       if (st === 'Dispatched') map[key].dispatched += 1;
       else if (st === 'Partial') map[key].partial += 1;
       else map[key].pending += 1;
@@ -185,10 +222,10 @@ function loadDispatchMaps() {
   }).catch(() => ({}));
 }
 
-export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNotify, Subnav }) {
+export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId }) {
   const buildMaps = useCallback(() => loadDispatchMaps(), []);
   const { filtered, loading, query, setQuery, extraByProject, reload } = useWonProjectsHub(buildMaps);
-  const [active, setActive] = useState(null);
+  const [active, setActive] = useAutoOpenProject(filtered, loading, initialProjectId, onNotify);
 
   const summary = useMemo(() => {
     const vals = Object.values(extraByProject);
@@ -233,9 +270,9 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
               {filtered.length === 0 ? (
                 <tr><td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No won projects found.</td></tr>
               ) : filtered.map((p, i) => {
-                const st = extraByProject[p.id] || { total: 0, pending: 0, partial: 0, dispatched: 0 };
+                const st = extraByProject[projectMapKey(p.id)] || { total: 0, pending: 0, partial: 0, dispatched: 0 };
                 return (
-                  <tr key={p.id} className="cursor-pointer hover:bg-[#f8fbff]" onClick={() => setActive(p)}>
+                  <tr key={p.id} {...rowDoubleOpenProps(() => setActive(p), { title: 'Double-tap to view project' })}>
                     <td className="crm-col-index">{i + 1}</td>
                     <td>
                       <div className="font-semibold leading-tight text-[#1e3261]">{p.project_name || p.project_id}</div>
@@ -249,8 +286,8 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
                     <td><Pill tone="slate">{st.pending}</Pill></td>
                     <td><Pill tone="amber">{st.partial}</Pill></td>
                     <td><Pill tone="green">{st.dispatched}</Pill></td>
-                    <td className="crm-col-sticky-right">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setActive(p); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white">
+                    <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+                      <button type="button" onClick={() => setActive(p)} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white">
                         <Truck className="size-3.5" />
                         {st.total ? 'Open Dispatch' : 'View'}
                       </button>
@@ -276,19 +313,10 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
 }
 
 function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
-  const parseQty = (v) => {
-    const n = Number(String(v ?? '').replace(/,/g, '').trim());
-    return Number.isFinite(n) ? n : 0;
-  };
-  const resolveStatus = (planned, dispatched) => {
-    const p = parseQty(planned);
-    const d = parseQty(dispatched);
-    if (d <= 0) return 'Pending';
-    if (p > 0 && d >= p) return 'Dispatched';
-    return 'Partial';
-  };
+  const resolveStatus = resolveDispatchStatus;
 
   const [rows, setRows] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
   const [formOpen, setFormOpen] = useState(false);
@@ -299,7 +327,12 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setRows(rowsOf(await materialPlanApi.list({ project: project.id, page_size: 500 })));
+      const [plans, items] = await Promise.all([
+        materialPlanApi.list({ project: project.id, page_size: 500 }),
+        inventoryApi.items.list({ page_size: 2000 }),
+      ]);
+      setRows(rowsOf(plans));
+      setInventoryItems(rowsOf(items));
     } catch {
       onNotify('Failed to load materials');
     } finally {
@@ -311,17 +344,18 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
 
   const filtered = rows.filter((r) => {
     if (statusFilter === 'All') return true;
-    return (r.dispatch_status || resolveStatus(r.planned_qty, r.dispatched_qty)) === statusFilter;
+    return resolveStatus(r) === statusFilter;
   });
 
   const openForm = (row) => {
     setActiveRow(row);
     setForm({
-      dispatched_qty: row.dispatched_qty || row.planned_qty || '',
+      dispatched_qty: row.dispatched_qty ?? '',
       dispatch_date: row.dispatch_date || todayIso(),
       vehicle_no: row.vehicle_no || '',
       challan_no: row.challan_no || '',
       dispatch_notes: row.dispatch_notes || '',
+      inventory_item: row.inventory_item || '',
     });
     setFormOpen(true);
   };
@@ -332,9 +366,13 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
       onNotify('Dispatched quantity required');
       return;
     }
+    if (parseQty(form.dispatched_qty) > 0 && !form.inventory_item) {
+      onNotify('Select inventory product — stock will move to Stock Movement', 'error');
+      return;
+    }
     setSaving(true);
     try {
-      const dispatch_status = resolveStatus(activeRow.planned_qty, form.dispatched_qty);
+      const dispatch_status = resolveStatus({ ...activeRow, dispatched_qty: form.dispatched_qty });
       const updated = await materialPlanApi.update(activeRow.id, {
         dispatched_qty: String(form.dispatched_qty),
         dispatch_status,
@@ -342,12 +380,28 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
         vehicle_no: form.vehicle_no,
         challan_no: form.challan_no,
         dispatch_notes: form.dispatch_notes,
+        inventory_item: form.inventory_item || null,
       });
-      setRows((prev) => prev.map((r) => (r.id === activeRow.id ? { ...r, ...updated } : r)));
+
+      const itemId = form.inventory_item || activeRow.inventory_item || updated?.inventory_item;
+      let remainLabel = '';
+      if (itemId) {
+        try {
+          const fresh = await inventoryApi.items.get(itemId);
+          if (fresh) {
+            remainLabel = ` · Remaining stock ${fresh.current_stock ?? 0} ${fresh.unit || ''}`;
+            setInventoryItems((prev) => prev.map((row) => (String(row.id) === String(itemId) ? { ...row, ...fresh } : row)));
+          }
+        } catch { /* ignore */ }
+      }
+
+      setRows((prev) => prev.map((r) => (r.id === activeRow.id ? { ...r, ...updated, inventory_item: itemId || r.inventory_item } : r)));
       setFormOpen(false);
-      onNotify(dispatch_status === 'Dispatched' ? 'Fully dispatched' : 'Dispatch updated');
+      onNotify(
+        (dispatch_status === 'Dispatched' ? 'Dispatched — stock synced' : 'Dispatch updated') + remainLabel,
+      );
     } catch (e) {
-      onNotify(e.message || 'Save failed');
+      onNotify(e.message || 'Dispatch failed', 'error');
     } finally {
       setSaving(false);
     }
@@ -409,7 +463,7 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
                   </thead>
                   <tbody>
                     {filtered.map((row, idx) => {
-                      const status = row.dispatch_status || resolveStatus(row.planned_qty, row.dispatched_qty);
+                      const status = resolveStatus(row);
                       const left = Math.max(0, parseQty(row.planned_qty) - parseQty(row.dispatched_qty));
                       return (
                         <tr key={row.id}>
@@ -448,6 +502,22 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
               <button type="button" onClick={() => setFormOpen(false)}><X className="size-5 text-[#7585a2]" /></button>
             </div>
             <div className="grid gap-3 p-5">
+              <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">
+                Inventory Product *
+                <select
+                  value={form.inventory_item || ''}
+                  onChange={(e) => setForm((p) => ({ ...p, inventory_item: e.target.value }))}
+                  className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold text-[#1e3261] outline-none"
+                >
+                  <option value="">Select product to deduct stock...</option>
+                  {inventoryItems.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} · Stock {item.current_stock} {item.unit}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[11px] font-semibold text-[#7a8fa6]">Dispatch ke baad Inventory → Stock Movement me dikhega</span>
+              </label>
               {[
                 ['dispatched_qty', 'Dispatched Qty *', 'number'],
                 ['dispatch_date', 'Dispatch Date', 'date'],
@@ -477,9 +547,9 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
 
 /* ───────────────── INSTALLATION ───────────────── */
 
-export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify, Subnav }) {
+export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId }) {
   const { filtered, loading, query, setQuery, reload, projects } = useWonProjectsHub(null);
-  const [active, setActive] = useState(null);
+  const [active, setActive] = useAutoOpenProject(filtered, loading, initialProjectId, onNotify);
 
   const installSummary = useMemo(() => ({
     total: projects.length,
@@ -521,7 +591,7 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
               {filtered.length === 0 ? (
                 <tr><td colSpan={6} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No won projects found.</td></tr>
               ) : filtered.map((p, i) => (
-                <tr key={p.id} className="cursor-pointer hover:bg-[#f8fbff]" onClick={() => setActive(p)}>
+                <tr key={p.id} {...rowDoubleOpenProps(() => setActive(p), { title: 'Double-tap to view project' })}>
                   <td className="crm-col-index">{i + 1}</td>
                   <td>
                     <div className="font-semibold leading-tight text-[#1e3261]">{p.project_name || p.project_id}</div>
@@ -533,8 +603,8 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
                   </td>
                   <td className="font-semibold text-[#0b65e5]">{Number(p.capacity_kwp) > 0 ? `${p.capacity_kwp} kWp` : '—'}</td>
                   <td><Pill tone={p.status === 'Active' ? 'green' : p.status === 'Completed' ? 'blue' : 'slate'}>{p.status || '—'}</Pill></td>
-                  <td className="crm-col-sticky-right">
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setActive(p); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white">
+                  <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+                    <button type="button" onClick={() => setActive(p)} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white">
                       <Wrench className="size-3.5" />
                       Open Install
                     </button>
@@ -617,7 +687,13 @@ function InstallationDetailModal({ project, onClose, onNotify }) {
   const saveMat = async () => {
     if (!matForm.item_name.trim()) { onNotify('Material name required'); return; }
     try {
-      const payload = { ...matForm, project: project.id };
+      const payload = {
+        ...matForm,
+        project: project.id,
+        required_qty: matForm.required_qty === '' ? 0 : matForm.required_qty,
+        issued_qty: matForm.issued_qty === '' ? 0 : matForm.issued_qty,
+        consumed_qty: matForm.consumed_qty === '' ? 0 : matForm.consumed_qty,
+      };
       if (matEdit) await installationMaterialApi.update(matEdit.id, payload);
       else await installationMaterialApi.create(payload);
       setMatOpen(false);
@@ -883,7 +959,7 @@ function loadExpenseMaps() {
   return projectExpenseApi.list({ page_size: 2000 }).then((data) => {
     const map = {};
     rowsOf(data).forEach((row) => {
-      const key = row.project;
+      const key = projectMapKey(row.project);
       if (!map[key]) map[key] = { count: 0, total: 0, pending: 0, paid: 0 };
       map[key].count += 1;
       map[key].total += Number(row.amount) || 0;
@@ -894,10 +970,10 @@ function loadExpenseMaps() {
   }).catch(() => ({}));
 }
 
-export function ProjectExpensesPage({ activeSection, onOpenSection, onNotify, Subnav }) {
+export function ProjectExpensesPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId }) {
   const buildMaps = useCallback(() => loadExpenseMaps(), []);
   const { filtered, loading, query, setQuery, extraByProject, reload } = useWonProjectsHub(buildMaps);
-  const [active, setActive] = useState(null);
+  const [active, setActive] = useAutoOpenProject(filtered, loading, initialProjectId, onNotify);
 
   const summary = useMemo(() => {
     const vals = Object.values(extraByProject);
@@ -942,9 +1018,9 @@ export function ProjectExpensesPage({ activeSection, onOpenSection, onNotify, Su
               {filtered.length === 0 ? (
                 <tr><td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No won projects found.</td></tr>
               ) : filtered.map((p, i) => {
-                const st = extraByProject[p.id] || { count: 0, total: 0, pending: 0, paid: 0 };
+                const st = extraByProject[projectMapKey(p.id)] || { count: 0, total: 0, pending: 0, paid: 0 };
                 return (
-                  <tr key={p.id} className="cursor-pointer hover:bg-[#f8fbff]" onClick={() => setActive(p)}>
+                  <tr key={p.id} {...rowDoubleOpenProps(() => setActive(p), { title: 'Double-tap to view project' })}>
                     <td className="crm-col-index">{i + 1}</td>
                     <td>
                       <div className="font-semibold leading-tight text-[#1e3261]">{p.project_name || p.project_id}</div>
@@ -958,8 +1034,8 @@ export function ProjectExpensesPage({ activeSection, onOpenSection, onNotify, Su
                     <td className="font-semibold text-[#078c3e]">{fmtRs(st.total)}</td>
                     <td><Pill tone="amber">{st.pending}</Pill></td>
                     <td><Pill tone="green">{st.paid}</Pill></td>
-                    <td className="crm-col-sticky-right">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setActive(p); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white">
+                    <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+                      <button type="button" onClick={() => setActive(p)} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white">
                         <Wallet className="size-3.5" />
                         {st.count ? 'Open Expenses' : 'Add Expense'}
                       </button>
@@ -984,7 +1060,7 @@ export function ProjectExpensesPage({ activeSection, onOpenSection, onNotify, Su
 }
 
 function ExpensesDetailModal({ project, onClose, onNotify }) {
-  const CATEGORIES = ['Materials', 'Labor', 'Transport', 'Equipment', 'Miscellaneous', 'Other'];
+  const CATEGORIES = ['Materials', 'Labor', 'Transport', 'Equipment', 'Miscellaneous'];
   const STATUSES = ['Pending', 'Paid', 'Partial'];
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1034,9 +1110,10 @@ function ExpensesDetailModal({ project, onClose, onNotify }) {
 
   const save = async () => {
     if (!form.amount) { onNotify('Amount required'); return; }
+    const description = (form.description || '').trim() || `${form.category} expense`;
     setSaving(true);
     try {
-      const payload = { ...form, project: project.id };
+      const payload = { ...form, description, project: project.id, amount: Number(form.amount) };
       if (editRow) await projectExpenseApi.update(editRow.id, payload);
       else await projectExpenseApi.create(payload);
       setFormOpen(false);

@@ -333,7 +333,8 @@ function formatLocalIsoLabel(iso) {
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-/** Split scheduled follow-ups into today's (high alert) vs overdue (extra high). */
+/** Split scheduled follow-ups into today's (high alert) vs overdue (extra high).
+ *  Won/Lost leads are excluded — sales follow-up cycle is closed. */
 export function splitFollowUpAlerts(scheduledRows) {
   const todayStart = startOfLocalDay();
   const tomorrowStart = new Date(todayStart);
@@ -341,6 +342,8 @@ export function splitFollowUpAlerts(scheduledRows) {
   const today = [];
   const overdue = [];
   for (const item of scheduledRows || []) {
+    const leadStatus = String(item.lead_status || '').trim();
+    if (leadStatus === 'Won' || leadStatus === 'Lost') continue;
     const when = new Date(item.scheduled_at);
     if (Number.isNaN(when.getTime())) continue;
     if (when < todayStart) overdue.push(item);
@@ -349,6 +352,15 @@ export function splitFollowUpAlerts(scheduledRows) {
   today.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
   overdue.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
   return { today, overdue };
+}
+
+/** Open-pipeline scheduled rows only (exclude Won/Lost leads). */
+export function activeScheduledFollowUps(rows) {
+  return (rows || []).filter((item) => {
+    if (item.status !== 'Scheduled') return false;
+    const leadStatus = String(item.lead_status || '').trim();
+    return leadStatus !== 'Won' && leadStatus !== 'Lost';
+  });
 }
 
 function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
@@ -1181,7 +1193,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const lostCount = teamLeadRows.filter((lead) => lead.status === 'Lost' || teleDisplayStatus(lead) === 'Lost').length;
 
   const scheduledFollowUps = useMemo(
-    () => scopedFollowUps.filter((item) => item.status === 'Scheduled').sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)),
+    () => activeScheduledFollowUps(scopedFollowUps).sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)),
     [scopedFollowUps],
   );
 
@@ -1897,7 +1909,20 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
               <tr
                 key={lead.id}
                 onDoubleClick={() => onView(lead)}
-                title="Double-click to view follow-up history"
+                onTouchEnd={(event) => {
+                  if (event.target.closest('button, a, input, select, textarea')) return;
+                  const el = event.currentTarget;
+                  const now = Date.now();
+                  const prev = Number(el.dataset.lastTapAt || 0);
+                  if (now - prev > 0 && now - prev < 320) {
+                    event.preventDefault();
+                    el.dataset.lastTapAt = '0';
+                    onView(lead);
+                    return;
+                  }
+                  el.dataset.lastTapAt = String(now);
+                }}
+                title="Double-tap to view follow-up history"
                 className="cursor-pointer border-b border-[#f1f5fa] text-[12.5px] font-bold text-[#33456b] transition hover:bg-[#f8fbff]"
               >
                 <td className="px-2.5 py-2 text-[#7585a2]">{(safePage - 1) * pageSize + index + 1}</td>
@@ -2191,7 +2216,7 @@ function TeleFollowUpsPage({
     [holderFollowUps],
   );
   const scheduled = useMemo(
-    () => holderFollowUps.filter((item) => item.status === 'Scheduled'),
+    () => activeScheduledFollowUps(holderFollowUps),
     [holderFollowUps],
   );
   const { today, overdue } = useMemo(() => splitFollowUpAlerts(scheduled), [scheduled]);
@@ -2848,7 +2873,7 @@ function TeleReportsPage({ leads, followUps, loaded = true }) {
     [periodFollowUps],
   );
   const scheduledInPeriod = useMemo(
-    () => periodFollowUps.filter((item) => item.status === 'Scheduled'),
+    () => activeScheduledFollowUps(periodFollowUps),
     [periodFollowUps],
   );
   const { today: todayDue, overdue } = useMemo(
@@ -2859,7 +2884,7 @@ function TeleReportsPage({ leads, followUps, loaded = true }) {
   // For Today/Week/Month overdue card: if period is "today", show all still-overdue
   // from full queue so the filter still feels actionable.
   const liveScheduled = useMemo(
-    () => allFollowUps.filter((item) => item.status === 'Scheduled'),
+    () => activeScheduledFollowUps(allFollowUps),
     [allFollowUps],
   );
   const liveAlerts = useMemo(() => splitFollowUpAlerts(liveScheduled), [liveScheduled]);

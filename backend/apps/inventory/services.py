@@ -67,10 +67,27 @@ def inventory_summary():
     def unit_map(rows):
         return {r['item__unit'] or 'Nos': float(r['total'] or 0) for r in rows}
 
+    def alert_row(item):
+        return {
+            'id': item.id,
+            'name': item.name,
+            'item_code': item.item_code or '',
+            'category': item.category or '',
+            'current_stock': float(item.current_stock or 0),
+            'minimum_stock': float(item.minimum_stock or 0),
+            'unit': item.unit or 'Nos',
+            'warehouse_name': item.warehouse.name if item.warehouse_id else '',
+        }
+
+    critical_qs = qs.filter(current_stock__lte=0).select_related('warehouse').order_by('name')
+    warning_qs = qs.filter(current_stock__lte=F('minimum_stock'), current_stock__gt=0).select_related('warehouse').order_by('current_stock', 'name')
+    stable_qs = qs.filter(current_stock__gt=F('minimum_stock')).select_related('warehouse').order_by('-current_stock', 'name')
+
     return {
         'total_items': qs.count(),
-        'low_stock': qs.filter(current_stock__lte=F('minimum_stock'), current_stock__gt=0).count(),
-        'out_of_stock': qs.filter(current_stock__lte=0).count(),
+        'low_stock': warning_qs.count(),
+        'out_of_stock': critical_qs.count(),
+        'stable_stock': stable_qs.count(),
         'total_value': float(total_value),
         'by_unit': by_unit,
         'by_category': by_category,
@@ -78,6 +95,14 @@ def inventory_summary():
         'total_movements': total_movements,
         'stock_in_by_unit': unit_map(in_rows),
         'stock_out_by_unit': unit_map(out_rows),
+        'alerts': {
+            'critical': [alert_row(i) for i in critical_qs[:12]],
+            'warning': [alert_row(i) for i in warning_qs[:12]],
+            'stable': [alert_row(i) for i in stable_qs[:12]],
+            'critical_count': critical_qs.count(),
+            'warning_count': warning_qs.count(),
+            'stable_count': stable_qs.count(),
+        },
     }
 
 
@@ -128,10 +153,13 @@ def unit_totals(qs):
 
 
 DEFAULT_CATEGORIES = [
-    ('Solar Panel', 'PV modules and panels'),
-    ('Inverter', 'Grid-tie and hybrid inverters'),
-    ('Battery', 'Storage batteries'),
-    ('Structure', 'Mounting structures and rails'),
+    ('Structure', 'Mounting structures, rails, and packing units'),
+    ('Electrical', 'Cables, connectors, ACDB/DCDB, hardware'),
+    ('Invertor', 'On-grid, off-grid and hybrid inverters'),
+    ('Panel', 'PV modules and solar panels'),
+    ('Battery', 'Storage batteries (LFP / LTB / Lead Acid)'),
+    ('Solar Panel', 'Legacy alias for panels'),
+    ('Inverter', 'Legacy alias for inverters'),
     ('Cable & Wire', 'DC/AC cables and wiring'),
     ('ACDB/DCDB', 'Distribution boxes'),
     ('Steel', 'Angle, channel, sheet, pipe etc.'),
@@ -143,5 +171,23 @@ DEFAULT_CATEGORIES = [
 def seed_inventory_categories():
     from .models import InventoryCategory
 
+    template_for = {
+        'Structure': 'Structure',
+        'Electrical': 'Electrical',
+        'Invertor': 'Invertor',
+        'Panel': 'Panel',
+        'Battery': 'Battery',
+        'Solar Panel': 'Panel',
+        'Inverter': 'Invertor',
+    }
     for name, description in DEFAULT_CATEGORIES:
-        InventoryCategory.objects.get_or_create(name=name, defaults={'description': description})
+        obj, created = InventoryCategory.objects.get_or_create(
+            name=name,
+            defaults={
+                'description': description,
+                'form_template': template_for.get(name, 'Generic'),
+            },
+        )
+        if not created and not obj.form_template:
+            obj.form_template = template_for.get(name, 'Generic')
+            obj.save(update_fields=['form_template'])

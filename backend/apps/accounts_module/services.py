@@ -30,6 +30,7 @@ def _default_accounts():
         ('1110', 'Cash in Hand', 'Asset'),
         ('1120', 'Cash at Bank', 'Asset'),
         ('1130', 'Accounts Receivable', 'Asset'),
+        ('1200', 'Inventory', 'Asset'),
         ('2110', 'Accounts Payable', 'Liability'),
         ('4100', 'Sales Revenue', 'Income'),
         ('5100', 'General Expenses', 'Expense'),
@@ -134,6 +135,10 @@ def recalculate_party_balance(party_id):
     payable = PurchaseInvoice.objects.filter(supplier_id=party_id).exclude(
         status='Cancelled',
     ).aggregate(total=Sum('balance_due'))['total'] or Decimal('0')
+    from .models import PurchaseChallan
+    payable += PurchaseChallan.objects.filter(
+        supplier_id=party_id, status='Received',
+    ).aggregate(total=Sum('balance_due'))['total'] or Decimal('0')
 
     party.balance = party.opening_balance - received + made + receivable - payable
     party.save(update_fields=['balance', 'updated_at'])
@@ -187,9 +192,9 @@ def sync_journal_for_payment(payment):
     ref = payment.reference_no or f'{"RCPT" if payment.direction == "Received" else "PMT"}-{payment.id:04d}'
     if payment.direction == 'Received':
         debit = cash_bank
-        credit = defaults['4100']
+        credit = defaults['1130']
     else:
-        debit = defaults['5100']
+        debit = defaults['2110'] if payment.party_id and getattr(payment.party, 'account_type', None) in ('Vendor', 'Supplier') else defaults['5100']
         credit = cash_bank
     Transaction.objects.update_or_create(
         source_payment=payment,
@@ -246,11 +251,11 @@ def sync_journal_for_invoice(invoice, kind):
     party_label = (invoice.supplier_name if is_purchase else invoice.party_name) or (party.name if party else '—')
 
     if is_purchase:
-        txn_type = 'Payment Made'
-        debit_account = defaults['5100']
+        txn_type = 'Purchase Invoice'
+        debit_account = defaults['1200']
         credit_account = settlement_account
     else:
-        txn_type = 'Payment Received'
+        txn_type = 'Sell Invoice'
         debit_account = settlement_account
         credit_account = defaults['4100']
 
@@ -304,10 +309,65 @@ def _payment_mode_for_voucher(raw_mode):
     return 'Cash'
 
 
+def remove_payment_voucher_and_journal(voucher):
+    """Delete journal (if any) then the PaymentVoucher. Safe for cascading syncs."""
+    if voucher is None:
+        return
+    Transaction.objects.filter(source_payment_voucher_id=voucher.pk).delete()
+    voucher.delete()
+
+
+def sync_journal_for_payment_voucher(voucher, debit_account=None, credit_account=None):
+    """
+    Post (or clear) a Transaction for a PaymentVoucher.
+    Debit = expense COA (labour / material / transport…); Credit = cash/bank.
+    Idempotent via source_payment_voucher OneToOne.
+    """
+    from .category_map import resolve_labour_coa, resolve_coa_for_category
+
+    if voucher is None:
+        return None
+
+    amount = _d(voucher.amount)
+    if voucher.status != 'Completed' or amount <= 0:
+        Transaction.objects.filter(source_payment_voucher=voucher).delete()
+        return None
+
+    defaults_coa = _default_accounts()
+    if debit_account is None:
+        cat = (voucher.category or '').strip()
+        if voucher.employee_voucher_id or voucher.payee_type == 'Labour' or cat.lower() in ('labour', 'labor'):
+            debit_account = resolve_labour_coa()
+        else:
+            debit_account = resolve_coa_for_category('ProjectExpense', cat or 'Miscellaneous', fallback_code='5100')
+
+    if credit_account is None:
+        credit_account = account_for_cash_or_bank(voucher.payment_mode, None, defaults_coa)
+
+    ref = voucher.voucher_no or f'VCH-{voucher.id:04d}'
+    txn, _ = Transaction.objects.update_or_create(
+        source_payment_voucher=voucher,
+        defaults={
+            'transaction_date': voucher.voucher_date,
+            'transaction_type': 'Payment Made',
+            'reference_number': ref,
+            'debit_account': debit_account,
+            'credit_account': credit_account,
+            'payment_mode': voucher.payment_mode or '',
+            'amount': amount,
+            'description': voucher.particulars or f'{voucher.entry_type} — {voucher.payee_name}',
+            'status': 'Completed',
+            'created_by': voucher.created_by,
+        },
+    )
+    return txn
+
+
 def sync_payment_voucher_for_employee_voucher(employee_voucher, user=None):
-    """Mirror workforce labour vouchers into Accounts PaymentVoucher (BUG-020)."""
+    """Mirror workforce labour vouchers into Accounts PaymentVoucher (BUG-020) + journal."""
     from .models import PaymentVoucher
     from .document_services import next_document_number
+    from .category_map import resolve_labour_coa
 
     employee = employee_voucher.employee
     particulars = (employee_voucher.notes or '').strip()
@@ -336,11 +396,16 @@ def sync_payment_voucher_for_employee_voucher(employee_voucher, user=None):
     if created and not payment_voucher.voucher_no:
         payment_voucher.voucher_no = next_document_number('EXP', PaymentVoucher, 'voucher_no')
         payment_voucher.save(update_fields=['voucher_no'])
+
+    sync_journal_for_payment_voucher(payment_voucher, debit_account=resolve_labour_coa())
     return payment_voucher
 
 
 def remove_payment_voucher_for_employee_voucher(employee_voucher):
-    PaymentVoucher.objects.filter(employee_voucher_id=employee_voucher.pk).delete()
+    from .models import PaymentVoucher
+    voucher = PaymentVoucher.objects.filter(employee_voucher_id=employee_voucher.pk).first()
+    if voucher:
+        remove_payment_voucher_and_journal(voucher)
 
 
 def sync_project_payment_to_accounts(project_payment, user):

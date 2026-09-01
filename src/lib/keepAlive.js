@@ -7,7 +7,7 @@
 // ignored; failures are swallowed (debug log only) and the next interval
 // continues normally. Browser clears the timer automatically on tab close.
 const PING_INTERVAL_MS = 14 * 60 * 1000;
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api/v1' : 'https://api.crm.ecomalwa.com/api/v1');
 
 // Timer id lives on window so a Vite HMR re-evaluation of this module (dev)
 // can't stack a duplicate interval on top of the old one.

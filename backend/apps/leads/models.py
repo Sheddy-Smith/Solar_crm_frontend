@@ -582,6 +582,15 @@ class LeadSurveyPhoto(models.Model):
 
 
 @receiver(post_save, sender=Lead)
+def close_follow_ups_when_lead_closed(sender, instance, **kwargs):
+    """Won/Lost → close Scheduled follow-ups so Extra High / High Alert clear."""
+    if instance.status not in ('Won', 'Lost'):
+        return
+    from apps.leads.followup_sync import close_scheduled_follow_ups_for_closed_lead
+    close_scheduled_follow_ups_for_closed_lead(instance)
+
+
+@receiver(post_save, sender=Lead)
 def create_project_for_won_lead(sender, instance, **kwargs):
     if instance.status != 'Won':
         return
@@ -596,6 +605,19 @@ def create_project_for_won_lead(sender, instance, **kwargs):
     except (InvalidOperation, ValueError):
         capacity_kwp = Decimal('0')
 
+    total_value = Decimal('0')
+    try:
+        latest_quote = (
+            Quotation.objects.filter(lead=instance)
+            .exclude(status='Cancelled')
+            .order_by('-updated_at', '-id')
+            .first()
+        )
+        if latest_quote and latest_quote.grand_total:
+            total_value = Decimal(str(latest_quote.grand_total))
+    except Exception:
+        total_value = Decimal('0')
+
     lead_survey = getattr(instance, 'site_survey', None)
 
     project = Project.objects.create(
@@ -608,10 +630,17 @@ def create_project_for_won_lead(sender, instance, **kwargs):
         site_size=(lead_survey.site_size_sqft if lead_survey else ''),
         project_type=instance.project_type or 'On-Grid',
         capacity_kwp=capacity_kwp,
+        total_value=total_value,
         manager=instance.assigned_to,
         status='Planning',
         created_by=instance.created_by,
     )
+
+    try:
+        from apps.accounts_module.services import get_or_create_party_for_project
+        get_or_create_party_for_project(project)
+    except Exception:
+        pass
 
     if lead_survey:
         SiteSurvey.objects.create(

@@ -30,6 +30,7 @@ class Account(models.Model):
     TYPE_CHOICES = [
         ('Customer', 'Customer'),
         ('Vendor', 'Vendor'),
+        ('Supplier', 'Supplier'),
         ('Partner', 'Partner'),
     ]
     STATUS_CHOICES = [
@@ -37,13 +38,27 @@ class Account(models.Model):
         ('Inactive', 'Inactive'),
         ('Pending', 'Pending'),
     ]
+    RELATION_CHOICES = [
+        ('Good', 'Good'),
+        ('Ok', 'Ok'),
+        ('Poor', 'Poor'),
+        ('Bad', 'Bad'),
+    ]
 
     name = models.CharField(max_length=200)
     account_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Customer')
     contact_person = models.CharField(max_length=200, blank=True)
+    company = models.CharField(max_length=200, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
     city = models.CharField(max_length=100, blank=True)
+    address = models.TextField(blank=True)
+    gstin = models.CharField(max_length=15, blank=True)
+    vehicle_number = models.CharField(max_length=40, blank=True)
+    credit_limit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    credit_days = models.PositiveSmallIntegerField(default=30)
+    relation = models.CharField(max_length=10, choices=RELATION_CHOICES, blank=True)
+    vendor_type = models.CharField(max_length=100, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active')
     opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
@@ -197,6 +212,43 @@ class Cheque(models.Model):
         ordering = ['-cheque_date', '-created_at']
 
 
+class AccountCategoryMap(models.Model):
+    """Maps business categories (Panel, Labour, Transport…) to Chart of Account ledgers.
+
+    Used by Employee vouchers, Project expenses, Material dispatch cost postings,
+    and Material Planning difference reporting — never hard-code COA codes in sync.
+    """
+    MODULE_CHOICES = [
+        ('Material', 'Material'),
+        ('Labour', 'Labour'),
+        ('Transport', 'Transport'),
+        ('Subcontractor', 'Subcontractor'),
+        ('ProjectExpense', 'Project Expense'),
+        ('PlanningDifference', 'Material Planning Difference'),
+        ('Revenue', 'Revenue'),
+        ('Other', 'Other'),
+    ]
+
+    business_module = models.CharField(max_length=40, choices=MODULE_CHOICES)
+    business_category = models.CharField(max_length=100)
+    chart_account = models.ForeignKey(
+        ChartOfAccount, on_delete=models.PROTECT, related_name='category_maps',
+    )
+    is_active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['business_module', 'business_category']
+        unique_together = ('business_module', 'business_category')
+        verbose_name = 'Category → COA Map'
+        verbose_name_plural = 'Category → COA Maps'
+
+    def __str__(self):
+        return f'{self.business_module} / {self.business_category} → {self.chart_account.account_code}'
+
+
 class Transaction(models.Model):
     TYPE_CHOICES = [
         ('Payment Received', 'Payment Received'),
@@ -214,6 +266,13 @@ class Transaction(models.Model):
     reference_number = models.CharField(max_length=100, blank=True)
     source_payment = models.OneToOneField(
         Payment, on_delete=models.SET_NULL, null=True, blank=True, related_name='journal_entry',
+    )
+    source_payment_voucher = models.OneToOneField(
+        'PaymentVoucher',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='journal_entry',
     )
     debit_account = models.ForeignKey(
         ChartOfAccount, on_delete=models.PROTECT, null=True, blank=True, related_name='debit_transactions',
@@ -294,6 +353,20 @@ class PurchaseInvoice(_GstMixin):
 
 class PurchaseInvoiceLine(models.Model):
     invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.CASCADE, related_name='lines')
+    inventory_item = models.ForeignKey(
+        'inventory.InventoryItem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='purchase_invoice_lines',
+    )
+    stock_movement = models.OneToOneField(
+        'inventory.StockMovement',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='purchase_invoice_line',
+    )
     material_name = models.CharField(max_length=200)
     category = models.CharField(max_length=100, blank=True)
     quantity = models.DecimalField(max_digits=12, decimal_places=2, default=1)
@@ -350,6 +423,20 @@ class SellInvoice(_GstMixin):
 
 class SellInvoiceLine(models.Model):
     invoice = models.ForeignKey(SellInvoice, on_delete=models.CASCADE, related_name='lines')
+    inventory_item = models.ForeignKey(
+        'inventory.InventoryItem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sell_invoice_lines',
+    )
+    stock_movement = models.OneToOneField(
+        'inventory.StockMovement',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sell_invoice_line',
+    )
     material_name = models.CharField(max_length=200)
     category = models.CharField(max_length=100, blank=True)
     quantity = models.DecimalField(max_digits=12, decimal_places=2, default=1)
@@ -369,6 +456,7 @@ class PaymentVoucher(models.Model):
     ]
     PAYEE_TYPE_CHOICES = [
         ('Supplier', 'Supplier'),
+        ('Vendor', 'Vendor'),
         ('Labour', 'Labour'),
         ('Customer', 'Customer'),
         ('Other', 'Other'),
@@ -392,6 +480,20 @@ class PaymentVoucher(models.Model):
         null=True,
         blank=True,
         related_name='accounts_payment_voucher',
+    )
+    project_expense = models.OneToOneField(
+        'projects.ProjectExpense',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='accounts_voucher',
+    )
+    material_plan = models.OneToOneField(
+        'projects.MaterialPlan',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='cost_voucher',
     )
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='payment_vouchers_created')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -495,6 +597,20 @@ class SellChallan(models.Model):
 
 class SellChallanLine(models.Model):
     challan = models.ForeignKey(SellChallan, on_delete=models.CASCADE, related_name='lines')
+    inventory_item = models.ForeignKey(
+        'inventory.InventoryItem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sell_challan_lines',
+    )
+    stock_movement = models.OneToOneField(
+        'inventory.StockMovement',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sell_challan_line',
+    )
     material_name = models.CharField(max_length=200)
     category = models.CharField(max_length=100, blank=True)
     quantity = models.DecimalField(max_digits=12, decimal_places=2, default=1)

@@ -441,7 +441,7 @@ function DashboardSkeleton() {
 
 const ALERT_DEFS = [
   { key: 'low_stock_items', label: 'Low Stock Items', section: 'Products', icon: PackageMinus, iconBg: 'bg-[#ffe4e6]', iconColor: 'text-[#f43f5e]' },
-  { key: 'out_of_stock_items', label: 'Out of Stock', section: 'Stock Inward', icon: PackageX, iconBg: 'bg-[#ede9fe]', iconColor: 'text-[#8b5cf6]' },
+  { key: 'out_of_stock_items', label: 'Out of Stock', section: 'Stock', icon: PackageX, iconBg: 'bg-[#ede9fe]', iconColor: 'text-[#8b5cf6]' },
   { key: 'expiring_amc', label: 'Expiring AMC', section: 'AMC Contracts', icon: Hourglass, iconBg: 'bg-[#ffedd5]', iconColor: 'text-[#f59e0b]' },
   { key: 'pending_tasks', label: 'Pending O&M Tasks', section: 'Maintenance Tasks', icon: Wrench, iconBg: 'bg-[#dbeafe]', iconColor: 'text-[#3b82f6]' },
   { key: 'open_om_tickets', label: 'Open O&M Tickets', section: 'Breakdown Tickets', icon: Ticket, iconBg: 'bg-[#dcfce7]', iconColor: 'text-[#16a34a]' },
@@ -594,7 +594,7 @@ export function UnifiedDashboardPage({
               <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <QuickActionBtn label="New Lead" icon={UserPlus} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Create Lead')} />
                 <QuickActionBtn label="Record Payment" icon={CreditCard} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Payment Received')} />
-                <QuickActionBtn label="Stock Inward" icon={Download} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Stock Inward')} />
+                <QuickActionBtn label="Stock" icon={Download} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Stock')} />
                 <QuickActionBtn label="O&M Tickets" icon={Wrench} iconBg="bg-[#ccfbf1]" iconColor="text-[#0d9488]" onClick={() => onOpenSection('Breakdown Tickets')} />
                 <QuickActionBtn label="View Alerts" icon={Bell} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => setTabAndSync('alerts')} />
               </section>

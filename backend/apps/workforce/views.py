@@ -14,7 +14,7 @@ from .serializers import (
     EmployeeAssignmentSerializer, EmployeeDocumentSerializer,
     EmployeeAttendanceSerializer, EmployeeVoucherSerializer,
 )
-from .services import attendance_ledger_payload, week_start_for, sync_employees_from_users
+from .services import attendance_ledger_payload, week_start_for, sync_employees_from_users, attendance_date_allowed
 from apps.accounts.permissions import HasModulePermission
 
 
@@ -129,6 +129,8 @@ class EmployeeAttendanceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='mark-present')
     def mark_present(self, request, pk=None):
         record = self.get_object()
+        if not attendance_date_allowed(record.date):
+            return Response({'detail': 'Cannot mark attendance for a future date.'}, status=status.HTTP_400_BAD_REQUEST)
         hours = request.data.get('hours', record.employee.duty_hours_per_day or 9)
         ot_hours = request.data.get('ot_hours', 0)
         serializer = self.get_serializer(record, data={
@@ -147,6 +149,8 @@ class EmployeeAttendanceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='mark-absent')
     def mark_absent(self, request, pk=None):
         record = self.get_object()
+        if not attendance_date_allowed(record.date):
+            return Response({'detail': 'Cannot mark attendance for a future date.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = self.get_serializer(record, data={
             'employee': record.employee_id,
             'date': record.date,
@@ -177,6 +181,8 @@ class EmployeeAttendanceViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
 
         employee = get_object_or_404(Employee, pk=employee_id)
+        if not attendance_date_allowed(target_date):
+            return Response({'detail': 'Cannot mark attendance for a future date.'}, status=status.HTTP_400_BAD_REQUEST)
         record, _ = EmployeeAttendance.objects.get_or_create(
             employee=employee, date=target_date, defaults={'status': 'Not Marked'},
         )

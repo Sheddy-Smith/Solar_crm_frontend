@@ -16,6 +16,7 @@ import {
   getMediaUrl,
 } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
+import { rowDoubleOpenProps } from './lib/rowDoubleOpen.js';
 import fixWebmDuration from 'fix-webm-duration';
 import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME, isTeleExecutiveRole, AuthLandingShell, AuthBrandHeader, AuthLandingFooter, ProductFooter, TeleFollowUpAlertsPanel, splitFollowUpAlerts, followUpAgeLabel, formatDateTime } from './telePortal.jsx';
 import { CrmFollowUpsPage } from './crmFollowUps.jsx';
@@ -31,6 +32,9 @@ import {
   LEAD_STATUS_FILTER_OPTIONS,
 } from './unifiedDashboard.jsx';
 import { DailyTasksPage } from './dailyTasksPages.jsx';
+import { CustomerModulePage } from './customerPages.jsx';
+import { VendorModulePage } from './vendorPages.jsx';
+import { SupplierModulePage } from './supplierPages.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import {
   ProjectInstallationPage as OpsInstallationPage,
@@ -119,6 +123,7 @@ import {
   Star,
   Sun,
   Package,
+  Briefcase,
   Cable,
   Trash2,
   Truck,
@@ -491,6 +496,8 @@ const BRAND_MARK_DARK_SRC = '/brand/malwa-logo-mark-dark.png';
 const sidebarItems = [
   { label: 'Dashboard', icon: Home, active: true },
   { label: 'Lead', icon: Users },
+  { label: 'Customer', icon: UserRound, showChevron: true },
+  { label: 'Vendors', icon: Briefcase, showChevron: true },
   { label: 'Quotation', icon: FileText },
   { label: 'Project Management', icon: FolderKanban, showChevron: true },
   { label: 'Liaisoning & Commissioning', icon: ShieldCheck, showChevron: true },
@@ -498,6 +505,7 @@ const sidebarItems = [
   { label: 'Accounts', icon: ReceiptText, showChevron: true },
   { label: 'Inventory', icon: Boxes, showChevron: true },
   { label: 'Employee', icon: HardHat, showChevron: true },
+  { label: 'Supplier', icon: Package, showChevron: true },
   { label: 'Insights', icon: LayoutDashboard },
   { label: 'Daily Tasks', icon: ClipboardList },
   { label: 'Settings', icon: Settings, showChevron: false },
@@ -508,6 +516,12 @@ const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Follow-ups'
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Employee Details', 'Employee Ledger'];
 const employeeRelatedPages = ['Employee', ...employeeSubItems];
+const customerSubItems = ['Customer Details', 'Customer Ledger', 'Customer Leads'];
+const customerRelatedPages = ['Customer', ...customerSubItems, 'Overall Credit Ledger'];
+const vendorSubItems = ['Vendor Details', 'Vendor Ledger'];
+const vendorRelatedPages = ['Vendors', ...vendorSubItems];
+const supplierSubItems = ['Supplier Details', 'Supplier Ledger'];
+const supplierRelatedPages = ['Supplier', ...supplierSubItems];
 const legacyEmployeeAdminPages = ['Users', 'Roles & Permissions', 'Activity Logs'];
 const projectSubItems = [
   'Project List',
@@ -557,8 +571,10 @@ const accountsSubItems = [
 ];
 const accountsRelatedPages = [...new Set([...accountsSubItems, ...accountsLegacyPages])];
 // Stock Movements / Stock Transfer / Adjustments pages hata diye gaye hain —
-// movements data/API abhi bhi Overview cards aur Stock Inward/Outward use karte hain.
-const inventorySubItems = ['Inventory Overview', 'Products', 'Categories', 'Stock Inward', 'Stock Outward', 'Warehouses'];
+// movements data/API abhi bhi Overview cards aur Stock / Stock Movement use karte hain.
+const inventoryPrimarySubItems = ['Inventory Overview', 'Products', 'Categories', 'Stock', 'Stock Movement'];
+const inventoryOverflowSubItems = ['Warehouses'];
+const inventorySubItems = [...inventoryPrimarySubItems, ...inventoryOverflowSubItems];
 const inventoryRelatedPages = ['Inventory', ...inventorySubItems];
 const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents', 'Subsidy'];
 const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
@@ -763,6 +779,23 @@ const employeeSubRoutes = {
   'Activity Logs': '/employees/activity-logs',
 };
 
+const customerSubRoutes = {
+  'Customer Details': '/customers/details',
+  'Customer Ledger': '/customers/ledger',
+  'Customer Leads': '/customers/leads',
+  'Overall Credit Ledger': '/customers/credit-ledger',
+};
+
+const vendorSubRoutes = {
+  'Vendor Details': '/vendors/details',
+  'Vendor Ledger': '/vendors/ledger',
+};
+
+const supplierSubRoutes = {
+  'Supplier Details': '/suppliers/details',
+  'Supplier Ledger': '/suppliers/ledger',
+};
+
 const projectSubRoutes = {
   'Project Create': '/projects/create',
   'Project KPI Analytics': '/insights?tab=projects',
@@ -775,12 +808,12 @@ const projectSubRoutes = {
   'Project Timeline': '/projects/timeline/:projectId',
   'Project Site Survey': '/projects/site-survey/:projectId',
   'Project Installation': '/projects/installation',
-  'Project Dispatch': '/projects/dispatch/:projectId',
+  'Project Dispatch': '/projects/dispatch',
   'Project Material Planning': '/projects/material-planning/:projectId',
   'Subsidy': '/projects/subsidy/:projectId',
   'Project Work Orders': '/projects/work-orders/:projectId',
   'Project Work Order Create': '/projects/work-orders/create/:projectId',
-  'Project Expenses': '/projects/expenses/:projectId',
+  'Project Expenses': '/projects/expenses',
   'Project Expense Create': '/projects/expenses/create/:projectId',
   'Project Expense Details': '/projects/expenses/details/:expenseId',
   'Project Documents': '/projects/documents/:projectId',
@@ -837,8 +870,8 @@ const inventorySubRoutes = {
   'Inventory Overview': '/inventory/overview',
   Products: '/inventory/products',
   Categories: '/inventory/categories',
-  'Stock Inward': '/inventory/stock-inward',
-  'Stock Outward': '/inventory/stock-outward',
+  Stock: '/inventory/stock',
+  'Stock Movement': '/inventory/stock-movement',
   Warehouses: '/inventory/warehouses',
 };
 
@@ -911,6 +944,9 @@ const sectionRoutes = {
   // dashboard on a direct URL / refresh.
   ...leadSubRoutes,
   ...employeeSubRoutes,
+  ...customerSubRoutes,
+  ...vendorSubRoutes,
+  ...supplierSubRoutes,
   ...projectSubRoutes,
   ...accountsSubRoutes,
   ...inventorySubRoutes,
@@ -934,6 +970,9 @@ const sectionRoutes = {
   'O&M': '/om/overview',
   Reports: '/insights?tab=sales',
   Employee: '/employees/details',
+  Customer: '/customers/details',
+  Vendors: '/vendors/details',
+  Supplier: '/suppliers/details',
   'Daily Tasks': '/daily-tasks',
 };
 
@@ -964,9 +1003,23 @@ function resolveSectionFromPath(pathname) {
   if (REMOVED_INVENTORY_PATHS.includes(path)) {
     return { section: 'Inventory Overview', params: {} };
   }
+  if (path === '/inventory/stock-inward') {
+    return { section: 'Stock', params: {} };
+  }
+  if (path === '/inventory/stock-outward') {
+    return { section: 'Stock Movement', params: {} };
+  }
   const subsidyMatch = path.match(/^\/projects\/[Ss]ubsidy\/(?<projectId>[^/]+)$/);
   if (subsidyMatch) {
     return { section: 'Subsidy', params: { projectId: subsidyMatch.groups.projectId } };
+  }
+  const dispatchMatch = path.match(/^\/projects\/dispatch(?:\/(?<projectId>[^/]+))?$/);
+  if (dispatchMatch) {
+    return { section: 'Project Dispatch', params: { projectId: dispatchMatch.groups?.projectId } };
+  }
+  const expensesMatch = path.match(/^\/projects\/expenses(?:\/(?<projectId>[^/]+))?$/);
+  if (expensesMatch) {
+    return { section: 'Project Expenses', params: { projectId: expensesMatch.groups?.projectId } };
   }
 
   for (const [section, template] of Object.entries(sectionRoutes)) {
@@ -1251,374 +1304,12 @@ const stats = [
   },
 ];
 
-const todayFollowUps = [
-  {
-    customer: 'Amit Sharma',
-    mobile: '9876543210',
-    ivrs: 'IVRS123456',
-    project: '5kW On-Grid',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    date: '16 Jun 2026',
-  },
-  {
-    customer: 'Sunil Verma',
-    mobile: '9123456780',
-    ivrs: 'IVRS123457',
-    project: '10kW On-Grid',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    date: '16 Jun 2026',
-  },
-  {
-    customer: 'Pooja Mehta',
-    mobile: '9988776655',
-    ivrs: 'IVRS123458',
-    project: '3kW On-Grid',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    date: '16 Jun 2026',
-  },
-  {
-    customer: 'Rajesh Gupta',
-    mobile: '8877665544',
-    ivrs: 'IVRS123459',
-    project: '7.5kW On-Grid',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    date: '16 Jun 2026',
-  },
-  {
-    customer: 'Manish Tiwari',
-    mobile: '7766554433',
-    ivrs: 'IVRS123460',
-    project: '10kW On-Grid',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    date: '16 Jun 2026',
-  },
-  {
-    customer: 'Ramesh Patidar',
-    mobile: '9301234567',
-    ivrs: 'IVRS123466',
-    project: '10kW Hybrid',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    date: '16 Jun 2026',
-  },
-  {
-    customer: 'Geeta Verma',
-    mobile: '7654321890',
-    ivrs: 'IVRS123469',
-    project: '5kW On-Grid',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    date: '16 Jun 2026',
-  },
-];
-
-const recentLeads = [
-  {
-    customer: 'Vikas Yadav',
-    mobile: '9585858585',
-    project: '5kW On-Grid',
-    status: 'New',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    createdOn: '16 Jun 2026',
-  },
-  {
-    customer: 'Anjali Patel',
-    mobile: '9696969696',
-    project: '3kW On-Grid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    createdOn: '15 Jun 2026',
-  },
-  {
-    customer: 'Deepak Joshi',
-    mobile: '7894561230',
-    project: '10kW On-Grid',
-    status: 'Quotation',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    createdOn: '14 Jun 2026',
-  },
-  {
-    customer: 'Kavita Rana',
-    mobile: '8524567890',
-    project: '7.5kW On-Grid',
-    status: 'New',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    createdOn: '13 Jun 2026',
-  },
-  {
-    customer: 'Suresh Kumar',
-    mobile: '7418529630',
-    project: '5kW On-Grid',
-    status: 'Lost',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    createdOn: '12 Jun 2026',
-  },
-  {
-    customer: 'Anil Dubey',
-    mobile: '8765432109',
-    project: '15kW On-Grid',
-    status: 'New',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    createdOn: '12 Jun 2026',
-  },
-  {
-    customer: 'Priya Jain',
-    mobile: '9812345670',
-    project: '3kW Hybrid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    createdOn: '11 Jun 2026',
-  },
-];
-
-const leadListRows = [
-  {
-    customer: 'Amit Sharma',
-    mobile: '9876543210',
-    ivrs: 'IVRS123456',
-    project: '5kW On-Grid',
-    type: 'On-Grid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '10 Jun 2026',
-  },
-  {
-    customer: 'Sunil Verma',
-    mobile: '9123456780',
-    ivrs: 'IVRS123457',
-    project: '10kW On-Grid',
-    type: 'On-Grid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '12 Jun 2026',
-  },
-  {
-    customer: 'Pooja Mehta',
-    mobile: '9988776655',
-    ivrs: 'IVRS123458',
-    project: '3kW On-Grid',
-    type: 'On-Grid',
-    status: 'New',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '18 Jun 2026',
-  },
-  {
-    customer: 'Rajesh Gupta',
-    mobile: '8877665544',
-    ivrs: 'IVRS123459',
-    project: '7.5kW On-Grid',
-    type: 'On-Grid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '20 Jun 2026',
-  },
-  {
-    customer: 'Manish Tiwari',
-    mobile: '7766554433',
-    ivrs: 'IVRS123460',
-    project: '10kW On-Grid',
-    type: 'On-Grid',
-    status: 'New',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '14 Jun 2026',
-  },
-  {
-    customer: 'Deepak Joshi',
-    mobile: '7894561230',
-    ivrs: 'IVRS123461',
-    project: '10kW On-Grid',
-    type: 'On-Grid',
-    status: 'Quotation',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '22 Jun 2026',
-  },
-  {
-    customer: 'Anjali Patel',
-    mobile: '9696969696',
-    ivrs: 'IVRS123462',
-    project: '3kW On-Grid',
-    type: 'On-Grid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '25 Jun 2026',
-  },
-  {
-    customer: 'Vikas Yadav',
-    mobile: '9585836585',
-    ivrs: 'IVRS123463',
-    project: '5kW On-Grid',
-    type: 'On-Grid',
-    status: 'New',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '13 Jun 2026',
-  },
-  {
-    customer: 'Kavita Rana',
-    mobile: '8524567890',
-    ivrs: 'IVRS123464',
-    project: '7.5kW On-Grid',
-    type: 'On-Grid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '19 Jun 2026',
-  },
-  {
-    customer: 'Suresh Kumar',
-    mobile: '7418529630',
-    ivrs: 'IVRS123465',
-    project: '5kW On-Grid',
-    type: 'On-Grid',
-    status: 'Lost',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '28 Jun 2026',
-  },
-  {
-    customer: 'Ramesh Patidar',
-    mobile: '9301234567',
-    ivrs: 'IVRS123466',
-    project: '10kW Hybrid',
-    type: 'Hybrid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '11 Jun 2026',
-  },
-  {
-    customer: 'Sunita Bhatt',
-    mobile: '8109876543',
-    ivrs: 'IVRS123467',
-    project: '3kW Off-Grid',
-    type: 'Off-Grid',
-    status: 'New',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '17 Jun 2026',
-  },
-  {
-    customer: 'Lokesh Sharma',
-    mobile: '9754321098',
-    ivrs: 'IVRS123468',
-    project: '7.5kW On-Grid',
-    type: 'On-Grid',
-    status: 'Quotation',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '24 Jun 2026',
-  },
-  {
-    customer: 'Geeta Verma',
-    mobile: '7654321890',
-    ivrs: 'IVRS123469',
-    project: '5kW On-Grid',
-    type: 'On-Grid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '09 Jun 2026',
-  },
-  {
-    customer: 'Anil Dubey',
-    mobile: '8765432109',
-    ivrs: 'IVRS123470',
-    project: '15kW On-Grid',
-    type: 'On-Grid',
-    status: 'New',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '23 Jun 2026',
-  },
-  {
-    customer: 'Priya Jain',
-    mobile: '9812345670',
-    ivrs: 'IVRS123471',
-    project: '3kW Hybrid',
-    type: 'Hybrid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '15 Jun 2026',
-  },
-  {
-    customer: 'Vivek Chouhan',
-    mobile: '7345678901',
-    ivrs: 'IVRS123472',
-    project: '20kW On-Grid',
-    type: 'On-Grid',
-    status: 'Quotation',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '29 Jun 2026',
-  },
-  {
-    customer: 'Neelam Singh',
-    mobile: '8234567012',
-    ivrs: 'IVRS123473',
-    project: '5kW Off-Grid',
-    type: 'Off-Grid',
-    status: 'New',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '08 Jun 2026',
-  },
-  {
-    customer: 'Dinesh Rawat',
-    mobile: '9678901234',
-    ivrs: 'IVRS123474',
-    project: '10kW On-Grid',
-    type: 'On-Grid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '21 Jun 2026',
-  },
-  {
-    customer: 'Meena Tiwari',
-    mobile: '8901234567',
-    ivrs: 'IVRS123475',
-    project: '7.5kW Hybrid',
-    type: 'Hybrid',
-    status: 'Lost',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '07 Jun 2026',
-  },
-  {
-    customer: 'Harish Yadav',
-    mobile: '7123456789',
-    ivrs: 'IVRS123476',
-    project: '5kW On-Grid',
-    type: 'On-Grid',
-    status: 'New',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '26 Jun 2026',
-  },
-  {
-    customer: 'Sarita Pandey',
-    mobile: '9456789012',
-    ivrs: 'IVRS123477',
-    project: '3kW On-Grid',
-    type: 'On-Grid',
-    status: 'Follow-up',
-    assignedTo: { name: 'Neha Kumari', initials: 'NK', tone: 'sky' },
-    nextFollowUp: '06 Jun 2026',
-  },
-  {
-    customer: 'Manoj Mishra',
-    mobile: '8567890123',
-    ivrs: 'IVRS123478',
-    project: '10kW On-Grid',
-    type: 'On-Grid',
-    status: 'Quotation',
-    assignedTo: { name: 'Rohit Singh', initials: 'RS', tone: 'amber' },
-    nextFollowUp: '27 Jun 2026',
-  },
-  {
-    customer: 'Asha Kulkarni',
-    mobile: '7890123456',
-    ivrs: 'IVRS123479',
-    project: '5kW Hybrid',
-    type: 'Hybrid',
-    status: 'New',
-    assignedTo: { name: 'Vikram Patel', initials: 'VP', tone: 'emerald' },
-    nextFollowUp: '30 Jun 2026',
-  },
-];
-
-const overdueFollowUps = [
-  { customer: 'Amit Sharma', project: '5kW On-Grid', delay: '2 Days Overdue' },
-  { customer: 'Sunil Verma', project: '10kW On-Grid', delay: '2 Days Overdue' },
-  { customer: 'Pooja Mehta', project: '3kW On-Grid', delay: '1 Day Overdue' },
-  { customer: 'Rajesh Gupta', project: '7.5kW On-Grid', delay: '1 Day Overdue' },
-  { customer: 'Manish Tiwari', project: '10kW On-Grid', delay: 'Today Overdue' },
-];
+// Real follow-up / lead feeds come from the API (dashboardFollowUpAlerts / dashboardRecentLeads).
+// Keep these empty so unused demo lead rows never appear as live data.
+const todayFollowUps = [];
+const recentLeads = [];
+const leadListRows = [];
+const overdueFollowUps = [];
 
 const reportKpis = [
   {
@@ -1738,18 +1429,9 @@ const userDetailLoginHistory = [
   { time: '17 May 2024, 08:58 AM', device: 'Safari on iPhone', ip: '192.168.1.118', status: 'Success' },
 ];
 
-const userDetailProjects = [
-  { name: '5kW On-Grid - Amit Sharma', stage: 'Site Visit', value: 'Rs 3.2L' },
-  { name: '10kW On-Grid - Sunil Verma', stage: 'Quotation', value: 'Rs 6.4L' },
-  { name: '7.5kW On-Grid - Rajesh Gupta', stage: 'Installation', value: 'Rs 4.9L' },
-];
+const userDetailProjects = [];
 
-const userDetailLeads = [
-  { name: 'Amit Sharma', project: '5kW On-Grid', status: 'Follow-up' },
-  { name: 'Pooja Mehta', project: '3kW On-Grid', status: 'New' },
-  { name: 'Deepak Joshi', project: '10kW On-Grid', status: 'Quotation' },
-  { name: 'Kavita Rana', project: '7.5kW On-Grid', status: 'Follow-up' },
-];
+const userDetailLeads = [];
 
 const settingsUsersSeed = [
   { id: 1, name: 'Super Admin', email: 'admin@malwasolar.com', phone: '+91 98765 43210', role: 'Super Admin', branch: 'Head Office, Ludhiana', status: 'Active', lastLogin: '20 May 2024 10:30 AM', joinedOn: '10 Jan 2024', assignee: { name: 'Super Admin', initials: 'SA', tone: 'amber' }, isYou: true },
@@ -2140,6 +1822,9 @@ const availableSections = new Set([
   ...sidebarItems.map((item) => item.label),
   ...leadRelatedPages,
   ...employeeRelatedPages,
+  ...customerRelatedPages,
+  ...vendorRelatedPages,
+  ...supplierRelatedPages,
   ...legacyEmployeeAdminPages,
   ...projectRelatedPages,
   ...accountsRelatedPages,
@@ -2230,7 +1915,9 @@ function App() {
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
   const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
     const routeSection = isKnownSection(initialRoute.section) ? initialRoute.section : null;
-    const stored = isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard';
+    const stored = isKnownSection(initialPreferences.activeSidebarItem)
+      ? initialPreferences.activeSidebarItem
+      : 'Dashboard';
     const preferred = routeSection ?? stored;
     // Refresh pe selectedLead null hota hai, isliye lead-specific page ki jagah Lead List dikhao
     if (leadDetailPages.includes(preferred) && !initialRoute.params.leadId) return 'Lead List';
@@ -2243,10 +1930,15 @@ function App() {
     initialRoute.params?.tab || INSIGHTS_LEGACY_TAB_MAP[initialRoute.section] || 'overview',
   );
   const [expandedSection, setExpandedSection] = useState(() => {
-    const item = isKnownSection(initialPreferences.activeSidebarItem) ? initialPreferences.activeSidebarItem : 'Dashboard';
+    const item = isKnownSection(initialPreferences.activeSidebarItem)
+      ? initialPreferences.activeSidebarItem
+      : 'Dashboard';
     if (item === 'Lead' || leadRelatedPages.includes(item)) return 'Lead';
     if (item === 'Project Management' || projectRelatedPages.includes(item)) return 'Project Management';
     if (item === 'Employee' || employeeRelatedPages.includes(item)) return 'Employee';
+    if (item === 'Customer' || customerRelatedPages.includes(item)) return 'Customer';
+    if (item === 'Vendors' || vendorRelatedPages.includes(item)) return 'Vendors';
+    if (item === 'Supplier' || supplierRelatedPages.includes(item)) return 'Supplier';
     if (item === 'Accounts' || accountsRelatedPages.includes(item)) return 'Accounts';
     if (item === 'Inventory' || inventoryRelatedPages.includes(item)) return 'Inventory';
     if (item === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(item)) return 'Liaisoning & Commissioning';
@@ -2305,6 +1997,7 @@ function App() {
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
   const [dashboardOverdue, setDashboardOverdue] = useState(null);
   const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
+  const [customerLeadRefreshKey, setCustomerLeadRefreshKey] = useState(0);
   const [autoOpenFollowUps, setAutoOpenFollowUps] = useState(false);
   const [autoOpenQuotation, setAutoOpenQuotation] = useState(false);
   const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
@@ -2334,7 +2027,7 @@ function App() {
     [dashboardLeadStats, dashboardProjectSummary],
   );
 
-  const notify = (message, type = 'info') => {
+  const notify = useCallback((message, type = 'info') => {
     const msg = String(message ?? '');
     // Mobile: hide noisy navigation / filter toasts that cover the bottom nav
     // and feel like desktop chrome. Keep success + error toasts.
@@ -2347,7 +2040,7 @@ function App() {
       return;
     }
     setToast({ id: Date.now(), message: msg, type });
-  };
+  }, []);
 
   const handlePwaInstall = async () => {
     if (pwaInstall.isStandalone) {
@@ -2630,6 +2323,9 @@ function App() {
     if (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Lead'); return; }
     if (activeSidebarItem === 'Project Management' || projectExpandHighlightPages.includes(activeSidebarItem)) { setExpandedSection('Project Management'); return; }
     if (activeSidebarItem === 'Employee' || employeeRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Employee'); return; }
+    if (activeSidebarItem === 'Customer' || customerRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Customer'); return; }
+    if (activeSidebarItem === 'Vendors' || vendorRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Vendors'); return; }
+    if (activeSidebarItem === 'Supplier' || supplierRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Supplier'); return; }
     if (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Accounts'); return; }
     if (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Inventory'); return; }
     if (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Liaisoning & Commissioning'); return; }
@@ -2981,6 +2677,9 @@ function App() {
                 {sidebarItems.map((item) => {
                   const Icon = item.icon;
                   const isLeadSection = item.label === 'Lead';
+                  const isCustomerSection = item.label === 'Customer';
+                  const isVendorSection = item.label === 'Vendors';
+                  const isSupplierSection = item.label === 'Supplier';
                   const isProjectSection = item.label === 'Project Management';
                   const isEmployeeSection = item.label === 'Employee';
                   const isAccountsSection = item.label === 'Accounts';
@@ -2992,6 +2691,9 @@ function App() {
                   const isDailyTasksSection = item.label === 'Daily Tasks';
                   const isSettingsSection = item.label === 'Settings';
                   const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
+                  const isCustomerHighlighted = isCustomerSection && (activeSidebarItem === 'Customer' || customerRelatedPages.includes(activeSidebarItem));
+                  const isVendorHighlighted = isVendorSection && (activeSidebarItem === 'Vendors' || vendorRelatedPages.includes(activeSidebarItem));
+                  const isSupplierHighlighted = isSupplierSection && (activeSidebarItem === 'Supplier' || supplierRelatedPages.includes(activeSidebarItem));
                   const isProjectHighlighted = isProjectSection && (activeSidebarItem === 'Project Management' || projectExpandHighlightPages.includes(activeSidebarItem));
                   const isEmployeeHighlighted = isEmployeeSection && (activeSidebarItem === 'Employee' || employeeRelatedPages.includes(activeSidebarItem));
                   const isAccountsHighlighted = isAccountsSection && (activeSidebarItem === 'Accounts' || accountsRelatedPages.includes(activeSidebarItem));
@@ -3002,6 +2704,9 @@ function App() {
                   const isInsightsHighlighted = isInsightsSection && (activeSidebarItem === 'Insights' || insightsRelatedPages.includes(activeSidebarItem));
                   const isDailyTasksHighlighted = isDailyTasksSection && dailyTasksRelatedPages.includes(activeSidebarItem);
                   const isLeadOpen = isLeadSection && expandedSection === 'Lead';
+                  const isCustomerOpen = isCustomerSection && expandedSection === 'Customer';
+                  const isVendorOpen = isVendorSection && expandedSection === 'Vendors';
+                  const isSupplierOpen = isSupplierSection && expandedSection === 'Supplier';
                   const isProjectOpen = isProjectSection && expandedSection === 'Project Management';
                   const isEmployeeOpen = isEmployeeSection && expandedSection === 'Employee';
                   const isAccountsOpen = isAccountsSection && expandedSection === 'Accounts';
@@ -3011,7 +2716,7 @@ function App() {
                   const isAmcOpen = isAmcSection && expandedSection === 'AMC & Warranty';
                   const isSettingsActive = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
                   const isSettingsOpen = isSettingsSection && expandedSection === 'Settings';
-                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isAmcHighlighted || isInsightsHighlighted || isDailyTasksHighlighted || isSettingsActive;
+                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isCustomerHighlighted || isVendorHighlighted || isSupplierHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isAmcHighlighted || isInsightsHighlighted || isDailyTasksHighlighted || isSettingsActive;
 
                   return (
                     <div key={item.label}>
@@ -3057,13 +2762,13 @@ function App() {
                             setMobileSidebarOpen(false);
                             return;
                           }
-                          const sectionKey = isProjectSection ? 'Project Management' : isEmployeeSection ? 'Employee' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : null;
+                          const sectionKey = isProjectSection ? 'Project Management' : isCustomerSection ? 'Customer' : isVendorSection ? 'Vendors' : isSupplierSection ? 'Supplier' : isEmployeeSection ? 'Employee' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : null;
                           if (sectionKey) {
                             if (expandedSection === sectionKey) {
                               setExpandedSection(null);
                             } else {
                               setExpandedSection(sectionKey);
-                              const nextItem = isProjectSection ? 'Project Overview' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isAmcSection ? 'AMC Overview' : 'Project List';
+                              const nextItem = isProjectSection ? 'Project Overview' : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isAmcSection ? 'AMC Overview' : 'Project List';
                               setActiveSidebarItem(nextItem);
                               notify(`${nextItem} section selected`);
                             }
@@ -3094,7 +2799,7 @@ function App() {
                           {item.label}
                         </span>
                         {item.showChevron && !desktopSidebarCollapsed ? (
-                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsOpen) && '-rotate-90')} />
+                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isCustomerOpen || isVendorOpen || isSupplierOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsOpen) && '-rotate-90')} />
                         ) : null}
                         {item.disabled && !desktopSidebarCollapsed ? (
                           <span className="rounded-[6px] bg-white/16 px-2 py-1 text-[9px] font-extrabold text-white/90">
@@ -3102,6 +2807,116 @@ function App() {
                           </span>
                         ) : null}
                       </button>
+                      <AnimatePresence>
+                      {isCustomerOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
+                          <div className="space-y-1">
+                            {customerSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem
+                                || (subItem === 'Customer Details' && activeSidebarItem === 'Overall Credit Ledger');
+
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  data-route={customerSubRoutes[subItem]}
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                  <span>{getModuleSubnavLabel(subItem)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
+                      <AnimatePresence>
+                      {isVendorOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
+                          <div className="space-y-1">
+                            {vendorSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem;
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  data-route={vendorSubRoutes[subItem]}
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                  <span>{getModuleSubnavLabel(subItem)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
+                      <AnimatePresence>
+                      {isSupplierOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
+                          <div className="space-y-1">
+                            {supplierSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem;
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  data-route={supplierSubRoutes[subItem]}
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                  <span>{getModuleSubnavLabel(subItem)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
                       <AnimatePresence>
                       {isProjectOpen && !desktopSidebarCollapsed && (
                         <motion.div
@@ -3234,8 +3049,9 @@ function App() {
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
-                            {inventorySubItems.map((subItem) => {
-                              const isSubActive = activeSidebarItem === subItem;
+                            {inventoryPrimarySubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem
+                                || (subItem === 'Inventory Overview' && (activeSidebarItem === 'Inventory' || activeSidebarItem === 'Overview'));
 
                               return (
                                 <button
@@ -3474,6 +3290,42 @@ function App() {
               <AdminReauthGate onNotify={notify}>
                 <SettingsUsersPage activeSection="Settings Users" loggedInUser={loggedInUser} onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
               </AdminReauthGate>
+            ) : vendorRelatedPages.includes(activeSidebarItem) ? (
+              <VendorModulePage
+                activeSection={activeSidebarItem}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : supplierRelatedPages.includes(activeSidebarItem) ? (
+              <SupplierModulePage
+                activeSection={activeSidebarItem}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : customerRelatedPages.includes(activeSidebarItem) ? (
+              <CustomerModulePage
+                activeSection={activeSidebarItem}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+                onCreateLead={() => setDashboardCreateLeadOpen(true)}
+                leadRefreshKey={customerLeadRefreshKey}
+                onViewLead={(item) => {
+                  if (!item?.id) return;
+                  setSelectedLead({ id: item.id, customer: item.customer_name, mobile: item.mobile_number });
+                  setLeadDetailsTab('overview');
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
+                }}
+              />
             ) : employeeRelatedPages.includes(activeSidebarItem) ? (
               <EmployeeManagementPage
                 activeSection={activeSidebarItem}
@@ -3695,7 +3547,30 @@ function App() {
               />
             ) : (
               <>
-              <div className="md:hidden">
+              <div className="space-y-3 md:hidden">
+                <TeleFollowUpAlertsPanel
+                  todayFollowUps={dashboardFollowUpAlerts.today}
+                  overdueFollowUps={dashboardFollowUpAlerts.overdue}
+                  loaded={dashboardScheduledFollowUps !== null}
+                  compact
+                  onOpenToday={() => openDashboardSection('Follow-ups', "Today's follow-ups opened", null, 'today')}
+                  onOpenOverdue={() => openDashboardSection('Follow-ups', 'Overdue follow-ups opened', null, 'overdue')}
+                  onCall={(item) => {
+                    const raw = String(item.lead_mobile_number || '').trim();
+                    if (!raw) { notify('No mobile number on this lead.', 'error'); return; }
+                    const href = raw.startsWith('+') ? `tel:${raw.replace(/[^\d+]/g, '')}` : `tel:${raw.replace(/\D/g, '')}`;
+                    window.location.href = href;
+                  }}
+                  onLog={(item) => {
+                    if (!item.lead) return;
+                    setLeadDetailsTab('follow-ups');
+                    openDashboardSection('Lead Details', 'Lead follow-up opened', { id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number }, 'follow-ups');
+                  }}
+                  onView={(item) => {
+                    if (!item.lead) return;
+                    openDashboardSection('Lead Details', `${item.lead_customer_name || 'Lead'} opened`, { id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number });
+                  }}
+                />
                 <MobileDashboardPage
                   userName={loggedInUser?.name || 'Admin'}
                   rangeLabel={dashboardRange.start && dashboardRange.end ? formatDashboardRange(dashboardRange.start, dashboardRange.end) : ''}
@@ -3968,6 +3843,7 @@ function App() {
           onClose={() => setDashboardCreateLeadOpen(false)}
           onSaved={() => {
             setDashboardCreateLeadOpen(false);
+            setCustomerLeadRefreshKey((key) => key + 1);
             notify('Lead created successfully!');
           }}
           onRequestApproval={() => {
@@ -5088,9 +4964,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                 ) : pagedLeadRows.map((lead, index) => (
                   <tr
                     key={lead.id}
-                    className="crm-row-clickable"
-                    onDoubleClick={() => setViewLeadId(lead.id)}
-                    title="Double-click to view"
+                    {...rowDoubleOpenProps(() => setViewLeadId(lead.id))}
                   >
                     <td className="crm-col-index font-extrabold text-[#233a6b]">{(safePage - 1) * LEAD_PAGE_SIZE + index + 1}</td>
                     <td className="font-bold text-[#233a6b]" title={lead.customer}><span className="block truncate">{lead.customer}</span></td>
@@ -7189,7 +7063,7 @@ function SettingsStockSettingsContent({ onOpenSection, onNotify }) {
         <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />,
         null,
       ]}
-      sideRows={[['Primary Warehouse', 'Indore Main'], ['Approval Required', 'Stock Outward'], ['Auto GRN', 'Enabled'], ['Stock Audit', 'Monthly']]}
+      sideRows={[['Primary Warehouse', 'Indore Main'], ['Approval Required', 'Stock Movement'], ['Auto GRN', 'Enabled'], ['Stock Audit', 'Monthly']]}
       onOpenSection={onOpenSection}
       onNotify={onNotify}
     />
@@ -9436,6 +9310,10 @@ function ModuleSubnavCard({ title, items, activeSection, onOpenSection, icon: Ic
 }
 
 function getModuleSubnavLabel(item) {
+  if (item === 'Customer Leads') {
+    return 'Leads';
+  }
+
   if (item === 'Executive Summary') {
     return 'Overview';
   }
@@ -9507,66 +9385,152 @@ function getModuleSubnavLabel(item) {
   return item;
 }
 
-function HorizontalModuleTabs({ items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false, fullLabels = false, dense = false }) {
+function HorizontalModuleTabs({ items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false, fullLabels = false, dense = false, overflowItems = [] }) {
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const overflowBtnRef = useRef(null);
+  const overflowMenuRef = useRef(null);
+  const allItems = overflowItems.length ? [...items, ...overflowItems] : items;
+  const resolvedActive = allItems.includes(activeSection) ? activeSection : items[0];
+  const overflowActive = overflowItems.includes(resolvedActive);
   const activeLabel = fullLabels
-    ? (items.includes(activeSection) ? activeSection : items[0])
-    : getModuleSubnavLabel(items.includes(activeSection) ? activeSection : items[0]);
+    ? resolvedActive
+    : getModuleSubnavLabel(resolvedActive);
+
+  const updateMenuPos = useCallback(() => {
+    const btn = overflowBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const menuWidth = 196;
+    const left = Math.min(
+      Math.max(8, rect.right - menuWidth),
+      window.innerWidth - menuWidth - 8,
+    );
+    setMenuPos({ top: rect.bottom + 8, left });
+  }, []);
+
+  useEffect(() => {
+    if (!overflowOpen) return undefined;
+    updateMenuPos();
+    const onPointerDown = (event) => {
+      const t = event.target;
+      if (overflowBtnRef.current?.contains(t) || overflowMenuRef.current?.contains(t)) return;
+      setOverflowOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setOverflowOpen(false);
+    };
+    const onReposition = () => updateMenuPos();
+    // pointerdown covers mouse + touch (mobile)
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
+  }, [overflowOpen, updateMenuPos]);
 
   return (
-    <section className={cx(`${panelClass} overflow-hidden`, dense ? 'p-2 sm:p-2.5' : 'p-3 sm:p-4')}>
-      {/* Mobile: single dropdown instead of horizontal scroll chips */}
-      <label className="relative flex h-12 items-center gap-2.5 rounded-[12px] border border-[#d9e4f2] bg-white px-3.5 shadow-sm md:hidden">
-        <FolderKanban className="size-4 shrink-0 text-[#0b65e5]" />
-        <span className="sr-only">Module section</span>
-        <select
-          value={items.includes(activeSection) ? activeSection : items[0]}
-          onChange={(event) => onOpenSection(event.target.value)}
-          className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent py-1 text-[14px] font-extrabold text-[#1e3261] outline-none"
-          aria-label="Choose section"
-        >
-          {items.map((item) => (
-            <option key={item} value={item}>
-              {fullLabels ? item : getModuleSubnavLabel(item)}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="pointer-events-none size-4 shrink-0 text-[#8a98af]" />
-      </label>
-      <p className="mt-1.5 text-[11px] font-semibold text-[#8a98af] md:hidden">
+    <section className={cx(`${panelClass} overflow-visible`, dense ? 'p-2 sm:p-2.5' : 'p-3 sm:p-4')}>
+      <p className="mb-2 text-[11px] font-semibold text-[#8a98af] md:hidden">
         Showing · {activeLabel}
       </p>
 
-      {/* Desktop / tablet: keep horizontal tabs */}
-      <div className={cx('module-tab-scroll -mx-1 hidden overflow-x-auto px-1 md:block', dense ? 'pb-1' : 'pb-2')}>
-        <div className={cx('flex w-max min-w-full', dense ? 'gap-2' : 'gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
-          {items.map((item) => {
-            const isActive = activeSection === item;
+      {/* All breakpoints: horizontal tabs + optional ⋮ overflow (mobile scrollable) */}
+      <div className={cx('flex items-center', dense ? 'gap-2 pb-1' : 'gap-2.5 pb-1 sm:gap-3 sm:pb-2')}>
+        <div className="module-tab-scroll -mx-1 min-w-0 flex-1 overflow-x-auto px-1">
+          <div className={cx('flex w-max min-w-full', dense ? 'gap-2' : 'gap-2 sm:gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
+            {items.map((item) => {
+              const isActive = resolvedActive === item;
+              const label = fullLabels ? item : getModuleSubnavLabel(item);
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => onOpenSection(item)}
+                  className={cx(
+                    'module-tab-button inline-flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-[12px] border text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition active:scale-[0.98] sm:gap-3 sm:hover:-translate-y-0.5',
+                    dense ? 'h-[40px] px-2.5 sm:h-[42px] sm:px-3' : 'h-[44px] px-3 sm:h-[54px] sm:px-4',
+                    compact ? 'min-w-[132px] sm:min-w-[152px]' : 'min-w-[140px] sm:min-w-[170px]',
+                    fullLabels && 'min-w-max',
+                    wrapOnDesktop && 'xl:min-w-[148px] xl:flex-1',
+                    isActive ? activeClasses : 'border-[#d9e4f2] bg-white text-[#314a79] hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
+                  )}
+                  title={label}
+                >
+                  <span className="inline-flex min-w-0 items-center gap-2 sm:gap-3">
+                    <span className={cx('size-2 rounded-full', isActive ? activeDotClass : 'bg-[#b9c4d6]')} />
+                    <span className="text-[12px] font-extrabold sm:text-[13px]">{label}</span>
+                  </span>
+                  <ChevronRight className={cx('size-3.5 shrink-0 sm:size-4', isActive ? activeIconClass : 'text-[#9aa8bc]')} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {overflowItems.length > 0 && (
+          <button
+            ref={overflowBtnRef}
+            type="button"
+            onClick={() => {
+              setOverflowOpen((open) => {
+                const next = !open;
+                if (next) updateMenuPos();
+                return next;
+              });
+            }}
+            className={cx(
+              'inline-flex shrink-0 items-center justify-center rounded-[12px] border shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition active:scale-[0.98] sm:hover:-translate-y-0.5',
+              dense ? 'size-[40px] sm:size-[42px]' : 'size-[44px] sm:size-[54px]',
+              overflowActive || overflowOpen
+                ? activeClasses
+                : 'border-[#d9e4f2] bg-white text-[#314a79] hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
+            )}
+            aria-label="More inventory sections"
+            aria-expanded={overflowOpen}
+            aria-haspopup="menu"
+            title="More"
+          >
+            <MoreVertical className={cx('size-5', overflowActive || overflowOpen ? activeIconClass : 'text-[#53647f]')} />
+          </button>
+        )}
+      </div>
+      {overflowOpen && overflowItems.length > 0 && createPortal(
+        <div
+          ref={overflowMenuRef}
+          role="menu"
+          style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, zIndex: 9999 }}
+          className="min-w-[196px] overflow-hidden rounded-[12px] border border-[#d9e4f2] bg-white py-1.5 shadow-[0_16px_40px_rgba(17,39,84,0.18)]"
+        >
+          {overflowItems.map((item) => {
+            const isActive = resolvedActive === item;
             const label = fullLabels ? item : getModuleSubnavLabel(item);
             return (
               <button
                 key={item}
                 type="button"
-                onClick={() => onOpenSection(item)}
+                role="menuitem"
+                onClick={() => {
+                  setOverflowOpen(false);
+                  onOpenSection(item);
+                }}
                 className={cx(
-                  'module-tab-button inline-flex shrink-0 items-center justify-between gap-3 whitespace-nowrap rounded-[12px] border text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5',
-                  dense ? 'h-[42px] px-3' : 'h-[54px] px-4',
-                  compact ? 'min-w-[152px]' : 'min-w-[170px]',
-                  fullLabels && 'min-w-max',
-                  wrapOnDesktop && 'xl:min-w-[148px] xl:flex-1',
-                  isActive ? activeClasses : 'border-[#d9e4f2] bg-white text-[#314a79] hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
+                  'flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-extrabold transition',
+                  isActive ? 'bg-[#f2fffb] text-[#0f766e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
                 )}
-                title={label}
               >
-                <span className="inline-flex min-w-0 items-center gap-3">
-                  <span className={cx('size-2 rounded-full', isActive ? activeDotClass : 'bg-[#b9c4d6]')} />
-                  <span className="text-[13px] font-extrabold">{label}</span>
-                </span>
-                <ChevronRight className={cx('size-4 shrink-0', isActive ? activeIconClass : 'text-[#9aa8bc]')} />
+                <span className={cx('size-2 rounded-full', isActive ? activeDotClass : 'bg-[#b9c4d6]')} />
+                {label}
               </button>
             );
           })}
-        </div>
-      </div>
+        </div>,
+        document.body,
+      )}
     </section>
   );
 }
@@ -9657,7 +9621,8 @@ function InventorySubnavTabs({ activeSection, onOpenSection }) {
   const resolvedSection = activeSection === 'Overview' || activeSection === 'Inventory' ? 'Inventory Overview' : activeSection;
   return (
     <HorizontalModuleTabs
-      items={inventorySubItems}
+      items={inventoryPrimarySubItems}
+      overflowItems={inventoryOverflowSubItems}
       activeSection={resolvedSection}
       onOpenSection={onOpenSection}
       activeClasses="border-[#d7f4ea] bg-[#f2fffb] text-[#0f766e] ring-2 ring-[#e7faf8]"
@@ -9983,6 +9948,9 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   const serverFilterValues = extraFilters.filter((f) => !f.client).map((f) => extraFilterValues[f.key] || '').join('|');
 
+  const listParamsKey = JSON.stringify(config.listParams || {});
+  const fixedFieldsKey = JSON.stringify(config.fixedFields || {});
+
   const loadRows = useCallback(() => {
     setLoading(true);
     const params = { page_size: 1000, ...(config.listParams || {}) };
@@ -9993,9 +9961,12 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     config.api.list(params)
       .then((r) => { setRows(normalizeApiRows(r)); setLoading(false); })
       .catch((e) => { setRows([]); setLoading(false); onNotify(e.message || `Could not load ${config.title.toLowerCase()}.`, 'error'); });
-  }, [filterStatus, serverFilterValues]);  
+  // listParamsKey / fixedFieldsKey keep Inward vs Outward (and similar) pages in sync
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- config object is recreated each parent render
+  }, [filterStatus, serverFilterValues, listParamsKey, fixedFieldsKey, onNotify]);
 
   useEffect(() => { loadRows(); }, [loadRows]);
+  useEffect(() => { setPage(1); setSearch(''); setFilterStatus(''); setForm(config.defaults); setShowNew(false); setEditItem(null); setViewItem(null); }, [listParamsKey, fixedFieldsKey]);
   useEffect(() => { setPage(1); }, [search, filterStatus, extraFilterValues]);
 
   const filtered = rows.filter((r) => {
@@ -10961,9 +10932,8 @@ function LiaisonApprovalStatCard({ label, value, caption, icon: Icon, tone, onCl
       onClick={onClick}
       className={cx(
         panelClass,
-        // Mobile: compact vertical tile for one-line KPI strips
-        'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center transition active:scale-[0.98]',
-        'md:min-h-[116px] md:flex-none md:flex-row md:items-center md:gap-4 md:p-5 md:text-left md:hover:-translate-y-0.5 md:hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]',
+        'flex w-full min-w-0 flex-col items-center gap-1 px-2 py-2.5 text-center transition active:scale-[0.98]',
+        'md:min-h-[116px] md:flex-row md:items-center md:gap-4 md:p-5 md:text-left md:hover:-translate-y-0.5 md:hover:shadow-[0_16px_30px_rgba(24,48,87,0.09)]',
       )}
     >
       <span className={cx('grid size-7 shrink-0 place-items-center rounded-[9px] shadow-sm md:size-12 md:rounded-[14px] md:shadow-[0_10px_24px_rgba(37,99,235,0.18)]', toneClass)}>
@@ -11717,7 +11687,7 @@ function AccountsPartiesPage({ activeSection, onOpenSection, onNotify }) {
     newLabel: 'Add Account',
     api: accountsModuleApi.parties,
     statuses: ['Active', 'Inactive', 'Pending'],
-    extraFilters: [{ key: 'account_type', label: 'All Types', options: ['Customer', 'Vendor', 'Partner'] }],
+    extraFilters: [{ key: 'account_type', label: 'All Types', options: ['Customer', 'Vendor', 'Supplier', 'Partner'] }],
     searchKeys: ['name', 'contact_person', 'phone', 'email', 'city'],
     columns: [
       { label: 'Code', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
@@ -11730,7 +11700,7 @@ function AccountsPartiesPage({ activeSection, onOpenSection, onNotify }) {
     ],
     fields: [
       { name: 'name', label: 'Account Name', type: 'text', required: true },
-      { name: 'account_type', label: 'Type', type: 'select', options: ['Customer', 'Vendor', 'Partner'] },
+      { name: 'account_type', label: 'Type', type: 'select', options: ['Customer', 'Vendor', 'Supplier', 'Partner'] },
       { name: 'contact_person', label: 'Contact Person', type: 'text' },
       { name: 'phone', label: 'Phone', type: 'text' },
       { name: 'email', label: 'Email', type: 'text' },
@@ -12589,11 +12559,11 @@ function InventoryManagementPage({ activeSection, onOpenSection, onNotify }) {
   if (activeSection === 'Categories') {
     return <InventoryCategoriesPage {...invCommon} />;
   }
-  if (activeSection === 'Stock Inward') {
-    return <InventoryMovementPage movementType="Inward" activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (activeSection === 'Stock') {
+    return <InventoryMovementPage key="stock-inward" movementType="Inward" activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
-  if (activeSection === 'Stock Outward') {
-    return <InventoryMovementPage movementType="Outward" activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (activeSection === 'Stock Movement') {
+    return <InventoryMovementPage key="stock-outward" movementType="Outward" activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
   if (activeSection === 'Warehouses') {
     return <InventoryWarehousesCrudPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
@@ -12615,7 +12585,7 @@ function InventoryManagementPage({ activeSection, onOpenSection, onNotify }) {
 }
 
 function InventoryMovementPage({ movementType, activeSection, onOpenSection, onNotify }) {
-  const titles = { Inward: 'Stock Inward', Outward: 'Stock Outward' };
+  const titles = { Inward: 'Stock', Outward: 'Stock Movement' };
   const isInward = movementType === 'Inward';
   const isOutward = movementType === 'Outward';
 
@@ -12657,7 +12627,7 @@ function InventoryMovementPage({ movementType, activeSection, onOpenSection, onN
     ],
     hideStatusInView: true,
   };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  return <LiaisonCrudPage key={`inv-mov-${movementType}`} config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
 function InventoryWarehousesCrudPage({ activeSection, onOpenSection, onNotify }) {
@@ -12759,7 +12729,7 @@ function SummaryExecutivePage({ activeSection, onOpenSection, onNotify }) {
   const quickLinks = [
     { label: 'New Lead', section: 'Create Lead', icon: UserPlus, tone: 'green' },
     { label: 'Record Payment', section: 'Payment Received', icon: ReceiptText, tone: 'blue' },
-    { label: 'Stock Inward', section: 'Stock Inward', icon: Download, tone: 'amber' },
+    { label: 'Stock', section: 'Stock', icon: Download, tone: 'amber' },
     { label: 'O&M Tickets', section: 'Breakdown Tickets', icon: Wrench, tone: 'red' },
     { label: 'Full Reports', section: 'Insights', icon: BarChart3, tone: 'purple' },
   ];
@@ -13037,11 +13007,25 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project Installation') {
-    return <ProjectInstallationPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return (
+      <ProjectInstallationPage
+        activeSection={activeSection}
+        onOpenSection={onOpenSection}
+        onNotify={onNotify}
+        initialProjectId={selectedProject?.id}
+      />
+    );
   }
 
-  if (activeSection === 'Project Dispatch' || activeSection === 'Project Team Assignment') {
-    return <ProjectMaterialDispatchPage activeSection="Project Dispatch" onOpenSection={onOpenSection} onNotify={onNotify} />;
+  if (activeSection === 'Project Dispatch') {
+    return (
+      <ProjectMaterialDispatchPage
+        activeSection="Project Dispatch"
+        onOpenSection={onOpenSection}
+        onNotify={onNotify}
+        initialProjectId={selectedProject?.id}
+      />
+    );
   }
 
   if (activeSection === 'Project Material Planning') {
@@ -13065,7 +13049,14 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project Expenses') {
-    return <ProjectExpensesPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return (
+      <ProjectExpensesPage
+        activeSection={activeSection}
+        onOpenSection={onOpenSection}
+        onNotify={onNotify}
+        initialProjectId={selectedProject?.id}
+      />
+    );
   }
 
   if (activeSection === 'Project Documents') {
@@ -13785,12 +13776,12 @@ function buildSiteSurveyViewHtml(row, detail) {
 // styled header, sahi PRJ IDs, readable dates, IVRS/mobile, text-format taaki numbers na bigde.
 function buildProjectListSheetHtml(rows) {
   const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const fmtDate = (v) => (v ? formatProjectDisplayDate(v) : '-');
-  const headers = ['#', 'Project ID', 'Project Name', 'Customer', 'IVRS No.', 'Mobile', 'Site', 'Project Type', 'Capacity (KWp)', 'Status', 'Project Manager', 'Start Date', 'Target Date', 'Progress %'];
-  const colWidths = [36, 108, 190, 150, 96, 108, 150, 108, 92, 92, 128, 96, 96, 72];
+  const headers = ['#', 'Project ID', 'Project Name', 'Customer', 'IVRS No.', 'Mobile', 'Site', 'Project Type', 'Capacity (KWp)', 'Status', 'Project Manager', 'Team Assignment', 'Survey %', 'Material %', 'Dispatch %', 'Installation %', 'Overall %'];
+  const colWidths = [36, 108, 190, 150, 96, 108, 150, 108, 92, 92, 128, 140, 72, 72, 72, 84, 72];
   const headHtml = headers.map((h) => `<th>${esc(h)}</th>`).join('');
   const colgroup = colWidths.map((width) => `<col width="${width}" style="width:${width}px">`).join('');
   const bodyHtml = rows.map((row, i) => {
+    const stage = row.stageProgress || {};
     const cells = [
       { value: i + 1, className: 'p' },
       { value: row.projectId || '-', className: 't' },
@@ -13803,9 +13794,12 @@ function buildProjectListSheetHtml(rows) {
       { value: row.capacity, className: 'n' },
       { value: row.status, className: '' },
       { value: row.manager?.name || 'Unassigned', className: '' },
-      { value: fmtDate(row.startDate), className: '' },
-      { value: fmtDate(row.targetDate), className: '' },
-      { value: `${row.progress || 0}%`, className: 'p' },
+      { value: row.installationTeam || 'Unassigned', className: '' },
+      { value: `${stage.survey || 0}%`, className: 'p' },
+      { value: `${stage.material || 0}%`, className: 'p' },
+      { value: `${stage.dispatch || 0}%`, className: 'p' },
+      { value: `${stage.installation || 0}%`, className: 'p' },
+      { value: `${stage.overall ?? row.progress ?? 0}%`, className: 'p' },
     ];
     return `<tr>${cells.map(({ value, className }) => `<td${className ? ` class="${className}"` : ''}>${esc(value)}</td>`).join('')}</tr>`;
   }).join('');
@@ -13849,6 +13843,7 @@ function buildProjectListSheetHtml(rows) {
 }
 
 function projectRowFromApi(p) {
+  const stage = p.stage_progress || {};
   return {
     id: p.id,
     lead: p.lead,
@@ -13868,6 +13863,14 @@ function projectRowFromApi(p) {
     startDate: p.start_date || '',
     targetDate: p.target_date || '',
     progress: p.progress_percent || 0,
+    installationTeam: p.installation_team || 'Unassigned',
+    stageProgress: {
+      survey: Number(stage.survey) || 0,
+      material: Number(stage.material) || 0,
+      dispatch: Number(stage.dispatch) || 0,
+      installation: Number(stage.installation) || 0,
+      overall: Number(stage.overall ?? p.progress_percent) || 0,
+    },
     surveyDate: p.survey_date || '',
     surveyedBy: p.surveyed_by_name || '',
     surveyFeasibility: p.survey_feasibility || '',
@@ -13905,6 +13908,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editProject, setEditProject] = useState(null);
+  const [viewProjectRow, setViewProjectRow] = useState(null);
   const [viewSurveyRow, setViewSurveyRow] = useState(null);
   const [editSurveyRow, setEditSurveyRow] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -13951,21 +13955,17 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     { label: 'Completed', value: surveySummary?.completed ?? '—', toneClass: 'bg-linear-to-br from-[#10b981] to-[#059669]', icon: CheckCircle2 },
   ];
 
-  const handleOpenProject = (row) => {
-    onSelectProject?.({ id: row.id });
-  };
-
   const handleEditProject = (row) => {
     setEditProject({ projectId: row.id, leadId: row.lead, status: row.status });
   };
 
-  // Site Survey list: View opens a read-only popup; Edit opens the full survey hub in a popup too.
+  // Project List / Site Survey: View opens a read-only popup (no full-page navigate).
   const handleViewRow = (row) => {
     if (isSiteSurveyPicker) {
       setViewSurveyRow(row);
       return;
     }
-    handleOpenProject(row);
+    setViewProjectRow(row);
   };
 
   const handleEditRow = (row) => {
@@ -14227,7 +14227,21 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         ) : (
         <>
         <div className="hidden overflow-x-auto rounded-[14px] border border-[#e7eef7] bg-white lg:block">
-          <table className={cx('crm-table w-full', isSiteSurveyPicker ? 'min-w-[1180px]' : 'min-w-[1420px]')}>
+          <table className={cx('crm-table crm-table--lead-dense crm-table--project-list w-full', isSiteSurveyPicker ? 'min-w-[1180px]' : 'min-w-[1320px]')}>
+            {!isSiteSurveyPicker ? (
+              <colgroup>
+                <col style={{ width: 44 }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: 96 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 148 }} />
+                <col style={{ width: 128 }} />
+                <col style={{ width: 132 }} />
+              </colgroup>
+            ) : null}
             <thead>
               <tr>
                 {isSiteSurveyPicker ? (
@@ -14307,9 +14321,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                         onChange={(v) => { setManagerFilter(v); setActivePage(1); }}
                       />
                     </th>
-                    <th title="Start Date"><span className="block truncate">Start Date</span></th>
-                    <th title="Target Date"><span className="block truncate">Target Date</span></th>
-                    <th title="Progress"><span className="block truncate">Progress</span></th>
+                    <th className="crm-col-team" title="Team Assignment"><span className="block leading-snug">Team Assignment</span></th>
+                    <th className="crm-col-progress" title="Installation Progress"><span className="crm-col-progress-label">Install Progress</span></th>
                     <th title="Action"><span className="block truncate">Action</span></th>
                   </>
                 )}
@@ -14317,7 +14330,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             </thead>
             <tbody>
               {pagedProjectRows.map((row, index) => (
-                <tr key={row.id}>
+                <tr key={row.id} {...rowDoubleOpenProps(() => handleViewRow(row), { title: 'Double-tap to view project' })}>
                   <td>{(activePage - 1) * PROJECT_PAGE_SIZE + index + 1}</td>
                   <td className="font-extrabold text-[#1e3261]">{row.projectName}</td>
                   <td>
@@ -14340,12 +14353,16 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                       <td className="font-extrabold text-[#1e3261]">{row.capacity}</td>
                       <td><ProjectPhaseBadge label={row.status} /></td>
                       <td><AssigneeCell assignee={row.manager} compact /></td>
-                      <td><span className="inline-flex items-center gap-2 font-bold text-[#314a79]"><CalendarDays className="size-4 text-[#7b8ca8]" />{formatProjectDisplayDate(row.startDate)}</span></td>
-                      <td><span className="inline-flex items-center gap-2 font-bold text-[#314a79]"><CalendarDays className="size-4 text-[#7b8ca8]" />{row.targetDate ? formatProjectDisplayDate(row.targetDate) : '-'}</span></td>
-                      <td><ProjectProgressBar value={row.progress} /></td>
+                      <td className="crm-col-team">
+                        <span className="crm-team-cell inline-flex max-w-full items-start gap-1.5 font-bold text-[#314a79]" title={row.installationTeam || 'Unassigned'}>
+                          <HardHat className="mt-0.5 size-3.5 shrink-0 text-[#0b65e5]" />
+                          <span className="min-w-0 wrap-break-word leading-snug">{row.installationTeam || 'Unassigned'}</span>
+                        </span>
+                      </td>
+                      <td className="crm-col-progress"><ProjectStageProgressCell progress={row.stageProgress} projectLabel={row.projectName} variant="table" /></td>
                     </>
                   )}
-                  <td>
+                  <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
                     <div className="flex items-center gap-2">
                       <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => handleViewRow(row)} />
                       <UserActionButton label={`Edit ${row.projectName}`} icon={Pencil} tone="green" onClick={() => handleEditRow(row)} />
@@ -14355,7 +14372,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                 </tr>
               ))}
               {pagedProjectRows.length === 0 ? (
-                <tr><td colSpan={isSiteSurveyPicker ? 9 : 11} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</td></tr>
+                <tr><td colSpan={isSiteSurveyPicker ? 9 : 10} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -14412,7 +14429,11 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             </div>
           )}
           {pagedProjectRows.map((row) => (
-            <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-3 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+            <article
+              key={row.id}
+              {...rowDoubleOpenProps(() => handleViewRow(row), { title: 'Double-tap to view project' })}
+              className="crm-row-clickable rounded-[14px] border border-[#e7eef7] bg-white p-3 shadow-[0_10px_22px_rgba(17,39,84,0.05)]"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-[15px] font-extrabold text-[#1e3261]">{row.projectName}</p>
@@ -14439,14 +14460,18 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                     <span className="ml-1 inline-flex min-w-0"><AssigneeCell assignee={row.manager} compact /></span>
                   </div>
 
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="min-w-0 flex-1"><ProjectProgressBar value={row.progress} /></div>
-                    <span className="shrink-0 text-[12px] font-bold text-[#7b8ca8]">{row.targetDate ? formatProjectDisplayDate(row.targetDate) : 'No target date'}</span>
+                  <div className="mt-3 flex items-start gap-2 text-[12px] font-bold text-[#314a79]">
+                    <HardHat className="mt-0.5 size-4 shrink-0 text-[#0b65e5]" />
+                    <span><span className="font-extrabold text-[#53647f]">Team Assignment: </span>{row.installationTeam || 'Unassigned'}</span>
+                  </div>
+
+                  <div className="mt-3">
+                    <ProjectStageProgressCell progress={row.stageProgress} projectLabel={row.projectName} variant="card" />
                   </div>
                 </>
               )}
 
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex gap-2" data-no-row-open onDoubleClick={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
                 <button type="button" onClick={() => handleViewRow(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
                 <button type="button" onClick={() => handleEditRow(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0d9f4a]"><Pencil className="size-4" />Edit</button>
                 <button type="button" onClick={(event) => openActionMenu(event, row)} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
@@ -14481,6 +14506,14 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           projectContext={editProject}
           onClose={() => setEditProject(null)}
           onSaved={() => { setEditProject(null); setRefreshKey((key) => key + 1); }}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {viewProjectRow ? (
+        <ProjectListViewModal
+          row={viewProjectRow}
+          onClose={() => setViewProjectRow(null)}
           onNotify={onNotify}
         />
       ) : null}
@@ -14595,6 +14628,324 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
 // jaisa compact. Pura project data (Financials/Progress/Team/Documents/Checklist/Activities/Notes)
 // "View Full Project" se full hub page par dekha ja sakta hai; Print abhi bhi poora report nikalta
 // hai (buildSiteSurveyViewHtml unchanged — record-keeping ke liye full detail).
+function ProjectStageProgressCell({ progress, projectLabel, variant = 'table' }) {
+  const [detailOpen, setDetailOpen] = useState(false);
+  const p = progress || {};
+  const stages = [
+    { key: 'survey', label: 'Survey', value: Number(p.survey) || 0, color: 'blue' },
+    { key: 'material', label: 'Material', value: Number(p.material) || 0, color: 'amber' },
+    { key: 'dispatch', label: 'Dispatch', value: Number(p.dispatch) || 0, color: 'blue' },
+    { key: 'installation', label: 'Installation', value: Number(p.installation) || 0, color: 'green' },
+  ];
+  const overall = Number(p.overall) || 0;
+  const pctWidth = `${Math.max(0, Math.min(overall, 100))}%`;
+
+  const detailModal = detailOpen ? (
+    <div
+      className="fixed inset-0 z-100 flex items-center justify-center bg-[#0b1226]/55 p-4"
+      data-no-row-open
+      onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailOpen(false); }}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
+      <div className="w-full max-w-[420px] overflow-hidden rounded-[16px] bg-white shadow-[0_28px_60px_rgba(11,18,38,0.28)]">
+        <div className="flex items-start justify-between gap-3 border-b border-[#e7eef7] px-5 py-4">
+          <div className="min-w-0">
+            <h3 className="font-display text-[16px] font-extrabold text-[#06135a]">Installation Progress</h3>
+            <p className="mt-1 truncate text-[12px] font-bold text-[#53647f]">{projectLabel || 'Project'}</p>
+          </div>
+          <button type="button" onClick={() => setDetailOpen(false)} className="grid size-8 place-items-center rounded-[8px] text-[#7585a2] hover:bg-[#f1f5fa]" aria-label="Close progress details">
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="space-y-4 px-5 py-5">
+          <div className="rounded-[12px] border border-[#e7eef7] bg-[#f8fbff] px-4 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Overall</span>
+              <span className="text-[18px] font-extrabold text-[#1e3261]">{overall}%</span>
+            </div>
+            <span className="mt-2 block h-[8px] overflow-hidden rounded-full bg-[#e7eef7]">
+              <span className="block h-full rounded-full bg-[#0b65e5]" style={{ width: pctWidth }} />
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {stages.map((stage) => (
+              <div key={stage.key} className="rounded-[12px] border border-[#e7eef7] px-3.5 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12px] font-extrabold text-[#53647f]">{stage.label}</span>
+                  <span className="text-[14px] font-extrabold text-[#1e3261]">{stage.value}%</span>
+                </div>
+                <span className="mt-2 block h-[6px] overflow-hidden rounded-full bg-[#eef3f9]">
+                  <span
+                    className={cx(
+                      'block h-full rounded-full',
+                      stage.color === 'green' ? 'bg-[#14b84c]' : stage.color === 'amber' ? 'bg-[#f59e0b]' : 'bg-[#2f80ff]',
+                    )}
+                    style={{ width: `${Math.max(0, Math.min(stage.value, 100))}%` }}
+                  />
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="border-t border-[#e7eef7] px-5 py-3 text-right">
+          <button type="button" onClick={() => setDetailOpen(false)} className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#53647f] hover:bg-[#f8fbff]">Close</button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const openDetail = (event) => {
+    event.stopPropagation();
+    setDetailOpen(true);
+  };
+
+  const detailButton = (
+    <button
+      type="button"
+      data-no-row-open
+      title="View progress breakdown"
+      aria-label="View progress breakdown"
+      onClick={openDetail}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onTouchEnd={(event) => event.stopPropagation()}
+      className={cx(
+        'grid shrink-0 place-items-center rounded-[7px] border border-[#dce6f3] bg-white text-[#0b65e5] transition hover:bg-[#f0f6ff]',
+        variant === 'table' ? 'size-7' : 'size-8',
+      )}
+    >
+      <Eye className={variant === 'table' ? 'size-3' : 'size-3.5'} />
+    </button>
+  );
+
+  if (variant === 'table') {
+    return (
+      <>
+        <div className="crm-progress-cell flex items-center gap-1.5">
+          <div className="min-w-0 flex-1">
+            <p className="crm-progress-cell__pct mb-0.5 text-right text-[11px] font-extrabold leading-none text-[#1e3261]">{overall}%</p>
+            <span className="block h-[5px] overflow-hidden rounded-full bg-[#e7eef7]">
+              <span className="block h-full rounded-full bg-[#0b65e5]" style={{ width: pctWidth }} />
+            </span>
+          </div>
+          {detailButton}
+        </div>
+        {detailModal}
+      </>
+    );
+  }
+
+  if (variant === 'card') {
+    return (
+      <>
+        <div className="flex items-center gap-2 rounded-[10px] border border-[#e7eef7] bg-[#f8fbff] px-3 py-2.5">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Install Progress</span>
+              <span className="crm-progress-cell__pct text-[13px] font-extrabold text-[#1e3261]">{overall}%</span>
+            </div>
+            <span className="block h-[6px] overflow-hidden rounded-full bg-[#e7eef7]">
+              <span className="block h-full rounded-full bg-[#0b65e5]" style={{ width: pctWidth }} />
+            </span>
+          </div>
+          {detailButton}
+        </div>
+        {detailModal}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="min-w-0 max-w-full space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Overall</span>
+          <span className="crm-progress-cell__pct text-[12px] font-extrabold text-[#1e3261]">{overall}%</span>
+        </div>
+        <span className="block h-[6px] overflow-hidden rounded-full bg-[#e7eef7]">
+          <span className="block h-full rounded-full bg-[#0b65e5]" style={{ width: pctWidth }} />
+        </span>
+      </div>
+      {detailModal}
+    </>
+  );
+}
+
+function ProjectListViewModal({ row, onClose, onNotify }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    projectApi.get(row.id)
+      .then((data) => { if (!cancelled) setDetail(data); })
+      .catch((err) => { if (!cancelled) onNotify?.(err?.message || 'Failed to load project details'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [row.id]);
+
+  const d = detail || {};
+  const survey = d.site_survey || {};
+  const teamMembers = Array.isArray(d.team_members) ? d.team_members : [];
+  const workOrders = Array.isArray(d.work_orders) ? d.work_orders : [];
+  const milestones = Array.isArray(d.milestones) ? d.milestones : [];
+  const checklist = Array.isArray(d.checklist_items) ? d.checklist_items : [];
+  const expenses = Array.isArray(d.expenses) ? d.expenses : [];
+  const payments = Array.isArray(d.payments) ? d.payments : [];
+  const stage = row.stageProgress || {};
+  const money = (v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '—';
+    return `₹${n.toLocaleString('en-IN')}`;
+  };
+
+  const handlePrint = () => {
+    const win = window.open('', '_blank');
+    if (!win) { onNotify?.('Allow pop-ups to print this document'); return; }
+    win.document.write(buildProjectDocumentHtml(row, detail));
+    win.document.close();
+    win.focus();
+    win.onload = () => { win.print(); };
+    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 600);
+  };
+
+  return (
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-[#0b1226]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_36px_80px_rgba(11,18,38,0.32)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e7eef7] px-5 py-4 sm:px-6">
+          <div className="flex items-start gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#e8f1ff] text-[#0b65e5]"><FolderKanban className="size-5" /></span>
+            <div className="min-w-0">
+              <h2 className="font-display text-[18px] font-extrabold leading-tight text-[#06135a] sm:text-[20px]">{row.projectName}</h2>
+              <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.projectId || d.project_id} • {row.customer} • {row.site}</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-[8px] text-[#7585a2] transition hover:bg-[#f1f5fa]" aria-label="Close project details">
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          {loading ? (
+            <PageLoadingState message="Loading project details..." />
+          ) : (
+            <div className="space-y-5">
+              <ProjectInfoCard title="Project Snapshot" icon={FolderKanban} tone="blue">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoCell label="Status" valueNode={<ProjectPhaseBadge label={d.status || row.status} />} />
+                  <InfoCell label="Project Type" valueNode={<ProjectTypeBadge type={d.project_type || row.type} />} />
+                  <InfoCell label="Capacity" value={`${d.capacity_kwp ?? row.capacity ?? '—'} KWp`} />
+                  <InfoCell label="Priority" value={d.priority || '—'} />
+                  <InfoCell label="Start Date" value={d.start_date ? formatProjectDisplayDate(d.start_date) : (row.startDate ? formatProjectDisplayDate(row.startDate) : '—')} />
+                  <InfoCell label="Target Date" value={d.target_date ? formatProjectDisplayDate(d.target_date) : (row.targetDate ? formatProjectDisplayDate(row.targetDate) : '—')} />
+                  <InfoCell label="Total Value" value={money(d.total_value)} />
+                  <InfoCell label="IVRS / Mobile" value={[row.ivrs || d.lead_ivrs_number, row.mobile || d.lead_mobile_number].filter(Boolean).join(' / ') || '—'} />
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Installation Progress" icon={ClipboardList} tone="green">
+                <ProjectStageProgressCell
+                  variant="detail"
+                  progress={{
+                  survey: stage.survey,
+                  material: stage.material,
+                  dispatch: stage.dispatch,
+                  installation: stage.installation,
+                  overall: stage.overall ?? d.progress_percent ?? row.progress ?? 0,
+                }} />
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    ['Survey', stage.survey],
+                    ['Material', stage.material],
+                    ['Dispatch', stage.dispatch],
+                    ['Installation', stage.installation],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-[12px] border border-[#e7eef7] bg-[#f8fbff] px-3 py-2.5">
+                      <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">{label}</p>
+                      <p className="mt-1 text-[18px] font-extrabold text-[#1e3261]">{Number(value) || 0}%</p>
+                    </div>
+                  ))}
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Team & Contacts" icon={Users} tone="blue">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <InfoCell label="Project Manager" value={d.manager_detail?.name || row.manager?.name || 'Unassigned'} />
+                  <InfoCell label="Site Engineer" value={d.site_engineer_detail?.name || 'Unassigned'} />
+                  <InfoCell label="Team Assignment" value={row.installationTeam || 'Unassigned'} />
+                  <InfoCell label="Sales Executive" value={d.sales_executive_detail?.name || 'Unassigned'} />
+                </div>
+                {teamMembers.length ? (
+                  <div className="mt-4 border-t border-[#edf2f8] pt-4">
+                    <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Team Members</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {teamMembers.map((member) => (
+                        <div key={member.id || `${member.user}-${member.role_title}`} className="rounded-[10px] border border-[#e7eef7] px-3 py-2">
+                          <p className="text-[13px] font-extrabold text-[#1e3261]">{member.user_name || member.user_detail?.name || '—'}</p>
+                          <p className="text-[12px] font-bold text-[#667794]">{member.role_title || 'Team'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Customer & Site" icon={MapPin} tone="blue">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <InfoCell label="Customer Name" value={d.customer_name || row.customer || '—'} />
+                  <InfoCell label="Site" value={d.site || row.site || '—'} />
+                  <InfoCell label="Meter No." value={d.meter_number || '—'} />
+                  <InfoCell label="Site Size" value={d.site_size || '—'} />
+                  <InfoCell label="City" value={d.city || '—'} />
+                  <InfoCell label="State" value={d.state || '—'} />
+                </div>
+                <div className="mt-4 border-t border-[#edf2f8] pt-4">
+                  <InfoCell label="Site Address" value={d.site_address || '—'} large />
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Site Survey" icon={ClipboardPlus} tone="amber">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoCell label="Survey Status" value={survey.status || row.surveyStatus || 'Not Started'} />
+                  <InfoCell label="Survey Date" value={(survey.survey_date || row.surveyDate) ? formatProjectDisplayDate(survey.survey_date || row.surveyDate) : '—'} />
+                  <InfoCell label="Surveyed By" value={survey.surveyed_by_name || row.surveyedBy || 'Unassigned'} />
+                  <InfoCell label="Feasibility" value={survey.feasibility || row.surveyFeasibility || 'Pending'} />
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Finance Snapshot" icon={CreditCard} tone="green">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoCell label="Project Value" value={money(d.total_value)} />
+                  <InfoCell label="Total Expense" value={money(d.total_expense ?? expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0))} />
+                  <InfoCell label="Total Paid" value={money(d.total_paid ?? payments.reduce((sum, pmt) => sum + Number(pmt.amount || 0), 0))} />
+                  <InfoCell label="Expenses / Payments" value={`${expenses.length} / ${payments.length}`} />
+                </div>
+              </ProjectInfoCard>
+
+              <ProjectInfoCard title="Operations Summary" icon={Wrench} tone="blue">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoCell label="Work Orders" value={String(workOrders.length)} />
+                  <InfoCell label="Milestones" value={String(milestones.length)} />
+                  <InfoCell label="Checklist Items" value={String(checklist.length)} />
+                  <InfoCell label="Open WOs" value={String(workOrders.filter((wo) => !['Completed', 'Cancelled'].includes(wo.status)).length)} />
+                </div>
+              </ProjectInfoCard>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-[#e7eef7] px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
+          <button type="button" onClick={onClose} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">Close</button>
+          <button type="button" disabled={loading} onClick={handlePrint} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0b65e5] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(11,101,229,0.22)] transition hover:bg-[#0956c4] disabled:cursor-not-allowed disabled:opacity-60">
+            <Printer className="size-4" />
+            Print
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20908,11 +21259,11 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
 }
 
 function ProjectInstallationPage(props) {
-  return <OpsInstallationPage {...props} Subnav={ProjectSubnavTabs} />;
+  return <OpsInstallationPage {...props} Subnav={ProjectSubnavTabs} initialProjectId={props.initialProjectId} />;
 }
 
 function ProjectMaterialDispatchPage(props) {
-  return <OpsDispatchPage {...props} Subnav={ProjectSubnavTabs} />;
+  return <OpsDispatchPage {...props} Subnav={ProjectSubnavTabs} initialProjectId={props.initialProjectId} />;
 }
 
 function ProjectMaterialPlanningPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
@@ -20959,28 +21310,41 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      projectApi.list({ page_size: 1000 }),
-      materialPlanApi.list({ page_size: 2000 }),
-    ]).then(([projData, planData]) => {
-      if (cancelled) return;
-      const list = normalizeApiRows(projData).filter((p) => p.lead_status === 'Won');
-      setProjects(list);
-      const map = {};
-      normalizeApiRows(planData).forEach((row) => {
-        const key = row.project;
-        if (!map[key]) map[key] = { total: 0, completed: 0, delayed: 0, inProgress: 0 };
-        map[key].total += 1;
-        if (row.status === 'Completed') map[key].completed += 1;
-        else if (row.status === 'Delayed') map[key].delayed += 1;
-        else if (row.status === 'In Progress' || row.status === 'Partially Completed') map[key].inProgress += 1;
+    // Load projects first so a material-plan API failure never blanks the Won list.
+    projectApi.list({ page_size: 1000 })
+      .then((projData) => {
+        if (cancelled) return;
+        const list = normalizeApiRows(projData).filter((p) => p.lead_status === 'Won');
+        setProjects(list);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjects([]);
+          onNotify?.('Failed to load projects for material planning');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
-      setPlanByProject(map);
-    }).catch(() => {
-      if (!cancelled) onNotify('Failed to load projects for material planning');
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
+
+    materialPlanApi.list({ page_size: 2000 })
+      .then((planData) => {
+        if (cancelled) return;
+        const map = {};
+        normalizeApiRows(planData).forEach((row) => {
+          const key = row.project;
+          if (!map[key]) map[key] = { total: 0, completed: 0, delayed: 0, inProgress: 0 };
+          map[key].total += 1;
+          if (row.status === 'Completed') map[key].completed += 1;
+          else if (row.status === 'Delayed') map[key].delayed += 1;
+          else if (row.status === 'In Progress' || row.status === 'Partially Completed') map[key].inProgress += 1;
+        });
+        setPlanByProject(map);
+      })
+      .catch(() => {
+        if (!cancelled) setPlanByProject({});
+      });
+
     return () => { cancelled = true; };
   }, [onNotify]);
 
@@ -21129,7 +21493,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
                   const stats = planByProject[project.id] || { total: 0 };
                   const planStatus = planStatusFor(project.id);
                   return (
-                    <tr key={project.id} className="cursor-pointer hover:bg-[#f8fbff]" onClick={() => openPlan(project)}>
+                    <tr key={project.id} {...rowDoubleOpenProps(() => openPlan(project), { title: 'Double-tap to open BOM' })}>
                       <td className="crm-col-index">{index + 1}</td>
                       <td>
                         <div className="font-semibold text-[#1e3261] leading-tight">{project.project_name || project.project_id}</div>
@@ -21157,10 +21521,10 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
                       <td>
                         <ProjectInfoPill tone={statusTone(planStatus)}>{planStatus}</ProjectInfoPill>
                       </td>
-                      <td className="crm-col-sticky-right">
+                      <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); openPlan(project); }}
+                          onClick={() => openPlan(project)}
                           className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white"
                         >
                           <Boxes className="size-3.5" />
@@ -21191,22 +21555,24 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
 }
 
 function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onPlansChanged }) {
-  const MATERIAL_CATEGORIES = ['Solar Panels', 'Inverters', 'Mounting Structure', 'DC Cables', 'AC Cables', 'Connectors (MC4)', 'ACDB / DCDB', 'Earthing Material', 'Consumables', 'Safety & Others', 'Battery', 'Other'];
   const MATERIAL_STATUS = ['Not Started', 'In Progress', 'Partially Completed', 'Completed', 'Delayed'];
-  const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair'];
-  const emptyForm = { category: 'Solar Panels', items: '', uom: 'Nos', planned_qty: '', planned_value: '', status: 'Not Started' };
+  const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair', 'Unit', 'Packet', 'Bundels', 'kW', 'pcs', 'Meter'];
+  const emptyForm = { category: '', items: '', uom: 'Nos', planned_qty: '', planned_value: '', planning_unit_price: '', status: 'Not Started', inventory_item: '' };
 
   const categoryIcon = (cat) => {
-    if (cat === 'Solar Panels') return Sun;
-    if (cat === 'Inverters') return Zap;
-    if (cat === 'Mounting Structure') return Boxes;
-    if (String(cat || '').includes('Cable')) return Cable;
+    const n = String(cat || '').toLowerCase();
+    if (n.includes('panel') || n.includes('solar')) return Sun;
+    if (n.includes('invert')) return Zap;
+    if (n.includes('structure') || n.includes('mount')) return Boxes;
+    if (n.includes('cable')) return Cable;
+    if (n.includes('battery')) return Package;
     return Package;
   };
 
   const [project, setProject] = useState(projectProp);
   const [projectSurvey, setProjectSurvey] = useState(null);
   const [rows, setRows] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
   const [loadingRows, setLoadingRows] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -21215,13 +21581,125 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [uomFilter, setUomFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [itemPickerOpen, setItemPickerOpen] = useState(false);
+  const [itemSearch, setItemSearch] = useState('');
+  const itemPickerRef = useRef(null);
+
+  /** Inventory purchase/cost price — never overwritten by planning price. */
+  const inventoryUnitPrice = useCallback((item) => {
+    if (!item) return 0;
+    const cost = Number(item.rate);
+    if (Number.isFinite(cost) && cost > 0) return cost;
+    return 0;
+  }, []);
+
+  const calcPlannedValue = useCallback((qty, unitPrice) => {
+    const q = Number(String(qty ?? '').replace(/,/g, ''));
+    if (!Number.isFinite(q) || q <= 0 || !unitPrice) return '';
+    const total = Math.round(q * unitPrice * 100) / 100;
+    return String(total);
+  }, []);
+
+  const planningDiff = useCallback((invCost, planPrice) => {
+    const a = Number(invCost) || 0;
+    const b = Number(planPrice) || 0;
+    return Math.round((b - a) * 100) / 100;
+  }, []);
+
+  const selectedInventoryItem = useMemo(
+    () => inventoryItems.find((i) => String(i.id) === String(form.inventory_item)) || null,
+    [inventoryItems, form.inventory_item],
+  );
+
+  const filteredInventoryItems = useMemo(() => {
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return inventoryItems;
+    return inventoryItems.filter((item) => {
+      const hay = [item.name, item.item_code, item.category, item.product_type, item.warehouse_name]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [inventoryItems, itemSearch]);
+
+  useEffect(() => {
+    if (!itemPickerOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (itemPickerRef.current && !itemPickerRef.current.contains(event.target)) {
+        setItemPickerOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [itemPickerOpen]);
+
+  const applyInventoryItem = useCallback((item) => {
+    if (!item) {
+      setForm((p) => ({ ...p, inventory_item: '', category: '', planning_unit_price: '' }));
+      return;
+    }
+    const invCost = inventoryUnitPrice(item);
+    setForm((p) => {
+      const qty = p.planned_qty;
+      // Default planning price to inventory cost; user can raise it (e.g. 10k → 13k).
+      const planPrice = p.planning_unit_price !== '' && p.planning_unit_price != null
+        ? Number(p.planning_unit_price)
+        : invCost;
+      const nextValue = calcPlannedValue(qty, planPrice);
+      const mappedUom = item.unit && UOM_OPTIONS.includes(item.unit) ? item.unit : (item.unit || p.uom || 'Nos');
+      return {
+        ...p,
+        inventory_item: item.id,
+        items: item.name || p.items,
+        uom: mappedUom,
+        planning_unit_price: String(planPrice || ''),
+        planned_value: nextValue !== '' ? nextValue : p.planned_value,
+        category: item.category || 'Other',
+      };
+    });
+    setItemPickerOpen(false);
+    setItemSearch('');
+  }, [calcPlannedValue, inventoryUnitPrice]);
+
+  const onPlannedQtyChange = (value) => {
+    setForm((p) => {
+      const planPrice = Number(p.planning_unit_price);
+      const nextValue = Number.isFinite(planPrice) && planPrice > 0
+        ? calcPlannedValue(value, planPrice)
+        : p.planned_value;
+      return {
+        ...p,
+        planned_qty: value,
+        planned_value: nextValue !== '' ? nextValue : (p.planning_unit_price ? '' : p.planned_value),
+      };
+    });
+  };
+
+  const onPlanningPriceChange = (value) => {
+    setForm((p) => {
+      const planPrice = Number(value);
+      const nextValue = Number.isFinite(planPrice) && planPrice >= 0
+        ? calcPlannedValue(p.planned_qty, planPrice)
+        : '';
+      return {
+        ...p,
+        planning_unit_price: value,
+        planned_value: nextValue !== '' ? nextValue : p.planned_value,
+      };
+    });
+  };
 
   const loadRows = useCallback(async (proj) => {
     if (!proj?.id) return;
     setLoadingRows(true);
     try {
-      const planData = await materialPlanApi.list({ project: proj.id, page_size: 500 });
+      const [planData, itemsData] = await Promise.all([
+        materialPlanApi.list({ project: proj.id, page_size: 500 }),
+        inventoryApi.items.list({ page_size: 2000 }),
+      ]);
       setRows(normalizeApiRows(planData));
+      setInventoryItems(normalizeApiRows(itemsData));
     } catch {
       onNotify('Failed to load material plans');
     } finally {
@@ -21274,21 +21752,32 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
     const suggestedQty = survey?.structure_rows && survey?.structure_columns
       ? String(Number(survey.structure_rows) * Number(survey.structure_columns))
       : '';
-    setForm({ ...emptyForm, category: 'Solar Panels', planned_qty: suggestedQty || '' });
+    setForm({ ...emptyForm, planned_qty: suggestedQty || '' });
     setEditRow(null);
+    setItemSearch('');
+    setItemPickerOpen(false);
     setModalOpen(true);
   };
 
   const openEditRow = (row) => {
+    const linked = inventoryItems.find((i) => String(i.id) === String(row.inventory_item));
+    const invCost = linked ? inventoryUnitPrice(linked) : Number(row.inventory_unit_cost) || 0;
+    const planPrice = row.planning_unit_price != null && row.planning_unit_price !== ''
+      ? String(row.planning_unit_price)
+      : (row.planning_unit_price_display != null ? String(row.planning_unit_price_display) : (invCost ? String(invCost) : ''));
     setForm({
-      category: row.category || 'Solar Panels',
-      items: row.items || '',
-      uom: row.uom || 'Nos',
+      category: linked?.category || row.category || '',
+      items: row.items || linked?.name || '',
+      uom: row.uom || linked?.unit || 'Nos',
       planned_qty: row.planned_qty ?? '',
       planned_value: row.planned_value ?? '',
+      planning_unit_price: planPrice,
       status: row.status || 'Not Started',
+      inventory_item: row.inventory_item || '',
     });
     setEditRow(row.id);
+    setItemSearch('');
+    setItemPickerOpen(false);
     setModalOpen(true);
   };
 
@@ -21311,16 +21800,37 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
   };
 
   const handleSave = async () => {
-    if (!form.category || !form.planned_qty) { onNotify('Category and Qty required'); return; }
+    if (!form.inventory_item) { onNotify('Inventory product select karo (Inventory → Products)', 'error'); return; }
+    if (!form.planned_qty) { onNotify('Planned Qty required', 'error'); return; }
+    const linked = inventoryItems.find((i) => String(i.id) === String(form.inventory_item));
+    const category = linked?.category || form.category || 'Other';
+    if (!category) { onNotify('Product category missing — Inventory → Categories me set karo', 'error'); return; }
     try {
-      const payload = { ...form, project: project.id };
+      const payload = {
+        category,
+        items: form.items || linked?.name || '',
+        uom: form.uom,
+        planned_qty: form.planned_qty,
+        planned_value: form.planned_value,
+        planning_unit_price: form.planning_unit_price !== '' ? Number(form.planning_unit_price) : null,
+        status: form.status,
+        project: project.id,
+      };
+      let saved;
+      try {
+        saved = editRow !== null
+          ? await materialPlanApi.update(editRow, { ...payload, inventory_item: form.inventory_item || null })
+          : await materialPlanApi.create({ ...payload, inventory_item: form.inventory_item || null });
+      } catch {
+        saved = editRow !== null
+          ? await materialPlanApi.update(editRow, payload)
+          : await materialPlanApi.create(payload);
+      }
       if (editRow !== null) {
-        const updated = await materialPlanApi.update(editRow, payload);
-        setRows((prev) => prev.map((r) => (r.id === editRow ? updated : r)));
+        setRows((prev) => prev.map((r) => (r.id === editRow ? { ...saved, inventory_item: form.inventory_item || saved.inventory_item } : r)));
         onNotify('Material updated');
       } else {
-        const created = await materialPlanApi.create(payload);
-        setRows((prev) => [...prev, created]);
+        setRows((prev) => [...prev, { ...saved, inventory_item: form.inventory_item || saved.inventory_item }]);
         onNotify('Material added');
       }
       setModalOpen(false);
@@ -21385,7 +21895,7 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                 <Package className="mb-3 size-10 text-[#94a3b8]" />
                 <p className="text-[15px] font-extrabold text-[#1e3261]">Add materials to build your BOM</p>
                 <p className="mt-1 max-w-md text-[13px] font-medium text-[#7386a3]">
-                  Panels, inverter, structure, cables — Add Material se BOM banao.
+                  Inventory Products select karke qty daalo — category + price inventory se aate hain.
                 </p>
                 <button type="button" onClick={openAdd} className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white">
                   <Plus className="size-4" />
@@ -21394,7 +21904,7 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
               </div>
             ) : (
               <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7]">
-                <table className="crm-table crm-table--lead-dense crm-table-sticky-head w-full min-w-[760px]">
+                <table className="crm-table crm-table--lead-dense crm-table-sticky-head w-full min-w-[980px]">
                   <thead>
                     <tr>
                       <th className="crm-col-index" title="#"><span className="block truncate">#</span></th>
@@ -21410,7 +21920,10 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                           onChange={setUomFilter}
                         />
                       </th>
-                      <th title="Value"><span className="block truncate">Value</span></th>
+                      <th title="Inventory Cost"><span className="block truncate">Inv. Cost</span></th>
+                      <th title="Planning Price"><span className="block truncate">Plan Price</span></th>
+                      <th title="Planning Difference"><span className="block truncate">Diff</span></th>
+                      <th title="Planning Value"><span className="block truncate">Plan Value</span></th>
                       <th title="Status">
                         <TableHeaderFilter
                           label="Status"
@@ -21429,12 +21942,18 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                   <tbody>
                     {filteredRows.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">
+                        <td colSpan={11} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">
                           No materials match these filters.
                         </td>
                       </tr>
                     ) : filteredRows.map((row, idx) => {
-                      const Icon = categoryIcon(row.category);
+                      const linked = inventoryItems.find((i) => String(i.id) === String(row.inventory_item));
+                      const categoryLabel = linked?.category || row.category || '—';
+                      const Icon = categoryIcon(categoryLabel);
+                      const invCost = Number(row.inventory_unit_cost ?? inventoryUnitPrice(linked)) || 0;
+                      const planPrice = Number(row.planning_unit_price_display ?? row.planning_unit_price) || 0;
+                      const unitDiff = Number(row.unit_difference ?? planningDiff(invCost, planPrice)) || 0;
+                      const totalDiff = Number(row.planning_difference_total) || (unitDiff * (Number(row.planned_qty) || 0));
                       return (
                         <tr key={row.id}>
                           <td className="crm-col-index">{idx + 1}</td>
@@ -21443,7 +21962,7 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                               <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f0fdf4] text-[#16a34a]">
                                 <Icon className="size-3" />
                               </span>
-                              {row.category}
+                              {categoryLabel}
                             </div>
                           </td>
                           <td>
@@ -21457,6 +21976,14 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                           </td>
                           <td className="font-semibold text-[#1e3261]">{row.planned_qty ?? '—'}</td>
                           <td className="font-medium text-[#314a79]">{row.uom || '—'}</td>
+                          <td className="font-medium text-[#314a79]">{invCost ? `₹${invCost.toLocaleString('en-IN')}` : '—'}</td>
+                          <td className="font-medium text-[#314a79]">{planPrice ? `₹${planPrice.toLocaleString('en-IN')}` : '—'}</td>
+                          <td className={`font-semibold ${unitDiff > 0 ? 'text-[#0d9f4a]' : unitDiff < 0 ? 'text-[#dc2626]' : 'text-[#314a79]'}`}>
+                            {planPrice || invCost ? `₹${unitDiff.toLocaleString('en-IN')}` : '—'}
+                            {totalDiff && Number(row.planned_qty) > 1 ? (
+                              <span className="mt-0.5 block text-[10px] font-medium text-[#8a98af]">Σ ₹{Number(totalDiff).toLocaleString('en-IN')}</span>
+                            ) : null}
+                          </td>
                           <td className="font-medium text-[#314a79]">{row.planned_value ? `₹${row.planned_value}` : '—'}</td>
                           <td><ProjectInfoPill tone={statusTone(row.status)}>{displayStatus(row.status)}</ProjectInfoPill></td>
                           <td className="crm-col-sticky-right">
@@ -21510,29 +22037,138 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                   </div>
                 </div>
               ) : null}
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">
+              <div className="relative grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2" ref={itemPickerRef}>
+                <span>Add Item (Inventory Product) *</span>
+                <button
+                  type="button"
+                  onClick={() => setItemPickerOpen((open) => !open)}
+                  className="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-left text-[13px] font-bold text-[#1e3261]"
+                >
+                  <span className={cx('min-w-0 truncate', selectedInventoryItem ? 'text-[#1e3261]' : 'text-[#8a98af]')}>
+                    {selectedInventoryItem
+                      ? `${selectedInventoryItem.name} · ₹${inventoryUnitPrice(selectedInventoryItem).toLocaleString('en-IN')}/${selectedInventoryItem.unit || 'unit'} · Stock ${selectedInventoryItem.current_stock ?? 0}`
+                      : 'Search inventory products...'}
+                  </span>
+                  <ChevronDown className={cx('size-4 shrink-0 text-[#8a98af] transition', itemPickerOpen && 'rotate-180')} />
+                </button>
+                {itemPickerOpen ? (
+                  <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-[12px] border border-[#d9e4f2] bg-white shadow-[0_16px_40px_rgba(17,39,84,0.16)]">
+                    <div className="border-b border-[#edf2f8] p-2">
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a98af]" />
+                        <input
+                          autoFocus
+                          value={itemSearch}
+                          onChange={(e) => setItemSearch(e.target.value)}
+                          placeholder="Search name, code, category..."
+                          className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] pl-9 pr-3 text-[13px] font-semibold text-[#1e3261] outline-none focus:border-[#0b65e5]"
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto py-1">
+                      {inventoryItems.length === 0 ? (
+                        <p className="px-3 py-4 text-center text-[12px] font-semibold text-[#8a98af]">No inventory products yet — add them in Inventory → Products</p>
+                      ) : filteredInventoryItems.length === 0 ? (
+                        <p className="px-3 py-4 text-center text-[12px] font-semibold text-[#8a98af]">No products match</p>
+                      ) : filteredInventoryItems.map((item) => {
+                        const price = inventoryUnitPrice(item);
+                        const active = String(form.inventory_item) === String(item.id);
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => applyInventoryItem(item)}
+                            className={cx(
+                              'flex w-full flex-col gap-0.5 px-3 py-2.5 text-left transition hover:bg-[#f8fbff]',
+                              active && 'bg-[#eff6ff]',
+                            )}
+                          >
+                            <span className="text-[13px] font-extrabold text-[#1e3261]">{item.name}</span>
+                            <span className="text-[11px] font-semibold text-[#7386a3]">
+                              {item.item_code || item.record_no || '—'}
+                              {item.category ? ` · ${item.category}` : ''}
+                              {' · '}Stock {item.current_stock ?? 0} {item.unit || ''}
+                              {' · '}₹{price.toLocaleString('en-IN')}/{item.unit || 'unit'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+                {selectedInventoryItem ? (
+                  <p className="text-[11px] font-semibold text-[#0d9f4a]">
+                    Inventory cost ₹{inventoryUnitPrice(selectedInventoryItem).toLocaleString('en-IN')} stays fixed.
+                    Planning price alag set karo → Diff = Plan − Inv.
+                  </p>
+                ) : (
+                  <p className="text-[11px] font-semibold text-[#8a98af]">Pehle Inventory → Categories + Products me item + price add karo</p>
+                )}
+              </div>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
                 Category
-                <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  {MATERIAL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <input
+                  readOnly
+                  value={selectedInventoryItem?.category || form.category || ''}
+                  placeholder="Auto from inventory product"
+                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]"
+                />
+                <span className="text-[11px] font-semibold text-[#8a98af]">Inventory → Categories se aati hai (yahan edit nahi)</span>
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                Inventory Cost (Rs)
+                <input
+                  readOnly
+                  value={selectedInventoryItem ? String(inventoryUnitPrice(selectedInventoryItem)) : ''}
+                  placeholder="Warehouse purchase cost"
+                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]"
+                />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                Planning Price (Rs)
+                <input
+                  value={form.planning_unit_price}
+                  onChange={(e) => onPlanningPriceChange(e.target.value)}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g. 13000"
+                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100"
+                />
+              </label>
+              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
+                Diff / unit (Rs)
+                <input
+                  readOnly
+                  value={selectedInventoryItem || form.planning_unit_price
+                    ? String(planningDiff(inventoryUnitPrice(selectedInventoryItem), form.planning_unit_price))
+                    : ''}
+                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-3 text-[13px] font-bold text-[#1e3261] outline-none"
+                />
               </label>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">
                 Item / Specification
-                <input value={form.items} onChange={(e) => setForm((p) => ({ ...p, items: e.target.value }))} placeholder="e.g. 540W Mono PERC / 5kW String" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                <input value={form.items} onChange={(e) => setForm((p) => ({ ...p, items: e.target.value }))} placeholder="Auto from inventory product" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
               </label>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
                 Planned Qty *
-                <input value={form.planned_qty} onChange={(e) => setForm((p) => ({ ...p, planned_qty: e.target.value }))} type="number" min="0" placeholder="e.g. 40" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                <input value={form.planned_qty} onChange={(e) => onPlannedQtyChange(e.target.value)} type="number" min="0" placeholder="e.g. 40" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
               </label>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
                 UOM
                 <select value={form.uom} onChange={(e) => setForm((p) => ({ ...p, uom: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
                   {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  {form.uom && !UOM_OPTIONS.includes(form.uom) ? <option value={form.uom}>{form.uom}</option> : null}
                 </select>
               </label>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Planned Value (Rs)
-                <input value={form.planned_value} onChange={(e) => setForm((p) => ({ ...p, planned_value: e.target.value }))} placeholder="e.g. 1,20,000" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
+                Planning Value (Rs)
+                <input
+                  readOnly
+                  value={form.planned_value}
+                  placeholder="Auto = planning price × qty"
+                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]"
+                />
               </label>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
                 Status
@@ -22059,7 +22695,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
 }
 
 function ProjectExpensesPage(props) {
-  return <OpsExpensesPage {...props} Subnav={ProjectSubnavTabs} />;
+  return <OpsExpensesPage {...props} Subnav={ProjectSubnavTabs} initialProjectId={props.initialProjectId} />;
 }
 
 function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
@@ -24789,6 +25425,9 @@ function createSettingsRolePermissions(roleName) {
     { module: 'Liaisoning & Commissioning', description: 'LC applications and approvals' },
     { module: 'O&M', description: 'Operation and maintenance activities' },
     { module: 'Accounts', description: 'Invoices, payments and accounting' },
+    { module: 'Customer', description: 'Customer details, ledger and credit settle' },
+    { module: 'Vendors', description: 'Vendor details, ledger and payments' },
+    { module: 'Supplier', description: 'Supplier details, ledger and payments' },
     { module: 'Inventory', description: 'Stock and warehouse management' },
     { module: 'Employee', description: 'Employees, attendance and payroll' },
     { module: 'Insights', description: 'Reports and analytics' },
@@ -24808,6 +25447,9 @@ function createSettingsRolePermissions(roleName) {
     'Liaisoning & Commissioning': { View: true, Add: true, Edit: true, Delete: false, Export: false, Assign: false },
     'O&M': { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     Accounts: { View: true, Add: true, Edit: false, Delete: false, Export: true, Assign: false },
+    Customer: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    Vendors: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    Supplier: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     Inventory: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     Employee: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     Insights: { View: true, Add: false, Edit: false, Delete: false, Export: true, Assign: false },
@@ -26610,6 +27252,162 @@ function formatInrAmount(value) {
   return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function buildEmployeeAttendanceCardHtml({ periodLabel, employee, period, summary, rows }) {
+  const esc = (value) => String(value ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const todayIso = formatIsoDate(new Date());
+  const tableRows = (rows || []).map((row) => {
+    const isFuture = row.is_future || row.date > todayIso;
+    const status = isFuture ? 'Future' : (row.status || 'Not Marked');
+    const payment = isFuture ? '₹0.00' : formatInrAmount(row.payment);
+    return `<tr>
+      <td>${esc(row.date)}</td>
+      <td>${esc(row.day)}</td>
+      <td>${esc(status)}</td>
+      <td>${esc(isFuture ? '0.00' : row.hours)}</td>
+      <td>${esc(isFuture ? '0.00' : row.ot_hours)}</td>
+      <td>${esc(payment)}</td>
+    </tr>`;
+  }).join('');
+
+  const summaryCards = [
+    ['Present Days', summary.present_days],
+    ['Previous Balance', formatInrAmount(summary.net_previous_balance)],
+    ['Period Earning', formatInrAmount(summary.period_earning)],
+    ['Period Paid', formatInrAmount(summary.period_paid)],
+    ['Net Balance', formatInrAmount(summary.net_balance)],
+  ].map(([label, value]) => `
+    <div class="stat">
+      <div class="stat-label">${esc(label)}</div>
+      <div class="stat-value">${esc(value)}</div>
+    </div>`).join('');
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(periodLabel)} Attendance Card — ${esc(employee.name)}</title>
+  <style>
+    *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;}
+    body{margin:0;padding:24px;color:#1e3261;background:#fff;}
+    .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #16a34a;padding-bottom:12px;margin-bottom:16px;}
+    .brand{font-size:20px;font-weight:800;color:#16a34a;}
+    .brand small{display:block;font-size:10px;color:#53647f;font-weight:700;letter-spacing:.08em;margin-top:2px;}
+    h1{font-size:18px;margin:0 0 4px;color:#111827;}
+    .muted{color:#53647f;font-size:12px;}
+    .info{border:1px solid #d9ecff;background:#f3f9ff;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.6;}
+    .stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px;}
+    .stat{border:1px solid #e7eef7;border-radius:10px;padding:10px;background:#fff;}
+    .stat-label{font-size:11px;font-weight:700;color:#53647f;}
+    .stat-value{margin-top:4px;font-size:15px;font-weight:800;color:#1e3261;}
+    table{width:100%;border-collapse:collapse;font-size:11px;}
+    th,td{border:1px solid #e7eef7;padding:6px 8px;text-align:left;}
+    th{background:#f7faff;color:#53647f;font-weight:800;}
+    tr:nth-child(even){background:#fbfdff;}
+    .foot{margin-top:16px;font-size:11px;color:#8a98af;text-align:center;}
+    @page{size:A4 portrait;margin:10mm;}
+    @media print{
+      body{padding:0;}
+      .sheet{break-inside:avoid;page-break-inside:avoid;}
+    }
+  </style></head><body>
+  <div class="sheet">
+    <div class="head">
+      <div><div class="brand">Malwa Solar Energy<small>EMPLOYEE ATTENDANCE</small></div></div>
+      <div style="text-align:right">
+        <h1>${esc(periodLabel)} Attendance Card</h1>
+        <div class="muted">${esc(employee.name)}</div>
+        <div class="muted">Generated: ${esc(new Date().toLocaleString('en-IN'))}</div>
+      </div>
+    </div>
+    <div class="info">
+      <div><strong>Name:</strong> ${esc(employee.name)}</div>
+      <div><strong>Phone:</strong> ${esc(employee.mobile || '—')}</div>
+      <div><strong>Period:</strong> ${esc(period.start)} to ${esc(period.end)}</div>
+      <div><strong>Skill:</strong> ${esc(employee.skill_trade || employee.role || '—')}</div>
+      <div><strong>Daily Rate:</strong> ${esc(formatInrAmount(employee.daily_rate))}</div>
+    </div>
+    <div class="stats">${summaryCards}</div>
+    <table>
+      <thead><tr><th>Date</th><th>Day</th><th>Status</th><th>Hours</th><th>OT</th><th>Payment</th></tr></thead>
+      <tbody>${tableRows || '<tr><td colspan="6" style="text-align:center;color:#8a98af;">No rows</td></tr>'}</tbody>
+    </table>
+    <p class="foot">Malwa Solar CRM — Attendance Ledger</p>
+  </div>
+  </body></html>`;
+}
+
+async function printEmployeeAttendanceCardHtml(html) {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('title', 'Print attendance card');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  const printWindow = iframe.contentWindow;
+  const doc = iframe.contentDocument || printWindow?.document;
+  if (!doc || !printWindow) {
+    iframe.remove();
+    throw new Error('Unable to prepare print view');
+  }
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  await new Promise((resolve) => {
+    if (doc.readyState === 'complete') resolve();
+    else iframe.onload = () => resolve();
+    window.setTimeout(resolve, 400);
+  });
+
+  printWindow.focus();
+  printWindow.print();
+  window.setTimeout(() => iframe.remove(), 2500);
+}
+
+async function downloadEmployeeAttendanceCardPng(html, filename) {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('title', 'Attendance card PNG export');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:900px;height:1200px;border:0;visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc) {
+    iframe.remove();
+    throw new Error('Unable to prepare PNG export');
+  }
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  await new Promise((resolve) => window.setTimeout(resolve, 350));
+
+  const target = doc.body;
+  const html2canvas = (await import('html2canvas')).default;
+  const canvas = await html2canvas(target, {
+    scale: 2,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    logging: false,
+    width: 900,
+    windowWidth: 900,
+  });
+
+  iframe.remove();
+
+  await new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('PNG export failed'));
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      resolve();
+    }, 'image/png');
+  });
+}
+
 function exportEmployeesCsv(rows) {
   const headers = ['Name', 'Phone', 'Aadhaar', 'Skill/Role', 'Daily Rate', 'Net Balance'];
   const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
@@ -26657,6 +27455,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [voucherOpen, setVoucherOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
+  const [savingPng, setSavingPng] = useState(false);
   const [editAttRow, setEditAttRow] = useState(null);
   const [attForm, setAttForm] = useState({ hours: '9', ot_hours: '0', status: 'Present', payment_mode: 'Cash', notes: '' });
   const [voucherForm, setVoucherForm] = useState({
@@ -26796,16 +27595,19 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
   });
 
   const selectedEmployee = employees.find((row) => String(row.id) === String(selectedEmployeeId)) ?? null;
+  const periodCardLabel = rangeMode === 'weekly' ? 'Weekly' : rangeMode === 'monthly' ? 'Monthly' : 'Period';
+
   const displayedLedgerRows = useMemo(() => {
     if (!ledger?.records || !periodRange.start || !periodRange.end) return ledger?.records ?? [];
+    const todayIso = formatIsoDate(new Date());
     const recordMap = new Map((ledger.records || []).map((row) => [row.date, row]));
     const rows = [];
     const cursor = new Date(`${periodRange.start}T00:00:00`);
     const end = new Date(`${periodRange.end}T00:00:00`);
     while (cursor <= end) {
       const iso = formatIsoDate(cursor);
-      rows.push(
-        recordMap.get(iso) ?? {
+      const isFuture = iso > todayIso;
+      const base = recordMap.get(iso) ?? {
           id: `missing-${iso}`,
           date: iso,
           day: cursor.toLocaleDateString('en-IN', { weekday: 'short' }),
@@ -26816,7 +27618,18 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
           voucher_amount: '0.00',
           payment_mode: '',
           notes: '',
-        },
+        };
+      rows.push(
+        isFuture
+          ? {
+              ...base,
+              status: 'Not Marked',
+              hours: '0.00',
+              ot_hours: '0.00',
+              payment: '0.00',
+              is_future: true,
+            }
+          : base,
       );
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -26930,6 +27743,10 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
   };
 
   const handleMarkPresent = async (record) => {
+    if (record.date > formatIsoDate(new Date()) || record.is_future) {
+      onNotify('Cannot mark attendance for a future date');
+      return;
+    }
     const snap = captureLedgerScroll();
     const dutyHours = Number(selectedEmployee?.duty_hours_per_day || ledger?.employee?.duty_hours_per_day || 9);
     const hoursStr = Number.isFinite(dutyHours) ? dutyHours.toFixed(2) : '9.00';
@@ -26960,6 +27777,10 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
   };
 
   const handleMarkAbsent = async (record) => {
+    if (record.date > formatIsoDate(new Date()) || record.is_future) {
+      onNotify('Cannot mark attendance for a future date');
+      return;
+    }
     const snap = captureLedgerScroll();
     patchLedgerRow(record.date, {
       status: 'Absent',
@@ -27049,17 +27870,54 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
     }
   };
 
-  const handlePrintCard = () => {
-    window.print();
+  const cardExportPayload = useCallback(() => {
+    if (!ledger) return null;
+    return {
+      periodLabel: periodCardLabel,
+      employee: ledger.employee,
+      period: periodRange,
+      summary: ledger.summary,
+      rows: displayedLedgerRows,
+    };
+  }, [ledger, periodCardLabel, periodRange, displayedLedgerRows]);
+
+  const handlePrintCard = async () => {
+    const payload = cardExportPayload();
+    if (!payload) {
+      onNotify('Select an employee and load the ledger first');
+      return;
+    }
+    try {
+      const html = buildEmployeeAttendanceCardHtml(payload);
+      await printEmployeeAttendanceCardHtml(html);
+    } catch (error) {
+      onNotify(error.message || 'Failed to open print view');
+    }
   };
 
-  const handleSaveCardPng = () => {
-    onNotify('Use Print Card to export, or save screenshot from the generated card preview.');
+  const handleSaveCardPng = async () => {
+    const payload = cardExportPayload();
+    if (!payload) {
+      onNotify('Select an employee and load the ledger first');
+      return;
+    }
+    setSavingPng(true);
+    try {
+      const html = buildEmployeeAttendanceCardHtml(payload);
+      const safeName = (payload.employee.name || 'employee').replace(/[^\w.-]+/g, '_');
+      const filename = `attendance-${safeName}-${payload.period.start}.png`;
+      await downloadEmployeeAttendanceCardPng(html, filename);
+      onNotify('Attendance card downloaded as PNG');
+    } catch (error) {
+      onNotify(error.message || 'Failed to save PNG');
+    } finally {
+      setSavingPng(false);
+    }
   };
 
   const employeeTabs = [
     { key: 'Employee Details', label: 'Employee Details' },
-    { key: 'Employee Ledger', label: 'Weekly Attendance Card' },
+    { key: 'Employee Ledger', label: 'Attendance Ledger' },
   ];
 
   return (
@@ -27446,17 +28304,20 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
                       <tr>{['Date', 'Day', 'Status', 'Hours', 'OT Hours', 'Payment', 'Voucher', 'Mode', 'Action'].map((heading) => <th key={heading}>{heading}</th>)}</tr>
                     </thead>
                     <tbody>
-                      {displayedLedgerRows.map((row) => (
-                        <tr key={row.id}>
+                      {displayedLedgerRows.map((row) => {
+                        const isFutureRow = row.is_future || row.date > formatIsoDate(new Date());
+                        const statusLabel = isFutureRow ? 'Future' : row.status;
+                        return (
+                        <tr key={row.id} className={isFutureRow ? 'opacity-60' : undefined}>
                           <td>{new Date(`${row.date}T00:00:00`).toLocaleDateString('en-IN')}</td>
                           <td>{row.day}</td>
                           <td>
                             <span className={cx(
                               'inline-flex rounded-full px-2.5 py-1 text-[13px] font-semibold',
-                              row.status === 'Present' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : row.status === 'Absent' ? 'bg-[#ffe9e6] text-[#ea5a4c]' : 'bg-[#eef2f7] text-[#7585a2]',
+                              statusLabel === 'Present' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : statusLabel === 'Absent' ? 'bg-[#ffe9e6] text-[#ea5a4c]' : 'bg-[#eef2f7] text-[#7585a2]',
                             )}
                             >
-                              {row.status}
+                              {statusLabel}
                             </span>
                           </td>
                           <td>{row.hours}</td>
@@ -27465,6 +28326,9 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
                           <td>{row.voucher_amount !== '0.00' ? formatInrAmount(row.voucher_amount) : '-'}</td>
                           <td>{row.payment_mode || '-'}</td>
                           <td>
+                            {isFutureRow ? (
+                              <span className="text-[12px] font-medium text-[#8a98af]">—</span>
+                            ) : (
                             <div className="flex items-center gap-1.5">
                               <button type="button" onClick={() => handleMarkPresent(row)} className="inline-flex size-8 items-center justify-center rounded-full border border-[#cfe8d6] bg-[#f1fff5] text-[#0d9f4a]" aria-label="Mark present"><CheckCircle2 className="size-4" /></button>
                               <button type="button" onClick={() => handleMarkAbsent(row)} className="inline-flex size-8 items-center justify-center rounded-full border border-[#ffe1de] bg-[#fff5f4] text-[#ea5a4c]" aria-label="Mark absent"><XCircle className="size-4" /></button>
@@ -27486,9 +28350,11 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
                                 <Pencil className="size-4" />
                               </button>
                             </div>
+                            )}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                     <tfoot>
                       <tr className="bg-[#f8fbff] font-semibold text-[#1e3261]">
@@ -27621,9 +28487,10 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
         <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
           <div className="max-h-[92vh] w-full max-w-[900px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
             <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-4">
-              <h2 className="font-display text-[20px] font-semibold text-[#111827]">Weekly Attendance Card — {ledger.employee.name}</h2>
+              <h2 className="font-display text-[20px] font-semibold text-[#111827]">{periodCardLabel} Attendance Card — {ledger.employee.name}</h2>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={handleSaveCardPng} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#ea5a4c] px-3 text-[13px] font-semibold text-white"><Download className="size-4" />Save PNG</button>
+                <button type="button" onClick={handlePrintCard} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[13px] font-semibold text-[#284276]"><Printer className="size-4" />Print</button>
+                <button type="button" onClick={handleSaveCardPng} disabled={savingPng} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#ea5a4c] px-3 text-[13px] font-semibold text-white disabled:opacity-60"><Download className="size-4" />{savingPng ? 'Saving…' : 'Save PNG'}</button>
                 <button type="button" onClick={() => setCardOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
             </div>
@@ -27650,16 +28517,20 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
               <table className="crm-table">
                 <thead><tr>{['Date', 'Day', 'Status', 'Hours', 'OT', 'Payment'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead>
                 <tbody>
-                  {displayedLedgerRows.map((row) => (
+                  {displayedLedgerRows.map((row) => {
+                    const isFutureRow = row.is_future || row.date > formatIsoDate(new Date());
+                    const statusLabel = isFutureRow ? 'Future' : row.status;
+                    return (
                     <tr key={`card-${row.id}`}>
                       <td>{row.date}</td>
                       <td>{row.day}</td>
-                      <td>{row.status}</td>
+                      <td>{statusLabel}</td>
                       <td>{row.hours}</td>
                       <td>{row.ot_hours}</td>
                       <td>{formatInrAmount(row.payment)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               <p className="text-center text-[12px] font-medium text-[#8a98af]">Generated on {new Date().toLocaleString('en-IN')}</p>
@@ -32397,10 +33268,10 @@ function QuotationLeadPickerModal({ onClose, onSelect, onNotify }) {
 
   return (
     <div
-      className="modal-overlay fixed inset-0 z-95 flex items-center justify-center bg-[#111827]/50 p-4"
+      className="modal-overlay fixed inset-0 z-95 flex items-end justify-center bg-[#111827]/50 p-0 sm:items-center sm:p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
-      <div className="modal-pop-in flex max-h-[85vh] w-full max-w-[640px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+      <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[640px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:max-h-[85vh] sm:rounded-[16px]">
         <div className="flex items-start justify-between gap-4 border-b border-[#edf2f8] px-6 py-4">
           <div>
             <h2 className="font-display text-[19px] font-extrabold text-[#111827]">New Quotation</h2>
@@ -32766,8 +33637,8 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
-      <section className="flex shrink-0 gap-1.5 md:grid md:grid-cols-2 md:gap-4 2xl:grid-cols-5">
+    <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-visible pb-2 lg:overflow-hidden">
+      <section className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
         <LiaisonApprovalStatCard label="Total Quotations" value={String(quotationStats.total)} caption="All Time" icon={FileText} tone="green" onClick={() => applyStatusCardFilter('All')} />
         <LiaisonApprovalStatCard label="Sent" value={String(quotationStats.sent)} caption={quotationStats.pct(quotationStats.sent)} icon={Mail} tone="purple" onClick={() => applyStatusCardFilter('Sent')} />
         <LiaisonApprovalStatCard label="Draft" value={String(quotationStats.draft)} caption={quotationStats.pct(quotationStats.draft)} icon={FileText} tone="amber" onClick={() => applyStatusCardFilter('Draft')} />
@@ -32775,15 +33646,15 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
         <LiaisonApprovalStatCard label="Expired" value={String(quotationStats.expired)} caption={quotationStats.pct(quotationStats.expired)} icon={CalendarDays} tone="red" onClick={() => applyStatusCardFilter('Expired')} />
       </section>
 
-      <article className={`${panelClass} relative z-40 overflow-visible p-4 sm:p-5`}>
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_170px_150px_220px_auto] xl:items-end">
-          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+      <article className={`${panelClass} relative z-30 overflow-visible p-3 sm:p-4`}>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(140px,170px)_minmax(130px,150px)_minmax(180px,220px)_auto] xl:items-end">
+          <label className="flex h-11 min-w-0 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:col-span-2 xl:col-span-1">
             <Search className="size-4 shrink-0 text-[#7386a3]" />
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               type="search"
-              placeholder="Search by quotation no., customer, template, amount..."
+              placeholder="Search quotation no., customer, template..."
               className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
             />
           </label>
@@ -32821,7 +33692,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
           <button
             type="button"
             onClick={() => setCreateFlow({ step: 'lead' })}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e] sm:col-span-2 xl:col-span-1 xl:w-auto"
           >
             <Plus className="size-4" />
             New Quotation
@@ -32835,8 +33706,32 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
         ) : filteredQuotations.length === 0 ? (
           <div className="py-16 text-center text-[14px] font-bold text-[#7386a3]">No quotations found</div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto rounded-[12px] border border-[#e7eef7] bg-white">
-            <table className="crm-table crm-table--fit crm-table-sticky-head w-full">
+          <>
+            <div className="flex flex-col gap-2.5 lg:hidden">
+              {pagedQuotations.map((q) => (
+                <article key={q.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-3 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[14px] font-extrabold text-[#1e3261]">{q.quotation_number || `#${q.id}`}</p>
+                      <p className="mt-0.5 truncate text-[12px] font-bold text-[#53647f]">{q.lead_customer_name || '—'}</p>
+                    </div>
+                    <StatusBadge status={q.status} />
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-[12px] font-semibold text-[#53647f]">
+                    <span className="truncate">{q.template || '—'}</span>
+                    <span className="text-right font-extrabold text-[#1e3261]">{formatMoney(q.grand_total)}</span>
+                    <span>{q.created_at ? new Date(q.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" onClick={() => setViewQuotationId(q.id)} className="inline-flex h-9 flex-1 items-center justify-center rounded-[8px] border border-[#e3ebf7] text-[12px] font-extrabold text-[#284276]">View</button>
+                    <button type="button" onClick={() => printQuotation(q)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#e3ebf7] text-[#0d9f4a]"><Printer className="size-4" /></button>
+                    <button type="button" onClick={() => deleteQuotation(q)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#f3d4d4] text-[#ef4444]"><Trash2 className="size-4" /></button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden min-h-0 flex-1 overflow-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+            <table className="crm-table crm-table--fit crm-table-sticky-head w-full min-w-[860px]">
               <colgroup>
                 <col style={{ width: '14%' }} />
                 <col style={{ width: '18%' }} />
@@ -32883,9 +33778,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
                 {pagedQuotations.map((q) => (
                   <tr
                     key={q.id}
-                    className="crm-row-clickable"
-                    onDoubleClick={() => setViewQuotationId(q.id)}
-                    title="Double-click to view"
+                    {...rowDoubleOpenProps(() => setViewQuotationId(q.id))}
                   >
                     <td className="font-extrabold text-[#233a6b]"><span className="block truncate">{q.quotation_number || `#${q.id}`}</span></td>
                     <td className="font-bold text-[#233a6b]"><span className="block truncate">{q.lead_customer_name || '—'}</span></td>
@@ -32907,7 +33800,8 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
 
         {!loading && filteredQuotations.length > 0 && (

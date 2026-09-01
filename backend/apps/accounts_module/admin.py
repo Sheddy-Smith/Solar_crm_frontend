@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import (
     ChartOfAccount, Account, BankAccount, Payment, Cheque, Transaction,
+    AccountCategoryMap,
     PurchaseInvoice, PurchaseInvoiceLine, PurchaseInvoiceExtraCharge,
     SellInvoice, SellInvoiceLine,
     PaymentVoucher,
@@ -10,6 +11,7 @@ from .models import (
 )
 
 admin.site.register(ChartOfAccount)
+admin.site.register(AccountCategoryMap)
 admin.site.register(Account)
 admin.site.register(BankAccount)
 admin.site.register(Payment)

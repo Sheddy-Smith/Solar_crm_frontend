@@ -59,6 +59,7 @@ class FollowUpSerializer(serializers.ModelSerializer):
     lead_customer_name = serializers.CharField(source='lead.customer_name', read_only=True)
     lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
     lead_project_name = serializers.CharField(source='lead.project_name', read_only=True)
+    lead_status = serializers.CharField(source='lead.status', read_only=True)
     lead_assigned_to_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -66,7 +67,8 @@ class FollowUpSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'lead', 'follow_up_type', 'scheduled_at', 'completed_at', 'status', 'notes',
             'reminder', 'status_after', 'outcome', 'created_by', 'created_by_name', 'created_at',
-            'lead_customer_name', 'lead_mobile_number', 'lead_project_name', 'lead_assigned_to_name',
+            'lead_customer_name', 'lead_mobile_number', 'lead_project_name', 'lead_status',
+            'lead_assigned_to_name',
         ]
         read_only_fields = ['created_by', 'created_at']
 
@@ -197,6 +199,7 @@ class LeadListSerializer(serializers.ModelSerializer):
         model = Lead
         fields = [
             'id', 'customer_name', 'mobile_number', 'ivrs_number',
+            'alternate_number', 'email', 'source',
             'project_name', 'project_type', 'estimated_capacity',
             'status', 'priority', 'category', 'remarks',
             'assigned_to', 'assigned_to_name', 'created_by', 'created_by_name',

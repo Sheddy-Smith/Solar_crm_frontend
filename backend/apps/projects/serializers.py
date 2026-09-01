@@ -65,6 +65,7 @@ class ProjectExpenseSerializer(serializers.ModelSerializer):
     project_status = serializers.CharField(source='project.status', read_only=True)
     created_by_name = serializers.SerializerMethodField()
     expense_documents = ProjectExpenseDocumentSerializer(many=True, read_only=True)
+    accounts_voucher_id = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectExpense
@@ -73,11 +74,32 @@ class ProjectExpenseSerializer(serializers.ModelSerializer):
             'category', 'description', 'amount', 'date',
             'payment_mode', 'paid_by', 'status', 'remarks',
             'created_by', 'created_by_name', 'created_at', 'expense_documents',
+            'accounts_voucher_id',
         ]
-        read_only_fields = ['created_by', 'created_at']
+        read_only_fields = ['created_by', 'created_at', 'accounts_voucher_id']
 
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
+
+    def get_accounts_voucher_id(self, obj):
+        voucher = getattr(obj, 'accounts_voucher', None)
+        return voucher.id if voucher else None
+
+    def _sync_accounts(self, expense):
+        from apps.accounts_module.project_financial_sync import sync_accounts_for_project_expense
+        request = self.context.get('request')
+        user = request.user if request and getattr(request.user, 'is_authenticated', False) else None
+        sync_accounts_for_project_expense(expense, user=user)
+
+    def create(self, validated_data):
+        expense = super().create(validated_data)
+        self._sync_accounts(expense)
+        return expense
+
+    def update(self, instance, validated_data):
+        expense = super().update(instance, validated_data)
+        self._sync_accounts(expense)
+        return expense
 
 
 class ProjectPaymentSerializer(serializers.ModelSerializer):
@@ -241,14 +263,125 @@ class InstallationMaterialSerializer(serializers.ModelSerializer):
 
 
 class MaterialPlanSerializer(serializers.ModelSerializer):
+    inventory_item_name = serializers.CharField(source='inventory_item.name', read_only=True)
+    inventory_unit_cost = serializers.SerializerMethodField()
+    planning_unit_price_display = serializers.SerializerMethodField()
+    unit_difference = serializers.SerializerMethodField()
+    inventory_total_cost = serializers.SerializerMethodField()
+    planning_total_value = serializers.SerializerMethodField()
+    planning_difference_total = serializers.SerializerMethodField()
+    cost_voucher_id = serializers.SerializerMethodField()
+
     class Meta:
         model = MaterialPlan
         fields = [
-            'id', 'project', 'category', 'items', 'uom', 'planned_qty', 'planned_value', 'status',
+            'id', 'project', 'category', 'items', 'uom', 'planned_qty', 'planned_value',
+            'planning_unit_price',
+            'status',
             'dispatched_qty', 'dispatch_status', 'dispatch_date', 'vehicle_no', 'challan_no', 'dispatch_notes',
+            'inventory_item', 'inventory_item_name', 'stock_movement', 'cost_voucher_id',
+            'inventory_unit_cost', 'planning_unit_price_display', 'unit_difference',
+            'inventory_total_cost', 'planning_total_value', 'planning_difference_total',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'stock_movement', 'cost_voucher_id']
+
+    def get_cost_voucher_id(self, obj):
+        voucher = getattr(obj, 'cost_voucher', None)
+        return voucher.id if voucher else None
+
+    def _pricing(self, obj):
+        from apps.accounts_module.project_financial_sync import material_plan_pricing
+        return material_plan_pricing(obj)
+
+    def get_inventory_unit_cost(self, obj):
+        return float(self._pricing(obj)['inventory_unit_cost'])
+
+    def get_planning_unit_price_display(self, obj):
+        return float(self._pricing(obj)['planning_unit_price'])
+
+    def get_unit_difference(self, obj):
+        return float(self._pricing(obj)['unit_difference'])
+
+    def get_inventory_total_cost(self, obj):
+        return float(self._pricing(obj)['inventory_total_cost'])
+
+    def get_planning_total_value(self, obj):
+        return float(self._pricing(obj)['planning_total_value'])
+
+    def get_planning_difference_total(self, obj):
+        return float(self._pricing(obj)['planning_difference_total'])
+
+    def _sync_dispatch_stock(self, plan):
+        from apps.inventory.dispatch_sync import sync_inventory_for_material_dispatch
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        request = self.context.get('request')
+        user = request.user if request and getattr(request.user, 'is_authenticated', False) else None
+        try:
+            return sync_inventory_for_material_dispatch(plan, user=user)
+        except DjangoValidationError as exc:
+            if hasattr(exc, 'message_dict'):
+                raise DRFValidationError(exc.message_dict) from exc
+            raise DRFValidationError({'quantity': list(exc.messages)}) from exc
+
+    def _sync_dispatch_accounts(self, plan):
+        from apps.accounts_module.project_financial_sync import sync_accounts_for_material_dispatch
+        request = self.context.get('request')
+        user = request.user if request and getattr(request.user, 'is_authenticated', False) else None
+        return sync_accounts_for_material_dispatch(plan, user=user)
+
+    def _normalize_planning_fields(self, validated_data, instance=None):
+        """Keep planned_value = qty × planning_unit_price when planning price is provided.
+        Never touch InventoryItem.rate."""
+        from decimal import Decimal
+        from apps.accounts_module.category_map import decimal_or_zero
+
+        qty = validated_data.get('planned_qty')
+        if qty is None and instance is not None:
+            qty = instance.planned_qty
+
+        if 'planning_unit_price' in validated_data:
+            planning_price = validated_data.get('planning_unit_price')
+        elif instance is not None:
+            planning_price = instance.planning_unit_price
+        else:
+            planning_price = None
+
+        if planning_price is not None and planning_price != '':
+            q = decimal_or_zero(qty)
+            p = decimal_or_zero(planning_price)
+            if q > 0:
+                validated_data['planned_value'] = str((q * p).quantize(Decimal('0.01')))
+        return validated_data
+
+    def create(self, validated_data):
+        validated_data = self._normalize_planning_fields(validated_data)
+        plan = super().create(validated_data)
+        if _parse_dispatched(plan.dispatched_qty) > 0 or plan.inventory_item_id:
+            self._sync_dispatch_stock(plan)
+            self._sync_dispatch_accounts(plan)
+            plan.refresh_from_db()
+        return plan
+
+    def update(self, instance, validated_data):
+        validated_data = self._normalize_planning_fields(validated_data, instance)
+        prev_qty = instance.dispatched_qty
+        plan = super().update(instance, validated_data)
+        qty_changed = str(prev_qty or '') != str(plan.dispatched_qty or '')
+        if qty_changed or 'inventory_item' in validated_data or plan.inventory_item_id or plan.stock_movement_id:
+            self._sync_dispatch_stock(plan)
+            self._sync_dispatch_accounts(plan)
+            plan.refresh_from_db()
+        return plan
+
+
+def _parse_dispatched(value):
+    try:
+        return float(str(value or '0').replace(',', '').strip() or '0')
+    except (TypeError, ValueError):
+        return 0.0
 
 
 class ProjectListSerializer(serializers.ModelSerializer):
@@ -261,10 +394,18 @@ class ProjectListSerializer(serializers.ModelSerializer):
     surveyed_by_name = serializers.SerializerMethodField()
     survey_feasibility = serializers.SerializerMethodField()
     survey_status = serializers.SerializerMethodField()
+    installation_team = serializers.SerializerMethodField()
+    stage_progress = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
-        fields = ['id', 'lead', 'lead_ivrs_number', 'lead_mobile_number', 'lead_status', 'project_id', 'project_name', 'customer_name', 'site', 'project_type', 'capacity_kwp', 'project_image', 'status', 'priority', 'progress_percent', 'manager', 'manager_name', 'manager_initials', 'start_date', 'target_date', 'total_value', 'created_at', 'survey_date', 'surveyed_by_name', 'survey_feasibility', 'survey_status']
+        fields = [
+            'id', 'lead', 'lead_ivrs_number', 'lead_mobile_number', 'lead_status', 'project_id',
+            'project_name', 'customer_name', 'site', 'project_type', 'capacity_kwp', 'project_image',
+            'status', 'priority', 'progress_percent', 'manager', 'manager_name', 'manager_initials',
+            'start_date', 'target_date', 'total_value', 'created_at', 'survey_date', 'surveyed_by_name',
+            'survey_feasibility', 'survey_status', 'installation_team', 'stage_progress',
+        ]
 
     def get_survey_date(self, obj):
         return getattr(obj.site_survey, 'survey_date', None) if hasattr(obj, 'site_survey') else None
@@ -278,6 +419,55 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
     def get_survey_status(self, obj):
         return getattr(obj.site_survey, 'status', '') if hasattr(obj, 'site_survey') else ''
+
+    def get_installation_team(self, obj):
+        """Single assigned person from the linked Won lead (their install team lead)."""
+        lead = getattr(obj, 'lead', None)
+        assigned = getattr(lead, 'assigned_to', None) if lead else None
+        name = getattr(assigned, 'name', None) if assigned else None
+        return name or 'Unassigned'
+
+    def get_stage_progress(self, obj):
+        """Project Management subcategory progress for list column."""
+        survey = getattr(obj, 'site_survey', None)
+        survey_status = (getattr(survey, 'status', None) or '').strip()
+        if survey_status == 'Completed':
+            survey_pct = 100
+        elif survey_status == 'In Progress':
+            survey_pct = 55
+        elif survey_status in ('Pending', 'Draft', 'Not Started'):
+            survey_pct = 15 if survey_status in ('Pending', 'Draft') else 0
+        else:
+            survey_pct = 0
+
+        plans = list(obj.material_plans.all()) if hasattr(obj, 'material_plans') else []
+        if plans:
+            done_mat = sum(1 for p in plans if (p.status or '') == 'Completed')
+            partial_mat = sum(1 for p in plans if (p.status or '') in ('In Progress', 'Partially Completed'))
+            material_pct = int(round(((done_mat + partial_mat * 0.5) / len(plans)) * 100))
+            done_disp = sum(1 for p in plans if (p.dispatch_status or '') == 'Dispatched')
+            partial_disp = sum(1 for p in plans if (p.dispatch_status or '') == 'Partial')
+            dispatch_pct = int(round(((done_disp + partial_disp * 0.5) / len(plans)) * 100))
+        else:
+            material_pct = 0
+            dispatch_pct = 0
+
+        install_items = [c for c in obj.checklist_items.all() if (c.phase or '') == 'Installation']
+        if install_items:
+            checked = sum(1 for c in install_items if c.is_checked)
+            installation_pct = int(round((checked / len(install_items)) * 100))
+        else:
+            # Fall back to overall project progress when no install checklist exists.
+            installation_pct = int(obj.progress_percent or 0)
+
+        overall = int(obj.progress_percent or 0)
+        return {
+            'survey': survey_pct,
+            'material': material_pct,
+            'dispatch': dispatch_pct,
+            'installation': installation_pct,
+            'overall': overall,
+        }
 
 
 class ProjectDetailSerializer(serializers.ModelSerializer):

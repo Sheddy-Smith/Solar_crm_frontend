@@ -12,7 +12,13 @@ from .document_serializers import (
     PurchaseInvoiceSerializer, SellInvoiceSerializer, PaymentVoucherSerializer,
     PurchaseChallanSerializer, SellChallanSerializer, GstOpeningBalanceSerializer,
 )
-from .document_services import gst_ledger_report, month_start, sync_inventory_for_purchase_challan
+from .document_services import (
+    gst_ledger_report, month_start,
+    sync_inventory_for_purchase_challan, sync_inventory_for_sell_challan,
+    sync_inventory_for_purchase_invoice, sync_inventory_for_sell_invoice,
+    remove_purchase_challan_stock, remove_sell_challan_stock,
+    remove_purchase_invoice_stock, remove_sell_invoice_stock,
+)
 from .services import recalculate_party_balance, sync_journal_for_invoice
 from .views import AccountsBaseViewSet
 
@@ -26,16 +32,18 @@ class PurchaseInvoiceViewSet(AccountsBaseViewSet):
     def get_queryset(self):
         return PurchaseInvoice.objects.select_related(
             'supplier', 'project', 'created_by',
-        ).prefetch_related('lines', 'extra_charges').all()
+        ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement', 'extra_charges').all()
 
     def perform_create(self, serializer):
         invoice = serializer.save(created_by=self.request.user)
+        sync_inventory_for_purchase_invoice(invoice, self.request.user)
         sync_journal_for_invoice(invoice, 'purchase')
         recalculate_party_balance(invoice.supplier_id)
 
     def perform_update(self, serializer):
         old_supplier_id = serializer.instance.supplier_id
         invoice = serializer.save()
+        sync_inventory_for_purchase_invoice(invoice, self.request.user)
         sync_journal_for_invoice(invoice, 'purchase')
         if old_supplier_id and old_supplier_id != invoice.supplier_id:
             recalculate_party_balance(old_supplier_id)
@@ -45,6 +53,7 @@ class PurchaseInvoiceViewSet(AccountsBaseViewSet):
         ref = instance.invoice_no or f'PI-{instance.id:04d}'
         Transaction.objects.filter(reference_number=ref, transaction_date=instance.invoice_date).delete()
         supplier_id = instance.supplier_id
+        remove_purchase_invoice_stock(instance)
         instance.delete()
         recalculate_party_balance(supplier_id)
 
@@ -58,16 +67,18 @@ class SellInvoiceViewSet(AccountsBaseViewSet):
     def get_queryset(self):
         return SellInvoice.objects.select_related(
             'party', 'project', 'created_by',
-        ).prefetch_related('lines').all()
+        ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement').all()
 
     def perform_create(self, serializer):
         invoice = serializer.save(created_by=self.request.user)
+        sync_inventory_for_sell_invoice(invoice, self.request.user)
         sync_journal_for_invoice(invoice, 'sell')
         recalculate_party_balance(invoice.party_id)
 
     def perform_update(self, serializer):
         old_party_id = serializer.instance.party_id
         invoice = serializer.save()
+        sync_inventory_for_sell_invoice(invoice, self.request.user)
         sync_journal_for_invoice(invoice, 'sell')
         if old_party_id and old_party_id != invoice.party_id:
             recalculate_party_balance(old_party_id)
@@ -77,6 +88,7 @@ class SellInvoiceViewSet(AccountsBaseViewSet):
         ref = instance.invoice_no or f'SI-{instance.id:04d}'
         Transaction.objects.filter(reference_number=ref, transaction_date=instance.invoice_date).delete()
         party_id = instance.party_id
+        remove_sell_invoice_stock(instance)
         instance.delete()
         recalculate_party_balance(party_id)
 
@@ -88,7 +100,13 @@ class PaymentVoucherViewSet(AccountsBaseViewSet):
     ordering = ['-voucher_date', '-created_at']
 
     def get_queryset(self):
-        return PaymentVoucher.objects.select_related('project', 'created_by').all()
+        return PaymentVoucher.objects.select_related(
+            'project', 'created_by', 'employee_voucher', 'project_expense', 'material_plan',
+        ).all()
+
+    def perform_destroy(self, instance):
+        from apps.accounts_module.services import remove_payment_voucher_and_journal
+        remove_payment_voucher_and_journal(instance)
 
 
 class PurchaseChallanViewSet(AccountsBaseViewSet):
@@ -105,10 +123,19 @@ class PurchaseChallanViewSet(AccountsBaseViewSet):
     def perform_create(self, serializer):
         challan = serializer.save(created_by=self.request.user)
         sync_inventory_for_purchase_challan(challan, self.request.user)
+        recalculate_party_balance(challan.supplier_id)
 
     def perform_update(self, serializer):
+        old_supplier_id = serializer.instance.supplier_id
         challan = serializer.save()
         sync_inventory_for_purchase_challan(challan, self.request.user)
+        if old_supplier_id and old_supplier_id != challan.supplier_id:
+            recalculate_party_balance(old_supplier_id)
+        recalculate_party_balance(challan.supplier_id)
+
+    def perform_destroy(self, instance):
+        remove_purchase_challan_stock(instance)
+        instance.delete()
 
 
 class SellChallanViewSet(AccountsBaseViewSet):
@@ -120,7 +147,19 @@ class SellChallanViewSet(AccountsBaseViewSet):
     def get_queryset(self):
         return SellChallan.objects.select_related(
             'party', 'project', 'created_by',
-        ).prefetch_related('lines').all()
+        ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement').all()
+
+    def perform_create(self, serializer):
+        challan = serializer.save(created_by=self.request.user)
+        sync_inventory_for_sell_challan(challan, self.request.user)
+
+    def perform_update(self, serializer):
+        challan = serializer.save()
+        sync_inventory_for_sell_challan(challan, self.request.user)
+
+    def perform_destroy(self, instance):
+        remove_sell_challan_stock(instance)
+        instance.delete()
 
 
 class GstOpeningBalanceViewSet(viewsets.ModelViewSet):

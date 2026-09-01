@@ -1,10 +1,10 @@
 // Dev: default `/api/v1` goes through Vite proxy → backend (works on LAN Network URL).
-// Set VITE_API_URL only when you need a fixed direct backend URL (same machine only).
-// Prod: VITE_API_URL is REQUIRED at build time — fail loudly instead of silently
-// pointing every request at localhost.
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
+// Prod: VITE_API_URL is required. If a Hostinger zip is built without it, fall back
+// to the live API so CRM lists do not go empty.
+const PROD_API_FALLBACK = 'https://api.crm.ecomalwa.com/api/v1';
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api/v1' : PROD_API_FALLBACK);
 if (!import.meta.env.DEV && !import.meta.env.VITE_API_URL) {
-  console.error('VITE_API_URL is not set — this production build has no backend URL. Set VITE_API_URL in the build environment.');
+  console.error('VITE_API_URL is not set — using production API fallback.');
 }
 
 const TOKEN_KEY = 'malwa_access';
@@ -312,6 +312,9 @@ const accountsCrud = (base) => ({
 
 export const accountsModuleApi = {
   chartOfAccounts: accountsCrud('chart-of-accounts'),
+  categoryMaps: accountsCrud('category-maps'),
+  seedCategoryMaps: () => request('/accounts/category-maps/seed-defaults/', { method: 'POST', body: {} }),
+  seedRecommendedCoa: () => request('/accounts/chart-of-accounts/seed-recommended/', { method: 'POST', body: {} }),
   parties: accountsCrud('parties'),
   bankAccounts: accountsCrud('bank-accounts'),
   payments: accountsCrud('payments'),
@@ -326,6 +329,9 @@ export const accountsModuleApi = {
   gstLedger: (year, month) => request(`/accounts/gst-opening/ledger/?year=${year}&month=${month}`),
   saveGstOpening: (data) => request('/accounts/gst-opening/save-opening/', { method: 'POST', body: data }),
   summary: () => request('/accounts/transactions/summary/'),
+  partyLedger: (id, qs = '') => request(`/accounts/parties/${id}/ledger/${qs ? '?' + qs : ''}`),
+  creditLedger: () => request('/accounts/parties/credit-ledger/'),
+  settleParty: (id, data) => request(`/accounts/parties/${id}/settle/`, { method: 'POST', body: data }),
 };
 
 // ─── Follow-ups ──────────────────────────────────────────────────────────────
@@ -395,6 +401,7 @@ export const projectApi = {
   saveSystemConfig: (id, data) => request(`/projects/${id}/system_config/`, { method: 'PUT', body: data }),
   getSiteSurvey: (id) => request(`/projects/${id}/site_survey/`),
   saveSiteSurvey: (id, data) => request(`/projects/${id}/site_survey/`, { method: 'PUT', body: data }),
+  pnl: (id) => request(`/projects/${id}/pnl/`),
 };
 
 export const siteSurveyPhotoApi = {
@@ -468,6 +475,7 @@ export const projectExpenseApi = {
     if (params.search) qs.set('search', params.search);
     if (params.date_from) qs.set('date_from', params.date_from);
     if (params.date_to) qs.set('date_to', params.date_to);
+    if (params.page_size) qs.set('page_size', params.page_size);
     const q = qs.toString();
     return request(`/project-expenses/${q ? '?' + q : ''}`);
   },
@@ -535,7 +543,10 @@ export const projectTeamApi = {
 // ─── Project Milestones (Timeline) ─────────────────────────────────────────────
 
 export const projectMilestoneApi = {
-  list: (projectId) => request(`/project-milestones/?project=${projectId}`),
+  list: (projectId, params = {}) => {
+    const qs = new URLSearchParams({ project: projectId, page_size: params.page_size || 500, ...params });
+    return request(`/project-milestones/?${qs.toString()}`);
+  },
   create: (data) => request('/project-milestones/', { method: 'POST', body: data }),
   update: (id, data) => request(`/project-milestones/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/project-milestones/${id}/`, { method: 'DELETE' }),
@@ -544,7 +555,11 @@ export const projectMilestoneApi = {
 // ─── Project Checklist Items (Site Survey + Installation) ─────────────────────
 
 export const projectChecklistApi = {
-  list: (projectId, phase) => request(`/project-checklist-items/?project=${projectId}${phase ? `&phase=${phase}` : ''}`),
+  list: (projectId, phase, params = {}) => {
+    const qs = new URLSearchParams({ project: projectId, page_size: params.page_size || 500, ...params });
+    if (phase) qs.set('phase', phase);
+    return request(`/project-checklist-items/?${qs.toString()}`);
+  },
   create: (data) => request('/project-checklist-items/', { method: 'POST', body: data }),
   update: (id, data) => request(`/project-checklist-items/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/project-checklist-items/${id}/`, { method: 'DELETE' }),
@@ -553,7 +568,10 @@ export const projectChecklistApi = {
 // ─── Installation Materials ─────────────────────────────────────────────────────
 
 export const installationMaterialApi = {
-  list: (projectId) => request(`/installation-materials/?project=${projectId}`),
+  list: (projectId, params = {}) => {
+    const qs = new URLSearchParams({ project: projectId, page_size: params.page_size || 500, ...params });
+    return request(`/installation-materials/?${qs.toString()}`);
+  },
   create: (data) => request('/installation-materials/', { method: 'POST', body: data }),
   update: (id, data) => request(`/installation-materials/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/installation-materials/${id}/`, { method: 'DELETE' }),

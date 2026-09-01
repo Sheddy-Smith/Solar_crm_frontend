@@ -13,9 +13,14 @@ from .serializers import _user_name
 
 
 class PurchaseInvoiceLineSerializer(serializers.ModelSerializer):
+    inventory_item_name = serializers.CharField(source='inventory_item.name', read_only=True)
+
     class Meta:
         model = PurchaseInvoiceLine
-        fields = ['id', 'material_name', 'category', 'quantity', 'unit', 'rate', 'line_total', 'sort_order']
+        fields = [
+            'id', 'inventory_item', 'inventory_item_name', 'material_name', 'category',
+            'quantity', 'unit', 'rate', 'line_total', 'sort_order',
+        ]
         read_only_fields = ['id', 'line_total']
 
 
@@ -46,12 +51,19 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
         return _user_name(obj.created_by)
 
     def _save_lines(self, invoice, lines_data):
+        for existing in invoice.lines.select_related('stock_movement').all():
+            if existing.stock_movement_id:
+                movement = existing.stock_movement
+                existing.stock_movement = None
+                existing.save(update_fields=['stock_movement'])
+                movement.delete()
         invoice.lines.all().delete()
         for idx, line in enumerate(lines_data):
             qty = line.get('quantity', 1)
             rate = line.get('rate', 0)
             PurchaseInvoiceLine.objects.create(
                 invoice=invoice,
+                inventory_item=line.get('inventory_item'),
                 material_name=line.get('material_name', ''),
                 category=line.get('category', ''),
                 quantity=qty,
@@ -112,9 +124,14 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
 
 
 class SellInvoiceLineSerializer(serializers.ModelSerializer):
+    inventory_item_name = serializers.CharField(source='inventory_item.name', read_only=True)
+
     class Meta:
         model = SellInvoiceLine
-        fields = ['id', 'material_name', 'category', 'quantity', 'unit', 'rate', 'line_total', 'sort_order']
+        fields = [
+            'id', 'inventory_item', 'inventory_item_name', 'material_name', 'category',
+            'quantity', 'unit', 'rate', 'line_total', 'sort_order',
+        ]
         read_only_fields = ['id', 'line_total']
 
 
@@ -137,12 +154,19 @@ class SellInvoiceSerializer(serializers.ModelSerializer):
         return _user_name(obj.created_by)
 
     def _save_lines(self, invoice, lines_data):
+        for existing in invoice.lines.select_related('stock_movement').all():
+            if existing.stock_movement_id:
+                movement = existing.stock_movement
+                existing.stock_movement = None
+                existing.save(update_fields=['stock_movement'])
+                movement.delete()
         invoice.lines.all().delete()
         for idx, line in enumerate(lines_data):
             qty = line.get('quantity', 1)
             rate = line.get('rate', 0)
             SellInvoiceLine.objects.create(
                 invoice=invoice,
+                inventory_item=line.get('inventory_item'),
                 material_name=line.get('material_name', ''),
                 category=line.get('category', ''),
                 quantity=qty,
@@ -189,6 +213,7 @@ class PaymentVoucherSerializer(serializers.ModelSerializer):
     record_no = serializers.SerializerMethodField()
     project_name = serializers.CharField(source='project.project_name', read_only=True)
     created_by_name = serializers.SerializerMethodField()
+    has_journal = serializers.SerializerMethodField()
 
     def get_record_no(self, obj):
         return obj.voucher_no or f'VCH-{obj.id:04d}'
@@ -196,20 +221,37 @@ class PaymentVoucherSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
 
+    def get_has_journal(self, obj):
+        from .models import Transaction
+        return Transaction.objects.filter(source_payment_voucher_id=obj.pk).exists()
+
     def create(self, validated_data):
         if not validated_data.get('voucher_no'):
             prefix = 'EXP' if validated_data.get('entry_type') == 'Expense' else 'VCH'
             validated_data['voucher_no'] = next_document_number(prefix, PaymentVoucher, 'voucher_no')
-        return super().create(validated_data)
+        voucher = super().create(validated_data)
+        from apps.accounts_module.services import sync_journal_for_payment_voucher
+        sync_journal_for_payment_voucher(voucher)
+        return voucher
+
+    def update(self, instance, validated_data):
+        voucher = super().update(instance, validated_data)
+        from apps.accounts_module.services import sync_journal_for_payment_voucher
+        sync_journal_for_payment_voucher(voucher)
+        return voucher
 
     class Meta:
         model = PaymentVoucher
         fields = [
             'id', 'record_no', 'voucher_no', 'voucher_date', 'entry_type', 'payee_type', 'payee_name',
             'category', 'particulars', 'payment_mode', 'amount', 'project', 'project_name', 'status',
+            'employee_voucher', 'project_expense', 'material_plan', 'has_journal',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_by', 'created_at', 'updated_at']
+        read_only_fields = [
+            'created_by', 'created_at', 'updated_at',
+            'employee_voucher', 'project_expense', 'material_plan', 'has_journal',
+        ]
 
 
 class PurchaseChallanLineSerializer(serializers.ModelSerializer):
@@ -298,9 +340,14 @@ class PurchaseChallanSerializer(serializers.ModelSerializer):
 
 
 class SellChallanLineSerializer(serializers.ModelSerializer):
+    inventory_item_name = serializers.CharField(source='inventory_item.name', read_only=True)
+
     class Meta:
         model = SellChallanLine
-        fields = ['id', 'material_name', 'category', 'quantity', 'unit', 'rate', 'line_total', 'sort_order']
+        fields = [
+            'id', 'inventory_item', 'inventory_item_name', 'material_name', 'category',
+            'quantity', 'unit', 'rate', 'line_total', 'sort_order',
+        ]
         read_only_fields = ['id', 'line_total']
 
 
@@ -323,12 +370,19 @@ class SellChallanSerializer(serializers.ModelSerializer):
         return _user_name(obj.created_by)
 
     def _save_lines(self, challan, lines_data):
+        for existing in challan.lines.select_related('stock_movement').all():
+            if existing.stock_movement_id:
+                movement = existing.stock_movement
+                existing.stock_movement = None
+                existing.save(update_fields=['stock_movement'])
+                movement.delete()
         challan.lines.all().delete()
         for idx, line in enumerate(lines_data):
             qty = line.get('quantity', 1)
             rate = line.get('rate', 0)
             SellChallanLine.objects.create(
                 challan=challan,
+                inventory_item=line.get('inventory_item'),
                 material_name=line.get('material_name', ''),
                 category=line.get('category', ''),
                 quantity=qty,

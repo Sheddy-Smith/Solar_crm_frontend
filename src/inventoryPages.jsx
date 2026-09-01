@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AlertTriangle, Boxes, Download, IndianRupee, Pencil, Plus, RefreshCw,
-  Search, Tags, Trash2, Upload,
+  AlertTriangle, Boxes, CheckCircle2, Download, IndianRupee, Pencil, Plus, RefreshCw,
+  Search, SlidersHorizontal, Tags, Trash2, Upload, Zap,
 } from 'lucide-react';
 import { inventoryApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
@@ -10,24 +10,118 @@ import { exportNotifyCsv } from './lib/utils.js';
 const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'kg', 'Ltr', 'ltr', 'Roll', 'Set'];
 const STRUCTURE_PACK_TYPES = ['Unit', 'Packet', 'Bundels'];
 const STOCK_STATUS_OPTIONS = ['All Stock', 'In Stock', 'Low Stock', 'Out of Stock'];
-const PRODUCT_CATEGORIES = ['Structure', 'Electrical', 'Invertor', 'Panel', 'Battery'];
 const INVERTOR_TYPES = ['On-Grid', 'Off-Grid', 'Hybrid'];
 const PANEL_TYPES = ['DCR Bifacial', 'DCR Topcon', 'NDCR Bifacial', 'NDCR Topcon'];
 const BATTERY_TYPES = ['LFP', 'LTB', 'Lead Acid'];
 const INVERTOR_UNITS = ['Nos', 'Set', 'kW'];
+const FALLBACK_PRODUCT_CATEGORIES = [
+  { name: 'Structure', description: 'Mounting structures and packing', form_template: 'Structure' },
+  { name: 'Electrical', description: 'Cables, boxes, hardware', form_template: 'Electrical' },
+  { name: 'Invertor', description: 'On-grid / off-grid / hybrid', form_template: 'Invertor' },
+  { name: 'Panel', description: 'Solar panels / modules', form_template: 'Panel' },
+  { name: 'Battery', description: 'Storage batteries', form_template: 'Battery' },
+];
+
+const FORM_TEMPLATE_OPTIONS = [
+  { value: 'Generic', label: 'Generic (basic + price)' },
+  { value: 'Structure', label: 'Structure — Unit / Packet / Bundels' },
+  { value: 'Electrical', label: 'Electrical — Unit / Packet / Bundels' },
+  { value: 'Invertor', label: 'Invertor — Type / Capacity' },
+  { value: 'Panel', label: 'Panel — Type / Wp / Count' },
+  { value: 'Battery', label: 'Battery — Type / Capacity' },
+  { value: 'Custom', label: 'Custom — pick fields' },
+];
+
+const CUSTOM_FIELD_OPTIONS = [
+  { key: 'item_code', label: 'Item Code' },
+  { key: 'name', label: 'Name' },
+  { key: 'unit', label: 'Unit' },
+  { key: 'rate', label: 'Unit Price (Material Planning)' },
+  { key: 'selling_price', label: 'Selling Price' },
+  { key: 'product_type', label: 'Type' },
+  { key: 'capacity', label: 'Capacity' },
+  { key: 'panel_wp', label: 'Panel Wp' },
+  { key: 'panel_count', label: 'Number of Panels' },
+  { key: 'initial_stock', label: 'Opening Stock' },
+  { key: 'minimum_stock', label: 'Reorder Level' },
+  { key: 'warehouse', label: 'Warehouse' },
+];
+
+const DEFAULT_CUSTOM_FIELDS = ['item_code', 'name', 'unit', 'rate', 'initial_stock', 'minimum_stock', 'warehouse'];
+const LOCAL_FORM_CFG_KEY = 'malwa_inv_category_forms_v1';
+
+function readLocalFormCfg() {
+  try { return JSON.parse(localStorage.getItem(LOCAL_FORM_CFG_KEY) || '{}'); } catch { return {}; }
+}
+
+function writeLocalFormCfg(map) {
+  try { localStorage.setItem(LOCAL_FORM_CFG_KEY, JSON.stringify(map)); } catch { /* ignore */ }
+}
+
+function mergeCategoryFormConfig(cat) {
+  if (!cat) return cat;
+  const local = readLocalFormCfg()[cat.name] || {};
+  return {
+    ...cat,
+    form_template: cat.form_template || local.form_template || 'Generic',
+    form_fields: (Array.isArray(cat.form_fields) && cat.form_fields.length)
+      ? cat.form_fields
+      : (local.form_fields || DEFAULT_CUSTOM_FIELDS),
+  };
+}
+
+/** Map Categories-page names / form_template → product form template. */
+function resolveFormTemplate(category, categories = []) {
+  const catObj = categories.find((c) => c.name === category);
+  const configured = catObj?.form_template;
+  if (configured && configured !== 'Custom') return configured;
+  if (configured === 'Custom') return 'Custom';
+  const n = String(category || '').toLowerCase().trim();
+  if (!n) return 'Generic';
+  if (n === 'structure' || n.includes('mounting')) return 'Structure';
+  if (
+    n === 'electrical'
+    || n.includes('cable')
+    || n.includes('acdb')
+    || n.includes('dcdb')
+    || n.includes('hardware')
+    || n.includes('steel')
+    || n.includes('connector')
+    || n.includes('earthing')
+    || n.includes('consumable')
+    || n.includes('safety')
+  ) return 'Electrical';
+  if (n.includes('invert')) return 'Invertor';
+  if (n.includes('panel')) return 'Panel';
+  if (n.includes('battery')) return 'Battery';
+  return 'Generic';
+}
+
+function getCategoryFormFields(category, categories = []) {
+  const catObj = categories.find((c) => c.name === category);
+  if (catObj?.form_template === 'Custom') {
+    const fields = Array.isArray(catObj.form_fields) && catObj.form_fields.length
+      ? catObj.form_fields
+      : DEFAULT_CUSTOM_FIELDS;
+    return fields.includes('rate') ? fields : [...fields, 'rate'];
+  }
+  return [];
+}
 
 function unitsForCategory(category, currentUnit = '') {
+  const template = resolveFormTemplate(category);
   let base;
-  if (category === 'Invertor') {
+  if (template === 'Invertor') {
     base = [...INVERTOR_UNITS, ...INV_UNITS];
   } else {
-    base = [...INV_UNITS];
+    base = [...INV_UNITS, 'Unit', 'Packet', 'Bundels', 'kW'];
   }
   if (currentUnit && !base.includes(currentUnit)) base.push(currentUnit);
   return [...new Set(base)];
 }
 
-function defaultsForCategory(category) {
+function defaultsForCategory(category, categories = []) {
+  const template = resolveFormTemplate(category, categories);
   const base = {
     item_code: '',
     name: '',
@@ -47,16 +141,16 @@ function defaultsForCategory(category) {
     is_active: true,
     auto_sell: false,
   };
-  if (category === 'Structure' || category === 'Electrical') {
+  if (template === 'Structure' || template === 'Electrical') {
     return { ...base, product_type: 'Unit', unit: 'Unit' };
   }
-  if (category === 'Invertor') {
+  if (template === 'Invertor') {
     return { ...base, product_type: 'On-Grid', unit: 'Nos' };
   }
-  if (category === 'Panel') {
+  if (template === 'Panel') {
     return { ...base, product_type: 'DCR Bifacial', unit: 'Nos' };
   }
-  if (category === 'Battery') {
+  if (template === 'Battery') {
     return { ...base, product_type: 'LFP', unit: 'Nos' };
   }
   return base;
@@ -125,22 +219,102 @@ function InvModal({ title, onClose, children, footer, headerRight = null }) {
 export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, onNotify, Subnav, panelClass, cx, reportKpiToneClasses, DashboardFooter, PageHeading, Boxes: BoxesIcon, AlertTriangle: AlertIcon, IndianRupee: RupeeIcon, Download: DownloadIcon, Upload: UploadIcon, RefreshCw: RefreshIcon, Plus: PlusIcon }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const onNotifyRef = useRef(onNotify);
+  onNotifyRef.current = onNotify;
 
   useEffect(() => {
-    inventoryApi.summary()
-      .then((data) => { if (data) setStats(data); })
-      .catch(() => onNotify('Could not load inventory summary.', 'error'))
-      .finally(() => setLoading(false));
-  }, [onNotify]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await inventoryApi.summary();
+        if (cancelled) return;
+        if (data) setStats(data);
+        if (!data?.alerts) {
+          const items = normalizeRows(await inventoryApi.items.list({ page_size: 2000 }));
+          if (cancelled) return;
+          const critical = items.filter((i) => Number(i.current_stock) <= 0);
+          const warning = items.filter((i) => Number(i.current_stock) > 0 && Number(i.current_stock) <= Number(i.minimum_stock || 0));
+          const stable = items.filter((i) => Number(i.current_stock) > Number(i.minimum_stock || 0));
+          const row = (i) => ({
+            id: i.id,
+            name: i.name,
+            item_code: i.item_code || '',
+            category: i.category || '',
+            current_stock: Number(i.current_stock || 0),
+            minimum_stock: Number(i.minimum_stock || 0),
+            unit: i.unit || 'Nos',
+            warehouse_name: i.warehouse_name || '',
+          });
+          setStats((prev) => ({
+            ...(prev || data || {}),
+            alerts: {
+              critical: critical.slice(0, 12).map(row),
+              warning: warning.slice(0, 12).map(row),
+              stable: stable.slice(0, 12).map(row),
+              critical_count: critical.length,
+              warning_count: warning.length,
+              stable_count: stable.length,
+            },
+          }));
+        }
+      } catch {
+        if (!cancelled) onNotifyRef.current?.('Could not load inventory summary.', 'error');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const alerts = stats?.alerts || {};
+  const critical = alerts.critical || [];
+  const warning = alerts.warning || [];
+  const stable = alerts.stable || [];
+  const criticalCount = alerts.critical_count ?? critical.length;
+  const warningCount = alerts.warning_count ?? warning.length;
+  const stableCount = alerts.stable_count ?? stable.length;
 
   const cards = [
     { label: 'Total Products', value: String(stats?.total_items ?? 0), caption: 'Active SKUs', tone: 'blue', icon: BoxesIcon, onClick: () => onOpenSection('Products') },
-    { label: 'Low Stock', value: String(stats?.low_stock ?? 0), caption: 'Below reorder level', tone: 'amber', icon: AlertIcon, onClick: () => onOpenSection('Products') },
-    { label: 'Out of Stock', value: String(stats?.out_of_stock ?? 0), caption: 'Needs restock', tone: 'red', icon: AlertIcon, onClick: () => onOpenSection('Stock Inward') },
+    { label: 'High Alert', value: String(criticalCount), caption: 'Out of stock', tone: 'red', icon: AlertIcon, onClick: () => onOpenSection('Stock') },
+    { label: 'Alert', value: String(warningCount), caption: 'Below reorder level', tone: 'amber', icon: AlertIcon, onClick: () => onOpenSection('Products') },
+    { label: 'Stable', value: String(stableCount), caption: 'Healthy stock', tone: 'green', icon: BoxesIcon, onClick: () => onOpenSection('Products') },
     { label: 'Stock Value', value: fmtInvRs(stats?.total_value), caption: 'At cost price', tone: 'green', icon: RupeeIcon, onClick: () => onOpenSection('Products') },
-    { label: 'Total Movements', value: String(stats?.total_movements ?? 0), caption: 'All time', tone: 'purple', icon: RefreshIcon, onClick: () => onOpenSection('Stock Inward') },
-    { label: 'Stale Stock (15d+)', value: String(stats?.stale_stock_items ?? 0), caption: 'No recent movement', tone: 'red', icon: AlertIcon, onClick: () => onOpenSection('Products') },
+    { label: 'Total Movements', value: String(stats?.total_movements ?? 0), caption: 'Stock + Movement', tone: 'purple', icon: RefreshIcon, onClick: () => onOpenSection('Stock Movement') },
   ];
+
+  const StockAlertRow = ({ item, level }) => {
+    const tone = {
+      critical: { border: 'border-[#fecaca] bg-[#fff5f5]', badge: 'bg-[#dc2626] text-white', label: 'High' },
+      warning: { border: 'border-[#fde68a] bg-[#fffbeb]', badge: 'bg-[#f59e0b] text-white', label: 'Alert' },
+      stable: { border: 'border-[#bbf7d0] bg-[#f0fdf4]', badge: 'bg-[#16a34a] text-white', label: 'Stable' },
+    }[level];
+    return (
+      <div className={cx('flex flex-col gap-2 rounded-[12px] border px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between', tone.border)}>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{item.name}</p>
+            <span className={cx('inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide', tone.badge)}>{tone.label}</span>
+          </div>
+          <p className="mt-0.5 text-[11px] font-semibold text-[#7585a2]">
+            {item.item_code || '—'} · {item.category || '—'}
+            {item.warehouse_name ? ` · ${item.warehouse_name}` : ''}
+          </p>
+          <p className="mt-0.5 text-[12px] font-extrabold text-[#1e3261]">
+            Stock {item.current_stock} {item.unit}
+            {level !== 'stable' ? ` · Reorder ${item.minimum_stock}` : ''}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenSection(level === 'critical' ? 'Stock' : 'Products')}
+          className="inline-flex h-9 shrink-0 items-center justify-center rounded-[10px] border border-[#e2e9f3] bg-white px-3 text-[12px] font-extrabold text-[#1d4ed8]"
+        >
+          {level === 'critical' ? 'Stock In' : 'View'}
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -150,7 +324,7 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
         <div className={cx(panelClass, 'flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]')}>Loading overview...</div>
       ) : (
         <>
-          <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-4 xl:grid-cols-3">
+          <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-3 md:gap-4">
             {cards.map((card) => (
               <button
                 key={card.label}
@@ -158,21 +332,84 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
                 onClick={card.onClick}
                 className={cx(
                   panelClass,
-                  'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center transition active:scale-[0.98]',
-                  'md:p-4 md:text-left md:hover:-translate-y-0.5 md:hover:shadow-lg',
+                  'flex min-w-0 flex-col items-start gap-1 p-3 text-left transition active:scale-[0.98]',
+                  'md:p-4 md:hover:-translate-y-0.5 md:hover:shadow-lg',
                 )}
               >
-                <span className={cx('grid size-7 place-items-center rounded-[8px] md:size-10 md:rounded-[10px]', reportKpiToneClasses[card.tone] || reportKpiToneClasses.blue)}>
-                  <card.icon className="size-3.5 md:size-5" />
+                <span className={cx('grid size-8 place-items-center rounded-[8px] md:size-10 md:rounded-[10px]', reportKpiToneClasses[card.tone] || reportKpiToneClasses.blue)}>
+                  <card.icon className="size-4 md:size-5" />
                 </span>
                 <div className="min-w-0 w-full">
-                  <p className="truncate text-[9px] font-bold text-[#7a8fa6] md:text-[12px]">{card.label}</p>
-                  <p className="mt-0.5 text-[15px] font-extrabold leading-none text-[#1e3261] md:mt-2 md:text-[22px]">{card.value}</p>
-                  <p className="mt-0.5 truncate text-[8px] font-bold text-[#53647f] md:mt-1 md:text-[11px]">{card.caption}</p>
+                  <p className="truncate text-[11px] font-bold text-[#7a8fa6] md:text-[12px]">{card.label}</p>
+                  <p className="mt-1 text-[18px] font-extrabold leading-none text-[#1e3261] md:mt-2 md:text-[22px]">{card.value}</p>
+                  <p className="mt-1 truncate text-[10px] font-bold text-[#53647f] md:text-[11px]">{card.caption}</p>
                 </div>
               </button>
             ))}
           </section>
+
+          <div className="grid gap-4 xl:grid-cols-3">
+            <section className={cx('overflow-hidden rounded-[16px] border-2 border-[#ef4444]/50 bg-white shadow-[0_12px_28px_rgba(220,38,38,0.12)]', criticalCount > 0 && 'ring-2 ring-[#fecaca]/90')}>
+              <div className="flex items-center justify-between gap-3 border-b border-[#fecaca] bg-[linear-gradient(90deg,#fef2f2_0%,#fff5f5_100%)] px-4 py-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="grid size-10 place-items-center rounded-full bg-[#dc2626] text-white shadow-[0_6px_14px_rgba(220,38,38,0.35)]">
+                    <AlertTriangle className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-extrabold text-[#991b1b]">High Alert · Out of Stock</p>
+                    <p className="text-[11px] font-semibold text-[#b91c1c]">Restock via Stock</p>
+                  </div>
+                </div>
+                <span className="inline-flex min-w-[36px] items-center justify-center rounded-full bg-[#dc2626] px-2.5 py-1 text-[14px] font-extrabold text-white">{criticalCount}</span>
+              </div>
+              <div className="space-y-2 p-3.5">
+                {!critical.length ? (
+                  <p className="rounded-[10px] bg-[#fff5f5] px-3 py-5 text-center text-[12px] font-bold text-[#991b1b]/80">No critical stock. Good.</p>
+                ) : critical.map((item) => <StockAlertRow key={item.id} item={item} level="critical" />)}
+              </div>
+            </section>
+
+            <section className={cx('overflow-hidden rounded-[16px] border-2 border-[#f59e0b]/55 bg-white shadow-[0_12px_28px_rgba(245,158,11,0.12)]', warningCount > 0 && 'ring-2 ring-[#fde68a]/80')}>
+              <div className="flex items-center justify-between gap-3 border-b border-[#fde68a] bg-[linear-gradient(90deg,#fff7ed_0%,#fffbeb_100%)] px-4 py-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="grid size-10 place-items-center rounded-full bg-[#f59e0b] text-white shadow-[0_6px_14px_rgba(245,158,11,0.35)]">
+                    <Zap className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-extrabold text-[#92400e]">Alert · Low Stock</p>
+                    <p className="text-[11px] font-semibold text-[#b45309]">At or below reorder level</p>
+                  </div>
+                </div>
+                <span className="inline-flex min-w-[36px] items-center justify-center rounded-full bg-[#f59e0b] px-2.5 py-1 text-[14px] font-extrabold text-white">{warningCount}</span>
+              </div>
+              <div className="space-y-2 p-3.5">
+                {!warning.length ? (
+                  <p className="rounded-[10px] bg-[#fffbeb] px-3 py-5 text-center text-[12px] font-bold text-[#92400e]/80">No low-stock items.</p>
+                ) : warning.map((item) => <StockAlertRow key={item.id} item={item} level="warning" />)}
+              </div>
+            </section>
+
+            <section className={cx('overflow-hidden rounded-[16px] border-2 border-[#16a34a]/45 bg-white shadow-[0_12px_28px_rgba(22,163,74,0.10)]', stableCount > 0 && 'ring-2 ring-[#bbf7d0]/80')}>
+              <div className="flex items-center justify-between gap-3 border-b border-[#bbf7d0] bg-[linear-gradient(90deg,#f0fdf4_0%,#ecfdf5_100%)] px-4 py-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="grid size-10 place-items-center rounded-full bg-[#16a34a] text-white shadow-[0_6px_14px_rgba(22,163,74,0.35)]">
+                    <CheckCircle2 className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-extrabold text-[#166534]">Stable · Healthy Stock</p>
+                    <p className="text-[11px] font-semibold text-[#15803d]">Above reorder level</p>
+                  </div>
+                </div>
+                <span className="inline-flex min-w-[36px] items-center justify-center rounded-full bg-[#16a34a] px-2.5 py-1 text-[14px] font-extrabold text-white">{stableCount}</span>
+              </div>
+              <div className="space-y-2 p-3.5">
+                {!stable.length ? (
+                  <p className="rounded-[10px] bg-[#f0fdf4] px-3 py-5 text-center text-[12px] font-bold text-[#166534]/80">No stable stock yet — add products / stock.</p>
+                ) : stable.map((item) => <StockAlertRow key={item.id} item={item} level="stable" />)}
+              </div>
+            </section>
+          </div>
+
           <section className={cx(panelClass, 'p-4')}>
             <h3 className="text-[14px] font-extrabold text-[#1e3261]">Stock by Unit</h3>
             <p className="mt-2 text-[13px] font-bold text-[#53647f]">
@@ -220,30 +457,64 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   const [modal, setModal] = useState(null);
   const [adjustItem, setAdjustItem] = useState(null);
   const [saving, setSaving] = useState(false);
-  const emptyForm = defaultsForCategory('Structure');
+  const onNotifyRef = useRef(onNotify);
+  onNotifyRef.current = onNotify;
+  const seedAttemptedRef = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput), 350);
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  const load = useCallback((opts = {}) => {
+    const showSpinner = opts.showSpinner !== false;
+    if (showSpinner) setLoading(true);
     const itemParams = { page_size: 2000 };
     if (category !== 'All Categories') itemParams.category = category;
     if (stockFilter !== 'All Stock') itemParams.stock_status = stockFilter;
     if (search.trim()) itemParams.search = search.trim();
     Promise.all([
       inventoryApi.items.list(itemParams),
-      inventoryApi.categories.list({ page_size: 500 }),
-      inventoryApi.warehouses.list({ page_size: 200 }),
-    ]).then(([items, cats, wh]) => {
+      inventoryApi.categories.list({ page_size: 500 }).catch(() => ({ results: [] })),
+      inventoryApi.warehouses.list({ page_size: 200 }).catch(() => ({ results: [] })),
+    ]).then(async ([items, cats, wh]) => {
+      let catRows = normalizeRows(cats).filter((c) => c.is_active !== false).map(mergeCategoryFormConfig);
+      // Seed defaults once — view-only roles (Sales Executive) cannot create; use local fallbacks.
+      if (!catRows.length && !seedAttemptedRef.current) {
+        seedAttemptedRef.current = true;
+        const created = await Promise.all(
+          FALLBACK_PRODUCT_CATEGORIES.map((c) =>
+            inventoryApi.categories.create({
+              name: c.name,
+              description: c.description,
+              is_active: true,
+              form_template: c.form_template,
+              form_fields: DEFAULT_CUSTOM_FIELDS,
+            }).catch(() => null),
+          ),
+        );
+        if (created.some(Boolean)) {
+          catRows = normalizeRows(await inventoryApi.categories.list({ page_size: 500 }).catch(() => ({ results: [] })))
+            .filter((c) => c.is_active !== false)
+            .map(mergeCategoryFormConfig);
+        }
+      }
+      if (!catRows.length) {
+        catRows = FALLBACK_PRODUCT_CATEGORIES.map((c, i) => mergeCategoryFormConfig({
+          id: `local-${i}`,
+          name: c.name,
+          description: c.description,
+          is_active: true,
+          form_template: c.form_template,
+          form_fields: DEFAULT_CUSTOM_FIELDS,
+        }));
+      }
       setRows(normalizeRows(items));
-      setCategories(normalizeRows(cats));
+      setCategories(catRows);
       setWarehouses(normalizeRows(wh));
-    }).catch((e) => onNotify(e.message || 'Failed to load products', 'error'))
+    }).catch((e) => onNotifyRef.current?.(e.message || 'Failed to load products', 'error'))
       .finally(() => setLoading(false));
-  }, [onNotify, category, stockFilter, search]);
+  }, [category, stockFilter, search]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -254,13 +525,18 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   const saveProduct = async () => {
     if (!modal?.form.name?.trim()) { onNotify('Product name is required', 'error'); return; }
     const f = modal.form;
+    if (f.rate === '' || f.rate == null || Number(f.rate) < 0) {
+      onNotify('Unit Price required — Material Planning isse calculate karega', 'error');
+      return;
+    }
     if (!modal.editId && f.initial_stock !== '' && Number(f.initial_stock) > 0 && !f.warehouse) {
       onNotify('Select a warehouse for opening stock.', 'error');
       return;
     }
     setSaving(true);
     try {
-      const cat = f.category || 'Structure';
+      const cat = f.category || defaultCategoryName || 'Other';
+      const template = resolveFormTemplate(cat);
       const body = {
         item_code: f.item_code || undefined,
         name: f.name,
@@ -278,12 +554,11 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
         warehouse: f.warehouse || null,
         is_active: f.is_active !== false,
       };
-      if (cat === 'Panel' && !body.unit) body.unit = 'Nos';
-      if (cat === 'Battery' && !body.unit) body.unit = 'Nos';
+      if ((template === 'Panel' || template === 'Battery') && !body.unit) body.unit = 'Nos';
       if (!modal.editId && f.initial_stock !== '') body.initial_stock = Number(f.initial_stock) || 0;
       if (modal.editId) await inventoryApi.items.update(modal.editId, body);
       else await inventoryApi.items.create(body);
-      onNotify(modal.editId ? 'Product updated' : 'Product created', 'success');
+      onNotify(modal.editId ? 'Product updated' : 'Product created — available in Material Planning', 'success');
       setModal(null);
       load();
     } catch (e) {
@@ -295,14 +570,27 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
 
   const saveAdjust = async () => {
     if (!adjustItem?.quantity) { onNotify('Quantity required', 'error'); return; }
+    const row = rows.find((r) => r.id === adjustItem.id);
+    if (!row?.warehouse) {
+      onNotify('Assign a warehouse to this product first', 'error');
+      return;
+    }
     setSaving(true);
     try {
-      await inventoryApi.items.quickAdjust(adjustItem.id, {
-        quantity: Number(adjustItem.quantity),
-        direction: adjustItem.direction,
-        notes: adjustItem.notes,
+      const qty = Number(adjustItem.quantity);
+      const isAdd = adjustItem.direction === 'add';
+      await inventoryApi.movements.create({
+        item: adjustItem.id,
+        movement_type: isAdd ? 'Inward' : 'Outward',
+        quantity: qty,
+        rate: row.rate || 0,
+        ...(isAdd
+          ? { to_warehouse: row.warehouse }
+          : { from_warehouse: row.warehouse }),
+        reference_type: 'Manual',
+        notes: adjustItem.notes || (isAdd ? 'Stock received / purchased' : 'Stock removed'),
       });
-      onNotify('Stock adjusted', 'success');
+      onNotify(isAdd ? 'Stock added — product qty updated' : 'Stock Movement added — product qty updated', 'success');
       setAdjustItem(null);
       load();
     } catch (e) {
@@ -312,7 +600,19 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
     }
   };
 
-  const catOptions = ['All Categories', ...new Set([...PRODUCT_CATEGORIES, ...categories.map((c) => c.name), ...rows.map((r) => r.category)].filter(Boolean))];
+  const activeCategoryNames = categories.filter((c) => c.is_active !== false).map((c) => c.name).filter(Boolean);
+  const fallbackNames = FALLBACK_PRODUCT_CATEGORIES.map((c) => c.name);
+  const defaultCategoryName = activeCategoryNames[0] || fallbackNames[0] || 'Structure';
+  const catOptions = ['All Categories', ...new Set([...activeCategoryNames, ...fallbackNames, ...rows.map((r) => r.category)].filter(Boolean))];
+  const modalCategoryOptions = (() => {
+    const names = [...(activeCategoryNames.length ? activeCategoryNames : fallbackNames)];
+    if (modal?.form?.category && !names.includes(modal.form.category)) names.push(modal.form.category);
+    return names;
+  })();
+
+  const openAddProduct = () => {
+    setModal({ form: { ...defaultsForCategory(defaultCategoryName, categories) } });
+  };
 
   return (
     <div className="space-y-4">
@@ -320,7 +620,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => exportNotifyCsv(onNotify, 'inventory-products', ['Code', 'Name', 'Category', 'Stock', 'Unit', 'Valuation'], filtered.map((r) => [r.item_code, r.name, r.category, r.current_stock, r.unit, r.valuation]))} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#284276]"><Download className="size-4" />Export CSV</button>
-            <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Product</button>
+            <button type="button" onClick={openAddProduct} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Product</button>
           </div>
         )}
       />
@@ -373,7 +673,15 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                     <td className="px-3 py-2"><InvStatusBadge status={r.stock_status} /></td>
                     <td className="px-3 py-2">
                       <div className="flex gap-1">
-                        <button type="button" title={r.warehouse ? 'Adjust stock' : 'Assign a warehouse first'} disabled={!r.warehouse} onClick={() => r.warehouse && setAdjustItem({ id: r.id, name: r.name, quantity: '', direction: 'add', notes: '' })} className="rounded-[6px] border px-2 py-1 text-[11px] font-bold text-[#0b65e5] disabled:cursor-not-allowed disabled:opacity-40">Adjust</button>
+                        <button
+                          type="button"
+                          title={r.warehouse ? 'Adjust stock' : 'Assign a warehouse first'}
+                          disabled={!r.warehouse}
+                          onClick={() => r.warehouse && setAdjustItem({ id: r.id, name: r.name, quantity: '', direction: 'add', notes: '' })}
+                          className="grid size-8 place-items-center rounded-[8px] border border-[#d4e4ff] bg-[#f5f9ff] text-[#0b65e5] transition hover:bg-[#e8f1ff] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <SlidersHorizontal className="size-3.5" />
+                        </button>
                         <button type="button" onClick={() => setModal({
                           editId: r.id,
                           form: {
@@ -390,8 +698,8 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                             is_active: r.is_active !== false,
                             initial_stock: '',
                           },
-                        })} className="grid size-7 place-items-center rounded-[6px] border"><Pencil className="size-3.5" /></button>
-                        <button type="button" onClick={() => inventoryApi.items.delete(r.id).then(load).catch((e) => onNotify(e.message, 'error'))} className="grid size-7 place-items-center rounded-[6px] border text-[#ef4444]"><Trash2 className="size-3.5" /></button>
+                        })} className="grid size-8 place-items-center rounded-[8px] border border-[#e9dffb] bg-[#f8f4ff] text-[#7c3aed]"><Pencil className="size-3.5" /></button>
+                        <button type="button" onClick={() => inventoryApi.items.delete(r.id).then(load).catch((e) => onNotify(e.message, 'error'))} className="grid size-8 place-items-center rounded-[8px] border border-[#fecaca] bg-[#fff5f5] text-[#ef4444]"><Trash2 className="size-3.5" /></button>
                       </div>
                     </td>
                   </tr>
@@ -413,11 +721,11 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
               <span className="shrink-0">Category</span>
               <select
                 className="h-9 min-w-[140px] rounded-[8px] border border-[#d9e2ec] bg-white px-2.5 text-[13px] font-semibold text-[#1e3261]"
-                value={modal.form.category || 'Structure'}
+                value={modal.form.category || defaultCategoryName}
                 onChange={(e) => {
                   const nextCategory = e.target.value;
                   setModal((m) => {
-                    const next = defaultsForCategory(nextCategory);
+                    const next = defaultsForCategory(nextCategory, categories);
                     return {
                       ...m,
                       form: {
@@ -427,15 +735,14 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                         warehouse: m.form.warehouse,
                         initial_stock: m.form.initial_stock,
                         minimum_stock: m.form.minimum_stock,
+                        rate: m.form.rate,
                       },
                     };
                   });
                 }}
               >
-                {(PRODUCT_CATEGORIES.includes(modal.form.category) || !modal.form.category
-                  ? PRODUCT_CATEGORIES
-                  : [...PRODUCT_CATEGORIES, modal.form.category]
-                ).map((c) => <option key={c} value={c}>{c}</option>)}
+                {!modalCategoryOptions.length ? <option value="">Add category first</option> : null}
+                {modalCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
           )}
@@ -447,8 +754,15 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
           )}
         >
           {(() => {
-            const cat = modal.form.category || 'Structure';
+            const cat = modal.form.category || defaultCategoryName || 'Other';
+            const template = resolveFormTemplate(cat, categories);
+            const customFields = getCategoryFormFields(cat, categories);
             const f = modal.form;
+            const priceField = (
+              <Field label="Unit Price (Rs) *" hint="Material Planning me qty × is price se amount banega">
+                <input type="number" className={inputClass} value={f.rate ?? ''} onChange={(e) => patchForm({ rate: e.target.value })} />
+              </Field>
+            );
             const warehouseField = (
               <Field label="Warehouse">
                 <select className={selectClass} value={f.warehouse || ''} onChange={(e) => patchForm({ warehouse: e.target.value })}>
@@ -458,12 +772,12 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
               </Field>
             );
             const openingField = !modal.editId ? (
-              <Field label="Opening Stock" hint="Creates an inward movement record">
+              <Field label="Opening Stock" hint="Creates Stock entry + updates product stock">
                 <input type="number" className={inputClass} value={f.initial_stock} onChange={(e) => patchForm({ initial_stock: e.target.value })} />
               </Field>
             ) : null;
             const reorderField = (
-              <Field label={cat === 'Panel' ? 'Reorder Stock' : 'Reorder Level'}>
+              <Field label={template === 'Panel' ? 'Reorder Stock' : 'Reorder Level'}>
                 <input type="number" className={inputClass} value={f.minimum_stock} onChange={(e) => patchForm({ minimum_stock: e.target.value })} />
               </Field>
             );
@@ -478,7 +792,52 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
               </>
             );
 
-            if (cat === 'Invertor') {
+            if (template === 'Custom') {
+              const show = (key) => customFields.includes(key);
+              return (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {show('item_code') || show('name') ? codeName : null}
+                  {show('product_type') ? (
+                    <Field label="Type">
+                      <input className={inputClass} value={f.product_type || ''} onChange={(e) => patchForm({ product_type: e.target.value })} />
+                    </Field>
+                  ) : null}
+                  {show('capacity') ? (
+                    <Field label="Capacity">
+                      <input className={inputClass} value={f.capacity || ''} onChange={(e) => patchForm({ capacity: e.target.value })} />
+                    </Field>
+                  ) : null}
+                  {show('panel_wp') ? (
+                    <Field label="Panel Wp">
+                      <input type="number" className={inputClass} value={f.panel_wp ?? ''} onChange={(e) => patchForm({ panel_wp: e.target.value })} />
+                    </Field>
+                  ) : null}
+                  {show('panel_count') ? (
+                    <Field label="Number of Panels">
+                      <input type="number" className={inputClass} value={f.panel_count ?? ''} onChange={(e) => patchForm({ panel_count: e.target.value })} />
+                    </Field>
+                  ) : null}
+                  {show('unit') ? (
+                    <Field label="Unit">
+                      <select className={selectClass} value={f.unit || 'Nos'} onChange={(e) => patchForm({ unit: e.target.value })}>
+                        {unitsForCategory(cat, f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </Field>
+                  ) : null}
+                  {priceField}
+                  {show('selling_price') ? (
+                    <Field label="Selling Price">
+                      <input type="number" className={inputClass} value={f.selling_price ?? ''} onChange={(e) => patchForm({ selling_price: e.target.value })} />
+                    </Field>
+                  ) : null}
+                  {show('initial_stock') ? openingField : null}
+                  {show('minimum_stock') ? reorderField : null}
+                  {show('warehouse') ? warehouseField : null}
+                </div>
+              );
+            }
+
+            if (template === 'Invertor') {
               return (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {codeName}
@@ -492,9 +851,10 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                   </Field>
                   <Field label="Unit">
                     <select className={selectClass} value={f.unit || 'Nos'} onChange={(e) => patchForm({ unit: e.target.value })}>
-                      {unitsForCategory('Invertor', f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
+                      {unitsForCategory(cat, f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
                     </select>
                   </Field>
+                  {priceField}
                   {openingField}
                   {reorderField}
                   {warehouseField}
@@ -502,7 +862,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
               );
             }
 
-            if (cat === 'Panel') {
+            if (template === 'Panel') {
               return (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {codeName}
@@ -517,17 +877,15 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                   <Field label="Number of Panels">
                     <input type="number" className={inputClass} value={f.panel_count ?? ''} onChange={(e) => patchForm({ panel_count: e.target.value })} />
                   </Field>
+                  {priceField}
                   {openingField}
                   {reorderField}
                   {warehouseField}
-                  <Field label="Cost">
-                    <input type="number" className={inputClass} value={f.rate ?? ''} onChange={(e) => patchForm({ rate: e.target.value })} />
-                  </Field>
                 </div>
               );
             }
 
-            if (cat === 'Battery') {
+            if (template === 'Battery') {
               return (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {codeName}
@@ -537,53 +895,71 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                     </select>
                   </Field>
                   <Field label="Capacity">
-                    <input className={inputClass} placeholder="e.g. 100 Ah / 5 kWh" value={f.capacity || ''} onChange={(e) => patchForm({ capacity: e.target.value })} />
+                    <input className={inputClass} placeholder="e.g. 100 Ah" value={f.capacity || ''} onChange={(e) => patchForm({ capacity: e.target.value })} />
                   </Field>
+                  {priceField}
                   {openingField}
                   {reorderField}
                   {warehouseField}
-                  <Field label="Cost">
-                    <input type="number" className={inputClass} value={f.rate ?? ''} onChange={(e) => patchForm({ rate: e.target.value })} />
-                  </Field>
                 </div>
               );
             }
 
-            // Structure + Electrical — Unit / Packet / Bundels as option tabs (not dropdown)
-            const packType = STRUCTURE_PACK_TYPES.includes(f.product_type) ? f.product_type : 'Unit';
+            if (template === 'Structure' || template === 'Electrical') {
+              const packType = STRUCTURE_PACK_TYPES.includes(f.product_type) ? f.product_type : 'Unit';
+              return (
+                <div className="space-y-4">
+                  <div>
+                    <p className="mb-2 text-[12px] font-bold text-[#53647f]">Select option</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {STRUCTURE_PACK_TYPES.map((t) => {
+                        const active = packType === t;
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => patchForm({ product_type: t, unit: t })}
+                            className={`h-11 rounded-[10px] border text-[13px] font-extrabold transition ${
+                              active
+                                ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5] shadow-[0_0_0_3px_rgba(11,101,229,0.12)]'
+                                : 'border-[#d9e2ec] bg-white text-[#314a79] hover:bg-[#f8fbff]'
+                            }`}
+                          >
+                            {t}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="rounded-[12px] border border-[#e7eef7] bg-[#fbfdff] p-3 sm:p-4">
+                    <p className="mb-3 text-[13px] font-extrabold text-[#1e3261]">{packType} details</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {codeName}
+                      {priceField}
+                      {openingField}
+                      {reorderField}
+                      {warehouseField}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
             return (
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-2 text-[12px] font-bold text-[#53647f]">Select option</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {STRUCTURE_PACK_TYPES.map((t) => {
-                      const active = packType === t;
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => patchForm({ product_type: t, unit: t })}
-                          className={`h-11 rounded-[10px] border text-[13px] font-extrabold transition ${
-                            active
-                              ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5] shadow-[0_0_0_3px_rgba(11,101,229,0.12)]'
-                              : 'border-[#d9e2ec] bg-white text-[#314a79] hover:bg-[#f8fbff]'
-                          }`}
-                        >
-                          {t}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="rounded-[12px] border border-[#e7eef7] bg-[#fbfdff] p-3 sm:p-4">
-                  <p className="mb-3 text-[13px] font-extrabold text-[#1e3261]">{packType} details</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {codeName}
-                    {openingField}
-                    {reorderField}
-                    {warehouseField}
-                  </div>
-                </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {codeName}
+                <Field label="Unit">
+                  <select className={selectClass} value={f.unit || 'Nos'} onChange={(e) => patchForm({ unit: e.target.value })}>
+                    {unitsForCategory(cat, f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </Field>
+                {priceField}
+                <Field label="Selling Price">
+                  <input type="number" className={inputClass} value={f.selling_price ?? ''} onChange={(e) => patchForm({ selling_price: e.target.value })} />
+                </Field>
+                {openingField}
+                {reorderField}
+                {warehouseField}
               </div>
             );
           })()}
@@ -598,7 +974,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
           </>
         )}>
           <div className="grid gap-3">
-            <label className="text-[12px] font-bold">Direction<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={adjustItem.direction} onChange={(e) => setAdjustItem((a) => ({ ...a, direction: e.target.value }))}><option value="add">Add stock</option><option value="remove">Remove stock</option></select></label>
+            <label className="text-[12px] font-bold">Direction<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={adjustItem.direction} onChange={(e) => setAdjustItem((a) => ({ ...a, direction: e.target.value }))}><option value="add">Add stock (Stock)</option><option value="remove">Remove stock (Stock Movement)</option></select></label>
             <label className="text-[12px] font-bold">Quantity<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={adjustItem.quantity} onChange={(e) => setAdjustItem((a) => ({ ...a, quantity: e.target.value }))} /></label>
             <label className="text-[12px] font-bold">Notes<textarea className="mt-1 w-full rounded-[8px] border p-3" rows={2} value={adjustItem.notes} onChange={(e) => setAdjustItem((a) => ({ ...a, notes: e.target.value }))} /></label>
           </div>
@@ -613,16 +989,35 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
+  const onNotifyRef = useRef(onNotify);
+  onNotifyRef.current = onNotify;
+
+  const emptyCategoryForm = {
+    name: '',
+    description: '',
+    is_active: true,
+    form_template: 'Generic',
+    form_fields: [...DEFAULT_CUSTOM_FIELDS],
+  };
 
   const load = useCallback(() => {
     setLoading(true);
     inventoryApi.categories.list({ page_size: 500 })
-      .then((d) => setRows(normalizeRows(d)))
-      .catch((e) => onNotify(e.message, 'error'))
+      .then((d) => setRows(normalizeRows(d).map(mergeCategoryFormConfig)))
+      .catch((e) => onNotifyRef.current?.(e.message, 'error'))
       .finally(() => setLoading(false));
-  }, [onNotify]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const toggleField = (key) => {
+    setModal((m) => {
+      const current = Array.isArray(m.form.form_fields) ? m.form.form_fields : [...DEFAULT_CUSTOM_FIELDS];
+      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
+      if (key === 'rate' && !next.includes('rate')) next.push('rate');
+      return { ...m, form: { ...m.form, form_fields: next } };
+    });
+  };
 
   const save = async () => {
     if (!modal?.form.name?.trim()) {
@@ -630,12 +1025,35 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
       return;
     }
     setSaving(true);
+    const payload = {
+      name: modal.form.name.trim(),
+      description: modal.form.description || '',
+      is_active: modal.form.is_active !== false,
+      form_template: modal.form.form_template || 'Generic',
+      form_fields: modal.form.form_template === 'Custom'
+        ? (modal.form.form_fields?.includes('rate') ? modal.form.form_fields : [...(modal.form.form_fields || []), 'rate'])
+        : [],
+    };
     try {
-      if (modal.editId) await inventoryApi.categories.update(modal.editId, modal.form);
-      else await inventoryApi.categories.create(modal.form);
-      onNotify('Category saved', 'success');
+      let saved;
+      try {
+        if (modal.editId) saved = await inventoryApi.categories.update(modal.editId, payload);
+        else saved = await inventoryApi.categories.create(payload);
+      } catch {
+        const basic = { name: payload.name, description: payload.description, is_active: payload.is_active };
+        if (modal.editId) saved = await inventoryApi.categories.update(modal.editId, basic);
+        else saved = await inventoryApi.categories.create(basic);
+        const cfg = readLocalFormCfg();
+        cfg[payload.name] = { form_template: payload.form_template, form_fields: payload.form_fields };
+        writeLocalFormCfg(cfg);
+      }
+      const cfg = readLocalFormCfg();
+      cfg[payload.name] = { form_template: payload.form_template, form_fields: payload.form_fields };
+      writeLocalFormCfg(cfg);
+      onNotify('Category + form design saved', 'success');
       setModal(null);
       load();
+      return saved;
     } catch (e) {
       onNotify(e.message, 'error');
     } finally {
@@ -643,48 +1061,130 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
     }
   };
 
+  const templateLabel = (value) => FORM_TEMPLATE_OPTIONS.find((o) => o.value === value)?.label || value || 'Generic';
+
   return (
     <div className="space-y-4">
       <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Categories' }]}
-        actions={<button type="button" onClick={() => setModal({ form: { name: '', description: '', is_active: true } })} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Category</button>}
+        actions={<button type="button" onClick={() => setModal({ form: { ...emptyCategoryForm } })} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Category</button>}
       />
       <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
       <div className={cx(panelClass, 'p-4')}>
+        <p className="mb-3 text-[12px] font-semibold text-[#7386a3]">
+          Har category ka Add Product form alag design karo. Unit Price field har product pe rahega — Material Planning qty × price se amount nikalta hai.
+        </p>
         {loading ? <p className="py-10 text-center">Loading...</p> : (
-          <table className="w-full text-left text-[13px]">
-            <thead><tr className="border-b text-[11px] font-extrabold uppercase text-[#7a8fa6]"><th className="py-2">#</th><th>Name</th><th>Description</th><th>Actions</th></tr></thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={r.id} className="border-b border-[#f1f5f9]">
-                  <td className="py-3">{i + 1}</td>
-                  <td className="py-3 font-semibold">{r.name}</td>
-                  <td className="py-3 text-[#53647f]">{r.description || '—'}</td>
-                  <td className="py-3">
-                    <button type="button" onClick={() => setModal({ editId: r.id, form: { name: r.name, description: r.description, is_active: r.is_active } })} className="mr-2 text-[#0b65e5]"><Pencil className="size-4 inline" /></button>
-                    <button type="button" onClick={() => {
-                      if (!window.confirm(`Delete category "${r.name}"?`)) return;
-                      inventoryApi.categories.delete(r.id)
-                        .then(load)
-                        .catch((e) => onNotify(e.message || 'Delete failed', 'error'));
-                    }} className="text-[#ef4444]"><Trash2 className="size-4 inline" /></button>
-                  </td>
+          <div className="overflow-auto">
+            <table className="w-full min-w-[720px] text-left text-[13px]">
+              <thead>
+                <tr className="border-b text-[11px] font-extrabold uppercase text-[#7a8fa6]">
+                  <th className="py-2">#</th>
+                  <th>Name</th>
+                  <th>Form Design</th>
+                  <th>Description</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.id} className="border-b border-[#f1f5f9]">
+                    <td className="py-3">{i + 1}</td>
+                    <td className="py-3 font-semibold">{r.name}</td>
+                    <td className="py-3 text-[#0b65e5] font-bold">{templateLabel(r.form_template)}</td>
+                    <td className="py-3 text-[#53647f]">{r.description || '—'}</td>
+                    <td className="py-3">
+                      <button
+                        type="button"
+                        onClick={() => setModal({
+                          editId: r.id,
+                          form: {
+                            name: r.name,
+                            description: r.description || '',
+                            is_active: r.is_active !== false,
+                            form_template: r.form_template || 'Generic',
+                            form_fields: Array.isArray(r.form_fields) && r.form_fields.length ? r.form_fields : [...DEFAULT_CUSTOM_FIELDS],
+                          },
+                        })}
+                        className="mr-2 text-[#0b65e5]"
+                      >
+                        <Pencil className="size-4 inline" />
+                      </button>
+                      <button type="button" onClick={() => {
+                        if (!window.confirm(`Delete category "${r.name}"?`)) return;
+                        inventoryApi.categories.delete(r.id)
+                          .then(load)
+                          .catch((e) => onNotify(e.message || 'Delete failed', 'error'));
+                      }} className="text-[#ef4444]"><Trash2 className="size-4 inline" /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         <p className="mt-3 text-[12px] font-bold text-[#7a8fa6]">Total {rows.length} categor{rows.length === 1 ? 'y' : 'ies'}</p>
       </div>
       <DashboardFooter />
       {modal ? (
-        <InvModal title={modal.editId ? 'Edit Category' : 'Add Category'} onClose={() => setModal(null)} footer={(
+        <InvModal title={modal.editId ? 'Edit Category + Form' : 'Add Category + Form Design'} onClose={() => setModal(null)} footer={(
           <>
             <button type="button" onClick={() => setModal(null)} className="rounded-[8px] border px-4 py-2">Cancel</button>
             <button type="button" disabled={saving} onClick={save} className="rounded-[8px] bg-[#0b65e5] px-4 py-2 font-extrabold text-white">Save</button>
           </>
         )}>
-          <label className="block text-[12px] font-bold">Category Name *<input className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.name} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, name: e.target.value } }))} /></label>
-          <label className="mt-3 block text-[12px] font-bold">Description<textarea className="mt-1 w-full rounded-[8px] border p-3" rows={3} value={modal.form.description} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, description: e.target.value } }))} /></label>
+          <div className="space-y-4">
+            <label className="block text-[12px] font-bold">Category Name *
+              <input className="mt-1 h-10 w-full rounded-[8px] border px-3" value={modal.form.name} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, name: e.target.value } }))} />
+            </label>
+            <label className="block text-[12px] font-bold">Description
+              <textarea className="mt-1 w-full rounded-[8px] border p-3" rows={2} value={modal.form.description} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, description: e.target.value } }))} />
+            </label>
+            <label className="block text-[12px] font-bold">Add Product form design *
+              <select
+                className="mt-1 h-10 w-full rounded-[8px] border px-3 text-[13px] font-semibold"
+                value={modal.form.form_template || 'Generic'}
+                onChange={(e) => setModal((m) => ({
+                  ...m,
+                  form: {
+                    ...m.form,
+                    form_template: e.target.value,
+                    form_fields: e.target.value === 'Custom'
+                      ? (m.form.form_fields?.length ? m.form.form_fields : [...DEFAULT_CUSTOM_FIELDS])
+                      : m.form.form_fields,
+                  },
+                }))}
+              >
+                {FORM_TEMPLATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+            {modal.form.form_template === 'Custom' ? (
+              <div className="rounded-[12px] border border-[#e7eef7] bg-[#f8fbff] p-3">
+                <p className="mb-2 text-[12px] font-extrabold text-[#1e3261]">Custom form fields</p>
+                <p className="mb-3 text-[11px] font-semibold text-[#7386a3]">Unit Price hamesha on rahega (Material Planning ke liye)</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {CUSTOM_FIELD_OPTIONS.map((opt) => {
+                    const checked = (modal.form.form_fields || []).includes(opt.key) || opt.key === 'rate';
+                    const locked = opt.key === 'rate' || opt.key === 'name';
+                    return (
+                      <label key={opt.key} className="flex items-center gap-2 rounded-[8px] border border-[#e7eef7] bg-white px-3 py-2 text-[12px] font-bold text-[#314a79]">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={locked}
+                          onChange={() => toggleField(opt.key)}
+                        />
+                        {opt.label}{locked ? ' *' : ''}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-[10px] border border-[#d7f4ea] bg-[#f2fffb] px-3 py-2 text-[12px] font-semibold text-[#0f766e]">
+                Is template me built-in fields + <b>Unit Price</b> automatically Add Product form pe dikhenge.
+              </div>
+            )}
+          </div>
         </InvModal>
       ) : null}
     </div>

@@ -957,6 +957,46 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
   background: rgba(245, 158, 11, 0.06);
 }
 
+/* Project List — team + install progress columns */
+.crm-table.crm-table--project-list th.crm-col-team,
+.crm-table.crm-table--project-list td.crm-col-team {
+  min-width: 128px;
+  width: 148px;
+  max-width: 168px;
+  white-space: normal;
+}
+
+.crm-table.crm-table--project-list th.crm-col-progress,
+.crm-table.crm-table--project-list td.crm-col-progress {
+  min-width: 112px;
+  width: 128px;
+  max-width: 140px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.crm-table.crm-table--project-list th.crm-col-progress .crm-col-progress-label {
+  display: block;
+  white-space: normal;
+  line-height: 1.25;
+  font-size: 11px;
+}
+
+.crm-table.crm-table--project-list td.crm-col-progress .crm-progress-cell,
+.crm-table.crm-table--project-list td.crm-col-team .crm-team-cell {
+  white-space: normal;
+}
+
+.crm-progress-cell {
+  width: 100%;
+  max-width: 132px;
+}
+
+.crm-progress-cell__pct {
+  font-variant-numeric: tabular-nums;
+}
+
 .crm-table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -1809,6 +1849,10 @@ html:has(.portal-landing) #root {
   .app-mobile-shell {
     min-height: 100dvh;
   }
+}
+
+.main-scroll-area {
+  overflow-x: hidden;
 }
 
 @supports (padding: max(0px)) {

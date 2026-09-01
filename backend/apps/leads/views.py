@@ -166,6 +166,9 @@ class LeadViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
         lead.status = new_status
         lead.save(update_fields=['status', 'updated_at'])
+        if new_status in ('Won', 'Lost'):
+            from .followup_sync import close_scheduled_follow_ups_for_closed_lead
+            close_scheduled_follow_ups_for_closed_lead(lead)
         return Response({'status': lead.status})
 
     @action(detail=True, methods=['post'])

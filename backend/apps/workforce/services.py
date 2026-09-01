@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from .models import Employee, EmployeeAttendance, EmployeeVoucher
 from malwa_solar.encryption import display_aadhaar
@@ -10,6 +11,15 @@ from apps.accounts.permissions import is_super_admin
 
 
 WORK_HOURS_PER_DAY = Decimal('9')
+
+
+def local_today():
+    return timezone.localdate()
+
+
+def attendance_date_allowed(attendance_date):
+    """Attendance may only be recorded for today or past dates."""
+    return attendance_date <= local_today()
 
 
 def department_for_role_name(role_name):
@@ -117,7 +127,7 @@ def payment_for_attendance(employee, hours, ot_hours=Decimal('0.00')):
 
 
 def employee_earnings_total(employee, before_date=None):
-    qs = employee.attendance_records.filter(status='Present')
+    qs = employee.attendance_records.filter(status='Present', date__lte=local_today())
     if before_date:
         qs = qs.filter(date__lt=before_date)
     total = qs.aggregate(total=Coalesce(Sum('payment'), Decimal('0.00')))['total']
@@ -182,10 +192,27 @@ def sync_attendance_voucher_amounts(employee, dates, create_missing=True):
             record.save(update_fields=list(updates.keys()))
 
 
+def sanitize_future_attendance(employee):
+    """Future dates must not remain Present/Absent — clears erroneous pre-filled rows."""
+    today = local_today()
+    qs = employee.attendance_records.filter(date__gt=today).exclude(status='Not Marked')
+    for record in qs.iterator():
+        record.status = 'Not Marked'
+        record.hours = Decimal('0.00')
+        record.ot_hours = Decimal('0.00')
+        record.payment = Decimal('0.00')
+        record.save(update_fields=['status', 'hours', 'ot_hours', 'payment'])
+
+
 def ensure_attendance_range(employee, start_date, end_date):
+    """Pre-create ledger rows only up to today — never materialize future attendance."""
     records = []
+    today = local_today()
+    effective_end = min(end_date, today)
+    if start_date > effective_end:
+        return records
     current = start_date
-    while current <= end_date:
+    while current <= effective_end:
         record, _ = EmployeeAttendance.objects.get_or_create(
             employee=employee,
             date=current,
@@ -197,7 +224,9 @@ def ensure_attendance_range(employee, start_date, end_date):
 
 
 def attendance_ledger_payload(employee, start_date, end_date, user=None):
+    sanitize_future_attendance(employee)
     ensure_attendance_range(employee, start_date, end_date)
+    today = local_today()
     # Keep Mode / voucher columns in sync for existing vouchers (not only on create).
     period_dates = []
     current = start_date
@@ -207,7 +236,8 @@ def attendance_ledger_payload(employee, start_date, end_date, user=None):
     sync_attendance_voucher_amounts(employee, period_dates, create_missing=False)
     records = employee.attendance_records.filter(date__gte=start_date, date__lte=end_date).order_by('date')
 
-    period_earning = records.filter(status='Present').aggregate(
+    countable = records.filter(date__lte=today)
+    period_earning = countable.filter(status='Present').aggregate(
         total=Coalesce(Sum('payment'), Decimal('0.00'))
     )['total'] or Decimal('0.00')
 
@@ -218,7 +248,7 @@ def attendance_ledger_payload(employee, start_date, end_date, user=None):
 
     previous_balance = employee_net_balance(employee, before_date=start_date)
     net_balance = (previous_balance + period_earning - period_paid).quantize(Decimal('0.01'))
-    present_days = records.filter(status='Present').count()
+    present_days = countable.filter(status='Present').count()
 
     return {
         'employee': {
@@ -251,13 +281,14 @@ def attendance_ledger_payload(employee, start_date, end_date, user=None):
                 'id': row.id,
                 'date': str(row.date),
                 'day': row.date.strftime('%a'),
-                'status': row.status,
-                'hours': str(row.hours or Decimal('0.00')),
-                'ot_hours': str(row.ot_hours or Decimal('0.00')),
-                'payment': str(row.payment or Decimal('0.00')),
+                'status': row.status if row.date <= today else 'Not Marked',
+                'hours': str(row.hours or Decimal('0.00')) if row.date <= today else '0.00',
+                'ot_hours': str(row.ot_hours or Decimal('0.00')) if row.date <= today else '0.00',
+                'payment': str(row.payment or Decimal('0.00')) if row.date <= today else '0.00',
                 'voucher_amount': str(row.voucher_amount or Decimal('0.00')),
                 'payment_mode': row.payment_mode or '',
                 'notes': row.notes or '',
+                'is_future': row.date > today,
             }
             for row in records
         ],

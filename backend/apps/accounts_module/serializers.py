@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ChartOfAccount, Account, BankAccount, Payment, Cheque, Transaction
+from .models import ChartOfAccount, Account, BankAccount, Payment, Cheque, Transaction, AccountCategoryMap
 from .services import _default_accounts, account_for_cash_or_bank
 
 
@@ -28,6 +28,20 @@ class ChartOfAccountSerializer(serializers.ModelSerializer):
         ]
 
 
+class AccountCategoryMapSerializer(serializers.ModelSerializer):
+    chart_account_code = serializers.CharField(source='chart_account.account_code', read_only=True)
+    chart_account_name = serializers.CharField(source='chart_account.account_name', read_only=True)
+
+    class Meta:
+        model = AccountCategoryMap
+        fields = [
+            'id', 'business_module', 'business_category',
+            'chart_account', 'chart_account_code', 'chart_account_name',
+            'is_active', 'notes', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
 class AccountSerializer(serializers.ModelSerializer):
     record_no = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
@@ -41,8 +55,9 @@ class AccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = Account
         fields = [
-            'id', 'record_no', 'name', 'account_type', 'contact_person', 'phone', 'email',
-            'city', 'status', 'opening_balance', 'balance', 'remarks',
+            'id', 'record_no', 'name', 'account_type', 'contact_person', 'company', 'phone', 'email',
+            'city', 'address', 'gstin', 'vehicle_number', 'vendor_type', 'credit_limit', 'credit_days', 'relation',
+            'status', 'opening_balance', 'balance', 'remarks',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
         read_only_fields = ['balance', 'created_by', 'created_at', 'updated_at']

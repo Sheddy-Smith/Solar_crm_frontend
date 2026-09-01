@@ -7,6 +7,38 @@ though the executive had already updated the lead.
 from django.db.models import Q
 from django.utils import timezone
 
+CLOSED_LEAD_STATUSES = ('Won', 'Lost')
+
+
+def close_scheduled_follow_ups_for_closed_lead(lead):
+    """Won/Lost leads should leave High Alert / Extra High — close open schedules."""
+    if not lead or lead.status not in CLOSED_LEAD_STATUSES:
+        return 0
+    now = timezone.now()
+    open_rows = list(
+        lead.follow_ups.filter(status='Scheduled', is_deleted=False)
+    )
+    if not open_rows:
+        if lead.next_follow_up is not None:
+            lead.next_follow_up = None
+            lead.save(update_fields=['next_follow_up'])
+        return 0
+
+    note = f'Auto-closed — lead marked {lead.status}'
+    closed = 0
+    for fu in open_rows:
+        fu.status = 'Completed'
+        fu.completed_at = now
+        if not (fu.outcome or '').strip():
+            fu.outcome = note
+        fu.save(update_fields=['status', 'completed_at', 'outcome'])
+        closed += 1
+
+    if lead.next_follow_up is not None:
+        lead.next_follow_up = None
+        lead.save(update_fields=['next_follow_up'])
+    return closed
+
 
 def close_superseded_scheduled_follow_ups(lead):
     """Mark past Scheduled rows Missed once a later update exists.
@@ -39,6 +71,9 @@ def close_superseded_scheduled_follow_ups(lead):
 
 def sync_lead_next_follow_up(lead):
     """Point `lead.next_follow_up` at the earliest remaining Scheduled row."""
+    if lead and lead.status in CLOSED_LEAD_STATUSES:
+        close_scheduled_follow_ups_for_closed_lead(lead)
+        return None
     close_superseded_scheduled_follow_ups(lead)
     next_scheduled = (
         lead.follow_ups.filter(status='Scheduled', is_deleted=False)

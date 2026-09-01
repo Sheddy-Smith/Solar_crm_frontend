@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     ChartOfAccountViewSet, AccountViewSet, BankAccountViewSet,
-    PaymentViewSet, ChequeViewSet, TransactionViewSet,
+    PaymentViewSet, ChequeViewSet, TransactionViewSet, AccountCategoryMapViewSet,
 )
 from .document_views import (
     PurchaseInvoiceViewSet, SellInvoiceViewSet, PaymentVoucherViewSet,
@@ -11,6 +11,7 @@ from .document_views import (
 
 router = DefaultRouter()
 router.register('chart-of-accounts', ChartOfAccountViewSet, basename='chart-of-account')
+router.register('category-maps', AccountCategoryMapViewSet, basename='account-category-map')
 router.register('parties', AccountViewSet, basename='account-party')
 router.register('bank-accounts', BankAccountViewSet, basename='bank-account')
 router.register('payments', PaymentViewSet, basename='payment')

@@ -120,7 +120,7 @@ SETTING_CATEGORIES = {
         'batchTracking': 'Optional',
         'serialTracking': 'Enabled',
         'primaryWarehouse': 'Indore Main',
-        'approvalRequired': 'Stock Outward',
+        'approvalRequired': 'Stock Movement',
         'autoGrn': 'Enabled',
         'stockAudit': 'Monthly',
     },

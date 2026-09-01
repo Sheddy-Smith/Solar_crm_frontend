@@ -34,7 +34,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        qs = Project.objects.select_related('manager', 'site_engineer', 'lead', 'created_by', 'site_survey', 'site_survey__surveyed_by').prefetch_related(
+        qs = Project.objects.select_related(
+            'manager', 'site_engineer', 'lead', 'lead__assigned_to', 'created_by',
+            'site_survey', 'site_survey__surveyed_by',
+        ).prefetch_related(
             'activities__assigned_to',
             'notes__created_by',
             'documents__uploaded_by',
@@ -44,6 +47,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'team_members__user',
             'checklist_items__checked_by',
             'installation_materials__inventory_item',
+            'material_plans',
             'milestones__owner',
             'milestones__children__owner',
         ).filter(is_deleted=False).filter(Q(lead__isnull=True) | Q(lead__is_deleted=False))
@@ -88,6 +92,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'completed': qs.filter(status='Completed').count(),
             'cancelled': qs.filter(status='Cancelled').count(),
         })
+
+    @action(detail=True, methods=['get'], url_path='pnl')
+    def pnl(self, request, pk=None):
+        """Project P&L: revenue, actual material cost, labour, expenses, planning difference."""
+        from apps.accounts_module.project_financial_sync import project_pnl
+        project = self.get_object()
+        return Response(project_pnl(project))
 
     @action(detail=True, methods=['get', 'put'])
     def system_config(self, request, pk=None):
@@ -262,6 +273,11 @@ class ProjectExpenseViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    def perform_destroy(self, instance):
+        from apps.accounts_module.project_financial_sync import remove_accounts_for_project_expense
+        remove_accounts_for_project_expense(instance)
+        instance.delete()
+
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):
         from django.db.models import Sum, Count
@@ -431,16 +447,16 @@ class InstallationMaterialViewSet(viewsets.ModelViewSet):
 
 
 class MaterialPlanViewSet(viewsets.ModelViewSet):
-    queryset = MaterialPlan.objects.select_related('project').all()
+    queryset = MaterialPlan.objects.select_related('project', 'inventory_item').all()
     serializer_class = MaterialPlanSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['project', 'status', 'category']
+    filterset_fields = ['project', 'status', 'category', 'dispatch_status']
     search_fields = ['category', 'items']
 
     def get_queryset(self):
-        qs = MaterialPlan.objects.select_related('project').all()
+        qs = MaterialPlan.objects.select_related('project', 'inventory_item').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
         if filt:
             qs = qs.filter(**filt)
@@ -448,6 +464,16 @@ class MaterialPlanViewSet(viewsets.ModelViewSet):
         if project_id:
             qs = qs.filter(project_id=project_id)
         return qs
+
+    def perform_destroy(self, instance):
+        from apps.accounts_module.project_financial_sync import remove_accounts_for_material_plan
+        remove_accounts_for_material_plan(instance)
+        if instance.stock_movement_id:
+            movement = instance.stock_movement
+            instance.stock_movement = None
+            instance.save(update_fields=['stock_movement'])
+            movement.delete()
+        instance.delete()
 
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard(self, request):

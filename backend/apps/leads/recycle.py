@@ -9,19 +9,34 @@ RECYCLE_RETENTION_DAYS = 30
 
 
 def soft_delete_lead(lead, user):
+    """Soft-delete lead and any linked projects so lists stay in sync."""
     now = timezone.now()
     lead.is_deleted = True
     lead.deleted_at = now
     lead.deleted_by = user
     lead.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by', 'updated_at'])
+    # Avoid circular import — Project lives in apps.projects
+    from apps.projects.models import Project
+    for project in Project.objects.filter(lead=lead, is_deleted=False):
+        project.is_deleted = True
+        project.deleted_at = now
+        project.deleted_by = user
+        project.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by', 'updated_at'])
     return lead
 
 
 def restore_lead(lead):
+    """Restore lead and soft-deleted projects that belong to it."""
     lead.is_deleted = False
     lead.deleted_at = None
     lead.deleted_by = None
     lead.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by', 'updated_at'])
+    from apps.projects.models import Project
+    for project in Project.objects.filter(lead=lead, is_deleted=True):
+        project.is_deleted = False
+        project.deleted_at = None
+        project.deleted_by = None
+        project.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by', 'updated_at'])
     return lead
 
 
@@ -60,19 +75,27 @@ def restore_quotation(quotation):
 
 
 def soft_delete_project(project, user):
+    """Soft-delete project and its linked lead (Project List delete → Won lead bhi hat jaye)."""
     now = timezone.now()
     project.is_deleted = True
     project.deleted_at = now
     project.deleted_by = user
     project.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by', 'updated_at'])
+    lead = getattr(project, 'lead', None)
+    if lead is not None and not lead.is_deleted:
+        soft_delete_lead(lead, user)
     return project
 
 
 def restore_project(project):
+    """Restore project and bring linked lead back if it was soft-deleted."""
     project.is_deleted = False
     project.deleted_at = None
     project.deleted_by = None
     project.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by', 'updated_at'])
+    lead = getattr(project, 'lead', None)
+    if lead is not None and lead.is_deleted:
+        restore_lead(lead)
     return project
 
 

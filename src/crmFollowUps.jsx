@@ -14,6 +14,7 @@ import {
   followUpAgeLabel,
   formatDateTime,
   splitFollowUpAlerts,
+  activeScheduledFollowUps,
 } from './telePortal.jsx';
 
 function cx(...classes) {
@@ -55,7 +56,7 @@ export function CrmFollowUpsPage({
   useEffect(() => { load(); }, []);
 
   const scheduled = useMemo(
-    () => (rows || []).filter((item) => item.status === 'Scheduled'),
+    () => activeScheduledFollowUps(rows || []),
     [rows],
   );
   const completed = useMemo(

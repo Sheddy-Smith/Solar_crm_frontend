@@ -140,57 +140,286 @@ def gst_split_for_invoice(invoice):
     return {'igst': 0.0, 'cgst': float(cgst), 'sgst': float(sgst)}
 
 
+def _resolve_inventory_item(line):
+    """Match line to inventory master by FK or material name (legacy MD flow)."""
+    from apps.inventory.models import InventoryItem
+
+    if line.inventory_item_id:
+        return line.inventory_item
+
+    name = (line.material_name or '').strip()
+    if not name:
+        return None
+
+    exact = InventoryItem.objects.filter(is_active=True, name__iexact=name).first()
+    if exact:
+        return exact
+    return InventoryItem.objects.filter(is_active=True, name__icontains=name).order_by('id').first()
+
+
+def _clear_line_movement(line):
+    if not line.stock_movement_id:
+        return
+    movement = line.stock_movement
+    line.stock_movement = None
+    line.save(update_fields=['stock_movement'])
+    movement.delete()
+
+
+def _apply_received_item_rate(item, rate):
+    """Purchase receipt updates inventory purchase cost (InventoryItem.rate)."""
+    from apps.inventory.models import InventoryItem
+
+    parsed = _d(rate)
+    if parsed <= 0:
+        return
+    InventoryItem.objects.filter(pk=item.pk).update(rate=parsed)
+
+
+@transaction.atomic
 def sync_inventory_for_purchase_challan(challan, user=None):
-    """Create or remove inward StockMovement rows when a purchase challan is received (BUG-019)."""
+    """Purchase Challan Received → StockMovement IN + inventory_items.current_stock (MD §4.2)."""
     from apps.inventory.models import StockMovement, Warehouse
 
-    ref = challan.challan_no or f'PC-{challan.id:04d}'
+    ref_no = challan.challan_no or f'PC-{challan.id:04d}'
     default_warehouse = Warehouse.objects.filter(is_active=True).order_by('id').first()
 
     if challan.status != 'Received':
         for line in challan.lines.filter(stock_movement__isnull=False).select_related('stock_movement'):
-            movement = line.stock_movement
-            line.stock_movement = None
-            line.save(update_fields=['stock_movement'])
-            movement.delete()
+            _clear_line_movement(line)
         return
 
     for line in challan.lines.select_related('inventory_item', 'stock_movement').all():
-        if not line.inventory_item_id:
-            if line.stock_movement_id:
-                movement = line.stock_movement
-                line.stock_movement = None
-                line.save(update_fields=['stock_movement'])
-                movement.delete()
+        item = _resolve_inventory_item(line)
+        if not item:
+            _clear_line_movement(line)
             continue
 
-        warehouse = line.inventory_item.warehouse or default_warehouse
+        if not line.inventory_item_id:
+            line.inventory_item = item
+            line.save(update_fields=['inventory_item'])
+
+        warehouse = item.warehouse or default_warehouse
         if warehouse is None:
             continue
 
+        notes = f'Purchase challan {ref_no} — {line.material_name}'
+
         if line.stock_movement_id:
             movement = line.stock_movement
-            movement.item = line.inventory_item
+            movement.item = item
             movement.quantity = line.quantity
             movement.rate = line.rate
+            movement.movement_type = 'Inward'
             movement.to_warehouse = warehouse
-            movement.reference = ref
-            movement.notes = f'Purchase challan {ref} — {line.material_name}'
+            movement.from_warehouse = None
+            movement.reference_type = 'Purchase Challan'
+            movement.reference_no = ref_no
+            movement.reference = ref_no
+            movement.notes = notes
+            if user and not movement.created_by_id:
+                movement.created_by = user
             movement.save()
+        else:
+            movement = StockMovement.objects.create(
+                item=item,
+                movement_type='Inward',
+                quantity=line.quantity,
+                rate=line.rate,
+                to_warehouse=warehouse,
+                reference_type='Purchase Challan',
+                reference_no=ref_no,
+                reference=ref_no,
+                notes=notes,
+                created_by=user,
+            )
+            line.stock_movement = movement
+            line.save(update_fields=['stock_movement'])
+
+        _apply_received_item_rate(item, line.rate)
+
+
+@transaction.atomic
+def sync_inventory_for_sell_challan(challan, user=None):
+    """Sell Challan Dispatched/Delivered → StockMovement OUT (MD §4.3)."""
+    from apps.inventory.models import StockMovement, Warehouse
+
+    ref_no = challan.challan_no or f'SC-{challan.id:04d}'
+    default_warehouse = Warehouse.objects.filter(is_active=True).order_by('id').first()
+    active_statuses = {'Dispatched', 'Delivered'}
+
+    if challan.status not in active_statuses:
+        for line in challan.lines.filter(stock_movement__isnull=False).select_related('stock_movement'):
+            _clear_line_movement(line)
+        return
+
+    for line in challan.lines.select_related('inventory_item', 'stock_movement').all():
+        item = _resolve_inventory_item(line)
+        if not item:
+            _clear_line_movement(line)
             continue
 
+        if not line.inventory_item_id:
+            line.inventory_item = item
+            line.save(update_fields=['inventory_item'])
+
+        warehouse = item.warehouse or default_warehouse
+        if warehouse is None:
+            continue
+
+        notes = f'Sell challan {ref_no} — {line.material_name}'
+
+        if line.stock_movement_id:
+            movement = line.stock_movement
+            movement.item = item
+            movement.quantity = line.quantity
+            movement.rate = line.rate or item.rate or 0
+            movement.movement_type = 'Outward'
+            movement.from_warehouse = warehouse
+            movement.to_warehouse = None
+            movement.reference_type = 'Sell Challan'
+            movement.reference_no = ref_no
+            movement.reference = ref_no
+            movement.notes = notes
+            if user and not movement.created_by_id:
+                movement.created_by = user
+            movement.save()
+        else:
+            movement = StockMovement.objects.create(
+                item=item,
+                movement_type='Outward',
+                quantity=line.quantity,
+                rate=line.rate or item.rate or 0,
+                from_warehouse=warehouse,
+                reference_type='Sell Challan',
+                reference_no=ref_no,
+                reference=ref_no,
+                notes=notes,
+                created_by=user,
+            )
+            line.stock_movement = movement
+            line.save(update_fields=['stock_movement'])
+
+
+def remove_purchase_challan_stock(challan):
+    """Delete linked stock movements before challan removal."""
+    for line in challan.lines.select_related('stock_movement').all():
+        _clear_line_movement(line)
+
+
+def remove_sell_challan_stock(challan):
+    for line in challan.lines.select_related('stock_movement').all():
+        _clear_line_movement(line)
+
+
+def _sync_document_line_stock(line, *, movement_type, reference_type, ref_no, notes_prefix, user=None):
+    """Shared IN/OUT sync for invoice/challan lines linked to inventory_item."""
+    from apps.inventory.models import StockMovement, Warehouse
+
+    item = _resolve_inventory_item(line)
+    if not item:
+        _clear_line_movement(line)
+        return
+
+    if not line.inventory_item_id:
+        line.inventory_item = item
+        line.save(update_fields=['inventory_item'])
+
+    warehouse = item.warehouse or Warehouse.objects.filter(is_active=True).order_by('id').first()
+    if warehouse is None:
+        return
+
+    notes = f'{notes_prefix} — {line.material_name}'
+    inward = movement_type == 'Inward'
+
+    if line.stock_movement_id:
+        movement = line.stock_movement
+        movement.item = item
+        movement.quantity = line.quantity
+        movement.rate = line.rate or item.rate or 0
+        movement.movement_type = movement_type
+        movement.from_warehouse = None if inward else warehouse
+        movement.to_warehouse = warehouse if inward else None
+        movement.reference_type = reference_type
+        movement.reference_no = ref_no
+        movement.reference = ref_no
+        movement.notes = notes
+        if user and not movement.created_by_id:
+            movement.created_by = user
+        movement.save()
+    else:
         movement = StockMovement.objects.create(
-            item=line.inventory_item,
-            movement_type='Inward',
+            item=item,
+            movement_type=movement_type,
             quantity=line.quantity,
-            rate=line.rate,
-            to_warehouse=warehouse,
-            reference=ref,
-            notes=f'Purchase challan {ref} — {line.material_name}',
+            rate=line.rate or item.rate or 0,
+            from_warehouse=None if inward else warehouse,
+            to_warehouse=warehouse if inward else None,
+            reference_type=reference_type,
+            reference_no=ref_no,
+            reference=ref_no,
+            notes=notes,
             created_by=user,
         )
         line.stock_movement = movement
         line.save(update_fields=['stock_movement'])
+
+    if inward:
+        _apply_received_item_rate(item, line.rate)
+
+
+@transaction.atomic
+def sync_inventory_for_purchase_invoice(invoice, user=None):
+    """Purchase Invoice Recorded/Paid → Stock IN (MD §5.1)."""
+    ref_no = invoice.invoice_no or f'PI-{invoice.id:04d}'
+    active = invoice.status in {'Recorded', 'Paid'}
+
+    if not active:
+        for line in invoice.lines.filter(stock_movement__isnull=False).select_related('stock_movement'):
+            _clear_line_movement(line)
+        return
+
+    for line in invoice.lines.select_related('inventory_item', 'stock_movement').all():
+        _sync_document_line_stock(
+            line,
+            movement_type='Inward',
+            reference_type='Purchase Invoice',
+            ref_no=ref_no,
+            notes_prefix=f'Purchase invoice {ref_no}',
+            user=user,
+        )
+
+
+@transaction.atomic
+def sync_inventory_for_sell_invoice(invoice, user=None):
+    """Sell Invoice Issued/Paid → Stock OUT (MD §5.3)."""
+    ref_no = invoice.invoice_no or f'SI-{invoice.id:04d}'
+    active = invoice.status in {'Issued', 'Paid'}
+
+    if not active:
+        for line in invoice.lines.filter(stock_movement__isnull=False).select_related('stock_movement'):
+            _clear_line_movement(line)
+        return
+
+    for line in invoice.lines.select_related('inventory_item', 'stock_movement').all():
+        _sync_document_line_stock(
+            line,
+            movement_type='Outward',
+            reference_type='Sell Invoice',
+            ref_no=ref_no,
+            notes_prefix=f'Sell invoice {ref_no}',
+            user=user,
+        )
+
+
+def remove_purchase_invoice_stock(invoice):
+    for line in invoice.lines.select_related('stock_movement').all():
+        _clear_line_movement(line)
+
+
+def remove_sell_invoice_stock(invoice):
+    for line in invoice.lines.select_related('stock_movement').all():
+        _clear_line_movement(line)
 
 
 def gst_ledger_report(year, month):

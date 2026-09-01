@@ -247,6 +247,7 @@ class ProjectExpense(models.Model):
     remarks = models.TextField(blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='project_expenses')
     created_at = models.DateTimeField(auto_now_add=True)
+    # Linked PaymentVoucher lives on accounts_module.PaymentVoucher.project_expense (OneToOne reverse).
 
     def __str__(self):
         return f'{self.project.project_id} — {self.category} — ₹{self.amount}'
@@ -778,6 +779,8 @@ class MaterialPlan(models.Model):
     uom = models.CharField(max_length=20, default='Nos')
     planned_qty = models.CharField(max_length=50, blank=True, default='')
     planned_value = models.CharField(max_length=50, blank=True, default='')
+    # Project planned/charge unit price — NEVER overwrites InventoryItem.rate (purchase cost).
+    planning_unit_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Not Started')
     dispatched_qty = models.CharField(max_length=50, blank=True, default='')
     dispatch_status = models.CharField(max_length=20, choices=DISPATCH_STATUS_CHOICES, default='Pending')
@@ -785,6 +788,21 @@ class MaterialPlan(models.Model):
     vehicle_no = models.CharField(max_length=100, blank=True, default='')
     challan_no = models.CharField(max_length=100, blank=True, default='')
     dispatch_notes = models.TextField(blank=True, default='')
+    inventory_item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='material_plan_dispatches',
+    )
+    stock_movement = models.ForeignKey(
+        'inventory.StockMovement',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='material_plan_links',
+    )
+    # Linked PaymentVoucher (actual material cost) lives on PaymentVoucher.material_plan reverse.
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
