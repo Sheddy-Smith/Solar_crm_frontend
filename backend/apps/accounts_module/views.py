@@ -137,23 +137,43 @@ class AccountViewSet(AccountsBaseViewSet):
             key = normalize_phone(party.phone)
             party_leads = leads_by_phone.get(key, [])
             party_projects = projects_by_phone.get(key, [])
-            project_labels = []
-            seen = set()
+            projects = []
+            used_project_ids = set()
             for lead in party_leads:
-                label = (lead.get('project_name') or '').strip() or f"Lead #{lead['id']} ({lead.get('status') or 'New'})"
-                if label not in seen:
-                    seen.add(label)
-                    project_labels.append(label)
+                linked = next((p for p in party_projects if p.get('lead_id') == lead['id']), None)
+                label = (lead.get('project_name') or '').strip()
+                if linked and not label:
+                    label = (linked.get('project_name') or linked.get('customer_name') or '').strip()
+                if not label:
+                    label = f"Lead #{lead['id']} ({lead.get('status') or 'New'})"
+                item = {
+                    'kind': 'project' if linked else 'lead',
+                    'label': label,
+                    'status': (linked.get('status') if linked else None) or lead.get('status') or 'New',
+                    'lead_id': lead['id'],
+                    'project_id': linked['id'] if linked else None,
+                }
+                if linked:
+                    used_project_ids.add(linked['id'])
+                projects.append(item)
             for project in party_projects:
+                if project['id'] in used_project_ids:
+                    continue
                 label = (project.get('project_name') or project.get('customer_name') or '').strip() or f"Project #{project['id']}"
-                if label not in seen:
-                    seen.add(label)
-                    project_labels.append(label)
+                projects.append({
+                    'kind': 'project',
+                    'label': label,
+                    'status': project.get('status') or '—',
+                    'lead_id': project.get('lead_id'),
+                    'project_id': project['id'],
+                })
 
+            project_labels = [p['label'] for p in projects]
             data = AccountSerializer(party).data
             data['leads_count'] = len(party_leads)
-            data['projects_count'] = max(len(party_projects), len(project_labels))
+            data['projects_count'] = max(len(party_projects), len(projects))
             data['project_labels'] = project_labels
+            data['projects'] = projects
             data['lead_statuses'] = sorted({(lead.get('status') or 'New') for lead in party_leads})
             results.append(data)
 

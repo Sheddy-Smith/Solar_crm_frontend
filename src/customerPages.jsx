@@ -123,20 +123,64 @@ export function CustomerModulePage({ activeSection, onOpenSection, onNotify }) {
           </button>
         ))}
       </div>
-      {tab === 'Customer Details' ? <CustomerDetailsTab onNotify={onNotify} /> : null}
+      {tab === 'Customer Details' ? <CustomerDetailsTab onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
       {tab === 'Customer Ledger' ? <CustomerLedgerTab onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
       {tab === 'Overall Credit Ledger' ? <OverallCreditTab onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
     </div>
   );
 }
 
-function CustomerDetailsTab({ onNotify }) {
+function CustomerDetailsTab({ onNotify, onOpenSection }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [modal, setModal] = useState(null);
   const [detail, setDetail] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  const projectItems = (row) => {
+    if (Array.isArray(row?.projects) && row.projects.length) return row.projects;
+    return (row?.project_labels || []).map((label, idx) => ({
+      kind: 'lead',
+      label,
+      status: '—',
+      lead_id: null,
+      project_id: null,
+      _key: `${label}-${idx}`,
+    }));
+  };
+
+  const openProjectView = (customer, item) => {
+    if (item.project_id) {
+      onOpenSection?.('Project Details', `${item.label} opened`, {
+        project: { id: item.project_id, project_name: item.label },
+      });
+      return;
+    }
+    if (item.lead_id) {
+      onOpenSection?.('Lead Details', `${item.label} opened`, {
+        lead: { id: item.lead_id, customer: customer.name, mobile: customer.phone },
+      });
+      return;
+    }
+    onNotify('No linked lead/project found for this row', 'error');
+  };
+
+  const openProjectEdit = (customer, item) => {
+    if (item.lead_id) {
+      onOpenSection?.('Lead Edit', `Edit ${item.label}`, {
+        lead: { id: item.lead_id, customer: customer.name, mobile: customer.phone },
+      });
+      return;
+    }
+    if (item.project_id) {
+      onOpenSection?.('Project Details', `${item.label} opened`, {
+        project: { id: item.project_id, project_name: item.label },
+      });
+      return;
+    }
+    onNotify('No linked lead/project found for this row', 'error');
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -292,13 +336,39 @@ function CustomerDetailsTab({ onNotify }) {
             <p className="text-[12px] font-semibold text-[#53647f]">
               {detail.leads_count || 0} lead(s) · statuses: {(detail.lead_statuses || []).join(', ') || '—'}
             </p>
-            {(detail.project_labels || []).length === 0 ? (
+            {projectItems(detail).length === 0 ? (
               <p className="text-[13px] font-semibold text-[#7a8fa6]">No projects/leads linked to this mobile yet.</p>
             ) : (
               <ul className="space-y-2">
-                {detail.project_labels.map((label) => (
-                  <li key={label} className="rounded-[10px] border border-[#e2e9f3] bg-[#f8fbff] px-3 py-2 text-[13px] font-bold text-[#1e3261]">
-                    {label}
+                {projectItems(detail).map((item, idx) => (
+                  <li
+                    key={item._key || `${item.kind}-${item.lead_id || ''}-${item.project_id || ''}-${idx}`}
+                    className="flex items-center justify-between gap-3 rounded-[10px] border border-[#e2e9f3] bg-[#f8fbff] px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-bold text-[#1e3261]">{item.label}</p>
+                      {item.status && item.status !== '—' ? (
+                        <p className="text-[11px] font-semibold text-[#7a8fa6]">{item.kind === 'project' ? 'Project' : 'Lead'} · {item.status}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openProjectView(detail, item)}
+                        className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]"
+                        title="View"
+                      >
+                        <Eye className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openProjectEdit(detail, item)}
+                        className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]"
+                        title="Edit"
+                      >
+                        <Pencil className="size-4" />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

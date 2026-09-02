@@ -3313,9 +3313,12 @@ function App() {
             ) : customerRelatedPages.includes(activeSidebarItem) ? (
               <CustomerModulePage
                 activeSection={activeSidebarItem === 'Customer Leads' ? 'Customer Details' : activeSidebarItem}
-                onOpenSection={(section) => {
+                onOpenSection={(section, message, payload) => {
+                  if (payload?.lead) setSelectedLead(payload.lead);
+                  if (payload?.project) setSelectedProject(payload.project);
+                  if (section === 'Lead Details') setLeadDetailsTab('overview');
                   setActiveSidebarItem(section);
-                  notify(`${section} opened`);
+                  notify(message || `${section} opened`);
                 }}
                 onNotify={notify}
               />
