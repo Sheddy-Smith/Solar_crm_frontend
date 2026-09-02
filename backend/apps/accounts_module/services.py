@@ -19,6 +19,101 @@ PAYMENT_MODE_MAP = {
 }
 
 
+def normalize_phone(value):
+    """Customer identity key: last 10 digits of a phone/mobile number."""
+    digits = ''.join(ch for ch in str(value or '') if ch.isdigit())
+    if len(digits) >= 10:
+        return digits[-10:]
+    return digits
+
+
+def find_party_by_phone(phone, account_type='Customer'):
+    """Resolve a party by normalized mobile (exact or endswith variants)."""
+    key = normalize_phone(phone)
+    if not key:
+        return None
+    party = Account.objects.filter(account_type=account_type, phone=key).first()
+    if party:
+        return party
+    for candidate in Account.objects.filter(account_type=account_type, phone__endswith=key).exclude(phone=''):
+        if normalize_phone(candidate.phone) == key:
+            return candidate
+    return None
+
+
+def ensure_customers_from_all_leads(created_by=None):
+    """Upsert Customer Account rows for every lead phone (any status).
+
+    Phone is the primary key for customer identity so one person can own
+    multiple leads/projects (home solar, office solar, etc.) under one row.
+    """
+    from apps.leads.models import Lead
+
+    leads = (
+        Lead.objects.filter(is_deleted=False)
+        .exclude(mobile_number='')
+        .order_by('-updated_at', '-id')
+    )
+    by_phone = {}
+    for lead in leads.iterator():
+        key = normalize_phone(lead.mobile_number)
+        if not key:
+            continue
+        by_phone.setdefault(key, []).append(lead)
+
+    created = 0
+    updated = 0
+    for key, group in by_phone.items():
+        preferred = next((lead for lead in group if lead.status == 'Won'), group[0])
+        party = find_party_by_phone(key)
+        address = (preferred.address or '').strip()
+        city = (preferred.city or '').strip()
+        email = (preferred.email or '').strip()
+        company = (preferred.project_name or '').strip()
+
+        if party is None:
+            Account.objects.create(
+                name=preferred.customer_name or f'Customer {key}',
+                account_type='Customer',
+                phone=key,
+                email=email,
+                address=address,
+                city=city,
+                company=company if len(group) == 1 else '',
+                status='Active',
+                created_by=created_by,
+            )
+            created += 1
+            continue
+
+        fields = []
+        if normalize_phone(party.phone) != key or party.phone != key:
+            party.phone = key
+            fields.append('phone')
+        if not (party.email or '').strip() and email:
+            party.email = email
+            fields.append('email')
+        if not (party.address or '').strip() and address:
+            party.address = address
+            fields.append('address')
+        if not (party.city or '').strip() and city:
+            party.city = city
+            fields.append('city')
+        if not (party.name or '').strip() and preferred.customer_name:
+            party.name = preferred.customer_name
+            fields.append('name')
+        if fields:
+            party.save(update_fields=fields + ['updated_at'])
+            updated += 1
+
+    return {
+        'created': created,
+        'updated': updated,
+        'phones': len(by_phone),
+        'leads': sum(len(group) for group in by_phone.values()),
+    }
+
+
 def _d(value):
     if value is None:
         return Decimal('0')
@@ -75,17 +170,16 @@ def account_for_cash_or_bank(payment_mode, bank_account, defaults=None):
 
 def get_or_create_party_for_project(project):
     lead = project.lead if project.lead_id else None
-    phone = (lead.mobile_number or '').strip() if lead else ''
+    raw_phone = (lead.mobile_number or '').strip() if lead else ''
+    phone = normalize_phone(raw_phone)
 
     # Phone is the identity when available — matching by name alone merges
     # two different customers who happen to share a name.
-    party = None
-    if phone:
-        party = Account.objects.filter(phone=phone).first()
+    party = find_party_by_phone(phone) if phone else None
     if party is None:
-        name_qs = Account.objects.filter(name=project.customer_name)
+        name_qs = Account.objects.filter(name=project.customer_name, account_type='Customer')
         if phone:
-            name_qs = name_qs.filter(phone__in=['', phone])
+            name_qs = name_qs.filter(phone__in=['', phone, raw_phone])
         party = name_qs.first()
 
     if party is None:
@@ -93,14 +187,18 @@ def get_or_create_party_for_project(project):
             name=project.customer_name,
             account_type='Customer',
             city=project.city or (lead.city if lead else '') or '',
-            phone=phone,
+            phone=phone or raw_phone,
             email=(lead.email or '') if lead else '',
+            address=(lead.address or '') if lead else '',
             status='Active',
         )
     elif lead:
         updates = []
-        if not party.phone and phone:
+        if phone and normalize_phone(party.phone) != phone:
             party.phone = phone
+            updates.append('phone')
+        elif not party.phone and (phone or raw_phone):
+            party.phone = phone or raw_phone
             updates.append('phone')
         if not party.email and lead.email:
             party.email = lead.email
@@ -108,6 +206,9 @@ def get_or_create_party_for_project(project):
         if not party.city and (project.city or lead.city):
             party.city = project.city or lead.city
             updates.append('city')
+        if not party.address and lead.address:
+            party.address = lead.address
+            updates.append('address')
         if updates:
             party.save(update_fields=updates)
     return party

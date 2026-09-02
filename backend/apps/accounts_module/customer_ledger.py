@@ -38,12 +38,15 @@ def infer_relation(party, net, yearly):
 
 def visit_count(party):
     from apps.leads.models import FollowUp, Lead
+    from .services import normalize_phone
 
-    phone = (party.phone or '').strip()
-    if not phone:
+    key = normalize_phone(party.phone)
+    if not key:
         return 0
-    leads = Lead.objects.filter(mobile_number=phone)
-    lead_ids = list(leads.values_list('id', flat=True))
+    leads = Lead.objects.filter(is_deleted=False, mobile_number__endswith=key)
+    lead_ids = [lead.id for lead in leads if normalize_phone(lead.mobile_number) == key]
+    if not lead_ids:
+        return 0
     visits = FollowUp.objects.filter(lead_id__in=lead_ids, follow_up_type='Site Visit').count()
     return visits
 

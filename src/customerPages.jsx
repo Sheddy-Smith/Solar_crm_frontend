@@ -124,13 +124,14 @@ function CustomerDetailsTab({ onNotify }) {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [modal, setModal] = useState(null);
+  const [detail, setDetail] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await accountsModuleApi.parties.list({ account_type: 'Customer', page_size: 2000 });
-      setRows(normalizeApiRows(data));
+      const data = await accountsModuleApi.customerDirectory();
+      setRows(Array.isArray(data?.results) ? data.results : normalizeApiRows(data));
     } catch (e) {
       onNotify(e.message || 'Failed to load customers', 'error');
     } finally {
@@ -141,13 +142,13 @@ function CustomerDetailsTab({ onNotify }) {
   useEffect(() => { load(); }, [load]);
 
   const filtered = rows.filter((r) => {
-    const hay = `${r.name} ${r.company} ${r.phone} ${r.address} ${r.gstin}`.toLowerCase();
+    const hay = `${r.name} ${r.company} ${r.phone} ${r.address} ${(r.project_labels || []).join(' ')} ${r.gstin}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
   });
 
   const save = async () => {
     if (!modal?.form?.name?.trim() || !modal.form.phone?.trim()) {
-      onNotify('Name and phone are required', 'error');
+      onNotify('Name and mobile number are required', 'error');
       return;
     }
     setSaving(true);
@@ -183,44 +184,58 @@ function CustomerDetailsTab({ onNotify }) {
 
   return (
     <>
+      <div className="rounded-[12px] border border-[#dbeafe] bg-[#f8fbff] px-3 py-2 text-[12px] font-semibold text-[#284276]">
+        Mobile number is the customer key. All leads (New / Hot / Warm / Cool / Won / Lost) appear here once per mobile — one customer can have multiple projects (home, office, etc.).
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search customer..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search name, mobile, project..." value={q} onChange={(e) => setQ(e.target.value)} />
         <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white sm:w-auto">
           <Plus className="size-4" /> Add Customer
         </button>
         <button
           type="button"
-          onClick={() => exportNotifyCsv(onNotify, 'customers', ['Name', 'Company', 'Phone', 'Address', 'GSTIN', 'Balance'], filtered.map((r) => [r.name, r.company, r.phone, r.address, r.gstin, r.balance]))}
+          onClick={() => exportNotifyCsv(onNotify, 'customers', ['Name', 'Company', 'Phone', 'Address', 'GSTIN', 'Projects', 'Leads', 'Balance'], filtered.map((r) => [r.name, r.company, r.phone, r.address, r.gstin, r.projects_count || 0, r.leads_count || 0, r.balance]))}
           className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] sm:w-auto"
         >
           <Download className="size-4" /> Export CSV
         </button>
       </div>
       <div className="overflow-x-auto rounded-[12px] border border-[#e2e9f3] bg-white">
-        <table className="min-w-[820px] text-left text-[13px]">
+        <table className="min-w-[980px] text-left text-[13px]">
           <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">
             <tr>
-              {['Name', 'Company', 'Phone', 'Address', 'GSTIN', 'Relation', 'Balance', 'Actions'].map((h) => (
+              {['Name', 'Company', 'Phone', 'Address', 'GSTIN', 'Projects', 'Relation', 'Balance', 'Actions'].map((h) => (
                 <th key={h} className="px-3 py-2.5">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="px-3 py-10 text-center text-[#7a8fa6]">Loading...</td></tr>
+              <tr><td colSpan={9} className="px-3 py-10 text-center text-[#7a8fa6]">Loading customers from leads...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-3 py-10 text-center text-[#7a8fa6]">No customers yet. Add your first customer.</td></tr>
+              <tr><td colSpan={9} className="px-3 py-10 text-center text-[#7a8fa6]">No customers yet. Add a lead or customer with a mobile number.</td></tr>
             ) : filtered.map((r) => (
               <tr key={r.id} className="border-t border-[#edf2f8]">
                 <td className="px-3 py-2.5 font-extrabold text-[#1e3261]">{r.name}</td>
                 <td className="px-3 py-2.5">{r.company || '—'}</td>
-                <td className="px-3 py-2.5">{r.phone || '—'}</td>
+                <td className="px-3 py-2.5 font-extrabold text-[#0b65e5]">{r.phone || '—'}</td>
                 <td className="px-3 py-2.5">{r.address || r.city || '—'}</td>
                 <td className="px-3 py-2.5">{r.gstin || '—'}</td>
+                <td className="px-3 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setDetail(r)}
+                    className="inline-flex items-center gap-1 rounded-full bg-[#eff6ff] px-2.5 py-1 text-[11px] font-extrabold text-[#1d4ed8] hover:bg-[#dbeafe]"
+                    title={(r.project_labels || []).join(', ')}
+                  >
+                    {Number(r.projects_count || r.leads_count || 0)} project{(Number(r.projects_count || r.leads_count || 0) === 1) ? '' : 's'}
+                  </button>
+                </td>
                 <td className="px-3 py-2.5"><RelationBadge value={r.relation} /></td>
                 <td className={`px-3 py-2.5 font-extrabold ${Number(r.balance) > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(r.balance)}</td>
                 <td className="px-3 py-2.5">
                   <div className="flex gap-1">
+                    <button type="button" onClick={() => setDetail(r)} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]" title="View projects"><Eye className="size-4" /></button>
                     <button type="button" onClick={() => setModal({ id: r.id, form: { ...emptyForm, ...r } })} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]"><Pencil className="size-4" /></button>
                     <button type="button" onClick={() => remove(r)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] hover:bg-[#fef2f2]"><Trash2 className="size-4" /></button>
                   </div>
@@ -244,7 +259,8 @@ function CustomerDetailsTab({ onNotify }) {
           <div className="grid gap-3">
             <Field label="Name" required><input className={inputClass} value={modal.form.name || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, name: e.target.value } }))} /></Field>
             <Field label="Company"><input className={inputClass} value={modal.form.company || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, company: e.target.value } }))} /></Field>
-            <Field label="Phone" required><input className={inputClass} value={modal.form.phone || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, phone: e.target.value } }))} /></Field>
+            <Field label="Mobile (unique key)" required><input className={inputClass} value={modal.form.phone || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, phone: e.target.value } }))} /></Field>
+            <p className="text-[11px] font-semibold text-[#7a8fa6]">Same mobile = same customer. Add separate leads/projects for home vs office solar.</p>
             <Field label="Address"><textarea className={`${inputClass} h-20 py-2`} value={modal.form.address || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, address: e.target.value } }))} /></Field>
             <Field label="GSTIN"><input className={inputClass} placeholder="15 character GST number" maxLength={15} value={modal.form.gstin || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, gstin: e.target.value } }))} /></Field>
             <Field label="Opening Balance (₹)"><input type="number" className={inputClass} value={modal.form.opening_balance || '0'} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, opening_balance: e.target.value } }))} /></Field>
@@ -252,6 +268,30 @@ function CustomerDetailsTab({ onNotify }) {
             <Field label="Vehicle Number"><input className={inputClass} placeholder="Vehicle Number" value={modal.form.vehicle_number || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, vehicle_number: e.target.value } }))} /></Field>
             <Field label="Credit Limit (₹)"><input type="number" className={inputClass} value={modal.form.credit_limit || '0'} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, credit_limit: e.target.value } }))} /></Field>
             <Field label="Credit Days"><input type="number" className={inputClass} value={modal.form.credit_days || '30'} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, credit_days: e.target.value } }))} /></Field>
+          </div>
+        </ModalShell>
+      ) : null}
+      {detail ? (
+        <ModalShell
+          title={`${detail.name} · ${detail.phone || 'No mobile'}`}
+          onClose={() => setDetail(null)}
+          footer={<button type="button" onClick={() => setDetail(null)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Close</button>}
+        >
+          <div className="space-y-3">
+            <p className="text-[12px] font-semibold text-[#53647f]">
+              {detail.leads_count || 0} lead(s) · statuses: {(detail.lead_statuses || []).join(', ') || '—'}
+            </p>
+            {(detail.project_labels || []).length === 0 ? (
+              <p className="text-[13px] font-semibold text-[#7a8fa6]">No projects/leads linked to this mobile yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {detail.project_labels.map((label) => (
+                  <li key={label} className="rounded-[10px] border border-[#e2e9f3] bg-[#f8fbff] px-3 py-2 text-[13px] font-bold text-[#1e3261]">
+                    {label}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </ModalShell>
       ) : null}
@@ -393,9 +433,15 @@ function CustomerLedgerTab({ onNotify }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    accountsModuleApi.parties.list({ account_type: 'Customer', page_size: 2000 })
-      .then((data) => setCustomers(normalizeApiRows(data)))
-      .catch((e) => onNotify(e.message || 'Failed to load customers', 'error'));
+    (async () => {
+      try {
+        await accountsModuleApi.syncCustomersFromLeads().catch(() => null);
+        const data = await accountsModuleApi.parties.list({ account_type: 'Customer', page_size: 2000 });
+        setCustomers(normalizeApiRows(data));
+      } catch (e) {
+        onNotify(e.message || 'Failed to load customers', 'error');
+      }
+    })();
   }, [onNotify]);
 
   useEffect(() => {

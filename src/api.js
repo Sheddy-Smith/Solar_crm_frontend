@@ -316,6 +316,8 @@ export const accountsModuleApi = {
   seedCategoryMaps: () => request('/accounts/category-maps/seed-defaults/', { method: 'POST', body: {} }),
   seedRecommendedCoa: () => request('/accounts/chart-of-accounts/seed-recommended/', { method: 'POST', body: {} }),
   parties: accountsCrud('parties'),
+  syncCustomersFromLeads: () => request('/accounts/parties/sync-from-leads/', { method: 'POST', body: {} }),
+  customerDirectory: () => request('/accounts/parties/customer-directory/'),
   bankAccounts: accountsCrud('bank-accounts'),
   payments: accountsCrud('payments'),
   cheques: accountsCrud('cheques'),

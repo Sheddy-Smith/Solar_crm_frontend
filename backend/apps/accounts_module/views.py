@@ -9,7 +9,7 @@ from .serializers import (
     ChartOfAccountSerializer, AccountSerializer, BankAccountSerializer,
     PaymentSerializer, ChequeSerializer, TransactionSerializer, AccountCategoryMapSerializer,
 )
-from .services import after_payment_saved, before_payment_delete, after_payment_deleted, accounts_dashboard_summary, recalculate_party_balance
+from .services import after_payment_saved, before_payment_delete, after_payment_deleted, accounts_dashboard_summary, recalculate_party_balance, ensure_customers_from_all_leads, find_party_by_phone, normalize_phone
 from apps.accounts.permissions import HasModulePermission
 
 
@@ -64,13 +64,100 @@ class AccountViewSet(AccountsBaseViewSet):
     def get_queryset(self):
         return Account.objects.select_related('created_by').all()
 
+    def _normalize_customer_phone(self, validated_data, instance=None):
+        account_type = validated_data.get('account_type') or (instance.account_type if instance else 'Customer')
+        if account_type != 'Customer':
+            return
+        if 'phone' not in validated_data and instance is not None:
+            return
+        phone = normalize_phone(validated_data.get('phone', instance.phone if instance else ''))
+        if not phone:
+            if account_type == 'Customer' and not instance:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({'phone': 'Mobile number is required for customers.'})
+            return
+        existing = find_party_by_phone(phone)
+        if existing and (instance is None or existing.id != instance.id):
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                'phone': f'Customer already exists for mobile {phone}. One mobile = one customer (multiple projects allowed).',
+            })
+        validated_data['phone'] = phone
+
     def perform_create(self, serializer):
+        self._normalize_customer_phone(serializer.validated_data)
         opening = serializer.validated_data.get('opening_balance', 0)
         serializer.save(created_by=self.request.user, balance=opening)
 
     def perform_update(self, serializer):
+        self._normalize_customer_phone(serializer.validated_data, instance=serializer.instance)
         instance = serializer.save()
         recalculate_party_balance(instance.id)
+
+    @action(detail=False, methods=['post'], url_path='sync-from-leads')
+    def sync_from_leads(self, request):
+        """Create/update Customer parties from all leads (any status), keyed by mobile."""
+        result = ensure_customers_from_all_leads(created_by=request.user)
+        return Response({'ok': True, **result})
+
+    @action(detail=False, methods=['get'], url_path='customer-directory')
+    def customer_directory(self, request):
+        """Customer Details feed: sync from leads, then return customers + lead/project counts."""
+        from apps.leads.models import Lead
+        from apps.projects.models import Project
+
+        sync = ensure_customers_from_all_leads(created_by=request.user)
+        parties = list(Account.objects.filter(account_type='Customer').select_related('created_by').order_by('-updated_at'))
+
+        leads = list(
+            Lead.objects.filter(is_deleted=False)
+            .exclude(mobile_number='')
+            .values('id', 'customer_name', 'mobile_number', 'project_name', 'status', 'category', 'priority', 'address', 'city')
+        )
+        leads_by_phone = {}
+        for lead in leads:
+            key = normalize_phone(lead['mobile_number'])
+            if not key:
+                continue
+            leads_by_phone.setdefault(key, []).append(lead)
+
+        project_rows = list(
+            Project.objects.filter(is_deleted=False)
+            .values('id', 'project_name', 'customer_name', 'lead_id', 'lead__mobile_number', 'status')
+        )
+        projects_by_phone = {}
+        for project in project_rows:
+            key = normalize_phone(project.get('lead__mobile_number'))
+            if not key:
+                continue
+            projects_by_phone.setdefault(key, []).append(project)
+
+        results = []
+        for party in parties:
+            key = normalize_phone(party.phone)
+            party_leads = leads_by_phone.get(key, [])
+            party_projects = projects_by_phone.get(key, [])
+            project_labels = []
+            seen = set()
+            for lead in party_leads:
+                label = (lead.get('project_name') or '').strip() or f"Lead #{lead['id']} ({lead.get('status') or 'New'})"
+                if label not in seen:
+                    seen.add(label)
+                    project_labels.append(label)
+            for project in party_projects:
+                label = (project.get('project_name') or project.get('customer_name') or '').strip() or f"Project #{project['id']}"
+                if label not in seen:
+                    seen.add(label)
+                    project_labels.append(label)
+
+            data = AccountSerializer(party).data
+            data['leads_count'] = len(party_leads)
+            data['projects_count'] = max(len(party_projects), len(project_labels))
+            data['project_labels'] = project_labels
+            data['lead_statuses'] = sorted({(lead.get('status') or 'New') for lead in party_leads})
+            results.append(data)
+
+        return Response({'ok': True, 'sync': sync, 'results': results, 'count': len(results)})
 
     @action(detail=True, methods=['get'])
     def ledger(self, request, pk=None):
