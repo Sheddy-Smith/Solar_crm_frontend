@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Download, Eye, FileText, IndianRupee, Pencil, Plus, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
-import { accountsModuleApi, leadApi } from './api.js';
+import { accountsModuleApi } from './api.js';
 import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
 
 const TABS = [
   { key: 'Customer Details', label: 'Customer Details' },
-  { key: 'Customer Leads', label: 'Leads' },
   { key: 'Customer Ledger', label: 'Customer Ledger' },
   { key: 'Overall Credit Ledger', label: 'Overall Credit Ledger' },
 ];
@@ -101,26 +100,7 @@ function Field({ label, required, children }) {
 
 const inputClass = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold text-[#1e3261] outline-none';
 
-const LEAD_STATUS_FILTERS = ['All', 'Urgent', 'Hot', 'Warm', 'Cool', 'Won', 'Lost'];
-
-function normalizePhone(value) {
-  return String(value || '').replace(/\D/g, '').slice(-10);
-}
-
-function matchesCustomerLeadFilter(lead, filter) {
-  const status = lead.status || '';
-  if (filter === 'All') return true;
-  if (filter === 'Won') return status === 'Won';
-  if (filter === 'Lost') return status === 'Lost';
-  if (status === 'Won' || status === 'Lost') return false;
-  if (filter === 'Urgent') return lead.priority === 'High';
-  if (filter === 'Hot') return lead.category === 'Hot';
-  if (filter === 'Warm') return lead.category === 'Warm';
-  if (filter === 'Cool') return lead.category === 'Cool';
-  return true;
-}
-
-export function CustomerModulePage({ activeSection, onOpenSection, onNotify, onViewLead, onCreateLead, leadRefreshKey = 0 }) {
+export function CustomerModulePage({ activeSection, onOpenSection, onNotify }) {
   const tab = TABS.some((t) => t.key === activeSection) ? activeSection : 'Customer Details';
 
   return (
@@ -144,7 +124,6 @@ export function CustomerModulePage({ activeSection, onOpenSection, onNotify, onV
         ))}
       </div>
       {tab === 'Customer Details' ? <CustomerDetailsTab onNotify={onNotify} /> : null}
-      {tab === 'Customer Leads' ? <CustomerLeadsTab onNotify={onNotify} onViewLead={onViewLead} onCreateLead={onCreateLead} refreshKey={leadRefreshKey} /> : null}
       {tab === 'Customer Ledger' ? <CustomerLedgerTab onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
       {tab === 'Overall Credit Ledger' ? <OverallCreditTab onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
     </div>
@@ -327,130 +306,6 @@ function CustomerDetailsTab({ onNotify }) {
           </div>
         </ModalShell>
       ) : null}
-    </>
-  );
-}
-
-function CustomerLeadsTab({ onNotify, onViewLead, onCreateLead, refreshKey = 0 }) {
-  const [rows, setRows] = useState([]);
-  const [vehicleByPhone, setVehicleByPhone] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('All');
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [leadData, customerData] = await Promise.all([
-        leadApi.list({ page_size: 2000 }),
-        accountsModuleApi.parties.list({ account_type: 'Customer', page_size: 2000 }).catch(() => []),
-      ]);
-      setRows(normalizeApiRows(leadData));
-      const map = {};
-      normalizeApiRows(customerData).forEach((customer) => {
-        const key = normalizePhone(customer.phone);
-        if (key && customer.vehicle_number) map[key] = customer.vehicle_number;
-      });
-      setVehicleByPhone(map);
-    } catch (e) {
-      onNotify(e.message || 'Failed to load leads', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [onNotify]);
-
-  useEffect(() => { load(); }, [load, refreshKey]);
-
-  const counts = useMemo(() => {
-    const tally = Object.fromEntries(LEAD_STATUS_FILTERS.map((key) => [key, 0]));
-    rows.forEach((lead) => {
-      LEAD_STATUS_FILTERS.forEach((filter) => {
-        if (matchesCustomerLeadFilter(lead, filter)) tally[filter] += 1;
-      });
-    });
-    return tally;
-  }, [rows]);
-
-  const filtered = useMemo(() => (
-    rows.filter((lead) => matchesCustomerLeadFilter(lead, statusFilter))
-  ), [rows, statusFilter]);
-
-  const remove = async (row) => {
-    if (!window.confirm(`Delete lead "${row.customer_name}"?`)) return;
-    try {
-      await leadApi.delete(row.id);
-      onNotify('Lead deleted', 'success');
-      await load();
-    } catch (e) {
-      onNotify(e.message || 'Delete failed', 'error');
-    }
-  };
-
-  const emptyLabel = statusFilter === 'All' ? 'No leads.' : `No ${statusFilter} leads.`;
-
-  return (
-    <>
-      <div className="flex">
-        <button
-          type="button"
-          onClick={() => onCreateLead?.()}
-          className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white sm:w-auto"
-        >
-          <Plus className="size-4" /> Add Lead
-        </button>
-      </div>
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {LEAD_STATUS_FILTERS.map((filter) => (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => setStatusFilter(filter)}
-            className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12px] font-extrabold transition ${
-              statusFilter === filter
-                ? 'border-[#dc2626] bg-[#fef2f2] text-[#dc2626]'
-                : 'border-[#e2e9f3] bg-white text-[#53647f] hover:border-[#cbd5e1]'
-            }`}
-          >
-            {filter}
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${statusFilter === filter ? 'bg-[#fee2e2] text-[#dc2626]' : 'bg-[#f1f5f9] text-[#64748b]'}`}>
-              {counts[filter] ?? 0}
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className="overflow-x-auto rounded-[12px] border border-[#e2e9f3] bg-white">
-        <table className="min-w-[920px] text-left text-[13px]">
-          <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">
-            <tr>
-              {['Name', 'Company', 'Phone', 'Email', 'Source', 'Vehicles', 'Notes', 'Actions'].map((h) => (
-                <th key={h} className="px-3 py-2.5">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} className="px-3 py-10 text-center text-[#7a8fa6]">Loading...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-3 py-10 text-center text-[#7a8fa6]">{emptyLabel}</td></tr>
-            ) : filtered.map((r) => (
-              <tr key={r.id} className="border-t border-[#edf2f8] hover:bg-[#f8fbff]">
-                <td className="px-3 py-2.5 font-extrabold text-[#1e3261]">{r.customer_name || '—'}</td>
-                <td className="px-3 py-2.5">{r.project_name || '—'}</td>
-                <td className="px-3 py-2.5">{r.mobile_number || '—'}</td>
-                <td className="px-3 py-2.5">{r.email || '—'}</td>
-                <td className="px-3 py-2.5">{r.source || '—'}</td>
-                <td className="px-3 py-2.5">{vehicleByPhone[normalizePhone(r.mobile_number)] || '—'}</td>
-                <td className="max-w-[220px] truncate px-3 py-2.5" title={r.remarks || ''}>{r.remarks || '—'}</td>
-                <td className="px-3 py-2.5">
-                  <div className="flex gap-1">
-                    <button type="button" onClick={() => onViewLead?.(r)} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]" title="View lead"><Eye className="size-4" /></button>
-                    <button type="button" onClick={() => remove(r)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] hover:bg-[#fef2f2]" title="Delete lead"><Trash2 className="size-4" /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </>
   );
 }

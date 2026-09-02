@@ -516,8 +516,8 @@ const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Follow-ups'
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Employee Details', 'Employee Ledger'];
 const employeeRelatedPages = ['Employee', ...employeeSubItems];
-const customerSubItems = ['Customer Details', 'Customer Ledger', 'Customer Leads'];
-const customerRelatedPages = ['Customer', ...customerSubItems, 'Overall Credit Ledger'];
+const customerSubItems = ['Customer Details', 'Customer Ledger'];
+const customerRelatedPages = ['Customer', ...customerSubItems, 'Overall Credit Ledger', 'Customer Leads'];
 const vendorSubItems = ['Vendor Details', 'Vendor Ledger'];
 const vendorRelatedPages = ['Vendors', ...vendorSubItems];
 const supplierSubItems = ['Supplier Details', 'Supplier Ledger'];
@@ -782,7 +782,6 @@ const employeeSubRoutes = {
 const customerSubRoutes = {
   'Customer Details': '/customers/details',
   'Customer Ledger': '/customers/ledger',
-  'Customer Leads': '/customers/leads',
   'Overall Credit Ledger': '/customers/credit-ledger',
 };
 
@@ -996,6 +995,9 @@ function resolveSectionFromPath(pathname) {
   if (path === '/insights') {
     const tab = (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab')) || 'overview';
     return { section: 'Insights', params: { tab } };
+  }
+  if (path === '/customers/leads') {
+    return { section: 'Customer Details', params: {} };
   }
   if (path === '/projects') {
     return { section: 'Project List', params: {} };
@@ -3310,21 +3312,12 @@ function App() {
               />
             ) : customerRelatedPages.includes(activeSidebarItem) ? (
               <CustomerModulePage
-                activeSection={activeSidebarItem}
+                activeSection={activeSidebarItem === 'Customer Leads' ? 'Customer Details' : activeSidebarItem}
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
                 }}
                 onNotify={notify}
-                onCreateLead={() => setDashboardCreateLeadOpen(true)}
-                leadRefreshKey={customerLeadRefreshKey}
-                onViewLead={(item) => {
-                  if (!item?.id) return;
-                  setSelectedLead({ id: item.id, customer: item.customer_name, mobile: item.mobile_number });
-                  setLeadDetailsTab('overview');
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
-                }}
               />
             ) : employeeRelatedPages.includes(activeSidebarItem) ? (
               <EmployeeManagementPage
@@ -9310,10 +9303,6 @@ function ModuleSubnavCard({ title, items, activeSection, onOpenSection, icon: Ic
 }
 
 function getModuleSubnavLabel(item) {
-  if (item === 'Customer Leads') {
-    return 'Leads';
-  }
-
   if (item === 'Executive Summary') {
     return 'Overview';
   }
