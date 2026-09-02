@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, FileText, Pencil, Plus, Receipt, Trash2, X } from 'lucide-react';
+import { Download, ExternalLink, Eye, FileText, Pencil, Plus, Receipt, Search, Trash2, X } from 'lucide-react';
 import { accountsModuleApi } from './api.js';
 import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
 
@@ -23,6 +23,14 @@ const emptyForm = {
 function fmtRs(v) {
   const n = Number(v || 0);
   return `₹ ${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtDisplayDate(value) {
+  if (!value) return '—';
+  const raw = String(value).slice(0, 10);
+  const [y, m, d] = raw.split('-');
+  if (!y || !m || !d) return raw;
+  return `${d}/${m}/${y}`;
 }
 
 function todayIso() {
@@ -55,6 +63,18 @@ function BalanceBadge({ balance }) {
     return <span className="text-[11px] font-bold text-[#64748b]">Clear</span>;
   }
   return <span className="text-[11px] font-bold text-[#dc2626]">Payable</span>;
+}
+
+function TypeBadge({ value }) {
+  const key = String(value || '').toLowerCase();
+  const tone = {
+    service: 'bg-[#ede9fe] text-[#6d28d9]',
+    payment: 'bg-[#dcfce7] text-[#166534]',
+    receipt: 'bg-[#dbeafe] text-[#1d4ed8]',
+    opening: 'bg-[#f1f5f9] text-[#475569]',
+    purchase: 'bg-[#ede9fe] text-[#6d28d9]',
+  }[key] || 'bg-[#f1f5f9] text-[#475569]';
+  return <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${tone}`}>{key || '—'}</span>;
 }
 
 function ModalShell({ title, onClose, children, footer }) {
@@ -294,6 +314,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
   const [payOpen, setPayOpen] = useState(false);
   const [payForm, setPayForm] = useState({ amount: '', payment_date: todayIso(), payment_mode: 'Cash', remarks: '' });
   const [saving, setSaving] = useState(false);
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => {
     accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 2000 })
@@ -356,8 +377,17 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
     }
   };
 
+  const selected = useMemo(
+    () => vendors.find((v) => String(v.id) === String(partyId)) || payload?.party || null,
+    [vendors, partyId, payload],
+  );
   const entries = payload?.results || [];
-  const voucherCount = entries.filter((e) => /voucher/i.test(`${e.particulars || ''} ${e.ref || ''} ${e.category || ''}`)).length;
+  const summary = payload?.summary || {};
+  const voucherCount = entries.filter((e) => /voucher|service/i.test(`${e.particulars || ''} ${e.ref || ''} ${e.type_label || ''}`)).length;
+  const totalDebit = Number(summary.total_debit ?? entries.reduce((s, e) => s + Number(e.debit || 0), 0));
+  const totalCredit = Number(summary.total_credit ?? entries.reduce((s, e) => s + Number(e.credit || 0), 0));
+  const prevBal = Number(summary.previous_balance ?? 0);
+  const netBal = Number(summary.final_balance ?? summary.current_balance ?? (entries.length ? entries[entries.length - 1].balance : 0));
 
   const savePdf = () => {
     if (!entries.length) {
@@ -367,17 +397,24 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
     window.print();
   };
 
+  const kpiCards = [
+    { label: 'Net Previous Balance', value: prevBal, tone: 'bg-[#fffbeb] border-[#fde68a] text-[#b45309]', hint: prevBal > 0 ? 'Payable' : prevBal < 0 ? 'Receivable' : '' },
+    { label: 'Total Credit (Work Done)', value: totalCredit, tone: 'bg-[#ecfdf5] border-[#a7f3d0] text-[#047857]' },
+    { label: 'Total Debit (Payments)', value: totalDebit, tone: 'bg-[#fef2f2] border-[#fecaca] text-[#dc2626]' },
+    { label: 'Net Balance', value: netBal, tone: 'bg-[#f5f3ff] border-[#ddd6fe] text-[#6d28d9]', hint: netBal > 0 ? 'Payable' : netBal < 0 ? 'Receivable' : 'Clear' },
+  ];
+
   return (
     <>
-      <div className="grid gap-3 rounded-[12px] border border-[#e2e9f3] bg-white p-4">
-        <div className="flex flex-wrap gap-3 text-[12px] font-bold text-[#53647f]">
+      <div className="grid gap-3 rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap gap-4 text-[12px] font-bold text-[#53647f]">
           {[
             ['weekly', 'Weekly View'],
             ['monthly', 'Monthly View'],
             ['custom', 'Custom Date Range'],
           ].map(([key, label]) => (
             <label key={key} className="inline-flex items-center gap-2">
-              <input type="radio" name="vendor-range" checked={mode === key} onChange={() => setMode(key)} />
+              <input type="radio" name="vendor-range" checked={mode === key} onChange={() => setMode(key)} className="accent-[#0b65e5]" />
               {label}
             </label>
           ))}
@@ -386,7 +423,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
           <Field label="Select Vendor *">
             <select className={inputClass} value={partyId} onChange={(e) => setPartyId(e.target.value)}>
               <option value="">-- Choose Vendor --</option>
-              {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.phone ? ` · ${v.phone}` : ''}</option>)}
+              {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.vendor_type ? ` (${v.vendor_type})` : ''}{v.phone ? ` · ${v.phone}` : ''}</option>)}
             </select>
           </Field>
           {mode === 'monthly' ? (
@@ -398,68 +435,124 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
               <Field label="End Date"><input type="date" className={inputClass} value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
             </>
           ) : null}
-          <Field label="Search Category"><input className={inputClass} placeholder="e.g., Painter" value={category} onChange={(e) => setCategory(e.target.value)} /></Field>
+          <Field label="Search Category">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#94a3b8]" />
+              <input className={`${inputClass} pl-9`} placeholder="e.g., Painter" value={category} onChange={(e) => setCategory(e.target.value)} />
+            </div>
+          </Field>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <button type="button" disabled={!partyId} onClick={() => setPayOpen(true)} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
             <Plus className="size-4" /> Add Manual Entry
           </button>
-          <button
-            type="button"
-            disabled={!partyId}
-            onClick={() => onOpenSection?.('Voucher')}
-            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#7c3aed] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto"
-          >
+          <button type="button" disabled={!partyId} onClick={() => onOpenSection?.('Voucher')} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#7c3aed] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
             <Receipt className="size-4" /> Voucher ({voucherCount})
           </button>
-          <button
-            type="button"
-            disabled={!entries.length}
-            onClick={() => exportNotifyCsv(onNotify, 'vendor-ledger', ['Date', 'Particulars', 'Ref', 'Category', 'Debit', 'Credit', 'Balance'], entries.map((e) => [e.date, e.particulars, e.ref, e.category, e.debit, e.credit, e.balance]))}
-            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] disabled:opacity-50 sm:w-auto"
-          >
+          <button type="button" disabled={!entries.length} onClick={() => exportNotifyCsv(onNotify, 'vendor-ledger', ['Date', 'Type', 'Ref', 'Work', 'Category', 'Debit', 'Credit', 'Balance'], entries.map((e) => [e.date, e.type_label || e.type, e.ref, e.work || e.particulars, e.category, e.debit, e.credit, e.balance]))} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] disabled:opacity-50 sm:w-auto">
             <Download className="size-4" /> Export CSV
           </button>
-          <button
-            type="button"
-            disabled={!entries.length}
-            onClick={savePdf}
-            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] disabled:opacity-50 sm:w-auto"
-          >
+          <button type="button" disabled={!entries.length} onClick={savePdf} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] disabled:opacity-50 sm:w-auto">
             <FileText className="size-4" /> Save PDF
           </button>
         </div>
       </div>
-      <div className="rounded-[12px] border border-[#e2e9f3] bg-white p-4">
-        {!partyId ? (
-          <p className="py-10 text-center text-[13px] font-semibold text-[#7a8fa6]">Please select a vendor to view their ledger entries.</p>
-        ) : loading ? (
-          <p className="py-10 text-center text-[13px] font-semibold text-[#7a8fa6]">Loading...</p>
-        ) : (
-          <div className="overflow-auto">
-            <table className="min-w-full text-left text-[13px]">
-              <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase text-[#7a8fa6]">
-                <tr>{['Date', 'Particulars', 'Ref', 'Category', 'Debit', 'Credit', 'Balance'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {entries.length === 0 ? (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-[#7a8fa6]">No ledger entries for this vendor.</td></tr>
-                ) : entries.map((e, i) => (
-                  <tr key={`${e.ref}-${i}`} className="border-t border-[#edf2f8]">
-                    <td className="px-3 py-2">{e.date || '—'}</td>
-                    <td className="px-3 py-2">{e.particulars}</td>
-                    <td className="px-3 py-2">{e.ref}</td>
-                    <td className="px-3 py-2">{e.category || '—'}</td>
-                    <td className="px-3 py-2">{e.debit ? fmtRs(e.debit) : '—'}</td>
-                    <td className="px-3 py-2">{e.credit ? fmtRs(e.credit) : '—'}</td>
-                    <td className="px-3 py-2 font-extrabold">{fmtRs(e.balance)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+      {!partyId ? (
+        <div className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-sm">
+          <p className="py-12 text-center text-[13px] font-semibold text-[#7a8fa6]">Please select a vendor to view their ledger entries.</p>
+        </div>
+      ) : (
+        <>
+          <div className="rounded-[14px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-[13px]">
+              <p><span className="font-bold text-[#64748b]">Vendor:</span> <span className="font-extrabold text-[#1e3261]">{selected?.name || '—'}</span></p>
+              <p><span className="font-bold text-[#64748b]">Phone:</span> <span className="font-extrabold text-[#1e3261]">{selected?.phone || '—'}</span></p>
+              <p><span className="font-bold text-[#64748b]">Type:</span> <span className="font-extrabold text-[#1e3261]">{selected?.vendor_type || '—'}</span></p>
+              <p><span className="font-bold text-[#64748b]">Company:</span> <span className="font-extrabold text-[#1e3261]">{selected?.company || '—'}</span></p>
+            </div>
           </div>
-        )}
-      </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {kpiCards.map(({ label, value, tone, hint }) => (
+              <article key={label} className={`rounded-[14px] border p-4 ${tone}`}>
+                <p className="text-[11px] font-bold opacity-80">{label}</p>
+                <p className="mt-2 text-[22px] font-extrabold tracking-tight">
+                  {fmtRs(Math.abs(value))}{hint ? ` (${hint})` : ''}
+                </p>
+              </article>
+            ))}
+          </div>
+
+          <div className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-sm">
+            {loading ? (
+              <p className="py-10 text-center text-[13px] font-semibold text-[#7a8fa6]">Loading...</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-[1000px] w-full text-left text-[13px]">
+                  <thead className="bg-[#f1f5f9] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
+                    <tr>
+                      {['Date', 'Type', 'Ref No', 'Work', 'Category', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)', 'Actions'].map((h) => (
+                        <th key={h} className="px-3 py-2.5">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.length === 0 ? (
+                      <tr><td colSpan={9} className="px-3 py-10 text-center text-[#7a8fa6]">No entries found for the selected filters.</td></tr>
+                    ) : entries.map((e, i) => {
+                      const bal = Number(e.balance || 0);
+                      return (
+                        <tr key={`${e.ref}-${i}`} className={`border-t border-[#edf2f8] ${i % 2 ? 'bg-[#f8fafc]' : 'bg-white'}`}>
+                          <td className="px-3 py-2.5 whitespace-nowrap">{fmtDisplayDate(e.date)}</td>
+                          <td className="px-3 py-2.5"><TypeBadge value={e.type_label || e.type} /></td>
+                          <td className="px-3 py-2.5 font-semibold text-[#0b65e5]">{e.ref || '—'}</td>
+                          <td className="max-w-[240px] truncate px-3 py-2.5" title={e.work || e.particulars || ''}>{e.work || e.particulars || '—'}</td>
+                          <td className="px-3 py-2.5">{e.category || '—'}</td>
+                          <td className="px-3 py-2.5 font-extrabold text-[#dc2626]">{e.debit ? fmtRs(e.debit) : '—'}</td>
+                          <td className="px-3 py-2.5 font-extrabold text-[#16a34a]">{e.credit ? fmtRs(e.credit) : '—'}</td>
+                          <td className={`px-3 py-2.5 font-extrabold ${bal > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(Math.abs(bal))} ({bal >= 0 ? 'Dr' : 'Cr'})</td>
+                          <td className="px-3 py-2.5">
+                            <button type="button" onClick={() => setDetail(e)} className="grid size-8 place-items-center rounded-[8px] text-[#7c3aed] hover:bg-[#f5f3ff]" title="View">
+                              <Eye className="size-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  {entries.length ? (
+                    <tfoot>
+                      <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] font-extrabold">
+                        <td className="px-3 py-3" colSpan={5}>Totals:</td>
+                        <td className="px-3 py-3 text-[#dc2626]">{fmtRs(totalDebit)}</td>
+                        <td className="px-3 py-3 text-[#16a34a]">{fmtRs(totalCredit)}</td>
+                        <td className={`px-3 py-3 ${netBal > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(Math.abs(netBal))} ({netBal >= 0 ? 'Dr' : 'Cr'})</td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  ) : null}
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {detail ? (
+        <ModalShell title="Ledger Entry" onClose={() => setDetail(null)} footer={<button type="button" onClick={() => setDetail(null)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Close</button>}>
+          <div className="grid gap-2 text-[13px]">
+            <p><span className="font-bold text-[#64748b]">Date:</span> {fmtDisplayDate(detail.date)}</p>
+            <p><span className="font-bold text-[#64748b]">Type:</span> <TypeBadge value={detail.type_label || detail.type} /></p>
+            <p><span className="font-bold text-[#64748b]">Ref:</span> {detail.ref || '—'}</p>
+            <p><span className="font-bold text-[#64748b]">Work:</span> {detail.work || detail.particulars || '—'}</p>
+            <p><span className="font-bold text-[#64748b]">Debit:</span> {detail.debit ? fmtRs(detail.debit) : '—'}</p>
+            <p><span className="font-bold text-[#64748b]">Credit:</span> {detail.credit ? fmtRs(detail.credit) : '—'}</p>
+            <p><span className="font-bold text-[#64748b]">Balance:</span> {fmtRs(detail.balance)}</p>
+          </div>
+        </ModalShell>
+      ) : null}
+
       {payOpen ? (
         <ModalShell
           title="Vendor Payment"
@@ -486,3 +579,4 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
     </>
   );
 }
+

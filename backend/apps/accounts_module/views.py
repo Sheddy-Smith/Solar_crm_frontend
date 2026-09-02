@@ -167,9 +167,10 @@ class AccountViewSet(AccountsBaseViewSet):
         category = request.query_params.get('category') or ''
 
         if party.account_type == 'Supplier':
-            from .supplier_ledger import build_supplier_ledger_entries, supplier_totals
+            from .supplier_ledger import build_supplier_ledger_entries, supplier_totals, supplier_ledger_summary
             entries = build_supplier_ledger_entries(party, start=start, end=end, category=category)
             totals = supplier_totals(party)
+            summary = supplier_ledger_summary(party, entries, start=start)
             return Response({
                 'party': AccountSerializer(party).data,
                 'totals': {
@@ -178,13 +179,15 @@ class AccountViewSet(AccountsBaseViewSet):
                     'credit': float(totals['credit']),
                     'net': float(totals['net']),
                 },
+                'summary': summary,
                 'results': entries,
             })
 
         if party.account_type == 'Vendor':
-            from .vendor_ledger import build_vendor_ledger_entries, vendor_totals
+            from .vendor_ledger import build_vendor_ledger_entries, vendor_totals, vendor_ledger_summary
             entries = build_vendor_ledger_entries(party, start=start, end=end, category=category)
             totals = vendor_totals(party)
+            summary = vendor_ledger_summary(party, entries, start=start)
             return Response({
                 'party': AccountSerializer(party).data,
                 'totals': {
@@ -193,6 +196,7 @@ class AccountViewSet(AccountsBaseViewSet):
                     'credit': float(totals['credit']),
                     'net': float(totals['net']),
                 },
+                'summary': summary,
                 'results': entries,
             })
 
