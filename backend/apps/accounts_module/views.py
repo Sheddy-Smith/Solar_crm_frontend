@@ -196,9 +196,10 @@ class AccountViewSet(AccountsBaseViewSet):
                 'results': entries,
             })
 
-        from .customer_ledger import build_ledger_entries, infer_relation, party_totals, visit_count
+        from .customer_ledger import build_ledger_entries, infer_relation, party_totals, visit_count, ledger_summary
         entries = build_ledger_entries(party, start=start, end=end)
         totals = party_totals(party)
+        summary = ledger_summary(party, entries, start=start)
         return Response({
             'party': AccountSerializer(party).data,
             'visits': visit_count(party),
@@ -209,8 +210,17 @@ class AccountViewSet(AccountsBaseViewSet):
                 'credit': float(totals['credit']),
                 'net': float(totals['net']),
             },
+            'summary': summary,
             'results': entries,
         })
+
+    @action(detail=False, methods=['post'], url_path='fix-duplicates')
+    def fix_duplicates(self, request):
+        from .customer_ledger import merge_duplicate_customers_by_phone
+        from .services import ensure_customers_from_all_leads
+        sync = ensure_customers_from_all_leads(created_by=request.user)
+        merge = merge_duplicate_customers_by_phone()
+        return Response({'ok': True, 'sync': sync, 'merge': merge})
 
     @action(detail=False, methods=['get'], url_path='credit-ledger')
     def credit_ledger(self, request):

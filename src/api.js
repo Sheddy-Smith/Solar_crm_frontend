@@ -318,6 +318,7 @@ export const accountsModuleApi = {
   parties: accountsCrud('parties'),
   syncCustomersFromLeads: () => request('/accounts/parties/sync-from-leads/', { method: 'POST', body: {} }),
   customerDirectory: () => request('/accounts/parties/customer-directory/'),
+  fixCustomerDuplicates: () => request('/accounts/parties/fix-duplicates/', { method: 'POST', body: {} }),
   bankAccounts: accountsCrud('bank-accounts'),
   payments: accountsCrud('payments'),
   cheques: accountsCrud('cheques'),

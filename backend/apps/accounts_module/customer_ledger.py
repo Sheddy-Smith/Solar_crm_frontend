@@ -1,5 +1,5 @@
 """Customer ledger / credit-summary helpers for Account parties."""
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.db.models import Sum
@@ -82,19 +82,49 @@ def party_totals(party, year=None):
     }
 
 
+def _entry_type_label(raw_type, particulars=''):
+    text = f'{raw_type} {particulars}'.lower()
+    if 'discount' in text:
+        return 'discount'
+    if raw_type in ('Invoice', 'Challan', 'sale'):
+        return 'sale'
+    if raw_type in ('Receipt', 'payment', 'Payment'):
+        return 'payment'
+    if raw_type == 'Opening':
+        return 'opening'
+    return (raw_type or 'sale').lower()
+
+
+def credit_aging_15_plus(party):
+    """Outstanding sell-invoice balance older than 15 days."""
+    from .models import SellInvoice
+
+    cutoff = date.today() - timedelta(days=15)
+    total = Decimal('0')
+    for inv in SellInvoice.objects.filter(party_id=party.id, invoice_date__lte=cutoff).exclude(status__in=['Cancelled', 'Paid']):
+        due = _d(getattr(inv, 'balance_due', None))
+        if due > 0:
+            total += due
+    return total
+
+
 def build_ledger_entries(party, start=None, end=None):
     from .models import Payment, SellInvoice
 
+    vehicle_fallback = (party.vehicle_number or '').strip()
     entries = []
     opening = _d(party.opening_balance)
     if opening:
         entries.append({
             'date': None,
             'particulars': 'Opening Balance',
+            'work': 'Opening Balance',
             'ref': 'OPENING',
+            'vehicle_no': vehicle_fallback or '',
             'debit': float(opening) if opening > 0 else 0,
             'credit': float(abs(opening)) if opening < 0 else 0,
             'type': 'Opening',
+            'type_label': 'opening',
         })
 
     invoices = SellInvoice.objects.filter(party_id=party.id).exclude(status='Cancelled')
@@ -110,31 +140,52 @@ def build_ledger_entries(party, start=None, end=None):
         made = made.filter(payment_date__lte=end)
 
     for inv in invoices.order_by('invoice_date', 'id'):
+        particulars = f'Sell Invoice {inv.invoice_no or inv.id}'
+        work = (getattr(inv, 'remarks', None) or particulars or '').strip() or particulars
         entries.append({
             'date': _iso(inv.invoice_date),
-            'particulars': f'Sell Invoice {inv.invoice_no or inv.id}',
+            'particulars': particulars,
+            'work': work,
             'ref': inv.invoice_no or f'SI-{inv.id}',
+            'vehicle_no': vehicle_fallback or '',
             'debit': float(_d(inv.total_amount)),
             'credit': 0,
             'type': 'Invoice',
+            'type_label': _entry_type_label('Invoice', f'{particulars} {work}'),
+            'source_id': inv.id,
+            'source_kind': 'sell_invoice',
         })
+
     for pay in received.order_by('payment_date', 'id'):
+        particulars = pay.description or pay.particulars or 'Payment received'
         entries.append({
             'date': _iso(pay.payment_date),
-            'particulars': pay.description or pay.particulars or 'Payment received',
+            'particulars': particulars,
+            'work': particulars,
             'ref': pay.reference_no or f'RCPT-{pay.id}',
+            'vehicle_no': vehicle_fallback or '',
             'debit': 0,
             'credit': float(_d(pay.amount)),
             'type': 'Receipt',
+            'type_label': _entry_type_label('Receipt', particulars),
+            'source_id': pay.id,
+            'source_kind': 'payment',
         })
+
     for pay in made.order_by('payment_date', 'id'):
+        particulars = pay.description or pay.particulars or 'Payment made'
         entries.append({
             'date': _iso(pay.payment_date),
-            'particulars': pay.description or pay.particulars or 'Payment made',
+            'particulars': particulars,
+            'work': particulars,
             'ref': pay.reference_no or f'PMT-{pay.id}',
+            'vehicle_no': vehicle_fallback or '',
             'debit': float(_d(pay.amount)),
             'credit': 0,
             'type': 'Payment',
+            'type_label': _entry_type_label('Payment', particulars),
+            'source_id': pay.id,
+            'source_kind': 'payment',
         })
 
     dated = [e for e in entries if e['date']]
@@ -146,6 +197,83 @@ def build_ledger_entries(party, start=None, end=None):
         running += _d(row['debit']) - _d(row['credit'])
         out.append({**row, 'balance': float(running)})
     return out
+
+
+def previous_balance_before(party, start):
+    """Running balance just before the selected start date."""
+    if not start:
+        return Decimal('0')
+    try:
+        start_date = date.fromisoformat(str(start)[:10])
+    except ValueError:
+        return Decimal('0')
+    day_before = (start_date - timedelta(days=1)).isoformat()
+    rows = build_ledger_entries(party, start=None, end=day_before)
+    if not rows:
+        return _d(party.opening_balance)
+    return _d(rows[-1].get('balance'))
+
+
+def ledger_summary(party, entries, start=None):
+    debit = sum((_d(e.get('debit')) for e in entries), Decimal('0'))
+    credit = sum((_d(e.get('credit')) for e in entries), Decimal('0'))
+    current = _d(entries[-1]['balance']) if entries else _d(party.opening_balance)
+    prev = previous_balance_before(party, start) if start else Decimal('0')
+    return {
+        'total_debit': float(debit),
+        'total_credit': float(credit),
+        'credit_15_plus': float(credit_aging_15_plus(party)),
+        'current_balance': float(current),
+        'previous_balance': float(prev),
+        'opening': float(_d(party.opening_balance)),
+        'final_balance': float(current),
+    }
+
+
+def merge_duplicate_customers_by_phone():
+    """Keep one Customer Account per normalized mobile; move linked rows onto the keeper."""
+    from .models import Account, Payment, SellChallan, SellInvoice
+    from .services import normalize_phone
+
+    by_phone = {}
+    for party in Account.objects.filter(account_type='Customer').exclude(phone='').order_by('id'):
+        key = normalize_phone(party.phone)
+        if not key:
+            continue
+        by_phone.setdefault(key, []).append(party)
+
+    merged = 0
+    removed = 0
+    for key, group in by_phone.items():
+        if len(group) < 2:
+            continue
+        keeper = group[0]
+        for dup in group[1:]:
+            SellInvoice.objects.filter(party_id=dup.id).update(party_id=keeper.id)
+            SellChallan.objects.filter(party_id=dup.id).update(party_id=keeper.id)
+            Payment.objects.filter(party_id=dup.id).update(party_id=keeper.id)
+            fields = []
+            if not keeper.email and dup.email:
+                keeper.email = dup.email
+                fields.append('email')
+            if not keeper.address and dup.address:
+                keeper.address = dup.address
+                fields.append('address')
+            if not keeper.vehicle_number and dup.vehicle_number:
+                keeper.vehicle_number = dup.vehicle_number
+                fields.append('vehicle_number')
+            if not keeper.gstin and dup.gstin:
+                keeper.gstin = dup.gstin
+                fields.append('gstin')
+            if fields:
+                keeper.save(update_fields=fields)
+            dup.delete()
+            removed += 1
+        if normalize_phone(keeper.phone) != key or keeper.phone != key:
+            keeper.phone = key
+            keeper.save(update_fields=['phone'])
+        merged += 1
+    return {'groups_merged': merged, 'duplicates_removed': removed}
 
 
 def credit_ledger_rows():
