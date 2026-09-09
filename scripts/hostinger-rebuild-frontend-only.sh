@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-FE=/docker/crm-ecomalwa-frontend
+FE=/docker/ecomalwa-crm
 API_URL=https://api.crm.ecomalwa.com/api/v1
 ARCHIVE=/tmp/deploy-fe.tgz
 test -f "$ARCHIVE"

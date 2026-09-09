@@ -2,8 +2,8 @@
 # Deploy Lead Assign permission: backend migrate + frontend Docker rebuild
 set -euo pipefail
 
-BE=/var/www/malwa-crm/backend
-FE=/docker/crm-ecomalwa-frontend
+BE=/var/www/ecomalwa-crm/backend
+FE=/docker/ecomalwa-crm
 API_URL=https://api.crm.ecomalwa.com/api/v1
 ARCHIVE=/tmp/deploy-fe.tgz
 
@@ -31,9 +31,9 @@ if [[ -f .env ]]; then
   set +a
 fi
 "$PY" manage.py migrate accounts 0015 --noinput
-systemctl restart malwa-gunicorn
+systemctl restart ecomalwa-crm-api
 sleep 1
-systemctl is-active malwa-gunicorn
+systemctl is-active ecomalwa-crm-api
 
 echo "==> Frontend extract + rebuild"
 test -f "$ARCHIVE"

@@ -1,8 +1,8 @@
 [Unit]
-Description=Run Malwa CRM auto-deploy every minute
+Description=Run ecomalwa CRM backend auto-deploy every minute after GitHub main updates
 
 [Timer]
-OnBootSec=2min
+OnBootSec=1min
 OnUnitActiveSec=1min
 AccuracySec=15s
 Persistent=true

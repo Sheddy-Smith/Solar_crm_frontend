@@ -104,7 +104,7 @@ export function CustomerModulePage({ activeSection, onOpenSection, onNotify }) {
   const tab = TABS.some((t) => t.key === activeSection) ? activeSection : 'Customer Details';
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="min-w-0 space-y-2">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[12px] font-bold text-[#7a8fa6]">Dashboard / Customer</p>
@@ -255,44 +255,44 @@ function CustomerDetailsTab({ onNotify, onOpenSection }) {
           <Download className="size-4" /> Export CSV
         </button>
       </div>
-      <div className="overflow-x-auto rounded-[12px] border border-[#e2e9f3] bg-white">
-        <table className="min-w-[980px] text-left text-[13px]">
-          <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">
+      <div className="overflow-x-auto rounded-[8px] border border-[#e2e9f3] bg-white">
+        <table className="min-w-[860px] w-full border-collapse text-left text-[12px]">
+          <thead className="bg-[#f8fbff] text-[10px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">
             <tr>
               {['Name', 'Company', 'Phone', 'Address', 'GSTIN', 'Projects', 'Relation', 'Balance', 'Actions'].map((h) => (
-                <th key={h} className="px-3 py-2.5">{h}</th>
+                <th key={h} className="px-2 py-1">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="px-3 py-10 text-center text-[#7a8fa6]">Loading customers from leads...</td></tr>
+              <tr><td colSpan={9} className="px-2 py-6 text-center text-[#7a8fa6]">Loading customers from leads...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={9} className="px-3 py-10 text-center text-[#7a8fa6]">No customers yet. Add a lead or customer with a mobile number.</td></tr>
+              <tr><td colSpan={9} className="px-2 py-6 text-center text-[#7a8fa6]">No customers yet. Add a lead or customer with a mobile number.</td></tr>
             ) : filtered.map((r) => (
               <tr key={r.id} className="border-t border-[#edf2f8]">
-                <td className="px-3 py-2.5 font-extrabold text-[#1e3261]">{r.name}</td>
-                <td className="px-3 py-2.5">{r.company || '—'}</td>
-                <td className="px-3 py-2.5 font-extrabold text-[#0b65e5]">{r.phone || '—'}</td>
-                <td className="px-3 py-2.5">{r.address || r.city || '—'}</td>
-                <td className="px-3 py-2.5">{r.gstin || '—'}</td>
-                <td className="px-3 py-2.5">
+                <td className="px-2 py-1 font-extrabold text-[#1e3261]">{r.name}</td>
+                <td className="px-2 py-1">{r.company || '—'}</td>
+                <td className="px-2 py-1 font-extrabold text-[#0b65e5]">{r.phone || '—'}</td>
+                <td className="px-2 py-1">{r.address || r.city || '—'}</td>
+                <td className="px-2 py-1">{r.gstin || '—'}</td>
+                <td className="px-2 py-1">
                   <button
                     type="button"
                     onClick={() => setDetail(r)}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#eff6ff] px-2.5 py-1 text-[11px] font-extrabold text-[#1d4ed8] hover:bg-[#dbeafe]"
+                    className="inline-flex items-center gap-1 rounded-full bg-[#eff6ff] px-2 py-0.5 text-[10px] font-extrabold text-[#1d4ed8] hover:bg-[#dbeafe]"
                     title={(r.project_labels || []).join(', ')}
                   >
                     {Number(r.projects_count || r.leads_count || 0)} project{(Number(r.projects_count || r.leads_count || 0) === 1) ? '' : 's'}
                   </button>
                 </td>
-                <td className="px-3 py-2.5"><RelationBadge value={r.relation} /></td>
-                <td className={`px-3 py-2.5 font-extrabold ${Number(r.balance) > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(r.balance)}</td>
-                <td className="px-3 py-2.5">
-                  <div className="flex gap-1">
-                    <button type="button" onClick={() => setDetail(r)} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]" title="View projects"><Eye className="size-4" /></button>
-                    <button type="button" onClick={() => setModal({ id: r.id, form: { ...emptyForm, ...r } })} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]"><Pencil className="size-4" /></button>
-                    <button type="button" onClick={() => remove(r)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] hover:bg-[#fef2f2]"><Trash2 className="size-4" /></button>
+                <td className="px-2 py-1"><RelationBadge value={r.relation} /></td>
+                <td className={`px-2 py-1 font-extrabold ${Number(r.balance) > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(r.balance)}</td>
+                <td className="px-2 py-1">
+                  <div className="flex gap-0.5">
+                    <button type="button" onClick={() => setDetail(r)} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]" title="View projects"><Eye className="size-3.5" /></button>
+                    <button type="button" onClick={() => setModal({ id: r.id, form: { ...emptyForm, ...r } })} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]"><Pencil className="size-3.5" /></button>
+                    <button type="button" onClick={() => remove(r)} className="grid size-7 place-items-center rounded-[6px] text-[#dc2626] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
                   </div>
                 </td>
               </tr>

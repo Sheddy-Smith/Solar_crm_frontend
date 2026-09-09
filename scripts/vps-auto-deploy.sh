@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# Malwa Solar CRM — pull latest main from GitHub and deploy FE + BE on this VPS.
+# Malwa Solar CRM — pull latest main from GitHub and deploy backend only on this VPS.
 # Safe for cron/systemd: no-op when already on the latest SHA.
 #
 # Live targets:
-#   Frontend Docker  → /docker/crm-ecomalwa-frontend  (crm.ecomalwa.com :8080)
-#   Backend gunicorn → /var/www/malwa-crm/backend     (api.crm.ecomalwa.com :8001)
+#   Frontend         → Hostinger public_html/crm only (never Docker, never beside backend)
+#   Backend gunicorn → /var/www/ecomalwa-crm/backend (api.crm.ecomalwa.com via Caddy :443)
+#   Database         → Hostinger MySQL only (phpMyAdmin)
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/Sheddy-Smith/Solar_crm_frontend.git}"
 BRANCH="${BRANCH:-main}"
 SRC_DIR="${SRC_DIR:-/opt/malwa-crm-src}"
-FE_DIR="${FE_DIR:-/docker/crm-ecomalwa-frontend}"
-BE_DIR="${BE_DIR:-/var/www/malwa-crm/backend}"
-STATE_DIR="${STATE_DIR:-/var/lib/malwa-crm-auto-deploy}"
+BE_DIR="${BE_DIR:-/var/www/ecomalwa-crm/backend}"
+STATE_DIR="${STATE_DIR:-/var/lib/ecomalwa-crm-auto-deploy}"
 STATE_FILE="${STATE_DIR}/last_sha"
 LOCK_FILE="${STATE_DIR}/deploy.lock"
 API_URL="${API_URL:-https://api.crm.ecomalwa.com/api/v1}"
 FORCE="${FORCE:-0}"
 APP_USER="${APP_USER:-malwa}"
 
-mkdir -p "$STATE_DIR" "$SRC_DIR" "$FE_DIR"
+mkdir -p "$STATE_DIR" "$SRC_DIR"
 
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
@@ -50,8 +50,9 @@ echo "==> Deploying $SHORT"
 
 # Keep the on-box deploy entrypoint in sync with the repo copy.
 if [[ -f "$SRC_DIR/scripts/vps-auto-deploy.sh" ]]; then
-  install -m 0755 "$SRC_DIR/scripts/vps-auto-deploy.sh" /usr/local/bin/malwa-crm-auto-deploy.sh
-  sed -i 's/\r$//' /usr/local/bin/malwa-crm-auto-deploy.sh || true
+  install -m 0755 "$SRC_DIR/scripts/vps-auto-deploy.sh" /usr/local/bin/ecomalwa-crm-auto-deploy.sh
+  sed -i 's/\r$//' /usr/local/bin/ecomalwa-crm-auto-deploy.sh || true
+  ln -sfn /usr/local/bin/ecomalwa-crm-auto-deploy.sh /usr/local/bin/malwa-crm-auto-deploy.sh
 fi
 
 echo "==> Sync backend → $BE_DIR"
@@ -77,34 +78,11 @@ else
   echo "WARNING: $BE_DIR/.venv/bin/python missing — skip migrate"
 fi
 
-echo "==> Restart malwa-gunicorn"
-systemctl restart malwa-gunicorn
-systemctl is-active malwa-gunicorn
+echo "==> Restart ecomalwa-crm-api"
+systemctl restart ecomalwa-crm-api
+systemctl is-active ecomalwa-crm-api
 
-echo "==> Sync frontend build context → $FE_DIR"
-rsync -a --delete \
-  --exclude '.git/' \
-  --exclude 'node_modules/' \
-  --exclude 'dist/' \
-  --exclude 'backend/.venv/' \
-  --exclude 'backend/media/' \
-  --exclude 'backend/staticfiles/' \
-  --exclude 'backend/.env' \
-  --exclude 'dist_*.zip' \
-  --exclude '*.zip' \
-  --exclude '.env' \
-  --exclude '.env.*' \
-  "$SRC_DIR/" "$FE_DIR/"
-
-if [[ ! -f "$FE_DIR/Dockerfile" || ! -f "$FE_DIR/docker-compose.yml" ]]; then
-  echo "ERROR: Dockerfile/docker-compose.yml missing in $FE_DIR"
-  exit 1
-fi
-
-echo "==> Docker build + up (VITE_API_URL=$API_URL)"
-cd "$FE_DIR"
-VITE_API_URL="$API_URL" docker compose build --build-arg VITE_API_URL="$API_URL"
-VITE_API_URL="$API_URL" docker compose up -d
+echo "==> Frontend stays on Hostinger public_html only (skip Docker frontend)"
 
 echo "$SHA" > "$STATE_FILE"
 echo "==> DONE deployed $SHORT"

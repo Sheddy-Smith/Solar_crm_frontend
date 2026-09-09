@@ -2,7 +2,7 @@
 # Redeploy Malwa CRM frontend on Hostinger VPS (crm.ecomalwa.com)
 set -euo pipefail
 
-FE_DIR=/docker/crm-ecomalwa-frontend
+FE_DIR=/docker/ecomalwa-crm
 API_URL=https://api.crm.ecomalwa.com/api/v1
 ARCHIVE=/tmp/deploy-fe.tgz
 BACKUP="/root/backups/crm-fe-$(date +%Y%m%d-%H%M%S)"
@@ -37,7 +37,7 @@ echo "==> Docker up"
 VITE_API_URL="$API_URL" docker compose up -d
 
 echo "==> Status"
-docker ps --filter name=crm-ecomalwa-frontend
+docker ps --filter name=ecomalwa-crm
 curl -sI https://crm.ecomalwa.com | head -8
 curl -sI https://api.crm.ecomalwa.com/api/v1/ | head -5
 

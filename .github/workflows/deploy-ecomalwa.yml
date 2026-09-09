@@ -26,7 +26,7 @@ jobs:
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "No VPS_SSH_KEY/VPS_HOST secrets — skipping instant SSH deploy."
-            echo "VPS timer will still pull main and deploy FE+BE within ~1 minute."
+            echo "VPS timer will still pull main and deploy backend within ~1 minute."
           fi
 
       - name: Trigger remote auto-deploy now
@@ -40,4 +40,4 @@ jobs:
           script: |
             set -euo pipefail
             export FORCE=1
-            /usr/local/bin/malwa-crm-auto-deploy.sh
+            /usr/local/bin/ecomalwa-crm-auto-deploy.sh
