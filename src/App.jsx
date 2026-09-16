@@ -12,10 +12,19 @@ import {
   workOrderApi,
   lcApplicationApi, lcApprovalApi, lcInspectionApi, lcCommissioningApi, lcComplianceApi, lcDocumentApi,
   omAssetApi, omMaintenanceApi, omTicketApi, omVisitApi, omSparePartApi, omReportApi, omDocumentApi,
-  inventoryApi, amcModuleApi, reportsApi, settingsApi, siteSurveyPhotoApi, siteSurveyApi,
+  inventoryApi, amcModuleApi, reportsApi, settingsApi, siteSurveyPhotoApi,   siteSurveyApi,
   getMediaUrl,
+  tokenStore,
 } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
+import {
+  getOrganization,
+  organizationDisplayName,
+  organizationFinancialYearLabel,
+  quotationCompanyFromOrganization,
+  refreshOrganization,
+  subscribeOrganization,
+} from './lib/organization.js';
 import { rowDoubleOpenProps } from './lib/rowDoubleOpen.js';
 import fixWebmDuration from 'fix-webm-duration';
 import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME, isTeleExecutiveRole, AuthLandingShell, AuthBrandHeader, AuthLandingFooter, ProductFooter, TeleFollowUpAlertsPanel, splitFollowUpAlerts, followUpAgeLabel, formatDateTime } from './telePortal.jsx';
@@ -35,6 +44,11 @@ import { DailyTasksPage } from './dailyTasksPages.jsx';
 import { CustomerModulePage } from './customerPages.jsx';
 import { VendorModulePage } from './vendorPages.jsx';
 import { SupplierModulePage } from './supplierPages.jsx';
+import {
+  PaymentVoucherFormModal,
+  mergeVoucherParticulars,
+  splitVoucherParticulars,
+} from './accountsVoucherForm.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import {
   ProjectInstallationPage as OpsInstallationPage,
@@ -2105,6 +2119,12 @@ function App() {
     });
   }, [currentPage, loggedInUser]);
 
+  useEffect(() => {
+    if (['signin', 'portal', 'tele-signin'].includes(currentPage)) return;
+    if (!tokenStore.getAccess()) return;
+    refreshOrganization().catch(() => {});
+  }, [currentPage]);
+
   // Lead stats are scoped to the Month/Year/Week toggle + the picked anchor
   // date, so they get their own effect/callback — everything else on the
   // dashboard is period-independent and stays in the effect below.
@@ -2366,9 +2386,15 @@ function App() {
     const pageLabel = authPageTitles[currentPage] || activeSidebarItem;
     const productName = ['portal', 'signin', 'tele-signin'].includes(currentPage)
       ? 'Malwa Solar ERP'
-      : 'Malwa Solar CRM';
+      : `${organizationDisplayName()} CRM`;
     document.title = `${pageLabel} | ${productName}`;
   }, [activeSidebarItem, currentPage]);
+
+  useEffect(() => subscribeOrganization(() => {
+    if (['portal', 'signin', 'tele-signin'].includes(currentPage)) return;
+    const pageLabel = activeSidebarItem || 'Dashboard';
+    document.title = `${pageLabel} | ${organizationDisplayName()} CRM`;
+  }), [activeSidebarItem, currentPage]);
 
   // Sync navigation to browser history (back/forward support)
   // Uses prevNavStateRef to deduplicate — prevents StrictMode double-push on mount
@@ -6588,7 +6614,7 @@ function SettingsOpeningBalanceContent({ onOpenSection, onNotify }) {
               <Search className="size-4 text-[#7386a3]" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search opening balances..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
             </label>
-            <ReportSelect label="Financial Year" value="FY 2024-25" onChange={() => {}} options={['FY 2024-25', 'FY 2023-24']} hideLabel />
+            <ReportSelect label="Financial Year" value={organizationFinancialYearLabel()} onChange={() => {}} options={[organizationFinancialYearLabel()]} hideLabel />
             <button type="button" onClick={() => onNotify('Add opening balance row opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Balance</button>
           </div>
 
@@ -8516,6 +8542,22 @@ function OrganizationSettingsPlaceholderPage({ activeSection, onOpenSection, onN
   );
 }
 
+function OrganizationConnectionBanner() {
+  const [org, setOrg] = useState(() => getOrganization());
+  useEffect(() => subscribeOrganization(setOrg), []);
+  useEffect(() => {
+    if (!org && tokenStore.getAccess()) refreshOrganization().catch(() => {});
+  }, [org]);
+  const name = org?.display_name || 'Loading organization...';
+  const fy = org?.financial_year?.label || 'Not set';
+  const branchCount = org?.branches?.length ?? 0;
+  return (
+    <div className="rounded-[12px] border border-[#d7eadc] bg-[#f4fff8] px-4 py-3 text-[12px] font-bold text-[#166534]">
+      Connected to organization API — {name} · GST {org?.gstin || '—'} · FY {fy} · {branchCount} branch{branchCount === 1 ? '' : 'es'}
+    </div>
+  );
+}
+
 function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
   const defaultBusinessForm = {
     businessName: 'Malwa Solar Energy Pvt. Ltd.',
@@ -8550,7 +8592,9 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    settingsApi.category('business').get()
+    refreshOrganization()
+      .catch(() => null)
+      .then(() => settingsApi.category('business').get())
       .then((data) => { if (data) setForm((c) => ({ ...c, ...data })); })
       .catch(() => onNotify('Could not load business information.', 'error'));
   }, []);  
@@ -8559,6 +8603,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
     setSaving(true);
     try {
       await settingsApi.category('business').update(form);
+      await refreshOrganization({ force: true }).catch(() => {});
       onNotify('Business information saved');
     } catch {
       onNotify('Could not save business information.', 'error');
@@ -8589,6 +8634,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
 
       <section className="space-y-4">
         <SettingsNavigationRail activeSection="Business Information" onOpenSection={onOpenSection} onNotify={onNotify} />
+        <OrganizationConnectionBanner />
 
         <div className="space-y-4">
           <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
@@ -8660,7 +8706,7 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
                       <Leaf className="size-7" />
                     </div>
                     <div>
-                      <p className="text-[14px] font-extrabold text-[#14853a]">Malwa Solar Energy</p>
+                      <p className="text-[14px] font-extrabold text-[#14853a]">{form.businessName}</p>
                       <p className="mt-1 text-[12px] font-bold text-[#7585a2]">JPG, PNG (Max. 2MB)</p>
                     </div>
                   </div>
@@ -8744,6 +8790,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
     setSaving(true);
     try {
       await settingsApi.company.update({ data: form });
+      await refreshOrganization({ force: true }).catch(() => {});
       onNotify('Company profile saved');
     } catch {
       onNotify('Could not save company profile.', 'error');
@@ -8780,6 +8827,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
 
       <section className="space-y-4">
         <SettingsNavigationRail activeSection="Company Profile" onOpenSection={onOpenSection} onNotify={onNotify} />
+        <OrganizationConnectionBanner />
 
         <div className={`${panelClass} settings-detail-actions hidden p-4 sm:p-5`}>
           <div className="min-w-0">
@@ -8841,7 +8889,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
                     <Leaf className="size-8" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[14px] font-extrabold text-[#14853a]">Malwa Solar Energy</p>
+                    <p className="text-[14px] font-extrabold text-[#14853a]">{form.shortName || form.companyName}</p>
                     <p className="mt-1 text-[12px] font-bold text-[#7585a2]">Current logo</p>
                   </div>
                 </div>
@@ -8961,6 +9009,7 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
 
       <section className="space-y-4">
         <SettingsNavigationRail activeSection="Financial Year" onOpenSection={onOpenSection} onNotify={onNotify} />
+        <OrganizationConnectionBanner />
 
         <div className="space-y-4">
           <SettingsSectionCard title="Current Financial Year">
@@ -9102,6 +9151,7 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
         onNotify(`${deleteBranch.name} branch deleted`, 'success');
         setDeleteBranch(null);
         loadBranches();
+        refreshOrganization({ force: true }).catch(() => {});
       })
       .catch((error) => onNotify(error.message || 'Failed to delete branch', 'error'));
   };
@@ -9120,6 +9170,7 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
 
       <section className="space-y-4">
         <SettingsNavigationRail activeSection="Branches" onOpenSection={onOpenSection} onNotify={onNotify} />
+        <OrganizationConnectionBanner />
 
         <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -9203,6 +9254,7 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
                 onNotify(formTarget === 'add' ? 'Branch added' : 'Branch updated', 'success');
                 setFormTarget(null);
                 loadBranches();
+                refreshOrganization({ force: true }).catch(() => {});
               })
               .catch((error) => onNotify(error.message || 'Failed to save branch', 'error'));
           }}
@@ -9989,7 +10041,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     if (config.fixedFields) {
       Object.entries(config.fixedFields).forEach(([k, v]) => { body[k] = v; });
     }
-    return body;
+    return config.transformBody ? config.transformBody(body, f) : body;
   }
 
   const requiredOk = config.fields.every((f) => !f.required || form[f.name]);
@@ -10020,7 +10072,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
       if (type === 'activeFlag') f[name] = item.is_active === false ? 'Inactive' : 'Active';
       else f[name] = item[name] ?? '';
     });
-    setForm(f);
+    setForm(config.mapItemToForm ? config.mapItemToForm(item, f) : f);
     setEditItem(item);
   }
 
@@ -10107,7 +10159,20 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     </div>
   );
 
-  const formPopup = (title, onClose, onSave) => (
+  const formPopup = (title, onClose, onSave) => {
+    if (typeof config.renderForm === 'function') {
+      return config.renderForm({
+        title,
+        form,
+        setForm,
+        onClose,
+        onSave,
+        saving,
+        requiredOk,
+        isEdit: Boolean(editItem),
+      });
+    }
+    return (
     <LcModalShell
       title={title}
       onClose={onClose}
@@ -10124,7 +10189,8 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
         {config.fields.map(renderField)}
       </div>
     </LcModalShell>
-  );
+    );
+  };
 
   const moduleTitle = config.moduleTitle || 'Liaisoning & Commissioning';
   const Subnav = config.Subnav || LiaisonSubnavTabs;
@@ -12013,13 +12079,13 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
     Subnav: AccountsSubnavTabs,
     title: 'Payment Voucher',
     recordLabel: 'Voucher',
-    newLabel: 'Add Voucher',
+    newLabel: 'Add Payment Voucher',
     api: accountsModuleApi.vouchers,
     listParams: { entry_type: 'Voucher' },
     fixedFields: { entry_type: 'Voucher' },
     statuses: ['Pending', 'Completed', 'Cancelled'],
     extraFilters: [
-      { key: 'payee_type', label: 'Payee Type', options: ['Supplier', 'Labour', 'Customer', 'Other'] },
+      { key: 'payee_type', label: 'Payee Type', options: ['Vendor', 'Labour', 'Supplier', 'Other'] },
       { key: 'payment_mode', label: 'Mode', options: ACC_PAYMENT_MODES },
     ],
     searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars'],
@@ -12031,30 +12097,62 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
       { label: 'Date', render: (r) => lcFormatDate(r.voucher_date) },
       { label: 'Payee', render: (r) => r.payee_name },
       { label: 'Type', render: (r) => r.payee_type },
-      { label: 'Category', render: (r) => r.category || '—' },
       { label: 'Mode', render: (r) => r.payment_mode },
       { label: 'Amount', render: (r) => fmtAccRs(r.amount) },
       { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
     ],
     fields: [
       { name: 'voucher_date', label: 'Date', type: 'date', required: true },
-      { name: 'payee_type', label: 'Payee Type', type: 'select', options: ['Supplier', 'Labour', 'Customer', 'Other'] },
+      { name: 'voucher_no', label: 'Voucher No', type: 'text' },
+      { name: 'payee_type', label: 'Payee Type', type: 'select', options: ['Vendor', 'Labour', 'Supplier', 'Other'], required: true },
       { name: 'payee_name', label: 'Payee Name', type: 'text', required: true },
-      { name: 'category', label: 'Category', type: 'text' },
       { name: 'particulars', label: 'Particulars', type: 'textarea' },
-      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects' },
-      { name: 'payment_mode', label: 'Payment Mode', type: 'select', options: ACC_PAYMENT_MODES },
+      { name: 'payment_mode', label: 'Payment Mode', type: 'select', options: ACC_PAYMENT_MODES, required: true },
       { name: 'amount', label: 'Amount (Rs)', type: 'number', required: true },
       { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Completed', 'Cancelled'] },
     ],
-    defaults: { voucher_date: '', payee_type: 'Supplier', payee_name: '', category: '', particulars: '', project: '', payment_mode: 'Cash', amount: '', status: 'Completed' },
+    defaults: {
+      voucher_date: formatIsoDate(new Date()),
+      voucher_no: '',
+      payee_type: 'Labour',
+      payee_id: '',
+      payee_name: '',
+      particulars: '',
+      notes: '',
+      payment_mode: 'Cash',
+      amount: '',
+      status: 'Completed',
+    },
+    mapItemToForm: (item, form) => {
+      const split = splitVoucherParticulars(item.particulars);
+      return {
+        ...form,
+        voucher_no: item.voucher_no || item.record_no || '',
+        payee_id: '',
+        particulars: split.particulars,
+        notes: split.notes,
+      };
+    },
+    transformBody: (body, form) => ({
+      ...body,
+      voucher_no: body.voucher_no || undefined,
+      particulars: mergeVoucherParticulars(form.particulars, form.notes),
+      payee_name: form.payee_name,
+      payee_type: form.payee_type,
+    }),
+    validateForm: (form) => {
+      if (!form.payee_type) return 'Select payee type.';
+      if (!form.payee_name?.trim()) return `Select ${form.payee_type === 'Labour' ? 'labour' : form.payee_type === 'Vendor' ? 'vendor' : form.payee_type === 'Supplier' ? 'supplier' : 'payee'}.`;
+      if (!form.amount && form.amount !== 0) return 'Amount is required.';
+      return null;
+    },
+    renderForm: (props) => <PaymentVoucherFormModal {...props} />,
     detailRows: [
       ['Voucher No', (r) => r.record_no],
       ['Date', (r) => lcFormatDate(r.voucher_date)],
       ['Payee', (r) => r.payee_name],
       ['Payee Type', (r) => r.payee_type],
-      ['Category', (r) => r.category || '—'],
-      ['Project', (r) => r.project_name || '—'],
+      ['Mode', (r) => r.payment_mode],
       ['Amount', (r) => fmtAccRs(r.amount)],
       ['Particulars', (r) => r.particulars || '—', true],
     ],
@@ -12743,7 +12841,7 @@ function SummaryExecutivePage({ activeSection, onOpenSection, onNotify }) {
       ) : (
         <>
           <p className="text-[14px] font-bold text-[#324871]">
-            Malwa Solar CRM live business snapshot — sales, projects, finance, inventory, and AMC in one place.
+            {organizationDisplayName()} CRM live business snapshot — sales, projects, finance, inventory, and AMC in one place.
           </p>
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
@@ -13511,7 +13609,7 @@ function buildProjectDocumentHtml(row, detail) {
     @media print{body{padding:14px;}}
   </style></head><body>
   <div class="head">
-    <div><div class="brand">Malwa Solar Energy<small>CRM SYSTEM</small></div></div>
+    <div><div class="brand">${esc(organizationDisplayName())}<small>CRM SYSTEM</small></div></div>
     <div style="text-align:right"><h1>${esc(row.projectName)}</h1><div class="muted">${esc(row.projectId || d.project_id || '')} • Status: ${esc(row.status)}</div><div class="muted">Generated: ${esc(new Date().toLocaleString('en-IN'))}</div></div>
   </div>
   <div class="grid">
@@ -13550,7 +13648,7 @@ function buildProjectDocumentHtml(row, detail) {
       <tbody>${materialsRows}</tbody></table>
     </section>
   </div>
-  <div class="foot">This document is system-generated by Malwa Solar Energy CRM.</div>
+  <div class="foot">This document is system-generated by ${esc(organizationDisplayName())} CRM.</div>
   </body></html>`;
 }
 
@@ -13617,7 +13715,7 @@ function buildSiteSurveyViewHtml(row, detail) {
     @media print{body{padding:14px;} section{break-inside:avoid;}}
   </style></head><body>
   <div class="head">
-    <div><div class="brand">Malwa Solar Energy<small>CRM SYSTEM — SITE SURVEY REPORT</small></div></div>
+    <div><div class="brand">${esc(organizationDisplayName())}<small>CRM SYSTEM — SITE SURVEY REPORT</small></div></div>
     <div style="text-align:right"><h1>${esc(row.projectName)}</h1><div class="muted">${esc(row.projectId || d.project_id || '')} • Survey ${esc(survey.survey_id || '-')}</div><div class="muted">Generated: ${esc(new Date().toLocaleString('en-IN'))}</div></div>
   </div>
 
@@ -13760,7 +13858,7 @@ function buildSiteSurveyViewHtml(row, detail) {
   <h2 class="section-title">Notes</h2>
   <section class="full">${listTable(['Title', 'Content', 'By', 'Date', 'Pinned'], notesRows)}</section>
 
-  <div class="foot">This document is system-generated by Malwa Solar Energy CRM.</div>
+  <div class="foot">This document is system-generated by ${esc(organizationDisplayName())} CRM.</div>
   </body></html>`;
 }
 
@@ -13823,7 +13921,7 @@ function buildProjectListSheetHtml(rows) {
 </style>
 </head>
 <body>
-  <div class="title">Malwa Solar Energy — Project List</div>
+  <div class="title">${esc(organizationDisplayName())} — Project List</div>
   <div class="sub">Generated ${esc(new Date().toLocaleString('en-IN'))} • ${rows.length} project(s)</div>
   <table>
     <colgroup>${colgroup}</colgroup>
@@ -27300,7 +27398,7 @@ function buildEmployeeAttendanceCardHtml({ periodLabel, employee, period, summar
   </style></head><body>
   <div class="sheet">
     <div class="head">
-      <div><div class="brand">Malwa Solar Energy<small>EMPLOYEE ATTENDANCE</small></div></div>
+      <div><div class="brand">${esc(organizationDisplayName())}<small>EMPLOYEE ATTENDANCE</small></div></div>
       <div style="text-align:right">
         <h1>${esc(periodLabel)} Attendance Card</h1>
         <div class="muted">${esc(employee.name)}</div>
@@ -27319,7 +27417,7 @@ function buildEmployeeAttendanceCardHtml({ periodLabel, employee, period, summar
       <thead><tr><th>Date</th><th>Day</th><th>Status</th><th>Hours</th><th>OT</th><th>Payment</th></tr></thead>
       <tbody>${tableRows || '<tr><td colspan="6" style="text-align:center;color:#8a98af;">No rows</td></tr>'}</tbody>
     </table>
-    <p class="foot">Malwa Solar CRM — Attendance Ledger</p>
+    <p class="foot">${esc(organizationDisplayName())} CRM — Attendance Ledger</p>
   </div>
   </body></html>`;
 }
@@ -30308,7 +30406,7 @@ function buildIncentiveReportHtml(rows, { periodLabel, rate, totalWon, totalInce
 </style>
 </head>
 <body>
-  <h1>Malwa Solar Energy</h1>
+  <h1>${esc(organizationDisplayName())}</h1>
   <div class="sub">Incentive Report — ${esc(periodLabel)}${rate ? ` • ₹${esc(rate)} per won lead` : ''}</div>
   <table>
     <thead><tr><th>Executive</th><th class="n">Total Leads</th><th class="n">Won</th><th class="n">Conversion</th><th class="n">Incentive</th></tr></thead>
@@ -31833,7 +31931,7 @@ function quotationPrintLogoSvg() {
 }
 
 function buildQuotationPrintHtml(detail) {
-  const company = QUOTATION_PRINT_COMPANY;
+  const company = quotationCompanyFromOrganization(QUOTATION_PRINT_COMPANY);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const logoSrc = `${origin}${company.logoUrl}`;
   const heroSrc = `${origin}${company.heroUrl}`;
@@ -32289,7 +32387,7 @@ function buildQuotationPrintHtml(detail) {
       <img src="${heroSrc}" alt="Malwa Solar" />
       <div class="cover-scrim"></div>
       <div class="cover-top">
-        <img class="cover-logo" src="${logoSrc}" alt="Malwa Solar Energy" />
+        <img class="cover-logo" src="${logoSrc}" alt="${escapePrintHtml(company.shortName || company.name)}" />
         <img class="cover-qr" src="${qrSrc}" alt="QR" />
       </div>
       <div class="cover-copy">
@@ -32393,7 +32491,7 @@ function buildQuotationPrintHtml(detail) {
       <thead>
         <tr>
           <th>Product / Material</th>
-          <th>Malwa Solar Energy</th>
+          <th>${escapePrintHtml(company.shortName || company.name)}</th>
           <th>Typical Market</th>
         </tr>
       </thead>
@@ -33479,8 +33577,9 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   const [composeSaving, setComposeSaving] = useState(false);
   const [expiredFilter, setExpiredFilter] = useState(false);
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState(() => toIsoDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
-  const [dateTo, setDateTo] = useState(() => toIsoDate(new Date()));
+  // Default: no date/status/template filter — show every quotation on first load.
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Dashboard's "Create Quotation" quick action lands here and asks us to
   // open the New Quotation flow immediately, instead of just landing on the list.
@@ -35087,7 +35186,7 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
                   onClick={() => {
                     if (!savedQuotation) { onNotify('Save the quotation first, then share it'); return; }
                     const message = [
-                      `Hi ${lead?.customer || ''}, here is your solar quotation from Malwa Solar Energy.`,
+                      `Hi ${lead?.customer || ''}, here is your solar quotation from ${organizationDisplayName()}.`,
                       `Project: ${lead?.project || '—'}`,
                       `Grand Total: ${formatCurrencyPrecise(computedGrandTotal)}`,
                       'Thank you for choosing us!',

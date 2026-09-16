@@ -6,6 +6,7 @@ from .views import (
     AccountsSettingsSummaryView,
     CategorySettingsView,
     CompanyProfileView,
+    OrganizationSnapshotView,
     DocumentNumberSeriesViewSet,
     FinancialYearViewSet,
     IpAccessRuleViewSet,
@@ -34,6 +35,7 @@ router.register('recycle-bin', RecycleBinViewSet, basename='recycle-bin')
 urlpatterns = [
     path('dashboard/', SettingsDashboardView.as_view(), name='settings-dashboard'),
     path('categories/', SettingsCategoriesView.as_view(), name='settings-categories'),
+    path('organization/', OrganizationSnapshotView.as_view(), name='settings-organization'),
     path('company/', CompanyProfileView.as_view(), name='settings-company'),
     path('category/<str:category>/', CategorySettingsView.as_view(), name='settings-category'),
     path('system/', SystemSettingsView.as_view(), name='settings-system'),

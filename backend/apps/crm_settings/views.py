@@ -1,6 +1,7 @@
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import HasModulePermission
@@ -32,8 +33,10 @@ from .services import (
     create_backup_log,
     get_category_settings,
     log_user_activity,
+    organization_snapshot,
     run_maintenance_action,
     settings_dashboard,
+    sync_company_to_business,
     update_category_settings,
 )
 from .models import CompanyProfile
@@ -59,6 +62,14 @@ class SettingsPermissionMixin:
     }
 
 
+class OrganizationSnapshotView(APIView):
+    """Authenticated org snapshot for documents, headers, and settings pages."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(organization_snapshot())
+
+
 class CompanyProfileView(SettingsPermissionMixin, APIView):
     def get(self, request):
         profile = CompanyProfile.get_solo()
@@ -69,6 +80,7 @@ class CompanyProfileView(SettingsPermissionMixin, APIView):
         serializer = CompanyProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        sync_company_to_business(serializer.instance.data)
         log_user_activity(request, 'Update', 'Settings', 'Company profile updated')
         return Response(serializer.data)
 

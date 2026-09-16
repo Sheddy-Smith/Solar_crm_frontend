@@ -241,6 +241,83 @@ def update_category_settings(category, data: dict):
     return get_category_settings(category)
 
 
+def organization_snapshot():
+    """Read-only org identity for the whole CRM (not Settings-permission gated)."""
+    from apps.accounts.models import Branch
+
+    profile = CompanyProfile.get_solo()
+    company = profile.data if isinstance(profile.data, dict) else {}
+    business = get_category_settings('business')
+    placeholder_gst = {'23AAGCM1234A1Z5', '03AAGCM1234A1Z5'}
+    if company.get('companyName') and (not business.get('gst') or business.get('gst') in placeholder_gst):
+        sync_company_to_business(company)
+        business = get_category_settings('business')
+    active_fy = FinancialYear.objects.filter(is_current=True).first()
+    branches = [
+        {
+            'id': branch.id,
+            'name': branch.name,
+            'city': branch.city,
+            'address': branch.address,
+            'is_active': branch.is_active,
+        }
+        for branch in Branch.objects.filter(is_active=True).order_by('name')[:100]
+    ]
+    display_name = (
+        company.get('shortName')
+        or company.get('companyName')
+        or business.get('businessName')
+        or 'Malwa Solar Energy'
+    )
+    fy_payload = None
+    if active_fy:
+        fy_payload = {
+            'id': active_fy.id,
+            'label': active_fy.label,
+            'start_date': active_fy.start_date.isoformat() if active_fy.start_date else None,
+            'end_date': active_fy.end_date.isoformat() if active_fy.end_date else None,
+            'status': active_fy.status,
+            'is_current': active_fy.is_current,
+        }
+    return {
+        'company': company,
+        'business': business,
+        'financial_year': fy_payload,
+        'branches': branches,
+        'display_name': display_name,
+        'gstin': company.get('gstNumber') or business.get('gst') or business.get('gstin') or '',
+        'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+
+def sync_company_to_business(company_data):
+    """Keep Business Information aligned when Company Profile is saved."""
+    if not isinstance(company_data, dict):
+        return
+    mapping = {
+        'businessName': company_data.get('companyName'),
+        'phone': company_data.get('phone'),
+        'email': company_data.get('email'),
+        'website': company_data.get('website'),
+        'pan': company_data.get('panNumber'),
+        'gst': company_data.get('gstNumber'),
+        'tan': company_data.get('tanNumber'),
+        'cin': company_data.get('cin'),
+        'entityType': company_data.get('companyType'),
+        'address1': company_data.get('address1') or company_data.get('address'),
+        'address2': company_data.get('address2'),
+        'city': company_data.get('city'),
+        'state': company_data.get('state'),
+        'pin': company_data.get('pinCode') or company_data.get('pincode'),
+        'country': company_data.get('country'),
+        'currency': company_data.get('currency'),
+        'timezone': company_data.get('timezone'),
+    }
+    patch = {key: value for key, value in mapping.items() if value}
+    if patch:
+        update_category_settings('business', patch)
+
+
 def settings_dashboard():
     from apps.accounts.models import Branch, Role, User
     from apps.accounts_module.models import ChartOfAccount

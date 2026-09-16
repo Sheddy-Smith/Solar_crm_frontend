@@ -758,6 +758,9 @@ const settingsCrud = (base) => ({
 export const settingsApi = {
   dashboard: () => request('/settings/dashboard/'),
   categories: () => request('/settings/categories/'),
+  organization: {
+    get: () => request('/settings/organization/'),
+  },
   company: {
     get: () => request('/settings/company/'),
     update: (data) => request('/settings/company/', { method: 'PATCH', body: data }),
