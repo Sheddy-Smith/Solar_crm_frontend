@@ -4623,11 +4623,15 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         nextFollowUpRaw: lead.next_follow_up || null,
         surveyStatus: lead.survey_status || 'Pending',
       })));
-      setActivePage(1);
     }).catch((err) => {
       onNotify?.((err && err.message) ? `Failed to load leads: ${err.message}` : 'Failed to load leads. Please try again.');
     }).finally(() => setLeadsLoading(false));
   }, [debouncedSearch, refreshKey]);
+
+  // Search change → page 1. Assign/delete refresh keeps the current page.
+  useEffect(() => {
+    setActivePage(1);
+  }, [debouncedSearch]);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
 
