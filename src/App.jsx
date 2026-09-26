@@ -68,6 +68,7 @@ import {
   mapUiPermissionsToApi,
   canManageUsersAndRoles,
   hasModuleAccess,
+  hasAnyModuleAccess,
   moduleCaps,
   SIDEBAR_MODULE_BY_LABEL,
 } from './settingsHubPages.jsx';
@@ -2142,25 +2143,28 @@ function App() {
     });
   }, [currentPage]);
 
-  // Sidebar: only modules the role can View.
+  // Sidebar: show category only if role has at least one permission on that module.
   const visibleSidebarItems = useMemo(() => {
     if (!loggedInUser) return sidebarItems;
     return sidebarItems.filter((item) => {
       const mod = SIDEBAR_MODULE_BY_LABEL[item.label];
       if (!mod) return true;
-      return hasModuleAccess(loggedInUser, mod, 'View');
+      return hasAnyModuleAccess(loggedInUser, mod);
     });
   }, [loggedInUser]);
 
-  // Deep-link / stale section: leave pages the role cannot View.
+  // Deep-link / stale section: leave pages with zero module permissions.
   useEffect(() => {
     if (!loggedInUser || currentPage !== 'dashboard') return;
     const mod = permissionModuleForSection(activeSidebarItem);
     if (!mod) return;
-    if (hasModuleAccess(loggedInUser, mod, 'View')) return;
-    setActiveSidebarItem('Dashboard');
+    if (hasAnyModuleAccess(loggedInUser, mod)) return;
+    const fallback = visibleSidebarItems[0]?.label === 'Dashboard'
+      ? 'Dashboard'
+      : (visibleSidebarItems[0]?.label === 'Lead' ? 'Lead List' : (visibleSidebarItems[0]?.label || 'Dashboard'));
+    setActiveSidebarItem(fallback === 'Lead' ? 'Lead List' : fallback);
     notify(`You do not have access to ${activeSidebarItem}`, 'error');
-  }, [loggedInUser, activeSidebarItem, currentPage]);
+  }, [loggedInUser, activeSidebarItem, currentPage, visibleSidebarItems]);
 
   useEffect(() => {
     if (['signin', 'portal', 'tele-signin'].includes(currentPage)) return;
@@ -2286,7 +2290,7 @@ function App() {
     }
 
     const mod = permissionModuleForSection(section);
-    if (mod && loggedInUser && !hasModuleAccess(loggedInUser, mod, 'View')) {
+    if (mod && loggedInUser && !hasAnyModuleAccess(loggedInUser, mod)) {
       notify(`You do not have access to ${section}`, 'error');
       return;
     }
@@ -3843,7 +3847,7 @@ function App() {
                     if (action.label === 'Add Follow-up') return hasModuleAccess(loggedInUser, 'Lead', 'Add') || hasModuleAccess(loggedInUser, 'Lead', 'Edit');
                     if (action.label === 'Create Quotation') return hasModuleAccess(loggedInUser, 'Quotation', 'Add');
                     const mod = permissionModuleForSection(action.target);
-                    return !mod || hasModuleAccess(loggedInUser, mod, 'View');
+                    return !mod || hasAnyModuleAccess(loggedInUser, mod);
                   }).map((action) => {
                     const Icon = action.icon;
 
@@ -3950,6 +3954,7 @@ function App() {
 
       <MobileBottomNav
         activeSection={activeSidebarItem}
+        loggedInUser={loggedInUser}
         onNavigate={(item) => {
           if (item.section === 'Follow-ups') {
             openDashboardSection('Follow-ups', 'Follow-ups opened', null, 'today');
@@ -11713,9 +11718,8 @@ function OpsStatCard({ label, value, caption, tone, icon: Icon, onClick }) {
 }
 
 function AccountsPage({ activeSection, onOpenSection, onNotify, loggedInUser = null }) {
-  // Reserved for Accounts Add/Edit/Delete/Export button gating in child pages.
-  void moduleCaps(loggedInUser, 'Accounts');
-  const shared = { activeSection, onOpenSection, onNotify, Subnav: AccountsSubnavTabs };
+  const accountsCaps = moduleCaps(loggedInUser, 'Accounts');
+  const shared = { activeSection, onOpenSection, onNotify, Subnav: AccountsSubnavTabs, caps: accountsCaps, loggedInUser };
   if (activeSection === 'Accounts Overview' || activeSection === 'Overview') {
     return <AccountsOverviewPage activeSection="Accounts Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
   }

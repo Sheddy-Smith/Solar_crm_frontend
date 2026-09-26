@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Pencil, Trash2, Eye, Download, Printer } from 'lucide-react';
+import { moduleCaps } from './settingsHubPages.jsx';
 import Button from './components/ui/Button.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { accountsModuleApi, projectApi, inventoryApi } from './api.js';
@@ -220,7 +221,10 @@ export function AccountsLineDocumentPage({
   linkInventory = false,
   stockSyncHint = '',
   extraHeaderFields = [],
+  caps: capsProp = null,
+  loggedInUser = null,
 }) {
+  const caps = capsProp || moduleCaps(loggedInUser, 'Accounts');
   const [rows, setRows] = useState([]);
   const [parties, setParties] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -409,8 +413,12 @@ export function AccountsLineDocumentPage({
           <p className="mt-1 text-[12px] font-semibold text-[#7b8ca8]">Solar CRM — project-linked billing & material documents</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" onClick={handleExport}><Download className="size-4" /> Export</Button>
-          <Button type="button" onClick={openCreate}><Plus className="size-4" /> Add {recordLabel}</Button>
+          {caps.export ? (
+            <Button type="button" variant="secondary" onClick={handleExport}><Download className="size-4" /> Export</Button>
+          ) : null}
+          {caps.add ? (
+            <Button type="button" onClick={openCreate}><Plus className="size-4" /> Add {recordLabel}</Button>
+          ) : null}
         </div>
       </div>
 
@@ -479,9 +487,15 @@ export function AccountsLineDocumentPage({
                   <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
-                      <button type="button" onClick={() => setViewItem(row)} className="rounded-[8px] p-2 text-[#0b65e5] hover:bg-[#eef5ff]"><Eye className="size-4" /></button>
-                      <button type="button" onClick={() => openEdit(row)} className="rounded-[8px] p-2 text-[#14853a] hover:bg-[#e8f8eb]"><Pencil className="size-4" /></button>
-                      <button type="button" onClick={() => deleteRow(row)} className="rounded-[8px] p-2 text-[#dc2626] hover:bg-[#fee2e2]"><Trash2 className="size-4" /></button>
+                      {caps.view ? (
+                        <button type="button" onClick={() => setViewItem(row)} className="rounded-[8px] p-2 text-[#0b65e5] hover:bg-[#eef5ff]"><Eye className="size-4" /></button>
+                      ) : null}
+                      {caps.edit ? (
+                        <button type="button" onClick={() => openEdit(row)} className="rounded-[8px] p-2 text-[#14853a] hover:bg-[#e8f8eb]"><Pencil className="size-4" /></button>
+                      ) : null}
+                      {caps.delete ? (
+                        <button type="button" onClick={() => deleteRow(row)} className="rounded-[8px] p-2 text-[#dc2626] hover:bg-[#fee2e2]"><Trash2 className="size-4" /></button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

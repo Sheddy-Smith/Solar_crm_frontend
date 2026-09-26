@@ -35,6 +35,21 @@ export function hasModuleAccess(user, moduleName, action = 'View') {
   return Boolean(row[apiKey]);
 }
 
+/**
+ * True when the role has at least one flag on this module (View/Add/Edit/Delete/…).
+ * Used to show/hide whole sidebar categories — zero permissions = category hidden.
+ */
+export function hasAnyModuleAccess(user, moduleName) {
+  if (!user) return false;
+  if (user.is_super_admin) return true;
+  const rows = Array.isArray(user.permissions) ? user.permissions : [];
+  const aliases = moduleName === 'Lead' ? ['Lead', 'Leads'] : [moduleName];
+  const row = rows.find((item) => aliases.includes(item.module));
+  if (!row) return false;
+  if (row.full_access) return true;
+  return Object.values(MODULE_ACTION_TO_API).some((key) => Boolean(row[key]));
+}
+
 export function canManageUsersAndRoles(user) {
   return hasModuleAccess(user, 'User Management', 'View');
 }
@@ -42,6 +57,7 @@ export function canManageUsersAndRoles(user) {
 /** Convenience flags for one module — hide UI when the matching flag is false. */
 export function moduleCaps(user, moduleName) {
   return {
+    any: hasAnyModuleAccess(user, moduleName),
     view: hasModuleAccess(user, moduleName, 'View'),
     add: hasModuleAccess(user, moduleName, 'Add'),
     edit: hasModuleAccess(user, moduleName, 'Edit'),

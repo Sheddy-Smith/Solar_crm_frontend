@@ -16,6 +16,7 @@ import {
   Plus, UserPlus, Users,
 } from 'lucide-react';
 import { analyticsApi } from './api.js';
+import { hasAnyModuleAccess } from './settingsHubPages.jsx';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
 
@@ -467,14 +468,14 @@ export function MobileDashboardPage({
 }
 
 const BOTTOM_NAV_ITEMS = [
-  { label: 'Dashboard', icon: Home, section: 'Dashboard' },
-  { label: 'Leads', icon: Users, section: 'Lead List' },
-  { label: 'Follow-ups', icon: CalendarDays, section: 'Follow-ups' },
-  { label: 'Projects', icon: FolderKanban, section: 'Project List' },
+  { label: 'Dashboard', icon: Home, section: 'Dashboard', module: 'Dashboard' },
+  { label: 'Leads', icon: Users, section: 'Lead List', module: 'Lead' },
+  { label: 'Follow-ups', icon: CalendarDays, section: 'Follow-ups', module: 'Lead' },
+  { label: 'Projects', icon: FolderKanban, section: 'Project List', module: 'Project Management' },
   { label: 'More', icon: Menu, more: true },
 ];
 
-export function MobileBottomNav({ activeSection, onNavigate, onMore }) {
+export function MobileBottomNav({ activeSection, onNavigate, onMore, loggedInUser = null }) {
   const activeLabel = (() => {
     if (activeSection === 'Dashboard') return 'Dashboard';
     if (activeSection === 'Follow-ups') return 'Follow-ups';
@@ -483,10 +484,16 @@ export function MobileBottomNav({ activeSection, onNavigate, onMore }) {
     return null;
   })();
 
+  const navItems = BOTTOM_NAV_ITEMS.filter((item) => {
+    if (item.more || !item.module) return true;
+    if (!loggedInUser) return true;
+    return hasAnyModuleAccess(loggedInUser, item.module);
+  });
+
   return (
     <nav className="app-mobile-bottom-nav fixed inset-x-0 bottom-0 z-60 border-t border-[#e4ebf4] bg-white/98 shadow-[0_-10px_28px_rgba(21,43,83,0.12)] backdrop-blur-[10px] md:hidden dark:border-slate-700 dark:bg-slate-950/96">
-      <div className="mx-auto grid max-w-lg grid-cols-5 px-1 pt-1">
-        {BOTTOM_NAV_ITEMS.map((item) => {
+      <div className={cx('mx-auto grid max-w-lg px-1 pt-1', navItems.length >= 5 ? 'grid-cols-5' : navItems.length === 4 ? 'grid-cols-4' : 'grid-cols-3')}>
+        {navItems.map((item) => {
           const Icon = item.icon;
           const active = item.label === activeLabel;
           return (

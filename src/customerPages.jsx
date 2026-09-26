@@ -294,7 +294,7 @@ function CustomerDetailsTab({ onNotify, onOpenSection }) {
                 <td className={`px-2 py-1 font-extrabold ${Number(r.balance) > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(r.balance)}</td>
                 <td className="px-2 py-1">
                   <div className="flex gap-0.5">
-                    <button type="button" onClick={() => setDetail(r)} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]" title="View projects"><Eye className="size-3.5" /></button>
+                    {caps.view ? (<button type="button" onClick={() => setDetail(r)} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]" title="View projects"><Eye className="size-3.5" /></button>) : null}
                     {caps.edit ? (<button type="button" onClick={() => setModal({ id: r.id, form: { ...emptyForm, ...r } })} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]"><Pencil className="size-3.5" /></button>) : null}
                     {caps.delete ? (<button type="button" onClick={() => remove(r)} className="grid size-7 place-items-center rounded-[6px] text-[#dc2626] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>) : null}
                   </div>
