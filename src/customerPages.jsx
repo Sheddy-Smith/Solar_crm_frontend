@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Download, Eye, FileText, IndianRupee, Pencil, Plus, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
 import { accountsModuleApi } from './api.js';
 import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
+import { moduleCaps } from './settingsHubPages.jsx';
 
 const TABS = [
   { key: 'Customer Details', label: 'Customer Details' },
@@ -100,7 +101,8 @@ function Field({ label, required, children }) {
 
 const inputClass = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold text-[#1e3261] outline-none';
 
-export function CustomerModulePage({ activeSection, onOpenSection, onNotify }) {
+export function CustomerModulePage({ activeSection, onOpenSection, onNotify, loggedInUser = null }) {
+  const caps = moduleCaps(loggedInUser, 'Customer');
   const tab = TABS.some((t) => t.key === activeSection) ? activeSection : 'Customer Details';
 
   return (
@@ -244,16 +246,18 @@ function CustomerDetailsTab({ onNotify, onOpenSection }) {
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search name, mobile, project..." value={q} onChange={(e) => setQ(e.target.value)} />
+        {caps.add ? (
         <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white sm:w-auto">
           <Plus className="size-4" /> Add Customer
         </button>
-        <button
+        ) : null}
+        {caps.export ? (<button
           type="button"
           onClick={() => exportNotifyCsv(onNotify, 'customers', ['Name', 'Company', 'Phone', 'Address', 'GSTIN', 'Projects', 'Leads', 'Balance'], filtered.map((r) => [r.name, r.company, r.phone, r.address, r.gstin, r.projects_count || 0, r.leads_count || 0, r.balance]))}
           className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] sm:w-auto"
         >
           <Download className="size-4" /> Export CSV
-        </button>
+        </button>) : null}
       </div>
       <div className="overflow-x-auto rounded-[8px] border border-[#e2e9f3] bg-white">
         <table className="min-w-[860px] w-full border-collapse text-left text-[12px]">
@@ -291,8 +295,8 @@ function CustomerDetailsTab({ onNotify, onOpenSection }) {
                 <td className="px-2 py-1">
                   <div className="flex gap-0.5">
                     <button type="button" onClick={() => setDetail(r)} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]" title="View projects"><Eye className="size-3.5" /></button>
-                    <button type="button" onClick={() => setModal({ id: r.id, form: { ...emptyForm, ...r } })} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]"><Pencil className="size-3.5" /></button>
-                    <button type="button" onClick={() => remove(r)} className="grid size-7 place-items-center rounded-[6px] text-[#dc2626] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
+                    {caps.edit ? (<button type="button" onClick={() => setModal({ id: r.id, form: { ...emptyForm, ...r } })} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]"><Pencil className="size-3.5" /></button>) : null}
+                    {caps.delete ? (<button type="button" onClick={() => remove(r)} className="grid size-7 place-items-center rounded-[6px] text-[#dc2626] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>) : null}
                   </div>
                 </td>
               </tr>

@@ -39,6 +39,40 @@ export function canManageUsersAndRoles(user) {
   return hasModuleAccess(user, 'User Management', 'View');
 }
 
+/** Convenience flags for one module — hide UI when the matching flag is false. */
+export function moduleCaps(user, moduleName) {
+  return {
+    view: hasModuleAccess(user, moduleName, 'View'),
+    add: hasModuleAccess(user, moduleName, 'Add'),
+    edit: hasModuleAccess(user, moduleName, 'Edit'),
+    delete: hasModuleAccess(user, moduleName, 'Delete'),
+    export: hasModuleAccess(user, moduleName, 'Export'),
+    import: hasModuleAccess(user, moduleName, 'Import'),
+    approve: hasModuleAccess(user, moduleName, 'Approve'),
+    assign: hasModuleAccess(user, moduleName, 'Assign'),
+  };
+}
+
+/** Sidebar label → RolePermission.module name (Settings → Roles & Permissions). */
+export const SIDEBAR_MODULE_BY_LABEL = {
+  Dashboard: 'Dashboard',
+  Lead: 'Lead',
+  Customer: 'Customer',
+  Vendors: 'Vendors',
+  Quotation: 'Quotation',
+  'Project Management': 'Project Management',
+  'Liaisoning & Commissioning': 'Liaisoning & Commissioning',
+  'O&M': 'O&M',
+  Accounts: 'Accounts',
+  Inventory: 'Inventory',
+  Employee: 'Employee',
+  Supplier: 'Supplier',
+  Insights: 'Insights',
+  'Daily Tasks': 'Daily Tasks',
+  'AMC & Warranty': 'AMC & Warranty',
+  Settings: 'Settings',
+};
+
 export const SETTINGS_PILLARS = [
   {
     id: 'organization',

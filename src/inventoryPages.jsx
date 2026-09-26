@@ -6,6 +6,7 @@ import {
 import { inventoryApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { exportNotifyCsv } from './lib/utils.js';
+import { moduleCaps } from './settingsHubPages.jsx';
 
 const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'kg', 'Ltr', 'ltr', 'Roll', 'Set'];
 const STRUCTURE_PACK_TYPES = ['Unit', 'Packet', 'Bundels'];
@@ -445,7 +446,8 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
   );
 }
 
-export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, Subnav, panelClass, cx, PageHeading, DashboardFooter }) {
+export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, loggedInUser = null, Subnav, panelClass, cx, PageHeading, DashboardFooter }) {
+  const caps = moduleCaps(loggedInUser, 'Inventory');
   const [rows, setRows] = useState([]);
   const [categories, setCategories] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -619,8 +621,12 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
       <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Products' }]}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => exportNotifyCsv(onNotify, 'inventory-products', ['Code', 'Name', 'Category', 'Stock', 'Unit', 'Valuation'], filtered.map((r) => [r.item_code, r.name, r.category, r.current_stock, r.unit, r.valuation]))} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#284276]"><Download className="size-4" />Export CSV</button>
-            <button type="button" onClick={openAddProduct} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Product</button>
+            {caps.export ? (
+              <button type="button" onClick={() => exportNotifyCsv(onNotify, 'inventory-products', ['Code', 'Name', 'Category', 'Stock', 'Unit', 'Valuation'], filtered.map((r) => [r.item_code, r.name, r.category, r.current_stock, r.unit, r.valuation]))} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#284276]"><Download className="size-4" />Export CSV</button>
+            ) : null}
+            {caps.add ? (
+              <button type="button" onClick={openAddProduct} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Product</button>
+            ) : null}
           </div>
         )}
       />
@@ -682,7 +688,8 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                         >
                           <SlidersHorizontal className="size-3.5" />
                         </button>
-                        <button type="button" onClick={() => setModal({
+                        {caps.edit ? (
+                          <button type="button" onClick={() => setModal({
                           editId: r.id,
                           form: {
                             ...defaultsForCategory(r.category || 'Structure'),
@@ -699,7 +706,10 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                             initial_stock: '',
                           },
                         })} className="grid size-8 place-items-center rounded-[8px] border border-[#e9dffb] bg-[#f8f4ff] text-[#7c3aed]"><Pencil className="size-3.5" /></button>
-                        <button type="button" onClick={() => inventoryApi.items.delete(r.id).then(load).catch((e) => onNotify(e.message, 'error'))} className="grid size-8 place-items-center rounded-[8px] border border-[#fecaca] bg-[#fff5f5] text-[#ef4444]"><Trash2 className="size-3.5" /></button>
+                        ) : null}
+                        {caps.delete ? (
+                          <button type="button" onClick={() => inventoryApi.items.delete(r.id).then(load).catch((e) => onNotify(e.message, 'error'))} className="grid size-8 place-items-center rounded-[8px] border border-[#fecaca] bg-[#fff5f5] text-[#ef4444]"><Trash2 className="size-3.5" /></button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -984,7 +994,8 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   );
 }
 
-export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify, Subnav, panelClass, cx, PageHeading, DashboardFooter }) {
+export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify, loggedInUser = null, Subnav, panelClass, cx, PageHeading, DashboardFooter }) {
+  const caps = moduleCaps(loggedInUser, 'Inventory');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
@@ -1066,7 +1077,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
   return (
     <div className="space-y-4">
       <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Categories' }]}
-        actions={<button type="button" onClick={() => setModal({ form: { ...emptyCategoryForm } })} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Category</button>}
+        actions={caps.add ? (<button type="button" onClick={() => setModal({ form: { ...emptyCategoryForm } })} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Category</button>) : null}
       />
       <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
       <div className={cx(panelClass, 'p-4')}>
@@ -1093,28 +1104,32 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
                     <td className="py-3 text-[#0b65e5] font-bold">{templateLabel(r.form_template)}</td>
                     <td className="py-3 text-[#53647f]">{r.description || '—'}</td>
                     <td className="py-3">
-                      <button
-                        type="button"
-                        onClick={() => setModal({
-                          editId: r.id,
-                          form: {
-                            name: r.name,
-                            description: r.description || '',
-                            is_active: r.is_active !== false,
-                            form_template: r.form_template || 'Generic',
-                            form_fields: Array.isArray(r.form_fields) && r.form_fields.length ? r.form_fields : [...DEFAULT_CUSTOM_FIELDS],
-                          },
-                        })}
-                        className="mr-2 text-[#0b65e5]"
-                      >
-                        <Pencil className="size-4 inline" />
-                      </button>
-                      <button type="button" onClick={() => {
-                        if (!window.confirm(`Delete category "${r.name}"?`)) return;
-                        inventoryApi.categories.delete(r.id)
-                          .then(load)
-                          .catch((e) => onNotify(e.message || 'Delete failed', 'error'));
-                      }} className="text-[#ef4444]"><Trash2 className="size-4 inline" /></button>
+                      {caps.edit ? (
+                        <button
+                          type="button"
+                          onClick={() => setModal({
+                            editId: r.id,
+                            form: {
+                              name: r.name,
+                              description: r.description || '',
+                              is_active: r.is_active !== false,
+                              form_template: r.form_template || 'Generic',
+                              form_fields: Array.isArray(r.form_fields) && r.form_fields.length ? r.form_fields : [...DEFAULT_CUSTOM_FIELDS],
+                            },
+                          })}
+                          className="mr-2 text-[#0b65e5]"
+                        >
+                          <Pencil className="size-4 inline" />
+                        </button>
+                      ) : null}
+                      {caps.delete ? (
+                        <button type="button" onClick={() => {
+                          if (!window.confirm(`Delete category "${r.name}"?`)) return;
+                          inventoryApi.categories.delete(r.id)
+                            .then(load)
+                            .catch((e) => onNotify(e.message || 'Delete failed', 'error'));
+                        }} className="text-[#ef4444]"><Trash2 className="size-4 inline" /></button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

@@ -10,6 +10,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { followUpApi } from './api.js';
+import { hasModuleAccess } from './settingsHubPages.jsx';
 import {
   followUpAgeLabel,
   formatDateTime,
@@ -34,7 +35,9 @@ export function CrmFollowUpsPage({
   onNotify,
   onViewLead,
   onLogFollowUp,
+  loggedInUser = null,
 }) {
+  const canLogFollowUp = hasModuleAccess(loggedInUser, 'Lead', 'Add') || hasModuleAccess(loggedInUser, 'Lead', 'Edit');
   const [tab, setTab] = useState(initialTab || 'today');
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState(null);
@@ -220,14 +223,16 @@ export function CrmFollowUpsPage({
                 className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[#1f2d44] outline-none"
               />
             </label>
-            <button
-              type="button"
-              onClick={() => onLogFollowUp?.(null)}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0954c4]"
-            >
-              <Plus className="size-4" />
-              Log Follow-up
-            </button>
+            {canLogFollowUp ? (
+              <button
+                type="button"
+                onClick={() => onLogFollowUp?.(null)}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0954c4]"
+              >
+                <Plus className="size-4" />
+                Log Follow-up
+              </button>
+            ) : null}
           </div>
         </div>
 

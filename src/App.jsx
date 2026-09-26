@@ -68,6 +68,8 @@ import {
   mapUiPermissionsToApi,
   canManageUsersAndRoles,
   hasModuleAccess,
+  moduleCaps,
+  SIDEBAR_MODULE_BY_LABEL,
 } from './settingsHubPages.jsx';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
 import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide } from './components/mobile/PwaInstallControls.jsx';
@@ -726,6 +728,28 @@ const settingsRelatedPages = [
   ...settingsHubPageKeys,
   ...settingsCardGroups.flatMap((group) => group.items.map((item) => item.key)),
 ];
+
+/** Active page/section → RolePermission module used to hide unauthorized UI. */
+function permissionModuleForSection(section) {
+  if (!section) return null;
+  if (section === 'Dashboard') return 'Dashboard';
+  if (section === 'Lead' || leadRelatedPages.includes(section)) return 'Lead';
+  if (section === 'Customer' || customerRelatedPages.includes(section)) return 'Customer';
+  if (section === 'Vendors' || vendorRelatedPages.includes(section)) return 'Vendors';
+  if (section === 'Supplier' || supplierRelatedPages.includes(section)) return 'Supplier';
+  if (section === 'Quotation') return 'Quotation';
+  if (section === 'Project Management' || projectRelatedPages.includes(section)) return 'Project Management';
+  if (section === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(section)) return 'Liaisoning & Commissioning';
+  if (omRelatedPages.includes(section)) return 'O&M';
+  if (section === 'AMC & Warranty' || amcRelatedPages.includes(section)) return 'AMC & Warranty';
+  if (section === 'Accounts' || accountsRelatedPages.includes(section)) return 'Accounts';
+  if (section === 'Inventory' || inventoryRelatedPages.includes(section)) return 'Inventory';
+  if (section === 'Employee' || employeeRelatedPages.includes(section)) return 'Employee';
+  if (section === 'Insights' || insightsRelatedPages.includes(section)) return 'Insights';
+  if (dailyTasksRelatedPages.includes(section)) return 'Daily Tasks';
+  if (section === 'Settings' || settingsRelatedPages.includes(section) || legacyEmployeeAdminPages.includes(section)) return 'Settings';
+  return SIDEBAR_MODULE_BY_LABEL[section] || null;
+}
 
 function getSettingsRouteKey(section) {
   if (section === 'Master Type') {
@@ -2118,6 +2142,26 @@ function App() {
     });
   }, [currentPage]);
 
+  // Sidebar: only modules the role can View.
+  const visibleSidebarItems = useMemo(() => {
+    if (!loggedInUser) return sidebarItems;
+    return sidebarItems.filter((item) => {
+      const mod = SIDEBAR_MODULE_BY_LABEL[item.label];
+      if (!mod) return true;
+      return hasModuleAccess(loggedInUser, mod, 'View');
+    });
+  }, [loggedInUser]);
+
+  // Deep-link / stale section: leave pages the role cannot View.
+  useEffect(() => {
+    if (!loggedInUser || currentPage !== 'dashboard') return;
+    const mod = permissionModuleForSection(activeSidebarItem);
+    if (!mod) return;
+    if (hasModuleAccess(loggedInUser, mod, 'View')) return;
+    setActiveSidebarItem('Dashboard');
+    notify(`You do not have access to ${activeSidebarItem}`, 'error');
+  }, [loggedInUser, activeSidebarItem, currentPage]);
+
   useEffect(() => {
     if (['signin', 'portal', 'tele-signin'].includes(currentPage)) return;
     if (!tokenStore.getAccess()) return;
@@ -2224,6 +2268,10 @@ function App() {
 
   const openDashboardSection = (section, message, lead, tab) => {
     if (section === 'Create Lead') {
+      if (loggedInUser && !hasModuleAccess(loggedInUser, 'Lead', 'Add')) {
+        notify('You do not have permission to create leads', 'error');
+        return;
+      }
       setDashboardCreateLeadOpen(true);
       setMobileSidebarOpen(false);
       setNotificationMenuOpen(false);
@@ -2234,6 +2282,12 @@ function App() {
 
     if (!isKnownSection(section)) {
       notify(message ?? `${section} opened`);
+      return;
+    }
+
+    const mod = permissionModuleForSection(section);
+    if (mod && loggedInUser && !hasModuleAccess(loggedInUser, mod, 'View')) {
+      notify(`You do not have access to ${section}`, 'error');
       return;
     }
 
@@ -2701,7 +2755,7 @@ function App() {
           <div className="relative min-h-0 flex-1 overflow-hidden rounded-t-[14px] bg-[linear-gradient(180deg,#09b83f_0%,#0799a7_42%,#075fc2_100%)]">
             <div className="scroll-soft sidebar-menu-scroll relative h-full overflow-y-auto px-4 py-4">
               <nav className="space-y-0.5">
-                {sidebarItems.map((item) => {
+                {visibleSidebarItems.map((item) => {
                   const Icon = item.icon;
                   const isLeadSection = item.label === 'Lead';
                   const isCustomerSection = item.label === 'Customer';
@@ -3325,6 +3379,7 @@ function App() {
                   notify(`${section} opened`);
                 }}
                 onNotify={notify}
+                loggedInUser={loggedInUser}
               />
             ) : supplierRelatedPages.includes(activeSidebarItem) ? (
               <SupplierModulePage
@@ -3334,6 +3389,7 @@ function App() {
                   notify(`${section} opened`);
                 }}
                 onNotify={notify}
+                loggedInUser={loggedInUser}
               />
             ) : customerRelatedPages.includes(activeSidebarItem) ? (
               <CustomerModulePage
@@ -3346,6 +3402,7 @@ function App() {
                   notify(message || `${section} opened`);
                 }}
                 onNotify={notify}
+                loggedInUser={loggedInUser}
               />
             ) : employeeRelatedPages.includes(activeSidebarItem) ? (
               <EmployeeManagementPage
@@ -3355,6 +3412,7 @@ function App() {
                   notify(`${section} opened`);
                 }}
                 onNotify={notify}
+                loggedInUser={loggedInUser}
               />
             ) : activeSidebarItem === 'Roles & Permissions' ? (
               <AdminReauthGate onNotify={notify}>
@@ -3403,6 +3461,7 @@ function App() {
                   notify(`${target} opened`);
                 }}
                 onNotify={notify}
+                loggedInUser={loggedInUser}
               />
             ) : settingsRelatedPages.includes(activeSidebarItem) ? (
               <SettingsMasterPage
@@ -3449,6 +3508,7 @@ function App() {
                   notify(`${section} opened`);
                 }}
                 onNotify={notify}
+                loggedInUser={loggedInUser}
               />
             ) : activeSidebarItem === 'Daily Tasks' ? (
               <DailyTasksPage onNotify={notify} loggedInUser={loggedInUser} />
@@ -3460,9 +3520,11 @@ function App() {
                   notify(`${section} opened`);
                 }}
                 onNotify={notify}
+                loggedInUser={loggedInUser}
               />
             ) : activeSidebarItem === 'Follow-ups' ? (
               <CrmFollowUpsPage
+                loggedInUser={loggedInUser}
                 initialTab={followUpsPageTab}
                 onNotify={notify}
                 onViewLead={(item) => {
@@ -3513,6 +3575,7 @@ function App() {
               />
             ) : activeSidebarItem === 'Quotation' ? (
               <QuotationListPage
+                loggedInUser={loggedInUser}
                 autoOpenCreate={autoOpenQuotation}
                 onConsumeAutoOpenCreate={() => setAutoOpenQuotation(false)}
                 onNotify={notify}
@@ -3604,11 +3667,27 @@ function App() {
                   onOpenSection={(section, message, lead, tab) => openDashboardSection(section, message, lead, tab)}
                   onQuickAction={(action) => {
                     if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
+                      if (loggedInUser && !hasModuleAccess(loggedInUser, 'Lead', 'Add')) {
+                        notify('You do not have permission to create leads', 'error');
+                        return;
+                      }
                       setDashboardCreateLeadOpen(true);
                       return;
                     }
-                    if (action.label === 'Add Follow-up') setAutoOpenFollowUps(true);
-                    if (action.label === 'Create Quotation') setAutoOpenQuotation(true);
+                    if (action.label === 'Add Follow-up') {
+                      if (loggedInUser && !hasModuleAccess(loggedInUser, 'Lead', 'Add') && !hasModuleAccess(loggedInUser, 'Lead', 'Edit')) {
+                        notify('You do not have permission to add follow-ups', 'error');
+                        return;
+                      }
+                      setAutoOpenFollowUps(true);
+                    }
+                    if (action.label === 'Create Quotation') {
+                      if (loggedInUser && !hasModuleAccess(loggedInUser, 'Quotation', 'Add')) {
+                        notify('You do not have permission to create quotations', 'error');
+                        return;
+                      }
+                      setAutoOpenQuotation(true);
+                    }
                     openDashboardSection(action.target, `${action.label} opened`);
                   }}
                   onOpenMenu={() => setMobileSidebarOpen(true)}
@@ -3758,7 +3837,14 @@ function App() {
                 </article>
 
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                  {quickActions.map((action) => {
+                  {quickActions.filter((action) => {
+                    if (!loggedInUser) return true;
+                    if (action.target === 'Create Lead' || action.label === 'Fast Lead') return hasModuleAccess(loggedInUser, 'Lead', 'Add');
+                    if (action.label === 'Add Follow-up') return hasModuleAccess(loggedInUser, 'Lead', 'Add') || hasModuleAccess(loggedInUser, 'Lead', 'Edit');
+                    if (action.label === 'Create Quotation') return hasModuleAccess(loggedInUser, 'Quotation', 'Add');
+                    const mod = permissionModuleForSection(action.target);
+                    return !mod || hasModuleAccess(loggedInUser, mod, 'View');
+                  }).map((action) => {
                     const Icon = action.icon;
 
                     return (
@@ -3770,10 +3856,26 @@ function App() {
                         transition={{ duration: 0.15, ease: 'easeOut' }}
                         onClick={() => {
                           if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
+                            if (loggedInUser && !hasModuleAccess(loggedInUser, 'Lead', 'Add')) {
+                              notify('You do not have permission to create leads', 'error');
+                              return;
+                            }
                             setDashboardCreateLeadOpen(true);
                           } else {
-                            if (action.label === 'Add Follow-up') setAutoOpenFollowUps(true);
-                            if (action.label === 'Create Quotation') setAutoOpenQuotation(true);
+                            if (action.label === 'Add Follow-up') {
+                              if (loggedInUser && !hasModuleAccess(loggedInUser, 'Lead', 'Add') && !hasModuleAccess(loggedInUser, 'Lead', 'Edit')) {
+                                notify('You do not have permission to add follow-ups', 'error');
+                                return;
+                              }
+                              setAutoOpenFollowUps(true);
+                            }
+                            if (action.label === 'Create Quotation') {
+                              if (loggedInUser && !hasModuleAccess(loggedInUser, 'Quotation', 'Add')) {
+                                notify('You do not have permission to create quotations', 'error');
+                                return;
+                              }
+                              setAutoOpenQuotation(true);
+                            }
                             openDashboardSection(action.target, `${action.label} opened`);
                           }
                         }}
@@ -4389,6 +4491,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   }, []);
   const isLeadManager = hasModuleAccess(permUser, 'Lead', 'Assign');
   const canDeleteLeads = hasModuleAccess(permUser, 'Lead', 'Delete');
+  const canAddLeads = hasModuleAccess(permUser, 'Lead', 'Add');
+  const canExportLeads = hasModuleAccess(permUser, 'Lead', 'Export');
   const canShowLeadDelete = (lead) => canDeleteLeads && (lead.status !== 'Won' || isLeadManager);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
 
@@ -4666,14 +4770,16 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
       <section className={`${panelClass} shrink-0 overflow-hidden p-3 sm:p-2.5`}>
         {/* Mobile action bar — full-width primary CTA + secondary actions */}
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-end">
-          <button
-            type="button"
-            onClick={() => setCreateModalOpen(true)}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-[#12a54f] px-4 text-[14px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition active:scale-[0.98] md:h-8 md:w-auto md:rounded-[7px] md:px-2.5 md:text-[12px] md:order-3"
-          >
-            <Plus className="size-4 md:size-3.5" />
-            Create Lead
-          </button>
+          {canAddLeads ? (
+            <button
+              type="button"
+              onClick={() => setCreateModalOpen(true)}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-[#12a54f] px-4 text-[14px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition active:scale-[0.98] md:h-8 md:w-auto md:rounded-[7px] md:px-2.5 md:text-[12px] md:order-3"
+            >
+              <Plus className="size-4 md:size-3.5" />
+              Create Lead
+            </button>
+          ) : null}
           <div className="grid grid-cols-2 gap-2 md:flex md:shrink-0 md:items-center md:order-1">
             <button
               type="button"
@@ -4684,17 +4790,19 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               <CalendarDays className="size-4 md:size-3.5" />
               <span className="truncate">Follow-ups</span>
             </button>
-            <button
-              type="button"
-              onClick={exportVisibleLeads}
-              data-action="lead-export"
-              aria-label="Export"
-              title="Export"
-              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[12px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-extrabold text-[#284276] shadow-sm transition active:bg-[#f8fbff] md:h-8 md:size-8 md:rounded-[7px] md:px-0 md:text-[0px]"
-            >
-              <Download className="size-4 md:size-3.5" />
-              <span className="md:hidden">Export</span>
-            </button>
+            {canExportLeads ? (
+              <button
+                type="button"
+                onClick={exportVisibleLeads}
+                data-action="lead-export"
+                aria-label="Export"
+                title="Export"
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[12px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-extrabold text-[#284276] shadow-sm transition active:bg-[#f8fbff] md:h-8 md:size-8 md:rounded-[7px] md:px-0 md:text-[0px]"
+              >
+                <Download className="size-4 md:size-3.5" />
+                <span className="md:hidden">Export</span>
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -11604,7 +11712,9 @@ function OpsStatCard({ label, value, caption, tone, icon: Icon, onClick }) {
   );
 }
 
-function AccountsPage({ activeSection, onOpenSection, onNotify }) {
+function AccountsPage({ activeSection, onOpenSection, onNotify, loggedInUser = null }) {
+  // Reserved for Accounts Add/Edit/Delete/Export button gating in child pages.
+  void moduleCaps(loggedInUser, 'Accounts');
   const shared = { activeSection, onOpenSection, onNotify, Subnav: AccountsSubnavTabs };
   if (activeSection === 'Accounts Overview' || activeSection === 'Overview') {
     return <AccountsOverviewPage activeSection="Accounts Overview" onOpenSection={onOpenSection} onNotify={onNotify} />;
@@ -12621,11 +12731,12 @@ function AmcDocumentsCrudPage({ activeSection, onOpenSection, onNotify }) {
 
 const INV_MOVEMENT_REF_TYPES = ['Manual', 'Purchase Invoice', 'Purchase Challan', 'Sell Challan', 'Jobs', 'Opening Stock'];
 
-function InventoryManagementPage({ activeSection, onOpenSection, onNotify }) {
+function InventoryManagementPage({ activeSection, onOpenSection, onNotify, loggedInUser = null }) {
   const invCommon = {
     activeSection,
     onOpenSection,
     onNotify,
+    loggedInUser,
     Subnav: InventorySubnavTabs,
     panelClass,
     cx,
@@ -13001,7 +13112,7 @@ function SummaryFinancePage({ activeSection, onOpenSection, onNotify }) {
   );
 }
 
-function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSection, selectedProject, onSelectProject, onNotify }) {
+function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSection, selectedProject, onSelectProject, onNotify, loggedInUser = null }) {
   if (activeSection === 'Project Document Upload') {
     if (selectedProject?.id) {
       return (
@@ -13016,7 +13127,7 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
       );
     }
     return (
-      <ProjectListPage
+      <ProjectListPage loggedInUser={loggedInUser}
         activeSection="Project List"
         onOpenSection={onOpenSection}
         onSelectProject={(project, target = 'Project Site Survey') => onSelectProject?.(project, target)}
@@ -13044,7 +13155,7 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
         }
         return <ProjectTimelinePage activeSection="Project Timeline" onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
       }
-      return <ProjectListPage activeSection="Project List" onOpenSection={onOpenSection} onSelectProject={(project, target = projectScopedTarget) => onSelectProject?.(project, target)} onNotify={onNotify} />;
+      return <ProjectListPage loggedInUser={loggedInUser} activeSection="Project List" onOpenSection={onOpenSection} onSelectProject={(project, target = projectScopedTarget) => onSelectProject?.(project, target)} onNotify={onNotify} />;
     }
     const directTarget = {
       create: 'Project List',
@@ -13067,12 +13178,13 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
         selectedProject={selectedProject}
         onSelectProject={onSelectProject}
         onNotify={onNotify}
+        loggedInUser={loggedInUser}
       />
     );
   }
 
   if (activeSection === 'Project Management' || activeSection === 'Project Overview') {
-    return <ProjectListPage activeSection="Project List" onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
+    return <ProjectListPage loggedInUser={loggedInUser} activeSection="Project List" onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project KPI Analytics') {
@@ -13080,7 +13192,7 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project List') {
-    return <ProjectListPage activeSection={activeSection} onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
+    return <ProjectListPage loggedInUser={loggedInUser} activeSection={activeSection} onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
   // 'Survey Dashboard' category was merged into 'Site Survey' — the survey
@@ -13988,7 +14100,8 @@ function openProjectAddressInMaps(parts, onNotify) {
   window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
 }
 
-function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNotify }) {
+function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNotify, loggedInUser = null }) {
+  const projectCaps = moduleCaps(loggedInUser, 'Project Management');
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -14213,7 +14326,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             <div className="w-full sm:w-[280px]">
               <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
             </div>
-            <button type="button" data-custom-export="true" disabled={loading} onClick={exportProjects} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"><Download className="size-4 text-[#0b65e5]" />Export</button>
+            {projectCaps.export ? (<button type="button" data-custom-export="true" disabled={loading} onClick={exportProjects} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"><Download className="size-4 text-[#0b65e5]" />Export</button>) : null}
           </>
         )}
       />
@@ -14310,7 +14423,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             <Search className="size-4 text-[#7e8fab]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by IVRS no, customer, project name, site, manager, mobile number..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
           </label>
-          {!isSiteSurveyPicker ? (
+          {!isSiteSurveyPicker && projectCaps.add ? (
             <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#11a650] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(17,166,80,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0e9748]"><Plus className="size-4" />Add Project</button>
           ) : null}
         </div>
@@ -21332,7 +21445,7 @@ function ProjectDocumentsTable({
 function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify, initialSurveyTab = 'Overview' }) {
   if (!projectProp?.id) {
     return (
-      <ProjectListPage
+      <ProjectListPage loggedInUser={loggedInUser}
         activeSection={activeSection}
         onOpenSection={onOpenSection}
         onSelectProject={(project, target = 'Project Site Survey') => onSelectProject?.(project, target)}
@@ -27523,7 +27636,8 @@ function exportEmployeesCsv(rows) {
   URL.revokeObjectURL(url);
 }
 
-function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
+function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, loggedInUser = null }) {
+  const employeeCaps = moduleCaps(loggedInUser, 'Employee');
   const isAttendanceView = activeSection === 'Employee Ledger';
   const pageTitle = isAttendanceView ? 'Employee Ledger' : 'Employee Management';
   const emptyEmpForm = { name: '', mobile: '', skill_trade: '', daily_rate: '', duty_hours_per_day: '9', address: '', aadhaar_number: '', opening_balance: '0' };
@@ -28034,14 +28148,16 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
               <Users className="size-4 text-[#0b65e5]" />
               Project Team (per project)
             </button>
-            <button
-              type="button"
-              onClick={openCreateEmployee}
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(22,163,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#15803d]"
-            >
-              <Plus className="size-4" />
-              Add Employee
-            </button>
+            {employeeCaps.add ? (
+              <button
+                type="button"
+                onClick={openCreateEmployee}
+                className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(22,163,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#15803d]"
+              >
+                <Plus className="size-4" />
+                Add Employee
+              </button>
+            ) : null}
           </>
         )}
       />
@@ -28116,14 +28232,14 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
                 {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
-            <button
+            {employeeCaps.export ? (<button
               type="button"
               onClick={() => { exportEmployeesCsv(filteredEmployees); onNotify('Employee list exported'); }}
               className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-4 text-[15px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
             >
               <Download className="size-4" />
               Export CSV
-            </button>
+            </button>) : null}
           </div>
 
           {loading ? (
@@ -28201,7 +28317,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify }) {
                         <td>
                           <div className="flex items-center gap-2">
                             <button type="button" onClick={() => openEditEmployee(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dcecff] bg-[#f3f8ff] text-[#0b65e5]" aria-label="Edit employee"><Pencil className="size-4" /></button>
-                            <button type="button" onClick={() => handleDeleteEmployee(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffe1de] bg-[#fff5f4] text-[#ea5a4c]" aria-label="Delete employee"><Trash2 className="size-4" /></button>
+                            {employeeCaps.delete ? (<button type="button" onClick={() => handleDeleteEmployee(row)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#ffe1de] bg-[#fff5f4] text-[#ea5a4c]" aria-label="Delete employee"><Trash2 className="size-4" /></button>) : null}
                           </div>
                         </td>
                       </tr>
@@ -33566,7 +33682,8 @@ function QuotationEditDetailModal({ quotationId, onClose, onSaved, onNotify }) {
   );
 }
 
-function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, onNotify }) {
+function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, onNotify, loggedInUser = null }) {
+  const quoteCaps = moduleCaps(loggedInUser, 'Quotation');
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -33785,14 +33902,16 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
             formattedRange={formattedRange}
             hideLabel
           />
-          <button
-            type="button"
-            onClick={() => setCreateFlow({ step: 'lead' })}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e] sm:col-span-2 xl:col-span-1 xl:w-auto"
-          >
-            <Plus className="size-4" />
-            New Quotation
-          </button>
+          {quoteCaps.add ? (
+            <button
+              type="button"
+              onClick={() => setCreateFlow({ step: 'lead' })}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e] sm:col-span-2 xl:col-span-1 xl:w-auto"
+            >
+              <Plus className="size-4" />
+              New Quotation
+            </button>
+          ) : null}
         </div>
       </article>
 
@@ -33821,7 +33940,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
                   <div className="mt-3 flex gap-2">
                     <button type="button" onClick={() => setViewQuotationId(q.id)} className="inline-flex h-9 flex-1 items-center justify-center rounded-[8px] border border-[#e3ebf7] text-[12px] font-extrabold text-[#284276]">View</button>
                     <button type="button" onClick={() => printQuotation(q)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#e3ebf7] text-[#0d9f4a]"><Printer className="size-4" /></button>
-                    <button type="button" onClick={() => deleteQuotation(q)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#f3d4d4] text-[#ef4444]"><Trash2 className="size-4" /></button>
+                    {quoteCaps.delete ? (<button type="button" onClick={() => deleteQuotation(q)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#f3d4d4] text-[#ef4444]"><Trash2 className="size-4" /></button>) : null}
                   </div>
                 </article>
               ))}
@@ -33887,9 +34006,11 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
                         <button type="button" onClick={() => printQuotation(q)} title="Print Quotation" aria-label={`Print ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#0d9f4a] transition hover:bg-[#f3fbf6]">
                           <Printer className="size-4" />
                         </button>
-                        <button type="button" onClick={() => deleteQuotation(q)} title="Delete" aria-label={`Delete ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#f3d4d4] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]">
-                          <Trash2 className="size-4" />
-                        </button>
+                        {quoteCaps.delete ? (
+                          <button type="button" onClick={() => deleteQuotation(q)} title="Delete" aria-label={`Delete ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#f3d4d4] bg-white text-[#ef4444] transition hover:bg-[#fff5f5]">
+                            <Trash2 className="size-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -34567,18 +34688,16 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
 
   if (!lead?.id) return <NoLeadSelected title="Lead Details" onGoToList={onBackToList} />;
 
-  const detailsRole = loggedInUser?.role_name || '';
-  const detailsIsManager = Boolean(loggedInUser?.is_super_admin) || ['Admin', 'Branch Manager', 'Sales Manager'].includes(detailsRole);
-  const detailsIsSalesExec = detailsRole === 'Sales Executive';
+  const detailsLead = moduleCaps(loggedInUser, 'Lead');
+  const detailsQuote = moduleCaps(loggedInUser, 'Quotation');
 
   const quickDetailActions = [
-    { label: 'Log Follow-up', icon: Phone, tone: 'green', onClick: () => setActiveModal('follow-up') },
-    { label: 'Schedule Site Visit', icon: CalendarDays, tone: 'blue', onClick: () => setActiveModal('site-visit') },
-    { label: 'Create Quotation', icon: FilePlus2, tone: 'blue', onClick: () => setActiveTab('quotation') },
-    ...(detailsIsManager ? [{ label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => setActiveModal('assign') }] : []),
-    // Sales Executives can never change pipeline status (Won stays Won).
-    ...(!detailsIsSalesExec ? [{ label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => setActiveModal('status') }] : []),
-    { label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => setActiveModal('note') },
+    ...(detailsLead.add || detailsLead.edit ? [{ label: 'Log Follow-up', icon: Phone, tone: 'green', onClick: () => setActiveModal('follow-up') }] : []),
+    ...(detailsLead.add || detailsLead.edit ? [{ label: 'Schedule Site Visit', icon: CalendarDays, tone: 'blue', onClick: () => setActiveModal('site-visit') }] : []),
+    ...(detailsQuote.add ? [{ label: 'Create Quotation', icon: FilePlus2, tone: 'blue', onClick: () => setActiveTab('quotation') }] : []),
+    ...(detailsLead.assign ? [{ label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => setActiveModal('assign') }] : []),
+    ...(detailsLead.edit ? [{ label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => setActiveModal('status') }] : []),
+    ...(detailsLead.add || detailsLead.edit ? [{ label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => setActiveModal('note') }] : []),
   ];
 
   const sortedFollowUps = [...(followUps ?? [])].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at));
@@ -34715,14 +34834,18 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
         ]}
         actions={(
           <>
-            <button type="button" onClick={onCreateLead} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
-              <FileText className="size-4" />
-              Edit Lead
-            </button>
-            <button type="button" onClick={() => setActiveModal('follow-up')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
-              <Plus className="size-4" />
-              Add Follow-up
-            </button>
+            {detailsLead.edit ? (
+              <button type="button" onClick={onCreateLead} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
+                <FileText className="size-4" />
+                Edit Lead
+              </button>
+            ) : null}
+            {(detailsLead.add || detailsLead.edit) ? (
+              <button type="button" onClick={() => setActiveModal('follow-up')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
+                <Plus className="size-4" />
+                Add Follow-up
+              </button>
+            ) : null}
           </>
         )}
       />
@@ -34864,7 +34987,7 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
         </section>
       ) : activeTab === 'follow-ups' ? (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <InfoPanel title="Follow-up Timeline" icon={ShieldCheck} actionLabel="Log Follow-up" onAction={() => setActiveModal('follow-up')}>
+          <InfoPanel title="Follow-up Timeline" icon={ShieldCheck} actionLabel={(detailsLead.add || detailsLead.edit) ? 'Log Follow-up' : null} onAction={(detailsLead.add || detailsLead.edit) ? (() => setActiveModal('follow-up')) : null}>
             <p className="mb-5 text-[12px] font-semibold text-[#7585a2]">Newest first. Every saved call stays in this timeline — nothing overwrites older history.</p>
             <div className="space-y-8">
               {followUps === null ? (
@@ -34876,17 +34999,19 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
                     <p className="font-display text-[14px] font-extrabold text-[#1e3261]">No follow-ups yet</p>
                     <p className="mt-1 text-[12px] font-semibold text-[#53647f]">Log the first conversation to start this lead's history.</p>
                   </div>
-                  <button type="button" onClick={() => setActiveModal('follow-up')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
-                    <Plus className="size-4" />
-                    Log Follow-up
-                  </button>
+                  {(detailsLead.add || detailsLead.edit) ? (
+                    <button type="button" onClick={() => setActiveModal('follow-up')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
+                      <Plus className="size-4" />
+                      Log Follow-up
+                    </button>
+                  ) : null}
                 </div>
               ) : sortedFollowUps.map((item) => (
                 <FollowUpHistoryCard
                   key={item.id}
                   item={item}
-                  onEdit={() => setEditFollowUp(item)}
-                  onDelete={() => setDeleteConfirm({
+                  onEdit={detailsLead.edit ? (() => setEditFollowUp(item)) : null}
+                  onDelete={detailsLead.delete ? (() => setDeleteConfirm({
                     message: `this ${item.follow_up_type || 'follow-up'} entry`,
                     onConfirm: async () => {
                       try {
@@ -34899,7 +35024,7 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
                         setDeleteConfirm(null);
                       }
                     },
-                  })}
+                  })) : null}
                 />
               ))}
             </div>
@@ -34935,14 +35060,18 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
                 Quotation {savedQuotation ? <span className="ml-2 rounded-[6px] bg-[#eef6ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{savedQuotation.quotation_number} • {savedQuotation.status}</span> : null}
               </p>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={handleResetQuotation} disabled={quotationSaving} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
-                  <RefreshCw className="size-4 text-[#0b65e5]" />
-                  Reset
-                </button>
-                <button type="button" onClick={handleSaveQuotation} disabled={quotationSaving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e] disabled:opacity-60">
-                  <Save className="size-4" />
-                  {quotationSaving ? 'Saving...' : savedQuotation ? 'Update Quotation' : 'Save Quotation'}
-                </button>
+                {(detailsQuote.add || detailsQuote.edit) ? (
+                  <button type="button" onClick={handleResetQuotation} disabled={quotationSaving} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+                    <RefreshCw className="size-4 text-[#0b65e5]" />
+                    Reset
+                  </button>
+                ) : null}
+                {((!savedQuotation && detailsQuote.add) || (savedQuotation && detailsQuote.edit)) ? (
+                  <button type="button" onClick={handleSaveQuotation} disabled={quotationSaving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e] disabled:opacity-60">
+                    <Save className="size-4" />
+                    {quotationSaving ? 'Saving...' : savedQuotation ? 'Update Quotation' : 'Save Quotation'}
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -35161,7 +35290,7 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
               </>
             )}
 
-            {savedQuotation ? (
+            {savedQuotation && detailsQuote.delete ? (
               <div className={`${panelClass} p-4`}>
                 <button type="button" onClick={handleDeleteQuotation} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#f5c6c6] bg-white px-4 text-[13px] font-extrabold text-[#c0392b] transition hover:bg-[#fdecec]">
                   <Trash2 className="size-4" />

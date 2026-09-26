@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Eye, FileText, Pencil, Plus, Receipt, Search, Trash2, X } from 'lucide-react';
 import { accountsModuleApi } from './api.js';
 import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
+import { moduleCaps } from './settingsHubPages.jsx';
 
 const TABS = [
   { key: 'Supplier Details', label: 'Supplier Details' },
@@ -74,7 +75,8 @@ function Field({ label, required, children }) {
 
 const inputClass = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold text-[#1e3261] outline-none';
 
-export function SupplierModulePage({ activeSection, onOpenSection, onNotify }) {
+export function SupplierModulePage({ activeSection, onOpenSection, onNotify, loggedInUser = null }) {
+  const caps = moduleCaps(loggedInUser, 'Supplier');
   const tab = TABS.some((t) => t.key === activeSection) ? activeSection : 'Supplier Details';
   const [addRequested, setAddRequested] = useState(false);
 
@@ -90,13 +92,15 @@ export function SupplierModulePage({ activeSection, onOpenSection, onNotify }) {
           <p className="text-[12px] font-bold text-[#7a8fa6]">Dashboard / Supplier</p>
           <h1 className="font-display text-[20px] font-extrabold text-[#111827] sm:text-[22px]">Supplier Management</h1>
         </div>
-        <button
-          type="button"
-          onClick={requestAddSupplier}
-          className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white sm:w-auto"
-        >
-          <Plus className="size-4" /> Add Supplier
-        </button>
+        {caps.add ? (
+          <button
+            type="button"
+            onClick={requestAddSupplier}
+            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white sm:w-auto"
+          >
+            <Plus className="size-4" /> Add Supplier
+          </button>
+        ) : null}
       </div>
       <div className="-mx-1 flex gap-1 overflow-x-auto border-b border-[#e8eef6] px-1">
         {TABS.map((item) => (
@@ -200,13 +204,13 @@ function SupplierDetailsTab({ onNotify, addRequested = false, onAddRequestConsum
     <>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search Suppliers..." value={q} onChange={(e) => setQ(e.target.value)} />
-        <button
+        {caps.export ? (<button
           type="button"
           onClick={() => exportNotifyCsv(onNotify, 'suppliers', ['Name', 'Phone', 'Company', 'Type', 'Balance'], filtered.map((r) => [r.name, r.phone, r.company, r.vendor_type, r.balance]))}
           className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] sm:w-auto"
         >
           <Download className="size-4" /> Export CSV
-        </button>
+        </button>) : null}
       </div>
       <div className="overflow-x-auto rounded-[12px] border border-[#e2e9f3] bg-white">
         <table className="min-w-[760px] text-left text-[13px]">
@@ -233,8 +237,8 @@ function SupplierDetailsTab({ onNotify, addRequested = false, onAddRequestConsum
                 </td>
                 <td className="px-3 py-2.5">
                   <div className="flex gap-1">
-                    <button type="button" onClick={() => setModal({ id: r.id, form: { ...emptyForm, ...r } })} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]"><Pencil className="size-4" /></button>
-                    <button type="button" onClick={() => remove(r)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] hover:bg-[#fef2f2]"><Trash2 className="size-4" /></button>
+                    {caps.edit ? (<button type="button" onClick={() => setModal({ id: r.id, form: { ...emptyForm, ...r } })} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]"><Pencil className="size-4" /></button>) : null}
+                    {caps.delete ? (<button type="button" onClick={() => remove(r)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] hover:bg-[#fef2f2]"><Trash2 className="size-4" /></button>) : null}
                   </div>
                 </td>
               </tr>
