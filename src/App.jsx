@@ -2106,18 +2106,17 @@ function App() {
     return () => window.removeEventListener('auth:logout', handler);
   }, []);
 
-  // Fetch logged-in user info once we're authenticated (any page). Role/flags
-  // from this profile gate lead actions (assign, delete, status) across the app,
-  // so it must be available beyond just the dashboard.
+  // Fetch / refresh profile on any authenticated page so role permission
+  // changes (e.g. Lead → Delete) apply without a full re-login.
   useEffect(() => {
-    if (currentPage !== 'dashboard') return;
-    if (loggedInUser) return;
+    if (['signin', 'portal', 'tele-signin'].includes(currentPage)) return;
+    if (!tokenStore.getAccess()) return;
     authApi.me().then((data) => {
       if (data) setLoggedInUser(data);
     }).catch(() => {
-      notify('Could not load profile — session may have expired', 'error');
+      if (!loggedInUser) notify('Could not load profile — session may have expired', 'error');
     });
-  }, [currentPage, loggedInUser]);
+  }, [currentPage]);
 
   useEffect(() => {
     if (['signin', 'portal', 'tele-signin'].includes(currentPage)) return;
@@ -4380,11 +4379,17 @@ function SignInPage({ onLogin, onBack, onNotify }) {
 }
 
 function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initialSearch = '', searchNonce, onOpenSection, onCreateLead, onOpenLead, autoOpenFollowUps = false, onConsumeAutoOpenFollowUps, onNotify }) {
-  // Assign / Won-delete gated by Settings → Roles & Permissions → Lead → Assign
-  // (or full_access / Super Admin), not by hardcoded role names.
-  const currentRole = loggedInUser?.role_name || '';
-  const isLeadManager = hasModuleAccess(loggedInUser, 'Lead', 'Assign');
-  const isSalesExecutive = currentRole === 'Sales Executive';
+  // Assign / Delete from Settings → Roles & Permissions → Lead (refreshed from /me on open).
+  const [permUser, setPermUser] = useState(loggedInUser);
+  useEffect(() => { setPermUser(loggedInUser); }, [loggedInUser]);
+  useEffect(() => {
+    authApi.me()
+      .then((data) => { if (data) setPermUser(data); })
+      .catch(() => {});
+  }, []);
+  const isLeadManager = hasModuleAccess(permUser, 'Lead', 'Assign');
+  const canDeleteLeads = hasModuleAccess(permUser, 'Lead', 'Delete');
+  const canShowLeadDelete = (lead) => canDeleteLeads && (lead.status !== 'Won' || isLeadManager);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
 
   useEffect(() => {
@@ -4891,7 +4896,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                 onOpenLead={() => setViewLeadId(lead.id)}
                 onOpenSurvey={() => setSurveyLead(lead)}
                 onAssign={isLeadManager ? (() => setAssignLead(lead)) : null}
-                onDelete={(!isSalesExecutive && (lead.status !== 'Won' || isLeadManager)) ? (() => deleteLead(lead)) : null}
+                onDelete={canShowLeadDelete(lead) ? (() => deleteLead(lead)) : null}
               />
             ))}
           </div>
@@ -5033,7 +5038,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                             <Users className="size-3.5" />
                           </button>
                         ) : null}
-                        {!isSalesExecutive && (lead.status !== 'Won' || isLeadManager) ? (
+                        {canShowLeadDelete(lead) ? (
                           <button
                             type="button"
                             onClick={() => deleteLead(lead)}

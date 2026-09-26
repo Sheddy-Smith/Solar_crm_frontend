@@ -26,7 +26,9 @@ export function hasModuleAccess(user, moduleName, action = 'View') {
   if (!user) return false;
   if (user.is_super_admin) return true;
   const rows = Array.isArray(user.permissions) ? user.permissions : [];
-  const row = rows.find((item) => item.module === moduleName);
+  // Legacy rows may still say "Leads" while UI/API use "Lead".
+  const aliases = moduleName === 'Lead' ? ['Lead', 'Leads'] : [moduleName];
+  const row = rows.find((item) => aliases.includes(item.module));
   if (!row) return false;
   if (row.full_access) return true;
   const apiKey = MODULE_ACTION_TO_API[action] || action;

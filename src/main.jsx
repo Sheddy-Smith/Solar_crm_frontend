@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { startKeepAlive } from './lib/keepAlive.js';
 import { enableCrmTableColumnResize } from './lib/crmTableResize.js';
+import { enableNativeEditShortcuts } from './lib/nativeEditShortcuts.js';
 import { registerServiceWorker } from './lib/pwaInstall.js';
 import './index.css';
 
@@ -12,6 +13,9 @@ startKeepAlive();
 
 // Column resize handles on CRM data tables (drag header edge to adjust width).
 enableCrmTableColumnResize();
+
+// Always allow Ctrl/Cmd+C / X / V / Z / Y / A (copy, cut, paste, undo, redo, select-all).
+enableNativeEditShortcuts();
 
 // PWA: register the service worker so the app is installable (desktop +
 // mobile "Add to Home Screen") and gets a minimal offline fallback.

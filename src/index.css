@@ -34,6 +34,22 @@ body {
   touch-action: pan-y pinch-zoom;
 }
 
+/* Keep text selectable so Ctrl+C / Ctrl+A work on table cells and form values.
+   Resize mode still overrides with user-select:none while dragging. */
+input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+textarea,
+select,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.crm-table td,
+.crm-table th {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 /* ============================================================
    DARK MODE THEME — Reference-matched dark UI with golden accents
    ============================================================ */
