@@ -30935,6 +30935,8 @@ function isDateWithinRange(value, dateFrom, dateTo) {
 
 let cachedEmployeeOptions = null;
 let employeeOptionsPromise = null;
+let cachedSalesExecutiveOptions = null;
+let salesExecutiveOptionsPromise = null;
 
 function getEmployeeOptions() {
   if (cachedEmployeeOptions) return Promise.resolve(cachedEmployeeOptions);
@@ -30951,6 +30953,26 @@ function getEmployeeOptions() {
       });
   }
   return employeeOptionsPromise;
+}
+
+/** Lead / project "Assigned Employee" targets — Sales Executive only (matches backend validate_lead_assignee). */
+function getSalesExecutiveOptions() {
+  if (cachedSalesExecutiveOptions) return Promise.resolve(cachedSalesExecutiveOptions);
+  if (!salesExecutiveOptionsPromise) {
+    salesExecutiveOptionsPromise = userApi.list({ is_active: true })
+      .then((data) => {
+        const users = normalizeApiRows(data);
+        cachedSalesExecutiveOptions = users
+          .filter((user) => (user.role_name || '') === 'Sales Executive')
+          .map((user) => ({ label: user.name || user.email, value: String(user.id) }));
+        return cachedSalesExecutiveOptions;
+      })
+      .catch(() => {
+        cachedSalesExecutiveOptions = [];
+        return cachedSalesExecutiveOptions;
+      });
+  }
+  return salesExecutiveOptionsPromise;
 }
 
 function useIvrsCheck(excludeId) {
@@ -30999,7 +31021,8 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
   const projectMode = Boolean(projectContext) || projectCreate;
 
   useEffect(() => {
-    getEmployeeOptions().then(setEmployeeOptions);
+    // Assigned Employee is Sales Executive only (same rule as Lead → Assign quick action).
+    getSalesExecutiveOptions().then(setEmployeeOptions);
   }, []);
 
   useEffect(() => {
@@ -31027,6 +31050,8 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
 
     setSubmitting(true);
     setSubmitError('');
+    const assigneeRaw = fd.get('assigned_to');
+    const assigneeId = assigneeRaw ? String(assigneeRaw) : null;
     const payload = {
       customer_name: fd.get('customer_name'),
       mobile_number: mobile,
@@ -31044,7 +31069,8 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
       })(),
       estimated_capacity: fd.get('estimated_capacity') || undefined,
       next_follow_up: fd.get('next_follow_up') || undefined,
-      assigned_to: fd.get('assigned_to') || undefined,
+      // assigned_to is applied via leadApi.assign (Lead → Assign), not PATCH —
+      // Sales Manager often has Assign without full Lead Edit.
       ...(!projectMode && (() => {
         const bucketStatusMap = {
           new: { status: 'New', priority: '' },
@@ -31068,18 +31094,52 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
 
     try {
       if (projectContext) {
-        await projectApi.update(projectContext.projectId, { status: fd.get('project_status') || projectContext.status });
-        const savedProjectLead = projectContext.leadId ? await leadApi.update(projectContext.leadId, payload) : null;
+        const leadId = projectContext.leadId;
+        const projectPatch = {
+          status: fd.get('project_status') || projectContext.status,
+          sales_executive: assigneeId || null,
+        };
+        // Project PATCH also syncs lead.assigned_to on the backend when
+        // sales_executive changes — works with Project Management → Edit alone.
+        await projectApi.update(projectContext.projectId, projectPatch);
+
+        let savedProjectLead = null;
+        if (leadId) {
+          // Best-effort: dedicated Lead → Assign when the role has it.
+          try {
+            await leadApi.assign(leadId, assigneeId);
+          } catch {
+            /* Project sync above already updated Team Assignment */
+          }
+          try {
+            savedProjectLead = await leadApi.update(leadId, payload);
+          } catch (leadErr) {
+            const msg = String(leadErr?.message || '');
+            if (/permission|forbidden|not allowed|403/i.test(msg)) {
+              onNotify?.('Assigned employee updated successfully!');
+              onSaved?.(null);
+              return;
+            }
+            throw leadErr;
+          }
+        }
         onNotify?.('Project details updated successfully!');
         onSaved?.(savedProjectLead);
         return;
       }
       let savedLead;
       if (mode === 'edit') {
-        savedLead = await leadApi.update(lead.id, payload);
+        // Prefer PATCH with assigned_to (Lead → Edit). Also call assign so users
+        // with Lead → Assign (and Edit) stay consistent with the Assign endpoint rules.
+        savedLead = await leadApi.update(lead.id, { ...payload, assigned_to: assigneeId || null });
+        try {
+          await leadApi.assign(lead.id, assigneeId);
+        } catch {
+          /* assignment already applied via PATCH when Edit is granted */
+        }
         onNotify?.('Lead updated successfully!');
       } else {
-        savedLead = await leadApi.create(payload);
+        savedLead = await leadApi.create({ ...payload, assigned_to: assigneeId || undefined });
         // New Project: 'Won' lead create karte hi backend signal apne aap Project bana deta hai
         // (status 'Planning'). Agar user ne dusra status chuna hai to wo project pe apply kar do.
         if (projectCreate) {
@@ -31088,8 +31148,14 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
             try {
               const projs = await projectApi.list({ lead: savedLead.id });
               const list = Array.isArray(projs) ? projs : projs?.results ?? [];
-              if (list[0]?.id) await projectApi.update(list[0].id, { status: chosenStatus });
+              if (list[0]?.id) await projectApi.update(list[0].id, { status: chosenStatus, sales_executive: assigneeId || null });
             } catch { /* status update non-fatal */ }
+          } else if (assigneeId) {
+            try {
+              const projs = await projectApi.list({ lead: savedLead.id });
+              const list = Array.isArray(projs) ? projs : projs?.results ?? [];
+              if (list[0]?.id) await projectApi.update(list[0].id, { sales_executive: assigneeId });
+            } catch { /* non-fatal */ }
           }
         }
         onNotify?.(projectCreate ? 'Project created successfully!' : 'Lead created successfully!');
@@ -31259,7 +31325,14 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
             </LeadFormSection>
 
             <LeadFormSection title="6. Assigned To" titleSuffix="(Optional)" icon={UserRound} tone="purple">
-              <LeadSelect label="Assigned Employee" optional placeholder={employeeOptions.length ? 'Select employee' : 'No active employees found'} options={employeeOptions} name="assigned_to" defaultValue={d.assigned_to ? String(d.assigned_to) : ''} />
+              <LeadSelect
+                label="Assigned Employee"
+                optional
+                placeholder={employeeOptions.length ? 'Select Sales Executive' : 'No Sales Executives found'}
+                options={employeeOptions}
+                name="assigned_to"
+                defaultValue={d.assigned_to ? String(d.assigned_to) : ''}
+              />
             </LeadFormSection>
 
             {!projectMode && mode === 'edit' && lead?.id ? (

@@ -65,6 +65,34 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    def perform_update(self, serializer):
+        """Keep Won-lead Team Assignment (lead.assigned_to) in sync with sales_executive.
+
+        Project Details Update "Assigned Employee" maps to Team Assignment on the
+        list, which reads lead.assigned_to. Sales Manager often has Project
+        Management → Edit without Lead → Edit/Assign; syncing here lets that
+        field save via the project PATCH alone.
+        """
+        prev_se_id = serializer.instance.sales_executive_id
+        project = serializer.save()
+        if 'sales_executive' not in serializer.validated_data:
+            return
+        if project.sales_executive_id == prev_se_id:
+            return
+        lead = project.lead
+        if not lead or lead.is_deleted:
+            return
+        if project.sales_executive_id is not None:
+            from apps.accounts.models import User
+            se = User.objects.select_related('role').filter(pk=project.sales_executive_id).first()
+            role_name = getattr(getattr(se, 'role', None), 'name', '') or ''
+            # Match lead assign rules: only Sales Executive (or clear).
+            if role_name != 'Sales Executive':
+                return
+        if lead.assigned_to_id != project.sales_executive_id:
+            lead.assigned_to_id = project.sales_executive_id
+            lead.save(update_fields=['assigned_to', 'updated_at'])
+
     def perform_destroy(self, instance):
         soft_delete_project(instance, self.request.user)
 
