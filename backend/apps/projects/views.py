@@ -86,8 +86,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
             from apps.accounts.models import User
             se = User.objects.select_related('role').filter(pk=project.sales_executive_id).first()
             role_name = getattr(getattr(se, 'role', None), 'name', '') or ''
-            # Match lead assign rules: only Sales Executive (or clear).
-            if role_name != 'Sales Executive':
+            # Match lead assign rules: block Tele Sales Executive only.
+            if role_name == 'Tele Sales Executive':
                 return
         if lead.assigned_to_id != project.sales_executive_id:
             lead.assigned_to_id = project.sales_executive_id

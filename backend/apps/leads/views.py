@@ -194,18 +194,11 @@ class LeadViewSet(viewsets.ModelViewSet):
         except (User.DoesNotExist, ValueError, TypeError):
             return Response({'error': 'Invalid or inactive user.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Field assignment is Sales Executive only — Tele Sales Executive must
-        # never receive an assigned_to lead (they create/nurture, managers hand
-        # off to field Sales Executives).
+        # Any active account except Tele Sales Executive may be assigned.
         role_name = getattr(getattr(assignee, 'role', None), 'name', '') or ''
         if role_name == 'Tele Sales Executive':
             return Response(
-                {'error': 'Leads cannot be assigned to a Tele Sales Executive. Assign to a Sales Executive instead.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if role_name != 'Sales Executive':
-            return Response(
-                {'error': 'Leads can only be assigned to a Sales Executive.'},
+                {'error': 'Leads cannot be assigned to a Tele Sales Executive.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

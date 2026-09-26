@@ -8,23 +8,20 @@ def _user_name(user):
     return User.public_display_name(user)
 
 
-# Field lead hand-off targets. Tele Sales Executives create/nurture leads but
-# must never be set as assigned_to — managers assign only to Sales Executives.
-LEAD_ASSIGNABLE_ROLE = 'Sales Executive'
+# Tele Sales Executives create/nurture leads but must never be set as assigned_to.
+# Any other active account (Sales Executive, Sales Manager, etc.) may be assigned.
 LEAD_BLOCKED_ASSIGN_ROLE = 'Tele Sales Executive'
 
 
 def validate_lead_assignee(user):
-    """Raise ValidationError unless `user` is an active Sales Executive (or None)."""
+    """Raise ValidationError if assignee is Tele Sales Executive or inactive (None is OK)."""
     if user is None:
         return user
     role_name = getattr(getattr(user, 'role', None), 'name', '') or ''
     if role_name == LEAD_BLOCKED_ASSIGN_ROLE:
         raise serializers.ValidationError(
-            'Leads cannot be assigned to a Tele Sales Executive. Assign to a Sales Executive instead.'
+            'Leads cannot be assigned to a Tele Sales Executive.'
         )
-    if role_name != LEAD_ASSIGNABLE_ROLE:
-        raise serializers.ValidationError('Leads can only be assigned to a Sales Executive.')
     if not getattr(user, 'is_active', True) or getattr(user, 'is_deleted', False):
         raise serializers.ValidationError('Invalid or inactive user.')
     return user

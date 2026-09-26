@@ -5323,18 +5323,16 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 }
 
 
-// Compact assign popup for the Lead list: Managers / Super Admin hand a lead to
-// a Sales Executive straight from the row's Action column.
+// Compact assign popup for the Lead list: Managers / Super Admin hand a lead
+// to any active account (except Tele Sales Executive) from the row Action column.
 function LeadAssignModal({ lead, executives = [], onClose, onAssigned, onNotify }) {
   const [selected, setSelected] = useState(lead?.assignedTo?.id ? String(lead.assignedTo.id) : '');
   const [saving, setSaving] = useState(false);
-  // Field assignment is Sales Executive only — never Tele Sales Executive
-  // (or any other role), even if the sales-exec list is empty.
-  const options = executives.filter((e) => e.role === 'Sales Executive');
+  const options = executives.filter((e) => e.role !== 'Tele Sales Executive');
 
   const save = () => {
     if (!selected) {
-      onNotify?.('Select a Sales Executive to assign', 'error');
+      onNotify?.('Select an employee to assign', 'error');
       return;
     }
     setSaving(true);
@@ -5361,18 +5359,18 @@ function LeadAssignModal({ lead, executives = [], onClose, onAssigned, onNotify 
             <p className="text-[12px] font-bold text-[#7386a3]">{lead.mobile} · {lead.status}</p>
           </div>
           <div>
-            <label className="mb-1.5 block text-[12px] font-extrabold text-[#334666]">Assign to Sales Executive</label>
+            <label className="mb-1.5 block text-[12px] font-extrabold text-[#334666]">Assign to Employee</label>
             <select
               value={selected}
               onChange={(e) => setSelected(e.target.value)}
               className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#233a6b] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
             >
-              <option value="">{options.length ? 'Select Sales Executive' : 'No Sales Executives found'}</option>
+              <option value="">{options.length ? 'Select employee' : 'No employees found'}</option>
               {options.map((e) => (
                 <option key={e.id} value={String(e.id)}>{e.name}</option>
               ))}
             </select>
-            <p className="mt-1.5 text-[11px] font-semibold text-[#7b88a2]">Tele Sales Executives cannot be assigned field leads.</p>
+            <p className="mt-1.5 text-[11px] font-semibold text-[#7b88a2]">Tele Sales Executives are excluded from assignment.</p>
           </div>
         </div>
         <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-5">
@@ -30955,15 +30953,15 @@ function getEmployeeOptions() {
   return employeeOptionsPromise;
 }
 
-/** Lead / project "Assigned Employee" targets — Sales Executive only (matches backend validate_lead_assignee). */
-function getSalesExecutiveOptions() {
+/** Lead / project "Assigned Employee" — all active accounts except Tele Sales Executive. */
+function getAssignableEmployeeOptions() {
   if (cachedSalesExecutiveOptions) return Promise.resolve(cachedSalesExecutiveOptions);
   if (!salesExecutiveOptionsPromise) {
     salesExecutiveOptionsPromise = userApi.list({ is_active: true })
       .then((data) => {
         const users = normalizeApiRows(data);
         cachedSalesExecutiveOptions = users
-          .filter((user) => (user.role_name || '') === 'Sales Executive')
+          .filter((user) => (user.role_name || '') !== 'Tele Sales Executive')
           .map((user) => ({ label: user.name || user.email, value: String(user.id) }));
         return cachedSalesExecutiveOptions;
       })
@@ -31021,8 +31019,8 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
   const projectMode = Boolean(projectContext) || projectCreate;
 
   useEffect(() => {
-    // Assigned Employee is Sales Executive only (same rule as Lead → Assign quick action).
-    getSalesExecutiveOptions().then(setEmployeeOptions);
+    // Assigned Employee: all active accounts except Tele Sales Executive.
+    getAssignableEmployeeOptions().then(setEmployeeOptions);
   }, []);
 
   useEffect(() => {
@@ -31328,7 +31326,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
               <LeadSelect
                 label="Assigned Employee"
                 optional
-                placeholder={employeeOptions.length ? 'Select Sales Executive' : 'No Sales Executives found'}
+                placeholder={employeeOptions.length ? 'Select employee' : 'No employees found'}
                 options={employeeOptions}
                 name="assigned_to"
                 defaultValue={d.assigned_to ? String(d.assigned_to) : ''}
@@ -35881,10 +35879,10 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
     if (type !== 'assign') return;
     userApi.list({ is_active: true }).then((data) => {
       const users = normalizeApiRows(data);
-      // Field assignment is Sales Executive only — exclude Tele Sales Executive.
+      // All active accounts except Tele Sales Executive.
       setEmployeeOptions(
         users
-          .filter((user) => (user.role_name || '') === 'Sales Executive')
+          .filter((user) => (user.role_name || '') !== 'Tele Sales Executive')
           .map((user) => ({ label: user.name || user.email, value: String(user.id) })),
       );
     }).catch(() => setEmployeeOptions([]));
@@ -36060,7 +36058,7 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
     if (type === 'assign') return (
       <>
         <ReadonlyField label="Current Assignee" value={lead?.assignedTo?.name || 'Unassigned'} />
-        <LeadSelect label="New Assignee" name="new_assignee" required icon={Users} placeholder={employeeOptions.length ? 'Select Sales Executive' : 'No Sales Executives found'} options={employeeOptions} />
+        <LeadSelect label="New Assignee" name="new_assignee" required icon={Users} placeholder={employeeOptions.length ? 'Select employee' : 'No employees found'} options={employeeOptions} />
         <div className="md:col-span-2">
           <LeadTextarea label="Assignment Note" name="notes" icon={FileText} placeholder="Note about this assignment..." />
         </div>
