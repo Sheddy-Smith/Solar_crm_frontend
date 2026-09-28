@@ -125,14 +125,14 @@ export function CustomerModulePage({ activeSection, onOpenSection, onNotify, log
           </button>
         ))}
       </div>
-      {tab === 'Customer Details' ? <CustomerDetailsTab onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
+      {tab === 'Customer Details' ? <CustomerDetailsTab caps={caps} onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
       {tab === 'Customer Ledger' ? <CustomerLedgerTab onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
       {tab === 'Overall Credit Ledger' ? <OverallCreditTab onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
     </div>
   );
 }
 
-function CustomerDetailsTab({ onNotify, onOpenSection }) {
+function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');

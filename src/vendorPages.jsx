@@ -145,6 +145,7 @@ export function VendorModulePage({ activeSection, onOpenSection, onNotify, logge
       </div>
       {tab === 'Vendor Details' ? (
         <VendorDetailsTab
+          caps={caps}
           onNotify={onNotify}
           addRequested={addRequested}
           onAddRequestConsumed={() => setAddRequested(false)}
@@ -157,7 +158,7 @@ export function VendorModulePage({ activeSection, onOpenSection, onNotify, logge
   );
 }
 
-function VendorDetailsTab({ onNotify, addRequested = false, onAddRequestConsumed }) {
+function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestConsumed }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');

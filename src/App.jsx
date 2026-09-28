@@ -3348,6 +3348,7 @@ function App() {
               handleProfileAction={handleProfileAction}
               globalSearch={globalSearch}
               setGlobalSearch={setGlobalSearch}
+              setGlobalSearchNonce={setGlobalSearchNonce}
               setActiveSidebarItem={setActiveSidebarItem}
               theme={theme}
               setTheme={setTheme}
@@ -4008,7 +4009,7 @@ function AppHeader({
   notificationMenuOpen, messageMenuOpen, handleHeaderAction,
   openDashboardSection, openWhatsApp,
   profileMenuOpen, setProfileMenuOpen, handleProfileAction,
-  globalSearch, setGlobalSearch, setActiveSidebarItem,
+  globalSearch, setGlobalSearch, setGlobalSearchNonce, setActiveSidebarItem,
   theme, setTheme, loggedInUser,
 }) {
   return (
@@ -13187,6 +13188,7 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     if (selectedProject?.id) {
       return (
         <ProjectSiteSurveyPage
+          loggedInUser={loggedInUser}
           activeSection="Project Site Survey"
           onOpenSection={onOpenSection}
           project={selectedProject}
@@ -13268,7 +13270,7 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   // 'Survey Dashboard' category was merged into 'Site Survey' — the survey
   // stats now live on the Site Survey page. Redirect any old link/bookmark.
   if (activeSection === 'Survey Dashboard') {
-    return <ProjectSiteSurveyPage activeSection="Project Site Survey" onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
+    return <ProjectSiteSurveyPage loggedInUser={loggedInUser} activeSection="Project Site Survey" onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Details') {
@@ -13280,7 +13282,7 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
   }
 
   if (activeSection === 'Project Site Survey') {
-    return <ProjectSiteSurveyPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
+    return <ProjectSiteSurveyPage loggedInUser={loggedInUser} activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Installation') {
@@ -21512,7 +21514,7 @@ function ProjectDocumentsTable({
   );
 }
 
-function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify, initialSurveyTab = 'Overview' }) {
+function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify, initialSurveyTab = 'Overview', loggedInUser = null }) {
   if (!projectProp?.id) {
     return (
       <ProjectListPage loggedInUser={loggedInUser}
