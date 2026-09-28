@@ -214,9 +214,20 @@ class PaymentVoucherSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source='project.project_name', read_only=True)
     created_by_name = serializers.SerializerMethodField()
     has_journal = serializers.SerializerMethodField()
+    source = serializers.SerializerMethodField()
+    project_ref = serializers.CharField(source='project.project_id', read_only=True)
 
     def get_record_no(self, obj):
         return obj.voucher_no or f'VCH-{obj.id:04d}'
+
+    def get_source(self, obj):
+        if obj.project_expense_id:
+            return 'Project Expense'
+        if obj.material_plan_id:
+            return 'Material Dispatch'
+        if obj.employee_voucher_id:
+            return 'Workforce'
+        return 'Manual'
 
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
@@ -244,13 +255,13 @@ class PaymentVoucherSerializer(serializers.ModelSerializer):
         model = PaymentVoucher
         fields = [
             'id', 'record_no', 'voucher_no', 'voucher_date', 'entry_type', 'payee_type', 'payee_name',
-            'category', 'particulars', 'payment_mode', 'amount', 'project', 'project_name', 'status',
-            'employee_voucher', 'project_expense', 'material_plan', 'has_journal',
+            'category', 'particulars', 'payment_mode', 'amount', 'project', 'project_name', 'project_ref', 'status',
+            'employee_voucher', 'project_expense', 'material_plan', 'has_journal', 'source',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'created_by', 'created_at', 'updated_at',
-            'employee_voucher', 'project_expense', 'material_plan', 'has_journal',
+            'employee_voucher', 'project_expense', 'material_plan', 'has_journal', 'source',
         ]
 
 

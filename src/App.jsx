@@ -10393,6 +10393,10 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <button type="button" title="View" onClick={() => setViewItem(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3.5" /></button>
+                          {config.isRowLocked?.(item) ? (
+                            <span title={config.lockedHint?.(item) || 'Managed from another module'} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#94a3b8]"><LockKeyhole className="size-3.5" /></span>
+                          ) : (
+                          <>
                           <button type="button" title="Edit" onClick={() => openEdit(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#7c3aed] hover:bg-[#f5f3ff]"><Pencil className="size-3.5" /></button>
                           {config.canApprove && item.status === 'Pending' && (
                             <>
@@ -10404,6 +10408,8 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
                             <button type="button" title="Mark Completed" onClick={() => handleComplete(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#bbf7d0] text-[#16a34a] hover:bg-[#f0fdf4]"><CheckCircle2 className="size-3.5" /></button>
                           )}
                           <button type="button" title="Delete" onClick={() => confirmDeleteRow(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#fecaca] text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
+                          </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -10453,6 +10459,11 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
           }
         >
           <div className="space-y-5">
+            {config.isRowLocked?.(viewItem) && config.lockedHint ? (
+              <p className="flex items-start gap-2 rounded-[8px] border border-[#ffe4b5] bg-[#fffaf0] px-3 py-2 text-[12px] font-bold text-[#b76b00]">
+                <LockKeyhole className="mt-0.5 size-3.5 shrink-0" />{config.lockedHint(viewItem)}
+              </p>
+            ) : null}
             <div>
               <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">{config.recordLabel} Details</h3>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
@@ -11773,11 +11784,13 @@ function AccountsOverviewPage({ activeSection, onOpenSection, onNotify }) {
 
   const cards = stats ? [
     { label: 'Total Received', value: fmtAccRs(stats.total_received), caption: 'Completed payments in', tone: 'green', icon: TrendingUp, onClick: () => onOpenSection('Cash Receipt') },
-    { label: 'Total Paid Out', value: fmtAccRs(stats.total_made), caption: 'Completed payments out', tone: 'red', icon: ReceiptText, onClick: () => onOpenSection('Payment Made') },
+    { label: 'Total Paid Out', value: fmtAccRs(stats.total_made), caption: 'Payments + vouchers & expenses', tone: 'red', icon: ReceiptText, onClick: () => onOpenSection('Other Expenses') },
     { label: 'Net Cash Flow', value: fmtAccRs(stats.net_balance), caption: 'Received minus paid', tone: 'blue', icon: IndianRupee, onClick: () => onOpenSection('Cash Receipt') },
     { label: 'Bank Balance', value: fmtAccRs(stats.bank_balance), caption: `${stats.bank_count ?? 0} active accounts`, tone: 'purple', icon: CreditCard, onClick: () => onOpenSection('Bank Accounts') },
     { label: 'Pending In', value: fmtAccRs(stats.pending_received), caption: 'Awaiting receipt', tone: 'amber', icon: Hourglass, onClick: () => onOpenSection('Cash Receipt') },
     { label: 'Pending Cheques', value: String(stats.pending_cheques ?? 0), caption: 'Open cheque items', tone: 'cyan', icon: FileText, onClick: () => onOpenSection('Cheques List') },
+    { label: 'Project Expenses', value: fmtAccRs(stats.project_expenses), caption: `${stats.project_expense_count ?? 0} from Project Management`, tone: 'amber', icon: Minus, onClick: () => onOpenSection('Other Expenses') },
+    { label: 'Total Expenses', value: fmtAccRs(stats.total_expenses), caption: `${stats.expense_count ?? 0} expense entries`, tone: 'red', icon: Minus, onClick: () => onOpenSection('Other Expenses') },
   ] : [];
 
   const quickLinks = [
@@ -11785,6 +11798,7 @@ function AccountsOverviewPage({ activeSection, onOpenSection, onNotify }) {
     { label: 'Sell Invoice', section: 'Sell Invoice', icon: ReceiptText, tone: 'green' },
     { label: 'Cash Receipt', section: 'Cash Receipt', icon: IndianRupee, tone: 'green' },
     { label: 'Payment Voucher', section: 'Voucher', icon: Minus, tone: 'red' },
+    { label: 'Other Expenses', section: 'Other Expenses', icon: Minus, tone: 'red' },
     { label: 'GST Ledger', section: 'GST Ledger', icon: FileText, tone: 'purple' },
     { label: 'Parties / Banks', section: 'Accounts List', icon: UserPlus, tone: 'blue' },
   ];
@@ -11805,7 +11819,7 @@ function AccountsOverviewPage({ activeSection, onOpenSection, onNotify }) {
         <div className={cx(panelClass, 'flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]')}>Loading overview...</div>
       ) : (
         <>
-          <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-4 xl:grid-cols-3 2xl:grid-cols-6">
+          <section className="grid grid-cols-4 gap-1.5 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
             {cards.map((card) => (
               <OpsStatCard key={card.label} {...card} />
             ))}
@@ -12194,6 +12208,22 @@ function AccountsChequesPage({ activeSection, onOpenSection, onNotify }) {
   return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
+const ACC_VOUCHER_SOURCE_TONES = {
+  'Project Expense': 'bg-[#fff0dc] text-[#b76b00]',
+  'Material Dispatch': 'bg-[#e7faf8] text-[#0f766e]',
+  Workforce: 'bg-[#f2eafe] text-[#7c3aed]',
+  Manual: 'bg-[#eef2f7] text-[#53647f]',
+};
+
+function AccountsVoucherSourceBadge({ source }) {
+  const label = source || 'Manual';
+  return (
+    <span className={cx('inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-extrabold', ACC_VOUCHER_SOURCE_TONES[label] || ACC_VOUCHER_SOURCE_TONES.Manual)}>
+      {label === 'Project Expense' ? 'Project Mgmt' : label}
+    </span>
+  );
+}
+
 function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
   const config = {
     moduleTitle: 'Accounts',
@@ -12292,8 +12322,20 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
     listParams: { entry_type: 'Expense' },
     fixedFields: { entry_type: 'Expense' },
     statuses: ['Pending', 'Completed', 'Cancelled'],
-    extraFilters: [{ key: 'category', label: 'Category', options: ['Site Visit', 'Transport', 'Office', 'Labour', 'Misc'] }],
-    searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars'],
+    extraFilters: [
+      { key: 'source', label: 'All Sources', options: ['Project Expense', 'Material Dispatch', 'Workforce', 'Manual'], client: true },
+      {
+        key: 'category',
+        label: 'Category',
+        options: ['Site Visit', 'Transport', 'Office', 'Labour', 'Misc', 'Materials', 'Labor', 'Equipment', 'Miscellaneous'],
+        client: true,
+      },
+    ],
+    searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars', 'project_ref', 'source'],
+    isRowLocked: (r) => r.source === 'Project Expense' || r.source === 'Material Dispatch',
+    lockedHint: (r) => (r.source === 'Project Expense'
+      ? 'Created from Project Management — edit or delete it from the project\'s Expenses tab.'
+      : 'Created from Material Dispatch — change it from the project material plan.'),
     lookups: {
       projects: { api: projectApi, label: (p) => `${p.project_id} — ${p.project_name}` },
     },
@@ -12302,7 +12344,16 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
       { label: 'Date', render: (r) => lcFormatDate(r.voucher_date) },
       { label: 'Paid To', render: (r) => r.payee_name },
       { label: 'Category', render: (r) => r.category || '—' },
-      { label: 'Project', render: (r) => r.project_name || '—' },
+      {
+        label: 'Project',
+        render: (r) => (r.project_name ? (
+          <span>
+            {r.project_ref ? <span className="font-bold text-[#53647f]">{r.project_ref} · </span> : null}
+            {r.project_name}
+          </span>
+        ) : '—'),
+      },
+      { label: 'Source', render: (r) => <AccountsVoucherSourceBadge source={r.source} /> },
       { label: 'Amount', render: (r) => fmtAccRs(r.amount) },
       { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
     ],
@@ -12322,7 +12373,9 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
       ['Date', (r) => lcFormatDate(r.voucher_date)],
       ['Paid To', (r) => r.payee_name],
       ['Category', (r) => r.category || '—'],
-      ['Project', (r) => r.project_name || '—'],
+      ['Project', (r) => (r.project_name ? `${r.project_ref ? `${r.project_ref} — ` : ''}${r.project_name}` : '—')],
+      ['Source', (r) => <AccountsVoucherSourceBadge source={r.source} />],
+      ['Mode', (r) => r.payment_mode || '—'],
       ['Amount', (r) => fmtAccRs(r.amount)],
       ['Particulars', (r) => r.particulars || '—', true],
     ],

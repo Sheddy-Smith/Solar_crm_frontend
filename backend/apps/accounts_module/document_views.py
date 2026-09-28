@@ -95,7 +95,7 @@ class SellInvoiceViewSet(AccountsBaseViewSet):
 
 class PaymentVoucherViewSet(AccountsBaseViewSet):
     serializer_class = PaymentVoucherSerializer
-    filterset_fields = ['entry_type', 'payee_type', 'status', 'payment_mode', 'project']
+    filterset_fields = ['entry_type', 'payee_type', 'status', 'payment_mode', 'project', 'category']
     search_fields = ['voucher_no', 'payee_name', 'category', 'particulars']
     ordering = ['-voucher_date', '-created_at']
 
@@ -104,7 +104,22 @@ class PaymentVoucherViewSet(AccountsBaseViewSet):
             'project', 'created_by', 'employee_voucher', 'project_expense', 'material_plan',
         ).all()
 
+    @staticmethod
+    def _reject_if_auto_synced(voucher, verb):
+        # These vouchers are re-written from their source record on every save,
+        # so changes made here would be silently overwritten or orphan the source.
+        from rest_framework.exceptions import PermissionDenied
+        if voucher.project_expense_id:
+            raise PermissionDenied(f'This expense comes from Project Management. {verb} it there (Project → Expenses).')
+        if voucher.material_plan_id:
+            raise PermissionDenied(f'This cost comes from Material Dispatch. {verb} it from the project material plan.')
+
+    def perform_update(self, serializer):
+        self._reject_if_auto_synced(serializer.instance, 'Edit')
+        serializer.save()
+
     def perform_destroy(self, instance):
+        self._reject_if_auto_synced(instance, 'Delete')
         from apps.accounts_module.services import remove_payment_voucher_and_journal
         remove_payment_voucher_and_journal(instance)
 

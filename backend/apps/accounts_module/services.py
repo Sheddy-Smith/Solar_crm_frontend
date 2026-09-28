@@ -545,29 +545,44 @@ def remove_accounts_payment_for_project_payment(project_payment):
         after_payment_deleted(party_id, bank_id)
 
 
+def _sum_amount(qs):
+    return qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+
 def accounts_dashboard_summary():
+    from .models import PaymentVoucher
+
     payments = Payment.objects.all()
-    received = payments.filter(direction='Received', status='Completed').aggregate(
-        total=Sum('amount'),
-    )['total'] or Decimal('0')
-    made = payments.filter(direction='Made', status='Completed').aggregate(
-        total=Sum('amount'),
-    )['total'] or Decimal('0')
-    pending_in = payments.filter(direction='Received', status='Pending').aggregate(
-        total=Sum('amount'),
-    )['total'] or Decimal('0')
-    pending_out = payments.filter(direction='Made', status='Pending').aggregate(
-        total=Sum('amount'),
-    )['total'] or Decimal('0')
+    received = _sum_amount(payments.filter(direction='Received', status='Completed'))
+    payments_made = _sum_amount(payments.filter(direction='Made', status='Completed'))
+    pending_in = _sum_amount(payments.filter(direction='Received', status='Pending'))
+    pending_payments_out = _sum_amount(payments.filter(direction='Made', status='Pending'))
+
+    # Vouchers / expenses (manual, Project Management expenses, workforce, material dispatch)
+    # never create a Payment row, so they are added here without double counting.
+    vouchers = PaymentVoucher.objects.all()
+    vouchers_paid = _sum_amount(vouchers.filter(status='Completed'))
+    vouchers_pending = _sum_amount(vouchers.filter(status='Pending'))
+    project_expense_vouchers = vouchers.filter(project_expense__isnull=False).exclude(status='Cancelled')
+    expense_vouchers = vouchers.filter(entry_type='Expense').exclude(status='Cancelled')
+
+    made = payments_made + vouchers_paid
+    pending_out = pending_payments_out + vouchers_pending
     bank_total = BankAccount.objects.filter(status='Active').aggregate(
         total=Sum('balance'),
     )['total'] or Decimal('0')
     return {
         'total_received': float(received),
         'total_made': float(made),
+        'payments_made': float(payments_made),
+        'vouchers_paid': float(vouchers_paid),
         'net_balance': float(received - made),
         'pending_received': float(pending_in),
         'pending_made': float(pending_out),
+        'total_expenses': float(_sum_amount(expense_vouchers)),
+        'expense_count': expense_vouchers.count(),
+        'project_expenses': float(_sum_amount(project_expense_vouchers)),
+        'project_expense_count': project_expense_vouchers.count(),
         'bank_balance': float(bank_total),
         'party_count': Account.objects.filter(status='Active').count(),
         'bank_count': BankAccount.objects.filter(status='Active').count(),

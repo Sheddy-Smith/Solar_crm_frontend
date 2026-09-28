@@ -105,6 +105,36 @@ class FinancialInteropTests(TestCase):
         self.assertEqual(journal.debit_account.account_code, '5320')
         self.assertEqual(journal.amount, Decimal('2000.00'))
 
+    def test_project_expense_visible_in_accounts_and_locked(self):
+        client = APIClient()
+        client.force_authenticate(self.user)
+        res = client.post('/api/v1/project-expenses/', {
+            'project': self.project.id,
+            'category': 'Transport',
+            'description': 'Lorry hire',
+            'amount': '2000.00',
+            'date': '2026-08-02',
+            'payment_mode': 'Cash',
+            'status': 'Paid',
+        }, format='json')
+        self.assertEqual(res.status_code, 201, res.data)
+
+        listing = client.get('/api/v1/accounts/vouchers/', {'entry_type': 'Expense'})
+        rows = listing.data.get('results', listing.data)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['source'], 'Project Expense')
+        self.assertEqual(rows[0]['project_name'], 'Test Site')
+
+        summary = client.get('/api/v1/accounts/transactions/summary/').data
+        self.assertEqual(summary['project_expenses'], 2000.0)
+        self.assertEqual(summary['project_expense_count'], 1)
+        self.assertEqual(summary['total_made'], 2000.0)
+
+        voucher_id = rows[0]['id']
+        self.assertEqual(client.patch(f'/api/v1/accounts/vouchers/{voucher_id}/', {'amount': '1'}, format='json').status_code, 403)
+        self.assertEqual(client.delete(f'/api/v1/accounts/vouchers/{voucher_id}/').status_code, 403)
+        self.assertTrue(PaymentVoucher.objects.filter(pk=voucher_id, amount=Decimal('2000.00')).exists())
+
     def test_material_dispatch_uses_inventory_cost_not_planning_price(self):
         plan = MaterialPlan.objects.create(
             project=self.project,
