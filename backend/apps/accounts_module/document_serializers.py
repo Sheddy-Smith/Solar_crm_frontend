@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from .models import (
@@ -216,6 +217,7 @@ class PaymentVoucherSerializer(serializers.ModelSerializer):
     has_journal = serializers.SerializerMethodField()
     source = serializers.SerializerMethodField()
     project_ref = serializers.CharField(source='project.project_id', read_only=True)
+    employee_code = serializers.CharField(source='employee.employee_id', read_only=True)
 
     def get_record_no(self, obj):
         return obj.voucher_no or f'VCH-{obj.id:04d}'
@@ -236,25 +238,47 @@ class PaymentVoucherSerializer(serializers.ModelSerializer):
         from .models import Transaction
         return Transaction.objects.filter(source_payment_voucher_id=obj.pk).exists()
 
+    def validate(self, attrs):
+        instance = self.instance
+        payee_type = attrs.get('payee_type', getattr(instance, 'payee_type', None))
+        employee = attrs.get('employee', getattr(instance, 'employee', None))
+        if payee_type == 'Labour':
+            if employee is None and (instance is None or 'employee' in attrs):
+                raise serializers.ValidationError({'employee': 'Select the employee (worker) for this voucher.'})
+            if employee is not None:
+                attrs['payee_name'] = employee.name
+        elif 'payee_type' in attrs or 'employee' in attrs:
+            attrs['employee'] = None
+        return attrs
+
+    def _sync_links(self, voucher):
+        from apps.accounts_module.services import (
+            sync_employee_voucher_for_payment_voucher,
+            sync_journal_for_payment_voucher,
+        )
+        sync_journal_for_payment_voucher(voucher)
+        sync_employee_voucher_for_payment_voucher(voucher)
+
+    @transaction.atomic
     def create(self, validated_data):
         if not validated_data.get('voucher_no'):
             prefix = 'EXP' if validated_data.get('entry_type') == 'Expense' else 'VCH'
             validated_data['voucher_no'] = next_document_number(prefix, PaymentVoucher, 'voucher_no')
         voucher = super().create(validated_data)
-        from apps.accounts_module.services import sync_journal_for_payment_voucher
-        sync_journal_for_payment_voucher(voucher)
+        self._sync_links(voucher)
         return voucher
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         voucher = super().update(instance, validated_data)
-        from apps.accounts_module.services import sync_journal_for_payment_voucher
-        sync_journal_for_payment_voucher(voucher)
+        self._sync_links(voucher)
         return voucher
 
     class Meta:
         model = PaymentVoucher
         fields = [
             'id', 'record_no', 'voucher_no', 'voucher_date', 'entry_type', 'payee_type', 'payee_name',
+            'employee', 'employee_code',
             'category', 'particulars', 'payment_mode', 'amount', 'project', 'project_name', 'project_ref', 'status',
             'employee_voucher', 'project_expense', 'material_plan', 'has_journal', 'source',
             'created_by', 'created_by_name', 'created_at', 'updated_at',

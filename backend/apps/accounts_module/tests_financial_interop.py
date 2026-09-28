@@ -105,6 +105,71 @@ class FinancialInteropTests(TestCase):
         self.assertEqual(journal.debit_account.account_code, '5320')
         self.assertEqual(journal.amount, Decimal('2000.00'))
 
+    def test_accounts_labour_voucher_posts_to_employee_ledger(self):
+        emp = Employee.objects.create(name='Suresh', daily_rate=Decimal('700'), skill_trade='Fitter')
+        other = Employee.objects.create(name='Mahesh', daily_rate=Decimal('700'), skill_trade='Fitter')
+        client = APIClient()
+        client.force_authenticate(self.user)
+
+        missing = client.post('/api/v1/accounts/vouchers/', {
+            'voucher_date': '2026-08-05', 'entry_type': 'Voucher', 'payee_type': 'Labour',
+            'payee_name': 'Suresh', 'payment_mode': 'Cash', 'amount': '1500', 'status': 'Completed',
+        }, format='json')
+        self.assertEqual(missing.status_code, 400)
+
+        res = client.post('/api/v1/accounts/vouchers/', {
+            'voucher_date': '2026-08-05', 'entry_type': 'Voucher', 'payee_type': 'Labour',
+            'payee_name': 'x', 'employee': emp.id, 'payment_mode': 'Cash', 'amount': '1500',
+            'particulars': 'Advance', 'status': 'Completed',
+        }, format='json')
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data['payee_name'], 'Suresh')
+        self.assertEqual(res.data['source'], 'Workforce')
+        pv = PaymentVoucher.objects.get(pk=res.data['id'])
+        ev = pv.employee_voucher
+        self.assertEqual((ev.employee_id, ev.amount), (emp.id, Decimal('1500.00')))
+        self.assertEqual(PaymentVoucher.objects.filter(employee_voucher=ev).count(), 1)
+        self.assertEqual(Transaction.objects.filter(source_payment_voucher=pv).count(), 1)
+
+        ledger = client.get(
+            f'/api/v1/workforce/employees/{emp.id}/attendance-ledger/',
+            {'start_date': '2026-08-01', 'end_date': '2026-08-10'},
+        )
+        self.assertEqual(ledger.status_code, 200, ledger.data)
+        self.assertEqual(ledger.data['summary']['period_paid'], '1500.00')
+
+        client.patch(f'/api/v1/accounts/vouchers/{pv.id}/', {'amount': '1800', 'employee': other.id}, format='json')
+        ev.refresh_from_db()
+        self.assertEqual((ev.employee_id, ev.amount), (other.id, Decimal('1800.00')))
+
+        client.patch(f'/api/v1/accounts/vouchers/{pv.id}/', {'status': 'Pending'}, format='json')
+        self.assertFalse(EmployeeVoucher.objects.filter(pk=ev.pk).exists())
+        self.assertTrue(PaymentVoucher.objects.filter(pk=pv.id).exists())
+
+        client.patch(f'/api/v1/accounts/vouchers/{pv.id}/', {'status': 'Completed'}, format='json')
+        pv.refresh_from_db()
+        self.assertIsNotNone(pv.employee_voucher_id)
+        self.assertEqual(PaymentVoucher.objects.filter(employee__isnull=False).count(), 1)
+
+        new_ev_id = pv.employee_voucher_id
+        self.assertEqual(client.delete(f'/api/v1/accounts/vouchers/{pv.id}/').status_code, 204)
+        self.assertFalse(EmployeeVoucher.objects.filter(pk=new_ev_id).exists())
+        self.assertFalse(PaymentVoucher.objects.filter(pk=pv.id).exists())
+
+    def test_workforce_voucher_shows_on_accounts_voucher_page(self):
+        emp = Employee.objects.create(name='Ramesh', daily_rate=Decimal('800'), skill_trade='Electrician')
+        EmployeeVoucher.objects.create(employee=emp, voucher_date=date(2026, 8, 1), amount=Decimal('900'))
+        client = APIClient()
+        client.force_authenticate(self.user)
+        vouchers = client.get('/api/v1/accounts/vouchers/', {'entry_type': 'Voucher'}).data
+        rows = vouchers.get('results', vouchers)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]['employee'], rows[0]['payee_type']), (emp.id, 'Labour'))
+        expenses = client.get('/api/v1/accounts/vouchers/', {
+            'entry_type': 'Expense', 'exclude_source': 'material_dispatch,workforce',
+        }).data
+        self.assertEqual(len(expenses.get('results', expenses)), 0)
+
     def test_project_expense_visible_in_accounts_and_locked(self):
         client = APIClient()
         client.force_authenticate(self.user)

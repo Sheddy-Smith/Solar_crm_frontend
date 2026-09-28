@@ -478,9 +478,10 @@ def sync_payment_voucher_for_employee_voucher(employee_voucher, user=None):
 
     defaults = {
         'voucher_date': employee_voucher.voucher_date,
-        'entry_type': 'Expense',
+        'entry_type': 'Voucher',
         'payee_type': 'Labour',
         'payee_name': employee.name,
+        'employee': employee,
         'category': 'Labour',
         'particulars': particulars or f'Labour payment — {employee.employee_id}',
         'payment_mode': _payment_mode_for_voucher(employee_voucher.payment_mode),
@@ -495,7 +496,7 @@ def sync_payment_voucher_for_employee_voucher(employee_voucher, user=None):
         defaults=defaults,
     )
     if created and not payment_voucher.voucher_no:
-        payment_voucher.voucher_no = next_document_number('EXP', PaymentVoucher, 'voucher_no')
+        payment_voucher.voucher_no = next_document_number('VCH', PaymentVoucher, 'voucher_no')
         payment_voucher.save(update_fields=['voucher_no'])
 
     sync_journal_for_payment_voucher(payment_voucher, debit_account=resolve_labour_coa())
@@ -507,6 +508,58 @@ def remove_payment_voucher_for_employee_voucher(employee_voucher):
     voucher = PaymentVoucher.objects.filter(employee_voucher_id=employee_voucher.pk).first()
     if voucher:
         remove_payment_voucher_and_journal(voucher)
+
+
+def _labour_voucher_wants_ledger_entry(voucher):
+    return (
+        voucher.payee_type == 'Labour'
+        and voucher.employee_id
+        and voucher.status == 'Completed'
+        and _d(voucher.amount) > 0
+    )
+
+
+def sync_employee_voucher_for_payment_voucher(voucher):
+    """Accounts → Workforce: a completed Labour voucher with a selected employee gets a
+    matching EmployeeVoucher, so it appears in that employee's ledger. Anything else
+    (pending / cancelled / non-labour / no employee) removes the mirrored entry."""
+    from apps.workforce.models import EmployeeVoucher
+    from apps.workforce.services import sync_attendance_voucher_amounts
+
+    ev = voucher.employee_voucher
+    if _labour_voucher_wants_ledger_entry(voucher):
+        old = (ev.employee, ev.voucher_date) if ev is not None else None
+        if ev is None:
+            ev = EmployeeVoucher(employee_id=voucher.employee_id)
+        ev.employee_id = voucher.employee_id
+        ev.voucher_date = voucher.voucher_date
+        ev.amount = voucher.amount
+        ev.payment_mode = voucher.payment_mode or 'Cash'
+        ev.notes = voucher.particulars or ''
+        # The PaymentVoucher is already up to date; skip the Workforce → Accounts mirror.
+        ev._accounts_sync_handled = True
+        ev.save()
+        if voucher.employee_voucher_id != ev.pk:
+            voucher.employee_voucher = ev
+            voucher.save(update_fields=['employee_voucher'])
+        if old and (old[0].pk != ev.employee_id or old[1] != ev.voucher_date):
+            sync_attendance_voucher_amounts(old[0], [old[1]], create_missing=False)
+        return ev
+
+    if ev is not None:
+        voucher.employee_voucher = None
+        voucher.save(update_fields=['employee_voucher'])
+        ev._accounts_sync_handled = True
+        ev.delete()
+    return None
+
+
+def delete_payment_voucher_with_employee_voucher(voucher):
+    ev = voucher.employee_voucher
+    remove_payment_voucher_and_journal(voucher)
+    if ev is not None:
+        ev._accounts_sync_handled = True
+        ev.delete()
 
 
 def sync_project_payment_to_accounts(project_payment, user):
@@ -558,9 +611,10 @@ def accounts_dashboard_summary():
     pending_in = _sum_amount(payments.filter(direction='Received', status='Pending'))
     pending_payments_out = _sum_amount(payments.filter(direction='Made', status='Pending'))
 
-    # Vouchers / expenses (manual, Project Management expenses, workforce, material dispatch)
-    # never create a Payment row, so they are added here without double counting.
-    vouchers = PaymentVoucher.objects.all()
+    # Vouchers / expenses never create a Payment row, so they are added here without double
+    # counting. Material-dispatch cost vouchers are stock consumption (already paid through the
+    # purchase invoice), not cash out, so they stay out of these totals.
+    vouchers = PaymentVoucher.objects.filter(material_plan__isnull=True)
     vouchers_paid = _sum_amount(vouchers.filter(status='Completed'))
     vouchers_pending = _sum_amount(vouchers.filter(status='Pending'))
     project_expense_vouchers = vouchers.filter(project_expense__isnull=False).exclude(status='Cancelled')

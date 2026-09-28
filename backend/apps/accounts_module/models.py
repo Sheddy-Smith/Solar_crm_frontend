@@ -474,6 +474,15 @@ class PaymentVoucher(models.Model):
         'projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_vouchers',
     )
     status = models.CharField(max_length=20, choices=Payment.STATUS_CHOICES, default='Completed')
+    # Worker picked for a Labour voucher; completed ones are mirrored to workforce.EmployeeVoucher
+    # so the payment shows in that employee's ledger.
+    employee = models.ForeignKey(
+        'workforce.Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='accounts_vouchers',
+    )
     employee_voucher = models.OneToOneField(
         'workforce.EmployeeVoucher',
         on_delete=models.CASCADE,

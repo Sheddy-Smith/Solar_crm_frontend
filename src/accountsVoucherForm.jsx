@@ -240,6 +240,9 @@ export function PaymentVoucherFormModal({
                       <p>Mobile: <span className="font-extrabold text-[#1e3261]">{selectedPayee.detail.mobile || '—'}</span></p>
                       <p>Skill: <span className="font-extrabold text-[#1e3261]">{selectedPayee.detail.skill_trade || selectedPayee.detail.department || '—'}</span></p>
                       <p>Status: <span className="font-extrabold text-[#1e3261]">{selectedPayee.detail.status || '—'}</span></p>
+                      <p className="sm:col-span-2 mt-1 text-[#0b65e5]">
+                        Completed voucher will be posted to this employee&apos;s account (Employee Ledger).
+                      </p>
                     </div>
                   ) : (
                     <div className="mt-2 grid gap-1 text-[12px] font-semibold text-[#475569] sm:grid-cols-2">

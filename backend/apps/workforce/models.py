@@ -242,6 +242,9 @@ def sync_attendance_voucher_amount(sender, instance, signal, **kwargs):
     sync_attendance_voucher_amounts(instance.employee, [instance.voucher_date], create_missing=(signal is post_save))
 
     # Sync labour payment into Accounts PaymentVoucher (BUG-020).
+    # Saves that originate from an Accounts voucher already have their PaymentVoucher.
+    if getattr(instance, '_accounts_sync_handled', False):
+        return
     from apps.accounts_module.services import (
         sync_payment_voucher_for_employee_voucher,
         remove_payment_voucher_for_employee_voucher,

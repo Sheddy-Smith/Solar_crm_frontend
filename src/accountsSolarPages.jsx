@@ -409,7 +409,12 @@ export function AccountsLineDocumentPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-[22px] font-extrabold text-[#06135a]">{title}</h1>
+          <h1 className="flex flex-wrap items-center gap-2 font-display text-[22px] font-extrabold text-[#06135a]">
+            {title}
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${hasGst ? 'bg-[#e8f2ff] text-[#0b65e5]' : 'bg-[#eef2f7] text-[#53647f]'}`}>
+              {hasGst ? 'With GST' : 'Without GST'}
+            </span>
+          </h1>
           <p className="mt-1 text-[12px] font-semibold text-[#7b8ca8]">Solar CRM — project-linked billing & material documents</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -641,7 +646,7 @@ export function PurchaseInvoicePage(props) {
       hasGst
       hasExtraCharges
       linkInventory
-      stockSyncHint="Status = Recorded/Paid par stock IN + Supplier ledger + journal. Supplier account type hona chahiye."
+      stockSyncHint="GST bill. Status = Recorded/Paid par stock IN + Supplier ledger + journal. Supplier account type hona chahiye."
       extraHeaderFields={[{ name: 'category', label: 'Category', default: '' }]}
     />
   );
@@ -659,7 +664,7 @@ export function SellInvoicePage(props) {
       statuses={['Pending', 'Issued', 'Paid', 'Cancelled']}
       hasGst
       linkInventory
-      stockSyncHint="Status = Issued/Paid par stock OUT + Customer ledger + journal."
+      stockSyncHint="GST bill. Status = Issued/Paid par stock OUT + Customer ledger + journal."
       extraHeaderFields={[
         { name: 'gst_number', label: 'GST No', default: '' },
         { name: 'branch', label: 'Branch', default: '' },
@@ -680,7 +685,7 @@ export function PurchaseChallanPage(props) {
       statuses={['Open', 'Received', 'Cancelled']}
       hasVehicle
       linkInventory
-      stockSyncHint="Status = Received par har line ke liye Stock Movement IN + inventory stock update hoga. Inventory product select karna recommended hai."
+      stockSyncHint="Without GST bill. Status = Received par har line ke liye Stock Movement IN + inventory stock update hoga. Inventory product select karna recommended hai."
     />
   );
 }
@@ -698,7 +703,7 @@ export function SellChallanPage(props) {
       hasVehicle
       hasSiteAddress
       linkInventory
-      stockSyncHint="Status = Dispatched/Delivered par har line ke liye Stock Movement OUT + inventory stock kam hoga."
+      stockSyncHint="Without GST bill. Status = Dispatched/Delivered par har line ke liye Stock Movement OUT + inventory stock kam hoga."
     />
   );
 }

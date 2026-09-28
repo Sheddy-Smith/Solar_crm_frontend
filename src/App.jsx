@@ -12246,8 +12246,16 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
     columns: [
       { label: 'Voucher No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
       { label: 'Date', render: (r) => lcFormatDate(r.voucher_date) },
-      { label: 'Payee', render: (r) => r.payee_name },
-      { label: 'Type', render: (r) => r.payee_type },
+      {
+        label: 'Payee',
+        render: (r) => (
+          <span>
+            {r.payee_name}
+            {r.employee_code ? <span className="ml-1 text-[12px] font-bold text-[#7a8fa6]">({r.employee_code})</span> : null}
+          </span>
+        ),
+      },
+      { label: 'Type', render: (r) => (r.payee_type === 'Labour' ? 'Employee (Worker)' : r.payee_type) },
       { label: 'Mode', render: (r) => r.payment_mode },
       { label: 'Amount', render: (r) => fmtAccRs(r.amount) },
       { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
@@ -12279,7 +12287,7 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
       return {
         ...form,
         voucher_no: item.voucher_no || item.record_no || '',
-        payee_id: '',
+        payee_id: item.payee_type === 'Labour' && item.employee ? String(item.employee) : '',
         particulars: split.particulars,
         notes: split.notes,
       };
@@ -12290,9 +12298,11 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
       particulars: mergeVoucherParticulars(form.particulars, form.notes),
       payee_name: form.payee_name,
       payee_type: form.payee_type,
+      employee: form.payee_type === 'Labour' && form.payee_id ? Number(form.payee_id) : null,
     }),
     validateForm: (form) => {
       if (!form.payee_type) return 'Select payee type.';
+      if (form.payee_type === 'Labour' && !form.payee_id) return 'Select labour (employee) for this voucher.';
       if (!form.payee_name?.trim()) return `Select ${form.payee_type === 'Labour' ? 'labour' : form.payee_type === 'Vendor' ? 'vendor' : form.payee_type === 'Supplier' ? 'supplier' : 'payee'}.`;
       if (!form.amount && form.amount !== 0) return 'Amount is required.';
       return null;
@@ -12301,8 +12311,9 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
     detailRows: [
       ['Voucher No', (r) => r.record_no],
       ['Date', (r) => lcFormatDate(r.voucher_date)],
-      ['Payee', (r) => r.payee_name],
-      ['Payee Type', (r) => r.payee_type],
+      ['Payee', (r) => (r.employee_code ? `${r.payee_name} (${r.employee_code})` : r.payee_name)],
+      ['Payee Type', (r) => (r.payee_type === 'Labour' ? 'Employee (Worker)' : r.payee_type)],
+      ['Employee Ledger', (r) => (r.payee_type !== 'Labour' ? '—' : r.employee_voucher ? 'Posted to employee account' : 'Not posted (only Completed vouchers are posted)')],
       ['Mode', (r) => r.payment_mode],
       ['Amount', (r) => fmtAccRs(r.amount)],
       ['Particulars', (r) => r.particulars || '—', true],
@@ -12319,11 +12330,13 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
     recordLabel: 'Expense',
     newLabel: 'Add Expense',
     api: accountsModuleApi.vouchers,
-    listParams: { entry_type: 'Expense' },
+    // Company's extra spending only: employee payments live under Voucher and
+    // material-dispatch stock cost is not a cash expense.
+    listParams: { entry_type: 'Expense', exclude_source: 'material_dispatch,workforce' },
     fixedFields: { entry_type: 'Expense' },
     statuses: ['Pending', 'Completed', 'Cancelled'],
     extraFilters: [
-      { key: 'source', label: 'All Sources', options: ['Project Expense', 'Material Dispatch', 'Workforce', 'Manual'], client: true },
+      { key: 'source', label: 'All Sources', options: ['Project Expense', 'Manual'], client: true },
       {
         key: 'category',
         label: 'Category',
@@ -12332,10 +12345,8 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
       },
     ],
     searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars', 'project_ref', 'source'],
-    isRowLocked: (r) => r.source === 'Project Expense' || r.source === 'Material Dispatch',
-    lockedHint: (r) => (r.source === 'Project Expense'
-      ? 'Created from Project Management — edit or delete it from the project\'s Expenses tab.'
-      : 'Created from Material Dispatch — change it from the project material plan.'),
+    isRowLocked: (r) => r.source === 'Project Expense',
+    lockedHint: () => 'Created from Project Management — edit or delete it from the project\'s Expenses tab.',
     lookups: {
       projects: { api: projectApi, label: (p) => `${p.project_id} — ${p.project_name}` },
     },

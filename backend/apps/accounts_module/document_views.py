@@ -99,10 +99,25 @@ class PaymentVoucherViewSet(AccountsBaseViewSet):
     search_fields = ['voucher_no', 'payee_name', 'category', 'particulars']
     ordering = ['-voucher_date', '-created_at']
 
+    SOURCE_FILTERS = {
+        'project_expense': {'project_expense__isnull': False},
+        'material_dispatch': {'material_plan__isnull': False},
+        'workforce': {'employee_voucher__isnull': False},
+        'manual': {'project_expense__isnull': True, 'material_plan__isnull': True, 'employee_voucher__isnull': True},
+    }
+
     def get_queryset(self):
-        return PaymentVoucher.objects.select_related(
-            'project', 'created_by', 'employee_voucher', 'project_expense', 'material_plan',
+        qs = PaymentVoucher.objects.select_related(
+            'project', 'created_by', 'employee', 'employee_voucher', 'project_expense', 'material_plan',
         ).all()
+        params = self.request.query_params
+        source = self.SOURCE_FILTERS.get(params.get('source', ''))
+        if source:
+            qs = qs.filter(**source)
+        for key in filter(None, params.get('exclude_source', '').split(',')):
+            if key in self.SOURCE_FILTERS:
+                qs = qs.exclude(**self.SOURCE_FILTERS[key])
+        return qs
 
     @staticmethod
     def _reject_if_auto_synced(voucher, verb):
@@ -120,8 +135,8 @@ class PaymentVoucherViewSet(AccountsBaseViewSet):
 
     def perform_destroy(self, instance):
         self._reject_if_auto_synced(instance, 'Delete')
-        from apps.accounts_module.services import remove_payment_voucher_and_journal
-        remove_payment_voucher_and_journal(instance)
+        from apps.accounts_module.services import delete_payment_voucher_with_employee_voucher
+        delete_payment_voucher_with_employee_voucher(instance)
 
 
 class PurchaseChallanViewSet(AccountsBaseViewSet):
