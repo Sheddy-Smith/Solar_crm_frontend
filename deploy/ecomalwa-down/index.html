@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>We'll Be Back Soon | Ecomalwa Solar Energy Pvt. Ltd.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0a1633;
+    --blue: #0b5ed7;
+    --blue-deep: #0b3f9e;
+    --orange: #f7941d;
+    --muted: #3b4a66;
+    --soft: #e8f1ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Poppins", "Segoe UI", Roboto, Arial, sans-serif;
+    color: var(--navy);
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px clamp(16px, 6vw, 90px);
+    background: #fff;
+    box-shadow: 0 2px 14px rgba(10, 22, 51, 0.06);
+    position: relative; z-index: 3;
+  }
+  .topbar img { height: 52px; width: auto; display: block; }
+  .btn-call {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--orange); color: #fff;
+    font-weight: 600; font-size: 14px; letter-spacing: .04em;
+    padding: 12px 22px; border-radius: 6px;
+    box-shadow: 0 8px 18px rgba(247, 148, 29, .3);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .btn-call:hover { transform: translateY(-1px); box-shadow: 0 12px 22px rgba(247, 148, 29, .38); }
+  .btn-call svg { width: 16px; height: 16px; }
+
+  .hero {
+    position: relative; flex: 1 0 auto;
+    min-height: 560px;
+    background: #f4f8ff url("/wp-content/ecomalwa-down/hero.jpg") right center / cover no-repeat;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(255,255,255,.94) 0%, rgba(255,255,255,.82) 34%, rgba(255,255,255,0) 58%);
+  }
+  .hero-inner {
+    position: relative; z-index: 2;
+    max-width: 720px;
+    padding: clamp(40px, 7vh, 80px) clamp(16px, 6vw, 90px) 140px;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--soft); color: var(--blue);
+    font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase;
+    padding: 8px 16px; border-radius: 999px;
+  }
+  .badge svg { width: 18px; height: 18px; animation: spin 6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 {
+    margin-top: 22px;
+    font-size: clamp(34px, 5vw, 58px); line-height: 1.08; font-weight: 800;
+  }
+  h1 span { display: block; color: var(--blue); white-space: nowrap; }
+  @media (max-width: 420px) { h1 span { white-space: normal; } }
+  .lead {
+    margin-top: 18px; max-width: 470px;
+    font-size: 16px; line-height: 1.6; color: var(--muted);
+  }
+  .features { display: flex; flex-wrap: wrap; gap: 22px 30px; margin-top: 28px; }
+  .feature { display: flex; align-items: center; gap: 12px; font-weight: 500; font-size: 14px; line-height: 1.3; }
+  .feature i {
+    display: grid; place-items: center; flex-shrink: 0;
+    width: 46px; height: 46px; border-radius: 50%;
+    background: #fff; color: var(--blue);
+    box-shadow: 0 6px 18px rgba(11, 94, 215, .14);
+  }
+  .feature i svg { width: 22px; height: 22px; }
+  .note {
+    display: flex; align-items: center; gap: 16px;
+    margin-top: 32px; padding: 16px 20px; max-width: 420px;
+    background: rgba(232, 241, 255, .92);
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
+  }
+  .note i {
+    display: grid; place-items: center; flex-shrink: 0;
+    width: 46px; height: 46px; border-radius: 50%;
+    background: #fff; color: var(--blue);
+  }
+  .note i svg { width: 24px; height: 24px; }
+  .note strong { display: block; font-size: 16px; }
+  .note small { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
+  .retry {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 22px;
+    background: var(--blue); color: #fff; border: 0; cursor: pointer;
+    font: 600 14px "Poppins", sans-serif;
+    padding: 12px 22px; border-radius: 6px;
+    box-shadow: 0 8px 18px rgba(11, 94, 215, .28);
+  }
+  .retry:hover { background: var(--blue-deep); }
+  .retry svg { width: 16px; height: 16px; }
+  .auto { margin-top: 10px; font-size: 12px; color: var(--muted); }
+
+  .wave { position: absolute; left: 0; right: 0; bottom: -1px; z-index: 1; line-height: 0; }
+  .wave svg { width: 100%; height: 110px; display: block; }
+
+  .contact {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    padding: 26px clamp(16px, 6vw, 90px);
+    background: #fff;
+    position: relative; z-index: 2;
+  }
+  .contact > div { display: flex; align-items: flex-start; gap: 16px; padding: 4px 28px; }
+  .contact > div + div { border-left: 1px solid #dde5f2; }
+  .contact i {
+    display: grid; place-items: center; flex-shrink: 0;
+    width: 50px; height: 50px; border-radius: 50%;
+    background: var(--soft); color: var(--blue);
+  }
+  .contact i svg { width: 22px; height: 22px; }
+  .contact small { display: block; font-size: 13px; color: var(--muted); }
+  .contact strong { display: block; margin-top: 2px; font-size: 17px; font-weight: 700; color: var(--blue-deep); word-break: break-word; }
+  .contact ul { list-style: none; margin-top: 4px; }
+  .contact li { font-size: 14px; line-height: 1.7; }
+  .contact li a { font-weight: 700; color: var(--blue-deep); }
+  .contact li a:hover, .contact strong a:hover { text-decoration: underline; }
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 12px 16px 18px; background: #fff; }
+
+  @media (max-width: 900px) {
+    .hero { background-image: url("/wp-content/ecomalwa-down/hero-sm.jpg"); background-position: 75% center; min-height: auto; }
+    .hero::before { background: linear-gradient(180deg, rgba(255,255,255,.93) 0%, rgba(255,255,255,.88) 100%); }
+    .hero-inner { max-width: none; padding-bottom: 120px; }
+    .contact { grid-template-columns: 1fr; gap: 18px; }
+    .contact > div { padding: 0; }
+    .contact > div + div { border-left: 0; border-top: 1px solid #dde5f2; padding-top: 18px; }
+  }
+  @media (max-width: 520px) {
+    .topbar img { height: 40px; }
+    .btn-call { padding: 10px 14px; font-size: 13px; }
+    .features { gap: 16px; }
+  }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" aria-label="Ecomalwa Solar Energy Pvt. Ltd.">
+      <img src="/wp-content/ecomalwa-down/logo.webp" alt="Ecomalwa Solar Energy Pvt. Ltd." width="130" height="52">
+    </a>
+    <a class="btn-call" href="tel:+918223000824">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>
+      CALL NOW
+    </a>
+  </header>
+
+  <main class="hero">
+    <div class="hero-inner">
+      <span class="badge">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.4 13a7.8 7.8 0 0 0 0-2l2.1-1.6a.5.5 0 0 0 .1-.6l-2-3.5a.5.5 0 0 0-.6-.2l-2.5 1a7.3 7.3 0 0 0-1.7-1l-.4-2.6a.5.5 0 0 0-.5-.4h-4a.5.5 0 0 0-.5.4l-.4 2.6c-.6.3-1.2.6-1.7 1l-2.5-1a.5.5 0 0 0-.6.2l-2 3.5a.5.5 0 0 0 .1.6L4.6 11a7.8 7.8 0 0 0 0 2l-2.1 1.6a.5.5 0 0 0-.1.6l2 3.5c.1.2.4.3.6.2l2.5-1c.5.4 1.1.7 1.7 1l.4 2.6c0 .2.3.4.5.4h4c.2 0 .5-.2.5-.4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1c.2.1.5 0 .6-.2l2-3.5a.5.5 0 0 0-.1-.6L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+        We'll be back soon
+      </span>
+
+      <h1>Our Website is <span>Currently Down</span></h1>
+
+      <p class="lead">We are performing some important updates to serve you better. Our website will be up and running again shortly with an improved experience.</p>
+
+      <div class="features">
+        <div class="feature">
+          <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></i>
+          <span>System<br>Upgrade</span>
+        </div>
+        <div class="feature">
+          <i><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3zm-1.2 14.2-3.5-3.5 1.4-1.4 2.1 2.1 4.8-4.8 1.4 1.4-6.2 6.2z"/></svg></i>
+          <span>Better<br>Performance</span>
+        </div>
+        <div class="feature">
+          <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.9A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0"/><path d="M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5"/></svg></i>
+          <span>Enhanced<br>Experience</span>
+        </div>
+      </div>
+
+      <div class="note">
+        <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></i>
+        <div>
+          <strong>We'll be back very soon!</strong>
+          <small>Thank you for your patience and continued support.</small>
+        </div>
+      </div>
+
+      <button type="button" class="retry" onclick="location.reload()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg>
+        Try Again
+      </button>
+      <p class="auto">This page will refresh automatically every 2 minutes.</p>
+    </div>
+
+    <div class="wave" aria-hidden="true">
+      <svg viewBox="0 0 1440 110" preserveAspectRatio="none">
+        <path d="M0 58 C 360 118, 900 -6, 1440 52 L1440 110 L0 110 Z" fill="#0b5ed7" opacity=".9"/>
+        <path d="M0 78 C 400 128, 960 22, 1440 72 L1440 110 L0 110 Z" fill="#8fc0ff" opacity=".55"/>
+        <path d="M0 92 C 420 132, 980 48, 1440 90 L1440 110 L0 110 Z" fill="#ffffff"/>
+      </svg>
+    </div>
+  </main>
+
+  <section class="contact">
+    <div>
+      <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></i>
+      <div>
+        <small>Need Immediate Assistance?</small>
+        <strong><a href="mailto:info@malwasolarenergy.com">info@malwasolarenergy.com</a></strong>
+      </div>
+    </div>
+    <div>
+      <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></i>
+      <div>
+        <small>Call Us</small>
+        <ul>
+          <li><a href="tel:+918223000824">+91-8223000824</a> - Shoaib Multani</li>
+          <li><a href="tel:+918223000822">+91-8223000822</a> - Juned Multani</li>
+          <li><a href="tel:+918223000828">+91-8223000828</a> - Office</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg></i>
+      <div>
+        <small>We'll Be Back Shortly</small>
+        <strong>Stay Tuned!</strong>
+      </div>
+    </div>
+  </section>
+
+  <footer>&copy; Ecomalwa Solar Energy Pvt. Ltd. All rights reserved.</footer>
+
+  <script>setTimeout(function () { location.reload(); }, 120000);</script>
+</body>
+</html>
