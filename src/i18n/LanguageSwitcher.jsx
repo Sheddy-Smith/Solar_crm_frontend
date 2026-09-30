@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Keyboard, Languages } from 'lucide-react';
 import { authApi, tokenStore } from '../api.js';
 import {
@@ -30,14 +31,37 @@ export function chooseTyping(enabled) {
 export default function LanguageSwitcher({ compact = false, className = '', onChanged }) {
   const { language, typing, enabled, loading } = useI18n();
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
   const ref = useRef(null);
+  const menuRef = useRef(null);
   const meta = getLanguageMeta(language);
   const options = LANGUAGES.filter((l) => enabled.includes(l.code));
+
+  // The menu is portalled to <body> so sticky page toolbars can't paint over it.
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const place = () => {
+      const r = ref.current?.getBoundingClientRect();
+      if (!r) return;
+      const width = Math.min(250, window.innerWidth - 16);
+      const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
+      const top = r.bottom + 8;
+      setPos({ top, left, width, maxHeight: Math.max(160, window.innerHeight - top - 12) });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
     const onDown = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (ref.current?.contains(e.target) || menuRef.current?.contains(e.target)) return;
+      setOpen(false);
     };
     const onKey = (e) => {
       if (e.key === 'Escape') setOpen(false);
@@ -69,10 +93,14 @@ export default function LanguageSwitcher({ compact = false, className = '', onCh
         )}
       </button>
 
-      {open ? (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-70 w-[250px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)] dark:border-slate-600 dark:bg-slate-900">
-          <p className="border-b border-[#edf2f9] px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2] dark:border-slate-700">Language</p>
-          <div className="max-h-[300px] overflow-y-auto py-1">
+      {open && pos ? createPortal(
+        <div
+          ref={menuRef}
+          style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
+          className="fixed z-1000 flex flex-col overflow-hidden rounded-xl border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)] dark:border-slate-600 dark:bg-slate-900"
+        >
+          <p className="shrink-0 border-b border-[#edf2f9] px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2] dark:border-slate-700">Language</p>
+          <div className="min-h-0 flex-1 overflow-y-auto py-1">
             {options.map((l) => {
               const active = l.code === language;
               return (
@@ -96,7 +124,7 @@ export default function LanguageSwitcher({ compact = false, className = '', onCh
             })}
           </div>
           {meta.itc ? (
-            <div className="border-t border-[#edf2f9] px-4 py-3 dark:border-slate-700">
+            <div className="shrink-0 border-t border-[#edf2f9] px-4 py-3 dark:border-slate-700">
               <label className="flex cursor-pointer items-center justify-between gap-3">
                 <span className="flex items-center gap-2 text-[13px] font-bold text-[#263d72] dark:text-slate-200">
                   <Keyboard className="size-4 text-[#0b65e5]" />
@@ -118,7 +146,8 @@ export default function LanguageSwitcher({ compact = false, className = '', onCh
               </p>
             </div>
           ) : null}
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );
