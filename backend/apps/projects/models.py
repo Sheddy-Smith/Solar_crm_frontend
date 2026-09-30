@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.db import models, transaction, IntegrityError
 from django.utils.text import slugify
 from apps.accounts.models import User
@@ -65,6 +66,10 @@ class Project(models.Model):
         ('Medium', 'Medium'),
         ('High', 'High'),
     ]
+    INSTALLATION_STATUS_CHOICES = [
+        ('Not Done', 'Not Done'),
+        ('Done', 'Done'),
+    ]
 
     project_id = models.CharField(max_length=50, unique=True, editable=False)
     project_name = models.CharField(max_length=200)
@@ -85,6 +90,12 @@ class Project(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Planning')
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='Medium')
     progress_percent = models.IntegerField(default=0)
+    # Explicit "installation done" flag set from Project Management → Installation;
+    # O&M → Pending Installation lists every Won project still 'Not Done'.
+    installation_status = models.CharField(
+        max_length=20, choices=INSTALLATION_STATUS_CHOICES, default='Not Done', db_index=True,
+    )
+    installation_done_on = models.DateField(null=True, blank=True)
 
     manager = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_projects')
     site_engineer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='engineer_projects')
@@ -208,70 +219,6 @@ class ProjectDocument(models.Model):
 
     class Meta:
         ordering = ['-uploaded_at']
-
-
-class ProjectExpense(models.Model):
-    CATEGORY_CHOICES = [
-        ('Materials', 'Materials'),
-        ('Labor', 'Labor'),
-        ('Transport', 'Transport'),
-        ('Equipment', 'Equipment'),
-        ('Miscellaneous', 'Miscellaneous'),
-    ]
-    STATUS_CHOICES = [
-        ('Pending', 'Pending'),
-        ('Paid', 'Paid'),
-        ('Partial', 'Partial'),
-    ]
-    PAYMENT_MODE_CHOICES = [
-        ('Cash', 'Cash'),
-        ('Bank Transfer', 'Bank Transfer'),
-        ('UPI', 'UPI'),
-        ('Cheque', 'Cheque'),
-        ('NEFT', 'NEFT'),
-        ('RTGS', 'RTGS'),
-    ]
-
-    # BUG-057: PROTECT instead of CASCADE — deleting a Project must not
-    # silently wipe recorded expense history. Block the delete instead
-    # (malwa_solar/exceptions.py translates the resulting ProtectedError
-    # into a clean 400 response).
-    project = models.ForeignKey(Project, on_delete=models.PROTECT, related_name='expenses')
-    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
-    description = models.CharField(max_length=200)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    date = models.DateField()
-    payment_mode = models.CharField(max_length=30, choices=PAYMENT_MODE_CHOICES, blank=True, default='')
-    paid_by = models.CharField(max_length=200, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-    remarks = models.TextField(blank=True)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='project_expenses')
-    created_at = models.DateTimeField(auto_now_add=True)
-    # Linked PaymentVoucher lives on accounts_module.PaymentVoucher.project_expense (OneToOne reverse).
-
-    def __str__(self):
-        return f'{self.project.project_id} — {self.category} — ₹{self.amount}'
-
-    class Meta:
-        ordering = ['-date']
-
-
-class ProjectExpenseDocument(models.Model):
-    DOC_TYPE_CHOICES = [
-        ('Bill', 'Bill'),
-        ('Invoice', 'Invoice'),
-        ('Image', 'Image'),
-        ('Other', 'Other'),
-    ]
-
-    expense = models.ForeignKey(ProjectExpense, on_delete=models.CASCADE, related_name='expense_documents')
-    doc_type = models.CharField(max_length=20, choices=DOC_TYPE_CHOICES, default='Other')
-    name = models.CharField(max_length=200)
-    file = models.FileField(upload_to='expense_docs/%Y/%m/', validators=[validate_document_extension, validate_upload_size])
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f'{self.expense} — {self.name}'
 
 
 class ProjectPayment(models.Model):
@@ -769,6 +716,7 @@ class MaterialPlan(models.Model):
     ]
     DISPATCH_STATUS_CHOICES = [
         ('Pending', 'Pending'),
+        ('Packed', 'Packed'),
         ('Partial', 'Partial'),
         ('Dispatched', 'Dispatched'),
     ]
@@ -784,6 +732,8 @@ class MaterialPlan(models.Model):
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Not Started')
     dispatched_qty = models.CharField(max_length=50, blank=True, default='')
     dispatch_status = models.CharField(max_length=20, choices=DISPATCH_STATUS_CHOICES, default='Pending')
+    # When the line was marked Packed; drives the "packed but not dispatched" delay.
+    packed_at = models.DateTimeField(null=True, blank=True)
     dispatch_date = models.DateField(null=True, blank=True)
     vehicle_no = models.CharField(max_length=100, blank=True, default='')
     challan_no = models.CharField(max_length=100, blank=True, default='')
@@ -809,8 +759,93 @@ class MaterialPlan(models.Model):
     def __str__(self):
         return f'{self.project.project_id} — {self.category}'
 
+    @staticmethod
+    def parse_qty(value):
+        try:
+            return Decimal(str(value or '0').replace(',', '').strip() or '0')
+        except (InvalidOperation, TypeError, ValueError):
+            return Decimal('0')
+
+    @classmethod
+    def compute_dispatch_status(cls, planned_qty, dispatched_qty, requested=None):
+        """Quantity decides Partial/Dispatched; with nothing sent yet the line is
+        Pending unless it was explicitly marked Packed."""
+        planned, dispatched = cls.parse_qty(planned_qty), cls.parse_qty(dispatched_qty)
+        if dispatched > 0:
+            return 'Dispatched' if planned > 0 and dispatched >= planned else 'Partial'
+        return 'Packed' if requested == 'Packed' else 'Pending'
+
+    @property
+    def left_qty(self):
+        return max(self.parse_qty(self.planned_qty) - self.parse_qty(self.dispatched_qty), Decimal('0'))
+
     class Meta:
         ordering = ['id']
+
+
+class JobSheet(models.Model):
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Completed', 'Completed'),
+    ]
+
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='job_sheet')
+    job_sheet_no = models.CharField(max_length=50, unique=True, editable=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    # Each row: {work, category, cost, qty, work_order_type ('Vendor'|'Labour'|''),
+    # assignee_id, assignee_name, notes, work_order_no}
+    items = models.JSONField(default=list, blank=True)
+    extra_items = models.JSONField(default=list, blank=True)
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    advance_payment = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    round_off = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    final_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    remarks = models.TextField(blank=True)
+    work_orders_generated_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_job_sheets')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @staticmethod
+    def _num(value):
+        try:
+            return Decimal(str(value if value not in (None, '') else 0))
+        except (InvalidOperation, ValueError, TypeError):
+            return Decimal('0')
+
+    def recalculate_totals(self):
+        rows = list(self.items or []) + list(self.extra_items or [])
+        grand = sum((self._num(r.get('cost')) * self._num(r.get('qty')) for r in rows if isinstance(r, dict)), Decimal('0'))
+        net = grand - self._num(self.discount)
+        rounded = net.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+        self.grand_total = grand.quantize(Decimal('0.01'))
+        self.round_off = (rounded - net).quantize(Decimal('0.01'))
+        self.final_total = rounded
+        self.balance_due = (rounded - self._num(self.advance_payment)).quantize(Decimal('0.01'))
+
+    def save(self, *args, **kwargs):
+        if not self.job_sheet_no:
+            year = datetime.date.today().year
+            prefix = f'JS-{year}-'
+            seed = 0
+            last = JobSheet.objects.filter(job_sheet_no__startswith=prefix).order_by('-job_sheet_no').first()
+            if last:
+                try:
+                    seed = int(last.job_sheet_no.rsplit('-', 1)[-1])
+                except ValueError:
+                    seed = 0
+            num = SequenceCounter.next_value(prefix, initial=seed)
+            self.job_sheet_no = f'{prefix}{num:04d}'
+        self.recalculate_totals()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.job_sheet_no} — {self.project.project_id}'
+
+    class Meta:
+        ordering = ['-updated_at']
 
 
 class SubsidyApplication(models.Model):

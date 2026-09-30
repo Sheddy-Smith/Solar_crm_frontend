@@ -13,7 +13,9 @@ import os
 import re
 from pathlib import Path
 
+from asgiref.sync import sync_to_async
 from django.conf import settings
+from django.core.handlers.asgi import ASGIRequest
 from django.http import Http404, HttpResponse, HttpResponseForbidden, StreamingHttpResponse
 from django.utils._os import safe_join
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -47,6 +49,28 @@ class _RangedFile:
 
     def close(self):
         self.file.close()
+
+
+class _AsyncRangedFile:
+    """Async view of _RangedFile for ASGI. Django consumes a *sync* streaming
+    iterator under ASGI by reading it fully into memory first, which would load
+    whole videos into RAM per request."""
+
+    def __init__(self, ranged):
+        self.ranged = ranged
+
+    async def __aiter__(self):
+        while self.ranged.remaining > 0:
+            data = await sync_to_async(self.ranged.file.read, thread_sensitive=False)(
+                min(self.ranged.blksize, self.ranged.remaining)
+            )
+            if not data:
+                break
+            self.ranged.remaining -= len(data)
+            yield data
+
+    def close(self):
+        self.ranged.close()
 
 
 def _content_type_for(path):
@@ -108,8 +132,11 @@ def secure_media_serve(request, path):
         status = 206
 
     length = end - start + 1 if size else 0
+    body = _RangedFile(fullpath, start, length)
+    if isinstance(request, ASGIRequest):
+        body = _AsyncRangedFile(body)
     response = StreamingHttpResponse(
-        _RangedFile(fullpath, start, length),
+        body,
         content_type=content_type,
         status=status,
     )

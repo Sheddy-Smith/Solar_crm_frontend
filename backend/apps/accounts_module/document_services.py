@@ -71,9 +71,36 @@ def apply_invoice_totals(invoice, lines, extra_charges=None):
     return totals
 
 
+SOLAR_SPLIT_GST_RATE = Decimal('8.9')
+SOLAR_SPLIT_GOODS_RATE = Decimal('3.5')  # 5% on the 70% goods share
+
+
+def compute_challan_gst(taxable, gst_mode, gst_percent):
+    """Returns (gst_total, gst_5_part). Split mode rounds the combined 8.9% once,
+    the same way quotations do, so a quotation total carries over exactly."""
+    taxable = _round_money(taxable)
+    if gst_mode == 'Split':
+        total = _round_money(taxable * SOLAR_SPLIT_GST_RATE / Decimal('100'))
+        return total, _round_money(taxable * SOLAR_SPLIT_GOODS_RATE / Decimal('100'))
+    if gst_mode == 'Flat':
+        return _round_money(taxable * _d(gst_percent) / Decimal('100')), Decimal('0')
+    return Decimal('0'), Decimal('0')
+
+
 def apply_challan_totals(challan, lines):
     total = sum(_d(line.get('line_total') or compute_line_total(line.get('quantity'), line.get('rate'))) for line in lines)
-    challan.total_amount = _round_money(total)
+    total = _round_money(total)
+    if hasattr(challan, 'gst_mode'):
+        if challan.gst_mode == 'Split':
+            challan.gst_percent = SOLAR_SPLIT_GST_RATE
+        gst, _ = compute_challan_gst(total, challan.gst_mode, challan.gst_percent)
+        challan.subtotal = total
+        challan.gst_amount = gst
+        gross = _round_money(total + gst)
+        # Taxed challans are billed to the whole rupee, like the quotation they come from.
+        total = gross.quantize(Decimal('1'), rounding=ROUND_HALF_UP) if challan.gst_mode != 'None' else gross
+        challan.round_off = _round_money(total - gross)
+    challan.total_amount = total
     if hasattr(challan, 'balance_due'):
         paid = _d(challan.payment_amount)
         challan.balance_due = _round_money(total - paid)
@@ -248,7 +275,7 @@ def sync_inventory_for_sell_challan(challan, user=None):
     default_warehouse = Warehouse.objects.filter(is_active=True).order_by('id').first()
     active_statuses = {'Dispatched', 'Delivered'}
 
-    if challan.status not in active_statuses:
+    if challan.status not in active_statuses or challan.source == 'Project':
         for line in challan.lines.filter(stock_movement__isnull=False).select_related('stock_movement'):
             _clear_line_movement(line)
         return
@@ -394,7 +421,7 @@ def sync_inventory_for_purchase_invoice(invoice, user=None):
 def sync_inventory_for_sell_invoice(invoice, user=None):
     """Sell Invoice Issued/Paid → Stock OUT (MD §5.3)."""
     ref_no = invoice.invoice_no or f'SI-{invoice.id:04d}'
-    active = invoice.status in {'Issued', 'Paid'}
+    active = invoice.status in {'Issued', 'Paid'} and invoice.source != 'Project'
 
     if not active:
         for line in invoice.lines.filter(stock_movement__isnull=False).select_related('stock_movement'):

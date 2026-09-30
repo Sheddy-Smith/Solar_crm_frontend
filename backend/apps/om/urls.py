@@ -4,8 +4,10 @@ from .views import (
     OmAssetViewSet, OmMaintenanceTaskViewSet, OmBreakdownTicketViewSet,
     OmSiteVisitViewSet, OmSparePartViewSet, OmReportViewSet, OmDocumentViewSet,
 )
+from .pending_views import PendingFlowViewSet
 
 router = DefaultRouter()
+router.register('pending', PendingFlowViewSet, basename='om-pending')
 router.register('assets', OmAssetViewSet, basename='om-asset')
 router.register('maintenance-tasks', OmMaintenanceTaskViewSet, basename='om-task')
 router.register('tickets', OmBreakdownTicketViewSet, basename='om-ticket')

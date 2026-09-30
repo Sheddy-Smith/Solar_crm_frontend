@@ -25,7 +25,9 @@ function headerCells(table) {
 }
 
 function headerLabel(th) {
-  return (th?.textContent || '').trim().replace(/\s+/g, ' ');
+  // English label even when the UI language is switched — Action detection and saved widths key off it.
+  const text = window.__malwaI18n?.originalText ? window.__malwaI18n.originalText(th) : th?.textContent;
+  return (text || '').trim().replace(/\s+/g, ' ');
 }
 
 function isActionHeader(th) {

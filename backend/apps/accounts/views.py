@@ -16,6 +16,7 @@ from .serializers import (
     BranchSerializer, RoleSerializer, UserSerializer,
     UserCreateSerializer, ChangePasswordSerializer,
     CustomTokenObtainPairSerializer, RolePermissionSerializer,
+    UserPreferencesSerializer, current_user_payload,
 )
 from .permissions import HasModulePermission, is_super_admin
 
@@ -211,7 +212,7 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_permissions(self):
-        if self.action in ('me', 'change_password', 'verify_password'):
+        if self.action in ('me', 'preferences', 'change_password', 'verify_password'):
             return [IsAuthenticated()]
         # All user-admin actions follow the User Management matrix from Settings UI
         # (View / Add / Edit / Delete). Super Admin still bypasses via HasModulePermission.
@@ -285,8 +286,21 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def me(self, request):
-        serializer = UserSerializer(request.user)
-        return Response(serializer.data)
+        return Response(current_user_payload(request.user))
+
+    @action(detail=False, methods=['patch'], url_path='me/preferences')
+    def preferences(self, request):
+        serializer = UserPreferencesSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = request.user
+        fields = []
+        for field in ('language', 'typing_transliteration'):
+            if field in serializer.validated_data:
+                setattr(user, field, serializer.validated_data[field])
+                fields.append(field)
+        if fields:
+            user.save(update_fields=[*fields, 'updated_at'])
+        return Response(current_user_payload(user))
 
     @action(detail=False, methods=['post'], url_path='verify-password')
     def verify_password(self, request):

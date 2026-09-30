@@ -74,8 +74,8 @@ SETTING_CATEGORIES = {
         'showSymbol': True,
     },
     'language': {
-        'defaultLanguage': 'English',
-        'enabledLanguages': ['English', 'Hindi (हिंदी)', 'Punjabi (ਪੰਜਾਬੀ)'],
+        'defaultLanguage': 'en',
+        'enabledLanguages': ['en', 'hi', 'hinglish', 'pa', 'gu', 'mr', 'bn', 'ta', 'te'],
         'rtlSupport': False,
     },
     'payment': {
@@ -183,6 +183,38 @@ SETTING_CATEGORIES = {
 }
 
 MASTER_TYPE_LABELS = dict(MasterRecord.MASTER_TYPES)
+
+LANGUAGE_CODES = ('en', 'hi', 'hinglish', 'pa', 'gu', 'mr', 'bn', 'ta', 'te')
+_LANGUAGE_NAME_TO_CODE = {
+    'english': 'en', 'hindi': 'hi', 'hinglish': 'hinglish', 'punjabi': 'pa', 'gujarati': 'gu',
+    'marathi': 'mr', 'bengali': 'bn', 'bangla': 'bn', 'tamil': 'ta', 'telugu': 'te',
+}
+
+
+def normalize_language_code(value):
+    """Accepts a code ('hi') or a legacy display name ('Hindi (हिंदी)'); returns a code or ''."""
+    text = str(value or '').strip()
+    if text in LANGUAGE_CODES:
+        return text
+    first_word = text.split(' ')[0].split('(')[0].strip().lower()
+    return _LANGUAGE_NAME_TO_CODE.get(first_word, '')
+
+
+def language_settings():
+    """System language policy: default for users without a preference + which languages are offered."""
+    raw = get_category_settings('language')
+    enabled = []
+    for item in raw.get('enabledLanguages') or []:
+        code = normalize_language_code(item)
+        if code and code not in enabled:
+            enabled.append(code)
+    if 'en' not in enabled:
+        enabled.insert(0, 'en')
+    enabled = [code for code in LANGUAGE_CODES if code in enabled]
+    default = normalize_language_code(raw.get('defaultLanguage')) or 'en'
+    if default not in enabled:
+        default = 'en'
+    return {'default_language': default, 'enabled_languages': enabled}
 
 
 def get_client_ip(request):

@@ -8,7 +8,7 @@ awake 24/7 even when nobody is using the app.
 
 Activation is gated on RENDER_EXTERNAL_URL, which Render injects
 automatically into every web service — so this is a no-op in local dev,
-tests and management commands (none of which import wsgi.py anyway).
+tests and management commands (none of which import asgi.py/wsgi.py anyway).
 
 Note: with `--workers 2` each gunicorn worker starts its own thread, so the
 service receives ~2 pings per interval. That's intentional slack (a worker

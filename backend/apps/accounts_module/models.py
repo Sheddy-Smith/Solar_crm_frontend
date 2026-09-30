@@ -215,7 +215,7 @@ class Cheque(models.Model):
 class AccountCategoryMap(models.Model):
     """Maps business categories (Panel, Labour, Transport…) to Chart of Account ledgers.
 
-    Used by Employee vouchers, Project expenses, Material dispatch cost postings,
+    Used by Employee vouchers, manual expense vouchers, Material dispatch cost postings,
     and Material Planning difference reporting — never hard-code COA codes in sync.
     """
     MODULE_CHOICES = [
@@ -389,6 +389,12 @@ class PurchaseInvoiceExtraCharge(models.Model):
         ordering = ['sort_order', 'id']
 
 
+DOCUMENT_SOURCE_CHOICES = [
+    ('Accounts', 'Accounts'),
+    ('Project', 'Project'),
+]
+
+
 class SellInvoice(_GstMixin):
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
@@ -397,6 +403,9 @@ class SellInvoice(_GstMixin):
         ('Cancelled', 'Cancelled'),
     ]
     invoice_no = models.CharField(max_length=100, blank=True, unique=True)
+    # Project documents never move stock — project material already leaves
+    # inventory through Material Dispatch.
+    source = models.CharField(max_length=20, choices=DOCUMENT_SOURCE_CHOICES, default='Accounts')
     invoice_date = models.DateField()
     party = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='sell_invoices')
     party_name = models.CharField(max_length=200, blank=True)
@@ -490,13 +499,6 @@ class PaymentVoucher(models.Model):
         blank=True,
         related_name='accounts_payment_voucher',
     )
-    project_expense = models.OneToOneField(
-        'projects.ProjectExpense',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='accounts_voucher',
-    )
     material_plan = models.OneToOneField(
         'projects.MaterialPlan',
         on_delete=models.CASCADE,
@@ -582,14 +584,26 @@ class SellChallan(models.Model):
         ('Cancelled', 'Cancelled'),
     ]
     challan_no = models.CharField(max_length=100, blank=True, unique=True)
+    source = models.CharField(max_length=20, choices=DOCUMENT_SOURCE_CHOICES, default='Accounts')
     challan_date = models.DateField()
     party = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='sell_challans')
     party_name = models.CharField(max_length=200, blank=True)
     project = models.ForeignKey(
         'projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='sell_challans',
     )
+    GST_MODE_CHOICES = [
+        ('None', 'No GST'),
+        ('Split', 'Solar Split (70% @5% + 30% @18%)'),
+        ('Flat', 'Flat %'),
+    ]
     vehicle_no = models.CharField(max_length=30, blank=True)
     site_address = models.CharField(max_length=300, blank=True)
+    quotation_no = models.CharField(max_length=50, blank=True)
+    gst_mode = models.CharField(max_length=10, choices=GST_MODE_CHOICES, default='None')
+    gst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    round_off = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Open')
     remarks = models.TextField(blank=True)
@@ -620,8 +634,15 @@ class SellChallanLine(models.Model):
         blank=True,
         related_name='sell_challan_line',
     )
+    SECTION_CHOICES = [
+        ('Main', 'Main'),
+        ('Additional', 'Additional Work'),
+    ]
+    section = models.CharField(max_length=12, choices=SECTION_CHOICES, default='Main')
     material_name = models.CharField(max_length=200)
     category = models.CharField(max_length=100, blank=True)
+    brand = models.CharField(max_length=100, blank=True)
+    specification = models.CharField(max_length=300, blank=True)
     quantity = models.DecimalField(max_digits=12, decimal_places=2, default=1)
     unit = models.CharField(max_length=30, blank=True, default='Nos')
     rate = models.DecimalField(max_digits=14, decimal_places=2, default=0)

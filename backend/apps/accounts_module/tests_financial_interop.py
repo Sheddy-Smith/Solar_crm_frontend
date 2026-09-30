@@ -1,4 +1,4 @@
-"""Tests for Category→COA map, employee voucher journal, project expense sync,
+"""Tests for Category→COA map, employee voucher journal,
 material dispatch cost, and planning price difference."""
 
 from datetime import date
@@ -14,11 +14,10 @@ from apps.accounts_module.project_financial_sync import (
     material_plan_pricing as pricing_fn,
     project_pnl,
     sync_accounts_for_material_dispatch,
-    sync_accounts_for_project_expense,
 )
 from apps.accounts_module.services import sync_payment_voucher_for_employee_voucher
 from apps.inventory.models import InventoryItem, Warehouse
-from apps.projects.models import MaterialPlan, Project, ProjectExpense, ProjectPayment
+from apps.projects.models import MaterialPlan, Project, ProjectPayment
 from apps.workforce.models import Employee, EmployeeVoucher
 
 
@@ -85,26 +84,6 @@ class FinancialInteropTests(TestCase):
         self.assertEqual(journals.first().debit_account.account_code, '5310')
         self.assertEqual(journals.first().amount, Decimal('5000.00'))
 
-    def test_project_expense_sync_journal(self):
-        expense = ProjectExpense.objects.create(
-            project=self.project,
-            category='Transport',
-            description='Lorry hire',
-            amount=Decimal('2000.00'),
-            date=date(2026, 8, 2),
-            payment_mode='Cash',
-            status='Paid',
-            created_by=self.user,
-        )
-        sync_accounts_for_project_expense(expense, user=self.user)
-        sync_accounts_for_project_expense(expense, user=self.user)  # idempotent
-
-        pv = PaymentVoucher.objects.filter(project_expense=expense)
-        self.assertEqual(pv.count(), 1)
-        journal = Transaction.objects.get(source_payment_voucher=pv.first())
-        self.assertEqual(journal.debit_account.account_code, '5320')
-        self.assertEqual(journal.amount, Decimal('2000.00'))
-
     def test_accounts_labour_voucher_posts_to_employee_ledger(self):
         emp = Employee.objects.create(name='Suresh', daily_rate=Decimal('700'), skill_trade='Fitter')
         other = Employee.objects.create(name='Mahesh', daily_rate=Decimal('700'), skill_trade='Fitter')
@@ -169,36 +148,6 @@ class FinancialInteropTests(TestCase):
             'entry_type': 'Expense', 'exclude_source': 'material_dispatch,workforce',
         }).data
         self.assertEqual(len(expenses.get('results', expenses)), 0)
-
-    def test_project_expense_visible_in_accounts_and_locked(self):
-        client = APIClient()
-        client.force_authenticate(self.user)
-        res = client.post('/api/v1/project-expenses/', {
-            'project': self.project.id,
-            'category': 'Transport',
-            'description': 'Lorry hire',
-            'amount': '2000.00',
-            'date': '2026-08-02',
-            'payment_mode': 'Cash',
-            'status': 'Paid',
-        }, format='json')
-        self.assertEqual(res.status_code, 201, res.data)
-
-        listing = client.get('/api/v1/accounts/vouchers/', {'entry_type': 'Expense'})
-        rows = listing.data.get('results', listing.data)
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]['source'], 'Project Expense')
-        self.assertEqual(rows[0]['project_name'], 'Test Site')
-
-        summary = client.get('/api/v1/accounts/transactions/summary/').data
-        self.assertEqual(summary['project_expenses'], 2000.0)
-        self.assertEqual(summary['project_expense_count'], 1)
-        self.assertEqual(summary['total_made'], 2000.0)
-
-        voucher_id = rows[0]['id']
-        self.assertEqual(client.patch(f'/api/v1/accounts/vouchers/{voucher_id}/', {'amount': '1'}, format='json').status_code, 403)
-        self.assertEqual(client.delete(f'/api/v1/accounts/vouchers/{voucher_id}/').status_code, 403)
-        self.assertTrue(PaymentVoucher.objects.filter(pk=voucher_id, amount=Decimal('2000.00')).exists())
 
     def test_material_dispatch_uses_inventory_cost_not_planning_price(self):
         plan = MaterialPlan.objects.create(

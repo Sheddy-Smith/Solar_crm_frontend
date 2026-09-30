@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpRight, BarChart3, Bell, Boxes, Calendar, ChevronRight,
   ClipboardList, CreditCard, Download, FileText, Filter, FolderKanban, Gauge,
-  Headphones, Hourglass, IndianRupee, LineChart, Package,
-  PackageMinus, PackageX, RefreshCw, Target, Ticket, TrendingUp, Trophy,
+  Hourglass, IndianRupee, LineChart, Package,
+  PackageMinus, PackageX, Receipt, RefreshCw, Target, Ticket, TrendingUp, Trophy, Truck,
   UserPlus, Users, Wallet, Wrench, XCircle, ArrowLeftRight,
 } from 'lucide-react';
 import {
@@ -443,8 +443,13 @@ const ALERT_DEFS = [
   { key: 'low_stock_items', label: 'Low Stock Items', section: 'Products', icon: PackageMinus, iconBg: 'bg-[#ffe4e6]', iconColor: 'text-[#f43f5e]' },
   { key: 'out_of_stock_items', label: 'Out of Stock', section: 'Stock', icon: PackageX, iconBg: 'bg-[#ede9fe]', iconColor: 'text-[#8b5cf6]' },
   { key: 'expiring_amc', label: 'Expiring AMC', section: 'AMC Contracts', icon: Hourglass, iconBg: 'bg-[#ffedd5]', iconColor: 'text-[#f59e0b]' },
-  { key: 'pending_tasks', label: 'Pending O&M Tasks', section: 'Maintenance Tasks', icon: Wrench, iconBg: 'bg-[#dbeafe]', iconColor: 'text-[#3b82f6]' },
-  { key: 'open_om_tickets', label: 'Open O&M Tickets', section: 'Breakdown Tickets', icon: Ticket, iconBg: 'bg-[#dcfce7]', iconColor: 'text-[#16a34a]' },
+  { key: 'pending_work_orders', label: 'Pending Work Orders', section: 'Pending Work Order', icon: ClipboardList, iconBg: 'bg-[#dbeafe]', iconColor: 'text-[#3b82f6]' },
+  { key: 'pending_quotations', label: 'Pending Quotations', section: 'Pending Quotations', icon: FileText, iconBg: 'bg-[#e0f2fe]', iconColor: 'text-[#0284c7]' },
+  { key: 'pending_dispatch', label: 'Pending Dispatch', section: 'Pending Dispatch', icon: Truck, iconBg: 'bg-[#dcfce7]', iconColor: 'text-[#16a34a]' },
+  { key: 'delayed_dispatch', label: 'Delayed Dispatch (Packed)', section: 'Pending Dispatch', icon: Ticket, iconBg: 'bg-[#fee2e2]', iconColor: 'text-[#dc2626]' },
+  { key: 'pending_installation', label: 'Pending Installation', section: 'Pending Installation', icon: Wrench, iconBg: 'bg-[#ccfbf1]', iconColor: 'text-[#0d9488]' },
+  { key: 'pending_invoices', label: 'Pending Invoice', section: 'Pending Invoice', icon: Receipt, iconBg: 'bg-[#fef3c7]', iconColor: 'text-[#d97706]' },
+  { key: 'short_materials', label: 'Short Listed Material', section: 'Short Listed Material', icon: PackageMinus, iconBg: 'bg-[#fce7f3]', iconColor: 'text-[#db2777]' },
   { key: 'pending_cheques', label: 'Pending Cheques', section: 'Cheques List', icon: FileText, iconBg: 'bg-[#fef9c3]', iconColor: 'text-[#ca8a04]' },
   { key: 'stale_stock_items', label: 'Stale Stock (15d+)', section: 'Products', icon: Boxes, iconBg: 'bg-[#fce7f3]', iconColor: 'text-[#ec4899]' },
 ];
@@ -585,8 +590,8 @@ export function UnifiedDashboardPage({
               </section>
 
               <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <HorizontalKpiCard label="Open O&M Tickets" value={overview.operations?.open_tickets ?? 0} icon={Headphones} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Breakdown Tickets')} />
-                <HorizontalKpiCard label="Pending Tasks" value={overview.operations?.pending_tasks ?? 0} icon={ClipboardList} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Maintenance Tasks')} />
+                <HorizontalKpiCard label="Pending Dispatch" value={overview.operations?.pending_flow?.dispatch ?? 0} icon={Truck} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Pending Dispatch')} />
+                <HorizontalKpiCard label="Pending Installation" value={overview.operations?.pending_flow?.installation ?? 0} icon={ClipboardList} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Pending Installation')} />
                 <HorizontalKpiCard label="Low Stock" value={overview.inventory?.low_stock ?? 0} icon={PackageMinus} iconBg="bg-[#ffedd5]" iconColor="text-[#f59e0b]" onClick={() => onOpenSection('Products')} />
                 <HorizontalKpiCard label="Expiring AMC" value={overview.amc?.expiring_contracts ?? 0} icon={Calendar} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => onOpenSection('AMC Contracts')} />
               </section>
@@ -595,7 +600,7 @@ export function UnifiedDashboardPage({
                 <QuickActionBtn label="New Lead" icon={UserPlus} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Create Lead')} />
                 <QuickActionBtn label="Record Payment" icon={CreditCard} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Payment Received')} />
                 <QuickActionBtn label="Stock" icon={Download} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Stock')} />
-                <QuickActionBtn label="O&M Tickets" icon={Wrench} iconBg="bg-[#ccfbf1]" iconColor="text-[#0d9488]" onClick={() => onOpenSection('Breakdown Tickets')} />
+                <QuickActionBtn label="O&M Pending" icon={Wrench} iconBg="bg-[#ccfbf1]" iconColor="text-[#0d9488]" onClick={() => onOpenSection('Pending Work Order')} />
                 <QuickActionBtn label="View Alerts" icon={Bell} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => setTabAndSync('alerts')} />
               </section>
             </div>
@@ -609,7 +614,7 @@ export function UnifiedDashboardPage({
                 <KpiCard label="Lost" value={sales.lost} caption="Lost leads" icon={XCircle} iconBg="bg-[#fee2e2]" iconColor="text-[#ef4444]" onClick={() => onOpenSection('Lead List')} />
                 <KpiCard label="Conversion Rate" value={`${sales.conversion_rate}%`} caption="Won / Total Leads" icon={Target} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Lead List')} />
                 <KpiCard label="Quotation Follow ups" value={kpiFromReports(reports, 'Follow-ups')} caption="Pending follow ups" icon={ArrowUpRight} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => onOpenSection('Lead List')} />
-                <KpiCard label="Tasks Pending" value={overview?.operations?.pending_tasks ?? 0} caption="Pending tasks" icon={Hourglass} iconBg="bg-[#ffedd5]" iconColor="text-[#f59e0b]" onClick={() => onOpenSection('Maintenance Tasks')} />
+                <KpiCard label="Pending Quotations" value={overview?.operations?.pending_flow?.quotations ?? 0} caption="Won leads without quotation" icon={Hourglass} iconBg="bg-[#ffedd5]" iconColor="text-[#f59e0b]" onClick={() => onOpenSection('Pending Quotations')} />
               </section>
 
               <StatStrip

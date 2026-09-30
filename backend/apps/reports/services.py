@@ -7,6 +7,7 @@ def reports_dashboard(date_from=None, date_to=None):
     from apps.accounts_module.models import Payment
     from apps.inventory.models import InventoryItem
     from apps.om.models import OmBreakdownTicket, OmMaintenanceTask
+    from apps.om.pending_flow import pending_counts_global
     from apps.amc.models import AmcContract, AmcServiceRequest
 
     lead_qs = Lead.objects.all()
@@ -60,6 +61,7 @@ def reports_dashboard(date_from=None, date_to=None):
             'pending_tasks': OmMaintenanceTask.objects.filter(status__in=['Pending', 'In Progress', 'Overdue']).count(),
             'active_amc': AmcContract.objects.filter(status='Active').count(),
             'open_amc_requests': AmcServiceRequest.objects.filter(status__in=['Open', 'In Progress']).count(),
+            'pending_flow': pending_counts_global(),
         },
         'accounts': accounts,
     }

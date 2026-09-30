@@ -1,4 +1,4 @@
-"""Cross-module financial sync: Project Expense, Material Dispatch cost, Project P&L.
+"""Cross-module financial sync: Material Dispatch cost, Project P&L.
 
 Preserves InventoryItem.rate as actual purchase cost.
 MaterialPlan.planning_unit_price is the project planned/charge price.
@@ -16,72 +16,17 @@ from .category_map import (
     decimal_or_zero,
     resolve_material_coa,
     resolve_planning_difference_coa,
-    resolve_project_expense_coa,
 )
 from .models import Payment, PaymentVoucher
 from .services import (
-    _payment_mode_for_voucher,
     remove_payment_voucher_and_journal,
     sync_journal_for_payment_voucher,
 )
 
 
-def _next_voucher_no(prefix='EXP'):
+def _next_voucher_no(prefix='MAT'):
     from .document_services import next_document_number
     return next_document_number(prefix, PaymentVoucher, 'voucher_no')
-
-
-# ─── Project Expense → PaymentVoucher → Journal ───────────────────────────────
-
-
-@transaction.atomic
-def sync_accounts_for_project_expense(expense, user=None):
-    """Upsert PaymentVoucher + journal for a ProjectExpense. Idempotent via OneToOne FK."""
-    amount = decimal_or_zero(expense.amount)
-    # Pending expenses keep voucher for audit but skip journal (status Pending/cancelled).
-    journal_status = 'Completed' if expense.status in ('Paid', 'Partial') and amount > 0 else 'Pending'
-
-    if amount <= 0:
-        remove_accounts_for_project_expense(expense)
-        return None
-
-    mode = _payment_mode_for_voucher(expense.payment_mode or 'Cash')
-    defaults = {
-        'voucher_date': expense.date or timezone.now().date(),
-        'entry_type': 'Expense',
-        'payee_type': 'Other',
-        'payee_name': (expense.paid_by or '').strip() or expense.description or 'Project expense',
-        'category': expense.category or 'Miscellaneous',
-        'particulars': expense.description or f'Project expense — {expense.project.project_id}',
-        'payment_mode': mode,
-        'amount': amount,
-        'project': expense.project,
-        'status': journal_status if journal_status == 'Completed' else 'Pending',
-    }
-    if user is not None:
-        defaults['created_by'] = user
-
-    voucher, created = PaymentVoucher.objects.update_or_create(
-        project_expense=expense,
-        defaults=defaults,
-    )
-    if created and not voucher.voucher_no:
-        voucher.voucher_no = _next_voucher_no('EXP')
-        voucher.save(update_fields=['voucher_no'])
-
-    sync_journal_for_payment_voucher(
-        voucher,
-        debit_account=resolve_project_expense_coa(expense.category),
-    )
-    return voucher
-
-
-def remove_accounts_for_project_expense(expense):
-    voucher = getattr(expense, 'accounts_voucher', None)
-    if voucher is None:
-        voucher = PaymentVoucher.objects.filter(project_expense_id=expense.pk).first()
-    if voucher:
-        remove_payment_voucher_and_journal(voucher)
 
 
 # ─── Material Dispatch → Actual Material Cost (Inventory rate × qty) ───────────
@@ -223,8 +168,7 @@ def project_pnl(project):
     Actual profitability:
       Revenue (Sell Invoices issued/paid for this project — accrual basis)
     − Actual Material Cost (dispatch cost vouchers / stock × inventory rate)
-    − Labour (project expense labour only — general employee vouchers excluded)
-    − Transport / Subcontractor / Other project expenses
+    − Labour (employee payment vouchers linked to this project)
     = Actual Profit
 
     Customer payments reduce Accounts Receivable; they are NOT added to revenue.
@@ -244,21 +188,11 @@ def project_pnl(project):
     )
     actual_material = sum((v.amount for v in material_vouchers), Decimal('0'))
 
-    # Project expenses by category
-    expenses = list(project.expenses.all())
-    labour_exp = sum((e.amount for e in expenses if e.category == 'Labor'), Decimal('0'))
-    transport_exp = sum((e.amount for e in expenses if e.category == 'Transport'), Decimal('0'))
-    materials_exp = sum((e.amount for e in expenses if e.category == 'Materials'), Decimal('0'))
-    equipment_exp = sum((e.amount for e in expenses if e.category == 'Equipment'), Decimal('0'))
-    misc_exp = sum((e.amount for e in expenses if e.category == 'Miscellaneous'), Decimal('0'))
-
-    # Labour also from employee payment vouchers linked to this project
     labour_vouchers = PaymentVoucher.objects.filter(
         project=project, category__iexact='Labour', status='Completed',
         employee_voucher__isnull=False,
     )
-    labour_from_vouchers = sum((v.amount for v in labour_vouchers), Decimal('0'))
-    labour_total = labour_exp + labour_from_vouchers
+    labour_total = sum((v.amount for v in labour_vouchers), Decimal('0'))
 
     # Planning metrics across BOM lines
     plans = list(project.material_plans.select_related('inventory_item').all())
@@ -279,8 +213,7 @@ def project_pnl(project):
             if qty > 0 and item:
                 actual_material += (qty * decimal_or_zero(item.rate)).quantize(Decimal('0.01'))
 
-    other_expenses = materials_exp + equipment_exp + misc_exp
-    total_cost = actual_material + labour_total + transport_exp + other_expenses
+    total_cost = actual_material + labour_total
     actual_profit = revenue - total_cost
 
     return {
@@ -299,11 +232,6 @@ def project_pnl(project):
         'costs': {
             'actual_material_cost': float(actual_material),
             'labour_cost': float(labour_total),
-            'transport_cost': float(transport_exp),
-            'other_project_expenses': float(other_expenses),
-            'materials_expense_manual': float(materials_exp),
-            'equipment_cost': float(equipment_exp),
-            'misc_cost': float(misc_exp),
             'total_cost': float(total_cost),
         },
         'actual_profit': float(actual_profit),

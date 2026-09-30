@@ -147,6 +147,7 @@ export const authApi = {
     return data;
   },
   me: () => request('/users/me/'),
+  updatePreferences: (prefs) => request('/users/me/preferences/', { method: 'PATCH', body: prefs }),
   verifyPassword: (password) => request('/users/verify-password/', { method: 'POST', body: { password } }),
   logout: () => tokenStore.clear(),
 };
@@ -467,39 +468,6 @@ export const projectDocumentApi = {
   delete: (id) => request(`/project-documents/${id}/`, { method: 'DELETE' }),
 };
 
-// ─── Project Expenses ───────────────────────────────────────────────────────────
-
-export const projectExpenseApi = {
-  list: (params = {}) => {
-    const qs = new URLSearchParams();
-    if (params.project) qs.set('project', params.project);
-    if (params.category) qs.set('category', params.category);
-    if (params.status) qs.set('status', params.status);
-    if (params.search) qs.set('search', params.search);
-    if (params.date_from) qs.set('date_from', params.date_from);
-    if (params.date_to) qs.set('date_to', params.date_to);
-    if (params.page_size) qs.set('page_size', params.page_size);
-    const q = qs.toString();
-    return request(`/project-expenses/${q ? '?' + q : ''}`);
-  },
-  get: (id) => request(`/project-expenses/${id}/`),
-  create: (data) => request('/project-expenses/', { method: 'POST', body: data }),
-  update: (id, data) => request(`/project-expenses/${id}/`, { method: 'PATCH', body: data }),
-  delete: (id) => request(`/project-expenses/${id}/`, { method: 'DELETE' }),
-  summary: (params = {}) => {
-    const qs = new URLSearchParams();
-    if (params.project) qs.set('project', params.project);
-    if (params.category) qs.set('category', params.category);
-    if (params.status) qs.set('status', params.status);
-    if (params.date_from) qs.set('date_from', params.date_from);
-    if (params.date_to) qs.set('date_to', params.date_to);
-    const q = qs.toString();
-    return request(`/project-expenses/summary/${q ? '?' + q : ''}`);
-  },
-  uploadDoc: (data) => request('/expense-docs/', { method: 'POST', body: data }),
-  deleteDoc: (id) => request(`/expense-docs/${id}/`, { method: 'DELETE' }),
-};
-
 // ─── Project Approvals ──────────────────────────────────────────────────────────
 
 export const projectApprovalApi = {
@@ -659,7 +627,51 @@ export const materialPlanApi = {
     const qs = new URLSearchParams(params).toString();
     return request(`/material-plans/status-overview/${qs ? '?' + qs : ''}`);
   },
+  markPacked: (project, packed = true, lines) => request('/material-plans/mark-packed/', {
+    method: 'POST',
+    body: { project, packed, ...(lines?.length ? { lines } : {}) },
+  }),
 };
+
+// ─── Job Sheets ─────────────────────────────────────────────────────────────────
+
+export const jobSheetApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/job-sheets/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/job-sheets/${id}/`),
+  create: (data) => request('/job-sheets/', { method: 'POST', body: data }),
+  update: (id, data) => request(`/job-sheets/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/job-sheets/${id}/`, { method: 'DELETE' }),
+  generateWorkOrders: (id) => request(`/job-sheets/${id}/generate-work-orders/`, { method: 'POST', body: {} }),
+};
+
+// ─── Project Sales Challan / Invoice ────────────────────────────────────────────
+
+const projectDocCrud = (base) => ({
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/${base}/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/${base}/${id}/`),
+  create: (data) => request(`/${base}/`, { method: 'POST', body: data }),
+  update: (id, data) => request(`/${base}/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/${base}/${id}/`, { method: 'DELETE' }),
+});
+
+export const projectSalesChallanApi = {
+  ...projectDocCrud('project-sales-challans'),
+  quotationPrefill: (projectId, quotationId) => {
+    const qs = new URLSearchParams({ project: projectId, ...(quotationId ? { quotation: quotationId } : {}) });
+    return request(`/project-sales-challans/quotation-prefill/?${qs}`);
+  },
+};
+export const projectInvoiceApi = projectDocCrud('project-invoices');
 
 // ─── Liaisoning & Commissioning ─────────────────────────────────────────────────
 
@@ -687,28 +699,25 @@ export const lcCommissioningApi = lcCrud('commissionings');
 export const lcComplianceApi = lcCrud('compliances');
 export const lcDocumentApi = lcCrud('documents');
 
-// ─── O&M (Operations & Maintenance) ─────────────────────────────────────────────
+// ─── O&M pending flow (work order → quotation → dispatch → install → invoice) ──
 
-const omCrud = (base) => ({
-  list: (params = {}) => {
-    const qs = new URLSearchParams(
-      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
-    ).toString();
-    return request(`/om/${base}/${qs ? '?' + qs : ''}`);
-  },
-  get: (id) => request(`/om/${base}/${id}/`),
-  create: (data) => request(`/om/${base}/`, { method: 'POST', body: data }),
-  update: (id, data) => request(`/om/${base}/${id}/`, { method: 'PATCH', body: data }),
-  delete: (id) => request(`/om/${base}/${id}/`, { method: 'DELETE' }),
-});
-
-export const omAssetApi = omCrud('assets');
-export const omMaintenanceApi = omCrud('maintenance-tasks');
-export const omTicketApi = omCrud('tickets');
-export const omVisitApi = omCrud('site-visits');
-export const omSparePartApi = omCrud('spare-parts');
-export const omReportApi = omCrud('reports');
-export const omDocumentApi = omCrud('documents');
+export const omPendingApi = {
+  summary: () => request('/om/pending/summary/'),
+  workOrders: () => request('/om/pending/work-orders/'),
+  quotations: () => request('/om/pending/quotations/'),
+  dispatch: () => request('/om/pending/dispatch/'),
+  installation: () => request('/om/pending/installation/'),
+  invoices: () => request('/om/pending/invoices/'),
+  materials: () => request('/om/pending/materials/'),
+  markPacked: (project, packed = true, lines) => request('/om/pending/mark-packed/', {
+    method: 'POST',
+    body: { project, packed, ...(lines?.length ? { lines } : {}) },
+  }),
+  setInstallation: (project, done = true) => request('/om/pending/installation-status/', {
+    method: 'POST',
+    body: { project, done },
+  }),
+};
 
 // ─── Daily Tasks ──────────────────────────────────────────────────────────────
 

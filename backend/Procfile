@@ -1,1 +1,1 @@
-web: python manage.py migrate --noinput && gunicorn malwa_solar.wsgi --bind 0.0.0.0:$PORT --workers 2 --worker-class gthread --threads 4
+web: python manage.py migrate --noinput && gunicorn malwa_solar.asgi:application -c gunicorn.conf.py --bind 0.0.0.0:$PORT

@@ -1,11 +1,11 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
-  Boxes, CheckCircle2, ChevronRight, ClipboardList, FolderKanban, Pencil, Plus,
-  ReceiptText, Search, Trash2, Truck, Wallet, Wrench, X,
+  CheckCircle2, ChevronRight, CircleDashed, ClipboardList, FolderKanban, Package, PackageCheck, Pencil, Plus,
+  Search, Trash2, Truck, Undo2, Wrench, X,
 } from 'lucide-react';
 import {
   installationMaterialApi, materialPlanApi, projectApi, projectChecklistApi,
-  projectExpenseApi, projectMilestoneApi, userApi, inventoryApi,
+  projectMilestoneApi, userApi, inventoryApi,
 } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { rowDoubleOpenProps } from './lib/rowDoubleOpen.js';
@@ -32,12 +32,23 @@ function parseQty(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// Mirrors MaterialPlan.compute_dispatch_status: quantity wins; with nothing sent
+// the line is Pending unless it was explicitly marked Packed.
 function resolveDispatchStatus(row) {
   const p = parseQty(row?.planned_qty);
   const d = parseQty(row?.dispatched_qty);
-  if (d <= 0) return 'Pending';
+  if (d <= 0) return row?.dispatch_status === 'Packed' ? 'Packed' : 'Pending';
   if (p > 0 && d >= p) return 'Dispatched';
   return 'Partial';
+}
+
+const DISPATCH_TONE = { Dispatched: 'green', Partial: 'amber', Packed: 'purple', Pending: 'slate' };
+
+function daysSince(value) {
+  if (!value) return null;
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, Math.floor((Date.now() - t) / 86400000));
 }
 
 function projectMapKey(id) {
@@ -95,6 +106,7 @@ function Pill({ children, tone = 'slate' }) {
     amber: 'bg-[#fff0dc] text-[#f59e0b]',
     blue: 'bg-[#e8f2ff] text-[#0b65e5]',
     red: 'bg-[#fee2e2] text-[#dc2626]',
+    purple: 'bg-[#f2eafe] text-[#7c3aed]',
     slate: 'bg-[#eef2f7] text-[#7585a2]',
   };
   return <span className={cx('inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold', map[tone] || map.slate)}>{children}</span>;
@@ -170,7 +182,7 @@ function WonProjectHubShell({
       />
       {Subnav ? <Subnav activeSection={activeSection} onOpenSection={onOpenSection} /> : null}
       {summaryCards ? (
-        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{summaryCards}</section>
+        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">{summaryCards}</section>
       ) : null}
       <section className={`${PANEL} overflow-hidden p-2.5 sm:p-3`}>
         <label className="mb-3 flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4">
@@ -211,11 +223,12 @@ function loadDispatchMaps() {
     const map = {};
     rowsOf(data).forEach((row) => {
       const key = projectMapKey(row.project);
-      if (!map[key]) map[key] = { total: 0, pending: 0, partial: 0, dispatched: 0 };
+      if (!map[key]) map[key] = { total: 0, pending: 0, packed: 0, partial: 0, dispatched: 0 };
       map[key].total += 1;
       const st = resolveDispatchStatus(row);
       if (st === 'Dispatched') map[key].dispatched += 1;
       else if (st === 'Partial') map[key].partial += 1;
+      else if (st === 'Packed') map[key].packed += 1;
       else map[key].pending += 1;
     });
     return map;
@@ -232,6 +245,7 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
     return {
       projects: filtered.length,
       pending: vals.reduce((s, v) => s + (v.pending || 0), 0),
+      packed: vals.reduce((s, v) => s + (v.packed || 0), 0),
       partial: vals.reduce((s, v) => s + (v.partial || 0), 0),
       done: vals.reduce((s, v) => s + (v.dispatched || 0), 0),
     };
@@ -251,7 +265,8 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
         summaryCards={(
           <>
             <SummaryCard label="Won Projects" value={summary.projects} note="Ready for dispatch" tone="text-[#0b65e5]" icon={FolderKanban} />
-            <SummaryCard label="Pending Items" value={summary.pending} note="Not yet sent" tone="text-[#7585a2]" icon={ClipboardList} />
+            <SummaryCard label="Pending Items" value={summary.pending} note="Not yet packed" tone="text-[#7585a2]" icon={ClipboardList} />
+            <SummaryCard label="Packed" value={summary.packed} note="Ready, awaiting dispatch" tone="text-[#7c3aed]" icon={PackageCheck} />
             <SummaryCard label="Partial" value={summary.partial} note="Part quantity sent" tone="text-[#f59e0b]" icon={Truck} />
             <SummaryCard label="Dispatched" value={summary.done} note="Fully sent" tone="text-[#078c3e]" icon={CheckCircle2} />
           </>
@@ -261,16 +276,16 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
           <table className="crm-table crm-table--lead-dense w-full min-w-[880px]">
             <thead>
               <tr>
-                {['#', 'Project', 'Customer / Site', 'BOM Items', 'Pending', 'Partial', 'Dispatched', 'Action'].map((h) => (
+                {['#', 'Project', 'Customer / Site', 'BOM Items', 'Pending', 'Packed', 'Partial', 'Dispatched', 'Action'].map((h) => (
                   <th key={h} className={h === 'Action' ? 'crm-col-sticky-right' : undefined}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No won projects found.</td></tr>
+                <tr><td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No won projects found.</td></tr>
               ) : filtered.map((p, i) => {
-                const st = extraByProject[projectMapKey(p.id)] || { total: 0, pending: 0, partial: 0, dispatched: 0 };
+                const st = extraByProject[projectMapKey(p.id)] || { total: 0, pending: 0, packed: 0, partial: 0, dispatched: 0 };
                 return (
                   <tr key={p.id} {...rowDoubleOpenProps(() => setActive(p), { title: 'Double-tap to view project' })}>
                     <td className="crm-col-index">{i + 1}</td>
@@ -284,6 +299,7 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
                     </td>
                     <td className="font-semibold text-[#1e3261]">{st.total}</td>
                     <td><Pill tone="slate">{st.pending}</Pill></td>
+                    <td><Pill tone="purple">{st.packed}</Pill></td>
                     <td><Pill tone="amber">{st.partial}</Pill></td>
                     <td><Pill tone="green">{st.dispatched}</Pill></td>
                     <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
@@ -323,6 +339,7 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
   const [activeRow, setActiveRow] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [packingKey, setPackingKey] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -346,6 +363,25 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
     if (statusFilter === 'All') return true;
     return resolveStatus(r) === statusFilter;
   });
+  const pendingCount = rows.filter((r) => resolveStatus(r) === 'Pending').length;
+
+  const setPacked = async (packed, row = null) => {
+    const key = row ? `line-${row.id}` : 'all';
+    setPackingKey(key);
+    try {
+      const res = await materialPlanApi.markPacked(project.id, packed, row ? [row.id] : undefined);
+      const n = res?.updated ?? 0;
+      onNotify(n
+        ? `${n} item${n === 1 ? '' : 's'} ${packed ? 'marked Packed' : 'moved back to Pending'}`
+        : 'Nothing to update');
+      const plans = await materialPlanApi.list({ project: project.id, page_size: 500 });
+      setRows(rowsOf(plans));
+    } catch (e) {
+      onNotify(e.message || 'Update failed', 'error');
+    } finally {
+      setPackingKey('');
+    }
+  };
 
   const openForm = (row) => {
     setActiveRow(row);
@@ -427,19 +463,31 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-[13px] font-semibold text-[#7386a3]">{filtered.length} item{filtered.length === 1 ? '' : 's'}</p>
+              {pendingCount > 0 ? (
+                <button
+                  type="button"
+                  disabled={packingKey !== ''}
+                  onClick={() => setPacked(true)}
+                  title="Material is packed — ready for dispatch"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#ddd0fb] bg-[#f7f2ff] px-3 text-[12px] font-semibold text-[#6d28d9] disabled:opacity-60"
+                >
+                  <PackageCheck className="size-3.5" />
+                  {packingKey === 'all' ? 'Saving...' : `Mark all Packed (${pendingCount})`}
+                </button>
+              ) : null}
             </div>
             {loading ? (
               <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
             ) : filtered.length === 0 ? (
               <div className="rounded-[12px] border border-dashed border-[#d5e0ef] bg-[#f8fbff] px-6 py-12 text-center">
                 <p className="text-[15px] font-extrabold text-[#1e3261]">No materials to dispatch</p>
-                <p className="mt-1 text-[13px] font-medium text-[#7386a3]">Pehle Material Planning me BOM add karo.</p>
+                <p className="mt-1 text-[13px] font-medium text-[#7386a3]">Add the BOM in Material Planning first.</p>
                 <button type="button" onClick={onOpenPlanning} className="mt-4 inline-flex h-10 items-center rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white">Open Material Planning</button>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7]">
+              <div data-no-col-resize="1" className="overflow-x-auto rounded-[12px] border border-[#e7eef7]">
                 <table className="crm-table crm-table--lead-dense w-full min-w-[720px]">
                   <thead>
                     <tr>
@@ -454,11 +502,11 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
                           label="Status"
                           value={statusFilter}
                           active={statusFilter !== 'All'}
-                          options={['All', 'Pending', 'Partial', 'Dispatched']}
+                          options={['All', 'Pending', 'Packed', 'Partial', 'Dispatched']}
                           onChange={setStatusFilter}
                         />
                       </th>
-                      <th>Action</th>
+                      <th className="crm-col-sticky-right">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -473,12 +521,35 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
                           <td>{row.planned_qty ?? '—'}</td>
                           <td>{row.dispatched_qty || '0'}</td>
                           <td>{left}</td>
-                          <td><Pill tone={status === 'Dispatched' ? 'green' : status === 'Partial' ? 'amber' : 'slate'}>{status}</Pill></td>
                           <td>
-                            <button type="button" onClick={() => openForm(row)} className="inline-flex h-8 items-center gap-1 rounded-[7px] border border-[#cfe8d6] bg-[#f1fff5] px-2.5 text-[12px] font-semibold text-[#078c3e]">
-                              <Truck className="size-3.5" />
-                              {status === 'Pending' ? 'Dispatch' : 'Update'}
-                            </button>
+                            <Pill tone={DISPATCH_TONE[status]}>{status}</Pill>
+                            {status === 'Packed' && row.packed_at ? (
+                              <div className="mt-0.5 text-[10px] font-semibold text-[#8a98af]">
+                                {daysSince(row.packed_at) ? `${daysSince(row.packed_at)}d ago` : 'Today'}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="crm-col-sticky-right">
+                            <div className="flex gap-1">
+                              {status === 'Pending' || status === 'Packed' ? (
+                                <button
+                                  type="button"
+                                  disabled={packingKey !== ''}
+                                  onClick={() => setPacked(status === 'Pending', row)}
+                                  className={cx(
+                                    'inline-flex h-8 items-center gap-1 rounded-[7px] border px-2.5 text-[12px] font-semibold disabled:opacity-60',
+                                    status === 'Pending' ? 'border-[#ddd0fb] bg-[#f7f2ff] text-[#6d28d9]' : 'border-[#d5e0ef] bg-white text-[#314a79]',
+                                  )}
+                                >
+                                  {status === 'Pending' ? <Package className="size-3.5" /> : <Undo2 className="size-3.5" />}
+                                  {packingKey === `line-${row.id}` ? '...' : status === 'Pending' ? 'Packed' : 'Unpack'}
+                                </button>
+                              ) : null}
+                              <button type="button" onClick={() => openForm(row)} className="inline-flex h-8 items-center gap-1 rounded-[7px] border border-[#cfe8d6] bg-[#f1fff5] px-2.5 text-[12px] font-semibold text-[#078c3e]">
+                                <Truck className="size-3.5" />
+                                {status === 'Pending' || status === 'Packed' ? 'Dispatch' : 'Update'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -516,7 +587,7 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
                     </option>
                   ))}
                 </select>
-                <span className="text-[11px] font-semibold text-[#7a8fa6]">Dispatch ke baad Inventory → Stock Movement me dikhega</span>
+                <span className="text-[11px] font-semibold text-[#7a8fa6]">After dispatch, this appears in Inventory → Stock Movement</span>
               </label>
               {[
                 ['dispatched_qty', 'Dispatched Qty *', 'number'],
@@ -547,16 +618,72 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
 
 /* ───────────────── INSTALLATION ───────────────── */
 
+function isInstallDone(project) {
+  return project?.installation_status === 'Done';
+}
+
+function InstallStatusToggle({ project, busy, onToggle, size = 'sm' }) {
+  const done = isInstallDone(project);
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => onToggle(project)}
+      title={done ? 'Click to mark Not Done' : 'Click to mark installation Done'}
+      className={cx(
+        'inline-flex items-center gap-1.5 rounded-full border font-bold transition disabled:opacity-60',
+        size === 'lg' ? 'h-9 px-3.5 text-[12px]' : 'h-7 px-2.5 text-[11px]',
+        done
+          ? 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d] hover:bg-[#dcfce7]'
+          : 'border-[#fecaca] bg-[#fff5f5] text-[#dc2626] hover:border-[#86efac] hover:bg-[#f0fdf4] hover:text-[#15803d]',
+      )}
+    >
+      {done ? <CheckCircle2 className="size-3.5" /> : <CircleDashed className="size-3.5" />}
+      {busy ? 'Saving...' : done ? 'Done' : 'Not Done'}
+    </button>
+  );
+}
+
 export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId }) {
   const { filtered, loading, query, setQuery, reload, projects } = useWonProjectsHub(null);
   const [active, setActive] = useAutoOpenProject(filtered, loading, initialProjectId, onNotify);
+  const [statusOverride, setStatusOverride] = useState({});
+  const [togglingId, setTogglingId] = useState(null);
 
-  const installSummary = useMemo(() => ({
-    total: projects.length,
-    active: projects.filter((p) => p.status === 'Active').length,
-    planning: projects.filter((p) => p.status === 'Planning').length,
-    completed: projects.filter((p) => p.status === 'Completed').length,
-  }), [projects]);
+  const withStatus = useCallback((p) => (
+    statusOverride[p.id] ? { ...p, ...statusOverride[p.id] } : p
+  ), [statusOverride]);
+
+  const toggleInstall = useCallback(async (project) => {
+    const next = isInstallDone(withStatus(project)) ? 'Not Done' : 'Done';
+    setTogglingId(project.id);
+    try {
+      const updated = await projectApi.update(project.id, { installation_status: next });
+      setStatusOverride((prev) => ({
+        ...prev,
+        [project.id]: {
+          installation_status: updated?.installation_status ?? next,
+          installation_done_on: updated?.installation_done_on ?? null,
+        },
+      }));
+      onNotify(next === 'Done' ? `Installation done — ${project.project_name || project.project_id}` : 'Installation marked Not Done');
+    } catch (e) {
+      onNotify(e.message || 'Update failed', 'error');
+    } finally {
+      setTogglingId(null);
+    }
+  }, [withStatus, onNotify]);
+
+  const installSummary = useMemo(() => {
+    const rows = projects.map(withStatus);
+    const done = rows.filter(isInstallDone).length;
+    return {
+      total: rows.length,
+      done,
+      notDone: rows.length - done,
+      active: rows.filter((p) => p.status === 'Active').length,
+    };
+  }, [projects, withStatus]);
 
   return (
     <>
@@ -572,25 +699,25 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
         summaryCards={(
           <>
             <SummaryCard label="Won Projects" value={installSummary.total} note="Ready for install" tone="text-[#0b65e5]" icon={FolderKanban} />
-            <SummaryCard label="Active" value={installSummary.active} note="On site / running" tone="text-[#078c3e]" icon={Wrench} />
-            <SummaryCard label="Planning" value={installSummary.planning} note="Not started yet" tone="text-[#f59e0b]" icon={ClipboardList} />
-            <SummaryCard label="Completed" value={installSummary.completed} note="Install done" tone="text-[#0b65e5]" icon={CheckCircle2} />
+            <SummaryCard label="Installation Pending" value={installSummary.notDone} note="Marked Not Done" tone="text-[#dc2626]" icon={ClipboardList} />
+            <SummaryCard label="Installation Done" value={installSummary.done} note="Marked Done" tone="text-[#078c3e]" icon={CheckCircle2} />
+            <SummaryCard label="Active" value={installSummary.active} note="On site / running" tone="text-[#f59e0b]" icon={Wrench} />
           </>
         )}
       >
         <div className="overflow-x-auto">
-          <table className="crm-table crm-table--lead-dense w-full min-w-[820px]">
+          <table className="crm-table crm-table--lead-dense w-full min-w-[900px]">
             <thead>
               <tr>
-                {['#', 'Project', 'Customer / Site', 'Capacity', 'Status', 'Action'].map((h) => (
+                {['#', 'Project', 'Customer / Site', 'Capacity', 'Status', 'Installation', 'Action'].map((h) => (
                   <th key={h} className={h === 'Action' ? 'crm-col-sticky-right' : undefined}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No won projects found.</td></tr>
-              ) : filtered.map((p, i) => (
+                <tr><td colSpan={7} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No won projects found.</td></tr>
+              ) : filtered.map(withStatus).map((p, i) => (
                 <tr key={p.id} {...rowDoubleOpenProps(() => setActive(p), { title: 'Double-tap to view project' })}>
                   <td className="crm-col-index">{i + 1}</td>
                   <td>
@@ -603,6 +730,9 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
                   </td>
                   <td className="font-semibold text-[#0b65e5]">{Number(p.capacity_kwp) > 0 ? `${p.capacity_kwp} kWp` : '—'}</td>
                   <td><Pill tone={p.status === 'Active' ? 'green' : p.status === 'Completed' ? 'blue' : 'slate'}>{p.status || '—'}</Pill></td>
+                  <td data-no-row-open onDoubleClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+                    <InstallStatusToggle project={p} busy={togglingId === p.id} onToggle={toggleInstall} />
+                  </td>
                   <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                     <button type="button" onClick={() => setActive(p)} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white">
                       <Wrench className="size-3.5" />
@@ -618,16 +748,17 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
 
       {active ? (
         <InstallationDetailModal
-          project={active}
-          onClose={() => { setActive(null); reload(); }}
+          project={withStatus(active)}
+          onClose={() => { setActive(null); setStatusOverride({}); reload(); }}
           onNotify={onNotify}
+          statusToggle={<InstallStatusToggle project={withStatus(active)} busy={togglingId === active.id} onToggle={toggleInstall} size="lg" />}
         />
       ) : null}
     </>
   );
 }
 
-function InstallationDetailModal({ project, onClose, onNotify }) {
+function InstallationDetailModal({ project, onClose, onNotify, statusToggle }) {
   const TABS = ['Tasks', 'Materials', 'QA'];
   const [tab, setTab] = useState('Tasks');
   const [tasks, setTasks] = useState([]);
@@ -736,7 +867,10 @@ function InstallationDetailModal({ project, onClose, onNotify }) {
                 {checkedQa}/{checklist.length} QA
               </p>
             </div>
-            <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>
+            <div className="flex shrink-0 items-center gap-2">
+              {statusToggle}
+              <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>
+            </div>
           </div>
 
           <div className="flex shrink-0 gap-1 border-b border-[#edf2f8] px-4 pt-2 sm:px-5">
@@ -941,318 +1075,6 @@ function InstallationDetailModal({ project, onClose, onNotify }) {
               else await projectChecklistApi.delete(deleteConfirm.id);
               setDeleteConfirm(null);
               onNotify('Deleted');
-              load();
-            } catch {
-              setDeleteConfirm(null);
-              onNotify('Delete failed');
-            }
-          }}
-        />
-      ) : null}
-    </>
-  );
-}
-
-/* ───────────────── EXPENSES ───────────────── */
-
-function loadExpenseMaps() {
-  return projectExpenseApi.list({ page_size: 2000 }).then((data) => {
-    const map = {};
-    rowsOf(data).forEach((row) => {
-      const key = projectMapKey(row.project);
-      if (!map[key]) map[key] = { count: 0, total: 0, pending: 0, paid: 0 };
-      map[key].count += 1;
-      map[key].total += Number(row.amount) || 0;
-      if (row.status === 'Paid') map[key].paid += 1;
-      else map[key].pending += 1;
-    });
-    return map;
-  }).catch(() => ({}));
-}
-
-export function ProjectExpensesPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId }) {
-  const buildMaps = useCallback(() => loadExpenseMaps(), []);
-  const { filtered, loading, query, setQuery, extraByProject, reload } = useWonProjectsHub(buildMaps);
-  const [active, setActive] = useAutoOpenProject(filtered, loading, initialProjectId, onNotify);
-
-  const summary = useMemo(() => {
-    const vals = Object.values(extraByProject);
-    return {
-      projects: vals.filter((v) => v.count > 0).length,
-      total: vals.reduce((s, v) => s + (v.total || 0), 0),
-      pending: vals.reduce((s, v) => s + (v.pending || 0), 0),
-      paid: vals.reduce((s, v) => s + (v.paid || 0), 0),
-    };
-  }, [extraByProject]);
-
-  return (
-    <>
-      <WonProjectHubShell
-        title="Project Expenses"
-        crumbLabel="Expenses"
-        activeSection={activeSection}
-        onOpenSection={onOpenSection}
-        Subnav={Subnav}
-        query={query}
-        setQuery={setQuery}
-        loading={loading}
-        summaryCards={(
-          <>
-            <SummaryCard label="Projects with Spend" value={summary.projects} note="Have expenses" tone="text-[#0b65e5]" icon={FolderKanban} />
-            <SummaryCard label="Total Spend" value={fmtRs(summary.total)} note="All won projects" tone="text-[#078c3e]" icon={Wallet} />
-            <SummaryCard label="Pending Entries" value={summary.pending} note="Not fully paid" tone="text-[#f59e0b]" icon={ReceiptText} />
-            <SummaryCard label="Paid Entries" value={summary.paid} note="Settled" tone="text-[#0b65e5]" icon={CheckCircle2} />
-          </>
-        )}
-      >
-        <div className="overflow-x-auto">
-          <table className="crm-table crm-table--lead-dense w-full min-w-[880px]">
-            <thead>
-              <tr>
-                {['#', 'Project', 'Customer / Site', 'Entries', 'Total', 'Pending', 'Paid', 'Action'].map((h) => (
-                  <th key={h} className={h === 'Action' ? 'crm-col-sticky-right' : undefined}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No won projects found.</td></tr>
-              ) : filtered.map((p, i) => {
-                const st = extraByProject[projectMapKey(p.id)] || { count: 0, total: 0, pending: 0, paid: 0 };
-                return (
-                  <tr key={p.id} {...rowDoubleOpenProps(() => setActive(p), { title: 'Double-tap to view project' })}>
-                    <td className="crm-col-index">{i + 1}</td>
-                    <td>
-                      <div className="font-semibold leading-tight text-[#1e3261]">{p.project_name || p.project_id}</div>
-                      <div className="text-[11px] font-medium leading-tight text-[#8a98af]">{p.project_id}</div>
-                    </td>
-                    <td>
-                      <div className="font-medium leading-tight text-[#314a79]">{p.customer_name || '—'}</div>
-                      <div className="text-[11px] font-medium leading-tight text-[#8a98af]">{p.site || '—'}</div>
-                    </td>
-                    <td className="font-semibold text-[#1e3261]">{st.count}</td>
-                    <td className="font-semibold text-[#078c3e]">{fmtRs(st.total)}</td>
-                    <td><Pill tone="amber">{st.pending}</Pill></td>
-                    <td><Pill tone="green">{st.paid}</Pill></td>
-                    <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
-                      <button type="button" onClick={() => setActive(p)} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white">
-                        <Wallet className="size-3.5" />
-                        {st.count ? 'Open Expenses' : 'Add Expense'}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </WonProjectHubShell>
-
-      {active ? (
-        <ExpensesDetailModal
-          project={active}
-          onClose={() => { setActive(null); reload(); }}
-          onNotify={onNotify}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function ExpensesDetailModal({ project, onClose, onNotify }) {
-  const CATEGORIES = ['Materials', 'Labor', 'Transport', 'Equipment', 'Miscellaneous'];
-  const STATUSES = ['Pending', 'Paid', 'Partial'];
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [formOpen, setFormOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
-  const [form, setForm] = useState({ category: 'Materials', description: '', amount: '', date: todayIso(), payment_mode: 'Cash', paid_by: '', status: 'Pending', remarks: '' });
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setRows(rowsOf(await projectExpenseApi.list({ project: project.id, page_size: 500 })));
-    } catch {
-      onNotify('Failed to load expenses');
-    } finally {
-      setLoading(false);
-    }
-  }, [project.id, onNotify]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const filtered = rows.filter((r) => statusFilter === 'All' || r.status === statusFilter);
-  const total = filtered.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-
-  const openAdd = () => {
-    setEditRow(null);
-    setForm({ category: 'Materials', description: '', amount: '', date: todayIso(), payment_mode: 'Cash', paid_by: '', status: 'Pending', remarks: '' });
-    setFormOpen(true);
-  };
-
-  const openEdit = (row) => {
-    setEditRow(row);
-    setForm({
-      category: row.category || 'Materials',
-      description: row.description || '',
-      amount: row.amount ?? '',
-      date: row.date || todayIso(),
-      payment_mode: row.payment_mode || 'Cash',
-      paid_by: row.paid_by || '',
-      status: row.status || 'Pending',
-      remarks: row.remarks || '',
-    });
-    setFormOpen(true);
-  };
-
-  const save = async () => {
-    if (!form.amount) { onNotify('Amount required'); return; }
-    const description = (form.description || '').trim() || `${form.category} expense`;
-    setSaving(true);
-    try {
-      const payload = { ...form, description, project: project.id, amount: Number(form.amount) };
-      if (editRow) await projectExpenseApi.update(editRow.id, payload);
-      else await projectExpenseApi.create(payload);
-      setFormOpen(false);
-      onNotify(editRow ? 'Expense updated' : 'Expense added');
-      load();
-    } catch (e) {
-      onNotify(e.message || 'Save failed');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <>
-      <div className="fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className="flex max-h-[96vh] w-full max-w-[920px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-[16px]">
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3 sm:px-5">
-            <div className="min-w-0">
-              <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Expenses</h2>
-              <p className="truncate text-[13px] font-semibold text-[#7386a3]">
-                {project.project_name || project.project_id}
-                {' · '}
-                {fmtRs(total)}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button type="button" onClick={openAdd} className="inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-3 text-[13px] font-semibold text-white">
-                <Plus className="size-4" /> Add Expense
-              </button>
-              <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-            {loading ? (
-              <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
-            ) : filtered.length === 0 ? (
-              <div className="rounded-[12px] border border-dashed border-[#d5e0ef] bg-[#f8fbff] px-6 py-12 text-center">
-                <Wallet className="mx-auto size-10 text-[#94a3b8]" />
-                <p className="mt-3 text-[15px] font-extrabold text-[#1e3261]">No expenses yet</p>
-                <button type="button" onClick={openAdd} className="mt-4 inline-flex h-10 items-center rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white">Add Expense</button>
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7]">
-                <table className="crm-table crm-table--lead-dense w-full min-w-[700px]">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Date</th>
-                      <th>Category</th>
-                      <th>Description</th>
-                      <th>Amount</th>
-                      <th title="Status">
-                        <TableHeaderFilter
-                          label="Status"
-                          value={statusFilter}
-                          active={statusFilter !== 'All'}
-                          options={['All', ...STATUSES]}
-                          onChange={setStatusFilter}
-                        />
-                      </th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((row, idx) => (
-                      <tr key={row.id}>
-                        <td>{idx + 1}</td>
-                        <td>{row.date || '—'}</td>
-                        <td className="font-semibold text-[#1e3261]">{row.category}</td>
-                        <td>{row.description || '—'}</td>
-                        <td className="font-semibold text-[#078c3e]">{fmtRs(row.amount)}</td>
-                        <td><Pill tone={row.status === 'Paid' ? 'green' : row.status === 'Partial' ? 'blue' : 'amber'}>{row.status || 'Pending'}</Pill></td>
-                        <td className="flex gap-1">
-                          <button type="button" onClick={() => openEdit(row)} className="grid size-8 place-items-center rounded-[7px] border border-[#d5e0ef] text-[#16a34a]"><Pencil className="size-3.5" /></button>
-                          <button type="button" onClick={() => setDeleteConfirm(row)} className="grid size-8 place-items-center rounded-[7px] border border-[#fee2e2] text-[#dc2626]"><Trash2 className="size-3.5" /></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3">
-            <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] px-5 text-[13px] font-semibold text-[#314a79]">Close</button>
-          </div>
-        </div>
-      </div>
-
-      {formOpen ? (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setFormOpen(false); }}>
-          <div className="w-full max-w-[460px] rounded-[16px] bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
-              <h3 className="text-[16px] font-extrabold">{editRow ? 'Edit Expense' : 'Add Expense'}</h3>
-              <button type="button" onClick={() => setFormOpen(false)}><X className="size-5 text-[#7585a2]" /></button>
-            </div>
-            <div className="grid grid-cols-2 gap-3 p-5">
-              <label className="col-span-2 grid gap-1 text-[12px] font-bold text-[#53647f]">Category
-                <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none">
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">Amount *
-                <input type="number" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none" />
-              </label>
-              <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">Date
-                <input type="date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none" />
-              </label>
-              <label className="col-span-2 grid gap-1 text-[12px] font-bold text-[#53647f]">Description
-                <input value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none" />
-              </label>
-              <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">Status
-                <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none">
-                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">Paid By
-                <input value={form.paid_by} onChange={(e) => setForm((p) => ({ ...p, paid_by: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none" />
-              </label>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-[#edf2f8] px-5 py-3">
-              <button type="button" onClick={() => setFormOpen(false)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Cancel</button>
-              <button type="button" disabled={saving} onClick={save} className="h-10 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save'}</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {deleteConfirm ? (
-        <ConfirmBox
-          message={`${deleteConfirm.category} — ${fmtRs(deleteConfirm.amount)}`}
-          onCancel={() => setDeleteConfirm(null)}
-          onConfirm={async () => {
-            try {
-              await projectExpenseApi.delete(deleteConfirm.id);
-              setDeleteConfirm(null);
-              onNotify('Expense deleted');
               load();
             } catch {
               setDeleteConfirm(null);

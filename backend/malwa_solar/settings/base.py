@@ -83,6 +83,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'malwa_solar.wsgi.application'
+ASGI_APPLICATION = 'malwa_solar.asgi.application'
 
 AUTH_USER_MODEL = 'accounts.User'
 

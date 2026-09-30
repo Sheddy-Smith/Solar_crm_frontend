@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, WorkOrder,
+    Project, ProjectActivity, ProjectNote, ProjectDocument, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
     ProjectChecklistItem, InstallationMaterial,
 )
@@ -43,13 +43,6 @@ class WorkOrderAdmin(admin.ModelAdmin):
     list_filter = ['status']
     search_fields = ['order_id', 'task', 'project__project_name']
     readonly_fields = ['order_id', 'created_at']
-
-
-@admin.register(ProjectExpense)
-class ProjectExpenseAdmin(admin.ModelAdmin):
-    list_display = ['project', 'category', 'description', 'amount', 'date']
-    list_filter = ['category']
-    search_fields = ['project__project_name', 'description']
 
 
 @admin.register(ProjectDocument)

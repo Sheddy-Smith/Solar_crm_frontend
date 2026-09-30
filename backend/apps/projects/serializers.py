@@ -1,9 +1,9 @@
 from rest_framework import serializers
 from .models import (
-    Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
+    Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey, SiteSurveyPhoto,
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
-    ProjectExpenseDocument, ProjectApproval, ProjectApprovalDocument,
+    ProjectApproval, ProjectApprovalDocument, JobSheet,
 )
 from apps.accounts.models import User
 from apps.accounts.serializers import UserSerializer
@@ -51,57 +51,6 @@ class ProjectDocumentSerializer(serializers.ModelSerializer):
         return _user_name(obj.uploaded_by)
 
 
-class ProjectExpenseDocumentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProjectExpenseDocument
-        fields = ['id', 'expense', 'doc_type', 'name', 'file', 'uploaded_at']
-        read_only_fields = ['uploaded_at']
-
-
-class ProjectExpenseSerializer(serializers.ModelSerializer):
-    project_name = serializers.CharField(source='project.project_name', read_only=True)
-    customer_name = serializers.CharField(source='project.customer_name', read_only=True)
-    project_capacity = serializers.CharField(source='project.capacity_kwp', read_only=True)
-    project_status = serializers.CharField(source='project.status', read_only=True)
-    created_by_name = serializers.SerializerMethodField()
-    expense_documents = ProjectExpenseDocumentSerializer(many=True, read_only=True)
-    accounts_voucher_id = serializers.SerializerMethodField()
-
-    class Meta:
-        model = ProjectExpense
-        fields = [
-            'id', 'project', 'project_name', 'customer_name', 'project_capacity', 'project_status',
-            'category', 'description', 'amount', 'date',
-            'payment_mode', 'paid_by', 'status', 'remarks',
-            'created_by', 'created_by_name', 'created_at', 'expense_documents',
-            'accounts_voucher_id',
-        ]
-        read_only_fields = ['created_by', 'created_at', 'accounts_voucher_id']
-
-    def get_created_by_name(self, obj):
-        return _user_name(obj.created_by)
-
-    def get_accounts_voucher_id(self, obj):
-        voucher = getattr(obj, 'accounts_voucher', None)
-        return voucher.id if voucher else None
-
-    def _sync_accounts(self, expense):
-        from apps.accounts_module.project_financial_sync import sync_accounts_for_project_expense
-        request = self.context.get('request')
-        user = request.user if request and getattr(request.user, 'is_authenticated', False) else None
-        sync_accounts_for_project_expense(expense, user=user)
-
-    def create(self, validated_data):
-        expense = super().create(validated_data)
-        self._sync_accounts(expense)
-        return expense
-
-    def update(self, instance, validated_data):
-        expense = super().update(instance, validated_data)
-        self._sync_accounts(expense)
-        return expense
-
-
 class ProjectPaymentSerializer(serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField()
 
@@ -124,6 +73,78 @@ class WorkOrderSerializer(serializers.ModelSerializer):
 
     def get_assignee_name(self, obj):
         return _user_name(obj.assignee, blank_if_missing=True)
+
+
+JOB_SHEET_ROW_KEYS = ('work', 'category', 'cost', 'qty', 'work_order_type', 'assignee_id', 'assignee_name', 'notes', 'work_order_no')
+
+
+def _clean_job_sheet_rows(value, field_name):
+    if value in (None, ''):
+        return []
+    if not isinstance(value, list):
+        raise serializers.ValidationError({field_name: 'Must be a list.'})
+    cleaned = []
+    for row in value:
+        if not isinstance(row, dict):
+            continue
+        item = {key: row.get(key, '') for key in JOB_SHEET_ROW_KEYS}
+        item['work'] = str(item['work'] or '').strip()[:200]
+        if not item['work']:
+            continue
+        item['category'] = str(item['category'] or '').strip()[:100]
+        for num_key, default in (('cost', 0), ('qty', 1)):
+            try:
+                item[num_key] = float(row.get(num_key) if row.get(num_key) not in (None, '') else default)
+            except (TypeError, ValueError):
+                item[num_key] = default
+        if item['work_order_type'] not in ('Vendor', 'Labour'):
+            item['work_order_type'] = ''
+        if not item['work_order_type']:
+            item['assignee_id'] = ''
+            item['assignee_name'] = ''
+        item['notes'] = str(item['notes'] or '')[:500]
+        cleaned.append(item)
+    return cleaned
+
+
+class JobSheetSerializer(serializers.ModelSerializer):
+    project_code = serializers.CharField(source='project.project_id', read_only=True)
+    project_name = serializers.CharField(source='project.project_name', read_only=True)
+    customer_name = serializers.CharField(source='project.customer_name', read_only=True)
+    site = serializers.CharField(source='project.site', read_only=True)
+    capacity_kwp = serializers.DecimalField(source='project.capacity_kwp', max_digits=8, decimal_places=2, read_only=True)
+    manager_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    work_order_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = JobSheet
+        fields = [
+            'id', 'project', 'project_code', 'project_name', 'customer_name', 'site', 'capacity_kwp',
+            'manager_name', 'job_sheet_no', 'status', 'items', 'extra_items', 'discount', 'advance_payment',
+            'grand_total', 'round_off', 'final_total', 'balance_due', 'remarks', 'work_orders_generated_at',
+            'work_order_count', 'created_by', 'created_by_name', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'job_sheet_no', 'grand_total', 'round_off', 'final_total', 'balance_due',
+            'work_orders_generated_at', 'created_by', 'created_at', 'updated_at',
+        ]
+
+    def validate_items(self, value):
+        return _clean_job_sheet_rows(value, 'items')
+
+    def validate_extra_items(self, value):
+        return _clean_job_sheet_rows(value, 'extra_items')
+
+    def get_manager_name(self, obj):
+        return _user_name(obj.project.manager, blank_if_missing=True)
+
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by, blank_if_missing=True)
+
+    def get_work_order_count(self, obj):
+        rows = list(obj.items or []) + list(obj.extra_items or [])
+        return sum(1 for r in rows if isinstance(r, dict) and r.get('work_order_no'))
 
 
 class ProjectTeamMemberSerializer(serializers.ModelSerializer):
@@ -278,13 +299,35 @@ class MaterialPlanSerializer(serializers.ModelSerializer):
             'id', 'project', 'category', 'items', 'uom', 'planned_qty', 'planned_value',
             'planning_unit_price',
             'status',
-            'dispatched_qty', 'dispatch_status', 'dispatch_date', 'vehicle_no', 'challan_no', 'dispatch_notes',
+            'dispatched_qty', 'dispatch_status', 'packed_at', 'dispatch_date', 'vehicle_no', 'challan_no', 'dispatch_notes',
             'inventory_item', 'inventory_item_name', 'stock_movement', 'cost_voucher_id',
             'inventory_unit_cost', 'planning_unit_price_display', 'unit_difference',
             'inventory_total_cost', 'planning_total_value', 'planning_difference_total',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_at', 'updated_at', 'stock_movement', 'cost_voucher_id']
+        read_only_fields = ['created_at', 'updated_at', 'stock_movement', 'cost_voucher_id', 'packed_at']
+
+    def _normalize_dispatch_status(self, validated_data, instance=None):
+        from django.utils import timezone
+
+        def current(field):
+            if field in validated_data:
+                return validated_data[field]
+            return getattr(instance, field, None) if instance is not None else None
+
+        requested = validated_data.get('dispatch_status')
+        if requested not in ('Pending', 'Packed'):
+            requested = getattr(instance, 'dispatch_status', None)
+        status = MaterialPlan.compute_dispatch_status(
+            current('planned_qty'), current('dispatched_qty'), requested,
+        )
+        validated_data['dispatch_status'] = status
+        if status == 'Packed':
+            if not current('packed_at'):
+                validated_data['packed_at'] = timezone.now()
+        elif status == 'Pending':
+            validated_data['packed_at'] = None
+        return validated_data
 
     def get_cost_voucher_id(self, obj):
         voucher = getattr(obj, 'cost_voucher', None)
@@ -358,6 +401,7 @@ class MaterialPlanSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data = self._normalize_planning_fields(validated_data)
+        validated_data = self._normalize_dispatch_status(validated_data)
         plan = super().create(validated_data)
         if _parse_dispatched(plan.dispatched_qty) > 0 or plan.inventory_item_id:
             self._sync_dispatch_stock(plan)
@@ -367,6 +411,7 @@ class MaterialPlanSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         validated_data = self._normalize_planning_fields(validated_data, instance)
+        validated_data = self._normalize_dispatch_status(validated_data, instance)
         prev_qty = instance.dispatched_qty
         plan = super().update(instance, validated_data)
         qty_changed = str(prev_qty or '') != str(plan.dispatched_qty or '')
@@ -405,6 +450,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
             'status', 'priority', 'progress_percent', 'manager', 'manager_name', 'manager_initials',
             'start_date', 'target_date', 'total_value', 'created_at', 'survey_date', 'surveyed_by_name',
             'survey_feasibility', 'survey_status', 'installation_team', 'stage_progress',
+            'installation_status', 'installation_done_on',
         ]
 
     def get_survey_date(self, obj):
@@ -453,7 +499,9 @@ class ProjectListSerializer(serializers.ModelSerializer):
             dispatch_pct = 0
 
         install_items = [c for c in obj.checklist_items.all() if (c.phase or '') == 'Installation']
-        if install_items:
+        if obj.installation_status == 'Done':
+            installation_pct = 100
+        elif install_items:
             checked = sum(1 for c in install_items if c.is_checked)
             installation_pct = int(round((checked / len(install_items)) * 100))
         else:
@@ -478,13 +526,11 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     activities = ProjectActivitySerializer(many=True, read_only=True)
     notes = ProjectNoteSerializer(many=True, read_only=True)
     documents = ProjectDocumentSerializer(many=True, read_only=True)
-    expenses = ProjectExpenseSerializer(many=True, read_only=True)
     payments = ProjectPaymentSerializer(many=True, read_only=True)
     work_orders = WorkOrderSerializer(many=True, read_only=True)
     team_members = ProjectTeamMemberSerializer(many=True, read_only=True)
     checklist_items = ProjectChecklistItemSerializer(many=True, read_only=True)
     installation_materials = InstallationMaterialSerializer(many=True, read_only=True)
-    total_expense = serializers.SerializerMethodField()
     total_paid = serializers.SerializerMethodField()
     system_config = serializers.SerializerMethodField()
     site_survey = serializers.SerializerMethodField()
@@ -495,8 +541,16 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['project_id', 'created_by', 'created_at', 'updated_at']
 
-    def get_total_expense(self, obj):
-        return sum(e.amount for e in obj.expenses.all())
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if 'installation_status' in attrs:
+            if attrs['installation_status'] == 'Done':
+                if not attrs.get('installation_done_on') and not getattr(self.instance, 'installation_done_on', None):
+                    from django.utils import timezone
+                    attrs['installation_done_on'] = timezone.localdate()
+            else:
+                attrs['installation_done_on'] = None
+        return attrs
 
     def get_total_paid(self, obj):
         return sum(p.amount for p in obj.payments.all())

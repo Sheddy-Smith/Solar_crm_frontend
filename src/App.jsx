@@ -4,14 +4,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Button from './components/ui/Button.jsx';
 import Card from './components/ui/Card.jsx';
 import ThemeToggle from './components/ui/ThemeToggle.jsx';
+import LanguageSwitcher, { chooseLanguage, chooseTyping, saveLanguagePreference } from './i18n/LanguageSwitcher.jsx';
+import { LANGUAGES, applyUserPreferences, getLanguageMeta, useI18n } from './i18n/index.js';
 import {
   authApi, userApi, roleApi, branchApi, leadApi, leadSurveyPhotoApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
-  projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectExpenseApi, projectPaymentApi,
+  projectApi, projectActivityApi, projectNoteApi, projectDocumentApi, projectPaymentApi,
   projectTeamApi, projectMilestoneApi, projectChecklistApi,
   installationMaterialApi, materialPlanApi, workforceApi, subsidyApi, projectApprovalApi,
   workOrderApi,
   lcApplicationApi, lcApprovalApi, lcInspectionApi, lcCommissioningApi, lcComplianceApi, lcDocumentApi,
-  omAssetApi, omMaintenanceApi, omTicketApi, omVisitApi, omSparePartApi, omReportApi, omDocumentApi,
   inventoryApi, amcModuleApi, reportsApi, settingsApi, siteSurveyPhotoApi,   siteSurveyApi,
   getMediaUrl,
   tokenStore,
@@ -53,8 +54,10 @@ import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import {
   ProjectInstallationPage as OpsInstallationPage,
   ProjectMaterialDispatchPage as OpsDispatchPage,
-  ProjectExpensesPage as OpsExpensesPage,
 } from './projectOpsPages.jsx';
+import { ProjectJobSheetPage as OpsJobSheetPage } from './projectJobSheetPage.jsx';
+import { ProjectInvoicePage, ProjectSalesChallanPage } from './projectBillingPages.jsx';
+import { OmPendingFlowPage, OM_PENDING_SECTIONS, OM_PENDING_STEPS } from './omPendingPages.jsx';
 import {
   SETTINGS_PILLARS,
   SettingsArchitectureTabs,
@@ -87,6 +90,7 @@ import {
   Boxes,
   CalendarDays,
   Camera,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -515,7 +519,6 @@ const sidebarItems = [
   { label: 'Lead', icon: Users },
   { label: 'Customer', icon: UserRound, showChevron: true },
   { label: 'Vendors', icon: Briefcase, showChevron: true },
-  { label: 'Quotation', icon: FileText },
   { label: 'Project Management', icon: FolderKanban, showChevron: true },
   { label: 'Liaisoning & Commissioning', icon: ShieldCheck, showChevron: true },
   { label: 'O&M', icon: Wrench, showChevron: true },
@@ -544,11 +547,20 @@ const projectSubItems = [
   'Project List',
   'Project Site Survey',
   'Project Material Planning',
+  'Project Job Sheet',
   'Project Dispatch',
   'Project Installation',
-  'Project Expenses',
+  'Project Sales Challan',
+  'Project Invoice',
 ];
-const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Expense Create', 'Project Expense Details', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
+// Quotation apna alag page render karta hai (Quotation module permission ke saath), isliye yeh
+// projectRelatedPages me nahi hai — sirf Project Management sidebar submenu me Site Survey ke baad dikhta hai.
+const projectSidebarSubItems = [
+  ...projectSubItems.slice(0, projectSubItems.indexOf('Project Site Survey') + 1),
+  'Quotation',
+  ...projectSubItems.slice(projectSubItems.indexOf('Project Site Survey') + 1),
+];
+const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
 // 'Subsidy', 'Project Documents', 'Project Approvals' ab Project Management ke sidebar submenu me nahi —
 // unke sidebar entries Liaisoning & Commissioning me move ho gaye (Subsidy seedha, Documents/Approvals
 // wahan ke existing pages ke andar tabs ban ke). In section names ko yahan routable rakha hai kyunki
@@ -558,7 +570,7 @@ const projectActionPages = ['Project Create', 'Project Activity Create', 'Projec
 // projectExpandHighlightPages se explicitly bahar rakha gaya hai.
 const projectLegacyOnlyPages = ['Subsidy', 'Project Documents', 'Project Approvals'];
 const projectRelatedPages = ['Project Management', 'Project Overview', 'Project KPI Analytics', 'Project Reports', ...projectActionPages, ...projectSubItems, ...projectLegacyOnlyPages, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
-const projectExpandHighlightPages = projectRelatedPages.filter((p) => !projectLegacyOnlyPages.includes(p));
+const projectExpandHighlightPages = [...projectRelatedPages.filter((p) => !projectLegacyOnlyPages.includes(p)), 'Quotation'];
 const summarySubItems = [];
 const insightsRelatedPages = [
   'Insights',
@@ -596,8 +608,8 @@ const inventoryRelatedPages = ['Inventory', ...inventorySubItems];
 const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents', 'Subsidy'];
 const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
 const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems];
-const omSubItems = ['Maintenance Tasks', 'Breakdown Tickets', 'Site Visits', 'Asset Management', 'Spare Parts', 'O&M Reports'];
-const omRelatedPages = ['O&M', 'O&M Overview', 'Energy Performance', ...omSubItems];
+const omSubItems = OM_PENDING_SECTIONS;
+const omRelatedPages = ['O&M', ...omSubItems];
 const amcSubItems = ['AMC Overview', 'AMC Contracts', 'Warranties', 'Service Requests', 'Visits / Maintenance', 'Renewals', 'Claims', 'AMC Documents'];
 const amcRelatedPages = [...amcSubItems];
 const dailyTasksRelatedPages = ['Daily Tasks'];
@@ -848,12 +860,12 @@ const projectSubRoutes = {
   'Project Installation': '/projects/installation',
   'Project Dispatch': '/projects/dispatch',
   'Project Material Planning': '/projects/material-planning/:projectId',
+  'Project Job Sheet': '/projects/job-sheet',
+  'Project Sales Challan': '/projects/sales-challan',
+  'Project Invoice': '/projects/invoice',
   'Subsidy': '/projects/subsidy/:projectId',
   'Project Work Orders': '/projects/work-orders/:projectId',
   'Project Work Order Create': '/projects/work-orders/create/:projectId',
-  'Project Expenses': '/projects/expenses',
-  'Project Expense Create': '/projects/expenses/create/:projectId',
-  'Project Expense Details': '/projects/expenses/details/:expenseId',
   'Project Documents': '/projects/documents/:projectId',
   'Project Document Upload': '/projects/documents/upload/:projectId',
   'Project Document Preview': '/projects/documents/preview/:documentId',
@@ -874,8 +886,6 @@ const projectActionPageTypes = {
   'Project Team Add': 'team-add',
   'Project Progress Update': 'progress-update',
   'Project Work Order Create': 'work-order',
-  'Project Expense Create': 'expense-create',
-  'Project Expense Details': 'expense-detail',
   'Project Document Upload': 'document-upload',
   'Project Document Preview': 'document-preview',
   'Project Folder Create': 'folder-create',
@@ -952,16 +962,7 @@ const liaisonActionPageTypes = {
   'Liaison Reports': 'reports',
 };
 
-const omSubRoutes = {
-  'O&M Overview': '/om/overview',
-  'Maintenance Tasks': '/om/maintenance-tasks',
-  'Breakdown Tickets': '/om/breakdown-tickets',
-  'Site Visits': '/om/site-visits',
-  'Asset Management': '/om/asset-management',
-  'Spare Parts': '/om/spare-parts',
-  'Energy Performance': '/om/energy-performance',
-  'O&M Reports': '/om/reports',
-};
+const omSubRoutes = Object.fromEntries(OM_PENDING_STEPS.map((step) => [step.key, step.route]));
 
 const amcSubRoutes = {
   'AMC Overview': '/amc/overview',
@@ -1005,7 +1006,7 @@ const sectionRoutes = {
   Summary: '/insights?tab=overview',
   Settings: '/settings',
   Quotation: '/quotation',
-  'O&M': '/om/overview',
+  'O&M': OM_PENDING_STEPS[0].route,
   Reports: '/insights?tab=sales',
   Employee: '/employees/details',
   Customer: '/customers/details',
@@ -1058,17 +1059,16 @@ function resolveSectionFromPath(pathname) {
   if (dispatchMatch) {
     return { section: 'Project Dispatch', params: { projectId: dispatchMatch.groups?.projectId } };
   }
-  const expensesMatch = path.match(/^\/projects\/expenses(?:\/(?<projectId>[^/]+))?$/);
-  if (expensesMatch) {
-    return { section: 'Project Expenses', params: { projectId: expensesMatch.groups?.projectId } };
-  }
-
   for (const [section, template] of Object.entries(sectionRoutes)) {
     const regex = routeTemplateToRegex(normalizePathname(template));
     const match = path.match(regex);
     if (match) {
       return { section, params: match.groups ?? {} };
     }
+  }
+  // Old O&M pages (maintenance tasks, tickets, assets, …) were replaced by the pending flow.
+  if (path === '/om' || path.startsWith('/om/')) {
+    return { section: OM_PENDING_SECTIONS[0], params: {} };
   }
 
   return { section: null, params: {} };
@@ -1091,7 +1091,6 @@ function buildPathForSection(section, { selectedLead, selectedProject, insightsT
   const replacements = {
     projectId,
     leadId,
-    expenseId: null,
     documentId: null,
     approvalId: null,
     reportId: null,
@@ -1861,6 +1860,7 @@ const dataPanelClass =
 const APP_PREFERENCES_KEY = 'malwa-solar-crm:ui-preferences';
 const availableSections = new Set([
   ...sidebarItems.map((item) => item.label),
+  'Quotation',
   ...leadRelatedPages,
   ...employeeRelatedPages,
   ...customerRelatedPages,
@@ -1975,7 +1975,7 @@ function App() {
       ? initialPreferences.activeSidebarItem
       : 'Dashboard';
     if (item === 'Lead' || leadRelatedPages.includes(item)) return 'Lead';
-    if (item === 'Project Management' || projectRelatedPages.includes(item)) return 'Project Management';
+    if (item === 'Project Management' || item === 'Quotation' || projectRelatedPages.includes(item)) return 'Project Management';
     if (item === 'Employee' || employeeRelatedPages.includes(item)) return 'Employee';
     if (item === 'Customer' || customerRelatedPages.includes(item)) return 'Customer';
     if (item === 'Vendors' || vendorRelatedPages.includes(item)) return 'Vendors';
@@ -2143,14 +2143,31 @@ function App() {
     });
   }, [currentPage]);
 
+  // UI language: the user's own choice, else the admin default (Settings → Language).
+  useEffect(() => {
+    if (!loggedInUser) return;
+    const { unsavedLanguage } = applyUserPreferences(loggedInUser);
+    if (unsavedLanguage) saveLanguagePreference({ language: unsavedLanguage });
+  }, [loggedInUser]);
+
   // Sidebar: show category only if role has at least one permission on that module.
   const visibleSidebarItems = useMemo(() => {
     if (!loggedInUser) return sidebarItems;
     return sidebarItems.filter((item) => {
+      if (item.label === 'Project Management') {
+        return hasAnyModuleAccess(loggedInUser, 'Project Management') || hasAnyModuleAccess(loggedInUser, 'Quotation');
+      }
       const mod = SIDEBAR_MODULE_BY_LABEL[item.label];
       if (!mod) return true;
       return hasAnyModuleAccess(loggedInUser, mod);
     });
+  }, [loggedInUser]);
+
+  const visibleProjectSidebarSubItems = useMemo(() => {
+    if (!loggedInUser) return projectSidebarSubItems;
+    const canProject = hasAnyModuleAccess(loggedInUser, 'Project Management');
+    const canQuotation = hasAnyModuleAccess(loggedInUser, 'Quotation');
+    return projectSidebarSubItems.filter((subItem) => (subItem === 'Quotation' ? canQuotation : canProject));
   }, [loggedInUser]);
 
   // Deep-link / stale section: leave pages with zero module permissions.
@@ -2853,7 +2870,8 @@ function App() {
                               setExpandedSection(null);
                             } else {
                               setExpandedSection(sectionKey);
-                              const nextItem = isProjectSection ? 'Project Overview' : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isAmcSection ? 'AMC Overview' : 'Project List';
+                              const projectLanding = !loggedInUser || hasAnyModuleAccess(loggedInUser, 'Project Management') ? 'Project Overview' : 'Quotation';
+                              const nextItem = isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : 'Project List';
                               setActiveSidebarItem(nextItem);
                               notify(`${nextItem} section selected`);
                             }
@@ -3012,14 +3030,14 @@ function App() {
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
-                            {projectSubItems.map((subItem) => {
+                            {visibleProjectSidebarSubItems.map((subItem) => {
                               const isSubActive = activeSidebarItem === subItem;
 
                               return (
                                 <button
                                   key={subItem}
                                   type="button"
-                                  data-route={projectSubRoutes[subItem]}
+                                  data-route={projectSubRoutes[subItem] || sectionRoutes[subItem]}
                                   onClick={() => {
                                     setSelectedProject(null);
                                     setActiveSidebarItem(subItem);
@@ -3488,11 +3506,28 @@ function App() {
                 onNotify={notify}
               />
             ) : omRelatedPages.includes(activeSidebarItem) ? (
-              <OmPage
+              <OmPendingFlowPage
                 activeSection={activeSidebarItem}
+                loggedInUser={loggedInUser}
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
+                }}
+                onOpenProject={(project, target) => {
+                  setSelectedProject(project);
+                  setActiveSidebarItem(target);
+                  notify(`${getModuleSubnavLabel(target)} opened — ${project.project_name || project.project_id}`);
+                }}
+                onCreateQuotation={(lead) => {
+                  setAutoOpenQuotation(lead);
+                  setActiveSidebarItem('Quotation');
+                  notify(`New quotation — ${lead.customer_name || 'lead'}`);
+                }}
+                onOpenLead={(lead) => {
+                  setSelectedLead({ id: lead.id, customer: lead.customer_name, mobile: lead.mobile_number });
+                  setLeadDetailsTab('overview');
+                  setActiveSidebarItem('Lead Details');
+                  notify('Lead Details opened');
                 }}
                 onNotify={notify}
               />
@@ -3579,12 +3614,26 @@ function App() {
                 onNotify={notify}
               />
             ) : activeSidebarItem === 'Quotation' ? (
-              <QuotationListPage
-                loggedInUser={loggedInUser}
-                autoOpenCreate={autoOpenQuotation}
-                onConsumeAutoOpenCreate={() => setAutoOpenQuotation(false)}
-                onNotify={notify}
-              />
+              <>
+                {hasAnyModuleAccess(loggedInUser, 'Project Management') ? (
+                  <div className="shrink-0">
+                    <ProjectSubnavTabs
+                      activeSection="Quotation"
+                      onOpenSection={(section) => {
+                        if (projectSubnavSectionsThatClearProject.has(section)) setSelectedProject(null);
+                        setActiveSidebarItem(section);
+                        notify(`${section} opened`);
+                      }}
+                    />
+                  </div>
+                ) : null}
+                <QuotationListPage
+                  loggedInUser={loggedInUser}
+                  autoOpenCreate={autoOpenQuotation}
+                  onConsumeAutoOpenCreate={() => setAutoOpenQuotation(false)}
+                  onNotify={notify}
+                />
+              </>
             ) : activeSidebarItem === 'Lead Details' ? (
               <LeadDetailsPage
                 lead={selectedLead}
@@ -4044,6 +4093,7 @@ function AppHeader({
           </button>
 
           <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 lg:hidden">
+            <LanguageSwitcher compact />
             <ThemeToggle
               theme={theme}
               compact
@@ -4177,6 +4227,8 @@ function AppHeader({
 
           <PwaInstallIconButton notify={notify} className="hidden xl:inline-flex" />
 
+          <LanguageSwitcher />
+
           <ThemeToggle
             theme={theme}
             layoutId="theme-toggle-desktop"
@@ -4196,7 +4248,7 @@ function AppHeader({
             >
               <AdminAvatar name={loggedInUser?.name} />
               <div className="text-right">
-                <p className="text-[15px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
+                <p data-no-translate className="text-[15px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
                 <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
               </div>
               <ChevronRight
@@ -8099,7 +8151,13 @@ function SystemSettingsPage({ onOpenSection, onNotify }) {
               <SettingsInputField label="Company Phone" value={form.companyPhone} onChange={(value) => updateField('companyPhone', value)} />
               <SettingsSelectField label="Items Per Page" value={form.itemsPerPage} onChange={(value) => updateField('itemsPerPage', value)} options={['10', '25', '50', '100']} />
               <SettingsSelectField label="Default Time Zone" value={form.defaultTimeZone} onChange={(value) => updateField('defaultTimeZone', value)} options={['(GMT +05:30) Asia/Kolkata', '(GMT +04:00) Dubai', '(GMT +00:00) UTC']} />
-              <SettingsSelectField label="Default Language" value={form.defaultLanguage} onChange={(value) => updateField('defaultLanguage', value)} options={['English']} />
+              <div className="block min-w-0">
+                <SettingsFieldLabel label="Default Language" />
+                <button type="button" onClick={() => onOpenSection('Language Settings')} className="flex h-11 w-full items-center justify-between rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] transition hover:border-blue-500">
+                  <span>Manage in Language Settings</span>
+                  <ChevronRight className="size-4 text-[#7585a2]" />
+                </button>
+              </div>
             </div>
           </SettingsSectionCard>
 
@@ -8539,25 +8597,51 @@ function CurrencySettingsPage({ onOpenSection, onNotify }) {
 }
 
 function LanguageSettingsPage({ onOpenSection, onNotify }) {
-  const [defaultLanguage, setDefaultLanguage] = useState('English');
+  const i18n = useI18n();
+  const [policy, setPolicy] = useState(null);
+  const [canManage, setCanManage] = useState(false);
   const [saving, setSaving] = useState(false);
-  const languages = [
-    { name: 'English', code: 'en', status: 'Default', tone: 'blue' },
-  ];
+  const [tryText, setTryText] = useState('');
+  const currentMeta = getLanguageMeta(i18n.language);
+  const myLanguages = LANGUAGES.filter((l) => i18n.enabled.includes(l.code));
   const previewRows = getLanguagePreviewRows();
 
   useEffect(() => {
-    settingsApi.category('language').get()
-      .then((res) => {
-        if (res?.defaultLanguage) setDefaultLanguage(res.defaultLanguage);
+    // The settings read only proves edit access; the normalized policy comes from /users/me/
+    // (stored values may still be legacy names like "Hindi (हिंदी)").
+    Promise.all([settingsApi.category('language').get(), authApi.me()])
+      .then(([, me]) => {
+        const policyFromServer = me?.i18n || {};
+        const enabled = (policyFromServer.enabled_languages || []).filter((c) => LANGUAGES.some((l) => l.code === c));
+        setPolicy({
+          defaultLanguage: policyFromServer.default_language || 'en',
+          enabledLanguages: enabled.includes('en') ? enabled : ['en', ...enabled],
+        });
+        setCanManage(true);
       })
-      .catch(() => {});
+      .catch(() => setCanManage(false));
   }, []);
 
-  const saveLanguageSettings = async () => {
+  const toggleEnabled = (code) => {
+    if (code === 'en') return;
+    setPolicy((current) => {
+      const has = current.enabledLanguages.includes(code);
+      const enabledLanguages = has ? current.enabledLanguages.filter((c) => c !== code) : [...current.enabledLanguages, code];
+      const defaultLanguage = enabledLanguages.includes(current.defaultLanguage) ? current.defaultLanguage : 'en';
+      return { defaultLanguage, enabledLanguages };
+    });
+  };
+
+  const savePolicy = async () => {
+    if (!policy) return;
     setSaving(true);
     try {
-      await settingsApi.category('language').update({ defaultLanguage });
+      await settingsApi.category('language').update({
+        defaultLanguage: policy.defaultLanguage,
+        enabledLanguages: LANGUAGES.map((l) => l.code).filter((c) => policy.enabledLanguages.includes(c)),
+      });
+      const me = await authApi.me().catch(() => null);
+      if (me) applyUserPreferences(me);
       onNotify('Language settings saved');
     } catch {
       onNotify('Could not save language settings.', 'error');
@@ -8567,44 +8651,115 @@ function LanguageSettingsPage({ onOpenSection, onNotify }) {
   };
 
   return (
-    <GeneralSettingsDetailShell title="Language Settings" onOpenSection={onOpenSection} onNotify={onNotify} actions={<button type="button" disabled={saving} onClick={saveLanguageSettings} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] disabled:opacity-60"><Save className="size-4" />{saving ? 'Saving...' : 'Save Changes'}</button>}>
+    <GeneralSettingsDetailShell title="Language Settings" onOpenSection={onOpenSection} onNotify={onNotify} actions={false}>
       <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.35fr)_330px]">
-        <SettingsSectionCard title="Default Language">
-          <div className="space-y-5">
-            <div>
-              <SettingsSelectField label="System Default Language" value={defaultLanguage} onChange={setDefaultLanguage} options={['English']} />
-              <p className="mt-2 text-[11px] font-bold text-[#7585a2]">The interface is available in English only.</p>
+        <div className="space-y-4">
+          <SettingsSectionCard title="My Language">
+            <p className="mb-3 text-[12px] font-bold text-[#7585a2]">The whole CRM switches to the language you pick. This choice is saved to your account only.</p>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {myLanguages.map((l) => {
+                const active = l.code === i18n.language;
+                return (
+                  <button
+                    key={l.code}
+                    type="button"
+                    onClick={() => {
+                      chooseLanguage(l.code);
+                      onNotify(`${l.name} selected`);
+                    }}
+                    className={cx(
+                      'flex items-center justify-between gap-2 rounded-[10px] border px-4 py-3 text-left transition',
+                      active ? 'border-[#0b65e5] bg-[#eef5ff] shadow-[0_6px_14px_rgba(11,101,229,0.12)]' : 'border-[#e2eaf5] bg-white hover:border-[#b9cdea]',
+                    )}
+                  >
+                    <span data-no-translate>
+                      <span className={cx('block text-[15px] font-extrabold', active ? 'text-[#0b65e5]' : 'text-[#1e3261]')}>{l.native}</span>
+                      <span className="block text-[11px] font-bold text-[#7585a2]">{l.name}{l.code === i18n.systemDefault ? ' · Default' : ''}</span>
+                    </span>
+                    {active ? <Check className="size-4 shrink-0 text-[#0b65e5]" /> : null}
+                  </button>
+                );
+              })}
             </div>
 
-            <div>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-[14px] font-extrabold text-[#1e3261]">Available Languages</h3>
+            {currentMeta.itc ? (
+              <div className="mt-4 grid gap-3">
+                <SettingsToggleRow
+                  label="Phonetic typing"
+                  note={`Type with English letters in text fields, press Space or Enter and the word changes to ${currentMeta.name}. Backspace right after brings the English word back. Email, phone, numbers, GST/IVRS and codes are never changed.`}
+                  enabled={i18n.typing}
+                  onToggle={() => chooseTyping(!i18n.typing)}
+                />
+                <label className="block">
+                  <SettingsFieldLabel label="Try typing here" />
+                  <textarea
+                    value={tryText}
+                    onChange={(event) => setTryText(event.target.value)}
+                    data-transliterate="on"
+                    rows={2}
+                    placeholder={`e.g. ${currentMeta.sample}`}
+                    className="w-full rounded-[8px] border border-black/20 bg-white px-4 py-2.5 text-[14px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  />
+                </label>
               </div>
+            ) : null}
+          </SettingsSectionCard>
 
-              <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white">
-                <table className="crm-table min-w-[560px] w-full">
-                  <thead>
-                    <tr>{['Language', 'Code', 'Status', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {languages.map((language) => (
-                      <tr key={language.code}>
-                        <td className="font-extrabold text-[#1e3261]">{language.name}</td>
-                        <td>{language.code}</td>
-                        <td><SettingsStatusBadge label={language.status} tone={language.tone} /></td>
-                        <td>
-                          <button type="button" onClick={() => onNotify(`${language.name} editor opened`)} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5] transition hover:bg-[#f8fbff]">
-                            <FileText className="size-4" />
-                          </button>
-                        </td>
-                      </tr>
+          {canManage && policy ? (
+            <SettingsSectionCard title="Organization Languages">
+              <div className="space-y-5">
+                <label className="block min-w-0">
+                  <SettingsFieldLabel label="Default language for users" />
+                  <select
+                    value={policy.defaultLanguage}
+                    onChange={(event) => setPolicy((current) => ({ ...current, defaultLanguage: event.target.value }))}
+                    className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    data-no-translate
+                  >
+                    {LANGUAGES.filter((l) => policy.enabledLanguages.includes(l.code)).map((l) => (
+                      <option key={l.code} value={l.code}>{l.native === l.name ? l.name : `${l.native} — ${l.name}`}</option>
                     ))}
-                  </tbody>
-                </table>
+                  </select>
+                  <p className="mt-2 text-[11px] font-bold text-[#7585a2]">Used for users who have not picked their own language.</p>
+                </label>
+
+                <div>
+                  <h3 className="mb-3 text-[14px] font-extrabold text-[#1e3261]">Available Languages</h3>
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {LANGUAGES.map((l) => {
+                      const on = policy.enabledLanguages.includes(l.code);
+                      return (
+                        <button
+                          key={l.code}
+                          type="button"
+                          disabled={l.code === 'en'}
+                          onClick={() => toggleEnabled(l.code)}
+                          className={cx(
+                            'flex items-center justify-between gap-2 rounded-[10px] border px-4 py-2.5 text-left transition disabled:cursor-not-allowed',
+                            on ? 'border-[#9fd9b6] bg-[#f0fbf4]' : 'border-[#e2eaf5] bg-white opacity-70 hover:opacity-100',
+                          )}
+                        >
+                          <span data-no-translate className="text-[13px] font-extrabold text-[#1e3261]">
+                            {l.native}
+                            {l.native !== l.name ? <span className="ml-1.5 text-[11px] font-bold text-[#7585a2]">{l.name}</span> : null}
+                          </span>
+                          <span className={cx('inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition', on ? 'bg-[#0d9f4a]' : 'bg-[#dbe4f1]')}>
+                            <span className={cx('size-4 rounded-full bg-white transition', on ? 'translate-x-4' : 'translate-x-0')} />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-[11px] font-bold text-[#7585a2]">English is always available. Users only see enabled languages in the header switcher.</p>
+                </div>
+
+                <div className="flex justify-end">
+                  <button type="button" disabled={saving} onClick={savePolicy} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832] disabled:opacity-60"><Save className="size-4" />{saving ? 'Saving...' : 'Save Changes'}</button>
+                </div>
               </div>
-            </div>
-          </div>
-        </SettingsSectionCard>
+            </SettingsSectionCard>
+          ) : null}
+        </div>
 
         <SettingsSectionCard title="Language Preview">
           <div className="rounded-[12px] border border-[#e7eef7] bg-white px-4 py-2">
@@ -8615,7 +8770,7 @@ function LanguageSettingsPage({ onOpenSection, onNotify }) {
         </SettingsSectionCard>
       </section>
 
-      <SettingsInfoNote text="Note: Some language changes may require login again to take effect." />
+      <SettingsInfoNote text="Menus, buttons, messages and labels are translated. Customer data you enter is never changed, and printed documents (quotation, challan, invoice) stay in English." />
     </GeneralSettingsDetailShell>
   );
 }
@@ -9483,10 +9638,6 @@ function getModuleSubnavLabel(item) {
     return 'Overview';
   }
 
-  if (item === 'O&M Overview') {
-    return 'Overview';
-  }
-
   if (item === 'Project Overview' || item === 'Inventory Overview' || item === 'Accounts Overview' || item === 'AMC Overview') {
     return 'Overview';
   }
@@ -9515,16 +9666,24 @@ function getModuleSubnavLabel(item) {
     return 'Material Planning';
   }
 
+  if (item === 'Project Job Sheet') {
+    return 'Job Sheet';
+  }
+
+  if (item === 'Project Sales Challan') {
+    return 'Sales Challan';
+  }
+
+  if (item === 'Project Invoice') {
+    return 'Invoice';
+  }
+
   if (item === 'Subsidy') {
     return 'Subsidy';
   }
 
   if (item === 'Project Work Orders') {
     return 'Work Orders';
-  }
-
-  if (item === 'Project Expenses') {
-    return 'Expenses';
   }
 
   if (item === 'Project Documents') {
@@ -9536,10 +9695,6 @@ function getModuleSubnavLabel(item) {
   }
 
   if (item === 'Project Reports') {
-    return 'Reports';
-  }
-
-  if (item === 'O&M Reports') {
     return 'Reports';
   }
 
@@ -9713,19 +9868,6 @@ function LiaisonSubnavTabs({ activeSection, onOpenSection }) {
   );
 }
 
-function OmSubnavTabs({ activeSection, onOpenSection }) {
-  return (
-    <HorizontalModuleTabs
-      items={omSubItems}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      activeClasses="border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] ring-2 ring-[#fff0dc]"
-      activeDotClass="bg-[#f59e0b]"
-      activeIconClass="text-[#f59e0b]"
-    />
-  );
-}
-
 function EmployeeSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
@@ -9742,7 +9884,7 @@ function EmployeeSubnavTabs({ activeSection, onOpenSection }) {
 function ProjectSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
-      items={projectSubItems}
+      items={projectSidebarSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
       activeClasses="border-[#cfe8d6] bg-[#f1fff5] text-[#0b8f43] ring-2 ring-[#e3f8eb]"
@@ -9827,7 +9969,6 @@ function OpsPillBadge({ label, tone }) {
 
 function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSection, onNotify, accent = 'green' }) {
   const activeLabel = getModuleSubnavLabel(activeSection);
-  const isOmModule = moduleTitle === 'O&M';
   const isAmcModule = moduleTitle === 'AMC & Warranty';
   return (
     <div className="space-y-4">
@@ -9840,17 +9981,7 @@ function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSe
         ]}
       />
 
-      {isOmModule ? (
-        <section className="space-y-4">
-          <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-          <SettingsSectionCard title={activeLabel}>
-            <div className="rounded-[12px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6 text-center">
-              <p className="text-[15px] font-extrabold text-[#1e3261]">{activeLabel} module ready for integration</p>
-              <p className="mt-2 text-[13px] font-bold text-[#53647f]">Subcategory navigation is ready. This screen will be expanded with workflow-specific forms and reports in a future update.</p>
-            </div>
-          </SettingsSectionCard>
-        </section>
-      ) : isAmcModule ? (
+      {isAmcModule ? (
         <section className="space-y-4">
           <AmcSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
           <SettingsSectionCard title={activeLabel}>
@@ -11174,523 +11305,6 @@ function LiaisonApprovalSubmittedBy({ user }) {
 }
 
 
-// ── O&M (simplified popup-based work management module) ───────────────────────
-
-function OmPage({ activeSection, onOpenSection, onNotify }) {
-  if (activeSection === 'Breakdown Tickets') {
-    return <OmBreakdownTicketsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'Site Visits') {
-    return <OmSiteVisitsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'Asset Management') {
-    return <OmAssetManagementPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'Spare Parts') {
-    return <OmSparePartsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'O&M Reports') {
-    return <OmReportsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'Energy Performance') {
-    // Energy performance fields (generated/consumed kWh, PR, specific yield) live on
-    // the Asset record itself (BUG-010) — Asset Management is where they're editable.
-    return <OmAssetManagementPage activeSection="Asset Management" onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  // 'Maintenance Tasks' + legacy section ('O&M Overview') land here
-  return <OmMaintenanceTasksPage activeSection="Maintenance Tasks" onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
-
-function OmMaintenanceTasksPage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    moduleTitle: 'O&M',
-    Subnav: OmSubnavTabs,
-    title: 'Maintenance Tasks',
-    recordLabel: 'Task',
-    newLabel: 'New Maintenance',
-    api: omMaintenanceApi,
-    docApi: omDocumentApi,
-    docModule: 'Maintenance',
-    statuses: ['Pending', 'In Progress', 'Completed', 'Overdue'],
-    searchKeys: ['title', 'site', 'engineer', 'task_type'],
-    checklistItems: ['Visual inspection done', 'Cleaning completed', 'Connections tightened', 'Earthing checked', 'Performance verified', 'Site left safe & clean'],
-    columns: [
-      { label: 'Task ID', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
-      { label: 'Site', render: (r) => r.site || '—' },
-      { label: 'Engineer', render: (r) => r.engineer || '—' },
-      { label: 'Due Date', render: (r) => lcFormatDate(r.due_date) },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-    ],
-    fields: [
-      { name: 'title', label: 'Task Title', type: 'text', required: true },
-      { name: 'project', label: 'Project', type: 'project' },
-      { name: 'site', label: 'Site', type: 'text' },
-      { name: 'task_type', label: 'Task Type', type: 'select', options: ['Preventive', 'Corrective'] },
-      { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Medium', 'High'] },
-      { name: 'engineer', label: 'Assigned Engineer', type: 'text' },
-      { name: 'due_date', label: 'Due Date', type: 'date' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'In Progress', 'Completed', 'Overdue'] },
-      { name: 'work_details', label: 'Work Details', type: 'textarea' },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { title: '', project: '', site: '', task_type: 'Preventive', priority: 'Medium', engineer: '', due_date: '', status: 'Pending', work_details: '', remarks: '' },
-    detailRows: [
-      ['Task Title', (r) => r.title, true],
-      ['Site', (r) => r.site || '—'],
-      ['Task Type', (r) => r.task_type],
-      ['Priority', (r) => <LcStatusBadge status={r.priority} />],
-      ['Engineer', (r) => r.engineer || '—'],
-      ['Due Date', (r) => lcFormatDate(r.due_date)],
-      ['Work Details', (r) => r.work_details || '—', true],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
-
-function OmBreakdownTicketsPage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    moduleTitle: 'O&M',
-    Subnav: OmSubnavTabs,
-    title: 'Breakdown Tickets',
-    recordLabel: 'Ticket',
-    newLabel: 'New Ticket',
-    api: omTicketApi,
-    docApi: omDocumentApi,
-    docModule: 'Ticket',
-    docTitle: 'Photos',
-    statuses: ['Open', 'In Progress', 'On Hold', 'Resolved'],
-    searchKeys: ['subject', 'site', 'asset_name', 'assigned_to_name'],
-    lookups: { assets: { api: omAssetApi, label: (a) => a.name } },
-    columns: [
-      { label: 'Ticket No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Site', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.site || r.project_name || '—'}</span> },
-      { label: 'Asset', render: (r) => r.asset_name || '—' },
-      { label: 'Priority', render: (r) => <LcStatusBadge status={r.priority} /> },
-      { label: 'Assigned To', render: (r) => r.assigned_to_name || '—' },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-    ],
-    fields: [
-      { name: 'subject', label: 'Subject', type: 'text', required: true },
-      { name: 'project', label: 'Project', type: 'project' },
-      { name: 'site', label: 'Site', type: 'text' },
-      { name: 'asset', label: 'Asset', type: 'lookup', lookup: 'assets' },
-      { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Medium', 'High'] },
-      { name: 'assigned_to', label: 'Assigned To', type: 'user' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Open', 'In Progress', 'On Hold', 'Resolved'] },
-      { name: 'issue_description', label: 'Issue Description', type: 'textarea' },
-      { name: 'resolution', label: 'Resolution', type: 'textarea' },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { subject: '', project: '', site: '', asset: '', priority: 'Medium', assigned_to: '', status: 'Open', issue_description: '', resolution: '', remarks: '' },
-    detailRows: [
-      ['Subject', (r) => r.subject, true],
-      ['Site', (r) => r.site || '—'],
-      ['Asset', (r) => r.asset_name || '—'],
-      ['Priority', (r) => <LcStatusBadge status={r.priority} />],
-      ['Assigned To', (r) => r.assigned_to_name || '—'],
-      ['Issue Description', (r) => r.issue_description || '—', true],
-      ['Resolution', (r) => r.resolution || '—', true],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
-
-function OmSiteVisitsPage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    moduleTitle: 'O&M',
-    Subnav: OmSubnavTabs,
-    title: 'Site Visits',
-    recordLabel: 'Visit',
-    newLabel: 'Schedule Visit',
-    api: omVisitApi,
-    docApi: omDocumentApi,
-    docModule: 'Visit',
-    docTitle: 'Images',
-    statuses: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'],
-    searchKeys: ['site', 'purpose', 'engineer'],
-    checklistItems: ['Site inspection completed', 'Photos captured', 'Customer interaction done', 'Issues noted', 'Report prepared'],
-    columns: [
-      { label: 'Visit No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Site', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.site || r.project_name || '—'}</span> },
-      { label: 'Engineer', render: (r) => r.engineer || '—' },
-      { label: 'Date', render: (r) => lcFormatDate(r.date) },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-    ],
-    fields: [
-      { name: 'project', label: 'Project', type: 'project' },
-      { name: 'site', label: 'Site', type: 'text' },
-      { name: 'purpose', label: 'Purpose', type: 'text' },
-      { name: 'engineer', label: 'Engineer', type: 'text' },
-      { name: 'date', label: 'Visit Date', type: 'date' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'] },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { project: '', site: '', purpose: '', engineer: '', date: '', status: 'Scheduled', remarks: '' },
-    detailRows: [
-      ['Site', (r) => r.site || '—'],
-      ['Purpose', (r) => r.purpose || '—'],
-      ['Engineer', (r) => r.engineer || '—'],
-      ['Visit Date', (r) => lcFormatDate(r.date)],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
-
-function OmAssetManagementPage({ activeSection, onOpenSection, onNotify }) {
-  const ASSET_TYPES = ['Inverter', 'Solar Module', 'Transformer', 'ACDB', 'DCDB', 'Battery Bank', 'Energy Meter', 'SCADA', 'Structure', 'Other'];
-  const config = {
-    moduleTitle: 'O&M',
-    Subnav: OmSubnavTabs,
-    title: 'Assets',
-    recordLabel: 'Asset',
-    newLabel: 'Add Asset',
-    api: omAssetApi,
-    docApi: omDocumentApi,
-    docModule: 'Asset',
-    statuses: ['Operational', 'Under Maintenance', 'Inactive', 'Retired'],
-    extraFilters: [{ key: 'asset_type', label: 'All Asset Types', options: ASSET_TYPES }],
-    searchKeys: ['name', 'site', 'manufacturer', 'asset_type'],
-    columns: [
-      { label: 'Asset ID', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Asset Name', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.name}</span> },
-      { label: 'Site', render: (r) => r.site || r.project_name || '—' },
-      { label: 'Capacity', render: (r) => r.capacity || '—' },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-    ],
-    fields: [
-      { name: 'name', label: 'Asset Name', type: 'text', required: true },
-      { name: 'asset_type', label: 'Asset Type', type: 'select', options: ASSET_TYPES },
-      { name: 'project', label: 'Project', type: 'project' },
-      { name: 'site', label: 'Site', type: 'text' },
-      { name: 'capacity', label: 'Capacity', type: 'text' },
-      { name: 'manufacturer', label: 'Manufacturer', type: 'text' },
-      { name: 'installed_on', label: 'Installed On', type: 'date' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Operational', 'Under Maintenance', 'Inactive', 'Retired'] },
-      { name: 'energy_generated_kwh', label: 'Energy Generated (kWh)', type: 'number' },
-      { name: 'energy_consumed_kwh', label: 'Energy Consumed (kWh)', type: 'number' },
-      { name: 'performance_ratio', label: 'Performance Ratio (%)', type: 'number' },
-      { name: 'specific_yield', label: 'Specific Yield (kWh/kWp)', type: 'number' },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { name: '', asset_type: 'Inverter', project: '', site: '', capacity: '', manufacturer: '', installed_on: '', status: 'Operational', energy_generated_kwh: '', energy_consumed_kwh: '', performance_ratio: '', specific_yield: '', remarks: '' },
-    detailRows: [
-      ['Asset Name', (r) => r.name],
-      ['Asset Type', (r) => r.asset_type],
-      ['Site', (r) => r.site || '—'],
-      ['Capacity', (r) => r.capacity || '—'],
-      ['Manufacturer', (r) => r.manufacturer || '—'],
-      ['Installed On', (r) => lcFormatDate(r.installed_on)],
-      ['Energy Generated', (r) => (r.energy_generated_kwh != null ? `${Number(r.energy_generated_kwh).toLocaleString('en-IN')} kWh` : '—')],
-      ['Energy Consumed', (r) => (r.energy_consumed_kwh != null ? `${Number(r.energy_consumed_kwh).toLocaleString('en-IN')} kWh` : '—')],
-      ['Performance Ratio', (r) => (r.performance_ratio != null ? `${r.performance_ratio}%` : '—')],
-      ['Specific Yield', (r) => (r.specific_yield != null ? `${r.specific_yield} kWh/kWp` : '—')],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-    // Site survey already has the address/GPS and plant capacity — prefill
-    // Site/Capacity so they don't need retyping for a new asset record.
-    onProjectSelect: (projectId, setForm) => {
-      if (!projectId) return;
-      projectApi.get(projectId).then((data) => {
-        const s = data?.site_survey;
-        setForm((prev) => {
-          const next = { ...prev };
-          if (!next.site) {
-            next.site = data?.site_address || (s?.latitude && s?.longitude ? `${s.latitude}, ${s.longitude}` : '') || '';
-          }
-          const capacityRelevant = ['Inverter', 'Solar Module', 'Structure'].includes(prev.asset_type);
-          if (!next.capacity && capacityRelevant && s?.approx_plant_capacity) {
-            next.capacity = s.approx_plant_capacity;
-          }
-          return next;
-        });
-      }).catch(() => {});
-    },
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
-
-function OmSparePartsPage({ activeSection, onOpenSection, onNotify }) {
-  const CATEGORIES = ['Electrical', 'Mechanical', 'Electronics', 'Civil', 'Safety', 'Other'];
-  const config = {
-    moduleTitle: 'O&M',
-    Subnav: OmSubnavTabs,
-    title: 'Spare Parts',
-    recordLabel: 'Spare Part',
-    newLabel: 'Add Spare Part',
-    api: omSparePartApi,
-    statuses: [],
-    extraFilters: [
-      { key: 'category', label: 'All Categories', options: CATEGORIES },
-      { key: 'stock_status', label: 'Stock Status', options: ['In Stock', 'Low Stock', 'Out of Stock'], client: true },
-    ],
-    searchKeys: ['name', 'category', 'site', 'supplier'],
-    columns: [
-      { label: 'Part Name', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.name}</span> },
-      { label: 'Category', render: (r) => r.category },
-      { label: 'Stock', render: (r) => `${r.stock_qty} ${r.unit || ''}`.trim() },
-      { label: 'Minimum Stock', render: (r) => r.min_stock },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.stock_status} /> },
-    ],
-    fields: [
-      { name: 'name', label: 'Part Name', type: 'text', required: true },
-      { name: 'category', label: 'Category', type: 'select', options: CATEGORIES },
-      { name: 'site', label: 'Site / Location', type: 'text' },
-      { name: 'stock_qty', label: 'Stock Quantity', type: 'number', required: true },
-      { name: 'min_stock', label: 'Minimum Stock', type: 'number', required: true },
-      { name: 'unit', label: 'Unit', type: 'text' },
-      { name: 'unit_cost', label: 'Unit Cost (Rs)', type: 'number' },
-      { name: 'supplier', label: 'Supplier', type: 'text' },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { name: '', category: 'Electrical', site: '', stock_qty: '', min_stock: '', unit: 'Nos', unit_cost: '', supplier: '', remarks: '' },
-    detailRows: [
-      ['Part No', (r) => r.record_no],
-      ['Part Name', (r) => r.name],
-      ['Category', (r) => r.category],
-      ['Site / Location', (r) => r.site || '—'],
-      ['Stock Quantity', (r) => `${r.stock_qty} ${r.unit || ''}`.trim()],
-      ['Minimum Stock', (r) => r.min_stock],
-      ['Unit Cost', (r) => (r.unit_cost != null ? `Rs ${Number(r.unit_cost).toLocaleString('en-IN')}` : '—')],
-      ['Supplier', (r) => r.supplier || '—'],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
-
-function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
-  const REPORT_TYPES = ['Performance Report', 'Maintenance Report', 'Breakdown Report', 'Compliance Report', 'Inventory Report', 'Other'];
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [viewItem, setViewItem] = useState(null);
-  const [showNew, setShowNew] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', report_type: 'Performance Report', file: null, remarks: '' });
-
-  const loadReports = useCallback(() => {
-    setLoading(true);
-    const params = {};
-    if (filterType) params.report_type = filterType;
-    omReportApi.list(params)
-      .then((r) => { setReports(normalizeApiRows(r)); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [filterType]);
-
-  useEffect(() => { loadReports(); }, [loadReports]);
-
-  const filtered = reports.filter((r) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return [r.record_no, r.name, r.report_type, r.generated_by_name].some((v) => (v || '').toLowerCase().includes(q));
-  });
-
-  function handleCreate() {
-    if (!form.name) return;
-    setSaving(true);
-    let body;
-    if (form.file) {
-      body = new FormData();
-      body.append('name', form.name);
-      body.append('report_type', form.report_type);
-      body.append('file', form.file);
-      body.append('remarks', form.remarks);
-    } else {
-      body = { name: form.name, report_type: form.report_type, remarks: form.remarks };
-    }
-    omReportApi.create(body)
-      .then(() => { onNotify('Report added.', 'success'); setShowNew(false); setForm({ name: '', report_type: 'Performance Report', file: null, remarks: '' }); loadReports(); })
-      .catch((e) => onNotify(e.message || 'Save failed.', 'error'))
-      .finally(() => setSaving(false));
-  }
-
-  function confirmDeleteReport(item) {
-    setDeleteConfirm({
-      message: item.name,
-      onConfirm: () => {
-        omReportApi.delete(item.id)
-          .then(() => { onNotify('Report deleted.', 'success'); setDeleteConfirm(null); if (viewItem?.id === item.id) setViewItem(null); loadReports(); })
-          .catch(() => onNotify('Delete failed.', 'error'));
-      },
-    });
-  }
-
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title="O&M"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'O&M' },
-          { label: 'Reports' },
-        ]}
-        actions={
-          <button type="button" onClick={() => setShowNew(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
-            <Plus className="size-4" />New Report
-          </button>
-        }
-      />
-
-      <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
-      <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
-            <input
-              className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none"
-              placeholder="Search reports..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-            <option value="">All Types</option>
-            {REPORT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          {(search || filterType) && (
-            <button type="button" onClick={() => { setSearch(''); setFilterType(''); }} className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Clear</button>
-          )}
-        </div>
-
-        <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white">
-          {loading ? (
-            <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">Loading reports...</div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16">
-              <FileText className="size-10 text-[#c7d4e0]" />
-              <p className="text-[14px] font-bold text-[#7a8fa6]">No reports found</p>
-              <button type="button" onClick={() => setShowNew(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white">
-                <Plus className="size-3.5" />New Report
-              </button>
-            </div>
-          ) : (
-            <div className="max-h-[62vh] overflow-auto">
-              <table className="w-full min-w-[760px] text-left text-[13px]">
-                <thead>
-                  <tr>
-                    {['Report Name', 'Report Type', 'Generated Date', 'Generated By', 'Actions'].map((h) => (
-                      <th key={h} className="sticky top-0 z-10 border-b border-[#e5eaf2] bg-[#f8fafc] px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f1f5f9]">
-                  {filtered.map((item) => (
-                    <tr key={item.id} className="hover:bg-[#f8fafc]">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <FileText className="size-4 shrink-0 text-[#7a8fa6]" />
-                          <span className="max-w-[280px] truncate font-semibold text-[#1e2a38]" title={item.name}>{item.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-bold text-[#0b65e5]">{item.report_type}</span>
-                      </td>
-                      <td className="px-4 py-3 text-[#53647f]">{lcFormatDate(item.created_at)}</td>
-                      <td className="px-4 py-3 text-[#53647f]">{item.generated_by_name || '—'}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button type="button" title="View" onClick={() => setViewItem(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3.5" /></button>
-                          {item.file && (
-                            <a href={getMediaUrl(item.file)} download target="_blank" rel="noreferrer" title="Download" className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3.5" /></a>
-                          )}
-                          <button type="button" title="Delete" onClick={() => confirmDeleteReport(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#fecaca] text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* New Report popup */}
-      {showNew && (
-        <LcModalShell
-          title="New Report"
-          onClose={() => setShowNew(false)}
-          footer={
-            <>
-              <button type="button" onClick={() => setShowNew(false)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
-              <button type="button" onClick={handleCreate} disabled={saving || !form.name} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60">
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-            </>
-          }
-        >
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div className="col-span-2">
-              <label className={lcLabelCls}>Report Name *</label>
-              <input type="text" className={lcInputCls} value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
-            </div>
-            <div>
-              <label className={lcLabelCls}>Report Type</label>
-              <select className={lcInputCls} value={form.report_type} onChange={(e) => setForm((p) => ({ ...p, report_type: e.target.value }))}>
-                {REPORT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={lcLabelCls}>Attach File</label>
-              <input type="file" className="block w-full text-[12px] text-[#1e2a38] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:py-1.5 file:text-[12px] file:font-bold file:text-[#0b65e5]" onChange={(e) => setForm((p) => ({ ...p, file: e.target.files[0] || null }))} />
-            </div>
-            <div className="col-span-2">
-              <label className={lcLabelCls}>Remarks</label>
-              <textarea rows={2} className={lcTextareaCls} value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} />
-            </div>
-          </div>
-        </LcModalShell>
-      )}
-
-      {/* View popup */}
-      {viewItem && (
-        <LcModalShell
-          title={`${viewItem.record_no} — Report`}
-          onClose={() => setViewItem(null)}
-          footer={
-            <>
-              {viewItem.file && (
-                <a href={getMediaUrl(viewItem.file)} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
-              )}
-              <button type="button" onClick={() => confirmDeleteReport(viewItem)} className="h-9 rounded-[8px] border border-[#fecaca] px-4 text-[13px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Delete</button>
-              <button type="button" onClick={() => setViewItem(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
-            </>
-          }
-        >
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
-            {[
-              ['Report Name', viewItem.name],
-              ['Report Type', viewItem.report_type],
-              ['Generated Date', lcFormatDate(viewItem.created_at)],
-              ['Generated By', viewItem.generated_by_name || '—'],
-              ['Remarks', viewItem.remarks || '—'],
-            ].map(([label, val]) => (
-              <div key={label} className={label === 'Remarks' || label === 'Report Name' ? 'col-span-2' : ''}>
-                <dt className={lcLabelCls}>{label}</dt>
-                <dd className="font-semibold text-[#1e2a38] whitespace-pre-wrap">{val}</dd>
-              </div>
-            ))}
-          </dl>
-          {!viewItem.file && <p className="mt-4 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[12px] text-[#7a8fa6]">No file attached to this report.</p>}
-        </LcModalShell>
-      )}
-
-      {deleteConfirm ? (
-        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
-      ) : null}
-
-      <DashboardFooter />
-    </div>
-  );
-}
-
 // ── Accounts (simplified popup-based module) ──────────────────────────────────
 
 const ACC_PAYMENT_MODES = ['Cash', 'Cheque', 'NEFT', 'RTGS', 'UPI', 'IMPS', 'Transfer', 'Other'];
@@ -11790,7 +11404,6 @@ function AccountsOverviewPage({ activeSection, onOpenSection, onNotify }) {
     { label: 'Bank Balance', value: fmtAccRs(stats.bank_balance), caption: `${stats.bank_count ?? 0} active accounts`, tone: 'purple', icon: CreditCard, onClick: () => onOpenSection('Bank Accounts') },
     { label: 'Pending In', value: fmtAccRs(stats.pending_received), caption: 'Awaiting receipt', tone: 'amber', icon: Hourglass, onClick: () => onOpenSection('Cash Receipt') },
     { label: 'Pending Cheques', value: String(stats.pending_cheques ?? 0), caption: 'Open cheque items', tone: 'cyan', icon: FileText, onClick: () => onOpenSection('Cheques List') },
-    { label: 'Project Expenses', value: fmtAccRs(stats.project_expenses), caption: `${stats.project_expense_count ?? 0} from Project Management`, tone: 'amber', icon: Minus, onClick: () => onOpenSection('Other Expenses') },
     { label: 'Total Expenses', value: fmtAccRs(stats.total_expenses), caption: `${stats.expense_count ?? 0} expense entries`, tone: 'red', icon: Minus, onClick: () => onOpenSection('Other Expenses') },
   ] : [];
 
@@ -12209,22 +11822,6 @@ function AccountsChequesPage({ activeSection, onOpenSection, onNotify }) {
   return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
-const ACC_VOUCHER_SOURCE_TONES = {
-  'Project Expense': 'bg-[#fff0dc] text-[#b76b00]',
-  'Material Dispatch': 'bg-[#e7faf8] text-[#0f766e]',
-  Workforce: 'bg-[#f2eafe] text-[#7c3aed]',
-  Manual: 'bg-[#eef2f7] text-[#53647f]',
-};
-
-function AccountsVoucherSourceBadge({ source }) {
-  const label = source || 'Manual';
-  return (
-    <span className={cx('inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-extrabold', ACC_VOUCHER_SOURCE_TONES[label] || ACC_VOUCHER_SOURCE_TONES.Manual)}>
-      {label === 'Project Expense' ? 'Project Mgmt' : label}
-    </span>
-  );
-}
-
 function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
   const config = {
     moduleTitle: 'Accounts',
@@ -12337,17 +11934,9 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
     fixedFields: { entry_type: 'Expense' },
     statuses: ['Pending', 'Completed', 'Cancelled'],
     extraFilters: [
-      { key: 'source', label: 'All Sources', options: ['Project Expense', 'Manual'], client: true },
-      {
-        key: 'category',
-        label: 'Category',
-        options: ['Site Visit', 'Transport', 'Office', 'Labour', 'Misc', 'Materials', 'Labor', 'Equipment', 'Miscellaneous'],
-        client: true,
-      },
+      { key: 'category', label: 'Category', options: ['Site Visit', 'Transport', 'Office', 'Labour', 'Misc'], client: true },
     ],
-    searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars', 'project_ref', 'source'],
-    isRowLocked: (r) => r.source === 'Project Expense',
-    lockedHint: () => 'Created from Project Management — edit or delete it from the project\'s Expenses tab.',
+    searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars', 'project_ref'],
     lookups: {
       projects: { api: projectApi, label: (p) => `${p.project_id} — ${p.project_name}` },
     },
@@ -12365,7 +11954,6 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
           </span>
         ) : '—'),
       },
-      { label: 'Source', render: (r) => <AccountsVoucherSourceBadge source={r.source} /> },
       { label: 'Amount', render: (r) => fmtAccRs(r.amount) },
       { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
     ],
@@ -12386,7 +11974,6 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
       ['Paid To', (r) => r.payee_name],
       ['Category', (r) => r.category || '—'],
       ['Project', (r) => (r.project_name ? `${r.project_ref ? `${r.project_ref} — ` : ''}${r.project_name}` : '—')],
-      ['Source', (r) => <AccountsVoucherSourceBadge source={r.source} />],
       ['Mode', (r) => r.payment_mode || '—'],
       ['Amount', (r) => fmtAccRs(r.amount)],
       ['Particulars', (r) => r.particulars || '—', true],
@@ -13007,7 +12594,7 @@ function SummaryExecutivePage({ activeSection, onOpenSection, onNotify }) {
     { label: 'New Lead', section: 'Create Lead', icon: UserPlus, tone: 'green' },
     { label: 'Record Payment', section: 'Payment Received', icon: ReceiptText, tone: 'blue' },
     { label: 'Stock', section: 'Stock', icon: Download, tone: 'amber' },
-    { label: 'O&M Tickets', section: 'Breakdown Tickets', icon: Wrench, tone: 'red' },
+    { label: 'O&M Pending', section: OM_PENDING_SECTIONS[0], icon: Wrench, tone: 'red' },
     { label: 'Full Reports', section: 'Insights', icon: BarChart3, tone: 'purple' },
   ];
 
@@ -13037,8 +12624,8 @@ function SummaryExecutivePage({ activeSection, onOpenSection, onNotify }) {
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: 'Open O&M Tickets', value: ops.open_tickets ?? 0 },
-              { label: 'Pending Tasks', value: ops.pending_tasks ?? 0 },
+              { label: 'Pending Dispatch', value: ops.pending_flow?.dispatch ?? 0 },
+              { label: 'Pending Installation', value: ops.pending_flow?.installation ?? 0 },
               { label: 'Low Stock Items', value: inventory?.low_stock ?? 0 },
               { label: 'Expiring AMC', value: amc?.expiring_contracts ?? 0 },
             ].map((item) => (
@@ -13233,8 +12820,6 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
       create: 'Project List',
       'team-add': 'Project Team Add',
       'work-order': 'Project Work Orders',
-      'expense-create': 'Project Expenses',
-      'expense-detail': 'Project Expenses',
       'document-preview': 'Project Documents',
       'folder-create': 'Project Documents',
       'approval-create': 'Project Approvals',
@@ -13319,23 +12904,38 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     );
   }
 
+  if (activeSection === 'Project Job Sheet') {
+    return (
+      <OpsJobSheetPage
+        activeSection={activeSection}
+        onOpenSection={onOpenSection}
+        onNotify={onNotify}
+        Subnav={ProjectSubnavTabs}
+        initialProjectId={selectedProject?.id}
+      />
+    );
+  }
+
+  if (activeSection === 'Project Sales Challan' || activeSection === 'Project Invoice') {
+    const BillingPage = activeSection === 'Project Invoice' ? ProjectInvoicePage : ProjectSalesChallanPage;
+    return (
+      <BillingPage
+        key={activeSection}
+        activeSection={activeSection}
+        onOpenSection={onOpenSection}
+        onNotify={onNotify}
+        Subnav={ProjectSubnavTabs}
+        initialProjectId={selectedProject?.id}
+      />
+    );
+  }
+
   if (activeSection === 'Subsidy') {
     return <ProjectSubsidyPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Work Orders') {
     return <ProjectWorkOrdersPage activeSection={activeSection} onOpenSection={onOpenSection} selectedProject={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
-  }
-
-  if (activeSection === 'Project Expenses') {
-    return (
-      <ProjectExpensesPage
-        activeSection={activeSection}
-        onOpenSection={onOpenSection}
-        onNotify={onNotify}
-        initialProjectId={selectedProject?.id}
-      />
-    );
   }
 
   if (activeSection === 'Project Documents') {
@@ -13495,7 +13095,7 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
       Completed: 'Project Reports',
       Cancelled: 'Project List',
       'Total Capacity (KWp)': 'Project KPI Analytics',
-      'Total Project Value (₹)': 'Project Expenses',
+      'Total Project Value (₹)': 'Project KPI Analytics',
       'Avg. Project Value (₹)': 'Project KPI Analytics',
       'Projects Completed': 'Project Reports',
     };
@@ -13767,7 +13367,6 @@ function buildProjectDocumentHtml(row, detail) {
   const fmtDate = (v) => (v ? formatProjectDisplayDate(v) : '-');
   const cfg = d.system_config || {};
   const materials = Array.isArray(d.installation_materials) ? d.installation_materials : [];
-  const expenses = Array.isArray(d.expenses) ? d.expenses : [];
   const payments = Array.isArray(d.payments) ? d.payments : [];
 
   const infoRow = (label, value) => `<tr><td class="k">${esc(label)}</td><td class="v">${esc(value || '-')}</td></tr>`;
@@ -13826,11 +13425,9 @@ function buildProjectDocumentHtml(row, detail) {
     </table></section>
     <section><h2>Financials</h2><table>
       ${infoRow('Total Value', inr(d.total_value))}
-      ${infoRow('Total Expense', inr(d.total_expense))}
       ${infoRow('Total Paid', inr(d.total_paid))}
       ${infoRow('Balance', inr((Number(d.total_value) || 0) - (Number(d.total_paid) || 0)))}
       ${infoRow('Payments Recorded', payments.length)}
-      ${infoRow('Expense Entries', expenses.length)}
     </table></section>
     <section class="full"><h2>Material Details</h2>
       <table class="list"><thead><tr><th>Item</th><th>Category</th><th>Quantity</th><th>Status</th></tr></thead>
@@ -13851,7 +13448,6 @@ function buildSiteSurveyViewHtml(row, detail) {
   const survey = d.site_survey || {};
   const cfg = d.system_config || {};
   const payments = Array.isArray(d.payments) ? d.payments : [];
-  const expenses = Array.isArray(d.expenses) ? d.expenses : [];
   const team = Array.isArray(d.team_members) ? d.team_members : [];
   const documents = Array.isArray(d.documents) ? d.documents : [];
   const checklist = (Array.isArray(d.checklist_items) ? d.checklist_items : []).filter((c) => c.phase === 'Site Survey');
@@ -13860,7 +13456,6 @@ function buildSiteSurveyViewHtml(row, detail) {
   const milestones = (d.milestones || []).flatMap((m) => [m, ...(m.children || [])]);
   const totalValue = Number(d.total_value || 0);
   const totalPaid = Number(d.total_paid || 0);
-  const totalExpense = Number(d.total_expense || 0);
 
   const infoRow = (label, value) => `<tr><td class="k">${esc(label)}</td><td class="v">${esc(value || '-')}</td></tr>`;
   const kvPairs = (rows) => (Array.isArray(rows) && rows.length
@@ -13871,7 +13466,6 @@ function buildSiteSurveyViewHtml(row, detail) {
   }</tbody></table>`;
 
   const paymentsRows = payments.map((p) => `<tr><td>${esc(fmtDate(p.payment_date))}</td><td>${esc(inr(p.amount))}</td><td>${esc(p.payment_mode)}</td><td>${esc(p.reference || '-')}</td><td>${esc(p.created_by_name || '-')}</td></tr>`);
-  const expensesRows = expenses.map((e) => `<tr><td>${esc(e.category)}</td><td>${esc(e.description)}</td><td>${esc(fmtDate(e.date))}</td><td>${esc(inr(e.amount))}</td><td>${esc(e.created_by_name || '-')}</td></tr>`);
   const teamRows = team.map((m) => `<tr><td>${esc(m.user_name)}</td><td>${esc(m.role_title || 'Member')}</td><td>${esc(m.access_level_display || '-')}</td><td>${esc(m.user_email || '-')}</td><td>${esc(m.user_mobile || '-')}</td></tr>`);
   const documentsRows = documents.map((doc) => `<tr><td>${esc(doc.name)}</td><td>${esc(doc.category || '-')}</td><td>${esc(doc.uploaded_by_name || '-')}</td><td>${esc(fmtDate(doc.uploaded_at?.slice(0, 10)))}</td></tr>`);
   const checklistRows = checklist.map((c) => `<tr><td>${esc(c.category || 'General')}</td><td>${esc(c.label)}</td><td>${c.is_checked ? 'Done' : 'Pending'}</td><td>${esc(c.notes || '-')}</td></tr>`);
@@ -14021,13 +13615,11 @@ function buildSiteSurveyViewHtml(row, detail) {
     <section><table>
       ${infoRow('Total Value', inr(totalValue))}
       ${infoRow('Amount Received', inr(totalPaid))}
-      ${infoRow('Total Expenses', inr(totalExpense))}
       ${infoRow('Net Balance', inr(totalValue - totalPaid))}
     </table></section>
-    <section><table>${infoRow('Payments Recorded', payments.length)}${infoRow('Expense Entries', expenses.length)}</table></section>
+    <section><table>${infoRow('Payments Recorded', payments.length)}</table></section>
   </div>
   <section class="full"><p class="sub">Payments</p>${listTable(['Date', 'Amount', 'Mode', 'Reference', 'By'], paymentsRows)}</section>
-  <section class="full" style="margin-top:10px;"><p class="sub">Expenses</p>${listTable(['Category', 'Description', 'Date', 'Amount', 'By'], expensesRows)}</section>
 
   <h2 class="section-title">Progress</h2>
   <section class="full">${listTable(['Task / Milestone', 'Category', 'Start', 'End', 'Status', 'Progress', 'Owner'], milestonesRows)}</section>
@@ -15070,7 +14662,6 @@ function ProjectListViewModal({ row, onClose, onNotify }) {
   const workOrders = Array.isArray(d.work_orders) ? d.work_orders : [];
   const milestones = Array.isArray(d.milestones) ? d.milestones : [];
   const checklist = Array.isArray(d.checklist_items) ? d.checklist_items : [];
-  const expenses = Array.isArray(d.expenses) ? d.expenses : [];
   const payments = Array.isArray(d.payments) ? d.payments : [];
   const stage = row.stageProgress || {};
   const money = (v) => {
@@ -15196,9 +14787,9 @@ function ProjectListViewModal({ row, onClose, onNotify }) {
               <ProjectInfoCard title="Finance Snapshot" icon={CreditCard} tone="green">
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <InfoCell label="Project Value" value={money(d.total_value)} />
-                  <InfoCell label="Total Expense" value={money(d.total_expense ?? expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0))} />
                   <InfoCell label="Total Paid" value={money(d.total_paid ?? payments.reduce((sum, pmt) => sum + Number(pmt.amount || 0), 0))} />
-                  <InfoCell label="Expenses / Payments" value={`${expenses.length} / ${payments.length}`} />
+                  <InfoCell label="Balance" value={money((Number(d.total_value) || 0) - (Number(d.total_paid) || payments.reduce((sum, pmt) => sum + Number(pmt.amount || 0), 0)))} />
+                  <InfoCell label="Payments" value={String(payments.length)} />
                 </div>
               </ProjectInfoCard>
 
@@ -16815,8 +16406,6 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   const [newNoteContent, setNewNoteContent] = useState('');
   const [newNotePinned, setNewNotePinned] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
-  const [newExpense, setNewExpense] = useState({ category: 'Materials', description: '', amount: '', date: new Date().toISOString().slice(0, 10) });
-  const [savingExpense, setSavingExpense] = useState(false);
   const [newPayment, setNewPayment] = useState({ amount: '', payment_mode: 'Bank Transfer', payment_date: new Date().toISOString().slice(0, 10), reference: '', notes: '' });
   const [savingPayment, setSavingPayment] = useState(false);
   const [userOptions, setUserOptions] = useState([]);
@@ -16946,22 +16535,6 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       notes: cfg?.notes || '',
     });
   }, [data]);
-
-  const handleAddExpense = async () => {
-    const amount = parseFloat(newExpense.amount);
-    if (!newExpense.description.trim() || !amount || amount <= 0) { onNotify('Enter a description and a valid amount'); return; }
-    setSavingExpense(true);
-    try {
-      await runMutationWithRefresh({
-        action: () => projectExpenseApi.create({ project: projectProp.id, category: newExpense.category, description: newExpense.description.trim(), amount, date: newExpense.date }),
-        successMessage: 'Expense added',
-        fallbackError: 'Failed to add expense',
-      });
-      setNewExpense({ category: 'Materials', description: '', amount: '', date: new Date().toISOString().slice(0, 10) });
-    } finally {
-      setSavingExpense(false);
-    }
-  };
 
   const handleAddPayment = async () => {
     const amount = parseFloat(newPayment.amount);
@@ -17591,25 +17164,16 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
         editable: false,
       }));
 
-  const totalExpense = d.total_expense || 0;
   const totalPaid = d.total_paid || 0;
   const totalValue = Number(d.total_value || 0);
   const netBalance = totalValue - Number(totalPaid);
   const financialStats = [
     { label: 'Total Project Value', value: formatCurrencyPrecise(totalValue), note: 'Contract value', icon: IndianRupee, tone: 'green' },
     { label: 'Amount Received', value: formatCurrencyPrecise(Number(totalPaid)), note: 'Payments from customer', icon: CreditCard, tone: 'blue' },
-    { label: 'Total Expenses', value: formatCurrencyPrecise(Number(totalExpense)), note: 'Recorded project expenses', icon: ReceiptText, tone: 'amber' },
     { label: 'Net Balance', value: formatCurrencyPrecise(netBalance), note: netBalance < 0 ? 'Outstanding to pay' : 'Remaining to collect', icon: Hourglass, tone: netBalance < 0 ? 'red' : 'purple' },
   ];
 
-  const expenseRows = d.expenses || [];
   const paymentRows = d.payments || [];
-
-  // expense breakdown by category
-  const expenseByCategory = ['Materials', 'Labor', 'Transport', 'Equipment', 'Miscellaneous'].map((cat) => ({
-    category: cat,
-    total: expenseRows.filter((e) => e.category === cat).reduce((s, e) => s + Number(e.amount), 0),
-  })).filter((c) => c.total > 0);
 
   const teamStats = [
     { label: 'Total Team Members', value: String(teamMembersList.length), note: 'Assigned to this project', icon: UsersRound, tone: 'green' },
@@ -17890,7 +17454,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       Overview: 'Project Details',
       'Customer & Site Info': 'Project Site Survey',
       'System Details': 'Project Installation',
-      Financials: 'Project Expenses',
+      Financials: 'Project Invoice',
       Progress: 'Project Progress Update',
       Team: 'Project Team Add',
       Activities: 'Project Activity Create',
@@ -18715,8 +18279,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
 
       const financialsSection = (
         <>
-          {/* ── 4 summary stats ───────────────────────────────────────── */}
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {/* ── summary stats ─────────────────────────────────────────── */}
+          <section className="grid gap-4 sm:grid-cols-3">
             {financialStats.map((stat) => (
               <ProjectFinancialStat key={stat.label} stat={stat} />
             ))}
@@ -18805,78 +18369,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                 </div>
               </article>
 
-              {/* Expense by category */}
-              {expenseByCategory.length > 0 && (
-                <article className={`${panelClass} p-4 sm:p-5`}>
-                  <h2 className="font-display text-[14px] font-extrabold text-[#06135a]">Expenses by Category</h2>
-                  <div className="mt-4 space-y-2">
-                    {expenseByCategory.map((cat) => (
-                      <div key={cat.category}>
-                        <div className="mb-1 flex justify-between text-[12px]">
-                          <span className="font-bold text-[#53647f]">{cat.category}</span>
-                          <span className="font-extrabold text-[#1e3261]">{formatCurrencyPrecise(cat.total)}</span>
-                        </div>
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#edf2f8]">
-                          <div className="h-full rounded-full bg-[#f59e0b] transition-all" style={{ width: totalExpense > 0 ? `${(cat.total / Number(totalExpense)) * 100}%` : '0%' }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              )}
             </aside>
           </section>
-
-          {/* ── Expenses ──────────────────────────────────────────────── */}
-          <article className={`${panelClass} overflow-hidden`}>
-            <div className="flex items-center gap-3 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-              <span className="grid size-8 place-items-center rounded-[8px] bg-[#fff8e8] text-[#f59e0b]"><ReceiptText className="size-4" /></span>
-              <h2 className="font-display text-[16px] font-extrabold text-[#06135a]">Expenses</h2>
-              {expenseRows.length > 0 && (
-                <span className="ml-auto text-[12px] font-extrabold text-[#f59e0b]">{expenseRows.length} record{expenseRows.length !== 1 ? 's' : ''} · Total {formatCurrencyPrecise(Number(totalExpense))}</span>
-              )}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="crm-table min-w-[700px] w-full">
-                <thead>
-                  <tr>
-                    {['#', 'Category', 'Description', 'Date', 'Amount (Rs)', 'Added By'].map((h) => (
-                      <th key={h}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenseRows.map((row, i) => (
-                    <tr key={row.id}>
-                      <td>{i + 1}</td>
-                      <td><span className="inline-flex rounded-full bg-[#fff8e8] px-2 py-0.5 text-[11px] font-extrabold text-[#b45309]">{row.category}</span></td>
-                      <td className="font-bold text-[#1e3261]">{row.description}</td>
-                      <td className="text-[#53647f]">{formatProjectDisplayDate(row.date)}</td>
-                      <td className="font-extrabold text-[#ef4444]">{formatCurrencyPrecise(Number(row.amount))}</td>
-                      <td className="text-[#53647f]">{row.created_by_name || '—'}</td>
-                    </tr>
-                  ))}
-                  {expenseRows.length === 0 && (
-                    <tr><td colSpan={6} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No expenses recorded yet.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="border-t border-[#edf2f8] px-4 py-4 sm:px-5">
-              <p className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Add Expense</p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[150px_minmax(0,1fr)_130px_140px_auto]">
-                <select value={newExpense.category} onChange={(e) => setNewExpense((p) => ({ ...p, category: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  {['Materials', 'Labor', 'Transport', 'Equipment', 'Miscellaneous'].map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <input value={newExpense.description} onChange={(e) => setNewExpense((p) => ({ ...p, description: e.target.value }))} type="text" placeholder="Description" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#f59e0b]" />
-                <input value={newExpense.amount} onChange={(e) => setNewExpense((p) => ({ ...p, amount: e.target.value }))} type="number" min="0" placeholder="Amount (Rs)" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#f59e0b]" />
-                <input value={newExpense.date} onChange={(e) => setNewExpense((p) => ({ ...p, date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
-                <button type="button" disabled={savingExpense} onClick={handleAddExpense} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#f59e0b] px-4 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#d97706]">
-                  <Plus className="size-4" />{savingExpense ? 'Saving…' : 'Add Expense'}
-                </button>
-              </div>
-            </div>
-          </article>
         </>
       );
 
@@ -18893,20 +18387,6 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
               <input value={newPayment.reference} onChange={(e) => setNewPayment((p) => ({ ...p, reference: e.target.value }))} type="text" placeholder="Reference / UTR / Cheque No." className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]" />
               <button type="button" disabled={savingPayment} onClick={handleAddPayment} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#0950c2]">
                 <Plus className="size-4" />{savingPayment ? 'Saving…' : 'Add Payment'}
-              </button>
-            </div>
-          </article>
-          <article className={`${panelClass} p-4 sm:p-5`}>
-            <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-[#7386a3]">Add Expense</h3>
-            <div className="mt-4 grid gap-3">
-              <select value={newExpense.category} onChange={(e) => setNewExpense((p) => ({ ...p, category: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                {['Materials', 'Labor', 'Transport', 'Equipment', 'Miscellaneous'].map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <input value={newExpense.description} onChange={(e) => setNewExpense((p) => ({ ...p, description: e.target.value }))} type="text" placeholder="Description" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#f59e0b]" />
-              <input value={newExpense.amount} onChange={(e) => setNewExpense((p) => ({ ...p, amount: e.target.value }))} type="number" min="0" placeholder="Amount (Rs)" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#f59e0b]" />
-              <input value={newExpense.date} onChange={(e) => setNewExpense((p) => ({ ...p, date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
-              <button type="button" disabled={savingExpense} onClick={handleAddExpense} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#f59e0b] px-4 text-[13px] font-extrabold text-white disabled:opacity-60 transition hover:bg-[#d97706]">
-                <Plus className="size-4" />{savingExpense ? 'Saving…' : 'Add Expense'}
               </button>
             </div>
           </article>
@@ -22080,11 +21560,11 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
   };
 
   const handleSave = async () => {
-    if (!form.inventory_item) { onNotify('Inventory product select karo (Inventory → Products)', 'error'); return; }
+    if (!form.inventory_item) { onNotify('Select an inventory product (Inventory → Products)', 'error'); return; }
     if (!form.planned_qty) { onNotify('Planned Qty required', 'error'); return; }
     const linked = inventoryItems.find((i) => String(i.id) === String(form.inventory_item));
     const category = linked?.category || form.category || 'Other';
-    if (!category) { onNotify('Product category missing — Inventory → Categories me set karo', 'error'); return; }
+    if (!category) { onNotify('Product category missing — set it in Inventory → Categories', 'error'); return; }
     try {
       const payload = {
         category,
@@ -22175,7 +21655,7 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                 <Package className="mb-3 size-10 text-[#94a3b8]" />
                 <p className="text-[15px] font-extrabold text-[#1e3261]">Add materials to build your BOM</p>
                 <p className="mt-1 max-w-md text-[13px] font-medium text-[#7386a3]">
-                  Inventory Products select karke qty daalo — category + price inventory se aate hain.
+                  Select Inventory Products and enter qty — category and price come from inventory.
                 </p>
                 <button type="button" onClick={openAdd} className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white">
                   <Plus className="size-4" />
@@ -22379,10 +21859,10 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                 {selectedInventoryItem ? (
                   <p className="text-[11px] font-semibold text-[#0d9f4a]">
                     Inventory cost ₹{inventoryUnitPrice(selectedInventoryItem).toLocaleString('en-IN')} stays fixed.
-                    Planning price alag set karo → Diff = Plan − Inv.
+                    Set a separate planning price → Diff = Plan − Inv.
                   </p>
                 ) : (
-                  <p className="text-[11px] font-semibold text-[#8a98af]">Pehle Inventory → Categories + Products me item + price add karo</p>
+                  <p className="text-[11px] font-semibold text-[#8a98af]">First add the item and price in Inventory → Categories + Products</p>
                 )}
               </div>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
@@ -22393,7 +21873,7 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                   placeholder="Auto from inventory product"
                   className="h-11 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]"
                 />
-                <span className="text-[11px] font-semibold text-[#8a98af]">Inventory → Categories se aati hai (yahan edit nahi)</span>
+                <span className="text-[11px] font-semibold text-[#8a98af]">Comes from Inventory → Categories (not editable here)</span>
               </label>
               <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
                 Inventory Cost (Rs)
@@ -22974,12 +22454,8 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
   );
 }
 
-function ProjectExpensesPage(props) {
-  return <OpsExpensesPage {...props} Subnav={ProjectSubnavTabs} initialProjectId={props.initialProjectId} />;
-}
-
 function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
-  const FOLDERS = ['Site Survey', 'Material Planning', 'Dispatch', 'Subsidy', 'Installation', 'Expenses', 'Approvals', 'Others'];
+  const FOLDERS = ['Site Survey', 'Material Planning', 'Dispatch', 'Subsidy', 'Installation', 'Approvals', 'Others'];
 
   const [search, setSearch] = useState('');
   const [filterProject, setFilterProject] = useState('');
@@ -23899,7 +23375,6 @@ function ProjectReportPage({ onOpenSection, project: projectProp, onNotify }) {
 
   const totalValue = num(data?.total_value);
   const totalPaid = num(data?.total_paid);
-  const totalExpense = num(data?.total_expense);
   const balance = Math.max(0, totalValue - totalPaid);
 
   const costPalette = ['#2f80ff', '#16a34a', '#f59e0b', '#8b5cf6', '#14b8a6', '#ef4444', '#64748b'];
@@ -23913,19 +23388,14 @@ function ProjectReportPage({ onOpenSection, project: projectProp, onNotify }) {
     { name: 'Other', value: num(quotation.other_charges) },
   ].filter((p) => p.value > 0).map((p, i) => ({ ...p, color: costPalette[i % costPalette.length] })) : [];
 
-  const expenseByCat = {};
-  (data?.expenses || []).forEach((e) => { expenseByCat[e.category] = (expenseByCat[e.category] || 0) + num(e.amount); });
-  const expenseData = Object.entries(expenseByCat).map(([name, value]) => ({ name, value }));
-
-  const costPieData = costParts.length ? costParts : expenseData.map((e, i) => ({ ...e, color: costPalette[i % costPalette.length] }));
+  const costPieData = costParts;
 
   const financialData = [
     { name: 'Value', amount: totalValue },
     { name: 'Paid', amount: totalPaid },
     { name: 'Balance', amount: balance },
-    { name: 'Expense', amount: totalExpense },
   ];
-  const hasFinancial = totalValue + totalPaid + totalExpense > 0;
+  const hasFinancial = totalValue + totalPaid > 0;
 
   const woPalette = { Pending: '#f59e0b', 'In Progress': '#2f80ff', Completed: '#16a34a', Overdue: '#ef4444' };
   const woByStatus = {};
@@ -24058,7 +23528,7 @@ function ProjectReportPage({ onOpenSection, project: projectProp, onNotify }) {
 
       {/* Charts */}
       <section className="grid gap-4 lg:grid-cols-2">
-        <ReportChartCard title="Costing Breakdown" subtitle={costParts.length ? 'From quotation' : 'From recorded expenses'} hasData={costPieData.length > 0}>
+        <ReportChartCard title="Costing Breakdown" subtitle="From quotation" hasData={costPieData.length > 0}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={costPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={2}>
@@ -24070,7 +23540,7 @@ function ProjectReportPage({ onOpenSection, project: projectProp, onNotify }) {
           </ResponsiveContainer>
         </ReportChartCard>
 
-        <ReportChartCard title="Financial Overview" subtitle="Value, received, balance & expenses" hasData={hasFinancial}>
+        <ReportChartCard title="Financial Overview" subtitle="Value, received & balance" hasData={hasFinancial}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={financialData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f8" vertical={false} />
@@ -24080,18 +23550,6 @@ function ProjectReportPage({ onOpenSection, project: projectProp, onNotify }) {
               <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
                 {financialData.map((entry, i) => <Cell key={entry.name} fill={['#2f80ff', '#16a34a', '#f59e0b', '#ef4444'][i]} />)}
               </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ReportChartCard>
-
-        <ReportChartCard title="Expenses by Category" subtitle="Distribution of recorded expenses" hasData={expenseData.length > 0}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={expenseData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f8" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700, fill: '#53647f' }} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={reportAxisTick} tick={{ fontSize: 11, fill: '#8a98af' }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(value) => REPORT_INR(value)} />
-              <Bar dataKey="value" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ReportChartCard>
@@ -30389,7 +29847,7 @@ function ReportsPage({ onOpenSection, onNotify }) {
           {[
             { label: 'Active Projects', value: dashboardData.projects?.active ?? 0 },
             { label: 'Revenue (Period)', value: fmtAccRs(dashboardData.revenue) },
-            { label: 'Open O&M Tickets', value: dashboardData.operations.open_tickets ?? 0 },
+            { label: 'Pending Invoices', value: dashboardData.operations.pending_flow?.invoices ?? 0 },
             { label: 'Active AMC', value: dashboardData.operations.active_amc ?? 0 },
           ].map((item) => (
             <article key={item.label} className={`${panelClass} p-4`}>
@@ -33848,11 +33306,11 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // Dashboard's "Create Quotation" quick action lands here and asks us to
-  // open the New Quotation flow immediately, instead of just landing on the list.
+  // `autoOpenCreate` is `true` (dashboard quick action → pick a lead) or a lead
+  // object (O&M Pending Quotations → lead already chosen, go to template step).
   useEffect(() => {
     if (!autoOpenCreate) return;
-    setCreateFlow({ step: 'lead' });
+    setCreateFlow(autoOpenCreate?.id ? { step: 'template', lead: autoOpenCreate } : { step: 'lead' });
     onConsumeAutoOpenCreate?.();
   }, [autoOpenCreate, onConsumeAutoOpenCreate]);
 

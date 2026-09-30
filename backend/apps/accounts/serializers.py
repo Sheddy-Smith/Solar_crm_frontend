@@ -45,7 +45,9 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'name', 'mobile', 'role', 'role_name', 'branch', 'branch_name',
             'is_active', 'is_deleted', 'initials', 'created_at', 'is_super_admin', 'permissions',
+            'language', 'typing_transliteration',
         ]
+        read_only_fields = ['language', 'typing_transliteration']
 
     def get_is_super_admin(self, obj):
         return is_super_admin(obj)
@@ -85,6 +87,28 @@ class UserCreateSerializer(serializers.ModelSerializer):
             # User creation must not fail if workforce sync has a transient issue.
             pass
         return user
+
+
+def current_user_payload(user):
+    """Profile payload for the signed-in user, including the system language policy."""
+    from apps.crm_settings.services import language_settings
+
+    data = UserSerializer(user).data
+    data['i18n'] = language_settings()
+    return data
+
+
+class UserPreferencesSerializer(serializers.Serializer):
+    language = serializers.CharField(required=False, allow_blank=True, max_length=12)
+    typing_transliteration = serializers.BooleanField(required=False)
+
+    def validate_language(self, value):
+        from apps.crm_settings.services import language_settings
+
+        value = (value or '').strip()
+        if value and value not in language_settings()['enabled_languages']:
+            raise serializers.ValidationError('This language is not enabled.')
+        return value
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -141,5 +165,5 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         if getattr(self.user, 'is_deleted', False):
             raise AuthenticationFailed('This account has been deleted.')
-        data['user'] = UserSerializer(self.user).data
+        data['user'] = current_user_payload(self.user)
         return data

@@ -22,13 +22,19 @@ def _cache_key(params):
 
 def _build_alerts(reports, sales, inventory, amc, accounts):
     ops = reports.get('operations') or {}
+    flow = ops.get('pending_flow') or {}
     return {
         'overdue_followups': sales.get('overdue', 0),
         'low_stock_items': (inventory or {}).get('low_stock', 0),
         'out_of_stock_items': (inventory or {}).get('out_of_stock', 0),
         'expiring_amc': (amc or {}).get('expiring_contracts', 0),
-        'pending_tasks': ops.get('pending_tasks', 0),
-        'open_om_tickets': ops.get('open_tickets', 0),
+        'pending_work_orders': flow.get('work_orders', 0),
+        'pending_quotations': flow.get('quotations', 0),
+        'pending_dispatch': flow.get('dispatch', 0),
+        'delayed_dispatch': flow.get('dispatch_delayed', 0),
+        'pending_installation': flow.get('installation', 0),
+        'pending_invoices': flow.get('invoices', 0),
+        'short_materials': flow.get('materials', 0),
         'open_amc_requests': ops.get('open_amc_requests', 0),
         'pending_cheques': (accounts or {}).get('pending_cheques', 0),
         'stale_stock_items': (inventory or {}).get('stale_stock_items', 0),

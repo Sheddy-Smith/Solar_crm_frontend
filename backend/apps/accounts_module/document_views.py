@@ -100,15 +100,14 @@ class PaymentVoucherViewSet(AccountsBaseViewSet):
     ordering = ['-voucher_date', '-created_at']
 
     SOURCE_FILTERS = {
-        'project_expense': {'project_expense__isnull': False},
         'material_dispatch': {'material_plan__isnull': False},
         'workforce': {'employee_voucher__isnull': False},
-        'manual': {'project_expense__isnull': True, 'material_plan__isnull': True, 'employee_voucher__isnull': True},
+        'manual': {'material_plan__isnull': True, 'employee_voucher__isnull': True},
     }
 
     def get_queryset(self):
         qs = PaymentVoucher.objects.select_related(
-            'project', 'created_by', 'employee', 'employee_voucher', 'project_expense', 'material_plan',
+            'project', 'created_by', 'employee', 'employee_voucher', 'material_plan',
         ).all()
         params = self.request.query_params
         source = self.SOURCE_FILTERS.get(params.get('source', ''))
@@ -124,8 +123,6 @@ class PaymentVoucherViewSet(AccountsBaseViewSet):
         # These vouchers are re-written from their source record on every save,
         # so changes made here would be silently overwritten or orphan the source.
         from rest_framework.exceptions import PermissionDenied
-        if voucher.project_expense_id:
-            raise PermissionDenied(f'This expense comes from Project Management. {verb} it there (Project → Expenses).')
         if voucher.material_plan_id:
             raise PermissionDenied(f'This cost comes from Material Dispatch. {verb} it from the project material plan.')
 

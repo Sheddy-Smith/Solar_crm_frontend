@@ -742,6 +742,7 @@ export function BuiltByCredit({ className = '' }) {
         href="https://sheddysmithlab.tech/"
         target="_blank"
         rel="noopener noreferrer"
+        data-no-translate
         className="font-extrabold text-[#3d5273] underline-offset-2 transition hover:text-[#0d9f4a] hover:underline"
       >
         Sheddy Smith Lab

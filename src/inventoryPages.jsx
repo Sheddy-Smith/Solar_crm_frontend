@@ -528,7 +528,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
     if (!modal?.form.name?.trim()) { onNotify('Product name is required', 'error'); return; }
     const f = modal.form;
     if (f.rate === '' || f.rate == null || Number(f.rate) < 0) {
-      onNotify('Unit Price required — Material Planning isse calculate karega', 'error');
+      onNotify('Unit Price required — Material Planning uses it to calculate amounts', 'error');
       return;
     }
     if (!modal.editId && f.initial_stock !== '' && Number(f.initial_stock) > 0 && !f.warehouse) {
@@ -769,7 +769,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
             const customFields = getCategoryFormFields(cat, categories);
             const f = modal.form;
             const priceField = (
-              <Field label="Unit Price (Rs) *" hint="Material Planning me qty × is price se amount banega">
+              <Field label="Unit Price (Rs) *" hint="Material Planning amount = qty × this price">
                 <input type="number" className={inputClass} value={f.rate ?? ''} onChange={(e) => patchForm({ rate: e.target.value })} />
               </Field>
             );
@@ -1082,7 +1082,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
       <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
       <div className={cx(panelClass, 'p-4')}>
         <p className="mb-3 text-[12px] font-semibold text-[#7386a3]">
-          Har category ka Add Product form alag design karo. Unit Price field har product pe rahega — Material Planning qty × price se amount nikalta hai.
+          Design a separate Add Product form for each category. The Unit Price field is always included — Material Planning calculates amount as qty × price.
         </p>
         {loading ? <p className="py-10 text-center">Loading...</p> : (
           <div className="overflow-auto">
@@ -1175,7 +1175,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
             {modal.form.form_template === 'Custom' ? (
               <div className="rounded-[12px] border border-[#e7eef7] bg-[#f8fbff] p-3">
                 <p className="mb-2 text-[12px] font-extrabold text-[#1e3261]">Custom form fields</p>
-                <p className="mb-3 text-[11px] font-semibold text-[#7386a3]">Unit Price hamesha on rahega (Material Planning ke liye)</p>
+                <p className="mb-3 text-[11px] font-semibold text-[#7386a3]">Unit Price is always on (required for Material Planning)</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {CUSTOM_FIELD_OPTIONS.map((opt) => {
                     const checked = (modal.form.form_fields || []).includes(opt.key) || opt.key === 'rate';
@@ -1196,7 +1196,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
               </div>
             ) : (
               <div className="rounded-[10px] border border-[#d7f4ea] bg-[#f2fffb] px-3 py-2 text-[12px] font-semibold text-[#0f766e]">
-                Is template me built-in fields + <b>Unit Price</b> automatically Add Product form pe dikhenge.
+                This template's built-in fields + <b>Unit Price</b> will appear automatically on the Add Product form.
               </div>
             )}
           </div>

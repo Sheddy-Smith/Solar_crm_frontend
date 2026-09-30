@@ -204,10 +204,10 @@ class SellInvoiceSerializer(serializers.ModelSerializer):
             'id', 'record_no', 'invoice_no', 'invoice_date', 'party', 'party_name', 'party_display',
             'gst_number', 'branch', 'project', 'project_name', 'payment_mode', 'payment_amount', 'balance_due',
             'gst_type', 'cgst_percent', 'sgst_percent', 'igst_percent',
-            'subtotal', 'gst_amount', 'total_amount', 'status', 'remarks', 'lines',
+            'subtotal', 'gst_amount', 'total_amount', 'status', 'remarks', 'lines', 'source',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['subtotal', 'gst_amount', 'total_amount', 'balance_due', 'created_by', 'created_at', 'updated_at']
+        read_only_fields = ['subtotal', 'gst_amount', 'total_amount', 'balance_due', 'source', 'created_by', 'created_at', 'updated_at']
 
 
 class PaymentVoucherSerializer(serializers.ModelSerializer):
@@ -223,8 +223,6 @@ class PaymentVoucherSerializer(serializers.ModelSerializer):
         return obj.voucher_no or f'VCH-{obj.id:04d}'
 
     def get_source(self, obj):
-        if obj.project_expense_id:
-            return 'Project Expense'
         if obj.material_plan_id:
             return 'Material Dispatch'
         if obj.employee_voucher_id:
@@ -280,12 +278,12 @@ class PaymentVoucherSerializer(serializers.ModelSerializer):
             'id', 'record_no', 'voucher_no', 'voucher_date', 'entry_type', 'payee_type', 'payee_name',
             'employee', 'employee_code',
             'category', 'particulars', 'payment_mode', 'amount', 'project', 'project_name', 'project_ref', 'status',
-            'employee_voucher', 'project_expense', 'material_plan', 'has_journal', 'source',
+            'employee_voucher', 'material_plan', 'has_journal', 'source',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'created_by', 'created_at', 'updated_at',
-            'employee_voucher', 'project_expense', 'material_plan', 'has_journal', 'source',
+            'employee_voucher', 'material_plan', 'has_journal', 'source',
         ]
 
 
@@ -380,8 +378,8 @@ class SellChallanLineSerializer(serializers.ModelSerializer):
     class Meta:
         model = SellChallanLine
         fields = [
-            'id', 'inventory_item', 'inventory_item_name', 'material_name', 'category',
-            'quantity', 'unit', 'rate', 'line_total', 'sort_order',
+            'id', 'inventory_item', 'inventory_item_name', 'section', 'material_name', 'category',
+            'brand', 'specification', 'quantity', 'unit', 'rate', 'line_total', 'sort_order',
         ]
         read_only_fields = ['id', 'line_total']
 
@@ -418,8 +416,11 @@ class SellChallanSerializer(serializers.ModelSerializer):
             SellChallanLine.objects.create(
                 challan=challan,
                 inventory_item=line.get('inventory_item'),
+                section=line.get('section') or 'Main',
                 material_name=line.get('material_name', ''),
                 category=line.get('category', ''),
+                brand=line.get('brand', ''),
+                specification=line.get('specification', ''),
                 quantity=qty,
                 unit=line.get('unit', 'Nos'),
                 rate=rate,
@@ -452,10 +453,13 @@ class SellChallanSerializer(serializers.ModelSerializer):
         model = SellChallan
         fields = [
             'id', 'record_no', 'challan_no', 'challan_date', 'party', 'party_name', 'party_display',
-            'project', 'project_name', 'vehicle_no', 'site_address', 'total_amount', 'status', 'remarks', 'lines',
+            'project', 'project_name', 'vehicle_no', 'site_address', 'quotation_no', 'gst_mode', 'gst_percent',
+            'subtotal', 'gst_amount', 'round_off', 'total_amount', 'status', 'remarks', 'lines', 'source',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['total_amount', 'created_by', 'created_at', 'updated_at']
+        read_only_fields = [
+            'subtotal', 'gst_amount', 'round_off', 'total_amount', 'source', 'created_by', 'created_at', 'updated_at',
+        ]
 
 
 class GstOpeningBalanceSerializer(serializers.ModelSerializer):

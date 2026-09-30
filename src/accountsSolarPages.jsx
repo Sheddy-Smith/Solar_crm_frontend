@@ -646,7 +646,7 @@ export function PurchaseInvoicePage(props) {
       hasGst
       hasExtraCharges
       linkInventory
-      stockSyncHint="GST bill. Status = Recorded/Paid par stock IN + Supplier ledger + journal. Supplier account type hona chahiye."
+      stockSyncHint="GST bill. On status Recorded/Paid: stock IN + Supplier ledger + journal. The account type must be Supplier."
       extraHeaderFields={[{ name: 'category', label: 'Category', default: '' }]}
     />
   );
@@ -664,7 +664,7 @@ export function SellInvoicePage(props) {
       statuses={['Pending', 'Issued', 'Paid', 'Cancelled']}
       hasGst
       linkInventory
-      stockSyncHint="GST bill. Status = Issued/Paid par stock OUT + Customer ledger + journal."
+      stockSyncHint="GST bill. On status Issued/Paid: stock OUT + Customer ledger + journal."
       extraHeaderFields={[
         { name: 'gst_number', label: 'GST No', default: '' },
         { name: 'branch', label: 'Branch', default: '' },
@@ -685,7 +685,7 @@ export function PurchaseChallanPage(props) {
       statuses={['Open', 'Received', 'Cancelled']}
       hasVehicle
       linkInventory
-      stockSyncHint="Without GST bill. Status = Received par har line ke liye Stock Movement IN + inventory stock update hoga. Inventory product select karna recommended hai."
+      stockSyncHint="Without GST bill. On status Received: a Stock Movement IN is created for each line and inventory stock is updated. Selecting an inventory product is recommended."
     />
   );
 }
@@ -703,7 +703,7 @@ export function SellChallanPage(props) {
       hasVehicle
       hasSiteAddress
       linkInventory
-      stockSyncHint="Without GST bill. Status = Dispatched/Delivered par har line ke liye Stock Movement OUT + inventory stock kam hoga."
+      stockSyncHint="Without GST bill. On status Dispatched/Delivered: a Stock Movement OUT is created for each line and inventory stock is reduced."
     />
   );
 }

@@ -151,10 +151,6 @@ def resolve_labour_coa():
     return resolve_coa_for_category('Labour', 'Labour', fallback_code='5310')
 
 
-def resolve_project_expense_coa(expense_category):
-    return resolve_coa_for_category('ProjectExpense', expense_category, fallback_code='5100')
-
-
 def resolve_planning_difference_coa():
     return resolve_coa_for_category(
         'PlanningDifference', 'Material Planning Price Difference', fallback_code='5410',

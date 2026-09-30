@@ -617,7 +617,6 @@ def accounts_dashboard_summary():
     vouchers = PaymentVoucher.objects.filter(material_plan__isnull=True)
     vouchers_paid = _sum_amount(vouchers.filter(status='Completed'))
     vouchers_pending = _sum_amount(vouchers.filter(status='Pending'))
-    project_expense_vouchers = vouchers.filter(project_expense__isnull=False).exclude(status='Cancelled')
     expense_vouchers = vouchers.filter(entry_type='Expense').exclude(status='Cancelled')
 
     made = payments_made + vouchers_paid
@@ -635,8 +634,6 @@ def accounts_dashboard_summary():
         'pending_made': float(pending_out),
         'total_expenses': float(_sum_amount(expense_vouchers)),
         'expense_count': expense_vouchers.count(),
-        'project_expenses': float(_sum_amount(project_expense_vouchers)),
-        'project_expense_count': project_expense_vouchers.count(),
         'bank_balance': float(bank_total),
         'party_count': Account.objects.filter(status='Active').count(),
         'bank_count': BankAccount.objects.filter(status='Active').count(),

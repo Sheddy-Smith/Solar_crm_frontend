@@ -4,10 +4,14 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: python manage.py migrate --noinput && gunicorn malwa_solar.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --worker-class gthread --threads 4
+    startCommand: python manage.py migrate --noinput && gunicorn malwa_solar.asgi:application -c gunicorn.conf.py --bind 0.0.0.0:$PORT
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: malwa_solar.settings.production
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
       - key: PYTHON_VERSION
         value: 3.12.8
       - key: DEBUG

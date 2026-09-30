@@ -14,6 +14,11 @@ django-redis==6.0.0
 Pillow==12.2.0
 django-filter==25.1
 gunicorn==26.0.0
+# ASGI: Gunicorn process manager -> UvicornWorker -> malwa_solar.asgi
+uvicorn==0.54.0
+uvicorn-worker==0.4.0
+httptools==0.8.0
+uvloop==0.22.1; sys_platform != "win32"
 whitenoise==6.12.0
 django-storages==1.14.6
 boto3==1.43.45

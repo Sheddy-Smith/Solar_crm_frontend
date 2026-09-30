@@ -9,8 +9,7 @@ from datetime import timedelta
 from django.core.files.base import ContentFile
 from apps.accounts.models import User
 from apps.projects.models import (
-    Project, ProjectActivity, ProjectNote, ProjectDocument, 
-    ProjectExpense, WorkOrder
+    Project, ProjectActivity, ProjectNote, ProjectDocument, WorkOrder
 )
 
 
@@ -74,19 +73,6 @@ for i in range(2):
 # Add sample documents
 # Skip documents (require file uploads)
 
-# Add sample expenses
-for i in range(2):
-    expense, created = ProjectExpense.objects.update_or_create(
-        project=project,
-        description=f"Equipment Purchase {i+1}",
-        defaults={
-            'category': 'Materials' if i == 0 else 'Equipment',
-            'amount': 50000 + (i * 20000),
-            'date': timezone.now().date() - timedelta(days=i),
-            'created_by': admin
-        }
-    )
-
 # Add sample team members
 # Skip team members (not needed for basic test)
 
@@ -112,7 +98,6 @@ for i in range(2):
 print("✓ Sample data added successfully!")
 print(f"[OK] Activities: {ProjectActivity.objects.filter(project=project).count()}")
 print(f"[OK] Notes: {ProjectNote.objects.filter(project=project).count()}")
-print(f"[OK] Expenses: {ProjectExpense.objects.filter(project=project).count()}")
 print(f"[OK] Work Orders: {WorkOrder.objects.filter(project=project).count()}")
 print(f"[SUCCESS] Database seeding completed!")
 print(f"Project Details Page should now show real data from the backend.")

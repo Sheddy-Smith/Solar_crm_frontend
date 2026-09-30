@@ -5,6 +5,7 @@ import { startKeepAlive } from './lib/keepAlive.js';
 import { enableCrmTableColumnResize } from './lib/crmTableResize.js';
 import { enableNativeEditShortcuts } from './lib/nativeEditShortcuts.js';
 import { registerServiceWorker } from './lib/pwaInstall.js';
+import { initI18n } from './i18n/index.js';
 import './index.css';
 
 // Backend keep-alive: silent 14-min ping so the Render backend never sleeps.
@@ -56,10 +57,15 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>,
-);
+function renderApp() {
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </React.StrictMode>,
+  );
+}
+
+// Load the saved UI language first so the app doesn't flash English on reload.
+initI18n().catch(() => {}).finally(renderApp);

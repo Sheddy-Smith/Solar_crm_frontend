@@ -2,7 +2,7 @@
 Local end-to-end Solar CRM data-flow verification.
 
 Runs the full Lead → Project → Purchase → Inventory → Material Planning →
-Dispatch → Expenses → Billing → P&L chain using the real API + services.
+Dispatch → Billing → P&L chain using the real API + services.
 LOCAL TEST DB ONLY (Django TestCase rolls back after each test).
 """
 
@@ -32,7 +32,7 @@ from apps.accounts_module.supplier_ledger import supplier_totals
 from apps.accounts_module.vendor_ledger import vendor_totals
 from apps.inventory.models import InventoryItem, StockMovement, Warehouse
 from apps.leads.models import Lead, LeadSiteSurvey, Quotation
-from apps.projects.models import MaterialPlan, Project, ProjectExpense
+from apps.projects.models import MaterialPlan, Project
 from apps.workforce.models import Employee, EmployeeVoucher
 
 
@@ -282,32 +282,6 @@ class SolarE2EFlowTests(TestCase):
         ev_journal = Transaction.objects.get(source_payment_voucher=ev_pv)
         self.assertEqual(ev_journal.debit_account.account_code, '5310')
 
-        # Project expense — Transport ₹2,000
-        exp_res = self.client.post('/api/v1/project-expenses/', {
-            'project': project.id,
-            'category': 'Transport',
-            'description': 'TEST transport to site',
-            'amount': '2000.00',
-            'date': self.today.isoformat(),
-            'payment_mode': 'Cash',
-            'status': 'Paid',
-        }, format='json')
-        self.assertEqual(exp_res.status_code, 201, exp_res.data)
-        expense = ProjectExpense.objects.get(pk=exp_res.data['id'])
-        exp_pv = PaymentVoucher.objects.get(project_expense=expense)
-        self.assertEqual(exp_pv.amount, Decimal('2000.00'))
-        exp_journal = Transaction.objects.get(source_payment_voucher=exp_pv)
-        self.assertEqual(exp_journal.debit_account.account_code, '5320')
-
-        # Update expense — idempotent voucher
-        upd_res = self.client.patch(f'/api/v1/project-expenses/{expense.id}/', {
-            'amount': '2500.00',
-        }, format='json')
-        self.assertEqual(upd_res.status_code, 200)
-        self.assertEqual(PaymentVoucher.objects.filter(project_expense=expense).count(), 1)
-        exp_pv.refresh_from_db()
-        self.assertEqual(exp_pv.amount, Decimal('2500.00'))
-
         # Sell Invoice — ₹1,60,000
         si_res = self.client.post('/api/v1/accounts/sell-invoices/', {
             'invoice_date': self.today.isoformat(),
@@ -385,7 +359,6 @@ class SolarE2EFlowTests(TestCase):
         self.assertEqual(pnl['costs']['actual_material_cost'], 100000.0)
         self.assertEqual(pnl['material_planning']['planning_value'], 130000.0)
         self.assertEqual(pnl['material_planning']['planning_difference'], 30000.0)
-        self.assertEqual(pnl['costs']['transport_cost'], 2500.0)
         self.assertNotEqual(
             pnl['costs']['actual_material_cost'],
             pnl['material_planning']['planning_value'],
@@ -395,7 +368,7 @@ class SolarE2EFlowTests(TestCase):
         self.assertEqual(pnl['billing']['revenue_from_sell_invoices'], 160000.0)
         self.assertEqual(pnl['billing']['collected_from_customer'], 50000.0)
         self.assertEqual(pnl['billing']['outstanding_receivable'], 110000.0)
-        self.assertEqual(pnl['actual_profit'], 57500.0)  # 160k − 100k material − 2.5k transport
+        self.assertEqual(pnl['actual_profit'], 60000.0)  # 160k − 100k material
         self.assertEqual(pnl['costs']['labour_cost'], 0.0)  # employee voucher not project-linked
 
         # Stock history: +10 purchase, -10 dispatch = 0
@@ -406,16 +379,10 @@ class SolarE2EFlowTests(TestCase):
 
         _assert_journals_balanced(self, 'E2E')
 
-        # Cleanup expense delete
-        del_res = self.client.delete(f'/api/v1/project-expenses/{expense.id}/')
-        self.assertIn(del_res.status_code, (204, 200))
-        self.assertFalse(PaymentVoucher.objects.filter(project_expense_id=expense.id).exists())
-
         # Store IDs for idempotency test
         self._e2e_ids = {
             'plan_id': plan_id,
             'pi_id': pi_id,
-            'expense_deleted': True,
         }
 
     # ── Phase 17: Idempotency ─────────────────────────────────────────────────

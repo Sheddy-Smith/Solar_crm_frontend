@@ -6,19 +6,20 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Count, Q
 from .models import (
-    Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectExpense, ProjectPayment, WorkOrder,
+    Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey, SiteSurveyPhoto,
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
-    ProjectExpenseDocument, ProjectApproval, ProjectApprovalDocument,
+    ProjectApproval, ProjectApprovalDocument, JobSheet,
 )
 from .serializers import (
+    JobSheetSerializer,
     ProjectListSerializer, ProjectDetailSerializer,
     ProjectActivitySerializer, ProjectNoteSerializer,
-    ProjectDocumentSerializer, ProjectExpenseSerializer, ProjectPaymentSerializer, WorkOrderSerializer,
+    ProjectDocumentSerializer, ProjectPaymentSerializer, WorkOrderSerializer,
     ProjectTeamMemberSerializer, ProjectSystemConfigSerializer, ProjectMilestoneSerializer,
     SiteSurveySerializer, SiteSurveyListSerializer, SiteSurveyPhotoSerializer, ProjectChecklistItemSerializer, InstallationMaterialSerializer,
     MaterialPlanSerializer, SubsidyApplicationSerializer, SubsidyDocumentSerializer,
-    ProjectExpenseDocumentSerializer, ProjectApprovalSerializer, ProjectApprovalDocumentSerializer,
+    ProjectApprovalSerializer, ProjectApprovalDocumentSerializer,
 )
 from apps.accounts.permissions import HasModulePermission, is_lead_scoped, lead_owner_filter
 from apps.leads.recycle import soft_delete_project
@@ -41,7 +42,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'activities__assigned_to',
             'notes__created_by',
             'documents__uploaded_by',
-            'expenses__created_by',
             'payments__created_by',
             'work_orders__assignee',
             'team_members__user',
@@ -276,83 +276,6 @@ class SiteSurveyPhotoViewSet(viewsets.ModelViewSet):
         serializer.save(uploaded_by=self.request.user)
 
 
-class ProjectExpenseViewSet(viewsets.ModelViewSet):
-    serializer_class = ProjectExpenseSerializer
-    permission_classes = [HasModulePermission]
-    permission_module = 'Project Management'
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['project', 'category', 'status']
-    search_fields = ['description', 'paid_by', 'project__project_name', 'project__customer_name']
-    ordering = ['-date']
-
-    def get_queryset(self):
-        qs = ProjectExpense.objects.select_related('project', 'created_by').prefetch_related('expense_documents').all()
-        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        if filt:
-            qs = qs.filter(**filt)
-        date_from = self.request.query_params.get('date_from')
-        date_to = self.request.query_params.get('date_to')
-        if date_from:
-            qs = qs.filter(date__gte=date_from)
-        if date_to:
-            qs = qs.filter(date__lte=date_to)
-        return qs
-
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
-
-    def perform_destroy(self, instance):
-        from apps.accounts_module.project_financial_sync import remove_accounts_for_project_expense
-        remove_accounts_for_project_expense(instance)
-        instance.delete()
-
-    @action(detail=False, methods=['get'], url_path='summary')
-    def summary(self, request):
-        from django.db.models import Sum, Count
-        from decimal import Decimal
-        # filter_queryset applies project/category/status query params too —
-        # get_queryset alone only handles the manual date range.
-        qs = self.filter_queryset(self.get_queryset())
-        total_expenses = qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-        material = qs.filter(category='Materials').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-        labour = qs.filter(category='Labor').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-        transport = qs.filter(category='Transport').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-        equipment = qs.filter(category='Equipment').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-        misc = qs.filter(category='Miscellaneous').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-        other = total_expenses - material - labour - transport - equipment - misc
-        project_ids = qs.values('project').distinct().count()
-        budget_qs = Project.objects.all()
-        project_id = request.query_params.get('project')
-        if project_id:
-            budget_qs = budget_qs.filter(pk=project_id)
-        total_budget = budget_qs.aggregate(b=Sum('total_value'))['b'] or Decimal('0')
-        return Response({
-            'total_projects': project_ids,
-            'total_budget': float(total_budget),
-            'total_expenses': float(total_expenses),
-            'material_cost': float(material),
-            'labour_cost': float(labour),
-            'transport_cost': float(transport),
-            'equipment_cost': float(equipment),
-            'misc_cost': float(misc),
-            'other_expenses': float(other),
-        })
-
-
-class ProjectExpenseDocumentViewSet(viewsets.ModelViewSet):
-    serializer_class = ProjectExpenseDocumentSerializer
-    permission_classes = [HasModulePermission]
-    permission_module = 'Project Management'
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['expense', 'doc_type']
-
-    def get_queryset(self):
-        qs = ProjectExpenseDocument.objects.select_related('expense').all()
-        filt = lead_owner_filter(self.request.user, prefix='expense__project__lead__')
-        return qs.filter(**filt) if filt else qs
-
-
 class ProjectPaymentViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectPaymentSerializer
     permission_classes = [HasModulePermission]
@@ -398,6 +321,81 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+
+class JobSheetViewSet(viewsets.ModelViewSet):
+    serializer_class = JobSheetSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    permission_action_map = {'generate_work_orders': 'can_add'}
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['project', 'status']
+    search_fields = ['job_sheet_no', 'project__project_id', 'project__project_name', 'project__customer_name']
+    ordering = ['-updated_at']
+
+    def get_queryset(self):
+        qs = JobSheet.objects.select_related('project', 'project__manager', 'created_by').all()
+        filt = lead_owner_filter(self.request.user, prefix='project__lead__')
+        if filt:
+            qs = qs.filter(**filt)
+        params = self.request.query_params
+        if params.get('project_code'):
+            qs = qs.filter(project__project_id__icontains=params['project_code'].strip())
+        if params.get('customer'):
+            qs = qs.filter(project__customer_name__icontains=params['customer'].strip())
+        if params.get('date_from'):
+            qs = qs.filter(updated_at__date__gte=params['date_from'])
+        if params.get('date_to'):
+            qs = qs.filter(updated_at__date__lte=params['date_to'])
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='generate-work-orders')
+    def generate_work_orders(self, request, pk=None):
+        sheet = self.get_object()
+        created, linked, skipped = 0, 0, 0
+
+        def process(rows):
+            nonlocal created, linked, skipped
+            out = []
+            for row in rows or []:
+                row = dict(row) if isinstance(row, dict) else row
+                if not isinstance(row, dict):
+                    continue
+                work = str(row.get('work') or '').strip()[:200]
+                if not work or not row.get('work_order_type') or not row.get('assignee_name'):
+                    skipped += 1
+                    out.append(row)
+                    continue
+                note_parts = [f"{row['work_order_type']}: {row['assignee_name']}", f'Job Sheet: {sheet.job_sheet_no}']
+                if row.get('notes'):
+                    note_parts.append(str(row['notes']))
+                order, was_created = WorkOrder.objects.get_or_create(
+                    project=sheet.project,
+                    task=work,
+                    defaults={
+                        'category': str(row.get('category') or '')[:100],
+                        'start_date': timezone.localdate(),
+                        'notes': '\n'.join(note_parts),
+                        'created_by': request.user,
+                    },
+                )
+                if was_created:
+                    created += 1
+                else:
+                    linked += 1
+                row['work_order_no'] = order.order_id
+                out.append(row)
+            return out
+
+        sheet.items = process(sheet.items)
+        sheet.extra_items = process(sheet.extra_items)
+        sheet.work_orders_generated_at = timezone.now()
+        sheet.save()
+        data = self.get_serializer(sheet).data
+        return Response({'created': created, 'linked': linked, 'skipped': skipped, 'job_sheet': data})
 
 
 class ProjectTeamMemberViewSet(viewsets.ModelViewSet):
@@ -482,6 +480,7 @@ class MaterialPlanViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['project', 'status', 'category', 'dispatch_status']
     search_fields = ['category', 'items']
+    permission_action_map = {'mark_packed': 'can_edit'}
 
     def get_queryset(self):
         qs = MaterialPlan.objects.select_related('project', 'inventory_item').all()
@@ -502,6 +501,31 @@ class MaterialPlanViewSet(viewsets.ModelViewSet):
             instance.save(update_fields=['stock_movement'])
             movement.delete()
         instance.delete()
+
+    @action(detail=False, methods=['post'], url_path='mark-packed')
+    def mark_packed(self, request):
+        """Mark a project's not-yet-sent lines Packed (packed=false → back to Pending)."""
+        project_id = request.data.get('project')
+        if not project_id:
+            return Response({'project': 'Select a project.'}, status=status.HTTP_400_BAD_REQUEST)
+        packed = str(request.data.get('packed', True)).strip().lower() not in ('0', 'false', 'no')
+        plans = self.get_queryset().filter(project_id=project_id)
+        line_ids = request.data.get('lines')
+        if line_ids:
+            plans = plans.filter(pk__in=line_ids)
+        now = timezone.now()
+        updated = 0
+        for plan in plans:
+            if MaterialPlan.parse_qty(plan.dispatched_qty) > 0:
+                continue
+            target = 'Packed' if packed else 'Pending'
+            if plan.dispatch_status == target:
+                continue
+            plan.dispatch_status = target
+            plan.packed_at = (plan.packed_at or now) if packed else None
+            plan.save(update_fields=['dispatch_status', 'packed_at', 'updated_at'])
+            updated += 1
+        return Response({'updated': updated})
 
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard(self, request):

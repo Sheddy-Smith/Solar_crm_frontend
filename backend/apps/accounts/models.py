@@ -111,6 +111,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     # resolves to a display name of "Deleted User" instead of breaking or
     # cascading. Hard DELETE is intentionally not used from the Users UI.
     is_deleted = models.BooleanField(default=False, db_index=True)
+    # Blank language = follow the system default from Settings → Language.
+    language = models.CharField(max_length=12, blank=True, default='')
+    typing_transliteration = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -4,7 +4,7 @@
 #
 # Live targets:
 #   Frontend         → Hostinger public_html/crm only (never Docker, never beside backend)
-#   Backend gunicorn → /var/www/ecomalwa-crm/backend (api.crm.ecomalwa.com via Caddy :443)
+#   Backend Gunicorn+UvicornWorker (ASGI) → /var/www/ecomalwa-crm/backend (api.crm.ecomalwa.com via Caddy :443)
 #   Database         → Hostinger MySQL only (phpMyAdmin)
 set -euo pipefail
 
@@ -73,6 +73,7 @@ fi
 
 echo "==> Migrate"
 if [[ -x "$BE_DIR/.venv/bin/python" ]]; then
+  sudo -u "$APP_USER" bash -lc "cd '$BE_DIR' && .venv/bin/pip install -q --no-cache-dir --disable-pip-version-check -r requirements.txt"
   sudo -u "$APP_USER" bash -lc "cd '$BE_DIR' && .venv/bin/python manage.py migrate --noinput"
 else
   echo "WARNING: $BE_DIR/.venv/bin/python missing — skip migrate"

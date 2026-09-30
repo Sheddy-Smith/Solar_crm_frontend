@@ -177,3 +177,42 @@ class PermissionRegressionTests(TestCase):
         self.assertEqual(overdue.status_code, 200)
         self.assertFalse(any(row['id'] == lead.id for row in overdue.data))
 
+
+class LanguagePreferenceTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = make_user('lang@test.com', 'No Perm Lang Role')
+        self.client.force_authenticate(self.user)
+
+    def test_me_includes_language_policy(self):
+        res = self.client.get('/api/v1/users/me/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['language'], '')
+        self.assertTrue(res.data['typing_transliteration'])
+        self.assertEqual(res.data['i18n']['default_language'], 'en')
+        self.assertIn('hi', res.data['i18n']['enabled_languages'])
+
+    def test_any_user_can_save_own_language(self):
+        res = self.client.patch('/api/v1/users/me/preferences/', {'language': 'pa', 'typing_transliteration': False}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.language, 'pa')
+        self.assertFalse(self.user.typing_transliteration)
+        self.assertEqual(res.data['language'], 'pa')
+
+        res = self.client.patch('/api/v1/users/me/preferences/', {'language': ''}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.language, '')
+
+    def test_rejects_disabled_or_unknown_language(self):
+        from apps.crm_settings.services import update_category_settings
+
+        update_category_settings('language', {'enabledLanguages': ['en', 'hi']})
+        res = self.client.patch('/api/v1/users/me/preferences/', {'language': 'ta'}, format='json')
+        self.assertEqual(res.status_code, 400)
+        res = self.client.patch('/api/v1/users/me/preferences/', {'language': 'xx'}, format='json')
+        self.assertEqual(res.status_code, 400)
+        res = self.client.get('/api/v1/users/me/')
+        self.assertEqual(res.data['i18n']['enabled_languages'], ['en', 'hi'])
+
