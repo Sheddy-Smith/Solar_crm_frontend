@@ -1778,6 +1778,14 @@ html:has(.portal-landing) #root {
     touch-action: pan-y pinch-zoom;
   }
 
+  /* `clip` instead of `hidden`: hidden turns body/#root into scroll containers,
+     which pins the sticky top bar inside them so it scrolls away with the page. */
+  body,
+  #root {
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+
   .app-mobile-shell {
     height: auto !important;
     min-height: 100dvh;
@@ -1794,7 +1802,12 @@ html:has(.portal-landing) #root {
     top: 0;
     z-index: 40;
     border-radius: 0 !important;
+    background: #ffffff !important;
     box-shadow: 0 8px 20px rgba(15, 39, 92, 0.08);
+  }
+
+  html.dark .app-mobile-topbar {
+    background: #0c0c12 !important;
   }
 
   html.dark .app-mobile-topbar {

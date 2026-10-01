@@ -155,6 +155,7 @@ import {
   Trophy,
   Wallet,
   LogOut,
+  SunMoon,
   Upload,
   UserPlus,
   UserRound,
@@ -3446,6 +3447,8 @@ function App() {
               theme={theme}
               setTheme={setTheme}
               loggedInUser={loggedInUser}
+              showInstallApp={!pwaInstall.isStandalone}
+              onInstallApp={handlePwaInstall}
             />
             <div className="px-3 pt-2 md:hidden">
               <PwaInstallBanner notify={notify} />
@@ -4144,10 +4147,33 @@ function AppHeader({
   openDashboardSection, openWhatsApp,
   profileMenuOpen, setProfileMenuOpen, handleProfileAction,
   globalSearch, setGlobalSearch, setGlobalSearchNonce, setActiveSidebarItem,
-  theme, setTheme, loggedInUser,
+  theme, setTheme, loggedInUser, showInstallApp, onInstallApp,
 }) {
+  const renderSearch = (className, placeholder) => (
+    <label className={cx('search-input h-11 items-center rounded-[12px] border border-black/15 bg-[#fbfcff] px-3 shadow-[0_4px_12px_rgba(15,39,92,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 md:h-12 md:px-4 dark:border-slate-600 dark:bg-slate-800', className)}>
+      <Search className="size-4 shrink-0 text-[#7486a3]" />
+      <input
+        type="search"
+        value={globalSearch}
+        onChange={(e) => setGlobalSearch(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && globalSearch.trim()) {
+            setActiveSidebarItem('Lead List');
+            setGlobalSearchNonce((n) => n + 1);
+            notify(`Searching: ${globalSearch.trim()}`);
+          }
+        }}
+        placeholder={placeholder}
+        className="h-full min-w-0 w-full bg-transparent px-2.5 text-[14px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba] md:px-3 dark:text-slate-200"
+      />
+      {globalSearch && (
+        <button type="button" onClick={() => setGlobalSearch('')} className="ml-1 text-[#8ea0ba] hover:text-[#e03434]">✕</button>
+      )}
+    </label>
+  );
+
   return (
-    <header className={`${panelClass} header-toolbar app-mobile-topbar relative z-30 overflow-visible rounded-none border-x-0 border-t-0 px-3 py-2.5 md:rounded-[16px] md:border md:px-4 md:py-3`}>
+    <header className={`${panelClass} header-toolbar app-mobile-topbar relative z-30 -mx-2 overflow-visible rounded-none border-x-0 border-t-0 px-3 py-2.5 md:mx-0 md:rounded-[16px] md:border md:px-4 md:py-3`}>
       <div className="grid gap-2.5 lg:grid-cols-[40px_minmax(0,1fr)] xl:grid-cols-[40px_minmax(280px,320px)_minmax(0,1fr)_auto] xl:items-center xl:gap-4">
         <div className="flex items-center justify-between gap-2 lg:contents">
           <button
@@ -4177,96 +4203,90 @@ function AppHeader({
             <Menu className="size-[21px]" />
           </button>
 
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 lg:hidden">
-            <LanguageSwitcher compact />
-            <ThemeToggle
-              theme={theme}
-              compact
-              layoutId="theme-toggle-mobile"
-              onChange={(next) => {
-                setTheme(next);
-                notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
-              }}
-            />
-            <PwaInstallIconButton notify={notify} />
-            {actionIcons.map((action) => {
-              const Icon = action.icon;
+          {renderSearch('flex min-w-0 flex-1 lg:hidden', 'Search leads, customers...')}
 
-            return (
-              <div key={`mobile-${action.label}`} className="relative" data-header-actions="true">
-                <button
-                  type="button"
-                  onClick={() => handleHeaderAction(action.label)}
-                  className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition hover:text-[#2158d6]"
-                  aria-label={action.label}
-                  aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
-                >
-                  <Icon className="size-[18px]" />
-                  {action.badge ? (
-                    <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
-                      {action.badge}
-                    </span>
+          <div className="relative shrink-0 lg:hidden" data-profile-menu="true">
+            <button
+              type="button"
+              onClick={() => setProfileMenuOpen((current) => !current)}
+              className="relative rounded-full transition active:scale-95"
+              aria-label="Open profile menu"
+              aria-expanded={profileMenuOpen}
+            >
+              <AdminAvatar name={loggedInUser?.name} />
+              <span className="absolute -bottom-0.5 -right-0.5 grid size-[18px] place-items-center rounded-full border-2 border-white bg-[#0b65e5] text-white dark:border-slate-900">
+                <ChevronDown className={cx('size-2.5 transition', profileMenuOpen && 'rotate-180')} />
+              </span>
+            </button>
+
+            {profileMenuOpen ? (
+              <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[290px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[16px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.2)] dark:border-slate-600 dark:bg-slate-900">
+                <div className="flex items-center gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+                  <AdminAvatar name={loggedInUser?.name} />
+                  <div className="min-w-0">
+                    <p data-no-translate className="truncate text-[14px] font-extrabold leading-tight text-[#263d72] dark:text-slate-100">{loggedInUser?.name || 'Admin'}</p>
+                    <p className="mt-0.5 truncate text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
+                  </div>
+                </div>
+
+                <div className="py-1.5">
+                  <LanguageSwitcher row menuAttrs={{ 'data-profile-menu': 'true' }} />
+                  <div className="flex items-center gap-3 px-4 py-2.5 text-[13px] font-semibold text-[#263d72] dark:text-slate-200">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[#f3edff] text-[#7c3aed]"><SunMoon className="size-4" /></span>
+                    <span className="min-w-0 flex-1">Theme</span>
+                    <ThemeToggle
+                      theme={theme}
+                      compact
+                      layoutId="theme-toggle-mobile"
+                      onChange={(next) => {
+                        setTheme(next);
+                        notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
+                      }}
+                    />
+                  </div>
+                  {showInstallApp ? (
+                    <MobileProfileMenuRow
+                      icon={MonitorSmartphone}
+                      iconClass="bg-[#e8f8eb] text-[#0d9f4a]"
+                      label="Install App"
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        onInstallApp();
+                      }}
+                    />
                   ) : null}
-                </button>
-                {action.label === 'Notifications' && notificationMenuOpen ? (
-                  <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
-                ) : null}
-                {action.label === 'Messages' && messageMenuOpen ? (
-                  <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
-                ) : null}
-              </div>
-            );
-            })}
-
-            <div className="relative" data-profile-menu="true">
-              <button
-                type="button"
-                onClick={() => setProfileMenuOpen((current) => !current)}
-                className="rounded-full transition hover:scale-[1.02]"
-                aria-label="Open profile menu"
-                aria-expanded={profileMenuOpen}
-              >
-                <AdminAvatar name={loggedInUser?.name} />
-              </button>
-
-              {profileMenuOpen ? (
-                <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[200px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)] dark:border-slate-600 dark:bg-slate-900">
-                  {['My Profile', 'Logout'].map((item) => (
-                    <button
-                      key={`mobile-${item}`}
-                      type="button"
-                      onClick={() => handleProfileAction(item)}
-                      className={`block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff] dark:hover:bg-slate-800 ${item === 'Logout' ? 'text-[#e03434]' : 'text-[#263d72] dark:text-slate-200'}`}
-                    >
-                      {item}
-                    </button>
+                  {actionIcons.map((action) => (
+                    <MobileProfileMenuRow
+                      key={`mobile-${action.label}`}
+                      icon={action.icon}
+                      iconClass={action.label === 'Notifications' ? 'bg-[#fff4df] text-[#b45309]' : 'bg-[#e8f8eb] text-[#0d9f4a]'}
+                      label={action.label}
+                      badge={action.badge}
+                      onClick={() => handleHeaderAction(action.label)}
+                    />
                   ))}
                 </div>
-              ) : null}
-            </div>
+
+                <div className="border-t border-[#edf2f8] py-1.5 dark:border-slate-700">
+                  <MobileProfileMenuRow icon={UserRound} iconClass="bg-[#eef5ff] text-[#0b65e5]" label="My Profile" onClick={() => handleProfileAction('My Profile')} />
+                  <MobileProfileMenuRow icon={LogOut} iconClass="bg-[#ffefef] text-[#e03434]" label="Logout" danger onClick={() => handleProfileAction('Logout')} />
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Zero-width anchor so the notification / message panels open under the avatar. */}
+          <div className="relative -ml-2 w-0 self-stretch lg:hidden" data-header-actions="true">
+            {notificationMenuOpen ? (
+              <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
+            ) : null}
+            {messageMenuOpen ? (
+              <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
+            ) : null}
           </div>
         </div>
 
-        <label className="search-input flex h-11 min-w-0 items-center rounded-[12px] border border-black/15 bg-[#fbfcff] px-3 shadow-[0_4px_12px_rgba(15,39,92,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 md:h-12 md:px-4 lg:col-span-1 xl:col-span-1 dark:border-slate-600 dark:bg-slate-800">
-          <Search className="size-4 shrink-0 text-[#7486a3]" />
-          <input
-            type="search"
-            value={globalSearch}
-            onChange={(e) => setGlobalSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && globalSearch.trim()) {
-                setActiveSidebarItem('Lead List');
-                setGlobalSearchNonce((n) => n + 1);
-                notify(`Searching: ${globalSearch.trim()}`);
-              }
-            }}
-            placeholder="Search leads, customers, projects..."
-            className="h-full min-w-0 w-full bg-transparent px-3 text-[14px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba] dark:text-slate-200"
-          />
-          {globalSearch && (
-            <button type="button" onClick={() => setGlobalSearch('')} className="ml-1 text-[#8ea0ba] hover:text-[#e03434]">✕</button>
-          )}
-        </label>
+        {renderSearch('hidden lg:flex lg:col-span-1 xl:col-span-1', 'Search leads, customers, projects...')}
 
         <div className="header-banner relative hidden min-w-0 w-full overflow-hidden rounded-[12px] border border-[#dce8f5] bg-[#eef8fb] shadow-[0_6px_16px_rgba(15,39,92,0.08)] lg:col-span-2 lg:block xl:col-span-1">
           <img
@@ -4362,6 +4382,28 @@ function AppHeader({
         </div>
       </div>
     </header>
+  );
+}
+
+function MobileProfileMenuRow({ icon: Icon, iconClass, label, badge, danger = false, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cx(
+        'flex w-full items-center gap-3 px-4 py-2.5 text-left! text-[13px] font-extrabold transition hover:bg-[#f5f9ff] active:bg-[#eef4ff] dark:hover:bg-slate-800',
+        danger ? 'text-[#e03434]' : 'text-[#263d72] dark:text-slate-200',
+      )}
+    >
+      <span className={cx('grid size-8 shrink-0 place-items-center rounded-[10px]', iconClass)}>
+        <Icon className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1">{label}</span>
+      {badge ? (
+        <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-[#ff4b4f] px-1.5 text-[11px] font-extrabold text-white">{badge}</span>
+      ) : null}
+      {!danger ? <ChevronRight className="size-4 shrink-0 text-[#91a3bd]" /> : null}
+    </button>
   );
 }
 

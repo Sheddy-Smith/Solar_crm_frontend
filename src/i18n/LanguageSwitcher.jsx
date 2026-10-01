@@ -28,7 +28,7 @@ export function chooseTyping(enabled) {
 }
 
 /** Header language menu: pick the UI language and toggle phonetic typing. */
-export default function LanguageSwitcher({ compact = false, className = '', onChanged }) {
+export default function LanguageSwitcher({ compact = false, row = false, className = '', menuAttrs, onChanged }) {
   const { language, typing, enabled, loading } = useI18n();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
@@ -76,25 +76,43 @@ export default function LanguageSwitcher({ compact = false, className = '', onCh
 
   return (
     <div ref={ref} className={`relative ${className}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-1.5 rounded-full border border-[#dce7f5] bg-white font-bold text-[#34507e] transition hover:border-[#b9cdea] hover:text-[#0b65e5] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 ${compact ? 'size-9 justify-center' : 'h-10 px-3 text-[13px]'}`}
-        aria-label="Change language"
-        aria-expanded={open}
-        title="Change language"
-      >
-        <Languages className={`${compact ? 'size-4' : 'size-4'} ${loading ? 'animate-pulse' : ''}`} />
-        {compact ? null : (
-          <>
-            <span data-no-translate>{meta.native}</span>
-            <ChevronDown className="size-3.5 opacity-70" />
-          </>
-        )}
-      </button>
+      {row ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-center gap-3 px-4 py-2.5 text-left! text-[13px] font-extrabold text-[#263d72] transition hover:bg-[#f5f9ff] dark:text-slate-200 dark:hover:bg-slate-800"
+          aria-label="Change language"
+          aria-expanded={open}
+        >
+          <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[#eef5ff] text-[#0b65e5]">
+            <Languages className={`size-4 ${loading ? 'animate-pulse' : ''}`} />
+          </span>
+          <span className="min-w-0 flex-1">Language</span>
+          <span data-no-translate className="truncate text-[12px] font-bold text-[#7585a2]">{meta.native}</span>
+          <ChevronDown className={`size-4 shrink-0 text-[#91a3bd] transition ${open ? 'rotate-180' : ''}`} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className={`inline-flex items-center gap-1.5 rounded-full border border-[#dce7f5] bg-white font-bold text-[#34507e] transition hover:border-[#b9cdea] hover:text-[#0b65e5] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 ${compact ? 'size-9 justify-center' : 'h-10 px-3 text-[13px]'}`}
+          aria-label="Change language"
+          aria-expanded={open}
+          title="Change language"
+        >
+          <Languages className={`size-4 ${loading ? 'animate-pulse' : ''}`} />
+          {compact ? null : (
+            <>
+              <span data-no-translate>{meta.native}</span>
+              <ChevronDown className="size-3.5 opacity-70" />
+            </>
+          )}
+        </button>
+      )}
 
       {open && pos ? createPortal(
         <div
+          {...menuAttrs}
           ref={menuRef}
           style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
           className="fixed z-1000 flex flex-col overflow-hidden rounded-xl border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)] dark:border-slate-600 dark:bg-slate-900"
