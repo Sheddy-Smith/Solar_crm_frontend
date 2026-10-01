@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { dashboardApi, userApi } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
+import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 
 const CARD = 'rounded-[12px] border border-[#e5eaf2] bg-white shadow-[0_2px_10px_rgba(24,48,87,0.05)]';
 
@@ -135,7 +136,14 @@ function FilterBar({ dateFrom, dateTo, projectType, leadStatus, assignedTo, assi
 
 function TabNav({ tab, alertCount, onTab }) {
   return (
-    <nav className="flex flex-wrap gap-1 border-b border-[#e5eaf2]">
+    <>
+    <MobileSubnavSelect
+      label="Insights"
+      items={TABS.map((t) => ({ value: t.id, label: t.id === 'alerts' && alertCount > 0 ? `${t.label} (${alertCount})` : t.label }))}
+      value={tab}
+      onChange={onTab}
+    />
+    <nav className="hidden flex-wrap gap-1 border-b border-[#e5eaf2] md:flex">
       {TABS.map((t) => {
         const Icon = t.icon;
         const active = tab === t.id;
@@ -163,6 +171,7 @@ function TabNav({ tab, alertCount, onTab }) {
         );
       })}
     </nav>
+    </>
   );
 }
 

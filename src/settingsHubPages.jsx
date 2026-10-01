@@ -4,6 +4,7 @@ import {
   ShieldCheck, Trash2, UserPlus, Users, Wrench, X, CheckCircle2, AlertCircle, Clock3,
 } from 'lucide-react';
 import { authApi, roleApi, settingsApi, userApi } from './api.js';
+import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 
 const CARD = 'rounded-[12px] border border-[#dbe5f2] bg-white shadow-[0_8px_24px_rgba(24,48,87,0.06)]';
 const REAUTH_KEY = 'malwa-solar-crm:admin-reauth';
@@ -675,7 +676,14 @@ export function AboutSettingsPage() {
 export function SettingsArchitectureTabs({ activePillarId, onSelectPillar }) {
   return (
     <section className={`${CARD} p-2`}>
-      <div className="flex flex-wrap gap-2">
+      <MobileSubnavSelect
+        className="p-1 md:hidden"
+        label="Settings"
+        items={[...SETTINGS_PILLARS.map((pillar) => ({ value: pillar.id, label: pillar.label })), { value: 'advanced', label: 'Advanced' }]}
+        value={activePillarId}
+        onChange={onSelectPillar}
+      />
+      <div className="hidden flex-wrap gap-2 md:flex">
         {SETTINGS_PILLARS.map((pillar) => {
           const active = activePillarId === pillar.id;
           return (

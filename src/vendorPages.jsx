@@ -5,6 +5,7 @@ import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
+import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 
 const TABS = [
   { key: 'Vendor Details', label: 'Vendor Details' },
@@ -133,7 +134,13 @@ export function VendorModulePage({ activeSection, onOpenSection, onNotify, logge
           </button>
         ) : null}
       </div>
-      <div className="-mx-1 flex gap-1 overflow-x-auto border-b border-[#e8eef6] px-1">
+      <MobileSubnavSelect
+        tone="red"
+        items={TABS.map((item) => ({ value: item.key, label: item.label }))}
+        value={tab}
+        onChange={onOpenSection}
+      />
+      <div className="-mx-1 hidden gap-1 overflow-x-auto border-b border-[#e8eef6] px-1 md:flex">
         {TABS.map((item) => (
           <button
             key={item.key}

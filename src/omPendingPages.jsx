@@ -6,6 +6,7 @@ import {
 import { omPendingApi } from './api.js';
 import { moduleCaps } from './settingsHubPages.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
+import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 
 export const OM_PENDING_STEPS = [
   { key: 'Pending Work Order', short: 'Work Order', countKey: 'work_orders', icon: ClipboardList, loader: 'workOrders', route: '/om/pending-work-orders' },
@@ -107,9 +108,22 @@ function PendingFlowStrip({ activeSection, summary, onOpenSection }) {
     container.scrollTo({ left: active.offsetLeft - (container.clientWidth - active.offsetWidth) / 2, behavior: 'smooth' });
   }, [activeSection]);
 
+  const activeStep = OM_PENDING_STEPS.find((step) => step.key === activeSection);
+
   return (
     <section className={cx(PANEL, 'p-2.5 sm:p-3')}>
-      <div ref={scrollRef} className="module-tab-scroll relative -mx-1 overflow-x-auto px-1">
+      <MobileSubnavSelect
+        label="Tracker Step"
+        tone="amber"
+        items={OM_PENDING_STEPS.map((step, index) => {
+          const count = summary ? summary[step.countKey] ?? 0 : null;
+          return { value: step.key, label: `${index + 1}. ${step.key}${count == null ? '' : ` (${count})`}` };
+        })}
+        value={activeSection}
+        onChange={onOpenSection}
+        note={activeStep ? stepNote(activeStep, summary) : ''}
+      />
+      <div ref={scrollRef} className="module-tab-scroll relative -mx-1 hidden overflow-x-auto px-1 md:block">
         <div className="grid w-[1020px] grid-cols-6 gap-2 2xl:w-full">
           {OM_PENDING_STEPS.map((step, index) => {
             const Icon = step.icon;

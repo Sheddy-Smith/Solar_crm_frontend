@@ -5,6 +5,7 @@ import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
+import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 
 function telHref(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
@@ -124,7 +125,13 @@ export function CustomerModulePage({ activeSection, onOpenSection, onNotify, log
           <h1 className="font-display text-[20px] font-extrabold text-[#111827] sm:text-[22px]">Customer Management</h1>
         </div>
       </div>
-      <div className="-mx-1 flex gap-1 overflow-x-auto border-b border-[#e8eef6] px-1">
+      <MobileSubnavSelect
+        tone="red"
+        items={TABS.map((item) => ({ value: item.key, label: item.label }))}
+        value={tab}
+        onChange={onOpenSection}
+      />
+      <div className="-mx-1 hidden gap-1 overflow-x-auto border-b border-[#e8eef6] px-1 md:flex">
         {TABS.map((item) => (
           <button
             key={item.key}

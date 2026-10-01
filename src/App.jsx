@@ -79,6 +79,7 @@ import {
 import { usePwaInstall } from './hooks/usePwaInstall.js';
 import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide } from './components/mobile/PwaInstallControls.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard, MobilePager } from './components/mobile/MobileRecordCard.jsx';
+import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
 import { SettingsRecycleBinPage } from './recycleBinPage.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -5927,7 +5928,14 @@ function AccountSettingsTabs({ activeSection, onOpenSection }) {
 
   return (
     <section className={`${panelClass} overflow-hidden p-0`}>
-      <div className="overflow-x-auto pb-1">
+      <MobileSubnavSelect
+        className="p-3 md:hidden"
+        label="Accounts Settings"
+        items={accountSettingsItems.map((item) => ({ value: item.key, label: item.label }))}
+        value={activeSection}
+        onChange={(key) => onOpenSection(getSettingsRouteKey(key))}
+      />
+      <div className="hidden overflow-x-auto pb-1 md:block">
         <div className="flex min-w-max md:min-w-0">
           {accountSettingsItems.map((item) => {
             const active = activeSection === item.key;
@@ -5977,30 +5985,35 @@ function SettingsCategoryTabs({ activeSection, onOpenSection, activeGroupTitle, 
     'Other Settings': 'bg-[#fff3df] text-[#f97316]',
   };
 
+  const selectGroup = (groupTitle) => {
+    if (typeof onSelectGroup === 'function') {
+      onSelectGroup(groupTitle);
+      return;
+    }
+    const firstItem = groups.find((group) => group.title === groupTitle)?.items[0];
+    onOpenSection(firstItem ? getSettingsRouteKey(firstItem.key) : 'Settings');
+  };
+
   return (
     <section className={`${panelClass} p-2`}>
-      <div className="-mx-1 overflow-x-auto px-1 pb-1 md:mx-0 md:overflow-visible">
+      <MobileSubnavSelect
+        className="p-1 md:hidden"
+        label="Settings Category"
+        items={groups.map((group) => ({ value: group.title, label: group.title }))}
+        value={activeGroup?.title}
+        onChange={selectGroup}
+      />
+      <div className="-mx-1 hidden overflow-x-auto px-1 pb-1 md:mx-0 md:block md:overflow-visible">
         <div className="settings-category-grid flex min-w-max gap-2 md:grid md:min-w-0">
         {groups.map((group) => {
           const Icon = categoryIcons[group.title] ?? Settings;
           const active = activeGroup?.title === group.title;
-          const firstItem = group.items[0];
 
           return (
             <button
               key={group.title}
               type="button"
-              onClick={() => {
-                if (typeof onSelectGroup === 'function') {
-                  onSelectGroup(group.title);
-                  return;
-                }
-                if (firstItem) {
-                  onOpenSection(getSettingsRouteKey(firstItem.key));
-                  return;
-                }
-                onOpenSection('Settings');
-              }}
+              onClick={() => selectGroup(group.title)}
               className={cx(
                 'flex min-h-[70px] w-[230px] shrink-0 items-center gap-3 rounded-[10px] border bg-white px-3.5 text-left transition hover:-translate-y-0.5 hover:bg-[#f8fbff] md:w-full md:shrink sm:px-4',
                 active
@@ -6032,7 +6045,14 @@ function SettingsSubcategoryTabs({ groupTitle, activeSection, onSelectSection, g
 
   return (
     <section className={`${panelClass} overflow-hidden p-0`}>
-      <div className="overflow-x-auto pb-1">
+      <MobileSubnavSelect
+        className="p-3 md:hidden"
+        label={group.title}
+        items={group.items.map((item) => ({ value: item.key, label: item.label }))}
+        value={activeSection}
+        onChange={onSelectSection}
+      />
+      <div className="hidden overflow-x-auto pb-1 md:block">
         <div className="flex min-w-max md:min-w-0">
           {group.items.map((item) => {
             const active = activeSection === item.key;
@@ -6064,7 +6084,13 @@ function SettingsPillarSubTabs({ items, activeSection, onSelectSection }) {
 
   return (
     <section className={`${panelClass} overflow-hidden p-0`}>
-      <div className="overflow-x-auto pb-1">
+      <MobileSubnavSelect
+        className="p-3 md:hidden"
+        items={items.map((item) => ({ value: item.key, label: item.label }))}
+        value={activeSection}
+        onChange={onSelectSection}
+      />
+      <div className="hidden overflow-x-auto pb-1 md:block">
         <div className="flex min-w-max gap-0 md:min-w-0 md:flex-wrap">
           {items.map((item) => {
             const active = activeSection === item.key;
@@ -8173,7 +8199,13 @@ function SystemSettingsPage({ onOpenSection, onNotify }) {
       <section className={`${panelClass} overflow-hidden`}>
         <div className="border-b border-[#edf2f8] px-4 py-4 sm:px-5">
           <p className="text-[15px] font-extrabold text-[#111827]">Configure general system preferences and application-wide settings.</p>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <MobileSubnavSelect
+            className="mt-4 md:hidden"
+            items={tabs.map((tab) => ({ value: tab, label: tab }))}
+            value={activeTab}
+            onChange={setActiveTab}
+          />
+          <div className="mt-4 hidden flex-wrap gap-2 md:flex">
             {tabs.map((tab) => (
               <button
                 key={tab}
@@ -9789,7 +9821,7 @@ function getModuleSubnavLabel(item) {
   return item;
 }
 
-function HorizontalModuleTabs({ items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, wrapOnDesktop = false, compact = false, fullLabels = false, dense = false, overflowItems = [] }) {
+function HorizontalModuleTabs({ items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, tone = 'green', wrapOnDesktop = false, compact = false, fullLabels = false, dense = false, overflowItems = [] }) {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const overflowBtnRef = useRef(null);
@@ -9797,9 +9829,6 @@ function HorizontalModuleTabs({ items, activeSection, onOpenSection, activeClass
   const allItems = overflowItems.length ? [...items, ...overflowItems] : items;
   const resolvedActive = allItems.includes(activeSection) ? activeSection : items[0];
   const overflowActive = overflowItems.includes(resolvedActive);
-  const activeLabel = fullLabels
-    ? resolvedActive
-    : getModuleSubnavLabel(resolvedActive);
 
   const updateMenuPos = useCallback(() => {
     const btn = overflowBtnRef.current;
@@ -9839,13 +9868,15 @@ function HorizontalModuleTabs({ items, activeSection, onOpenSection, activeClass
   }, [overflowOpen, updateMenuPos]);
 
   return (
-    <section className={cx(`${panelClass} overflow-visible`, dense ? 'p-2 sm:p-2.5' : 'p-3 sm:p-4')}>
-      <p className="mb-2 text-[11px] font-semibold text-[#8a98af] md:hidden">
-        Showing · {activeLabel}
-      </p>
+    <section className={cx(`${panelClass} overflow-visible`, dense ? 'p-2.5' : 'p-3 sm:p-4')}>
+      <MobileSubnavSelect
+        items={allItems.map((item) => ({ value: item, label: fullLabels ? item : getModuleSubnavLabel(item) }))}
+        value={resolvedActive}
+        onChange={onOpenSection}
+        tone={tone}
+      />
 
-      {/* All breakpoints: horizontal tabs + optional ⋮ overflow (mobile scrollable) */}
-      <div className={cx('flex items-center', dense ? 'gap-2 pb-1' : 'gap-2.5 pb-1 sm:gap-3 sm:pb-2')}>
+      <div className={cx('hidden items-center md:flex', dense ? 'gap-2 pb-1' : 'gap-2.5 pb-1 sm:gap-3 sm:pb-2')}>
         <div className="module-tab-scroll -mx-1 min-w-0 flex-1 overflow-x-auto px-1">
           <div className={cx('flex w-max min-w-full', dense ? 'gap-2' : 'gap-2 sm:gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
             {items.map((item) => {
@@ -9958,6 +9989,7 @@ function OmSubnavTabs({ activeSection, onOpenSection }) {
       items={omSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
+      tone="amber"
       activeClasses="border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] ring-2 ring-[#fff0dc]"
       activeDotClass="bg-[#f59e0b]"
       activeIconClass="text-[#f59e0b]"
@@ -9971,6 +10003,7 @@ function EmployeeSubnavTabs({ activeSection, onOpenSection }) {
       items={employeeSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
+      tone="blue"
       activeClasses="border-[#d4e4ff] bg-[#f5f9ff] text-[#1766d3] ring-2 ring-[#e3efff]"
       activeDotClass="bg-[#0b65e5]"
       activeIconClass="text-[#0b65e5]"
@@ -10012,6 +10045,7 @@ function AccountsSubnavTabs({ activeSection, onOpenSection }) {
       items={accountsSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
+      tone="blue"
       activeClasses="border-[#d4e4ff] bg-[#f5f9ff] text-[#1766d3] ring-2 ring-[#e3efff]"
       activeDotClass="bg-[#0b65e5]"
       activeIconClass="text-[#0b65e5]"
@@ -10029,6 +10063,7 @@ function InventorySubnavTabs({ activeSection, onOpenSection }) {
       overflowItems={inventoryOverflowSubItems}
       activeSection={resolvedSection}
       onOpenSection={onOpenSection}
+      tone="teal"
       activeClasses="border-[#d7f4ea] bg-[#f2fffb] text-[#0f766e] ring-2 ring-[#e7faf8]"
       activeDotClass="bg-[#0f766e]"
       activeIconClass="text-[#0f766e]"
@@ -10042,6 +10077,7 @@ function AmcSubnavTabs({ activeSection, onOpenSection }) {
       items={amcSubItems}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
+      tone="amber"
       activeClasses="border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] ring-2 ring-[#fff0dc]"
       activeDotClass="bg-[#f59e0b]"
       activeIconClass="text-[#f59e0b]"
@@ -18259,8 +18295,14 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       ) : null}
 
       {!stackedSections ? (
-      <section className={`${panelClass} overflow-hidden px-3 pt-3`}>
-        <div className="module-tab-scroll flex gap-2 overflow-x-auto pb-0">
+      <section className={`${panelClass} overflow-hidden px-3 pt-3 max-md:pb-3`}>
+        <MobileSubnavSelect
+          label="Project Section"
+          items={detailTabs.map((tab) => ({ value: tab.label, label: tab.label }))}
+          value={activeDetailTab}
+          onChange={setActiveDetailTab}
+        />
+        <div className="module-tab-scroll hidden gap-2 overflow-x-auto pb-0 md:flex">
           {detailTabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeDetailTab === tab.label;
@@ -24607,7 +24649,13 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
 
       <section className={`${panelClass} p-4 sm:p-5`}>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-wrap gap-2">
+          <MobileSubnavSelect
+            label="Report Type"
+            items={reportTabs.map((tab) => ({ value: tab, label: tab }))}
+            value={activeReportTab}
+            onChange={setActiveReportTab}
+          />
+          <div className="hidden flex-wrap gap-2 md:flex">
             {reportTabs.map((tab) => (
               <button
                 key={tab}
@@ -27441,7 +27489,12 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
-          <div className="scroll-soft flex gap-6 overflow-x-auto border-b border-[#e5edf6]">
+          <MobileSubnavSelect
+            items={['IP Access Rules', 'Security Settings', 'Blocked Attempts', 'Audit Log'].map((tab) => ({ value: tab, label: tab }))}
+            value={activeTab}
+            onChange={setActiveTab}
+          />
+          <div className="scroll-soft hidden gap-6 overflow-x-auto border-b border-[#e5edf6] md:flex">
             {['IP Access Rules', 'Security Settings', 'Blocked Attempts', 'Audit Log'].map((tab) => (
               <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={cx('shrink-0 border-b-2 pb-3 text-[13px] font-extrabold transition', activeTab === tab ? 'border-[#0d9f4a] text-[#087a39]' : 'border-transparent text-[#53647f] hover:text-[#0b65e5]')}>{tab}</button>
             ))}
@@ -29602,7 +29655,13 @@ function UserDetailsPage({ user, onBack, onUpdateUser, onNotify, onOpenSection }
       </section>
 
       <section className={`${panelClass} overflow-hidden`}>
-        <div className="scroll-soft flex gap-6 overflow-x-auto border-b border-[#e5edf6] px-4 sm:px-6">
+        <MobileSubnavSelect
+          className="border-b border-[#e5edf6] p-4 md:hidden"
+          items={['Roles & Permissions', 'Activity Summary', 'Login History', 'Assigned Projects', 'Assigned Leads'].map((tab) => ({ value: tab, label: tab }))}
+          value={activeTab}
+          onChange={setActiveTab}
+        />
+        <div className="scroll-soft hidden gap-6 overflow-x-auto border-b border-[#e5edf6] px-4 sm:px-6 md:flex">
           {['Roles & Permissions', 'Activity Summary', 'Login History', 'Assigned Projects', 'Assigned Leads'].map((tab) => (
             <button
               key={tab}
