@@ -699,6 +699,27 @@ export const lcCommissioningApi = lcCrud('commissionings');
 export const lcComplianceApi = lcCrud('compliances');
 export const lcDocumentApi = lcCrud('documents');
 
+const omCrud = (base) => ({
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/om/${base}/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/om/${base}/${id}/`),
+  create: (data) => request(`/om/${base}/`, { method: 'POST', body: data }),
+  update: (id, data) => request(`/om/${base}/${id}/`, { method: 'PATCH', body: data }),
+  delete: (id) => request(`/om/${base}/${id}/`, { method: 'DELETE' }),
+});
+
+export const omAssetApi = omCrud('assets');
+export const omMaintenanceApi = omCrud('maintenance-tasks');
+export const omTicketApi = omCrud('tickets');
+export const omVisitApi = omCrud('site-visits');
+export const omSparePartApi = omCrud('spare-parts');
+export const omReportApi = omCrud('reports');
+export const omDocumentApi = omCrud('documents');
+
 // ─── O&M pending flow (work order → quotation → dispatch → install → invoice) ──
 
 export const omPendingApi = {

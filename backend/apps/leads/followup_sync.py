@@ -40,31 +40,51 @@ def close_scheduled_follow_ups_for_closed_lead(lead):
     return closed
 
 
+SUPERSEDED_NOTE = 'Replaced by a newer follow-up'
+
+
 def close_superseded_scheduled_follow_ups(lead):
-    """Mark past Scheduled rows Missed once a later update exists.
+    """Close Scheduled rows once a later update exists on the lead.
 
     A row is superseded when the lead has a Completed follow-up at/after it,
-    or a later Scheduled follow-up (reschedule).
+    a later Scheduled follow-up (reschedule), or any call/visit logged after the
+    row was created — the latest update is the plan that counts. Notes never
+    replace a planned follow-up.
+
+    Past-due rows become Missed; replaced future rows are closed as Completed
+    so they never surface in High / Extra High alerts on their old date.
     """
     now = timezone.now()
-    past_scheduled = list(
-        lead.follow_ups.filter(status='Scheduled', is_deleted=False, scheduled_at__lt=now)
-    )
-    if not past_scheduled:
+    open_rows = list(lead.follow_ups.filter(status='Scheduled', is_deleted=False))
+    if not open_rows:
         return 0
 
     others = lead.follow_ups.filter(is_deleted=False)
     closed = 0
-    for fu in past_scheduled:
-        superseded = others.exclude(pk=fu.pk).filter(
-            Q(status='Completed', created_at__gte=fu.scheduled_at)
-            | Q(status='Completed', completed_at__gte=fu.scheduled_at)
-            | Q(status='Scheduled', scheduled_at__gt=fu.scheduled_at)
-        ).exists()
+    for fu in open_rows:
+        candidates = others.exclude(pk=fu.pk)
+        is_past = bool(fu.scheduled_at and fu.scheduled_at < now)
+        superseded = candidates.filter(
+            created_at__gt=fu.created_at,
+            status__in=['Completed', 'Scheduled'],
+        ).exclude(follow_up_type='Note').exists()
+        if not superseded and is_past:
+            superseded = candidates.filter(
+                Q(status='Completed', created_at__gte=fu.scheduled_at)
+                | Q(status='Completed', completed_at__gte=fu.scheduled_at)
+                | Q(status='Scheduled', scheduled_at__gt=fu.scheduled_at)
+            ).exists()
         if not superseded:
             continue
-        fu.status = 'Missed'
-        fu.save(update_fields=['status'])
+        if is_past:
+            fu.status = 'Missed'
+            fu.save(update_fields=['status'])
+        else:
+            fu.status = 'Completed'
+            fu.completed_at = now
+            if not (fu.outcome or '').strip():
+                fu.outcome = SUPERSEDED_NOTE
+            fu.save(update_fields=['status', 'completed_at', 'outcome'])
         closed += 1
     return closed
 

@@ -79,6 +79,7 @@ export const SIDEBAR_MODULE_BY_LABEL = {
   'Project Management': 'Project Management',
   'Liaisoning & Commissioning': 'Liaisoning & Commissioning',
   'O&M': 'O&M',
+  Tracker: 'O&M',
   Accounts: 'Accounts',
   Inventory: 'Inventory',
   Employee: 'Employee',

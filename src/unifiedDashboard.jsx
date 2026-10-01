@@ -600,7 +600,7 @@ export function UnifiedDashboardPage({
                 <QuickActionBtn label="New Lead" icon={UserPlus} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Create Lead')} />
                 <QuickActionBtn label="Record Payment" icon={CreditCard} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Payment Received')} />
                 <QuickActionBtn label="Stock" icon={Download} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Stock')} />
-                <QuickActionBtn label="O&M Pending" icon={Wrench} iconBg="bg-[#ccfbf1]" iconColor="text-[#0d9488]" onClick={() => onOpenSection('Pending Work Order')} />
+                <QuickActionBtn label="Tracker" icon={Wrench} iconBg="bg-[#ccfbf1]" iconColor="text-[#0d9488]" onClick={() => onOpenSection('Pending Work Order')} />
                 <QuickActionBtn label="View Alerts" icon={Bell} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => setTabAndSync('alerts')} />
               </section>
             </div>

@@ -753,10 +753,10 @@ export function OmPendingFlowPage({
   return (
     <div className="space-y-2.5">
       <OmHeading
-        title="O&M"
+        title="Tracker"
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'O&M', onClick: section === OM_PENDING_SECTIONS[0] ? undefined : () => onOpenSection(OM_PENDING_SECTIONS[0]) },
+          { label: 'Tracker', onClick: section === OM_PENDING_SECTIONS[0] ? undefined : () => onOpenSection(OM_PENDING_SECTIONS[0]) },
           { label: section },
         ]}
         actions={(

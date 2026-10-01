@@ -13,6 +13,7 @@ import {
   installationMaterialApi, materialPlanApi, workforceApi, subsidyApi, projectApprovalApi,
   workOrderApi,
   lcApplicationApi, lcApprovalApi, lcInspectionApi, lcCommissioningApi, lcComplianceApi, lcDocumentApi,
+  omAssetApi, omMaintenanceApi, omTicketApi, omVisitApi, omSparePartApi, omReportApi, omDocumentApi,
   inventoryApi, amcModuleApi, reportsApi, settingsApi, siteSurveyPhotoApi,   siteSurveyApi,
   getMediaUrl,
   tokenStore,
@@ -522,6 +523,7 @@ const sidebarItems = [
   { label: 'Project Management', icon: FolderKanban, showChevron: true },
   { label: 'Liaisoning & Commissioning', icon: ShieldCheck, showChevron: true },
   { label: 'O&M', icon: Wrench, showChevron: true },
+  { label: 'Tracker', icon: ClipboardList, showChevron: true },
   { label: 'Accounts', icon: ReceiptText, showChevron: true },
   { label: 'Inventory', icon: Boxes, showChevron: true },
   { label: 'Employee', icon: HardHat, showChevron: true },
@@ -608,8 +610,10 @@ const inventoryRelatedPages = ['Inventory', ...inventorySubItems];
 const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents', 'Subsidy'];
 const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
 const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems];
-const omSubItems = OM_PENDING_SECTIONS;
-const omRelatedPages = ['O&M', ...omSubItems];
+const omSubItems = ['Maintenance Tasks', 'Breakdown Tickets', 'Site Visits', 'Asset Management', 'Spare Parts', 'O&M Reports'];
+const omRelatedPages = ['O&M', 'O&M Overview', 'Energy Performance', ...omSubItems];
+const omPendingSubItems = OM_PENDING_SECTIONS;
+const omPendingRelatedPages = ['Tracker', ...omPendingSubItems];
 const amcSubItems = ['AMC Overview', 'AMC Contracts', 'Warranties', 'Service Requests', 'Visits / Maintenance', 'Renewals', 'Claims', 'AMC Documents'];
 const amcRelatedPages = [...amcSubItems];
 const dailyTasksRelatedPages = ['Daily Tasks'];
@@ -753,7 +757,7 @@ function permissionModuleForSection(section) {
   if (section === 'Quotation') return 'Quotation';
   if (section === 'Project Management' || projectRelatedPages.includes(section)) return 'Project Management';
   if (section === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(section)) return 'Liaisoning & Commissioning';
-  if (omRelatedPages.includes(section)) return 'O&M';
+  if (omRelatedPages.includes(section) || omPendingRelatedPages.includes(section)) return 'O&M';
   if (section === 'AMC & Warranty' || amcRelatedPages.includes(section)) return 'AMC & Warranty';
   if (section === 'Accounts' || accountsRelatedPages.includes(section)) return 'Accounts';
   if (section === 'Inventory' || inventoryRelatedPages.includes(section)) return 'Inventory';
@@ -962,7 +966,18 @@ const liaisonActionPageTypes = {
   'Liaison Reports': 'reports',
 };
 
-const omSubRoutes = Object.fromEntries(OM_PENDING_STEPS.map((step) => [step.key, step.route]));
+const omSubRoutes = {
+  'O&M Overview': '/om/overview',
+  'Maintenance Tasks': '/om/maintenance-tasks',
+  'Breakdown Tickets': '/om/breakdown-tickets',
+  'Site Visits': '/om/site-visits',
+  'Asset Management': '/om/asset-management',
+  'Spare Parts': '/om/spare-parts',
+  'Energy Performance': '/om/energy-performance',
+  'O&M Reports': '/om/reports',
+};
+
+const omPendingSubRoutes = Object.fromEntries(OM_PENDING_STEPS.map((step) => [step.key, step.route]));
 
 const amcSubRoutes = {
   'AMC Overview': '/amc/overview',
@@ -991,6 +1006,7 @@ const sectionRoutes = {
   ...inventorySubRoutes,
   ...liaisonSubRoutes,
   ...omSubRoutes,
+  ...omPendingSubRoutes,
   ...amcSubRoutes,
   ...summarySubRoutes,
   Insights: '/insights',
@@ -1006,7 +1022,8 @@ const sectionRoutes = {
   Summary: '/insights?tab=overview',
   Settings: '/settings',
   Quotation: '/quotation',
-  'O&M': OM_PENDING_STEPS[0].route,
+  'O&M': '/om/overview',
+  'Tracker': OM_PENDING_STEPS[0].route,
   Reports: '/insights?tab=sales',
   Employee: '/employees/details',
   Customer: '/customers/details',
@@ -1059,16 +1076,13 @@ function resolveSectionFromPath(pathname) {
   if (dispatchMatch) {
     return { section: 'Project Dispatch', params: { projectId: dispatchMatch.groups?.projectId } };
   }
+
   for (const [section, template] of Object.entries(sectionRoutes)) {
     const regex = routeTemplateToRegex(normalizePathname(template));
     const match = path.match(regex);
     if (match) {
       return { section, params: match.groups ?? {} };
     }
-  }
-  // Old O&M pages (maintenance tasks, tickets, assets, …) were replaced by the pending flow.
-  if (path === '/om' || path.startsWith('/om/')) {
-    return { section: OM_PENDING_SECTIONS[0], params: {} };
   }
 
   return { section: null, params: {} };
@@ -1872,6 +1886,7 @@ const availableSections = new Set([
   ...inventoryRelatedPages,
   ...liaisonRelatedPages,
   ...omRelatedPages,
+  ...omPendingRelatedPages,
   ...amcRelatedPages,
   ...dailyTasksRelatedPages,
   ...insightsRelatedPages,
@@ -1984,6 +1999,7 @@ function App() {
     if (item === 'Inventory' || inventoryRelatedPages.includes(item)) return 'Inventory';
     if (item === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(item)) return 'Liaisoning & Commissioning';
     if (omRelatedPages.includes(item)) return 'O&M';
+    if (omPendingRelatedPages.includes(item)) return 'Tracker';
     if (item === 'AMC & Warranty' || amcRelatedPages.includes(item)) return 'AMC & Warranty';
     if (insightsRelatedPages.includes(item)) return null;
     return null;
@@ -2253,6 +2269,29 @@ function App() {
     refreshDashboardLeadStats();
   }, [currentPage, refreshDashboardLeadStats]);
 
+  const refreshDashboardFollowUps = useCallback(() => {
+    followUpApi.listAll({ page_size: 500, status: 'Scheduled', ordering: 'scheduled_at' }).then((data) => {
+      setDashboardScheduledFollowUps(Array.isArray(data) ? data : (data?.results ?? []));
+    }).catch(() => {
+      setDashboardScheduledFollowUps((prev) => prev ?? []);
+      notify('Follow-ups could not be loaded.', 'error');
+    });
+  }, []);
+
+  const isDashboardSection = activeSidebarItem === 'Dashboard';
+
+  // Follow-ups are logged from Lead Details / Follow-ups pages, so reload the
+  // High / Extra High alert lists every time the dashboard is shown again.
+  useEffect(() => {
+    if (currentPage !== 'dashboard' || !isDashboardSection) return undefined;
+    refreshDashboardFollowUps();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshDashboardFollowUps();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [currentPage, isDashboardSection, refreshDashboardFollowUps]);
+
   // Fetch dashboard stats from API
   useEffect(() => {
     if (currentPage !== 'dashboard') return;
@@ -2260,13 +2299,6 @@ function App() {
       if (!data) return;
       setDashboardProjectSummary(data);
     }).catch(() => notify('Project summary could not be loaded.', 'error'));
-
-    followUpApi.listAll({ page_size: 500, status: 'Scheduled', ordering: 'scheduled_at' }).then((data) => {
-      setDashboardScheduledFollowUps(Array.isArray(data) ? data : (data?.results ?? []));
-    }).catch(() => {
-      setDashboardScheduledFollowUps([]);
-      notify('Follow-ups could not be loaded.', 'error');
-    });
 
     leadApi.recent().then((data) => {
       const rows = Array.isArray(data) ? data : (data?.results ?? []);
@@ -2426,6 +2458,7 @@ function App() {
     if (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Inventory'); return; }
     if (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Liaisoning & Commissioning'); return; }
     if (omRelatedPages.includes(activeSidebarItem)) { setExpandedSection('O&M'); return; }
+    if (omPendingRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Tracker'); return; }
     if (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem)) { setExpandedSection('AMC & Warranty'); return; }
     if (insightsRelatedPages.includes(activeSidebarItem)) return;
   }, [activeSidebarItem]);
@@ -2788,6 +2821,7 @@ function App() {
                   const isInventorySection = item.label === 'Inventory';
                   const isLiaisonSection = item.label === 'Liaisoning & Commissioning';
                   const isOmSection = item.label === 'O&M';
+                  const isOmPendingSection = item.label === 'Tracker';
                   const isAmcSection = item.label === 'AMC & Warranty';
                   const isInsightsSection = item.label === 'Insights';
                   const isDailyTasksSection = item.label === 'Daily Tasks';
@@ -2802,6 +2836,7 @@ function App() {
                   const isInventoryHighlighted = isInventorySection && (activeSidebarItem === 'Inventory' || inventoryRelatedPages.includes(activeSidebarItem));
                   const isLiaisonHighlighted = isLiaisonSection && (activeSidebarItem === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(activeSidebarItem));
                   const isOmHighlighted = isOmSection && omRelatedPages.includes(activeSidebarItem);
+                  const isOmPendingHighlighted = isOmPendingSection && omPendingRelatedPages.includes(activeSidebarItem);
                   const isAmcHighlighted = isAmcSection && (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem));
                   const isInsightsHighlighted = isInsightsSection && (activeSidebarItem === 'Insights' || insightsRelatedPages.includes(activeSidebarItem));
                   const isDailyTasksHighlighted = isDailyTasksSection && dailyTasksRelatedPages.includes(activeSidebarItem);
@@ -2815,10 +2850,11 @@ function App() {
                   const isInventoryOpen = isInventorySection && expandedSection === 'Inventory';
                   const isLiaisonOpen = isLiaisonSection && expandedSection === 'Liaisoning & Commissioning';
                   const isOmOpen = isOmSection && expandedSection === 'O&M';
+                  const isOmPendingOpen = isOmPendingSection && expandedSection === 'Tracker';
                   const isAmcOpen = isAmcSection && expandedSection === 'AMC & Warranty';
                   const isSettingsActive = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
                   const isSettingsOpen = isSettingsSection && expandedSection === 'Settings';
-                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isCustomerHighlighted || isVendorHighlighted || isSupplierHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isAmcHighlighted || isInsightsHighlighted || isDailyTasksHighlighted || isSettingsActive;
+                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isCustomerHighlighted || isVendorHighlighted || isSupplierHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isOmPendingHighlighted || isAmcHighlighted || isInsightsHighlighted || isDailyTasksHighlighted || isSettingsActive;
 
                   return (
                     <div key={item.label}>
@@ -2864,14 +2900,14 @@ function App() {
                             setMobileSidebarOpen(false);
                             return;
                           }
-                          const sectionKey = isProjectSection ? 'Project Management' : isCustomerSection ? 'Customer' : isVendorSection ? 'Vendors' : isSupplierSection ? 'Supplier' : isEmployeeSection ? 'Employee' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isAmcSection ? 'AMC & Warranty' : null;
+                          const sectionKey = isProjectSection ? 'Project Management' : isCustomerSection ? 'Customer' : isVendorSection ? 'Vendors' : isSupplierSection ? 'Supplier' : isEmployeeSection ? 'Employee' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isOmPendingSection ? 'Tracker' : isAmcSection ? 'AMC & Warranty' : null;
                           if (sectionKey) {
                             if (expandedSection === sectionKey) {
                               setExpandedSection(null);
                             } else {
                               setExpandedSection(sectionKey);
                               const projectLanding = !loggedInUser || hasAnyModuleAccess(loggedInUser, 'Project Management') ? 'Project Overview' : 'Quotation';
-                              const nextItem = isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : 'Project List';
+                              const nextItem = isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isOmPendingSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : 'Project List';
                               setActiveSidebarItem(nextItem);
                               notify(`${nextItem} section selected`);
                             }
@@ -2902,7 +2938,7 @@ function App() {
                           {item.label}
                         </span>
                         {item.showChevron && !desktopSidebarCollapsed ? (
-                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isCustomerOpen || isVendorOpen || isSupplierOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isAmcOpen || isSettingsOpen) && '-rotate-90')} />
+                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isCustomerOpen || isVendorOpen || isSupplierOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isOmPendingOpen || isAmcOpen || isSettingsOpen) && '-rotate-90')} />
                         ) : null}
                         {item.disabled && !desktopSidebarCollapsed ? (
                           <span className="rounded-[6px] bg-white/16 px-2 py-1 text-[9px] font-extrabold text-white/90">
@@ -3260,6 +3296,43 @@ function App() {
                       )}
                       </AnimatePresence>
                       <AnimatePresence>
+                      {isOmPendingOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
+                          <div className="space-y-1">
+                            {omPendingSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem;
+
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  data-route={omPendingSubRoutes[subItem]}
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                  <span>{getModuleSubnavLabel(subItem)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
+                      <AnimatePresence>
                       {isAmcOpen && !desktopSidebarCollapsed && (
                         <motion.div
                           initial={{ height: 0, opacity: 0 }}
@@ -3506,6 +3579,15 @@ function App() {
                 onNotify={notify}
               />
             ) : omRelatedPages.includes(activeSidebarItem) ? (
+              <OmPage
+                activeSection={activeSidebarItem}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
+              />
+            ) : omPendingRelatedPages.includes(activeSidebarItem) ? (
               <OmPendingFlowPage
                 activeSection={activeSidebarItem}
                 loggedInUser={loggedInUser}
@@ -3829,6 +3911,7 @@ function App() {
                       transition={{ duration: 0.15, ease: 'easeOut' }}
                       onClick={() => {
                         refreshDashboardLeadStats();
+                        refreshDashboardFollowUps();
                         notify('Dashboard refreshed');
                       }}
                       className="inline-flex h-[38px] items-center gap-2 rounded-[10px] bg-[#163d70] px-4 text-[13px] font-bold text-white transition hover:bg-[#12305c] dark:bg-slate-700 dark:hover:bg-slate-600"
@@ -9638,6 +9721,10 @@ function getModuleSubnavLabel(item) {
     return 'Overview';
   }
 
+  if (item === 'O&M Overview') {
+    return 'Overview';
+  }
+
   if (item === 'Project Overview' || item === 'Inventory Overview' || item === 'Accounts Overview' || item === 'AMC Overview') {
     return 'Overview';
   }
@@ -9695,6 +9782,10 @@ function getModuleSubnavLabel(item) {
   }
 
   if (item === 'Project Reports') {
+    return 'Reports';
+  }
+
+  if (item === 'O&M Reports') {
     return 'Reports';
   }
 
@@ -9868,6 +9959,19 @@ function LiaisonSubnavTabs({ activeSection, onOpenSection }) {
   );
 }
 
+function OmSubnavTabs({ activeSection, onOpenSection }) {
+  return (
+    <HorizontalModuleTabs
+      items={omSubItems}
+      activeSection={activeSection}
+      onOpenSection={onOpenSection}
+      activeClasses="border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] ring-2 ring-[#fff0dc]"
+      activeDotClass="bg-[#f59e0b]"
+      activeIconClass="text-[#f59e0b]"
+    />
+  );
+}
+
 function EmployeeSubnavTabs({ activeSection, onOpenSection }) {
   return (
     <HorizontalModuleTabs
@@ -9969,6 +10073,7 @@ function OpsPillBadge({ label, tone }) {
 
 function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSection, onNotify, accent = 'green' }) {
   const activeLabel = getModuleSubnavLabel(activeSection);
+  const isOmModule = moduleTitle === 'O&M';
   const isAmcModule = moduleTitle === 'AMC & Warranty';
   return (
     <div className="space-y-4">
@@ -9981,7 +10086,17 @@ function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSe
         ]}
       />
 
-      {isAmcModule ? (
+      {isOmModule ? (
+        <section className="space-y-4">
+          <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+          <SettingsSectionCard title={activeLabel}>
+            <div className="rounded-[12px] border border-dashed border-[#cfe0f7] bg-[#f8fbff] p-6 text-center">
+              <p className="text-[15px] font-extrabold text-[#1e3261]">{activeLabel} module ready for integration</p>
+              <p className="mt-2 text-[13px] font-bold text-[#53647f]">Subcategory navigation is ready. This screen will be expanded with workflow-specific forms and reports in a future update.</p>
+            </div>
+          </SettingsSectionCard>
+        </section>
+      ) : isAmcModule ? (
         <section className="space-y-4">
           <AmcSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
           <SettingsSectionCard title={activeLabel}>
@@ -11305,6 +11420,523 @@ function LiaisonApprovalSubmittedBy({ user }) {
 }
 
 
+// ── O&M (simplified popup-based work management module) ───────────────────────
+
+function OmPage({ activeSection, onOpenSection, onNotify }) {
+  if (activeSection === 'Breakdown Tickets') {
+    return <OmBreakdownTicketsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  if (activeSection === 'Site Visits') {
+    return <OmSiteVisitsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  if (activeSection === 'Asset Management') {
+    return <OmAssetManagementPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  if (activeSection === 'Spare Parts') {
+    return <OmSparePartsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  if (activeSection === 'O&M Reports') {
+    return <OmReportsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  if (activeSection === 'Energy Performance') {
+    // Energy performance fields (generated/consumed kWh, PR, specific yield) live on
+    // the Asset record itself (BUG-010) — Asset Management is where they're editable.
+    return <OmAssetManagementPage activeSection="Asset Management" onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+  // 'Maintenance Tasks' + legacy section ('O&M Overview') land here
+  return <OmMaintenanceTasksPage activeSection="Maintenance Tasks" onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function OmMaintenanceTasksPage({ activeSection, onOpenSection, onNotify }) {
+  const config = {
+    moduleTitle: 'O&M',
+    Subnav: OmSubnavTabs,
+    title: 'Maintenance Tasks',
+    recordLabel: 'Task',
+    newLabel: 'New Maintenance',
+    api: omMaintenanceApi,
+    docApi: omDocumentApi,
+    docModule: 'Maintenance',
+    statuses: ['Pending', 'In Progress', 'Completed', 'Overdue'],
+    searchKeys: ['title', 'site', 'engineer', 'task_type'],
+    checklistItems: ['Visual inspection done', 'Cleaning completed', 'Connections tightened', 'Earthing checked', 'Performance verified', 'Site left safe & clean'],
+    columns: [
+      { label: 'Task ID', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
+      { label: 'Site', render: (r) => r.site || '—' },
+      { label: 'Engineer', render: (r) => r.engineer || '—' },
+      { label: 'Due Date', render: (r) => lcFormatDate(r.due_date) },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+    ],
+    fields: [
+      { name: 'title', label: 'Task Title', type: 'text', required: true },
+      { name: 'project', label: 'Project', type: 'project' },
+      { name: 'site', label: 'Site', type: 'text' },
+      { name: 'task_type', label: 'Task Type', type: 'select', options: ['Preventive', 'Corrective'] },
+      { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Medium', 'High'] },
+      { name: 'engineer', label: 'Assigned Engineer', type: 'text' },
+      { name: 'due_date', label: 'Due Date', type: 'date' },
+      { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'In Progress', 'Completed', 'Overdue'] },
+      { name: 'work_details', label: 'Work Details', type: 'textarea' },
+      { name: 'remarks', label: 'Remarks', type: 'textarea' },
+    ],
+    defaults: { title: '', project: '', site: '', task_type: 'Preventive', priority: 'Medium', engineer: '', due_date: '', status: 'Pending', work_details: '', remarks: '' },
+    detailRows: [
+      ['Task Title', (r) => r.title, true],
+      ['Site', (r) => r.site || '—'],
+      ['Task Type', (r) => r.task_type],
+      ['Priority', (r) => <LcStatusBadge status={r.priority} />],
+      ['Engineer', (r) => r.engineer || '—'],
+      ['Due Date', (r) => lcFormatDate(r.due_date)],
+      ['Work Details', (r) => r.work_details || '—', true],
+      ['Remarks', (r) => r.remarks || '—'],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function OmBreakdownTicketsPage({ activeSection, onOpenSection, onNotify }) {
+  const config = {
+    moduleTitle: 'O&M',
+    Subnav: OmSubnavTabs,
+    title: 'Breakdown Tickets',
+    recordLabel: 'Ticket',
+    newLabel: 'New Ticket',
+    api: omTicketApi,
+    docApi: omDocumentApi,
+    docModule: 'Ticket',
+    docTitle: 'Photos',
+    statuses: ['Open', 'In Progress', 'On Hold', 'Resolved'],
+    searchKeys: ['subject', 'site', 'asset_name', 'assigned_to_name'],
+    lookups: { assets: { api: omAssetApi, label: (a) => a.name } },
+    columns: [
+      { label: 'Ticket No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Site', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.site || r.project_name || '—'}</span> },
+      { label: 'Asset', render: (r) => r.asset_name || '—' },
+      { label: 'Priority', render: (r) => <LcStatusBadge status={r.priority} /> },
+      { label: 'Assigned To', render: (r) => r.assigned_to_name || '—' },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+    ],
+    fields: [
+      { name: 'subject', label: 'Subject', type: 'text', required: true },
+      { name: 'project', label: 'Project', type: 'project' },
+      { name: 'site', label: 'Site', type: 'text' },
+      { name: 'asset', label: 'Asset', type: 'lookup', lookup: 'assets' },
+      { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Medium', 'High'] },
+      { name: 'assigned_to', label: 'Assigned To', type: 'user' },
+      { name: 'status', label: 'Status', type: 'select', options: ['Open', 'In Progress', 'On Hold', 'Resolved'] },
+      { name: 'issue_description', label: 'Issue Description', type: 'textarea' },
+      { name: 'resolution', label: 'Resolution', type: 'textarea' },
+      { name: 'remarks', label: 'Remarks', type: 'textarea' },
+    ],
+    defaults: { subject: '', project: '', site: '', asset: '', priority: 'Medium', assigned_to: '', status: 'Open', issue_description: '', resolution: '', remarks: '' },
+    detailRows: [
+      ['Subject', (r) => r.subject, true],
+      ['Site', (r) => r.site || '—'],
+      ['Asset', (r) => r.asset_name || '—'],
+      ['Priority', (r) => <LcStatusBadge status={r.priority} />],
+      ['Assigned To', (r) => r.assigned_to_name || '—'],
+      ['Issue Description', (r) => r.issue_description || '—', true],
+      ['Resolution', (r) => r.resolution || '—', true],
+      ['Remarks', (r) => r.remarks || '—'],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function OmSiteVisitsPage({ activeSection, onOpenSection, onNotify }) {
+  const config = {
+    moduleTitle: 'O&M',
+    Subnav: OmSubnavTabs,
+    title: 'Site Visits',
+    recordLabel: 'Visit',
+    newLabel: 'Schedule Visit',
+    api: omVisitApi,
+    docApi: omDocumentApi,
+    docModule: 'Visit',
+    docTitle: 'Images',
+    statuses: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'],
+    searchKeys: ['site', 'purpose', 'engineer'],
+    checklistItems: ['Site inspection completed', 'Photos captured', 'Customer interaction done', 'Issues noted', 'Report prepared'],
+    columns: [
+      { label: 'Visit No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Site', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.site || r.project_name || '—'}</span> },
+      { label: 'Engineer', render: (r) => r.engineer || '—' },
+      { label: 'Date', render: (r) => lcFormatDate(r.date) },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+    ],
+    fields: [
+      { name: 'project', label: 'Project', type: 'project' },
+      { name: 'site', label: 'Site', type: 'text' },
+      { name: 'purpose', label: 'Purpose', type: 'text' },
+      { name: 'engineer', label: 'Engineer', type: 'text' },
+      { name: 'date', label: 'Visit Date', type: 'date' },
+      { name: 'status', label: 'Status', type: 'select', options: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'] },
+      { name: 'remarks', label: 'Remarks', type: 'textarea' },
+    ],
+    defaults: { project: '', site: '', purpose: '', engineer: '', date: '', status: 'Scheduled', remarks: '' },
+    detailRows: [
+      ['Site', (r) => r.site || '—'],
+      ['Purpose', (r) => r.purpose || '—'],
+      ['Engineer', (r) => r.engineer || '—'],
+      ['Visit Date', (r) => lcFormatDate(r.date)],
+      ['Remarks', (r) => r.remarks || '—'],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function OmAssetManagementPage({ activeSection, onOpenSection, onNotify }) {
+  const ASSET_TYPES = ['Inverter', 'Solar Module', 'Transformer', 'ACDB', 'DCDB', 'Battery Bank', 'Energy Meter', 'SCADA', 'Structure', 'Other'];
+  const config = {
+    moduleTitle: 'O&M',
+    Subnav: OmSubnavTabs,
+    title: 'Assets',
+    recordLabel: 'Asset',
+    newLabel: 'Add Asset',
+    api: omAssetApi,
+    docApi: omDocumentApi,
+    docModule: 'Asset',
+    statuses: ['Operational', 'Under Maintenance', 'Inactive', 'Retired'],
+    extraFilters: [{ key: 'asset_type', label: 'All Asset Types', options: ASSET_TYPES }],
+    searchKeys: ['name', 'site', 'manufacturer', 'asset_type'],
+    columns: [
+      { label: 'Asset ID', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+      { label: 'Asset Name', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.name}</span> },
+      { label: 'Site', render: (r) => r.site || r.project_name || '—' },
+      { label: 'Capacity', render: (r) => r.capacity || '—' },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
+    ],
+    fields: [
+      { name: 'name', label: 'Asset Name', type: 'text', required: true },
+      { name: 'asset_type', label: 'Asset Type', type: 'select', options: ASSET_TYPES },
+      { name: 'project', label: 'Project', type: 'project' },
+      { name: 'site', label: 'Site', type: 'text' },
+      { name: 'capacity', label: 'Capacity', type: 'text' },
+      { name: 'manufacturer', label: 'Manufacturer', type: 'text' },
+      { name: 'installed_on', label: 'Installed On', type: 'date' },
+      { name: 'status', label: 'Status', type: 'select', options: ['Operational', 'Under Maintenance', 'Inactive', 'Retired'] },
+      { name: 'energy_generated_kwh', label: 'Energy Generated (kWh)', type: 'number' },
+      { name: 'energy_consumed_kwh', label: 'Energy Consumed (kWh)', type: 'number' },
+      { name: 'performance_ratio', label: 'Performance Ratio (%)', type: 'number' },
+      { name: 'specific_yield', label: 'Specific Yield (kWh/kWp)', type: 'number' },
+      { name: 'remarks', label: 'Remarks', type: 'textarea' },
+    ],
+    defaults: { name: '', asset_type: 'Inverter', project: '', site: '', capacity: '', manufacturer: '', installed_on: '', status: 'Operational', energy_generated_kwh: '', energy_consumed_kwh: '', performance_ratio: '', specific_yield: '', remarks: '' },
+    detailRows: [
+      ['Asset Name', (r) => r.name],
+      ['Asset Type', (r) => r.asset_type],
+      ['Site', (r) => r.site || '—'],
+      ['Capacity', (r) => r.capacity || '—'],
+      ['Manufacturer', (r) => r.manufacturer || '—'],
+      ['Installed On', (r) => lcFormatDate(r.installed_on)],
+      ['Energy Generated', (r) => (r.energy_generated_kwh != null ? `${Number(r.energy_generated_kwh).toLocaleString('en-IN')} kWh` : '—')],
+      ['Energy Consumed', (r) => (r.energy_consumed_kwh != null ? `${Number(r.energy_consumed_kwh).toLocaleString('en-IN')} kWh` : '—')],
+      ['Performance Ratio', (r) => (r.performance_ratio != null ? `${r.performance_ratio}%` : '—')],
+      ['Specific Yield', (r) => (r.specific_yield != null ? `${r.specific_yield} kWh/kWp` : '—')],
+      ['Remarks', (r) => r.remarks || '—'],
+    ],
+    // Site survey already has the address/GPS and plant capacity — prefill
+    // Site/Capacity so they don't need retyping for a new asset record.
+    onProjectSelect: (projectId, setForm) => {
+      if (!projectId) return;
+      projectApi.get(projectId).then((data) => {
+        const s = data?.site_survey;
+        setForm((prev) => {
+          const next = { ...prev };
+          if (!next.site) {
+            next.site = data?.site_address || (s?.latitude && s?.longitude ? `${s.latitude}, ${s.longitude}` : '') || '';
+          }
+          const capacityRelevant = ['Inverter', 'Solar Module', 'Structure'].includes(prev.asset_type);
+          if (!next.capacity && capacityRelevant && s?.approx_plant_capacity) {
+            next.capacity = s.approx_plant_capacity;
+          }
+          return next;
+        });
+      }).catch(() => {});
+    },
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function OmSparePartsPage({ activeSection, onOpenSection, onNotify }) {
+  const CATEGORIES = ['Electrical', 'Mechanical', 'Electronics', 'Civil', 'Safety', 'Other'];
+  const config = {
+    moduleTitle: 'O&M',
+    Subnav: OmSubnavTabs,
+    title: 'Spare Parts',
+    recordLabel: 'Spare Part',
+    newLabel: 'Add Spare Part',
+    api: omSparePartApi,
+    statuses: [],
+    extraFilters: [
+      { key: 'category', label: 'All Categories', options: CATEGORIES },
+      { key: 'stock_status', label: 'Stock Status', options: ['In Stock', 'Low Stock', 'Out of Stock'], client: true },
+    ],
+    searchKeys: ['name', 'category', 'site', 'supplier'],
+    columns: [
+      { label: 'Part Name', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.name}</span> },
+      { label: 'Category', render: (r) => r.category },
+      { label: 'Stock', render: (r) => `${r.stock_qty} ${r.unit || ''}`.trim() },
+      { label: 'Minimum Stock', render: (r) => r.min_stock },
+      { label: 'Status', render: (r) => <LcStatusBadge status={r.stock_status} /> },
+    ],
+    fields: [
+      { name: 'name', label: 'Part Name', type: 'text', required: true },
+      { name: 'category', label: 'Category', type: 'select', options: CATEGORIES },
+      { name: 'site', label: 'Site / Location', type: 'text' },
+      { name: 'stock_qty', label: 'Stock Quantity', type: 'number', required: true },
+      { name: 'min_stock', label: 'Minimum Stock', type: 'number', required: true },
+      { name: 'unit', label: 'Unit', type: 'text' },
+      { name: 'unit_cost', label: 'Unit Cost (Rs)', type: 'number' },
+      { name: 'supplier', label: 'Supplier', type: 'text' },
+      { name: 'remarks', label: 'Remarks', type: 'textarea' },
+    ],
+    defaults: { name: '', category: 'Electrical', site: '', stock_qty: '', min_stock: '', unit: 'Nos', unit_cost: '', supplier: '', remarks: '' },
+    detailRows: [
+      ['Part No', (r) => r.record_no],
+      ['Part Name', (r) => r.name],
+      ['Category', (r) => r.category],
+      ['Site / Location', (r) => r.site || '—'],
+      ['Stock Quantity', (r) => `${r.stock_qty} ${r.unit || ''}`.trim()],
+      ['Minimum Stock', (r) => r.min_stock],
+      ['Unit Cost', (r) => (r.unit_cost != null ? `Rs ${Number(r.unit_cost).toLocaleString('en-IN')}` : '—')],
+      ['Supplier', (r) => r.supplier || '—'],
+      ['Remarks', (r) => r.remarks || '—'],
+    ],
+  };
+  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+}
+
+function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
+  const REPORT_TYPES = ['Performance Report', 'Maintenance Report', 'Breakdown Report', 'Compliance Report', 'Inventory Report', 'Other'];
+  const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [viewItem, setViewItem] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: '', report_type: 'Performance Report', file: null, remarks: '' });
+
+  const loadReports = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (filterType) params.report_type = filterType;
+    omReportApi.list(params)
+      .then((r) => { setReports(normalizeApiRows(r)); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [filterType]);
+
+  useEffect(() => { loadReports(); }, [loadReports]);
+
+  const filtered = reports.filter((r) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return [r.record_no, r.name, r.report_type, r.generated_by_name].some((v) => (v || '').toLowerCase().includes(q));
+  });
+
+  function handleCreate() {
+    if (!form.name) return;
+    setSaving(true);
+    let body;
+    if (form.file) {
+      body = new FormData();
+      body.append('name', form.name);
+      body.append('report_type', form.report_type);
+      body.append('file', form.file);
+      body.append('remarks', form.remarks);
+    } else {
+      body = { name: form.name, report_type: form.report_type, remarks: form.remarks };
+    }
+    omReportApi.create(body)
+      .then(() => { onNotify('Report added.', 'success'); setShowNew(false); setForm({ name: '', report_type: 'Performance Report', file: null, remarks: '' }); loadReports(); })
+      .catch((e) => onNotify(e.message || 'Save failed.', 'error'))
+      .finally(() => setSaving(false));
+  }
+
+  function confirmDeleteReport(item) {
+    setDeleteConfirm({
+      message: item.name,
+      onConfirm: () => {
+        omReportApi.delete(item.id)
+          .then(() => { onNotify('Report deleted.', 'success'); setDeleteConfirm(null); if (viewItem?.id === item.id) setViewItem(null); loadReports(); })
+          .catch(() => onNotify('Delete failed.', 'error'));
+      },
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title="O&M"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'O&M' },
+          { label: 'Reports' },
+        ]}
+        actions={
+          <button type="button" onClick={() => setShowNew(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
+            <Plus className="size-4" />New Report
+          </button>
+        }
+      />
+
+      <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
+            <input
+              className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none"
+              placeholder="Search reports..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+            <option value="">All Types</option>
+            {REPORT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          {(search || filterType) && (
+            <button type="button" onClick={() => { setSearch(''); setFilterType(''); }} className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Clear</button>
+          )}
+        </div>
+
+        <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">Loading reports...</div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <FileText className="size-10 text-[#c7d4e0]" />
+              <p className="text-[14px] font-bold text-[#7a8fa6]">No reports found</p>
+              <button type="button" onClick={() => setShowNew(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white">
+                <Plus className="size-3.5" />New Report
+              </button>
+            </div>
+          ) : (
+            <div className="max-h-[62vh] overflow-auto">
+              <table className="w-full min-w-[760px] text-left text-[13px]">
+                <thead>
+                  <tr>
+                    {['Report Name', 'Report Type', 'Generated Date', 'Generated By', 'Actions'].map((h) => (
+                      <th key={h} className="sticky top-0 z-10 border-b border-[#e5eaf2] bg-[#f8fafc] px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f1f5f9]">
+                  {filtered.map((item) => (
+                    <tr key={item.id} className="hover:bg-[#f8fafc]">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <FileText className="size-4 shrink-0 text-[#7a8fa6]" />
+                          <span className="max-w-[280px] truncate font-semibold text-[#1e2a38]" title={item.name}>{item.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-bold text-[#0b65e5]">{item.report_type}</span>
+                      </td>
+                      <td className="px-4 py-3 text-[#53647f]">{lcFormatDate(item.created_at)}</td>
+                      <td className="px-4 py-3 text-[#53647f]">{item.generated_by_name || '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <button type="button" title="View" onClick={() => setViewItem(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3.5" /></button>
+                          {item.file && (
+                            <a href={getMediaUrl(item.file)} download target="_blank" rel="noreferrer" title="Download" className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3.5" /></a>
+                          )}
+                          <button type="button" title="Delete" onClick={() => confirmDeleteReport(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#fecaca] text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* New Report popup */}
+      {showNew && (
+        <LcModalShell
+          title="New Report"
+          onClose={() => setShowNew(false)}
+          footer={
+            <>
+              <button type="button" onClick={() => setShowNew(false)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
+              <button type="button" onClick={handleCreate} disabled={saving || !form.name} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60">
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </>
+          }
+        >
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <div className="col-span-2">
+              <label className={lcLabelCls}>Report Name *</label>
+              <input type="text" className={lcInputCls} value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className={lcLabelCls}>Report Type</label>
+              <select className={lcInputCls} value={form.report_type} onChange={(e) => setForm((p) => ({ ...p, report_type: e.target.value }))}>
+                {REPORT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lcLabelCls}>Attach File</label>
+              <input type="file" className="block w-full text-[12px] text-[#1e2a38] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:py-1.5 file:text-[12px] file:font-bold file:text-[#0b65e5]" onChange={(e) => setForm((p) => ({ ...p, file: e.target.files[0] || null }))} />
+            </div>
+            <div className="col-span-2">
+              <label className={lcLabelCls}>Remarks</label>
+              <textarea rows={2} className={lcTextareaCls} value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} />
+            </div>
+          </div>
+        </LcModalShell>
+      )}
+
+      {/* View popup */}
+      {viewItem && (
+        <LcModalShell
+          title={`${viewItem.record_no} — Report`}
+          onClose={() => setViewItem(null)}
+          footer={
+            <>
+              {viewItem.file && (
+                <a href={getMediaUrl(viewItem.file)} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
+              )}
+              <button type="button" onClick={() => confirmDeleteReport(viewItem)} className="h-9 rounded-[8px] border border-[#fecaca] px-4 text-[13px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Delete</button>
+              <button type="button" onClick={() => setViewItem(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
+            </>
+          }
+        >
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
+            {[
+              ['Report Name', viewItem.name],
+              ['Report Type', viewItem.report_type],
+              ['Generated Date', lcFormatDate(viewItem.created_at)],
+              ['Generated By', viewItem.generated_by_name || '—'],
+              ['Remarks', viewItem.remarks || '—'],
+            ].map(([label, val]) => (
+              <div key={label} className={label === 'Remarks' || label === 'Report Name' ? 'col-span-2' : ''}>
+                <dt className={lcLabelCls}>{label}</dt>
+                <dd className="font-semibold text-[#1e2a38] whitespace-pre-wrap">{val}</dd>
+              </div>
+            ))}
+          </dl>
+          {!viewItem.file && <p className="mt-4 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[12px] text-[#7a8fa6]">No file attached to this report.</p>}
+        </LcModalShell>
+      )}
+
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
 // ── Accounts (simplified popup-based module) ──────────────────────────────────
 
 const ACC_PAYMENT_MODES = ['Cash', 'Cheque', 'NEFT', 'RTGS', 'UPI', 'IMPS', 'Transfer', 'Other'];
@@ -12594,7 +13226,7 @@ function SummaryExecutivePage({ activeSection, onOpenSection, onNotify }) {
     { label: 'New Lead', section: 'Create Lead', icon: UserPlus, tone: 'green' },
     { label: 'Record Payment', section: 'Payment Received', icon: ReceiptText, tone: 'blue' },
     { label: 'Stock', section: 'Stock', icon: Download, tone: 'amber' },
-    { label: 'O&M Pending', section: OM_PENDING_SECTIONS[0], icon: Wrench, tone: 'red' },
+    { label: 'Tracker', section: OM_PENDING_SECTIONS[0], icon: Wrench, tone: 'red' },
     { label: 'Full Reports', section: 'Insights', icon: BarChart3, tone: 'purple' },
   ];
 
@@ -33307,7 +33939,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   const [dateTo, setDateTo] = useState('');
 
   // `autoOpenCreate` is `true` (dashboard quick action → pick a lead) or a lead
-  // object (O&M Pending Quotations → lead already chosen, go to template step).
+  // object (Tracker Quotations → lead already chosen, go to template step).
   useEffect(() => {
     if (!autoOpenCreate) return;
     setCreateFlow(autoOpenCreate?.id ? { step: 'template', lead: autoOpenCreate } : { step: 'lead' });
@@ -34237,6 +34869,21 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
     followUpApi.list(lead.id).then((data) => setFollowUps(Array.isArray(data) ? data : data?.results ?? [])).catch(() => setFollowUps([]));
   };
 
+  // Saving a follow-up moves the lead's next follow-up date on the backend.
+  const reloadAfterFollowUpChange = () => {
+    loadFollowUps();
+    if (!lead?.id) return;
+    leadApi.get(lead.id).then((data) => {
+      if (!data) return;
+      onLeadUpdated?.({
+        status: data.status || 'New',
+        nextFollowUp: data.next_follow_up
+          ? new Date(data.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+          : '—',
+      });
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     setFollowUps(null);
     loadFollowUps();
@@ -34621,7 +35268,7 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
                         await followUpApi.delete(item.id);
                         onNotify?.('Follow-up deleted.');
                         setDeleteConfirm(null);
-                        loadFollowUps();
+                        reloadAfterFollowUpChange();
                       } catch (err) {
                         onNotify?.(err.message || 'Could not delete follow-up.', 'error');
                         setDeleteConfirm(null);
@@ -34948,7 +35595,7 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
           type={activeModal}
           lead={lead}
           onClose={() => setActiveModal(null)}
-          onSaved={loadFollowUps}
+          onSaved={reloadAfterFollowUpChange}
           onLeadUpdated={onLeadUpdated}
           onNotify={onNotify}
         />
@@ -34958,7 +35605,7 @@ function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', o
           followUp={editFollowUp}
           lead={lead}
           onClose={() => setEditFollowUp(null)}
-          onSaved={() => { setEditFollowUp(null); loadFollowUps(); }}
+          onSaved={() => { setEditFollowUp(null); reloadAfterFollowUpChange(); }}
           onNotify={onNotify}
         />
       ) : null}
