@@ -1,10 +1,11 @@
-import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, ExternalLink,
-  FileText, Package, PackageCheck, PackageX, Receipt, RefreshCw, Search, Truck, Undo2, Wrench,
+  FileText, Package, PackageCheck, PackageX, Phone, Receipt, RefreshCw, Search, Truck, Undo2, Wrench,
 } from 'lucide-react';
 import { omPendingApi } from './api.js';
 import { moduleCaps } from './settingsHubPages.jsx';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 
 export const OM_PENDING_STEPS = [
   { key: 'Pending Work Order', short: 'Work Order', countKey: 'work_orders', icon: ClipboardList, loader: 'workOrders', route: '/om/pending-work-orders' },
@@ -97,9 +98,18 @@ function stepNote(step, summary) {
 }
 
 function PendingFlowStrip({ activeSection, summary, onOpenSection }) {
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    const active = container?.querySelector('[data-active-step="1"]');
+    if (!container || !active || container.scrollWidth <= container.clientWidth) return;
+    container.scrollTo({ left: active.offsetLeft - (container.clientWidth - active.offsetWidth) / 2, behavior: 'smooth' });
+  }, [activeSection]);
+
   return (
     <section className={cx(PANEL, 'p-2.5 sm:p-3')}>
-      <div className="module-tab-scroll -mx-1 overflow-x-auto px-1">
+      <div ref={scrollRef} className="module-tab-scroll relative -mx-1 overflow-x-auto px-1">
         <div className="grid w-[1020px] grid-cols-6 gap-2 2xl:w-full">
           {OM_PENDING_STEPS.map((step, index) => {
             const Icon = step.icon;
@@ -110,6 +120,7 @@ function PendingFlowStrip({ activeSection, summary, onOpenSection }) {
               <button
                 key={step.key}
                 type="button"
+                data-active-step={active ? '1' : undefined}
                 onClick={() => onOpenSection(step.key)}
                 className={cx(
                   'relative flex flex-col gap-1.5 rounded-[12px] border px-3 py-2.5 text-left transition active:scale-[0.98]',
@@ -147,7 +158,7 @@ function PendingFlowStrip({ activeSection, summary, onOpenSection }) {
 function FilterChips({ options, value, onChange }) {
   if (!options.length) return null;
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="module-tab-scroll -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
       {options.map((opt) => {
         const active = value === opt.value;
         return (
@@ -156,7 +167,7 @@ function FilterChips({ options, value, onChange }) {
             type="button"
             onClick={() => onChange(opt.value)}
             className={cx(
-              'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-bold transition',
+              'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12px] font-bold transition',
               active ? 'border-[#f59e0b] bg-[#fff7ea] text-[#9a5a00]' : 'border-[#dce6f3] bg-white text-[#53647f] hover:bg-[#f8fbff]',
             )}
           >
@@ -609,6 +620,213 @@ function MaterialsTable({ rows, caps, onOpenSection }) {
   );
 }
 
+const EMPTY_MESSAGE = {
+  'Pending Work Order': 'Work orders generated for all projects',
+  'Pending Quotations': 'Quotations created for all won leads',
+  'Pending Dispatch': 'All planned material has been dispatched',
+  'Pending Installation': 'All installations are done',
+  'Pending Invoice': 'Invoices created for all projects',
+  'Short Listed Material': 'No material is short',
+};
+
+function capacityLabel(row) {
+  return row.capacity_kwp > 0 ? `${row.capacity_kwp} kWp` : null;
+}
+
+function customerLine(row) {
+  return [row.customer_name, row.mobile_number].filter(Boolean).join(' · ') || null;
+}
+
+function dialHref(mobile) {
+  const digits = String(mobile || '').replace(/\D/g, '');
+  return digits ? `tel:${digits}` : null;
+}
+
+function TrackerMobileCards({ section, rows, caps, busyKey, delayDays, onPack, onMarkDone, onOpenProject, onCreateQuotation, onOpenLead, onOpenSection }) {
+  if (rows.length === 0) {
+    return <MobileCardEmpty icon={CheckCircle2} title={EMPTY_MESSAGE[section]} hint="Nothing pending — all work is up to date." />;
+  }
+  return (
+    <MobileCardList>
+      {rows.map((row) => {
+        const call = { label: 'Call', icon: Phone, tone: 'green', href: dialHref(row.mobile_number), disabled: !dialHref(row.mobile_number) };
+
+        if (section === 'Pending Quotations') {
+          return (
+            <MobileRecordCard
+              key={row.id}
+              avatar={row.customer_name}
+              title={row.customer_name || '—'}
+              subtitle={[row.mobile_number, row.estimated_capacity].filter(Boolean).join(' · ')}
+              badges={<Pill tone={row.days_pending >= 3 ? 'red' : 'amber'}>Pending {daysLabel(row.days_pending)}</Pill>}
+              details={[
+                { label: 'Project', value: row.project_name || row.project_type || '—' },
+                { label: 'Assigned To', value: row.assigned_to_name || '—' },
+                { label: 'Won On', value: fmtDate(row.won_on) },
+                { label: 'IVRS', value: row.ivrs_number || '—' },
+              ]}
+              actions={[
+                call,
+                { label: 'Quotation', icon: FileText, tone: 'blue', disabled: !caps.quotationAdd, onClick: () => onCreateQuotation(row) },
+                { label: 'Lead', icon: ExternalLink, tone: 'slate', disabled: !caps.lead, onClick: () => onOpenLead(row) },
+              ]}
+            />
+          );
+        }
+
+        if (section === 'Short Listed Material') {
+          return (
+            <MobileRecordCard
+              key={row.id}
+              icon={Package}
+              iconTone="bg-[#fee2e2] text-[#dc2626]"
+              title={row.name}
+              subtitle={[row.item_code, row.category].filter(Boolean).join(' · ')}
+              badges={<Pill tone={materialTone(row.status)}>{row.status}</Pill>}
+              details={[
+                { label: 'In Stock', value: `${fmtQty(row.current_stock)} ${row.unit || ''}`.trim(), tone: row.current_stock <= 0 ? 'danger' : undefined },
+                { label: 'Min Stock', value: fmtQty(row.minimum_stock) },
+                { label: 'Short By', value: row.shortage ? `${fmtQty(row.shortage)} ${row.unit || ''}`.trim() : '—', tone: row.shortage ? 'danger' : undefined },
+                { label: 'Reorder Value', value: fmtRs(row.reorder_value) },
+                { label: 'Warehouse', value: row.warehouse || '—' },
+                row.project_demand ? { label: 'Project Need', value: `${fmtQty(row.project_demand)} (${row.projects.length} project${row.projects.length === 1 ? '' : 's'})` } : null,
+              ]}
+              actions={[{ label: 'Add Stock', icon: Package, tone: 'green', disabled: !caps.inventory, onClick: () => onOpenSection('Stock') }]}
+            />
+          );
+        }
+
+        const projectTitle = [row.project_name, row.project_id].find((v) => v && v !== '—') || '—';
+        const base = {
+          avatar: projectTitle,
+          title: projectTitle,
+          subtitle: [row.project_id, capacityLabel(row)].filter(Boolean).join(' · '),
+          footnote: [customerLine(row), row.site].filter(Boolean).join(' · '),
+        };
+
+        if (section === 'Pending Work Order') {
+          return (
+            <MobileRecordCard
+              key={row.id}
+              {...base}
+              badges={(
+                <Pill tone={row.stage === 'Ready to Generate' ? 'green' : row.stage === 'Job Sheet Draft' ? 'amber' : 'slate'}>
+                  {row.stage}{row.stage === 'Ready to Generate' ? ` · ${row.job_sheet_assigned_rows}` : ''}
+                </Pill>
+              )}
+              details={[
+                { label: 'Job Sheet', value: row.job_sheet_no || 'Not created' },
+                { label: 'Pending Since', value: daysLabel(row.days_pending) },
+              ]}
+              actions={[
+                call,
+                {
+                  label: row.stage === 'Ready to Generate' ? 'Generate WO' : row.job_sheet_id ? 'Job Sheet' : 'Create Sheet',
+                  icon: ClipboardList,
+                  tone: 'blue',
+                  disabled: !caps.project,
+                  onClick: () => onOpenProject(row, 'Project Job Sheet'),
+                },
+              ]}
+            />
+          );
+        }
+
+        if (section === 'Pending Dispatch') {
+          const busy = busyKey === `p-${row.id}`;
+          return (
+            <MobileRecordCard
+              key={row.id}
+              {...base}
+              className={row.is_delayed ? 'border-[#fecaca]' : undefined}
+              badges={(
+                <>
+                  <Pill tone={dispatchStageTone(row.stage)}>
+                    {row.is_delayed ? <AlertTriangle className="size-3" /> : null}
+                    {row.stage}{row.is_delayed ? ` · ${row.delay_days}d` : ''}
+                  </Pill>
+                  {row.packed_since ? <span className="text-[10px] font-semibold text-[#8a98af]">Packed {fmtDate(row.packed_since)}</span> : null}
+                </>
+              )}
+              details={[
+                { label: 'BOM Lines', value: row.total_lines },
+                { label: 'Pending', value: row.pending_lines },
+                { label: 'Packed', value: row.packed_lines },
+                { label: 'Partial', value: row.partial_lines },
+              ]}
+              highlight={row.is_delayed ? `Packed ${row.delay_days} days ago, not dispatched yet (limit ${delayDays} days)` : null}
+              actions={[
+                row.pending_lines > 0
+                  ? { label: busy ? 'Saving...' : 'Mark Packed', icon: PackageCheck, tone: 'amber', disabled: !caps.omEdit || busy, onClick: () => onPack(row, true) }
+                  : row.packed_lines > 0
+                    ? { label: busy ? 'Saving...' : 'Unpack', icon: Undo2, tone: 'slate', disabled: !caps.omEdit || busy, onClick: () => onPack(row, false) }
+                    : null,
+                { label: 'Dispatch', icon: Truck, tone: 'green', disabled: !caps.project, onClick: () => onOpenProject(row, 'Project Dispatch') },
+              ]}
+            />
+          );
+        }
+
+        if (section === 'Pending Installation') {
+          const busy = busyKey === `i-${row.id}`;
+          return (
+            <MobileRecordCard
+              key={row.id}
+              {...base}
+              badges={(
+                <>
+                  {row.material_lines === 0
+                    ? <Pill tone="slate">No BOM</Pill>
+                    : <Pill tone={row.material_ready ? 'green' : 'amber'}>{row.material_ready ? 'Material dispatched' : `${row.dispatched_lines}/${row.material_lines} sent`}</Pill>}
+                  {row.is_overdue ? <Pill tone="red">Overdue</Pill> : null}
+                </>
+              )}
+              details={[
+                row.target_date ? { label: 'Target Date', value: fmtDate(row.target_date), tone: row.is_overdue ? 'danger' : undefined } : null,
+                row.tasks_total ? { label: 'Tasks', value: `${row.tasks_done}/${row.tasks_total}` } : null,
+                row.qa_total ? { label: 'QA', value: `${row.qa_done}/${row.qa_total}` } : null,
+              ]}
+              actions={[
+                call,
+                { label: busy ? 'Saving...' : 'Mark Done', icon: CheckCircle2, tone: 'green', disabled: !caps.omEdit || busy, onClick: () => onMarkDone(row) },
+                { label: 'Open', icon: Wrench, tone: 'slate', disabled: !caps.project, onClick: () => onOpenProject(row, 'Project Installation') },
+              ]}
+            />
+          );
+        }
+
+        const needsChallan = row.pending_document === 'Sales Challan';
+        return (
+          <MobileRecordCard
+            key={row.id}
+            {...base}
+            aside={fmtRs(row.total_value)}
+            badges={(
+              <>
+                <Pill tone={needsChallan ? 'amber' : 'blue'}>{row.pending_document} pending</Pill>
+                <Pill tone={row.installation_status === 'Done' ? 'green' : 'slate'}>Install: {row.installation_status || 'Not Done'}</Pill>
+              </>
+            )}
+            details={[
+              { label: 'Sales Challan', value: row.challan_no ? `${row.challan_no} · ${fmtRs(row.challan_total)}` : 'Not created', wide: true },
+            ]}
+            actions={[
+              call,
+              {
+                label: needsChallan ? 'Create Challan' : 'Create Invoice',
+                icon: Receipt,
+                tone: 'blue',
+                disabled: !caps.project,
+                onClick: () => onOpenProject(row, needsChallan ? 'Project Sales Challan' : 'Project Invoice'),
+              },
+            ]}
+          />
+        );
+      })}
+    </MobileCardList>
+  );
+}
+
 /* ───────────────── Page ───────────────── */
 
 const SEARCH_FIELDS = {
@@ -795,7 +1013,22 @@ export function OmPendingFlowPage({
         {loading && data.section !== section ? (
           <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
         ) : (
-          <div data-no-col-resize="1" className="overflow-x-auto">{table}</div>
+          <>
+            <TrackerMobileCards
+              section={section}
+              rows={visibleRows}
+              caps={caps}
+              busyKey={busyKey}
+              delayDays={data.delayDays}
+              onPack={handlePack}
+              onMarkDone={setConfirmDone}
+              onOpenProject={onOpenProject}
+              onCreateQuotation={onCreateQuotation}
+              onOpenLead={onOpenLead}
+              onOpenSection={onOpenSection}
+            />
+            <div data-no-col-resize="1" className="hidden overflow-x-auto lg:block">{table}</div>
+          </>
         )}
       </section>
 

@@ -4,6 +4,7 @@ import {
   Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, X,
 } from 'lucide-react';
 import { accountsModuleApi, jobSheetApi, materialPlanApi, projectApi, workforceApi } from './api.js';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
 const CELL_INPUT = 'h-8 w-full rounded-[6px] border border-transparent bg-transparent px-1.5 text-[13px] font-semibold text-[#1e3261] outline-none transition hover:border-[#dce6f3] focus:border-[#86b7fe] focus:bg-white';
@@ -669,12 +670,12 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
         )}
 
         <div className="mt-6 border-t border-[#edf2f8] pt-5">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <label className="col-span-2 grid gap-1 text-[12px] font-bold text-[#53647f] sm:col-span-1">
               Project No
               <input value={filterDraft.project_code} onChange={(e) => setFilterDraft((p) => ({ ...p, project_code: e.target.value }))} placeholder="Search by project no" className={FILTER_INPUT} />
             </label>
-            <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">
+            <label className="col-span-2 grid gap-1 text-[12px] font-bold text-[#53647f] sm:col-span-1">
               Customer Name
               <input value={filterDraft.customer} onChange={(e) => setFilterDraft((p) => ({ ...p, customer: e.target.value }))} placeholder="Search by customer name" className={FILTER_INPUT} />
             </label>
@@ -688,7 +689,7 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
             </label>
           </div>
           <div className="mt-3 flex gap-2">
-            <button type="button" onClick={() => { setVisible(PAGE_SIZE); setFilters({ ...filterDraft }); }} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#078c3e] px-4 text-[13px] font-bold text-white">
+            <button type="button" onClick={() => { setVisible(PAGE_SIZE); setFilters({ ...filterDraft }); }} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-[#078c3e] px-4 text-[13px] font-bold text-white sm:h-9 sm:flex-none">
               <Search className="size-4" /> Search
             </button>
             <button
@@ -699,7 +700,7 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
                 setFilters(empty);
                 setVisible(PAGE_SIZE);
               }}
-              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d5e0ef] bg-white px-4 text-[13px] font-semibold text-[#314a79]"
+              className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[8px] border border-[#d5e0ef] bg-white px-4 text-[13px] font-semibold text-[#314a79] sm:h-9 sm:flex-none"
             >
               <RotateCcw className="size-4" /> Reset
             </button>
@@ -708,7 +709,42 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
 
         <div className="mt-6">
           <h3 className="font-display text-[18px] font-extrabold text-[#111827]">Job Sheet Reports</h3>
-          <div className="mt-3 overflow-x-auto rounded-[10px] border border-[#e7eef7]">
+          {listLoading ? (
+            <p className="py-8 text-center text-[13px] font-semibold text-[#8a98af] lg:hidden">Loading...</p>
+          ) : shown.length === 0 ? (
+            <div className="mt-3"><MobileCardEmpty icon={ClipboardList} title="No job sheets found." /></div>
+          ) : (
+            <MobileCardList className="mt-3">
+              {shown.map((row) => (
+                <MobileRecordCard
+                  key={row.id}
+                  icon={ClipboardList}
+                  className={String(row.project) === String(projectId) ? 'ring-2 ring-[#bbf7d0]' : undefined}
+                  title={row.customer_name || row.project_code || '—'}
+                  subtitle={[row.job_sheet_no, row.project_code].filter(Boolean).join(' · ')}
+                  aside={money(row.final_total)}
+                  badges={(
+                    <span className={cx('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-bold capitalize', row.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : 'bg-[#fff0dc] text-[#b45309]')}>
+                      <span className="size-1.5 rounded-full bg-current" />
+                      {row.status?.toLowerCase() || 'draft'}
+                    </span>
+                  )}
+                  details={[
+                    { label: 'Manager', value: row.manager_name || 'N/A' },
+                    { label: 'Work Orders', value: row.work_order_count || 'N/A' },
+                    { label: 'Date', value: fmtDate(row.updated_at) },
+                  ]}
+                  onOpen={() => openSheet(row, true)}
+                  actions={[
+                    { label: 'View', icon: Eye, tone: 'purple', onClick: () => openSheet(row, true) },
+                    { label: 'Edit', icon: Pencil, tone: 'blue', onClick: () => openSheet(row, false) },
+                  ]}
+                  menu={[{ label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleting(row) }]}
+                />
+              ))}
+            </MobileCardList>
+          )}
+          <div className="mt-3 hidden overflow-x-auto rounded-[10px] border border-[#e7eef7] lg:block">
             <table className="w-full min-w-[960px] border-collapse text-left">
               <thead>
                 <tr className="bg-[#f6f8fb] text-[12px] font-bold text-[#1e3261]">

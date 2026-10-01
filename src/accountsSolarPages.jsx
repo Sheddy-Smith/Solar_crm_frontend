@@ -3,6 +3,7 @@ import { Plus, Search, Pencil, Trash2, Eye, Download, Printer } from 'lucide-rea
 import { moduleCaps } from './settingsHubPages.jsx';
 import Button from './components/ui/Button.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { accountsModuleApi, projectApi, inventoryApi } from './api.js';
 
 const panelClass =
@@ -448,14 +449,42 @@ export function AccountsLineDocumentPage({
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#9aaac0]" />
             <input className={cx(inputClass, 'pl-9')} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search no, party, project..." />
           </div>
-          <select className={cx(inputClass, 'w-44')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select className={cx(inputClass, 'w-full sm:w-44')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
             {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
       </article>
 
-      <div className={dataPanelClass}>
+      {loading ? (
+        <p className="py-8 text-center text-[13px] font-bold text-[#7b8ca8] lg:hidden">Loading...</p>
+      ) : filtered.length === 0 ? (
+        <MobileCardEmpty title="No records found" hint={`Add your first ${recordLabel.toLowerCase()}.`} />
+      ) : (
+        <MobileCardList>
+          {filtered.map((row) => (
+            <MobileRecordCard
+              key={row.id}
+              title={row[partyConfig.displayKey] || row[partyConfig.nameKey] || '—'}
+              subtitle={<span className="font-extrabold text-[#0b65e5]">{row.record_no}</span>}
+              aside={fmtRs(row.total_amount)}
+              badges={<StatusBadge status={row.status} />}
+              details={[
+                { label: 'Date', value: fmtDate(row[dateField]) },
+                { label: 'Project', value: row.project_name || '—' },
+              ]}
+              onOpen={caps.view ? () => setViewItem(row) : undefined}
+              actions={[
+                caps.view ? { label: 'View', icon: Eye, tone: 'blue', onClick: () => setViewItem(row) } : null,
+                caps.edit ? { label: 'Edit', icon: Pencil, tone: 'green', onClick: () => openEdit(row) } : null,
+                caps.delete ? { label: 'Delete', icon: Trash2, tone: 'red', onClick: () => deleteRow(row) } : null,
+              ]}
+            />
+          ))}
+        </MobileCardList>
+      )}
+
+      <div className={cx(dataPanelClass, 'hidden lg:block')}>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-[13px]">
             <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#7b8ca8]">
@@ -761,12 +790,12 @@ export function GstLedgerPage({ Subnav, activeSection, onOpenSection, onNotify }
 
       <article className={cx(panelClass, 'p-4')}>
         <div className="flex flex-wrap gap-3">
-          <Field label="Year" className="w-32">
+          <Field label="Year" className="min-w-0 flex-1 sm:w-32 sm:flex-none">
             <select className={inputClass} value={year} onChange={(e) => setYear(e.target.value)}>
               {years.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
           </Field>
-          <Field label="Month" className="w-32">
+          <Field label="Month" className="min-w-0 flex-1 sm:w-32 sm:flex-none">
             <select className={inputClass} value={month} onChange={(e) => setMonth(e.target.value)}>
               {months.map((m) => <option key={m} value={m}>{new Date(2000, m - 1, 1).toLocaleString('en-IN', { month: 'long' })}</option>)}
             </select>
@@ -798,7 +827,29 @@ export function GstLedgerPage({ Subnav, activeSection, onOpenSection, onNotify }
         </div>
       </article>
 
-      <div className={dataPanelClass}>
+      {loading ? (
+        <p className="py-8 text-center text-[13px] font-bold text-[#7b8ca8] lg:hidden">Loading...</p>
+      ) : (report?.entries || []).length === 0 ? (
+        <MobileCardEmpty title="No GST entries for this month." />
+      ) : (
+        <MobileCardList>
+          {report.entries.map((row, idx) => (
+            <MobileRecordCard
+              key={`${row.doc_no}-${idx}`}
+              title={row.party || '—'}
+              subtitle={<><span className="font-extrabold text-[#0b65e5]">{row.doc_no}</span> · {row.doc_type} · {fmtDate(row.date)}</>}
+              aside={fmtRs(row.taxable)}
+              details={[
+                { label: 'IGST', value: fmtRs(row.igst) },
+                { label: 'CGST', value: fmtRs(row.cgst) },
+                { label: 'SGST', value: fmtRs(row.sgst) },
+              ]}
+            />
+          ))}
+        </MobileCardList>
+      )}
+
+      <div className={cx(dataPanelClass, 'hidden lg:block')}>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-[13px]">
             <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#7b8ca8]">

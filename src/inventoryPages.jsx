@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { inventoryApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { exportNotifyCsv } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
 
@@ -616,6 +617,30 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
     setModal({ form: { ...defaultsForCategory(defaultCategoryName, categories) } });
   };
 
+  const openEditProduct = (r) => setModal({
+    editId: r.id,
+    form: {
+      ...defaultsForCategory(r.category || 'Structure'),
+      ...r,
+      warehouse: r.warehouse || '',
+      rate: r.rate ?? '',
+      selling_price: r.selling_price ?? '',
+      product_type: r.product_type || '',
+      capacity: r.capacity || '',
+      panel_wp: r.panel_wp ?? '',
+      panel_count: r.panel_count ?? '',
+      auto_sell: false,
+      is_active: r.is_active !== false,
+      initial_stock: '',
+    },
+  });
+
+  const openAdjust = (r) => {
+    if (r.warehouse) setAdjustItem({ id: r.id, name: r.name, quantity: '', direction: 'add', notes: '' });
+  };
+
+  const deleteProduct = (r) => inventoryApi.items.delete(r.id).then(load).catch((e) => onNotify(e.message, 'error'));
+
   return (
     <div className="space-y-4">
       <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Products' }]}
@@ -632,14 +657,46 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
       />
       <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
       <div className={cx(panelClass, 'space-y-4 p-4')}>
-        <div className="flex flex-wrap gap-3">
-          <div className="relative min-w-[220px] flex-1">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+          <div className="relative col-span-2 min-w-0 sm:min-w-[220px] sm:flex-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#7a8fa6]" />
-            <input className="h-10 w-full rounded-[8px] border border-[#d9e2ec] pl-9 pr-3 text-[13px]" placeholder="Search by name, code, category..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
+            <input className="h-11 w-full rounded-[8px] border border-[#d9e2ec] pl-9 pr-3 text-[13px] sm:h-10" placeholder="Search by name, code, category..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
           </div>
+          <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="h-11 min-w-0 rounded-[8px] border border-[#d9e2ec] bg-white px-2 text-[13px] font-semibold text-[#1e3261] lg:hidden">
+            {catOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+          <select aria-label="Stock status" value={stockFilter} onChange={(e) => setStockFilter(e.target.value)} className="h-11 min-w-0 rounded-[8px] border border-[#d9e2ec] bg-white px-2 text-[13px] font-semibold text-[#1e3261] lg:hidden">
+            {STOCK_STATUS_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
         </div>
         {loading ? <p className="py-12 text-center text-[#7a8fa6]">Loading...</p> : (
-          <div className="overflow-auto rounded-[12px] border border-[#e5eaf2]">
+          <>
+          {!filtered.length ? (
+            <MobileCardEmpty icon={Boxes} title="No products found" />
+          ) : (
+            <MobileCardList>
+              {filtered.map((r) => (
+                <MobileRecordCard
+                  key={r.id}
+                  icon={Boxes}
+                  title={r.name}
+                  subtitle={[r.item_code || r.record_no, r.category].filter(Boolean).join(' · ')}
+                  aside={fmtInvRs(r.valuation)}
+                  badges={<InvStatusBadge status={r.stock_status} />}
+                  details={[
+                    { label: 'Stock', value: `${r.current_stock ?? 0} ${r.unit || ''}`.trim(), tone: Number(r.current_stock) <= 0 ? 'danger' : undefined },
+                    { label: 'Reorder At', value: r.minimum_stock ?? '—' },
+                  ]}
+                  actions={[
+                    { label: r.warehouse ? 'Adjust Stock' : 'No Warehouse', icon: SlidersHorizontal, tone: 'blue', disabled: !r.warehouse, onClick: () => openAdjust(r) },
+                    caps.edit ? { label: 'Edit', icon: Pencil, tone: 'purple', onClick: () => openEditProduct(r) } : null,
+                  ]}
+                  menu={caps.delete ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => deleteProduct(r) }] : []}
+                />
+              ))}
+            </MobileCardList>
+          )}
+          <div className="hidden overflow-auto rounded-[12px] border border-[#e5eaf2] lg:block">
             <table className="w-full min-w-[1000px] text-left text-[13px]">
               <thead><tr className="bg-[#f8fafc] text-[11px] font-extrabold uppercase text-[#7a8fa6]">
                 <th className="px-3 py-3">Code</th>
@@ -683,32 +740,16 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                           type="button"
                           title={r.warehouse ? 'Adjust stock' : 'Assign a warehouse first'}
                           disabled={!r.warehouse}
-                          onClick={() => r.warehouse && setAdjustItem({ id: r.id, name: r.name, quantity: '', direction: 'add', notes: '' })}
+                          onClick={() => openAdjust(r)}
                           className="grid size-8 place-items-center rounded-[8px] border border-[#d4e4ff] bg-[#f5f9ff] text-[#0b65e5] transition hover:bg-[#e8f1ff] disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <SlidersHorizontal className="size-3.5" />
                         </button>
                         {caps.edit ? (
-                          <button type="button" onClick={() => setModal({
-                          editId: r.id,
-                          form: {
-                            ...defaultsForCategory(r.category || 'Structure'),
-                            ...r,
-                            warehouse: r.warehouse || '',
-                            rate: r.rate ?? '',
-                            selling_price: r.selling_price ?? '',
-                            product_type: r.product_type || '',
-                            capacity: r.capacity || '',
-                            panel_wp: r.panel_wp ?? '',
-                            panel_count: r.panel_count ?? '',
-                            auto_sell: false,
-                            is_active: r.is_active !== false,
-                            initial_stock: '',
-                          },
-                        })} className="grid size-8 place-items-center rounded-[8px] border border-[#e9dffb] bg-[#f8f4ff] text-[#7c3aed]"><Pencil className="size-3.5" /></button>
+                          <button type="button" onClick={() => openEditProduct(r)} className="grid size-8 place-items-center rounded-[8px] border border-[#e9dffb] bg-[#f8f4ff] text-[#7c3aed]"><Pencil className="size-3.5" /></button>
                         ) : null}
                         {caps.delete ? (
-                          <button type="button" onClick={() => inventoryApi.items.delete(r.id).then(load).catch((e) => onNotify(e.message, 'error'))} className="grid size-8 place-items-center rounded-[8px] border border-[#fecaca] bg-[#fff5f5] text-[#ef4444]"><Trash2 className="size-3.5" /></button>
+                          <button type="button" onClick={() => deleteProduct(r)} className="grid size-8 place-items-center rounded-[8px] border border-[#fecaca] bg-[#fff5f5] text-[#ef4444]"><Trash2 className="size-3.5" /></button>
                         ) : null}
                       </div>
                     </td>
@@ -718,6 +759,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
             </table>
             {!filtered.length ? <p className="py-10 text-center text-[#7a8fa6]">No products found</p> : null}
           </div>
+          </>
         )}
       </div>
       <DashboardFooter />
@@ -1074,6 +1116,24 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
 
   const templateLabel = (value) => FORM_TEMPLATE_OPTIONS.find((o) => o.value === value)?.label || value || 'Generic';
 
+  const openEditCategory = (r) => setModal({
+    editId: r.id,
+    form: {
+      name: r.name,
+      description: r.description || '',
+      is_active: r.is_active !== false,
+      form_template: r.form_template || 'Generic',
+      form_fields: Array.isArray(r.form_fields) && r.form_fields.length ? r.form_fields : [...DEFAULT_CUSTOM_FIELDS],
+    },
+  });
+
+  const deleteCategory = (r) => {
+    if (!window.confirm(`Delete category "${r.name}"?`)) return;
+    inventoryApi.categories.delete(r.id)
+      .then(load)
+      .catch((e) => onNotify(e.message || 'Delete failed', 'error'));
+  };
+
   return (
     <div className="space-y-4">
       <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Categories' }]}
@@ -1085,7 +1145,25 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
           Design a separate Add Product form for each category. The Unit Price field is always included — Material Planning calculates amount as qty × price.
         </p>
         {loading ? <p className="py-10 text-center">Loading...</p> : (
-          <div className="overflow-auto">
+          <>
+          {rows.length === 0 ? (
+            <MobileCardEmpty icon={Tags} title="No categories yet" />
+          ) : (
+            <MobileCardList>
+              {rows.map((r) => (
+                <MobileRecordCard
+                  key={r.id}
+                  icon={Tags}
+                  title={r.name}
+                  badges={<span className="rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-bold text-[#0b65e5]">{templateLabel(r.form_template)}</span>}
+                  details={[{ label: 'Description', value: r.description || '—', wide: true }]}
+                  actions={[caps.edit ? { label: 'Edit Form', icon: Pencil, tone: 'blue', onClick: () => openEditCategory(r) } : null]}
+                  menu={caps.delete ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => deleteCategory(r) }] : []}
+                />
+              ))}
+            </MobileCardList>
+          )}
+          <div className="hidden overflow-auto lg:block">
             <table className="w-full min-w-[720px] text-left text-[13px]">
               <thead>
                 <tr className="border-b text-[11px] font-extrabold uppercase text-[#7a8fa6]">
@@ -1105,30 +1183,12 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
                     <td className="py-3 text-[#53647f]">{r.description || '—'}</td>
                     <td className="py-3">
                       {caps.edit ? (
-                        <button
-                          type="button"
-                          onClick={() => setModal({
-                            editId: r.id,
-                            form: {
-                              name: r.name,
-                              description: r.description || '',
-                              is_active: r.is_active !== false,
-                              form_template: r.form_template || 'Generic',
-                              form_fields: Array.isArray(r.form_fields) && r.form_fields.length ? r.form_fields : [...DEFAULT_CUSTOM_FIELDS],
-                            },
-                          })}
-                          className="mr-2 text-[#0b65e5]"
-                        >
+                        <button type="button" onClick={() => openEditCategory(r)} className="mr-2 text-[#0b65e5]">
                           <Pencil className="size-4 inline" />
                         </button>
                       ) : null}
                       {caps.delete ? (
-                        <button type="button" onClick={() => {
-                          if (!window.confirm(`Delete category "${r.name}"?`)) return;
-                          inventoryApi.categories.delete(r.id)
-                            .then(load)
-                            .catch((e) => onNotify(e.message || 'Delete failed', 'error'));
-                        }} className="text-[#ef4444]"><Trash2 className="size-4 inline" /></button>
+                        <button type="button" onClick={() => deleteCategory(r)} className="text-[#ef4444]"><Trash2 className="size-4 inline" /></button>
                       ) : null}
                     </td>
                   </tr>
@@ -1136,6 +1196,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
               </tbody>
             </table>
           </div>
+          </>
         )}
         <p className="mt-3 text-[12px] font-bold text-[#7a8fa6]">Total {rows.length} categor{rows.length === 1 ? 'y' : 'ies'}</p>
       </div>

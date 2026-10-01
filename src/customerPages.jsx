@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Download, Eye, FileText, IndianRupee, Pencil, Plus, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
+import { AlertCircle, Download, Eye, FileText, IndianRupee, Pencil, Phone, Plus, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
 import { accountsModuleApi } from './api.js';
 import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
+import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
+
+function telHref(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return digits ? `tel:${digits}` : null;
+}
+
+function balanceTone(value) {
+  return Number(value) > 0 ? 'danger' : 'success';
+}
 
 const TABS = [
   { key: 'Customer Details', label: 'Customer Details' },
@@ -259,7 +270,46 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
           <Download className="size-4" /> Export CSV
         </button>) : null}
       </div>
-      <div className="overflow-x-auto rounded-[8px] border border-[#e2e9f3] bg-white">
+      {loading ? (
+        <p className="py-8 text-center text-[13px] font-semibold text-[#7a8fa6] lg:hidden">Loading customers from leads...</p>
+      ) : filtered.length === 0 ? (
+        <MobileCardEmpty title="No customers yet" hint="Add a lead or customer with a mobile number." />
+      ) : (
+        <MobileCardList>
+          {filtered.map((r) => {
+            const projectCount = Number(r.projects_count || r.leads_count || 0);
+            return (
+              <MobileRecordCard
+                key={r.id}
+                avatar={r.name}
+                title={r.name}
+                subtitle={[r.phone, r.company].filter(Boolean).join(' · ')}
+                aside={<span className={Number(r.balance) > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}>{fmtRs(r.balance)}</span>}
+                badges={(
+                  <>
+                    {r.relation ? <RelationBadge value={r.relation} /> : null}
+                    <span className="inline-flex items-center rounded-full bg-[#eff6ff] px-2 py-0.5 text-[10px] font-extrabold text-[#1d4ed8]">
+                      {projectCount} project{projectCount === 1 ? '' : 's'}
+                    </span>
+                  </>
+                )}
+                details={[
+                  { label: 'GSTIN', value: r.gstin },
+                  { label: 'Address', value: r.address || r.city, wide: true },
+                ]}
+                onOpen={caps.view ? () => setDetail(r) : undefined}
+                actions={[
+                  { label: 'Call', icon: Phone, tone: 'green', href: telHref(r.phone), disabled: !telHref(r.phone) },
+                  caps.view ? { label: 'Projects', icon: Eye, tone: 'blue', onClick: () => setDetail(r) } : null,
+                  caps.edit ? { label: 'Edit', icon: Pencil, tone: 'slate', onClick: () => setModal({ id: r.id, form: { ...emptyForm, ...r } }) } : null,
+                ]}
+                menu={caps.delete ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => remove(r) }] : []}
+              />
+            );
+          })}
+        </MobileCardList>
+      )}
+      <div className="hidden overflow-x-auto rounded-[8px] border border-[#e2e9f3] bg-white lg:block">
         <table className="min-w-[860px] w-full border-collapse text-left text-[12px]">
           <thead className="bg-[#f8fbff] text-[10px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">
             <tr>
@@ -578,7 +628,19 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
             {loading ? (
               <p className="py-10 text-center text-[13px] font-semibold text-[#7a8fa6]">Loading...</p>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <LedgerMobileCards
+                entries={entries}
+                emptyText="No ledger entries for this customer."
+                totalDebit={summary.total_debit}
+                totalCredit={summary.total_credit}
+                finalBalance={finalBalance}
+                onOpen={setDetail}
+                TypeBadge={TypeBadge}
+                fmtDate={fmtDisplayDate}
+                fmtMoney={fmtRs}
+              />
+              <div className="hidden overflow-x-auto lg:block">
                 <table className="min-w-[1100px] w-full text-left text-[13px]">
                   <thead className="bg-[#f1f5f9] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
                     <tr>
@@ -626,6 +688,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
                   ) : null}
                 </table>
               </div>
+              </>
             )}
           </div>
         </>
@@ -743,7 +806,50 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
         </button>
       </div>
 
-      <div className="overflow-auto rounded-[14px] border border-[#e2e9f3] bg-white shadow-sm">
+      {!data ? (
+        <p className="py-8 text-center text-[13px] font-semibold text-[#7a8fa6] lg:hidden">Loading...</p>
+      ) : rows.length === 0 ? (
+        <MobileCardEmpty title="No customer balances yet." />
+      ) : (
+        <MobileCardList>
+          {rows.map((r) => (
+            <MobileRecordCard
+              key={r.id}
+              avatar={r.name}
+              title={r.name}
+              subtitle={[r.phone, r.company].filter(Boolean).join(' · ')}
+              aside={<span className={balanceTone(r.net) === 'danger' ? 'text-[#dc2626]' : 'text-[#16a34a]'}>{fmtRs(r.net)}</span>}
+              badges={r.relation ? <RelationBadge value={r.relation} /> : null}
+              details={[
+                { label: 'Debit', value: fmtRs(r.debit), tone: 'danger' },
+                { label: 'Credit', value: fmtRs(r.credit), tone: 'success' },
+                { label: 'Yearly', value: fmtRs(r.yearly_transaction) },
+                { label: 'Last Date', value: fmtDisplayDate(r.last_date) },
+              ]}
+              actions={[
+                { label: 'Call', icon: Phone, tone: 'green', href: telHref(r.phone), disabled: !telHref(r.phone) },
+                {
+                  label: 'Settle',
+                  icon: IndianRupee,
+                  tone: 'red',
+                  onClick: () => setSettle({
+                    id: r.id,
+                    name: r.name,
+                    phone: r.phone,
+                    net: Number(r.net || 0),
+                    amount: String(Number(r.net) > 0 ? Number(r.net) : 0),
+                    payment_date: todayIso(),
+                    payment_mode: 'Cash',
+                    remarks: '',
+                  }),
+                },
+              ]}
+            />
+          ))}
+        </MobileCardList>
+      )}
+
+      <div className="hidden overflow-auto rounded-[14px] border border-[#e2e9f3] bg-white shadow-sm lg:block">
         <table className="min-w-[1100px] w-full text-left text-[13px]">
           <thead className="bg-[#f1f5f9] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
             <tr>

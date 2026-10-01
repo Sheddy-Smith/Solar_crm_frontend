@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ClipboardList, Eye, Pencil, Plus, X, XCircle } from 'lucide-react';
 import { staffDailyTasksApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { hasModuleAccess } from './settingsHubPages.jsx';
 import { cx } from './lib/utils.js';
 
@@ -206,11 +207,11 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
           <h2 className="font-display text-[18px] font-extrabold text-[#102446]">Daily Tasks</h2>
           <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">Track assigned work and mark Completed / Not Completed.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="h-10 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#33456b]"
+            className={cx('h-11 min-w-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#33456b] sm:h-10', !canAssign && 'col-span-2')}
           >
             <option value="All">All status</option>
             <option value="Not Completed">Not Completed</option>
@@ -220,7 +221,7 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
             <button
               type="button"
               onClick={() => setAssignOpen(true)}
-              className={cx('inline-flex h-10 items-center gap-2 rounded-[9px] px-4 text-[13px] font-extrabold text-white transition', assignBtn)}
+              className={cx('inline-flex h-11 items-center justify-center gap-2 rounded-[9px] px-4 text-[13px] font-extrabold text-white transition sm:h-10', assignBtn)}
             >
               <Plus className="size-4" />
               Assign Task
@@ -229,7 +230,37 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-[14px] border border-[#e2e9f3] bg-white shadow-[0_10px_26px_rgba(23,43,77,0.05)]">
+      {loading ? (
+        <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af] lg:hidden">Loading Daily Tasks…</p>
+      ) : visibleRows.length === 0 ? (
+        <MobileCardEmpty icon={ClipboardList} title="No Daily Tasks found." />
+      ) : (
+        <MobileCardList>
+          {visibleRows.map((task) => (
+            <MobileRecordCard
+              key={task.id}
+              icon={ClipboardList}
+              iconTone={task.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : 'bg-[#fff4e5] text-[#c2410c]'}
+              title={task.title}
+              subtitle={formatDate(task.task_date)}
+              badges={<StatusBadge status={task.status} />}
+              details={[
+                { label: 'Assigned To', value: task.assigned_to_name || '—' },
+                { label: 'Assigned By', value: task.assigned_by_name || '—' },
+                task.due_date ? { label: 'Due Date', value: formatDate(task.due_date) } : null,
+                task.description ? { label: 'Description', value: task.description, wide: true } : null,
+              ]}
+              onOpen={() => setViewTask(task)}
+              actions={[
+                { label: 'View', icon: Eye, tone: 'blue', onClick: () => setViewTask(task) },
+                canEdit && task.can_update_status ? { label: 'Update Status', icon: Pencil, tone: 'green', onClick: () => openEdit(task) } : null,
+              ]}
+            />
+          ))}
+        </MobileCardList>
+      )}
+
+      <section className="hidden overflow-hidden rounded-[14px] border border-[#e2e9f3] bg-white shadow-[0_10px_26px_rgba(23,43,77,0.05)] lg:block">
         <div className="overflow-x-auto">
           <table className="min-w-[920px] w-full text-left">
             <thead className="bg-[#f7f9fc] text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">

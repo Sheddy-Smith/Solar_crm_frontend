@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { dailyTasksApi, inventoryApi, leadApi, projectApi, workforceApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
 
 const CARD = 'rounded-[12px] border border-[#dbe5f2] bg-white shadow-[0_8px_24px_rgba(24,48,87,0.06)]';
@@ -465,11 +466,11 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
 
       <section className={`${CARD} p-4 sm:p-5`}>
         <h2 className="text-[15px] font-extrabold text-[#1e3261]">Add New Task</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
           {categoryCounts.map((cat) => {
             const Icon = cat.icon;
             return (
-              <button key={cat.id} type="button" onClick={() => openCreate(cat.id)} className={`flex items-center gap-3 rounded-[10px] border border-[#e7eef7] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${cat.borderHover}`}>
+              <button key={cat.id} type="button" onClick={() => openCreate(cat.id)} style={{ textAlign: 'left' }} className={`flex flex-col items-start gap-2 rounded-[10px] border border-[#e7eef7] bg-white p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md sm:flex-row sm:items-center sm:gap-3 sm:p-4 ${cat.borderHover}`}>
                 <span className={`grid size-11 shrink-0 place-items-center rounded-[10px] ${cat.iconBg}`}>
                   <Icon className={`size-5 ${cat.iconColor}`} />
                 </span>
@@ -485,8 +486,8 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
 
       <section className={`${CARD} p-4 sm:p-5`}>
         <h2 className="text-[15px] font-extrabold text-[#1e3261]">Search Tasks</h2>
-        <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr]">
-          <label className="block text-[12px] font-bold text-[#53647f]">
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr] lg:gap-4">
+          <label className="col-span-2 block text-[12px] font-bold text-[#53647f] lg:col-span-1">
             Search Tasks
             <div className="relative mt-1.5">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#9aa8bc]" />
@@ -498,6 +499,12 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             <select className="mt-1.5 h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
               <option>All Categories</option>
               {TASK_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.shortLabel}</option>)}
+            </select>
+          </label>
+          <label className="block text-[12px] font-bold text-[#53647f] lg:hidden">
+            Status
+            <select className="mt-1.5 h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              {['All', ...STATUS_OPTIONS].map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
           <label className="block text-[12px] font-bold text-[#53647f]">
@@ -516,7 +523,37 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
         <div className="border-b border-[#e7eef7] px-4 py-3 sm:px-5">
           <h2 className="text-[15px] font-extrabold text-[#1e3261]">All Tasks</h2>
         </div>
-        <div className="overflow-x-auto">
+        <div className="p-3 lg:hidden">
+          {loading ? (
+            <p className="py-10 text-center text-[13px] font-semibold text-[#7a8fa6]">Loading tasks…</p>
+          ) : visibleTasks.length === 0 ? (
+            <MobileCardEmpty icon={Boxes} title="No tasks found" hint="Use the cards above to add a site visit, installation or dispatch report." />
+          ) : (
+            <MobileCardList>
+              {visibleTasks.map((task) => {
+                const cat = CATEGORY_MAP[task.category];
+                return (
+                  <MobileRecordCard
+                    key={task.id}
+                    icon={cat?.icon || ClipboardCheck}
+                    iconTone={cat ? `${cat.iconBg} ${cat.iconColor}` : undefined}
+                    title={task.summary_text || task.category_label || cat?.shortLabel || '—'}
+                    subtitle={[formatDisplayDate(task.task_date), task.category_label || cat?.shortLabel].filter(Boolean).join(' · ')}
+                    badges={<StatusCell status={task.status} />}
+                    details={[
+                      { label: 'Assigned To', value: task.assigned_to_name || '—' },
+                      task.notes ? { label: 'Notes', value: task.notes, wide: true } : null,
+                    ]}
+                    onOpen={() => openEdit(task)}
+                    actions={[{ label: 'Edit', icon: Pencil, tone: 'blue', onClick: () => openEdit(task) }]}
+                    menu={[{ label: 'Delete', icon: Trash2, danger: true, onClick: () => handleDelete(task) }]}
+                  />
+                );
+              })}
+            </MobileCardList>
+          )}
+        </div>
+        <div className="hidden overflow-x-auto lg:block">
           <table className="crm-table w-full min-w-[1000px]">
             <thead>
               <tr>

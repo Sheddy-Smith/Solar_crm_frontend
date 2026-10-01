@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Eye, FileText, Pencil, Plus, Receipt, Search, Trash2, X } from 'lucide-react';
+import { Download, Eye, FileText, Pencil, Phone, Plus, Receipt, Search, Trash2, X } from 'lucide-react';
 import { accountsModuleApi } from './api.js';
 import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
+import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
 
 const TABS = [
   { key: 'Supplier Details', label: 'Supplier Details' },
@@ -213,7 +215,37 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
           <Download className="size-4" /> Export CSV
         </button>) : null}
       </div>
-      <div className="overflow-x-auto rounded-[12px] border border-[#e2e9f3] bg-white">
+      {loading ? (
+        <p className="py-8 text-center text-[13px] font-semibold text-[#7a8fa6] lg:hidden">Loading...</p>
+      ) : filtered.length === 0 ? (
+        <MobileCardEmpty title="No suppliers yet" hint="Add your first supplier." />
+      ) : (
+        <MobileCardList>
+          {filtered.map((r) => {
+            const digits = String(r.phone || '').replace(/\D/g, '');
+            return (
+              <MobileRecordCard
+                key={r.id}
+                avatar={r.name}
+                title={r.name}
+                subtitle={[r.phone, r.company].filter(Boolean).join(' · ')}
+                aside={<span className={Number(r.balance) > 0 ? 'text-[#dc2626]' : undefined}>{fmtRs(Math.abs(Number(r.balance || 0)))}</span>}
+                badges={r.vendor_type ? <span className="rounded-full bg-[#f5f3ff] px-2 py-0.5 text-[10px] font-extrabold text-[#6d28d9]">{r.vendor_type}</span> : null}
+                details={[
+                  { label: 'GSTIN', value: r.gstin },
+                  { label: 'Address', value: r.address || r.city, wide: true },
+                ]}
+                actions={[
+                  { label: 'Call', icon: Phone, tone: 'green', href: digits ? `tel:${digits}` : null, disabled: !digits },
+                  caps.edit ? { label: 'Edit', icon: Pencil, tone: 'blue', onClick: () => setModal({ id: r.id, form: { ...emptyForm, ...r } }) } : null,
+                ]}
+                menu={caps.delete ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => remove(r) }] : []}
+              />
+            );
+          })}
+        </MobileCardList>
+      )}
+      <div className="hidden overflow-x-auto rounded-[12px] border border-[#e2e9f3] bg-white lg:block">
         <table className="min-w-[760px] text-left text-[13px]">
           <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">
             <tr>
@@ -434,7 +466,18 @@ function SupplierLedgerTab({ onNotify, onOpenSection }) {
               <p className="py-10 text-center text-[13px] font-semibold text-[#7a8fa6]">Loading...</p>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                <LedgerMobileCards
+                  entries={entries}
+                  emptyText="No ledger entries for this supplier."
+                  totalDebit={totalDebit}
+                  totalCredit={totalCredit}
+                  finalBalance={netBal}
+                  onOpen={setDetail}
+                  TypeBadge={TypeBadge}
+                  fmtDate={fmtDisplayDate}
+                  fmtMoney={fmtRs}
+                />
+                <div className="hidden overflow-x-auto lg:block">
                   <table className="min-w-[1050px] w-full text-left text-[13px]">
                     <thead className="bg-[#f1f5f9] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
                       <tr>

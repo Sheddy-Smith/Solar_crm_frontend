@@ -78,6 +78,7 @@ import {
 } from './settingsHubPages.jsx';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
 import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide } from './components/mobile/PwaInstallControls.jsx';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard, MobilePager } from './components/mobile/MobileRecordCard.jsx';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
 import { SettingsRecycleBinPage } from './recycleBinPage.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -7376,25 +7377,17 @@ function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, r
           <Search className="size-4 text-[#7386a3]" />
           <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder={searchPlaceholder} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
         </label>
-        <div className="mt-4 space-y-3 md:hidden">
+        <MobileCardList className="mt-4">
           {filteredRows.map((row, rowIndex) => (
-            <article key={`${title}-mobile-${rowIndex}`} className="rounded-[12px] border border-[#e7eef7] bg-[#fbfdff] p-4">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <p className="min-w-0 flex-1 text-[14px] font-extrabold text-[#1e3261]">{row[0]}</p>
-                {row[row.length - 1]}
-              </div>
-              <div className="grid gap-2 text-[12px] font-bold text-[#53647f]">
-                {row.slice(1, -1).map((cell, cellIndex) => (
-                  <div key={`${title}-mobile-${rowIndex}-${cellIndex}`} className="grid gap-1 rounded-[8px] bg-white px-3 py-2 min-[420px]:grid-cols-[120px_minmax(0,1fr)]">
-                    <span>{columns[cellIndex + 1]}</span>
-                    <span className="min-w-0 font-extrabold text-[#1e3261]">{cell}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
+            <MobileRecordCard
+              key={`${title}-mobile-${rowIndex}`}
+              title={row[0]}
+              badges={row.length > 1 ? row[row.length - 1] : null}
+              details={row.slice(1, -1).map((cell, cellIndex) => ({ label: columns[cellIndex + 1], value: cell }))}
+            />
           ))}
-        </div>
-        <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] md:block">
+        </MobileCardList>
+        <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] lg:block">
           <table className="crm-table min-w-[820px] w-full">
             <thead><tr>{columns.map((header) => <th key={header}>{header}</th>)}</tr></thead>
             <tbody>
@@ -10582,42 +10575,79 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
       <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+          <div className="relative col-span-2 flex-1 sm:min-w-[180px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
             <input
-              className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none"
+              type="search"
+              className="h-11 w-full rounded-[12px] border border-[#d9e2ec] bg-white pl-10 pr-3 text-[14px] font-bold text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none sm:h-9 sm:rounded-[8px] sm:pl-9 sm:text-[13px] sm:font-normal"
               placeholder={`Search ${config.title.toLowerCase()}...`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           {statuses.length > 0 && (
-            <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <select className="h-11 min-w-0 rounded-[12px] border border-[#d9e2ec] bg-white px-3 text-[13px] font-bold text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none sm:h-9 sm:rounded-[8px] sm:font-normal" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
               <option value="">All Statuses</option>
               {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           )}
           {extraFilters.map((f) => (
-            <select key={f.key} className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={extraFilterValues[f.key] || ''} onChange={(e) => setExtraFilterValues((prev) => ({ ...prev, [f.key]: e.target.value }))}>
+            <select key={f.key} className="h-11 min-w-0 rounded-[12px] border border-[#d9e2ec] bg-white px-3 text-[13px] font-bold text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none sm:h-9 sm:rounded-[8px] sm:font-normal" value={extraFilterValues[f.key] || ''} onChange={(e) => setExtraFilterValues((prev) => ({ ...prev, [f.key]: e.target.value }))}>
               <option value="">{f.label}</option>
               {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           ))}
           {(search || filterStatus || Object.values(extraFilterValues).some(Boolean)) && (
-            <button type="button" onClick={() => { setSearch(''); setFilterStatus(''); setExtraFilterValues({}); }} className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Clear</button>
+            <button type="button" onClick={() => { setSearch(''); setFilterStatus(''); setExtraFilterValues({}); }} className="h-11 rounded-[12px] border border-[#e5eaf2] bg-white px-3 text-[13px] font-extrabold text-[#ef4444] hover:bg-[#fef2f2] sm:h-9 sm:rounded-[8px] sm:text-[12px] sm:font-bold">Clear</button>
           )}
         </div>
 
+        {!loading && filtered.length > 0 ? (
+          <MobileCardList>
+            {pageRows.map((item) => {
+              const locked = config.isRowLocked?.(item);
+              const idCol = /(\bno\b|\bid\b|code|number)\.?$/i.test(config.columns[0]?.label || '') ? config.columns[0] : null;
+              const badgeCols = config.columns.filter((c) => c.label === 'Status' || c.label === 'Priority');
+              const amountCol = config.columns.find((c) => /amount|balance|value|total/i.test(c.label));
+              const titleCol = config.columns.find((c) => c !== idCol && c !== amountCol && !badgeCols.includes(c) && !/date|valid till|new end/i.test(c.label)) || idCol || config.columns[0];
+              const detailCols = config.columns.filter((c) => c !== idCol && c !== titleCol && c !== amountCol && !badgeCols.includes(c));
+              return (
+                <MobileRecordCard
+                  key={item.id}
+                  title={titleCol?.render(item)}
+                  subtitle={idCol && titleCol !== idCol ? idCol.render(item) : null}
+                  aside={amountCol?.render(item)}
+                  badges={badgeCols.length ? badgeCols.map((c) => <span key={c.label}>{c.render(item)}</span>) : null}
+                  details={detailCols.map((c) => ({ label: c.label, value: c.render(item) }))}
+                  onOpen={() => setViewItem(item)}
+                  actions={[
+                    { label: 'View', icon: Eye, tone: 'blue', onClick: () => setViewItem(item) },
+                    locked
+                      ? { label: 'Locked', icon: LockKeyhole, disabled: true }
+                      : { label: 'Edit', icon: Pencil, tone: 'purple', onClick: () => openEdit(item) },
+                  ]}
+                  menu={locked ? [] : [
+                    config.canApprove && item.status === 'Pending' ? { label: 'Approve', icon: CheckCircle2, tone: 'green', onClick: () => handleApprove(item) } : null,
+                    config.canApprove && item.status === 'Pending' ? { label: 'Reject', icon: XCircle, tone: 'red', onClick: () => { setRejectReason(''); setRejectItem(item); } } : null,
+                    config.canComplete && item.status !== 'Completed' && item.status !== 'Cancelled' ? { label: 'Mark Completed', icon: CheckCircle2, tone: 'green', onClick: () => handleComplete(item) } : null,
+                    { label: 'Delete', icon: Trash2, danger: true, onClick: () => confirmDeleteRow(item) },
+                  ]}
+                />
+              );
+            })}
+          </MobileCardList>
+        ) : null}
+
         {/* Table */}
-        <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white">
+        <section className={cx('overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white', !loading && filtered.length > 0 && 'hidden lg:block')}>
           {loading ? (
             <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">Loading...</div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16">
               <FileText className="size-10 text-[#c7d4e0]" />
               <p className="text-[14px] font-bold text-[#7a8fa6]">No {config.title.toLowerCase()} found</p>
-              <button type="button" onClick={() => { setForm(config.defaults); setShowNew(true); }} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white">
+              <button type="button" onClick={() => { setForm(config.defaults); setShowNew(true); }} className="inline-flex h-11 items-center gap-2 rounded-[12px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white sm:h-9 sm:rounded-[8px] sm:text-[12px]">
                 <Plus className="size-3.5" />{config.newLabel}
               </button>
             </div>
@@ -10668,8 +10698,15 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
         </section>
 
         {/* Pagination */}
+        <MobilePager
+          page={page}
+          totalPages={totalPages}
+          onPrev={() => setPage((p) => p - 1)}
+          onNext={() => setPage((p) => p + 1)}
+          summary={`${page} / ${totalPages}`}
+        />
         {filtered.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between text-[13px] text-[#53647f]">
+          <div className="hidden items-center justify-between text-[13px] text-[#53647f] lg:flex">
             <span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
             <div className="flex items-center gap-2">
               <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="h-8 rounded-[8px] border border-[#e5eaf2] px-3 font-bold disabled:opacity-40">Previous</button>
@@ -11169,17 +11206,17 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
       ) : (
       <>
       <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[180px]">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="relative w-full min-w-[180px] flex-1 sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
             <input
-              className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none"
+              className="h-11 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none sm:h-9"
               placeholder="Search documents, projects..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+          <select className="h-11 min-w-0 flex-1 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none sm:h-9 sm:flex-none" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
             <option value="">All Types</option>
             {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -11188,7 +11225,7 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
           )}
         </div>
 
-        <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white">
+        <section className="overflow-hidden rounded-[12px] bg-white lg:border lg:border-[#e5eaf2]">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">Loading documents...</div>
           ) : filtered.length === 0 ? (
@@ -11200,7 +11237,26 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
               </button>
             </div>
           ) : (
-            <div className="max-h-[62vh] overflow-auto">
+            <>
+            <MobileCardList>
+              {filtered.map((doc) => (
+                <MobileRecordCard
+                  key={doc.id}
+                  icon={FileText}
+                  title={doc.name || '—'}
+                  subtitle={[doc.project_name, lcFormatDate(doc.uploaded_at)].filter(Boolean).join(' · ')}
+                  badges={doc.doc_type ? <span className="inline-flex items-center rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-bold text-[#0b65e5]">{doc.doc_type}</span> : null}
+                  details={[{ label: 'Uploaded By', value: doc.uploaded_by_name || '—' }]}
+                  onOpen={() => { setReplaceFile(null); setViewDoc(doc); }}
+                  actions={[
+                    { label: 'View', icon: Eye, tone: 'blue', onClick: () => { setReplaceFile(null); setViewDoc(doc); } },
+                    { label: 'Download', icon: Download, tone: 'green', href: getMediaUrl(doc.file), external: true },
+                  ]}
+                  menu={[{ label: 'Delete', icon: Trash2, danger: true, onClick: () => confirmDeleteDoc(doc) }]}
+                />
+              ))}
+            </MobileCardList>
+            <div className="hidden max-h-[62vh] overflow-auto lg:block">
               <table className="w-full min-w-[820px] text-left text-[13px]">
                 <thead>
                   <tr>
@@ -11236,6 +11292,7 @@ function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </section>
       </div>
@@ -11786,17 +11843,17 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
       <OmSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
 
       <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[180px]">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="relative w-full min-w-[180px] flex-1 sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
             <input
-              className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none"
+              className="h-11 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none sm:h-9"
               placeholder="Search reports..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+          <select className="h-11 min-w-0 flex-1 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none sm:h-9 sm:flex-none" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
             <option value="">All Types</option>
             {REPORT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -11805,7 +11862,7 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
           )}
         </div>
 
-        <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white">
+        <section className="overflow-hidden rounded-[12px] bg-white lg:border lg:border-[#e5eaf2]">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">Loading reports...</div>
           ) : filtered.length === 0 ? (
@@ -11817,7 +11874,26 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
               </button>
             </div>
           ) : (
-            <div className="max-h-[62vh] overflow-auto">
+            <>
+            <MobileCardList>
+              {filtered.map((item) => (
+                <MobileRecordCard
+                  key={item.id}
+                  icon={FileText}
+                  title={item.name}
+                  subtitle={lcFormatDate(item.created_at)}
+                  badges={item.report_type ? <span className="inline-flex items-center rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-bold text-[#0b65e5]">{item.report_type}</span> : null}
+                  details={[{ label: 'Generated By', value: item.generated_by_name || '—' }]}
+                  onOpen={() => setViewItem(item)}
+                  actions={[
+                    { label: 'View', icon: Eye, tone: 'blue', onClick: () => setViewItem(item) },
+                    item.file ? { label: 'Download', icon: Download, tone: 'green', href: getMediaUrl(item.file), external: true } : null,
+                  ]}
+                  menu={[{ label: 'Delete', icon: Trash2, danger: true, onClick: () => confirmDeleteReport(item) }]}
+                />
+              ))}
+            </MobileCardList>
+            <div className="hidden max-h-[62vh] overflow-auto lg:block">
               <table className="w-full min-w-[760px] text-left text-[13px]">
                 <thead>
                   <tr>
@@ -11854,6 +11930,7 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </section>
       </div>
@@ -21521,7 +21598,58 @@ function ProjectDocumentsTable({
         </button>
         ) : null}
       </div>
-      <div className="responsive-scroll overflow-x-auto">
+      <div className="p-3 lg:hidden">
+        {!allRows.length ? (
+          <MobileCardEmpty icon={FileText} title="No documents uploaded yet for this project." />
+        ) : (
+          <MobileCardList>
+            {allRows.map(({ kind, row, doc }) => {
+              const pending = kind === 'pending';
+              const id = pending ? row.id : doc.id;
+              const saving = savingIds.has(id);
+              const fileNameValue = pending ? row.fileName : (editedFileNames[doc.id] ?? doc.category ?? '');
+              return (
+                <MobileRecordCard
+                  key={id}
+                  icon={FileText}
+                  iconTone={pending ? 'bg-[#fff4df] text-[#b45309]' : undefined}
+                  title={pending ? row.documentName : doc.name}
+                  subtitle={pending
+                    ? `${row.uploadedBy} · Not saved yet`
+                    : [doc.uploaded_by_name, formatProjectDisplayDate(doc.uploaded_at)].filter(Boolean).join(' · ')}
+                  details={[{
+                    label: 'File Name',
+                    wide: true,
+                    value: (
+                      <input
+                        value={fileNameValue}
+                        onChange={(event) => (pending
+                          ? updatePendingRow(row.id, { fileName: event.target.value })
+                          : setEditedFileNames((current) => ({ ...current, [doc.id]: event.target.value })))}
+                        disabled={readOnly}
+                        type="text"
+                        placeholder="Enter file name"
+                        className="mt-1 h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5]"
+                      />
+                    ),
+                  }]}
+                  actions={[
+                    readOnly ? null : {
+                      label: saving ? 'Saving...' : 'Save',
+                      icon: Save,
+                      tone: 'green',
+                      disabled: saving,
+                      onClick: () => (pending ? savePendingRow(row) : saveExistingRow(doc)),
+                    },
+                    !pending && doc.file ? { label: 'Download', icon: Download, tone: 'blue', href: getMediaUrl(doc.file), external: true } : null,
+                  ]}
+                />
+              );
+            })}
+          </MobileCardList>
+        )}
+      </div>
+      <div className="responsive-scroll hidden overflow-x-auto lg:block">
         <table className="crm-table min-w-[920px] w-full">
           <thead>
             <tr>
@@ -28369,8 +28497,8 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
             })}
           </div>
 
-          <div className="mb-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
+          <div className="mb-3 grid grid-cols-2 gap-2.5 sm:flex sm:flex-row sm:items-center sm:justify-between">
+            <label className="col-span-2 flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4 transition focus-within:border-[#0b65e5] focus-within:ring-4 focus-within:ring-[#0b65e5]/10">
               <Search className="size-4 text-[#7e8fab]" />
               <input
                 type="search"
@@ -28380,24 +28508,24 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
                 className="w-full bg-transparent text-[16px] font-medium text-[#1e3261] outline-none placeholder:text-[#8a98af]"
               />
             </label>
-            <label className="relative">
+            <label className="relative min-w-0">
               <Filter className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
-              <select value={skillFilter} onChange={(e) => setSkillFilter(e.target.value)} className="h-10 min-w-[120px] appearance-none rounded-[8px] border border-[#dce6f3] bg-white pl-8 pr-8 text-[15px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
+              <select value={skillFilter} onChange={(e) => setSkillFilter(e.target.value)} className="h-11 w-full min-w-0 appearance-none sm:h-10 sm:w-auto sm:min-w-[120px] rounded-[8px] border border-[#dce6f3] bg-white pl-8 pr-8 text-[15px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
                 {skillOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
-            <label className="relative">
+            <label className="relative min-w-0">
               <Filter className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-10 min-w-[126px] appearance-none rounded-[8px] border border-[#dce6f3] bg-white pl-8 pr-8 text-[15px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 w-full min-w-0 appearance-none sm:h-10 sm:w-auto sm:min-w-[126px] rounded-[8px] border border-[#dce6f3] bg-white pl-8 pr-8 text-[15px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
                 {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
             {employeeCaps.export ? (<button
               type="button"
               onClick={() => { exportEmployeesCsv(filteredEmployees); onNotify('Employee list exported'); }}
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-4 text-[15px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
+              className="col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border sm:h-10 border-[#dce6f3] bg-white px-4 text-[15px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
             >
               <Download className="size-4" />
               Export CSV
@@ -28407,7 +28535,51 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
           {loading ? (
             <PageLoadingState message="Loading employees..." compact />
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {filteredEmployees.length === 0 ? (
+              <MobileCardEmpty icon={UsersRound} title="No employees found" hint='Click on "Add Employee" to create a new employee record.' />
+            ) : (
+              <MobileCardList>
+                {filteredEmployees.map((row) => {
+                  const balance = Number(row.net_balance || 0);
+                  const digits = String(row.mobile || '').replace(/\D/g, '');
+                  return (
+                    <MobileRecordCard
+                      key={row.id}
+                      avatar={row.name}
+                      title={row.name}
+                      subtitle={[row.mobile, row.skill_trade || row.role].filter(Boolean).join(' · ')}
+                      aside={formatInrAmount(balance)}
+                      badges={(
+                        <>
+                          <span className={cx(
+                            'inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold',
+                            row.status === 'On Leave' ? 'bg-[#fff0dc] text-[#f59e0b]'
+                              : row.status === 'Available' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
+                                : 'bg-[#e8f2ff] text-[#0b65e5]',
+                          )}
+                          >
+                            {row.status || 'Available'}
+                          </span>
+                          <span className={cx('text-[11px] font-bold', balance > 0 ? 'text-[#ea5a4c]' : 'text-[#0d9f4a]')}>{balance > 0 ? 'To Pay' : 'Settled'}</span>
+                        </>
+                      )}
+                      details={[
+                        { label: 'Daily Rate', value: formatInrAmount(row.daily_rate) },
+                        { label: 'Hourly', value: `${formatInrAmount(Number(row.hourly_rate || 0))}/hr` },
+                        row.aadhaar_number ? { label: 'Aadhaar', value: row.aadhaar_number, wide: true } : null,
+                      ]}
+                      actions={[
+                        { label: 'Call', icon: Phone, tone: 'green', href: digits ? `tel:${digits}` : null, disabled: !digits },
+                        { label: 'Edit', icon: Pencil, tone: 'blue', onClick: () => openEditEmployee(row) },
+                      ]}
+                      menu={employeeCaps.delete ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => handleDeleteEmployee(row) }] : []}
+                    />
+                  );
+                })}
+              </MobileCardList>
+            )}
+            <div className="hidden overflow-x-auto lg:block">
               <table className="crm-table">
                 <thead>
                   <tr>
@@ -28488,6 +28660,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </section>
       ) : (
@@ -28671,7 +28844,70 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
                   ))}
                 </div>
 
-                <div className="overflow-x-auto">
+                <MobileCardList>
+                  {displayedLedgerRows.map((row) => {
+                    const isFutureRow = row.is_future || row.date > formatIsoDate(new Date());
+                    const statusLabel = isFutureRow ? 'Future' : row.status;
+                    return (
+                      <MobileRecordCard
+                        key={row.id}
+                        className={isFutureRow ? 'opacity-60' : undefined}
+                        title={new Date(`${row.date}T00:00:00`).toLocaleDateString('en-IN')}
+                        subtitle={row.day}
+                        aside={formatInrAmount(row.payment)}
+                        badges={(
+                          <span className={cx(
+                            'inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold',
+                            statusLabel === 'Present' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : statusLabel === 'Absent' ? 'bg-[#ffe9e6] text-[#ea5a4c]' : 'bg-[#eef2f7] text-[#7585a2]',
+                          )}
+                          >
+                            {statusLabel}
+                          </span>
+                        )}
+                        details={[
+                          { label: 'Hours', value: row.hours },
+                          { label: 'OT Hours', value: row.ot_hours },
+                          row.voucher_amount !== '0.00' ? { label: 'Voucher', value: formatInrAmount(row.voucher_amount) } : null,
+                          row.payment_mode ? { label: 'Mode', value: row.payment_mode } : null,
+                        ]}
+                        actions={isFutureRow ? [] : [
+                          { label: 'Present', icon: CheckCircle2, tone: 'green', onClick: () => handleMarkPresent(row) },
+                          { label: 'Absent', icon: XCircle, tone: 'red', onClick: () => handleMarkAbsent(row) },
+                          {
+                            label: 'Edit',
+                            icon: Pencil,
+                            tone: 'blue',
+                            onClick: () => {
+                              setEditAttRow(row);
+                              setAttForm({
+                                hours: row.hours,
+                                ot_hours: row.ot_hours,
+                                status: row.status,
+                                payment_mode: row.payment_mode || 'Cash',
+                                notes: row.notes || '',
+                              });
+                            },
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                  <div className="grid grid-cols-3 gap-2 rounded-[14px] border border-[#dbe5f2] bg-[#f8fbff] p-3 text-center">
+                    <div>
+                      <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#8a98af]">Hours</p>
+                      <p className="mt-0.5 text-[13px] font-extrabold text-[#1e3261]">{displayedLedgerRows.reduce((sum, row) => sum + Number(row.hours || 0), 0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#8a98af]">OT</p>
+                      <p className="mt-0.5 text-[13px] font-extrabold text-[#1e3261]">{displayedLedgerRows.reduce((sum, row) => sum + Number(row.ot_hours || 0), 0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#8a98af]">Payment</p>
+                      <p className="mt-0.5 text-[13px] font-extrabold text-[#1e3261]">{formatInrAmount(displayedLedgerRows.reduce((sum, row) => sum + Number(row.payment || 0), 0))}</p>
+                    </div>
+                  </div>
+                </MobileCardList>
+                <div className="hidden overflow-x-auto lg:block">
                   <table className="crm-table">
                     <thead>
                       <tr>{['Date', 'Day', 'Status', 'Hours', 'OT Hours', 'Payment', 'Voucher', 'Mode', 'Action'].map((heading) => <th key={heading}>{heading}</th>)}</tr>

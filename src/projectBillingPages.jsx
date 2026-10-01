@@ -3,6 +3,7 @@ import {
   ChevronRight, Eye, FilePlus2, FileText, Hammer, Pencil, Plus, Printer, ReceiptText, RefreshCw, RotateCcw, Save, Search, Trash2, Truck, X,
 } from 'lucide-react';
 import { materialPlanApi, projectApi, projectInvoiceApi, projectSalesChallanApi, settingsApi } from './api.js';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
 const CELL_INPUT = 'h-8 w-full rounded-[6px] border border-transparent bg-transparent px-1.5 text-[13px] font-semibold text-[#1e3261] outline-none transition hover:border-[#dce6f3] focus:border-[#86b7fe] focus:bg-white disabled:hover:border-transparent';
@@ -1325,13 +1326,13 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
             </label>
           </div>
           <div className="mt-3 flex gap-2">
-            <button type="button" onClick={() => { setVisible(PAGE_SIZE); setFilters({ ...filterDraft }); }} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#078c3e] px-4 text-[13px] font-bold text-white">
+            <button type="button" onClick={() => { setVisible(PAGE_SIZE); setFilters({ ...filterDraft }); }} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[12px] bg-[#078c3e] px-4 text-[13px] font-bold text-white sm:h-9 sm:flex-none sm:rounded-[8px]">
               <Search className="size-4" /> Search
             </button>
             <button
               type="button"
               onClick={() => { setFilterDraft(emptyFilters); setFilters(emptyFilters); setVisible(PAGE_SIZE); }}
-              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d5e0ef] bg-white px-4 text-[13px] font-semibold text-[#314a79]"
+              className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[12px] border border-[#d5e0ef] bg-white px-4 text-[13px] font-semibold text-[#314a79] sm:h-9 sm:flex-none sm:rounded-[8px]"
             >
               <RotateCcw className="size-4" /> Reset
             </button>
@@ -1352,7 +1353,51 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
               <StatChip label="Delivered" value={summary.delivered} tone="text-[#16a34a]" />
             )}
           </div>
-          <div className="mt-3 overflow-x-auto rounded-[10px] border border-[#e7eef7]">
+          <div className="mt-3 lg:hidden">
+            {listLoading ? (
+              <p className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
+            ) : shown.length === 0 ? (
+              <MobileCardEmpty title={`No ${cfg.title.toLowerCase()} found.`} />
+            ) : (
+              <MobileCardList>
+                {shown.map((row) => (
+                  <MobileRecordCard
+                    key={row.id}
+                    className={doc?.id === row.id ? 'ring-2 ring-[#16a34a]/40' : undefined}
+                    title={row.customer_name || row.party_name || '—'}
+                    subtitle={<><span className="font-extrabold text-[#0b65e5]">{row[cfg.noField]}</span> · {fmtDate(row[cfg.dateField])}</>}
+                    aside={money(row.total_amount)}
+                    badges={(
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f3f6fb] px-2 py-1 text-[11px] font-extrabold text-[#53647f]">
+                        <span className={cx('size-2 rounded-full', STATUS_DOT[row.status] || 'bg-[#9aa8bc]')} />
+                        {row.status}
+                      </span>
+                    )}
+                    details={isInvoice ? [
+                      { label: 'Project', value: row.project_code },
+                      { label: 'GST', value: money(row.gst_amount) },
+                      { label: 'Received', value: money(row.payment_amount), tone: 'success' },
+                      { label: 'Balance Due', value: money(row.balance_due), tone: Number(row.balance_due) > 0 ? 'danger' : undefined },
+                    ] : [
+                      { label: 'Project', value: row.project_code },
+                      { label: 'Vehicle', value: row.vehicle_no || '—' },
+                      { label: 'Items', value: row.lines?.length || 0 },
+                    ]}
+                    onOpen={() => applyDoc(row, true)}
+                    actions={[
+                      { label: 'View', icon: Eye, tone: 'purple', onClick: () => applyDoc(row, true) },
+                      { label: 'Print', icon: Printer, tone: 'green', onClick: () => handlePrint(row) },
+                    ]}
+                    menu={[
+                      { label: 'Edit', icon: Pencil, tone: 'blue', onClick: () => applyDoc(row, false) },
+                      { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleting(row) },
+                    ]}
+                  />
+                ))}
+              </MobileCardList>
+            )}
+          </div>
+          <div className="mt-3 hidden overflow-x-auto rounded-[10px] border border-[#e7eef7] lg:block">
             <table className="w-full min-w-[980px] border-collapse text-left">
               <thead>
                 <tr className="bg-[#f6f8fb] text-[12px] font-bold text-[#1e3261]">

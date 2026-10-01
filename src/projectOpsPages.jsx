@@ -8,6 +8,7 @@ import {
   projectMilestoneApi, userApi, inventoryApi,
 } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { rowDoubleOpenProps } from './lib/rowDoubleOpen.js';
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
@@ -182,7 +183,7 @@ function WonProjectHubShell({
       />
       {Subnav ? <Subnav activeSection={activeSection} onOpenSection={onOpenSection} /> : null}
       {summaryCards ? (
-        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">{summaryCards}</section>
+        <section className="grid grid-cols-2 gap-2 xl:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">{summaryCards}</section>
       ) : null}
       <section className={`${PANEL} overflow-hidden p-2.5 sm:p-3`}>
         <label className="mb-3 flex h-11 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4">
@@ -205,13 +206,13 @@ function WonProjectHubShell({
 
 function SummaryCard({ label, value, note, tone, icon: Icon }) {
   return (
-    <article className="rounded-[10px] border border-[#e7eef7] bg-white p-3">
+    <article className="min-w-0 rounded-[10px] border border-[#e7eef7] bg-white p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[12px] font-semibold text-[#53647f]">{label}</p>
-        <span className={cx('grid size-8 place-items-center rounded-full bg-[#f4f8ff]', tone)}><Icon className="size-4" /></span>
+        <p className="min-w-0 text-[12px] font-semibold text-[#53647f]">{label}</p>
+        <span className={cx('grid size-8 shrink-0 place-items-center rounded-full bg-[#f4f8ff]', tone)}><Icon className="size-4" /></span>
       </div>
-      <p className={cx('mt-1 text-[22px] font-bold', tone)}>{value}</p>
-      <p className="text-[12px] font-medium text-[#8a98af]">{note}</p>
+      <p className={cx('mt-1 text-[20px] font-bold sm:text-[22px]', tone)}>{value}</p>
+      <p className="text-[11px] font-medium text-[#8a98af] sm:text-[12px]">{note}</p>
     </article>
   );
 }
@@ -272,7 +273,40 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
           </>
         )}
       >
-        <div className="overflow-x-auto">
+        {filtered.length === 0 ? (
+          <MobileCardEmpty icon={Truck} title="No won projects found." />
+        ) : (
+          <MobileCardList>
+            {filtered.map((p) => {
+              const st = extraByProject[projectMapKey(p.id)] || { total: 0, pending: 0, packed: 0, partial: 0, dispatched: 0 };
+              return (
+                <MobileRecordCard
+                  key={p.id}
+                  avatar={p.project_name || p.project_id}
+                  title={p.project_name || p.project_id}
+                  subtitle={[p.project_id, p.customer_name].filter(Boolean).join(' · ')}
+                  footnote={p.site}
+                  badges={(
+                    st.total
+                      ? (
+                        <>
+                          <Pill tone="slate">{st.pending} pending</Pill>
+                          <Pill tone="purple">{st.packed} packed</Pill>
+                          {st.partial ? <Pill tone="amber">{st.partial} partial</Pill> : null}
+                          <Pill tone="green">{st.dispatched} sent</Pill>
+                        </>
+                      )
+                      : <Pill tone="slate">No BOM yet</Pill>
+                  )}
+                  details={[{ label: 'BOM Items', value: st.total }]}
+                  onOpen={() => setActive(p)}
+                  actions={[{ label: st.total ? 'Open Dispatch' : 'View', icon: Truck, tone: 'green', onClick: () => setActive(p) }]}
+                />
+              );
+            })}
+          </MobileCardList>
+        )}
+        <div className="hidden overflow-x-auto lg:block">
           <table className="crm-table crm-table--lead-dense w-full min-w-[880px]">
             <thead>
               <tr>
@@ -705,7 +739,39 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
           </>
         )}
       >
-        <div className="overflow-x-auto">
+        {filtered.length === 0 ? (
+          <MobileCardEmpty icon={Wrench} title="No won projects found." />
+        ) : (
+          <MobileCardList>
+            {filtered.map(withStatus).map((p) => (
+              <MobileRecordCard
+                key={p.id}
+                avatar={p.project_name || p.project_id}
+                title={p.project_name || p.project_id}
+                subtitle={[p.project_id, Number(p.capacity_kwp) > 0 ? `${p.capacity_kwp} kWp` : null].filter(Boolean).join(' · ')}
+                footnote={[p.customer_name, p.site].filter(Boolean).join(' · ')}
+                badges={(
+                  <>
+                    <Pill tone={p.status === 'Active' ? 'green' : p.status === 'Completed' ? 'blue' : 'slate'}>{p.status || '—'}</Pill>
+                    <Pill tone={isInstallDone(p) ? 'green' : 'red'}>Installation {isInstallDone(p) ? 'Done' : 'Not Done'}</Pill>
+                  </>
+                )}
+                onOpen={() => setActive(p)}
+                actions={[
+                  {
+                    label: togglingId === p.id ? 'Saving...' : isInstallDone(p) ? 'Mark Not Done' : 'Mark Done',
+                    icon: isInstallDone(p) ? CircleDashed : CheckCircle2,
+                    tone: isInstallDone(p) ? 'slate' : 'green',
+                    disabled: togglingId === p.id,
+                    onClick: () => toggleInstall(p),
+                  },
+                  { label: 'Open Install', icon: Wrench, tone: 'blue', onClick: () => setActive(p) },
+                ]}
+              />
+            ))}
+          </MobileCardList>
+        )}
+        <div className="hidden overflow-x-auto lg:block">
           <table className="crm-table crm-table--lead-dense w-full min-w-[900px]">
             <thead>
               <tr>
