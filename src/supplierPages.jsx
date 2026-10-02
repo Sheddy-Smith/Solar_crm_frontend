@@ -6,6 +6,7 @@ import { moduleCaps } from './settingsHubPages.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 
 const TABS = [
   { key: 'Supplier Details', label: 'Supplier Details' },
@@ -169,6 +170,7 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
     const hay = `${r.name} ${r.company} ${r.phone} ${r.vendor_type} ${r.address}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
   });
+  const { pageRows, pagination } = usePagedRows(filtered, 'supplier-list', { resetKey: q });
 
   const save = async () => {
     if (!modal?.form?.name?.trim() || !modal.form.phone?.trim()) {
@@ -228,7 +230,7 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
         <MobileCardEmpty title="No suppliers yet" hint="Add your first supplier." />
       ) : (
         <MobileCardList>
-          {filtered.map((r) => {
+          {pageRows.map((r) => {
             const digits = String(r.phone || '').replace(/\D/g, '');
             return (
               <MobileRecordCard
@@ -266,7 +268,7 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
               <tr><td colSpan={6} className="px-3 py-10 text-center text-[#7a8fa6]">Loading...</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={6} className="px-3 py-10 text-center text-[#7a8fa6]">No suppliers yet. Add your first supplier.</td></tr>
-            ) : filtered.map((r) => (
+            ) : pageRows.map((r) => (
               <tr key={r.id} className="border-t border-[#edf2f8]">
                 <td className="px-3 py-2.5 font-extrabold text-[#1e3261]">{r.name}</td>
                 <td className="px-3 py-2.5">{r.phone || '—'}</td>
@@ -286,6 +288,7 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
           </tbody>
         </table>
       </div>
+      {!loading ? <TablePagination {...pagination} className="rounded-[12px] border border-[#e2e9f3]" /> : null}
       {modal ? (
         <ModalShell
           title={modal.id ? 'Edit Supplier' : 'Add New Supplier'}
@@ -386,6 +389,7 @@ function SupplierLedgerTab({ onNotify, onOpenSection }) {
     [suppliers, partyId, payload],
   );
   const entries = payload?.results || [];
+  const { pageRows: pageEntries, pagination } = usePagedRows(entries, 'supplier-ledger', { resetKey: `${partyId}|${start}|${end}|${category}` });
   const summary = payload?.summary || {};
   const totalDebit = Number(summary.total_debit ?? entries.reduce((s, e) => s + Number(e.debit || 0), 0));
   const totalCredit = Number(summary.total_credit ?? entries.reduce((s, e) => s + Number(e.credit || 0), 0));
@@ -474,7 +478,7 @@ function SupplierLedgerTab({ onNotify, onOpenSection }) {
             ) : (
               <>
                 <LedgerMobileCards
-                  entries={entries}
+                  entries={pageEntries}
                   emptyText="No ledger entries for this supplier."
                   totalDebit={totalDebit}
                   totalCredit={totalCredit}
@@ -496,7 +500,7 @@ function SupplierLedgerTab({ onNotify, onOpenSection }) {
                     <tbody>
                       {entries.length === 0 ? (
                         <tr><td colSpan={8} className="px-3 py-10 text-center text-[#7a8fa6]">No ledger entries for this supplier.</td></tr>
-                      ) : entries.map((e, i) => {
+                      ) : pageEntries.map((e, i) => {
                         const bal = Number(e.balance || 0);
                         return (
                           <tr key={`${e.ref}-${i}`} className={`border-t border-[#edf2f8] ${i % 2 ? 'bg-[#f8fafc]' : 'bg-white'}`}>
@@ -531,8 +535,8 @@ function SupplierLedgerTab({ onNotify, onOpenSection }) {
                     ) : null}
                   </table>
                 </div>
-                <div className="mt-4 flex flex-col gap-3 border-t border-[#edf2f8] pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-[12px] font-semibold text-[#64748b]">Showing {entries.length} entries</p>
+                <TablePagination {...pagination} className="mt-3" />
+                <div className="mt-4 flex flex-col gap-3 border-t border-[#edf2f8] pt-4 sm:flex-row sm:items-center sm:justify-end">
                   <div className="rounded-[12px] border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-right">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#991b1b]">Final Balance</p>
                     <p className="text-[22px] font-extrabold text-[#dc2626]">{fmtRs(Math.abs(netBal))}</p>

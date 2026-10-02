@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { dailyTasksApi, inventoryApi, leadApi, projectApi, workforceApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
 
@@ -381,6 +382,9 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
     if (statusFilter === 'All') return tasks;
     return tasks.filter((task) => task.status === statusFilter);
   }, [tasks, statusFilter]);
+  const { pageRows, pagination } = usePagedRows(visibleTasks, 'daily-tasks', {
+    resetKey: `${deferredSearch}|${categoryFilter}|${statusFilter}|${dateFrom}|${dateTo}`,
+  });
 
   const openCreate = (categoryId) => setModal({ open: true, mode: 'create', categoryId, task: null });
   const openEdit = (task) => setModal({ open: true, mode: 'edit', categoryId: task.category, task });
@@ -516,7 +520,6 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             <input type="date" className="mt-1.5 h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </label>
         </div>
-        <p className="mt-3 text-[12px] font-bold text-[#7a8fa6]">Showing {visibleTasks.length} task(s)</p>
       </section>
 
       <section className={`${CARD} overflow-hidden`}>
@@ -530,7 +533,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             <MobileCardEmpty icon={Boxes} title="No tasks found" hint="Use the cards above to add a site visit, installation or dispatch report." />
           ) : (
             <MobileCardList>
-              {visibleTasks.map((task) => {
+              {pageRows.map((task) => {
                 const cat = CATEGORY_MAP[task.category];
                 return (
                   <MobileRecordCard
@@ -585,7 +588,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             <tbody>
               {loading ? (
                 <tr><td colSpan={7} className="py-12 text-center text-[#7a8fa6]">Loading tasks…</td></tr>
-              ) : visibleTasks.length ? visibleTasks.map((task) => {
+              ) : visibleTasks.length ? pageRows.map((task) => {
                 const cat = CATEGORY_MAP[task.category];
                 return (
                   <tr key={task.id}>
@@ -630,6 +633,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             </tbody>
           </table>
         </div>
+        {!loading ? <TablePagination {...pagination} /> : null}
       </section>
 
       <TaskModal

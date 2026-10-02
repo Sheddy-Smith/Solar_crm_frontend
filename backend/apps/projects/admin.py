@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey,
-    ProjectChecklistItem, InstallationMaterial,
+    ProjectChecklistItem, InstallationMaterial, ProjectPipelineStage,
 )
 
 
@@ -89,3 +89,11 @@ class InstallationMaterialAdmin(admin.ModelAdmin):
     list_display = ['project', 'item_name', 'category', 'required_qty', 'issued_qty', 'consumed_qty', 'status']
     list_filter = ['status', 'category']
     search_fields = ['item_name', 'project__project_name']
+
+
+@admin.register(ProjectPipelineStage)
+class ProjectPipelineStageAdmin(admin.ModelAdmin):
+    list_display = ['project', 'stage', 'updated_by', 'updated_at']
+    list_filter = ['stage']
+    search_fields = ['project__project_name', 'project__project_id']
+    raw_id_fields = ['project', 'updated_by']

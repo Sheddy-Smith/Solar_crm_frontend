@@ -5,12 +5,11 @@ import {
 } from 'lucide-react';
 import { accountsModuleApi, jobSheetApi, materialPlanApi, projectApi, workforceApi } from './api.js';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
 const CELL_INPUT = 'h-8 w-full rounded-[6px] border border-transparent bg-transparent px-1.5 text-[13px] font-semibold text-[#1e3261] outline-none transition hover:border-[#dce6f3] focus:border-[#86b7fe] focus:bg-white';
 const FILTER_INPUT = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-medium text-[#1e3261] outline-none placeholder:text-[#9aa8bc] focus:border-[#86b7fe]';
-const PAGE_SIZE = 15;
-
 // Material Planning category → installation work performed on site.
 const CATEGORY_WORK_MAP = [
   [/panel|module/i, 'Solar Panel Mounting'],
@@ -308,13 +307,15 @@ function ConfirmDelete({ label, onConfirm, onCancel }) {
 
 /* ───────────────── Page ───────────────── */
 
-export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId }) {
+export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId, embedded = false, lockedProjectId = null }) {
   const editorRef = useRef(null);
+  const locked = Boolean(lockedProjectId);
   const [projects, setProjects] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [labours, setLabours] = useState([]);
 
-  const [projectId, setProjectId] = useState(initialProjectId ? String(initialProjectId) : '');
+  const startProjectId = lockedProjectId || initialProjectId;
+  const [projectId, setProjectId] = useState(startProjectId ? String(startProjectId) : '');
   const [sheet, setSheet] = useState(null);
   const [items, setItems] = useState([]);
   const [extraItems, setExtraItems] = useState([]);
@@ -331,8 +332,10 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
   const [listLoading, setListLoading] = useState(true);
   const [filterDraft, setFilterDraft] = useState({ project_code: '', customer: '', date_from: '', date_to: '' });
   const [filters, setFilters] = useState(filterDraft);
-  const [visible, setVisible] = useState(PAGE_SIZE);
   const [deleting, setDeleting] = useState(null);
+  const { pageRows, pagination } = usePagedRows(sheets, 'project-job-sheet-list', {
+    resetKey: `${filters.project_code}|${filters.customer}|${filters.date_from}|${filters.date_to}`,
+  });
 
   const project = useMemo(() => projects.find((p) => String(p.id) === String(projectId)) || null, [projects, projectId]);
 
@@ -517,11 +520,10 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
   };
 
   const readOnly = viewOnly;
-  const shown = sheets.slice(0, visible);
 
   return (
     <div className="space-y-2.5">
-      <Heading onOpenSection={onOpenSection} />
+      {embedded ? null : <Heading onOpenSection={onOpenSection} />}
       {Subnav ? <Subnav activeSection={activeSection} onOpenSection={onOpenSection} /> : null}
 
       <section ref={editorRef} className={cx(PANEL, 'scroll-mt-4 p-3 sm:p-5')}>
@@ -536,19 +538,21 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
             ) : projectId ? <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">New job sheet — tasks loaded from Material Planning</p> : null}
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">
-              Project
-              <select
-                value={projectId}
-                onChange={(e) => { setViewOnly(false); setProjectId(e.target.value); }}
-                className="h-10 min-w-[260px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-semibold text-[#1e3261] outline-none"
-              >
-                <option value="">Select won project...</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.project_id} · {p.customer_name || p.project_name}</option>
-                ))}
-              </select>
-            </label>
+            {locked ? null : (
+              <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">
+                Project
+                <select
+                  value={projectId}
+                  onChange={(e) => { setViewOnly(false); setProjectId(e.target.value); }}
+                  className="h-10 min-w-[260px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-semibold text-[#1e3261] outline-none"
+                >
+                  <option value="">Select won project...</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.project_id} · {p.customer_name || p.project_name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             {readOnly ? (
               <button type="button" onClick={() => setViewOnly(false)} className="inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#d5e0ef] px-3 text-[13px] font-semibold text-[#314a79]">
                 <Pencil className="size-4" /> Edit
@@ -669,6 +673,8 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
           </>
         )}
 
+        {locked ? null : (
+        <>
         <div className="mt-6 border-t border-[#edf2f8] pt-5">
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <label className="col-span-2 grid gap-1 text-[12px] font-bold text-[#53647f] sm:col-span-1">
@@ -689,7 +695,7 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
             </label>
           </div>
           <div className="mt-3 flex gap-2">
-            <button type="button" onClick={() => { setVisible(PAGE_SIZE); setFilters({ ...filterDraft }); }} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-[#078c3e] px-4 text-[13px] font-bold text-white sm:h-9 sm:flex-none">
+            <button type="button" onClick={() => setFilters({ ...filterDraft })} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-[#078c3e] px-4 text-[13px] font-bold text-white sm:h-9 sm:flex-none">
               <Search className="size-4" /> Search
             </button>
             <button
@@ -698,7 +704,6 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
                 const empty = { project_code: '', customer: '', date_from: '', date_to: '' };
                 setFilterDraft(empty);
                 setFilters(empty);
-                setVisible(PAGE_SIZE);
               }}
               className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[8px] border border-[#d5e0ef] bg-white px-4 text-[13px] font-semibold text-[#314a79] sm:h-9 sm:flex-none"
             >
@@ -711,11 +716,11 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
           <h3 className="font-display text-[18px] font-extrabold text-[#111827]">Job Sheet Reports</h3>
           {listLoading ? (
             <p className="py-8 text-center text-[13px] font-semibold text-[#8a98af] lg:hidden">Loading...</p>
-          ) : shown.length === 0 ? (
+          ) : sheets.length === 0 ? (
             <div className="mt-3"><MobileCardEmpty icon={ClipboardList} title="No job sheets found." /></div>
           ) : (
             <MobileCardList className="mt-3">
-              {shown.map((row) => (
+              {pageRows.map((row) => (
                 <MobileRecordCard
                   key={row.id}
                   icon={ClipboardList}
@@ -756,9 +761,9 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
               <tbody>
                 {listLoading ? (
                   <tr><td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</td></tr>
-                ) : shown.length === 0 ? (
+                ) : sheets.length === 0 ? (
                   <tr><td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No job sheets found.</td></tr>
-                ) : shown.map((row) => (
+                ) : pageRows.map((row) => (
                   <tr key={row.id} className={cx('border-t border-[#f0f4f9] text-[13px] hover:bg-[#fafcff]', String(row.project) === String(projectId) && 'bg-[#f3fbf6]')}>
                     <td className="px-3 py-2">
                       <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#53647f]">
@@ -785,17 +790,10 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
               </tbody>
             </table>
           </div>
-          {!listLoading && sheets.length > 0 ? (
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <p className="text-[13px] font-medium text-[#7386a3]">Showing {shown.length} of {sheets.length} records</p>
-              {sheets.length > visible ? (
-                <button type="button" onClick={() => setVisible((v) => v + PAGE_SIZE)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-4 text-[13px] font-semibold text-[#1e3261] hover:bg-[#f8fbff]">
-                  Show More ({sheets.length - visible} remaining)
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+          {listLoading ? null : <TablePagination {...pagination} className="mt-3" />}
         </div>
+        </>
+        )}
       </section>
 
       {deleting ? <ConfirmDelete label={deleting.job_sheet_no} onConfirm={confirmDelete} onCancel={() => setDeleting(null)} /> : null}

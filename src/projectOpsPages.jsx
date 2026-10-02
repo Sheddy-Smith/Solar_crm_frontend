@@ -8,6 +8,7 @@ import {
   projectMilestoneApi, userApi, inventoryApi,
 } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { rowDoubleOpenProps } from './lib/rowDoubleOpen.js';
 
@@ -113,6 +114,10 @@ function Pill({ children, tone = 'slate' }) {
   return <span className={cx('inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold', map[tone] || map.slate)}>{children}</span>;
 }
 
+const MODAL_OVERLAY = 'fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4';
+const MODAL_BOX = 'flex max-h-[96vh] w-full max-w-[920px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-[16px]';
+const INLINE_PANEL = `${PANEL} flex w-full flex-col overflow-hidden`;
+
 function ConfirmBox({ message, onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#0f172a]/50 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
@@ -169,18 +174,20 @@ function useWonProjectsHub(buildExtraMaps) {
 }
 
 function WonProjectHubShell({
-  title, crumbLabel, activeSection, onOpenSection, Subnav, query, setQuery, loading, children, summaryCards,
+  title, crumbLabel, activeSection, onOpenSection, Subnav, query, setQuery, loading, children, summaryCards, embedded = false,
 }) {
   return (
     <div className="space-y-2.5">
-      <OpsHeading
-        title={title}
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: crumbLabel },
-        ]}
-      />
+      {embedded ? null : (
+        <OpsHeading
+          title={title}
+          crumbs={[
+            { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+            { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+            { label: crumbLabel },
+          ]}
+        />
+      )}
       {Subnav ? <Subnav activeSection={activeSection} onOpenSection={onOpenSection} /> : null}
       {summaryCards ? (
         <section className="grid grid-cols-2 gap-2 xl:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">{summaryCards}</section>
@@ -236,10 +243,11 @@ function loadDispatchMaps() {
   }).catch(() => ({}));
 }
 
-export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId }) {
+export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId, embedded = false }) {
   const buildMaps = useCallback(() => loadDispatchMaps(), []);
   const { filtered, loading, query, setQuery, extraByProject, reload } = useWonProjectsHub(buildMaps);
   const [active, setActive] = useAutoOpenProject(filtered, loading, initialProjectId, onNotify);
+  const { pageRows, startIndex, pagination } = usePagedRows(filtered, 'project-dispatch-list', { resetKey: query });
 
   const summary = useMemo(() => {
     const vals = Object.values(extraByProject);
@@ -257,6 +265,7 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
       <WonProjectHubShell
         title="Material Dispatch"
         crumbLabel="Dispatch"
+        embedded={embedded}
         activeSection={activeSection}
         onOpenSection={onOpenSection}
         Subnav={Subnav}
@@ -277,7 +286,7 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
           <MobileCardEmpty icon={Truck} title="No won projects found." />
         ) : (
           <MobileCardList>
-            {filtered.map((p) => {
+            {pageRows.map((p) => {
               const st = extraByProject[projectMapKey(p.id)] || { total: 0, pending: 0, packed: 0, partial: 0, dispatched: 0 };
               return (
                 <MobileRecordCard
@@ -318,11 +327,11 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan={9} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No won projects found.</td></tr>
-              ) : filtered.map((p, i) => {
+              ) : pageRows.map((p, i) => {
                 const st = extraByProject[projectMapKey(p.id)] || { total: 0, pending: 0, packed: 0, partial: 0, dispatched: 0 };
                 return (
                   <tr key={p.id} {...rowDoubleOpenProps(() => setActive(p), { title: 'Double-tap to view project' })}>
-                    <td className="crm-col-index">{i + 1}</td>
+                    <td className="crm-col-index">{startIndex + i + 1}</td>
                     <td>
                       <div className="font-semibold leading-tight text-[#1e3261]">{p.project_name || p.project_id}</div>
                       <div className="text-[11px] font-medium leading-tight text-[#8a98af]">{p.project_id}</div>
@@ -348,6 +357,7 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
             </tbody>
           </table>
         </div>
+        <TablePagination {...pagination} />
       </WonProjectHubShell>
 
       {active ? (
@@ -362,7 +372,7 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
   );
 }
 
-function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
+function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning, inline = false }) {
   const resolveStatus = resolveDispatchStatus;
 
   const [rows, setRows] = useState([]);
@@ -479,8 +489,8 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
 
   return (
     <>
-      <div className="fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className="flex max-h-[96vh] w-full max-w-[920px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-[16px]">
+      <div className={inline ? undefined : MODAL_OVERLAY} onMouseDown={inline ? undefined : (e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div className={inline ? INLINE_PANEL : MODAL_BOX}>
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3 sm:px-5">
             <div className="min-w-0">
               <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Dispatch</h2>
@@ -493,7 +503,7 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
               <button type="button" onClick={onOpenPlanning} className="hidden h-10 items-center gap-1.5 rounded-[8px] border border-[#dce6f3] px-3 text-[13px] font-semibold text-[#314a79] sm:inline-flex">
                 Material Planning
               </button>
-              <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>
+              {inline ? null : <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>}
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
@@ -593,9 +603,11 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning }) {
               </div>
             )}
           </div>
-          <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3">
-            <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] px-5 text-[13px] font-semibold text-[#314a79]">Close</button>
-          </div>
+          {inline ? null : (
+            <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3">
+              <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] px-5 text-[13px] font-semibold text-[#314a79]">Close</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -678,9 +690,10 @@ function InstallStatusToggle({ project, busy, onToggle, size = 'sm' }) {
   );
 }
 
-export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId }) {
+export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify, Subnav, initialProjectId, embedded = false }) {
   const { filtered, loading, query, setQuery, reload, projects } = useWonProjectsHub(null);
   const [active, setActive] = useAutoOpenProject(filtered, loading, initialProjectId, onNotify);
+  const { pageRows, startIndex, pagination } = usePagedRows(filtered, 'project-installation-list', { resetKey: query });
   const [statusOverride, setStatusOverride] = useState({});
   const [togglingId, setTogglingId] = useState(null);
 
@@ -724,6 +737,7 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
       <WonProjectHubShell
         title="Installation"
         crumbLabel="Installation"
+        embedded={embedded}
         activeSection={activeSection}
         onOpenSection={onOpenSection}
         Subnav={Subnav}
@@ -743,7 +757,7 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
           <MobileCardEmpty icon={Wrench} title="No won projects found." />
         ) : (
           <MobileCardList>
-            {filtered.map(withStatus).map((p) => (
+            {pageRows.map(withStatus).map((p) => (
               <MobileRecordCard
                 key={p.id}
                 avatar={p.project_name || p.project_id}
@@ -783,9 +797,9 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan={7} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No won projects found.</td></tr>
-              ) : filtered.map(withStatus).map((p, i) => (
+              ) : pageRows.map(withStatus).map((p, i) => (
                 <tr key={p.id} {...rowDoubleOpenProps(() => setActive(p), { title: 'Double-tap to view project' })}>
-                  <td className="crm-col-index">{i + 1}</td>
+                  <td className="crm-col-index">{startIndex + i + 1}</td>
                   <td>
                     <div className="font-semibold leading-tight text-[#1e3261]">{p.project_name || p.project_id}</div>
                     <div className="text-[11px] font-medium leading-tight text-[#8a98af]">{p.project_id}</div>
@@ -810,6 +824,7 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
             </tbody>
           </table>
         </div>
+        <TablePagination {...pagination} />
       </WonProjectHubShell>
 
       {active ? (
@@ -824,7 +839,7 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
   );
 }
 
-function InstallationDetailModal({ project, onClose, onNotify, statusToggle }) {
+function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inline = false }) {
   const TABS = ['Tasks', 'Materials', 'QA'];
   const [tab, setTab] = useState('Tasks');
   const [tasks, setTasks] = useState([]);
@@ -920,8 +935,8 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle }) {
 
   return (
     <>
-      <div className="fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className="flex max-h-[96vh] w-full max-w-[920px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-[16px]">
+      <div className={inline ? undefined : MODAL_OVERLAY} onMouseDown={inline ? undefined : (e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div className={inline ? INLINE_PANEL : MODAL_BOX}>
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3 sm:px-5">
             <div className="min-w-0">
               <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Installation</h2>
@@ -935,7 +950,7 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle }) {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {statusToggle}
-              <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>
+              {inline ? null : <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>}
             </div>
           </div>
 
@@ -1049,9 +1064,11 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle }) {
             )}
           </div>
 
-          <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3">
-            <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] px-5 text-[13px] font-semibold text-[#314a79]">Close</button>
-          </div>
+          {inline ? null : (
+            <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3">
+              <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] px-5 text-[13px] font-semibold text-[#314a79]">Close</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1150,5 +1167,42 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle }) {
         />
       ) : null}
     </>
+  );
+}
+
+
+/* ───────── Single-project panels (Project Management pipeline) ───────── */
+
+export function ProjectDispatchPanel({ project, onNotify, onOpenPlanning }) {
+  return <DispatchDetailModal inline project={project} onClose={() => {}} onNotify={onNotify} onOpenPlanning={onOpenPlanning} />;
+}
+
+export function ProjectInstallationPanel({ project, onNotify, onChanged }) {
+  const [current, setCurrent] = useState(project);
+  const [busy, setBusy] = useState(false);
+
+  const toggle = async () => {
+    const next = isInstallDone(current) ? 'Not Done' : 'Done';
+    setBusy(true);
+    try {
+      const updated = await projectApi.update(current.id, { installation_status: next });
+      setCurrent((prev) => ({ ...prev, installation_status: updated?.installation_status ?? next, installation_done_on: updated?.installation_done_on ?? null }));
+      onNotify(next === 'Done' ? `Installation done — ${current.project_name || current.project_id}` : 'Installation marked Not Done');
+      onChanged?.();
+    } catch (e) {
+      onNotify(e.message || 'Update failed', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <InstallationDetailModal
+      inline
+      project={current}
+      onClose={() => {}}
+      onNotify={onNotify}
+      statusToggle={<InstallStatusToggle project={current} busy={busy} onToggle={toggle} size="lg" />}
+    />
   );
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { settingsApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { cx } from './lib/utils.js';
 
 function formatWhen(iso) {
@@ -48,6 +49,7 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
   }, [load]);
 
   const filtered = useMemo(() => rows, [rows]);
+  const { pageRows, pagination } = usePagedRows(filtered, 'recycle-bin', { resetKey: `${search}|${entityFilter}` });
 
   const restoreItem = async (row) => {
     setBusyId(row.id);
@@ -209,7 +211,7 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
             Recycle bin is empty.
           </div>
         ) : null}
-        {!loading && filtered.map((row) => (
+        {!loading && pageRows.map((row) => (
           <article key={row.id} className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-[0_8px_20px_rgba(23,43,77,0.05)]">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -300,7 +302,7 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
                   </td>
                 </tr>
               )}
-              {!loading && filtered.map((row) => (
+              {!loading && pageRows.map((row) => (
                 <tr key={row.id}>
                   <td>
                     <p className="wrap-break-word whitespace-normal font-extrabold text-[#1e3261]">{row.title}</p>
@@ -354,6 +356,7 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
           </table>
         </div>
       </div>
+      {!loading ? <TablePagination {...pagination} className="rounded-[14px] border border-[#e2e9f3]" /> : null}
     </div>
   );
 }

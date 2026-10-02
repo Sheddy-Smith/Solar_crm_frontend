@@ -3,6 +3,7 @@ import { Plus, Search, Pencil, Trash2, Eye, Download, Printer } from 'lucide-rea
 import { moduleCaps } from './settingsHubPages.jsx';
 import Button from './components/ui/Button.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { accountsModuleApi, projectApi, inventoryApi } from './api.js';
 
@@ -266,6 +267,7 @@ export function AccountsLineDocumentPage({
       r.record_no, r[partyConfig.nameKey], r[partyConfig.displayKey], r.project_name, r.vehicle_no, r.site_address,
     ].some((v) => (v || '').toString().toLowerCase().includes(q)));
   }, [rows, search, partyConfig]);
+  const { pageRows, pagination } = usePagedRows(filtered, `accounts-${recordLabel.replace(/\s+/g, '-').toLowerCase()}`, { resetKey: `${search}|${statusFilter}` });
 
   const summary = useMemo(() => ({
     count: filtered.length,
@@ -462,7 +464,7 @@ export function AccountsLineDocumentPage({
         <MobileCardEmpty title="No records found" hint={`Add your first ${recordLabel.toLowerCase()}.`} />
       ) : (
         <MobileCardList>
-          {filtered.map((row) => (
+          {pageRows.map((row) => (
             <MobileRecordCard
               key={row.id}
               title={row[partyConfig.displayKey] || row[partyConfig.nameKey] || '—'}
@@ -511,7 +513,7 @@ export function AccountsLineDocumentPage({
                 <tr><td colSpan={7} className="px-4 py-10 text-center text-[#7b8ca8]">Loading...</td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-10 text-center text-[#7b8ca8]">No records found. Add your first {recordLabel.toLowerCase()}.</td></tr>
-              ) : filtered.map((row) => (
+              ) : pageRows.map((row) => (
                 <tr key={row.id} className="border-t border-[#eef2f7] hover:bg-[#fbfdff]">
                   <td className="px-4 py-3 font-extrabold text-[#0b65e5]">{row.record_no}</td>
                   <td className="px-4 py-3">{fmtDate(row[dateField])}</td>
@@ -538,6 +540,7 @@ export function AccountsLineDocumentPage({
           </table>
         </div>
       </div>
+      {!loading ? <TablePagination {...pagination} className="rounded-[12px] border border-[#dbe5f2]" /> : null}
 
       {modal === 'edit' ? (
         <ModalShell title={form.id ? `Edit ${recordLabel}` : `Add ${recordLabel}`} onClose={() => setModal(null)} wide>
@@ -777,6 +780,8 @@ export function GstLedgerPage({ Subnav, activeSection, onOpenSection, onNotify }
       .finally(() => setSaving(false));
   }
 
+  const entries = report?.entries || [];
+  const { pageRows, startIndex, pagination } = usePagedRows(entries, 'gst-ledger', { resetKey: `${year}|${month}` });
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - i);
 
@@ -829,13 +834,13 @@ export function GstLedgerPage({ Subnav, activeSection, onOpenSection, onNotify }
 
       {loading ? (
         <p className="py-8 text-center text-[13px] font-bold text-[#7b8ca8] lg:hidden">Loading...</p>
-      ) : (report?.entries || []).length === 0 ? (
+      ) : entries.length === 0 ? (
         <MobileCardEmpty title="No GST entries for this month." />
       ) : (
         <MobileCardList>
-          {report.entries.map((row, idx) => (
+          {pageRows.map((row, idx) => (
             <MobileRecordCard
-              key={`${row.doc_no}-${idx}`}
+              key={`${row.doc_no}-${startIndex + idx}`}
               title={row.party || '—'}
               subtitle={<><span className="font-extrabold text-[#0b65e5]">{row.doc_no}</span> · {row.doc_type} · {fmtDate(row.date)}</>}
               aside={fmtRs(row.taxable)}
@@ -867,10 +872,10 @@ export function GstLedgerPage({ Subnav, activeSection, onOpenSection, onNotify }
             <tbody>
               {loading ? (
                 <tr><td colSpan={8} className="px-4 py-10 text-center text-[#7b8ca8]">Loading...</td></tr>
-              ) : (report?.entries || []).length === 0 ? (
+              ) : entries.length === 0 ? (
                 <tr><td colSpan={8} className="px-4 py-10 text-center text-[#7b8ca8]">No GST entries for this month.</td></tr>
-              ) : (report.entries || []).map((row, idx) => (
-                <tr key={`${row.doc_no}-${idx}`} className="border-t border-[#eef2f7]">
+              ) : pageRows.map((row, idx) => (
+                <tr key={`${row.doc_no}-${startIndex + idx}`} className="border-t border-[#eef2f7]">
                   <td className="px-4 py-3">{fmtDate(row.date)}</td>
                   <td className="px-4 py-3">{row.doc_type}</td>
                   <td className="px-4 py-3 font-extrabold text-[#0b65e5]">{row.doc_no}</td>
@@ -885,6 +890,7 @@ export function GstLedgerPage({ Subnav, activeSection, onOpenSection, onNotify }
           </table>
         </div>
       </div>
+      {!loading ? <TablePagination {...pagination} className="rounded-[12px] border border-[#dbe5f2]" /> : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ from .models import (
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey, SiteSurveyPhoto,
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
     ProjectApproval, ProjectApprovalDocument, JobSheet,
+    PM_STAGES,
 )
 from apps.accounts.models import User
 from apps.accounts.serializers import UserSerializer
@@ -226,7 +227,47 @@ class SiteSurveySerializer(serializers.ModelSerializer):
                 data['capacity_required_kw'] = str(lead.estimated_capacity)
         if not data.get('material_checklist'):
             data['material_checklist'] = SiteSurvey.default_material_checklist()
+        self._fill_equipment_defaults(instance, data)
         return data
+
+    @staticmethod
+    def _fmt(value):
+        if value in (None, ''):
+            return ''
+        text = str(value)
+        return text.rstrip('0').rstrip('.') if '.' in text else text
+
+    def _fill_equipment_defaults(self, instance, data):
+        """Unsaved panel / inverter / meter fields fall back to the project's
+        system config, then the lead's approved (else latest) quotation."""
+        project = instance.project
+        config = getattr(project, 'system_config', None)
+        quotation = None
+        if project.lead_id:
+            quotes = project.lead.quotations.all()
+            quotation = quotes.filter(status='Approved').first() or quotes.first()
+
+        sources = {
+            'panel_brand': [getattr(config, 'panel_brand', ''), getattr(quotation, 'panel_brand', '')],
+            'panel_type': [getattr(quotation, 'panel_type', '')],
+            'panel_wattage_w': [getattr(config, 'panel_wattage_w', None), getattr(quotation, 'panel_wattage', None)],
+            'panel_count': [getattr(config, 'panel_count', None), getattr(quotation, 'number_of_panels', None)],
+            'inverter_brand': [getattr(config, 'inverter_brand', ''), getattr(quotation, 'inverter_brand', '')],
+            'inverter_type': [getattr(quotation, 'inverter_type', '')],
+            'inverter_capacity_kw': [getattr(config, 'inverter_capacity_kw', None), getattr(quotation, 'inverter_capacity', '')],
+            'inverter_quantity': [getattr(quotation, 'inverter_quantity', None)],
+            'meter_number': [project.meter_number, getattr(quotation, 'existing_meter_number', '')],
+            # The form's "Types of Meters" select is stored in meter_location.
+            'meter_location': [project.meter_type if project.meter_type in dict(SiteSurvey.METER_PHASE_CHOICES) else ''],
+        }
+        for field, candidates in sources.items():
+            if data.get(field):
+                continue
+            for candidate in candidates:
+                value = self._fmt(candidate)
+                if value:
+                    data[field] = value
+                    break
 
 
 SURVEY_REQUIRED_ROOF_SLOTS = {
@@ -441,6 +482,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
     survey_status = serializers.SerializerMethodField()
     installation_team = serializers.SerializerMethodField()
     stage_progress = serializers.SerializerMethodField()
+    pm_stage = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -450,8 +492,14 @@ class ProjectListSerializer(serializers.ModelSerializer):
             'status', 'priority', 'progress_percent', 'manager', 'manager_name', 'manager_initials',
             'start_date', 'target_date', 'total_value', 'created_at', 'survey_date', 'surveyed_by_name',
             'survey_feasibility', 'survey_status', 'installation_team', 'stage_progress',
-            'installation_status', 'installation_done_on',
+            'installation_status', 'installation_done_on', 'pm_stage',
         ]
+
+    def get_pm_stage(self, obj):
+        try:
+            return obj.pm_stage_tracker.stage
+        except Project.pm_stage_tracker.RelatedObjectDoesNotExist:
+            return PM_STAGES[0]
 
     def get_survey_date(self, obj):
         return getattr(obj.site_survey, 'survey_date', None) if hasattr(obj, 'site_survey') else None
@@ -626,3 +674,58 @@ class ProjectApprovalSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_by', 'approved_by', 'approved_at', 'created_at', 'updated_at']
+
+
+class PmPipelineProjectSerializer(serializers.ModelSerializer):
+    """Won-lead project as seen by the Project Management pipeline. `pm_stage`
+    and the step aggregates are queryset annotations (see PmPipelineViewSet)."""
+
+    pm_stage = serializers.CharField(read_only=True)
+    stage_index = serializers.SerializerMethodField()
+    stage_history = serializers.SerializerMethodField()
+    mobile_number = serializers.SerializerMethodField()
+    manager_name = serializers.SerializerMethodField()
+    step_info = serializers.SerializerMethodField()
+
+    def get_stage_index(self, obj):
+        stage = getattr(obj, 'pm_stage', PM_STAGES[0])
+        return PM_STAGES.index(stage) if stage in PM_STAGES else len(PM_STAGES)
+
+    def get_stage_history(self, obj):
+        try:
+            return obj.pm_stage_tracker.history
+        except Project.pm_stage_tracker.RelatedObjectDoesNotExist:
+            return []
+
+    def get_mobile_number(self, obj):
+        return obj.lead.mobile_number if obj.lead else ''
+
+    def get_manager_name(self, obj):
+        return _user_name(obj.manager, blank_if_missing=True)
+
+    def get_step_info(self, obj):
+        def n(value, word):
+            value = value or 0
+            return f'{value} {word}{"" if value == 1 else "s"}'
+
+        materials = getattr(obj, 'material_count', 0) or 0
+        dispatched = getattr(obj, 'dispatched_count', 0) or 0
+        return {
+            'Site Survey': getattr(obj, 'survey_state', None) or 'Not started',
+            'Quotation': n(getattr(obj, 'quotations_count', 0), 'quotation'),
+            'Material Planning': n(materials, 'BOM item'),
+            'Job Sheet': getattr(obj, 'job_sheet_state', None) or 'Not created',
+            'Dispatch': f'{dispatched}/{materials} dispatched' if materials else 'No BOM yet',
+            'Installation': obj.installation_status or 'Not Done',
+            'Sales Challan': n(getattr(obj, 'challans_count', 0), 'challan'),
+            'Invoice': n(getattr(obj, 'invoices_count', 0), 'invoice'),
+        }
+
+    class Meta:
+        model = Project
+        fields = [
+            'id', 'project_id', 'project_name', 'customer_name', 'city', 'state', 'site',
+            'site_address', 'capacity_kwp', 'project_type', 'status', 'lead', 'mobile_number',
+            'manager_name', 'total_value', 'created_at', 'installation_status',
+            'pm_stage', 'stage_index', 'stage_history', 'step_info',
+        ]

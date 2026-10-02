@@ -4,15 +4,17 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
-from django.db.models import Count, Q
+from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 from .models import (
     Project, ProjectActivity, ProjectNote, ProjectDocument, ProjectPayment, WorkOrder,
     ProjectTeamMember, ProjectSystemConfig, ProjectMilestone, SiteSurvey, SiteSurveyPhoto,
     ProjectChecklistItem, InstallationMaterial, MaterialPlan, SubsidyApplication, SubsidyDocument,
     ProjectApproval, ProjectApprovalDocument, JobSheet,
+    ProjectPipelineStage, PM_STAGES, PM_STAGE_COMPLETED,
 )
 from .serializers import (
-    JobSheetSerializer,
+    JobSheetSerializer, PmPipelineProjectSerializer,
     ProjectListSerializer, ProjectDetailSerializer,
     ProjectActivitySerializer, ProjectNoteSerializer,
     ProjectDocumentSerializer, ProjectPaymentSerializer, WorkOrderSerializer,
@@ -37,7 +39,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Project.objects.select_related(
             'manager', 'site_engineer', 'lead', 'lead__assigned_to', 'created_by',
-            'site_survey', 'site_survey__surveyed_by',
+            'site_survey', 'site_survey__surveyed_by', 'pm_stage_tracker',
         ).prefetch_related(
             'activities__assigned_to',
             'notes__created_by',
@@ -658,3 +660,90 @@ class ProjectApprovalDocumentViewSet(viewsets.ModelViewSet):
         qs = ProjectApprovalDocument.objects.select_related('approval').all()
         filt = lead_owner_filter(self.request.user, prefix='approval__project__lead__')
         return qs.filter(**filt) if filt else qs
+
+
+def _count_subquery(qs, field='project', outer='pk'):
+    sq = qs.filter(**{field: OuterRef(outer)}).order_by().values(field).annotate(c=Count('id')).values('c')[:1]
+    return Coalesce(Subquery(sq, output_field=IntegerField()), Value(0))
+
+
+class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
+    """Won-lead projects moving through the Project Management pipeline
+    (Site Survey -> Quotation -> ... -> Invoice -> Completed)."""
+
+    serializer_class = PmPipelineProjectSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Project Management'
+    permission_action_map = {'advance': 'can_edit', 'set_stage': 'can_edit'}
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['project_id', 'project_name', 'customer_name', 'city', 'lead__mobile_number']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        from apps.accounts_module.models import SellChallan, SellInvoice
+        from apps.leads.models import Quotation
+
+        qs = (
+            Project.objects.filter(lead__status='Won', lead__is_deleted=False, is_deleted=False)
+            .select_related('lead', 'manager', 'pm_stage_tracker')
+            .annotate(
+                pm_stage=Coalesce('pm_stage_tracker__stage', Value(PM_STAGES[0])),
+                survey_state=F('site_survey__status'),
+                job_sheet_state=F('job_sheet__status'),
+                quotations_count=_count_subquery(Quotation.objects.filter(is_deleted=False), field='lead', outer='lead'),
+                material_count=_count_subquery(MaterialPlan.objects.all()),
+                dispatched_count=_count_subquery(MaterialPlan.objects.filter(dispatch_status='Dispatched')),
+                challans_count=_count_subquery(SellChallan.objects.exclude(status='Cancelled')),
+                invoices_count=_count_subquery(SellInvoice.objects.exclude(status='Cancelled')),
+            )
+        )
+        filt = lead_owner_filter(self.request.user, prefix='lead__')
+        if filt:
+            qs = qs.filter(**filt)
+        stage = self.request.query_params.get('stage')
+        if stage:
+            qs = qs.filter(pm_stage=stage)
+        return qs
+
+    def _respond(self, project_pk):
+        return Response(self.get_serializer(self.get_queryset().get(pk=project_pk)).data)
+
+    def _move(self, request, project, new_stage, kind):
+        tracker, _ = ProjectPipelineStage.objects.get_or_create(project=project)
+        tracker.history = [*(tracker.history or []), {
+            'from': tracker.stage,
+            'to': new_stage,
+            'action': kind,
+            'by': (request.user.name or request.user.email) if request.user else '',
+            'at': timezone.now().isoformat(),
+        }]
+        tracker.stage = new_stage
+        tracker.updated_by = request.user
+        tracker.save()
+        return self._respond(project.pk)
+
+    @action(detail=True, methods=['post'], url_path='advance')
+    def advance(self, request, pk=None):
+        project = self.get_object()
+        current = project.pm_stage
+        expected = request.data.get('from_stage')
+        if expected and expected != current:
+            return Response(
+                {'detail': f'Project is already at "{current}".', 'pm_stage': current},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if current not in PM_STAGES:
+            return Response({'detail': 'All project stages are already completed.'}, status=status.HTTP_400_BAD_REQUEST)
+        idx = PM_STAGES.index(current)
+        new_stage = PM_STAGES[idx + 1] if idx + 1 < len(PM_STAGES) else PM_STAGE_COMPLETED
+        return self._move(request, project, new_stage, 'done')
+
+    @action(detail=True, methods=['post'], url_path='set-stage')
+    def set_stage(self, request, pk=None):
+        project = self.get_object()
+        new_stage = request.data.get('stage')
+        if new_stage not in [*PM_STAGES, PM_STAGE_COMPLETED]:
+            return Response({'detail': 'Invalid stage.'}, status=status.HTTP_400_BAD_REQUEST)
+        if new_stage == project.pm_stage:
+            return self._respond(project.pk)
+        return self._move(request, project, new_stage, 'set')

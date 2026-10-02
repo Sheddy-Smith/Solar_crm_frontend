@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ClipboardList, Eye, Pencil, Plus, X, XCircle } from 'lucide-react';
 import { staffDailyTasksApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { hasModuleAccess } from './settingsHubPages.jsx';
 import { cx } from './lib/utils.js';
@@ -142,6 +143,7 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
     if (statusFilter === 'All') return rows;
     return rows.filter((row) => row.status === statusFilter);
   }, [rows, statusFilter]);
+  const { pageRows, pagination } = usePagedRows(visibleRows, 'tele-daily-tasks', { resetKey: statusFilter });
 
   const openEdit = (task) => {
     setEditTask(task);
@@ -236,7 +238,7 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
         <MobileCardEmpty icon={ClipboardList} title="No Daily Tasks found." />
       ) : (
         <MobileCardList>
-          {visibleRows.map((task) => (
+          {pageRows.map((task) => (
             <MobileRecordCard
               key={task.id}
               icon={ClipboardList}
@@ -288,7 +290,7 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
                 <tr><td colSpan={8} className="px-4 py-10 text-center font-semibold text-[#8a98af]">Loading Daily Tasks…</td></tr>
               ) : visibleRows.length === 0 ? (
                 <tr><td colSpan={8} className="px-4 py-10 text-center font-semibold text-[#8a98af]">No Daily Tasks found.</td></tr>
-              ) : visibleRows.map((task) => (
+              ) : pageRows.map((task) => (
                 <tr key={task.id} className="border-t border-[#edf2f8]">
                   <td className="px-4 py-3 font-extrabold text-[#102446]">{task.title}</td>
                   <td className="max-w-[240px] px-4 py-3 font-semibold text-[#53647f]">{task.description || '—'}</td>
@@ -315,6 +317,7 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
           </table>
         </div>
       </section>
+      {!loading ? <TablePagination {...pagination} className="rounded-[14px] border border-[#e2e9f3]" /> : null}
 
       {viewTask ? (
         <TaskModal title="Task details" onClose={() => setViewTask(null)}>

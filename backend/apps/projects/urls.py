@@ -8,11 +8,12 @@ from .views import (
     ProjectChecklistItemViewSet, InstallationMaterialViewSet, MaterialPlanViewSet,
     SubsidyApplicationViewSet, SubsidyDocumentViewSet,
     ProjectApprovalViewSet, ProjectApprovalDocumentViewSet, SiteSurveyPhotoViewSet, SiteSurveyViewSet,
-    JobSheetViewSet,
+    JobSheetViewSet, PmPipelineViewSet,
 )
 from .billing_views import ProjectSalesChallanViewSet, ProjectInvoiceViewSet
 
 router = DefaultRouter()
+router.register('project-pipeline', PmPipelineViewSet, basename='project-pipeline')
 router.register('projects', ProjectViewSet, basename='project')
 router.register('project-activities', ProjectActivityViewSet, basename='project-activity')
 router.register('project-notes', ProjectNoteViewSet, basename='project-note')

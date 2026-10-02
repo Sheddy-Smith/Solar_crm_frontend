@@ -7,6 +7,8 @@ import { omPendingApi } from './api.js';
 import { moduleCaps } from './settingsHubPages.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
+import { UnderlineTabs } from './components/UnderlineTabs.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 
 export const OM_PENDING_STEPS = [
   { key: 'Pending Work Order', short: 'Work Order', countKey: 'work_orders', icon: ClipboardList, loader: 'workOrders', route: '/om/pending-work-orders' },
@@ -99,73 +101,42 @@ function stepNote(step, summary) {
 }
 
 function PendingFlowStrip({ activeSection, summary, onOpenSection }) {
-  const scrollRef = useRef(null);
-
-  useEffect(() => {
-    const container = scrollRef.current;
-    const active = container?.querySelector('[data-active-step="1"]');
-    if (!container || !active || container.scrollWidth <= container.clientWidth) return;
-    container.scrollTo({ left: active.offsetLeft - (container.clientWidth - active.offsetWidth) / 2, behavior: 'smooth' });
-  }, [activeSection]);
-
   const activeStep = OM_PENDING_STEPS.find((step) => step.key === activeSection);
+  const activeNote = activeStep ? stepNote(activeStep, summary) : '';
 
   return (
-    <section className={cx(PANEL, 'p-2.5 sm:p-3')}>
-      <MobileSubnavSelect
-        label="Tracker Step"
+    <div>
+      <section className={cx(PANEL, 'p-3 md:hidden')}>
+        <MobileSubnavSelect
+          className=""
+          label="Tracker Step"
+          tone="amber"
+          items={OM_PENDING_STEPS.map((step) => {
+            const count = summary ? summary[step.countKey] ?? 0 : null;
+            return { value: step.key, label: `${step.key}${count == null ? '' : ` (${count})`}` };
+          })}
+          value={activeSection}
+          onChange={onOpenSection}
+          note={activeNote}
+        />
+      </section>
+      <UnderlineTabs
         tone="amber"
-        items={OM_PENDING_STEPS.map((step, index) => {
-          const count = summary ? summary[step.countKey] ?? 0 : null;
-          return { value: step.key, label: `${index + 1}. ${step.key}${count == null ? '' : ` (${count})`}` };
-        })}
         value={activeSection}
         onChange={onOpenSection}
-        note={activeStep ? stepNote(activeStep, summary) : ''}
+        items={OM_PENDING_STEPS.map((step) => {
+          const count = summary ? summary[step.countKey] ?? 0 : null;
+          const alert = step.countKey === 'dispatch' && summary?.dispatch_delayed;
+          return {
+            value: step.key,
+            label: step.key,
+            badge: count == null ? '…' : count,
+            badgeClass: count ? (alert ? 'bg-[#fee2e2] text-[#dc2626]' : 'bg-[#fff0dc] text-[#b76b00]') : 'bg-[#e8f8eb] text-[#0d9f4a]',
+          };
+        })}
       />
-      <div ref={scrollRef} className="module-tab-scroll relative -mx-1 hidden overflow-x-auto px-1 md:block">
-        <div className="grid w-[1020px] grid-cols-6 gap-2 2xl:w-full">
-          {OM_PENDING_STEPS.map((step, index) => {
-            const Icon = step.icon;
-            const active = step.key === activeSection;
-            const count = summary ? summary[step.countKey] ?? 0 : null;
-            const alert = step.countKey === 'dispatch' && summary?.dispatch_delayed;
-            return (
-              <button
-                key={step.key}
-                type="button"
-                data-active-step={active ? '1' : undefined}
-                onClick={() => onOpenSection(step.key)}
-                className={cx(
-                  'relative flex flex-col gap-1.5 rounded-[12px] border px-3 py-2.5 text-left transition active:scale-[0.98]',
-                  active
-                    ? 'border-[#ffd58a] bg-[#fffaf0] ring-2 ring-[#fff0dc]'
-                    : 'border-[#e2eaf5] bg-white hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
-                )}
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span className={cx('grid size-8 shrink-0 place-items-center rounded-full', active ? 'bg-[#f59e0b] text-white' : 'bg-[#f4f7fb] text-[#53647f]')}>
-                    <Icon className="size-4" />
-                  </span>
-                  <span className={cx(
-                    'rounded-full px-2.5 py-0.5 text-[14px] font-extrabold',
-                    count ? (alert ? 'bg-[#fee2e2] text-[#dc2626]' : 'bg-[#fff0dc] text-[#b76b00]') : 'bg-[#e8f8eb] text-[#0d9f4a]',
-                  )}
-                  >
-                    {count == null ? '…' : count}
-                  </span>
-                </span>
-                <span className={cx('whitespace-nowrap text-[12px] font-extrabold', active ? 'text-[#8a4f00]' : 'text-[#1e3261]')}>
-                  <span className={cx('mr-1 text-[10px]', active ? 'text-[#b76b00]' : 'text-[#9aa8bc]')}>{index + 1}.</span>
-                  {step.key}
-                </span>
-                <span className="block truncate text-left text-[11px] font-semibold text-[#8a98af]">{stepNote(step, summary) || ' '}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </section>
+      {activeNote ? <p className="mt-1.5 hidden px-1 text-[11px] font-semibold text-[#8a98af] md:block">{activeNote}</p> : null}
+    </div>
   );
 }
 
@@ -252,7 +223,7 @@ function ConfirmDialog({ title, message, confirmLabel, busy, onConfirm, onCancel
 
 /* ───────────────── Tables ───────────────── */
 
-function WorkOrdersTable({ rows, caps, onOpenProject }) {
+function WorkOrdersTable({ rows, startIndex = 0, caps, onOpenProject }) {
   return (
     <table className="crm-table crm-table--lead-dense w-full min-w-[920px]">
       <thead>
@@ -265,7 +236,7 @@ function WorkOrdersTable({ rows, caps, onOpenProject }) {
       <tbody>
         {rows.length === 0 ? <EmptyState colSpan={8} message="Work orders generated for all projects" /> : rows.map((row, i) => (
           <tr key={row.id}>
-            <td className="crm-col-index">{i + 1}</td>
+            <td className="crm-col-index">{startIndex + i + 1}</td>
             <td><ProjectCell row={row} /></td>
             <td><CustomerCell row={row} /></td>
             <td className="font-semibold text-[#0b65e5]">{row.capacity_kwp > 0 ? `${row.capacity_kwp} kWp` : '—'}</td>
@@ -291,7 +262,7 @@ function WorkOrdersTable({ rows, caps, onOpenProject }) {
   );
 }
 
-function QuotationsTable({ rows, caps, onCreateQuotation, onOpenLead }) {
+function QuotationsTable({ rows, startIndex = 0, caps, onCreateQuotation, onOpenLead }) {
   return (
     <table className="crm-table crm-table--lead-dense w-full min-w-[980px]">
       <thead>
@@ -304,7 +275,7 @@ function QuotationsTable({ rows, caps, onCreateQuotation, onOpenLead }) {
       <tbody>
         {rows.length === 0 ? <EmptyState colSpan={9} message="Quotations created for all won leads" /> : rows.map((row, i) => (
           <tr key={row.id}>
-            <td className="crm-col-index">{i + 1}</td>
+            <td className="crm-col-index">{startIndex + i + 1}</td>
             <td>
               <div className="font-semibold leading-tight text-[#1e3261]">{row.customer_name || '—'}</div>
               <div className="text-[11px] font-medium leading-tight text-[#8a98af]">IVRS {row.ivrs_number || '—'}</div>
@@ -351,7 +322,7 @@ function lineTone(status) {
   return 'slate';
 }
 
-function DispatchTable({ rows, caps, busyKey, delayDays, onPack, onOpenProject }) {
+function DispatchTable({ rows, startIndex = 0, caps, busyKey, delayDays, onPack, onOpenProject }) {
   const [expanded, setExpanded] = useState(() => new Set());
   const toggle = (id) => setExpanded((prev) => {
     const next = new Set(prev);
@@ -380,7 +351,7 @@ function DispatchTable({ rows, caps, busyKey, delayDays, onPack, onOpenProject }
                     {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                   </button>
                 </td>
-                <td className="crm-col-index">{i + 1}</td>
+                <td className="crm-col-index">{startIndex + i + 1}</td>
                 <td><ProjectCell row={row} /></td>
                 <td><CustomerCell row={row} /></td>
                 <td className="font-semibold text-[#1e3261]">{row.total_lines}</td>
@@ -477,7 +448,7 @@ function DispatchTable({ rows, caps, busyKey, delayDays, onPack, onOpenProject }
   );
 }
 
-function InstallationTable({ rows, caps, busyKey, onMarkDone, onOpenProject }) {
+function InstallationTable({ rows, startIndex = 0, caps, busyKey, onMarkDone, onOpenProject }) {
   return (
     <table className="crm-table crm-table--lead-dense w-full min-w-[1040px]">
       <thead>
@@ -492,7 +463,7 @@ function InstallationTable({ rows, caps, busyKey, onMarkDone, onOpenProject }) {
           const busy = busyKey === `i-${row.id}`;
           return (
             <tr key={row.id}>
-              <td className="crm-col-index">{i + 1}</td>
+              <td className="crm-col-index">{startIndex + i + 1}</td>
               <td><ProjectCell row={row} /></td>
               <td><CustomerCell row={row} /></td>
               <td className="font-semibold text-[#0b65e5]">{row.capacity_kwp > 0 ? `${row.capacity_kwp} kWp` : '—'}</td>
@@ -539,7 +510,7 @@ function InstallationTable({ rows, caps, busyKey, onMarkDone, onOpenProject }) {
   );
 }
 
-function InvoicesTable({ rows, caps, onOpenProject }) {
+function InvoicesTable({ rows, startIndex = 0, caps, onOpenProject }) {
   return (
     <table className="crm-table crm-table--lead-dense w-full min-w-[980px]">
       <thead>
@@ -554,7 +525,7 @@ function InvoicesTable({ rows, caps, onOpenProject }) {
           const needsChallan = row.pending_document === 'Sales Challan';
           return (
             <tr key={row.id}>
-              <td className="crm-col-index">{i + 1}</td>
+              <td className="crm-col-index">{startIndex + i + 1}</td>
               <td><ProjectCell row={row} /></td>
               <td><CustomerCell row={row} /></td>
               <td className="font-semibold text-[#1e3261]">{fmtRs(row.total_value)}</td>
@@ -588,7 +559,7 @@ function materialTone(status) {
   return 'amber';
 }
 
-function MaterialsTable({ rows, caps, onOpenSection }) {
+function MaterialsTable({ rows, startIndex = 0, caps, onOpenSection }) {
   return (
     <table className="crm-table crm-table--lead-dense w-full min-w-[1080px]">
       <thead>
@@ -601,7 +572,7 @@ function MaterialsTable({ rows, caps, onOpenSection }) {
       <tbody>
         {rows.length === 0 ? <EmptyState colSpan={11} message="No material is short" /> : rows.map((row, i) => (
           <tr key={row.id}>
-            <td className="crm-col-index">{i + 1}</td>
+            <td className="crm-col-index">{startIndex + i + 1}</td>
             <td>
               <div className="font-semibold leading-tight text-[#1e3261]">{row.name}</div>
               <div className="text-[11px] font-medium leading-tight text-[#8a98af]">{row.item_code || '—'}</div>
@@ -843,6 +814,26 @@ function TrackerMobileCards({ section, rows, caps, busyKey, delayDays, onPack, o
 
 /* ───────────────── Page ───────────────── */
 
+const PAGE_STORAGE_KEY = {
+  'Pending Work Order': 'om-pending-work-orders',
+  'Pending Quotations': 'om-pending-quotations',
+  'Pending Dispatch': 'om-pending-dispatch',
+  'Pending Installation': 'om-pending-installation',
+  'Pending Invoice': 'om-pending-invoices',
+  'Short Listed Material': 'om-pending-materials',
+};
+
+function TrackerPagedList({ section, rows, resetKey, renderTable, ...cardProps }) {
+  const { pageRows, startIndex, pagination } = usePagedRows(rows, PAGE_STORAGE_KEY[section], { resetKey });
+  return (
+    <>
+      <TrackerMobileCards section={section} rows={pageRows} {...cardProps} />
+      <div data-no-col-resize="1" className="hidden overflow-x-auto lg:block">{renderTable(pageRows, startIndex)}</div>
+      <TablePagination {...pagination} />
+    </>
+  );
+}
+
 const SEARCH_FIELDS = {
   'Pending Quotations': ['customer_name', 'mobile_number', 'ivrs_number', 'project_name', 'project_code', 'city', 'assigned_to_name'],
   'Short Listed Material': ['name', 'item_code', 'category', 'warehouse', 'status'],
@@ -974,13 +965,15 @@ export function OmPendingFlowPage({
       ? 'Search item, code, category...'
       : 'Search project, customer, site...';
 
-  let table = null;
-  if (section === 'Pending Work Order') table = <WorkOrdersTable rows={visibleRows} caps={caps} onOpenProject={onOpenProject} />;
-  else if (section === 'Pending Quotations') table = <QuotationsTable rows={visibleRows} caps={caps} onCreateQuotation={onCreateQuotation} onOpenLead={onOpenLead} />;
-  else if (section === 'Pending Dispatch') table = <DispatchTable rows={visibleRows} caps={caps} busyKey={busyKey} delayDays={data.delayDays} onPack={handlePack} onOpenProject={onOpenProject} />;
-  else if (section === 'Pending Installation') table = <InstallationTable rows={visibleRows} caps={caps} busyKey={busyKey} onMarkDone={setConfirmDone} onOpenProject={onOpenProject} />;
-  else if (section === 'Pending Invoice') table = <InvoicesTable rows={visibleRows} caps={caps} onOpenProject={onOpenProject} />;
-  else table = <MaterialsTable rows={visibleRows} caps={caps} onOpenSection={onOpenSection} />;
+  const renderTable = (pageRows, startIndex) => {
+    const shared = { rows: pageRows, startIndex, caps };
+    if (section === 'Pending Work Order') return <WorkOrdersTable {...shared} onOpenProject={onOpenProject} />;
+    if (section === 'Pending Quotations') return <QuotationsTable {...shared} onCreateQuotation={onCreateQuotation} onOpenLead={onOpenLead} />;
+    if (section === 'Pending Dispatch') return <DispatchTable {...shared} busyKey={busyKey} delayDays={data.delayDays} onPack={handlePack} onOpenProject={onOpenProject} />;
+    if (section === 'Pending Installation') return <InstallationTable {...shared} busyKey={busyKey} onMarkDone={setConfirmDone} onOpenProject={onOpenProject} />;
+    if (section === 'Pending Invoice') return <InvoicesTable {...shared} onOpenProject={onOpenProject} />;
+    return <MaterialsTable {...shared} onOpenSection={onOpenSection} />;
+  };
 
   return (
     <div className="space-y-2.5">
@@ -1027,22 +1020,22 @@ export function OmPendingFlowPage({
         {loading && data.section !== section ? (
           <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
         ) : (
-          <>
-            <TrackerMobileCards
-              section={section}
-              rows={visibleRows}
-              caps={caps}
-              busyKey={busyKey}
-              delayDays={data.delayDays}
-              onPack={handlePack}
-              onMarkDone={setConfirmDone}
-              onOpenProject={onOpenProject}
-              onCreateQuotation={onCreateQuotation}
-              onOpenLead={onOpenLead}
-              onOpenSection={onOpenSection}
-            />
-            <div data-no-col-resize="1" className="hidden overflow-x-auto lg:block">{table}</div>
-          </>
+          <TrackerPagedList
+            key={section}
+            section={section}
+            rows={visibleRows}
+            resetKey={`${deferredQuery}|${chip}`}
+            renderTable={renderTable}
+            caps={caps}
+            busyKey={busyKey}
+            delayDays={data.delayDays}
+            onPack={handlePack}
+            onMarkDone={setConfirmDone}
+            onOpenProject={onOpenProject}
+            onCreateQuotation={onCreateQuotation}
+            onOpenLead={onOpenLead}
+            onOpenSection={onOpenSection}
+          />
         )}
       </section>
 

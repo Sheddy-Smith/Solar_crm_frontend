@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { inventoryApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { exportNotifyCsv } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
@@ -522,6 +523,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   useEffect(() => { load(); }, [load]);
 
   const filtered = rows;
+  const { pageRows, pagination } = usePagedRows(filtered, 'inventory-products', { resetKey: `${search}|${category}|${stockFilter}` });
 
   const patchForm = (patch) => setModal((m) => ({ ...m, form: { ...m.form, ...patch } }));
 
@@ -675,7 +677,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
             <MobileCardEmpty icon={Boxes} title="No products found" />
           ) : (
             <MobileCardList>
-              {filtered.map((r) => (
+              {pageRows.map((r) => (
                 <MobileRecordCard
                   key={r.id}
                   icon={Boxes}
@@ -725,7 +727,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                 <th className="px-3 py-3">Actions</th>
               </tr></thead>
               <tbody className="divide-y divide-[#f1f5f9]">
-                {filtered.map((r) => (
+                {pageRows.map((r) => (
                   <tr key={r.id} className="hover:bg-[#f8fbff]">
                     <td className="px-3 py-2 font-extrabold text-[#0b65e5]">{r.item_code || r.record_no}</td>
                     <td className="px-3 py-2 font-semibold">{r.name}</td>
@@ -759,6 +761,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
             </table>
             {!filtered.length ? <p className="py-10 text-center text-[#7a8fa6]">No products found</p> : null}
           </div>
+          <TablePagination {...pagination} className="rounded-[12px] border border-[#e5eaf2]" />
           </>
         )}
       </div>
@@ -1063,6 +1066,8 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
 
   useEffect(() => { load(); }, [load]);
 
+  const { pageRows, startIndex, pagination } = usePagedRows(rows, 'inventory-categories');
+
   const toggleField = (key) => {
     setModal((m) => {
       const current = Array.isArray(m.form.form_fields) ? m.form.form_fields : [...DEFAULT_CUSTOM_FIELDS];
@@ -1150,7 +1155,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
             <MobileCardEmpty icon={Tags} title="No categories yet" />
           ) : (
             <MobileCardList>
-              {rows.map((r) => (
+              {pageRows.map((r) => (
                 <MobileRecordCard
                   key={r.id}
                   icon={Tags}
@@ -1175,9 +1180,9 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
+                {pageRows.map((r, i) => (
                   <tr key={r.id} className="border-b border-[#f1f5f9]">
-                    <td className="py-3">{i + 1}</td>
+                    <td className="py-3">{startIndex + i + 1}</td>
                     <td className="py-3 font-semibold">{r.name}</td>
                     <td className="py-3 text-[#0b65e5] font-bold">{templateLabel(r.form_template)}</td>
                     <td className="py-3 text-[#53647f]">{r.description || '—'}</td>
@@ -1196,9 +1201,9 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
               </tbody>
             </table>
           </div>
+          <TablePagination {...pagination} className="mt-3" />
           </>
         )}
-        <p className="mt-3 text-[12px] font-bold text-[#7a8fa6]">Total {rows.length} categor{rows.length === 1 ? 'y' : 'ies'}</p>
       </div>
       <DashboardFooter />
       {modal ? (

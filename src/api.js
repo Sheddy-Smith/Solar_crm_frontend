@@ -698,6 +698,25 @@ export const lcInspectionApi = lcCrud('inspections');
 export const lcCommissioningApi = lcCrud('commissionings');
 export const lcComplianceApi = lcCrud('compliances');
 export const lcDocumentApi = lcCrud('documents');
+export const lcAgreementApi = lcCrud('agreements');
+export const lcNetMeterApi = lcCrud('net-meters');
+export const lcProjectApi = {
+  list: lcCrud('projects').list,
+  get: (id) => request(`/liaison/projects/${id}/`),
+  advance: (id, fromStage) => request(`/liaison/projects/${id}/advance/`, { method: 'POST', body: { from_stage: fromStage } }),
+  setStage: (id, stage) => request(`/liaison/projects/${id}/set-stage/`, { method: 'POST', body: { stage } }),
+};
+
+// Project Management pipeline (Site Survey → … → Invoice) for Won projects.
+export const pmPipelineApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/project-pipeline/${qs ? '?' + qs : ''}`);
+  },
+  get: (id) => request(`/project-pipeline/${id}/`),
+  advance: (id, fromStage) => request(`/project-pipeline/${id}/advance/`, { method: 'POST', body: { from_stage: fromStage } }),
+  setStage: (id, stage) => request(`/project-pipeline/${id}/set-stage/`, { method: 'POST', body: { stage } }),
+};
 
 const omCrud = (base) => ({
   list: (params = {}) => {

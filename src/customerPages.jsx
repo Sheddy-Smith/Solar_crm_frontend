@@ -6,6 +6,7 @@ import { moduleCaps } from './settingsHubPages.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 
 function telHref(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
@@ -220,6 +221,7 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
     const hay = `${r.name} ${r.company} ${r.phone} ${r.address} ${(r.project_labels || []).join(' ')} ${r.gstin}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
   });
+  const { pageRows, pagination } = usePagedRows(filtered, 'customer-list', { resetKey: q });
 
   const save = async () => {
     if (!modal?.form?.name?.trim() || !modal.form.phone?.trim()) {
@@ -283,7 +285,7 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
         <MobileCardEmpty title="No customers yet" hint="Add a lead or customer with a mobile number." />
       ) : (
         <MobileCardList>
-          {filtered.map((r) => {
+          {pageRows.map((r) => {
             const projectCount = Number(r.projects_count || r.leads_count || 0);
             return (
               <MobileRecordCard
@@ -330,7 +332,7 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
               <tr><td colSpan={9} className="px-2 py-6 text-center text-[#7a8fa6]">Loading customers from leads...</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={9} className="px-2 py-6 text-center text-[#7a8fa6]">No customers yet. Add a lead or customer with a mobile number.</td></tr>
-            ) : filtered.map((r) => (
+            ) : pageRows.map((r) => (
               <tr key={r.id} className="border-t border-[#edf2f8]">
                 <td className="px-2 py-1 font-extrabold text-[#1e3261]">{r.name}</td>
                 <td className="px-2 py-1">{r.company || '—'}</td>
@@ -361,6 +363,7 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
           </tbody>
         </table>
       </div>
+      {!loading ? <TablePagination {...pagination} className="rounded-[8px] border border-[#e2e9f3]" /> : null}
       {modal ? (
         <ModalShell
           title={modal.id ? 'Edit Customer' : 'Add New Customer'}
@@ -497,6 +500,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
     if (!needle) return rows;
     return rows.filter((e) => `${e.particulars || ''} ${e.work || ''} ${e.ref || ''} ${e.vehicle_no || ''} ${e.type_label || ''}`.toLowerCase().includes(needle));
   }, [payload, q]);
+  const { pageRows: pageEntries, pagination } = usePagedRows(entries, 'customer-ledger', { resetKey: `${partyId}|${start}|${end}|${q}` });
 
   const summary = payload?.summary || {
     total_debit: entries.reduce((s, e) => s + Number(e.debit || 0), 0),
@@ -637,7 +641,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
             ) : (
               <>
               <LedgerMobileCards
-                entries={entries}
+                entries={pageEntries}
                 emptyText="No ledger entries for this customer."
                 totalDebit={summary.total_debit}
                 totalCredit={summary.total_credit}
@@ -659,7 +663,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
                   <tbody>
                     {entries.length === 0 ? (
                       <tr><td colSpan={9} className="px-3 py-10 text-center text-[#7a8fa6]">No ledger entries for this customer.</td></tr>
-                    ) : entries.map((e, i) => {
+                    ) : pageEntries.map((e, i) => {
                       const bal = Number(e.balance || 0);
                       return (
                         <tr key={`${e.ref}-${i}`} className={`border-t border-[#edf2f8] ${i % 2 ? 'bg-[#f8fafc]' : 'bg-white'}`}>
@@ -695,6 +699,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
                   ) : null}
                 </table>
               </div>
+              <TablePagination {...pagination} className="mt-3" />
               </>
             )}
           </div>
@@ -740,6 +745,7 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
   useEffect(() => { load(); }, [load]);
 
   const rows = (data?.results || []).filter((r) => `${r.name} ${r.phone} ${r.company}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const { pageRows, pagination } = usePagedRows(rows, 'customer-overall-credit', { resetKey: q });
 
   const saveSettle = async () => {
     const amount = Number(settle.amount || 0);
@@ -819,7 +825,7 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
         <MobileCardEmpty title="No customer balances yet." />
       ) : (
         <MobileCardList>
-          {rows.map((r) => (
+          {pageRows.map((r) => (
             <MobileRecordCard
               key={r.id}
               avatar={r.name}
@@ -870,7 +876,7 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
               <tr><td colSpan={10} className="px-3 py-10 text-center text-[#7a8fa6]">Loading...</td></tr>
             ) : rows.length === 0 ? (
               <tr><td colSpan={10} className="px-3 py-10 text-center text-[#7a8fa6]">No customer balances yet.</td></tr>
-            ) : rows.map((r, idx) => (
+            ) : pageRows.map((r, idx) => (
               <tr key={r.id} className={`border-t border-[#edf2f8] ${idx % 2 ? 'bg-[#f8fafc]' : 'bg-white'}`}>
                 <td className="px-3 py-2.5 font-extrabold text-[#111827]">{r.name}</td>
                 <td className="px-3 py-2.5 text-[#334155]">{r.company || '—'}</td>
@@ -904,6 +910,7 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
           </tbody>
         </table>
       </div>
+      <TablePagination {...pagination} className="rounded-[14px] border border-[#e2e9f3]" />
 
       {settle ? (
         <ModalShell

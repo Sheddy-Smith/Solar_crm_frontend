@@ -42,6 +42,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { cx } from './lib/utils.js';
 import { authApi, leadApi, followUpApi } from './api.js';
 import { PwaInstallBanner, PwaInstallIconButton } from './components/mobile/PwaInstallControls.jsx';
@@ -2929,8 +2930,10 @@ function TeleReportsPage({ leads, followUps, loaded = true }) {
   const recentActivity = useMemo(() => (
     [...periodFollowUps]
       .sort((a, b) => new Date(b.completed_at || b.scheduled_at || b.created_at) - new Date(a.completed_at || a.scheduled_at || a.created_at))
-      .slice(0, 10)
   ), [periodFollowUps]);
+  const { pageRows: activityPageRows, pagination: activityPagination } = usePagedRows(recentActivity, 'tele-reports-activity', {
+    resetKey: `${period}|${customFrom}|${customTo}`,
+  });
 
   const statusBarTones = {
     New: 'bg-[#1d4ed8]', Hot: 'bg-[#ea7c1c]', Cool: 'bg-[#7c3aed]', Won: 'bg-[#0d9f4a]', Lost: 'bg-[#dc2626]',
@@ -3128,7 +3131,7 @@ function TeleReportsPage({ leads, followUps, loaded = true }) {
               {loaded && recentActivity.length === 0 && (
                 <tr><td colSpan={5} className="px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No follow-up activity for {activePeriodLabel.toLowerCase()}.</td></tr>
               )}
-              {recentActivity.map((item) => {
+              {activityPageRows.map((item) => {
                 const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
                 return (
                   <tr key={item.id} className="border-b border-[#f1f5fa] text-[13px] font-bold text-[#33456b] transition hover:bg-[#f8fbff]">
@@ -3155,6 +3158,7 @@ function TeleReportsPage({ leads, followUps, loaded = true }) {
             </tbody>
           </table>
         </div>
+        <TablePagination {...activityPagination} />
       </section>
     </>
   );

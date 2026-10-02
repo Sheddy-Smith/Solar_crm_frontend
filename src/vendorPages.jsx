@@ -6,6 +6,7 @@ import { moduleCaps } from './settingsHubPages.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 
 const TABS = [
   { key: 'Vendor Details', label: 'Vendor Details' },
@@ -198,6 +199,7 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
     const hay = `${r.name} ${r.company} ${r.phone} ${r.vendor_type} ${r.address}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
   });
+  const { pageRows, pagination } = usePagedRows(filtered, 'vendor-list', { resetKey: q });
 
   const save = async () => {
     if (!modal?.form?.name?.trim() || !modal.form.phone?.trim()) {
@@ -257,7 +259,7 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
         <MobileCardEmpty title="No vendors yet" hint="Add your first vendor." />
       ) : (
         <MobileCardList>
-          {filtered.map((r) => {
+          {pageRows.map((r) => {
             const digits = String(r.phone || '').replace(/\D/g, '');
             return (
               <MobileRecordCard
@@ -300,7 +302,7 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
               <tr><td colSpan={6} className="px-3 py-10 text-center text-[#7a8fa6]">Loading...</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={6} className="px-3 py-10 text-center text-[#7a8fa6]">No vendors yet. Add your first vendor.</td></tr>
-            ) : filtered.map((r) => (
+            ) : pageRows.map((r) => (
               <tr key={r.id} className="border-t border-[#edf2f8]">
                 <td className="px-3 py-2.5 font-extrabold text-[#1e3261]">{r.name}</td>
                 <td className="px-3 py-2.5">{r.phone || '—'}</td>
@@ -321,6 +323,7 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
           </tbody>
         </table>
       </div>
+      {!loading ? <TablePagination {...pagination} className="rounded-[12px] border border-[#e2e9f3]" /> : null}
       {modal ? (
         <ModalShell
           title={modal.id ? 'Edit Vendor' : 'Add New Vendor'}
@@ -431,6 +434,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
     [vendors, partyId, payload],
   );
   const entries = payload?.results || [];
+  const { pageRows: pageEntries, pagination } = usePagedRows(entries, 'vendor-ledger', { resetKey: `${partyId}|${range.start}|${range.end}|${category}` });
   const summary = payload?.summary || {};
   const voucherCount = entries.filter((e) => /voucher|service/i.test(`${e.particulars || ''} ${e.ref || ''} ${e.type_label || ''}`)).length;
   const totalDebit = Number(summary.total_debit ?? entries.reduce((s, e) => s + Number(e.debit || 0), 0));
@@ -539,7 +543,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
             ) : (
               <>
               <LedgerMobileCards
-                entries={entries}
+                entries={pageEntries}
                 emptyText="No entries found for the selected filters."
                 totalDebit={totalDebit}
                 totalCredit={totalCredit}
@@ -561,7 +565,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
                   <tbody>
                     {entries.length === 0 ? (
                       <tr><td colSpan={9} className="px-3 py-10 text-center text-[#7a8fa6]">No entries found for the selected filters.</td></tr>
-                    ) : entries.map((e, i) => {
+                    ) : pageEntries.map((e, i) => {
                       const bal = Number(e.balance || 0);
                       return (
                         <tr key={`${e.ref}-${i}`} className={`border-t border-[#edf2f8] ${i % 2 ? 'bg-[#f8fafc]' : 'bg-white'}`}>
@@ -595,6 +599,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
                   ) : null}
                 </table>
               </div>
+              <TablePagination {...pagination} className="mt-3" />
               </>
             )}
           </div>

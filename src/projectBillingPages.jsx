@@ -4,12 +4,12 @@ import {
 } from 'lucide-react';
 import { materialPlanApi, projectApi, projectInvoiceApi, projectSalesChallanApi, settingsApi } from './api.js';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
 const CELL_INPUT = 'h-8 w-full rounded-[6px] border border-transparent bg-transparent px-1.5 text-[13px] font-semibold text-[#1e3261] outline-none transition hover:border-[#dce6f3] focus:border-[#86b7fe] focus:bg-white disabled:hover:border-transparent';
 const FIELD_INPUT = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-semibold text-[#1e3261] outline-none placeholder:text-[#9aa8bc] focus:border-[#86b7fe] disabled:bg-[#f8fafc]';
 const LABEL = 'grid gap-1 text-[12px] font-bold text-[#53647f]';
-const PAGE_SIZE = 15;
 const UNITS = ['Nos', 'Set', 'KW', 'Meter', 'Kg', 'Box', 'Roll', 'Lot'];
 const PAYMENT_MODES = ['Cash', 'Cheque', 'NEFT', 'RTGS', 'UPI', 'IMPS', 'Transfer', 'Other'];
 
@@ -685,13 +685,15 @@ function emptyForm(kind) {
   };
 }
 
-function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subnav, initialProjectId }) {
+function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subnav, initialProjectId, embedded = false, lockedProjectId = null }) {
   const cfg = KINDS[kind];
+  const locked = Boolean(lockedProjectId);
+  const startProjectId = lockedProjectId || initialProjectId;
   const isInvoice = kind === 'invoice';
   const editorRef = useRef(null);
   const [projects, setProjects] = useState([]);
   const [company, setCompany] = useState(null);
-  const [projectId, setProjectId] = useState(initialProjectId ? String(initialProjectId) : '');
+  const [projectId, setProjectId] = useState(startProjectId ? String(startProjectId) : '');
   const [projectDetail, setProjectDetail] = useState(null);
   const [doc, setDoc] = useState(null);
   const [form, setForm] = useState(() => emptyForm(kind));
@@ -706,8 +708,10 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
   const emptyFilters = { project_code: '', customer: '', date_from: '', date_to: '', status: '' };
   const [filterDraft, setFilterDraft] = useState(emptyFilters);
   const [filters, setFilters] = useState(emptyFilters);
-  const [visible, setVisible] = useState(PAGE_SIZE);
   const [deleting, setDeleting] = useState(null);
+  const { pageRows, pagination } = usePagedRows(docs, `project-${kind}-list`, {
+    resetKey: `${filters.project_code}|${filters.customer}|${filters.date_from}|${filters.date_to}|${filters.status}`,
+  });
 
   const project = useMemo(() => projects.find((p) => String(p.id) === String(projectId)) || null, [projects, projectId]);
   const info = projectDetail && String(projectDetail.id) === String(projectId) ? { ...project, ...projectDetail } : project;
@@ -732,13 +736,14 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
   const loadDocs = useCallback(async () => {
     setListLoading(true);
     try {
-      setDocs(rowsOf(await cfg.api.list({ ...filters, page_size: 1000 })));
+      const scope = locked ? { project: lockedProjectId } : {};
+      setDocs(rowsOf(await cfg.api.list({ ...filters, ...scope, page_size: 1000 })));
     } catch {
       setDocs([]);
     } finally {
       setListLoading(false);
     }
-  }, [cfg.api, filters]);
+  }, [cfg.api, filters, locked, lockedProjectId]);
 
   useEffect(() => { loadDocs(); }, [loadDocs]);
 
@@ -793,10 +798,10 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
 
   const didInit = useRef(false);
   useEffect(() => {
-    if (didInit.current || !initialProjectId || !projects.length) return;
+    if (didInit.current || !startProjectId || !projects.length) return;
     didInit.current = true;
-    startNew(String(initialProjectId));
-  }, [initialProjectId, projects, startNew]);
+    startNew(String(startProjectId));
+  }, [startProjectId, projects, startNew]);
 
   const applyDoc = (row, readOnly) => {
     loadSeq.current += 1;
@@ -983,7 +988,6 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
   }, [docs]);
 
   const readOnly = viewOnly;
-  const shown = docs.slice(0, visible);
   const Icon = cfg.icon;
   const headers = isInvoice
     ? ['Status', 'Invoice No', 'Date', 'Project No', 'Customer Name', 'Taxable', 'GST', 'Total', 'Received', 'Balance', 'Actions']
@@ -992,7 +996,7 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
 
   return (
     <div className="space-y-2.5">
-      <Heading title={cfg.title} onOpenSection={onOpenSection} />
+      {embedded ? null : <Heading title={cfg.title} onOpenSection={onOpenSection} />}
       {Subnav ? <Subnav activeSection={activeSection} onOpenSection={onOpenSection} /> : null}
 
       <section ref={editorRef} className={cx(PANEL, 'scroll-mt-4 p-3 sm:p-5')}>
@@ -1005,19 +1009,21 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            <label className={LABEL}>
-              Project
-              <select
-                value={projectId}
-                onChange={(e) => { setProjectId(e.target.value); startNew(e.target.value); }}
-                className="h-10 min-w-[260px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-semibold text-[#1e3261] outline-none"
-              >
-                <option value="">Select won project...</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.project_id} · {p.customer_name || p.project_name}</option>
-                ))}
-              </select>
-            </label>
+            {locked ? null : (
+              <label className={LABEL}>
+                Project
+                <select
+                  value={projectId}
+                  onChange={(e) => { setProjectId(e.target.value); startNew(e.target.value); }}
+                  className="h-10 min-w-[260px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-semibold text-[#1e3261] outline-none"
+                >
+                  <option value="">Select won project...</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.project_id} · {p.customer_name || p.project_name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             {doc ? (
               <>
                 <button type="button" onClick={() => handlePrint(doc)} className="inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#d5e0ef] px-3 text-[13px] font-semibold text-[#314a79]">
@@ -1299,6 +1305,7 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
           </>
         )}
 
+        {locked ? null : (
         <div className="mt-6 border-t border-[#edf2f8] pt-5">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <label className={LABEL}>
@@ -1326,21 +1333,22 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
             </label>
           </div>
           <div className="mt-3 flex gap-2">
-            <button type="button" onClick={() => { setVisible(PAGE_SIZE); setFilters({ ...filterDraft }); }} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[12px] bg-[#078c3e] px-4 text-[13px] font-bold text-white sm:h-9 sm:flex-none sm:rounded-[8px]">
+            <button type="button" onClick={() => setFilters({ ...filterDraft })} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[12px] bg-[#078c3e] px-4 text-[13px] font-bold text-white sm:h-9 sm:flex-none sm:rounded-[8px]">
               <Search className="size-4" /> Search
             </button>
             <button
               type="button"
-              onClick={() => { setFilterDraft(emptyFilters); setFilters(emptyFilters); setVisible(PAGE_SIZE); }}
+              onClick={() => { setFilterDraft(emptyFilters); setFilters(emptyFilters); }}
               className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[12px] border border-[#d5e0ef] bg-white px-4 text-[13px] font-semibold text-[#314a79] sm:h-9 sm:flex-none sm:rounded-[8px]"
             >
               <RotateCcw className="size-4" /> Reset
             </button>
           </div>
         </div>
+        )}
 
         <div className="mt-6">
-          <h3 className="font-display text-[18px] font-extrabold text-[#111827]">{cfg.title} Reports</h3>
+          <h3 className="font-display text-[18px] font-extrabold text-[#111827]">{locked ? `This Project's ${cfg.title}s` : `${cfg.title} Reports`}</h3>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <StatChip label={isInvoice ? 'Invoices' : 'Challans'} value={summary.count} />
             <StatChip label={isInvoice ? 'Total Invoiced' : 'Challan Value'} value={money(summary.value)} />
@@ -1356,11 +1364,11 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
           <div className="mt-3 lg:hidden">
             {listLoading ? (
               <p className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
-            ) : shown.length === 0 ? (
+            ) : docs.length === 0 ? (
               <MobileCardEmpty title={`No ${cfg.title.toLowerCase()} found.`} />
             ) : (
               <MobileCardList>
-                {shown.map((row) => (
+                {pageRows.map((row) => (
                   <MobileRecordCard
                     key={row.id}
                     className={doc?.id === row.id ? 'ring-2 ring-[#16a34a]/40' : undefined}
@@ -1409,9 +1417,9 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
               <tbody>
                 {listLoading ? (
                   <tr><td colSpan={headers.length} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</td></tr>
-                ) : shown.length === 0 ? (
+                ) : docs.length === 0 ? (
                   <tr><td colSpan={headers.length} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No {cfg.title.toLowerCase()} found.</td></tr>
-                ) : shown.map((row) => (
+                ) : pageRows.map((row) => (
                   <tr key={row.id} className={cx('border-t border-[#f0f4f9] text-[13px] hover:bg-[#fafcff]', doc?.id === row.id && 'bg-[#f3fbf6]')}>
                     <td className="px-3 py-2">
                       <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#53647f]">
@@ -1451,16 +1459,7 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
               </tbody>
             </table>
           </div>
-          {!listLoading && docs.length > 0 ? (
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <p className="text-[13px] font-medium text-[#7386a3]">Showing {shown.length} of {docs.length} records</p>
-              {docs.length > visible ? (
-                <button type="button" onClick={() => setVisible((v) => v + PAGE_SIZE)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-4 text-[13px] font-semibold text-[#1e3261] hover:bg-[#f8fbff]">
-                  Show More ({docs.length - visible} remaining)
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+          {listLoading ? null : <TablePagination {...pagination} className="mt-3" />}
         </div>
       </section>
 

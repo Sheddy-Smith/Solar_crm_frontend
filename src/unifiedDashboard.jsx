@@ -13,6 +13,7 @@ import {
 import { dashboardApi, userApi } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
+import { UnderlineTabs } from './components/UnderlineTabs.jsx';
 
 const CARD = 'rounded-[12px] border border-[#e5eaf2] bg-white shadow-[0_2px_10px_rgba(24,48,87,0.05)]';
 
@@ -137,40 +138,23 @@ function FilterBar({ dateFrom, dateTo, projectType, leadStatus, assignedTo, assi
 function TabNav({ tab, alertCount, onTab }) {
   return (
     <>
-    <MobileSubnavSelect
-      label="Insights"
-      items={TABS.map((t) => ({ value: t.id, label: t.id === 'alerts' && alertCount > 0 ? `${t.label} (${alertCount})` : t.label }))}
-      value={tab}
-      onChange={onTab}
-    />
-    <nav className="hidden flex-wrap gap-1 border-b border-[#e5eaf2] md:flex">
-      {TABS.map((t) => {
-        const Icon = t.icon;
-        const active = tab === t.id;
-        const alertStyle = t.id === 'alerts' && active;
-        return (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => onTab(t.id)}
-            className={`relative inline-flex items-center gap-2 px-4 py-3 text-[13px] font-extrabold transition ${
-              alertStyle
-                ? 'rounded-[8px] border border-[#0d9f4a] text-[#0d9f4a]'
-                : active
-                  ? 'text-[#0d9f4a]'
-                  : 'text-[#7a8fa6] hover:text-[#53647f]'
-            }`}
-          >
-            <Icon className={`size-4 ${active ? 'text-[#0d9f4a]' : 'text-[#9aa8bc]'}`} />
-            {t.label}
-            {t.id === 'alerts' && alertCount > 0 ? (
-              <span className="ml-0.5 grid size-5 place-items-center rounded-full bg-[#ef4444] text-[10px] font-extrabold text-white">{alertCount}</span>
-            ) : null}
-            {active && !alertStyle ? <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t-full bg-[#0d9f4a]" /> : null}
-          </button>
-        );
-      })}
-    </nav>
+      <MobileSubnavSelect
+        label="Insights"
+        items={TABS.map((t) => ({ value: t.id, label: t.id === 'alerts' && alertCount > 0 ? `${t.label} (${alertCount})` : t.label }))}
+        value={tab}
+        onChange={onTab}
+      />
+      <UnderlineTabs
+        value={tab}
+        onChange={onTab}
+        items={TABS.map((t) => ({
+          value: t.id,
+          label: t.label,
+          icon: t.icon,
+          badge: t.id === 'alerts' && alertCount > 0 ? alertCount : undefined,
+          badgeClass: 'bg-[#ef4444] text-white',
+        }))}
+      />
     </>
   );
 }

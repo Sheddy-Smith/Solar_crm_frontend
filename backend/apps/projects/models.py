@@ -544,6 +544,18 @@ class SiteSurvey(models.Model):
     earthing_location = models.CharField(max_length=200, blank=True)
     earthing_remarks = models.TextField(blank=True)
 
+    # Proposed panels — pre-filled from the project's system config / quotation
+    panel_brand = models.CharField(max_length=100, blank=True)
+    panel_type = models.CharField(max_length=30, blank=True)
+    panel_wattage_w = models.CharField(max_length=20, blank=True)
+    panel_count = models.CharField(max_length=20, blank=True)
+
+    # Proposed inverter — pre-filled from the project's system config / quotation
+    inverter_brand = models.CharField(max_length=100, blank=True)
+    inverter_type = models.CharField(max_length=30, blank=True)
+    inverter_capacity_kw = models.CharField(max_length=20, blank=True)
+    inverter_quantity = models.CharField(max_length=20, blank=True)
+
     # Section 5 — Inverter Location
     inverter_placement = models.CharField(max_length=20, choices=INVERTER_PLACEMENT_CHOICES, blank=True)
     inverter_mounting = models.CharField(max_length=20, choices=INVERTER_MOUNTING_CHOICES, blank=True)
@@ -551,6 +563,7 @@ class SiteSurvey(models.Model):
     inverter_distance_from_roof = models.CharField(max_length=50, blank=True)
 
     # Section 6 — Meter Details
+    meter_number = models.CharField(max_length=50, blank=True)
     meter_type = models.CharField(max_length=100, blank=True)
     meter_phase = models.CharField(max_length=20, choices=METER_PHASE_CHOICES, blank=True)
     meter_capacity = models.CharField(max_length=50, blank=True)
@@ -626,6 +639,7 @@ class SiteSurveyPhoto(models.Model):
         ('South-East Side', 'South-East Side'),
         ('South-West Side', 'South-West Side'),
         ('Front View', 'Front View'),
+        ('Panel Placement Photo', 'Panel Placement Photo'),
         ('Inverter Location Photo', 'Inverter Location Photo'),
         ('Meter Photo Close to Main DB', 'Meter Photo Close to Main DB'),
         ('Earthing Location Photo', 'Earthing Location Photo'),
@@ -955,3 +969,22 @@ class ProjectApprovalDocument(models.Model):
 
     def __str__(self):
         return f'{self.approval} — {self.name}'
+
+
+# Project Management pipeline. Order matters: "Mark Done" advances a project to
+# the next entry. Names must match the frontend PM_STAGE_STEPS (src/App.jsx).
+PM_STAGES = ['Site Survey', 'Quotation', 'Material Planning', 'Job Sheet', 'Dispatch', 'Installation', 'Sales Challan', 'Invoice']
+PM_STAGE_COMPLETED = 'Completed'
+
+
+class ProjectPipelineStage(models.Model):
+    STAGE_CHOICES = [(s, s) for s in PM_STAGES] + [(PM_STAGE_COMPLETED, PM_STAGE_COMPLETED)]
+
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='pm_stage_tracker')
+    stage = models.CharField(max_length=30, choices=STAGE_CHOICES, default=PM_STAGES[0])
+    history = models.JSONField(default=list, blank=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='pm_stage_updates')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.project.project_name} - {self.stage}'

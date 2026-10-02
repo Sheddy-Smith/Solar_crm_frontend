@@ -12,7 +12,8 @@ import {
   projectTeamApi, projectMilestoneApi, projectChecklistApi,
   installationMaterialApi, materialPlanApi, workforceApi, subsidyApi, projectApprovalApi,
   workOrderApi,
-  lcApplicationApi, lcApprovalApi, lcInspectionApi, lcCommissioningApi, lcComplianceApi, lcDocumentApi,
+  lcApplicationApi, lcInspectionApi, lcCommissioningApi, lcDocumentApi,
+  lcAgreementApi, lcNetMeterApi, lcProjectApi, pmPipelineApi,
   omAssetApi, omMaintenanceApi, omTicketApi, omVisitApi, omSparePartApi, omReportApi, omDocumentApi,
   inventoryApi, amcModuleApi, reportsApi, settingsApi, siteSurveyPhotoApi,   siteSurveyApi,
   getMediaUrl,
@@ -55,6 +56,8 @@ import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import {
   ProjectInstallationPage as OpsInstallationPage,
   ProjectMaterialDispatchPage as OpsDispatchPage,
+  ProjectDispatchPanel,
+  ProjectInstallationPanel,
 } from './projectOpsPages.jsx';
 import { ProjectJobSheetPage as OpsJobSheetPage } from './projectJobSheetPage.jsx';
 import { ProjectInvoicePage, ProjectSalesChallanPage } from './projectBillingPages.jsx';
@@ -78,8 +81,10 @@ import {
 } from './settingsHubPages.jsx';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
 import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide } from './components/mobile/PwaInstallControls.jsx';
-import { MobileCardEmpty, MobileCardList, MobileRecordCard, MobilePager } from './components/mobile/MobileRecordCard.jsx';
+import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
+import { UnderlineTabs } from './components/UnderlineTabs.jsx';
+import { usePagedRows, usePageSize, TablePagination } from './components/TablePagination.jsx';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
 import { SettingsRecycleBinPage } from './recycleBinPage.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -98,6 +103,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardPlus,
+  Copy,
   Clock3,
   Cloud,
   ChevronLeft,
@@ -588,7 +594,7 @@ const insightsRelatedPages = [
 ];
 const summaryRelatedPages = [...summarySubItems];
 // Pages jinhe ek selected project chahiye — refresh/restore pe selectedProject null hota hai, isliye inhe Project List se replace karo
-const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Site Survey', 'Project Report View'];
+const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Report View'];
 // Sidebar/subnav se in sections par jane par selectedProject clear karo (project action menu / preserveProject ke alawa)
 const projectSubnavSectionsThatClearProject = new Set([...projectSubItems, 'Project List']);
 const accountsLegacyPages = ['Accounts List', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List', 'Chart of Accounts'];
@@ -610,9 +616,97 @@ const inventoryPrimarySubItems = ['Inventory Overview', 'Products', 'Categories'
 const inventoryOverflowSubItems = ['Warehouses'];
 const inventorySubItems = [...inventoryPrimarySubItems, ...inventoryOverflowSubItems];
 const inventoryRelatedPages = ['Inventory', ...inventorySubItems];
-const liaisonSubItems = ['Applications', 'Approvals', 'Inspections', 'Commissioning', 'Compliance', 'Documents', 'Subsidy'];
+// Order = pipeline order: "Next" opens the same project in the following step.
+// Stage names must match backend LIAISON_STAGES (apps/liaisoning/models.py).
+const LIAISON_STAGE_STEPS = [
+  { key: 'Documents', stage: 'Documents' },
+  { key: 'Application', stage: 'Application' },
+  { key: 'Agreement', stage: 'Agreement' },
+  { key: 'Inspection', stage: 'Inspection' },
+  { key: 'Net Meter', stage: 'Net Meter' },
+  { key: 'Commissioning', stage: 'Commissioning' },
+  { key: 'Liaison Subsidy', stage: 'Subsidy' },
+];
+const LIAISON_STAGE_NAMES = LIAISON_STAGE_STEPS.map((s) => s.stage);
+const liaisonSubItems = ['Liaison Projects', ...LIAISON_STAGE_STEPS.map((s) => s.key)];
+// Stage names must match backend PM_STAGES (apps/projects/models.py).
+const PM_STAGE_STEPS = [
+  { key: 'Project Site Survey', stage: 'Site Survey' },
+  { key: 'Quotation', stage: 'Quotation' },
+  { key: 'Project Material Planning', stage: 'Material Planning' },
+  { key: 'Project Job Sheet', stage: 'Job Sheet' },
+  { key: 'Project Dispatch', stage: 'Dispatch' },
+  { key: 'Project Installation', stage: 'Installation' },
+  { key: 'Project Sales Challan', stage: 'Sales Challan' },
+  { key: 'Project Invoice', stage: 'Invoice' },
+];
+const PM_STAGE_NAMES = PM_STAGE_STEPS.map((s) => s.stage);
+const PIPELINE_COMPLETED_STAGE = 'Completed';
+
+const LIAISON_PIPELINE = {
+  id: 'lc',
+  title: 'Liaisoning & Commissioning',
+  listItem: 'Liaison Projects',
+  subItems: liaisonSubItems,
+  steps: LIAISON_STAGE_STEPS,
+  stageNames: LIAISON_STAGE_NAMES,
+  stageField: 'lc_stage',
+  storageKey: 'lc_selected_project',
+  api: lcProjectApi,
+  progressTitle: 'Liaisoning Progress',
+  completedMessage: 'liaisoning completed',
+  stepHint: (project, step) => {
+    const count = project.step_counts?.[step.stage] ?? 0;
+    return `${count} record${count === 1 ? '' : 's'}`;
+  },
+  rowHint: null,
+  details: (project) => [
+    ['Project ID', project.project_id],
+    ['Customer', project.customer_name],
+    ['Mobile', project.mobile_number],
+    ['City / State', [project.city, project.state].filter(Boolean).join(', ')],
+    ['Capacity', project.capacity_kwp ? `${project.capacity_kwp} kWp` : ''],
+    ['Project Type', project.project_type],
+    ['DISCOM', project.discom_name],
+    ['Consumer No.', project.consumer_number],
+    ['Manager', project.manager_name],
+    ['Project Status', project.status],
+    ['Site Address', project.site_address, true],
+  ],
+};
+
+const PM_PIPELINE = {
+  id: 'pm',
+  title: 'Project Management',
+  listItem: 'Project List',
+  subItems: projectSidebarSubItems,
+  steps: PM_STAGE_STEPS,
+  stageNames: PM_STAGE_NAMES,
+  stageField: 'pm_stage',
+  storageKey: 'pm_selected_project',
+  api: pmPipelineApi,
+  progressTitle: 'Project Progress',
+  completedMessage: 'project completed',
+  stepHint: (project, step) => project.step_info?.[step.stage] || '',
+  rowHint: (project, step) => project.step_info?.[step ? step.stage : project.pm_stage] || '',
+  details: (project) => [
+    ['Project ID', project.project_id],
+    ['Customer', project.customer_name],
+    ['Mobile', project.mobile_number],
+    ['City / State', [project.city, project.state].filter(Boolean).join(', ')],
+    ['Capacity', project.capacity_kwp ? `${project.capacity_kwp} kWp` : ''],
+    ['Project Type', project.project_type],
+    ['Manager', project.manager_name],
+    ['Project Status', project.status],
+    ['Installation', project.installation_status],
+    ['Project Value', Number(project.total_value) ? formatMoney(project.total_value) : ''],
+    ['Site Address', project.site_address || project.site, true],
+  ],
+};
+// Old sub-pages (pre-pipeline) kept routable so bookmarks land on the new equivalents.
+const liaisonLegacyPages = ['Applications', 'Approvals', 'Inspections', 'Compliance'];
 const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
-const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems];
+const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems, ...liaisonLegacyPages];
 const omSubItems = ['Maintenance Tasks', 'Breakdown Tickets', 'Site Visits', 'Asset Management', 'Spare Parts', 'O&M Reports'];
 const omRelatedPages = ['O&M', 'O&M Overview', 'Energy Performance', ...omSubItems];
 const omPendingSubItems = OM_PENDING_SECTIONS;
@@ -863,10 +957,10 @@ const projectSubRoutes = {
   'Project Team Add': '/projects/team/add/:projectId',
   'Project Progress Update': '/projects/progress/update/:projectId',
   'Project Timeline': '/projects/timeline/:projectId',
-  'Project Site Survey': '/projects/site-survey/:projectId',
+  'Project Site Survey': '/projects/site-survey',
   'Project Installation': '/projects/installation',
   'Project Dispatch': '/projects/dispatch',
-  'Project Material Planning': '/projects/material-planning/:projectId',
+  'Project Material Planning': '/projects/material-planning',
   'Project Job Sheet': '/projects/job-sheet',
   'Project Sales Challan': '/projects/sales-challan',
   'Project Invoice': '/projects/invoice',
@@ -934,6 +1028,12 @@ const inventorySubRoutes = {
 const REMOVED_INVENTORY_PATHS = ['/inventory/stock-movements', '/inventory/stock-transfer', '/inventory/adjustments'];
 
 const liaisonSubRoutes = {
+  'Liaison Projects': '/liaisoning/projects',
+  Application: '/liaisoning/application',
+  Agreement: '/liaisoning/agreement',
+  Inspection: '/liaisoning/inspection',
+  'Net Meter': '/liaisoning/net-meter',
+  'Liaison Subsidy': '/liaisoning/subsidy',
   Applications: '/liaisoning/applications',
   'Liaison Application Create': '/liaisoning/applications/create',
   'Liaison Application Details': '/liaisoning/applications/details/:applicationId',
@@ -1020,7 +1120,7 @@ const sectionRoutes = {
   'Project Details': '/projects/details/:projectId',
   'Accounts': '/accounts/overview',
   Inventory: '/inventory/overview',
-  'Liaisoning & Commissioning': '/liaisoning/applications',
+  'Liaisoning & Commissioning': '/liaisoning/projects',
   'AMC & Warranty': '/amc/overview',
   Summary: '/insights?tab=overview',
   Settings: '/settings',
@@ -1078,6 +1178,11 @@ function resolveSectionFromPath(pathname) {
   const dispatchMatch = path.match(/^\/projects\/dispatch(?:\/(?<projectId>[^/]+))?$/);
   if (dispatchMatch) {
     return { section: 'Project Dispatch', params: { projectId: dispatchMatch.groups?.projectId } };
+  }
+  const pipelineStepMatch = path.match(/^\/projects\/(?<step>site-survey|material-planning)(?:\/(?<projectId>[^/]+))?$/);
+  if (pipelineStepMatch) {
+    const section = pipelineStepMatch.groups.step === 'site-survey' ? 'Project Site Survey' : 'Project Material Planning';
+    return { section, params: { projectId: pipelineStepMatch.groups.projectId } };
   }
 
   for (const [section, template] of Object.entries(sectionRoutes)) {
@@ -2060,6 +2165,11 @@ function App() {
   const [customerLeadRefreshKey, setCustomerLeadRefreshKey] = useState(0);
   const [autoOpenFollowUps, setAutoOpenFollowUps] = useState(false);
   const [autoOpenQuotation, setAutoOpenQuotation] = useState(false);
+  const clearSelectedProject = useCallback(() => setSelectedProject(null), []);
+  const consumeAutoOpenQuotation = useCallback(() => setAutoOpenQuotation(false), []);
+  // Quotation is a Project Management pipeline step for PM users; others keep the standalone page.
+  const quotationInProjectHub = activeSidebarItem === 'Quotation' && hasAnyModuleAccess(loggedInUser, 'Project Management');
+  const fixedHeightPage = activeSidebarItem === 'Lead List' || (activeSidebarItem === 'Quotation' && !quotationInProjectHub);
   const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
   const [followUpsPageTab, setFollowUpsPageTab] = useState('today');
   const [dashboardPeriod, setDashboardPeriod] = useState('Month');
@@ -2910,7 +3020,7 @@ function App() {
                             } else {
                               setExpandedSection(sectionKey);
                               const projectLanding = !loggedInUser || hasAnyModuleAccess(loggedInUser, 'Project Management') ? 'Project Overview' : 'Quotation';
-                              const nextItem = isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Applications' : isOmSection ? 'Maintenance Tasks' : isOmPendingSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : 'Project List';
+                              const nextItem = isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Liaison Projects' : isOmSection ? 'Maintenance Tasks' : isOmPendingSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : 'Project List';
                               setActiveSidebarItem(nextItem);
                               notify(`${nextItem} section selected`);
                             }
@@ -3422,11 +3532,11 @@ function App() {
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col self-stretch">
         <main className={cx(
           'main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 px-0 pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:px-0 md:pb-2 xl:pr-0.5',
-          ['Lead List', 'Quotation'].includes(activeSidebarItem) ? 'flex flex-col overflow-visible lg:overflow-hidden' : 'overflow-visible lg:overflow-y-auto',
+          fixedHeightPage ? 'flex flex-col overflow-visible lg:overflow-hidden' : 'overflow-visible lg:overflow-y-auto',
         )}>
           <div className={cx(
             'w-full min-w-0 px-2 md:px-0 xl:pb-2',
-            ['Lead List', 'Quotation'].includes(activeSidebarItem) ? 'flex min-h-0 flex-1 flex-col space-y-2 overflow-visible lg:overflow-hidden' : 'space-y-2',
+            fixedHeightPage ? 'flex min-h-0 flex-1 flex-col space-y-2 overflow-visible lg:overflow-hidden' : 'space-y-2',
           )}>
             <AppHeader
               notify={notify}
@@ -3545,7 +3655,7 @@ function App() {
                 onNotify={notify}
                 IncentiveReportModal={IncentiveReportModal}
               />
-            ) : projectRelatedPages.includes(activeSidebarItem) ? (
+            ) : projectRelatedPages.includes(activeSidebarItem) || quotationInProjectHub ? (
               <ProjectManagementPage
                 activeSection={activeSidebarItem}
                 onOpenSection={(section, options) => {
@@ -3561,6 +3671,9 @@ function App() {
                   setActiveSidebarItem(target);
                   notify(`${target} opened`);
                 }}
+                onConsumeSelectedProject={clearSelectedProject}
+                autoOpenQuotation={autoOpenQuotation}
+                onConsumeAutoOpenQuotation={consumeAutoOpenQuotation}
                 onNotify={notify}
                 loggedInUser={loggedInUser}
               />
@@ -3701,26 +3814,12 @@ function App() {
                 onNotify={notify}
               />
             ) : activeSidebarItem === 'Quotation' ? (
-              <>
-                {hasAnyModuleAccess(loggedInUser, 'Project Management') ? (
-                  <div className="shrink-0">
-                    <ProjectSubnavTabs
-                      activeSection="Quotation"
-                      onOpenSection={(section) => {
-                        if (projectSubnavSectionsThatClearProject.has(section)) setSelectedProject(null);
-                        setActiveSidebarItem(section);
-                        notify(`${section} opened`);
-                      }}
-                    />
-                  </div>
-                ) : null}
-                <QuotationListPage
-                  loggedInUser={loggedInUser}
-                  autoOpenCreate={autoOpenQuotation}
-                  onConsumeAutoOpenCreate={() => setAutoOpenQuotation(false)}
-                  onNotify={notify}
-                />
-              </>
+              <QuotationListPage
+                loggedInUser={loggedInUser}
+                autoOpenCreate={autoOpenQuotation}
+                onConsumeAutoOpenCreate={consumeAutoOpenQuotation}
+                onNotify={notify}
+              />
             ) : activeSidebarItem === 'Lead Details' ? (
               <LeadDetailsPage
                 lead={selectedLead}
@@ -4084,7 +4183,7 @@ function App() {
             )}
           </div>
         </main>
-          {!['Lead List', 'Quotation'].includes(activeSidebarItem) ? (
+          {!fixedHeightPage ? (
           <ProductFooter className="mb-[calc(4.5rem+env(safe-area-inset-bottom))] rounded-b-[16px] md:mb-0" />
           ) : null}
         </div>
@@ -5967,38 +6066,16 @@ function GeneralSettingsDetailShell({ title, onOpenSection, onNotify, actions, c
 
 function AccountSettingsTabs({ activeSection, onOpenSection }) {
   const accountSettingsItems = settingsCardGroups.find((group) => group.title === 'Accounts Settings')?.items ?? [];
+  const tabItems = accountSettingsItems.map((item) => ({ value: item.key, label: item.label }));
+  const open = (key) => onOpenSection(getSettingsRouteKey(key));
 
   return (
-    <section className={`${panelClass} overflow-hidden p-0`}>
-      <MobileSubnavSelect
-        className="p-3 md:hidden"
-        label="Accounts Settings"
-        items={accountSettingsItems.map((item) => ({ value: item.key, label: item.label }))}
-        value={activeSection}
-        onChange={(key) => onOpenSection(getSettingsRouteKey(key))}
-      />
-      <div className="hidden overflow-x-auto pb-1 md:block">
-        <div className="flex min-w-max md:min-w-0">
-          {accountSettingsItems.map((item) => {
-            const active = activeSection === item.key;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => onOpenSection(getSettingsRouteKey(item.key))}
-                className={cx(
-                  'relative flex min-h-[54px] min-w-[170px] shrink-0 items-center justify-center whitespace-nowrap border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold leading-4 transition last:border-r-0 md:min-w-0 md:flex-1 md:shrink md:px-5 sm:h-[58px] sm:min-w-[190px] sm:text-[13px]',
-                  active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
-                )}
-              >
-                {item.label}
-                {active ? <span className="absolute inset-x-6 bottom-0 h-0.5 rounded-full bg-[#0d9f4a]" /> : null}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </section>
+    <div>
+      <section className={cx(panelClass, 'p-3 md:hidden')}>
+        <MobileSubnavSelect className="" label="Accounts Settings" items={tabItems} value={activeSection} onChange={open} />
+      </section>
+      <UnderlineTabs items={tabItems} value={activeSection} onChange={open} />
+    </div>
   );
 }
 
@@ -6085,37 +6162,14 @@ function SettingsSubcategoryTabs({ groupTitle, activeSection, onSelectSection, g
     return null;
   }
 
+  const tabItems = group.items.map((item) => ({ value: item.key, label: item.label }));
   return (
-    <section className={`${panelClass} overflow-hidden p-0`}>
-      <MobileSubnavSelect
-        className="p-3 md:hidden"
-        label={group.title}
-        items={group.items.map((item) => ({ value: item.key, label: item.label }))}
-        value={activeSection}
-        onChange={onSelectSection}
-      />
-      <div className="hidden overflow-x-auto pb-1 md:block">
-        <div className="flex min-w-max md:min-w-0">
-          {group.items.map((item) => {
-            const active = activeSection === item.key;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => onSelectSection(item.key)}
-                className={cx(
-                  'relative flex min-h-[54px] min-w-[170px] shrink-0 items-center justify-center whitespace-nowrap border-r border-[#e5edf6] px-4 text-center text-[12px] font-extrabold leading-4 transition last:border-r-0 md:min-w-0 md:flex-1 md:shrink md:px-5 sm:h-[58px] sm:min-w-[190px] sm:text-[13px]',
-                  active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
-                )}
-              >
-                {item.label}
-                {active ? <span className="absolute inset-x-6 bottom-0 h-0.5 rounded-full bg-[#0d9f4a]" /> : null}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </section>
+    <div>
+      <section className={cx(panelClass, 'p-3 md:hidden')}>
+        <MobileSubnavSelect className="" label={group.title} items={tabItems} value={activeSection} onChange={onSelectSection} />
+      </section>
+      <UnderlineTabs items={tabItems} value={activeSection} onChange={onSelectSection} />
+    </div>
   );
 }
 
@@ -6124,36 +6178,17 @@ function SettingsPillarSubTabs({ items, activeSection, onSelectSection }) {
     return null;
   }
 
+  const seen = new Set();
+  const tabItems = items
+    .filter((item) => (seen.has(item.key) ? false : seen.add(item.key)))
+    .map((item) => ({ value: item.key, label: item.label }));
   return (
-    <section className={`${panelClass} overflow-hidden p-0`}>
-      <MobileSubnavSelect
-        className="p-3 md:hidden"
-        items={items.map((item) => ({ value: item.key, label: item.label }))}
-        value={activeSection}
-        onChange={onSelectSection}
-      />
-      <div className="hidden overflow-x-auto pb-1 md:block">
-        <div className="flex min-w-max gap-0 md:min-w-0 md:flex-wrap">
-          {items.map((item) => {
-            const active = activeSection === item.key;
-            return (
-              <button
-                key={`${item.key}::${item.label}`}
-                type="button"
-                onClick={() => onSelectSection(item.key)}
-                className={cx(
-                  'relative flex min-h-[54px] min-w-[140px] shrink-0 items-center justify-center px-4 text-center text-[12px] font-extrabold leading-4 transition sm:h-[58px] sm:min-w-[160px] sm:px-5 sm:text-[13px] md:flex-1',
-                  active ? 'text-[#078c3e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
-                )}
-              >
-                <span className="truncate">{item.label}</span>
-                {active ? <span className="absolute inset-x-4 bottom-0 h-[3px] rounded-full bg-[#0d9f4a]" /> : null}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </section>
+    <div>
+      <section className={cx(panelClass, 'p-3 md:hidden')}>
+        <MobileSubnavSelect className="" items={tabItems} value={activeSection} onChange={onSelectSection} />
+      </section>
+      <UnderlineTabs items={tabItems} value={activeSection} onChange={onSelectSection} />
+    </div>
   );
 }
 
@@ -6787,6 +6822,7 @@ function SettingsChartOfAccountsContent({ onOpenSection, onNotify }) {
     const groupMatch = group === 'All Groups' || row.group === group;
     return queryMatch && groupMatch;
   });
+  const { pageRows, pagination } = usePagedRows(filteredRows, 'settings-chart-of-accounts', { resetKey: `${query}|${group}` });
 
   return (
     <section className={`${panelClass} p-4 sm:p-5`}>
@@ -6814,7 +6850,7 @@ function SettingsChartOfAccountsContent({ onOpenSection, onNotify }) {
             <table className="crm-table min-w-[860px] w-full">
               <thead><tr>{['Code', 'Account Name', 'Group', 'Type', 'Opening Balance', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
               <tbody>
-                {filteredRows.map((row) => (
+                {pageRows.map((row) => (
                   <tr key={row.code}>
                     <td className="font-extrabold text-[#1e3261]">{row.code}</td>
                     <td className="font-extrabold text-[#1e3261]">{row.name}</td>
@@ -6828,7 +6864,7 @@ function SettingsChartOfAccountsContent({ onOpenSection, onNotify }) {
               </tbody>
             </table>
           </div>
-          <InventoryPagination text={`Showing 1 to ${filteredRows.length} of ${rows.length} entries`} totalPage="1" onNotify={onNotify} prefix="Chart of Accounts" />
+          <TablePagination {...pagination} className="mt-4 rounded-[12px] border border-[#e7eef7]" />
         </article>
 
         <div className="space-y-4">
@@ -6920,6 +6956,7 @@ function SettingsOpeningBalanceContent({ onOpenSection, onNotify }) {
     { account: 'Opening Capital', group: 'Capital Account', debit: '0.00', credit: '12,21,800.00', date: '01 Apr 2024', status: 'Verified' },
   ];
   const filteredRows = rows.filter((row) => [row.account, row.group, row.status].some((value) => value.toLowerCase().includes(query.toLowerCase())));
+  const { pageRows, pagination } = usePagedRows(filteredRows, 'settings-opening-balance', { resetKey: query });
 
   return (
     <section className={`${panelClass} p-4 sm:p-5`}>
@@ -6947,7 +6984,7 @@ function SettingsOpeningBalanceContent({ onOpenSection, onNotify }) {
             <table className="crm-table min-w-[880px] w-full">
               <thead><tr>{['Account', 'Group', 'Debit (Rs)', 'Credit (Rs)', 'Date', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
               <tbody>
-                {filteredRows.map((row) => (
+                {pageRows.map((row) => (
                   <tr key={row.account}>
                     <td className="font-extrabold text-[#1e3261]">{row.account}</td>
                     <td>{row.group}</td>
@@ -6961,7 +6998,7 @@ function SettingsOpeningBalanceContent({ onOpenSection, onNotify }) {
               </tbody>
             </table>
           </div>
-          <InventoryPagination text={`Showing 1 to ${filteredRows.length} of ${rows.length} entries`} totalPage="1" onNotify={onNotify} prefix="Opening Balance" />
+          <TablePagination {...pagination} className="mt-4 rounded-[12px] border border-[#e7eef7]" />
         </article>
 
         <div className="space-y-4">
@@ -7430,6 +7467,7 @@ function SettingsInventoryStats({ stats }) {
 function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, rows, sideTitle, sideRows, onNotify, onAdd }) {
   const [query, setQuery] = useState('');
   const filteredRows = rows.filter((row) => row.some((cell) => typeof cell === 'string' && cell.toLowerCase().includes(query.toLowerCase())));
+  const { pageRows, pagination } = usePagedRows(filteredRows, `settings-${title}`, { resetKey: query });
 
   return (
     <section className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
@@ -7446,7 +7484,7 @@ function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, r
           <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder={searchPlaceholder} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
         </label>
         <MobileCardList className="mt-4">
-          {filteredRows.map((row, rowIndex) => (
+          {pageRows.map((row, rowIndex) => (
             <MobileRecordCard
               key={`${title}-mobile-${rowIndex}`}
               title={row[0]}
@@ -7459,7 +7497,7 @@ function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, r
           <table className="crm-table min-w-[820px] w-full">
             <thead><tr>{columns.map((header) => <th key={header}>{header}</th>)}</tr></thead>
             <tbody>
-              {filteredRows.map((row, rowIndex) => (
+              {pageRows.map((row, rowIndex) => (
                 <tr key={`${title}-${rowIndex}`}>
                   {row.map((cell, cellIndex) => <td key={`${title}-${rowIndex}-${cellIndex}`} className={cellIndex === 0 ? 'font-extrabold text-[#1e3261]' : undefined}>{cell}</td>)}
                 </tr>
@@ -7467,7 +7505,7 @@ function SettingsInventoryTable({ title, searchPlaceholder, addLabel, columns, r
             </tbody>
           </table>
         </div>
-        <InventoryPagination text={`Showing 1 to ${filteredRows.length} of ${rows.length} entries`} totalPage="1" onNotify={onNotify} prefix={title} />
+        <TablePagination {...pagination} className="mt-4 rounded-[12px] border border-[#e7eef7]" />
       </article>
 
       <div className="space-y-4">
@@ -8098,19 +8136,6 @@ function AccountStatusBadge({ status }) {
   return <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[11px] font-extrabold', cls)}>{status || 'Unknown'}</span>;
 }
 
-function InventoryPagination({ text, onNotify, prefix = '' }) {
-  return (
-    <div className="mt-4 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-[13px] font-bold text-[#53647f]">{text}</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <PaginationButton onClick={() => onNotify?.(`${prefix} previous page`)}><ChevronLeft className="size-4" /></PaginationButton>
-        <PaginationButton active onClick={() => {}}> 1 </PaginationButton>
-        <PaginationButton onClick={() => onNotify?.(`${prefix} next page`)}><ChevronRight className="size-4" /></PaginationButton>
-      </div>
-    </div>
-  );
-}
-
 function SettingsPreviewRow({ label, value, valueClass = 'text-[#1e3261]' }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-[#edf2f8] py-3 last:border-b-0 last:pb-0">
@@ -8247,24 +8272,15 @@ function SystemSettingsPage({ onOpenSection, onNotify }) {
             value={activeTab}
             onChange={setActiveTab}
           />
-          <div className="mt-4 hidden flex-wrap gap-2 md:flex">
-            {tabs.map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tab);
-                  onNotify(`${tab} settings opened`);
-                }}
-                className={cx(
-                  'inline-flex items-center rounded-full px-4 py-2 text-[12px] font-extrabold transition',
-                  activeTab === tab ? 'bg-[#eefbf1] text-[#078c3e] shadow-[inset_0_0_0_1px_rgba(20,184,76,0.16)]' : 'bg-white text-[#53647f] hover:bg-[#f8fbff]',
-                )}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+          <UnderlineTabs
+            className="mt-4 hidden md:flex"
+            items={tabs.map((tab) => ({ value: tab, label: tab }))}
+            value={activeTab}
+            onChange={(tab) => {
+              setActiveTab(tab);
+              onNotify(`${tab} settings opened`);
+            }}
+          />
         </div>
 
         <div className={cx('grid gap-4 p-4 sm:p-5 2xl:grid-cols-[minmax(0,1.3fr)_330px]', activeTab !== 'General' && 'hidden')}>
@@ -9418,6 +9434,7 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
   }, []);  
 
   const filteredRows = rows.filter((row) => [row.year, row.period, row.startDate, row.endDate].some((value) => String(value).toLowerCase().includes(query.toLowerCase())));
+  const { pageRows, startIndex, pagination } = usePagedRows(filteredRows, 'settings-financial-years', { resetKey: query });
   const currentYear = rows.find((row) => row.current) || rows[0] || { year: '—', startDate: '—', endDate: '—', status: '—' };
 
   return (
@@ -9475,11 +9492,11 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
             </div>
 
             <div className="mt-4 space-y-3 xl:hidden">
-              {filteredRows.map((row, index) => (
+              {pageRows.map((row, index) => (
                 <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[12px] font-extrabold text-[#8493ab]">#{index + 1}</p>
+                      <p className="text-[12px] font-extrabold text-[#8493ab]">#{startIndex + index + 1}</p>
                       <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.year}</p>
                     </div>
                     <button type="button" onClick={() => onNotify(`${row.year} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
@@ -9503,9 +9520,9 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
                   <tr>{['#', 'Financial Year', 'Start Date', 'End Date', 'Year Period', 'Status', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((row, index) => (
+                  {pageRows.map((row, index) => (
                     <tr key={row.id}>
-                      <td>{index + 1}</td>
+                      <td>{startIndex + index + 1}</td>
                       <td>
                         <div className="flex items-center gap-3">
                           <span className="font-extrabold text-[#1e3261]">{row.year}</span>
@@ -9523,7 +9540,7 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
               </table>
             </div>
 
-            <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 8 entries`} totalPage="1" onNotify={onNotify} prefix="Financial Year" />
+            <TablePagination {...pagination} className="mt-4 rounded-[12px] border border-[#e7eef7]" />
           </article>
         </div>
       </section>
@@ -9570,6 +9587,7 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
     const statusMatch = status === 'All Status' || row.status === status;
     return queryMatch && statusMatch;
   });
+  const { pageRows, startIndex, pagination } = usePagedRows(filteredRows, 'settings-branches', { resetKey: `${query}|${status}` });
 
   const handleDeleteBranch = () => {
     branchApi.delete(deleteBranch.id)
@@ -9616,11 +9634,11 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
           </div>
 
           <div className="mt-4 space-y-3 xl:hidden">
-            {filteredRows.map((row, index) => (
+            {pageRows.map((row, index) => (
               <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[12px] font-extrabold text-[#8493ab]">#{index + 1} • {row.code}</p>
+                    <p className="text-[12px] font-extrabold text-[#8493ab]">#{startIndex + index + 1} • {row.code}</p>
                     <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.name}</p>
                   </div>
                   <AccountStatusBadge status={row.status} />
@@ -9641,9 +9659,9 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
                 <tr>{['#', 'Branch Name', 'Branch Code', 'Location', 'Contact Number', 'Email', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr>
               </thead>
               <tbody>
-                {filteredRows.map((row, index) => (
+                {pageRows.map((row, index) => (
                   <tr key={row.id}>
-                    <td>{index + 1}</td>
+                    <td>{startIndex + index + 1}</td>
                     <td className="font-extrabold text-[#1e3261]">{row.name}</td>
                     <td>{row.code}</td>
                     <td>{row.location}</td>
@@ -9663,7 +9681,7 @@ function BranchManagementSettingsPage({ onOpenSection, onNotify }) {
             </table>
           </div>
 
-          <InventoryPagination text={`Showing 1 to ${filteredRows.length} of 8 entries`} totalPage="1" onNotify={onNotify} prefix="Branch" />
+          <TablePagination {...pagination} className="mt-4 rounded-[12px] border border-[#e7eef7]" />
         </article>
       </section>
 
@@ -9832,8 +9850,12 @@ function getModuleSubnavLabel(item) {
     return 'Invoice';
   }
 
-  if (item === 'Subsidy') {
+  if (item === 'Subsidy' || item === 'Liaison Subsidy') {
     return 'Subsidy';
+  }
+
+  if (item === 'Liaison Projects') {
+    return 'Project List';
   }
 
   if (item === 'Project Work Orders') {
@@ -9863,270 +9885,51 @@ function getModuleSubnavLabel(item) {
   return item;
 }
 
-function HorizontalModuleTabs({ items, activeSection, onOpenSection, activeClasses, activeDotClass, activeIconClass, tone = 'green', wrapOnDesktop = false, compact = false, fullLabels = false, dense = false, overflowItems = [] }) {
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
-  const overflowBtnRef = useRef(null);
-  const overflowMenuRef = useRef(null);
-  const allItems = overflowItems.length ? [...items, ...overflowItems] : items;
-  const resolvedActive = allItems.includes(activeSection) ? activeSection : items[0];
-  const overflowActive = overflowItems.includes(resolvedActive);
-
-  const updateMenuPos = useCallback(() => {
-    const btn = overflowBtnRef.current;
-    if (!btn) return;
-    const rect = btn.getBoundingClientRect();
-    const menuWidth = 196;
-    const left = Math.min(
-      Math.max(8, rect.right - menuWidth),
-      window.innerWidth - menuWidth - 8,
-    );
-    setMenuPos({ top: rect.bottom + 8, left });
-  }, []);
-
-  useEffect(() => {
-    if (!overflowOpen) return undefined;
-    updateMenuPos();
-    const onPointerDown = (event) => {
-      const t = event.target;
-      if (overflowBtnRef.current?.contains(t) || overflowMenuRef.current?.contains(t)) return;
-      setOverflowOpen(false);
-    };
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') setOverflowOpen(false);
-    };
-    const onReposition = () => updateMenuPos();
-    // pointerdown covers mouse + touch (mobile)
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    window.addEventListener('resize', onReposition);
-    window.addEventListener('scroll', onReposition, true);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('resize', onReposition);
-      window.removeEventListener('scroll', onReposition, true);
-    };
-  }, [overflowOpen, updateMenuPos]);
-
+// Module sub-category bar: phone = dropdown + Next (in a card), desktop = underline tabs.
+function HorizontalModuleTabs({ items, activeSection, onOpenSection, tone = 'green', fullLabels = false }) {
+  const resolvedActive = items.includes(activeSection) ? activeSection : items[0];
+  const tabItems = items.map((item) => ({ value: item, label: fullLabels ? item : getModuleSubnavLabel(item) }));
   return (
-    <section className={cx(`${panelClass} overflow-visible`, dense ? 'p-2.5' : 'p-3 sm:p-4')}>
-      <MobileSubnavSelect
-        items={allItems.map((item) => ({ value: item, label: fullLabels ? item : getModuleSubnavLabel(item) }))}
-        value={resolvedActive}
-        onChange={onOpenSection}
-        tone={tone}
-      />
-
-      <div className={cx('hidden items-center md:flex', dense ? 'gap-2 pb-1' : 'gap-2.5 pb-1 sm:gap-3 sm:pb-2')}>
-        <div className="module-tab-scroll -mx-1 min-w-0 flex-1 overflow-x-auto px-1">
-          <div className={cx('flex w-max min-w-full', dense ? 'gap-2' : 'gap-2 sm:gap-3', wrapOnDesktop && 'xl:min-w-0 xl:flex-wrap')}>
-            {items.map((item) => {
-              const isActive = resolvedActive === item;
-              const label = fullLabels ? item : getModuleSubnavLabel(item);
-              return (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => onOpenSection(item)}
-                  className={cx(
-                    'module-tab-button inline-flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-[12px] border text-left shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition active:scale-[0.98] sm:gap-3 sm:hover:-translate-y-0.5',
-                    dense ? 'h-[40px] px-2.5 sm:h-[42px] sm:px-3' : 'h-[44px] px-3 sm:h-[54px] sm:px-4',
-                    compact ? 'min-w-[132px] sm:min-w-[152px]' : 'min-w-[140px] sm:min-w-[170px]',
-                    fullLabels && 'min-w-max',
-                    wrapOnDesktop && 'xl:min-w-[148px] xl:flex-1',
-                    isActive ? activeClasses : 'border-[#d9e4f2] bg-white text-[#314a79] hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
-                  )}
-                  title={label}
-                >
-                  <span className="inline-flex min-w-0 items-center gap-2 sm:gap-3">
-                    <span className={cx('size-2 rounded-full', isActive ? activeDotClass : 'bg-[#b9c4d6]')} />
-                    <span className="text-[12px] font-extrabold sm:text-[13px]">{label}</span>
-                  </span>
-                  <ChevronRight className={cx('size-3.5 shrink-0 sm:size-4', isActive ? activeIconClass : 'text-[#9aa8bc]')} />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        {overflowItems.length > 0 && (
-          <button
-            ref={overflowBtnRef}
-            type="button"
-            onClick={() => {
-              setOverflowOpen((open) => {
-                const next = !open;
-                if (next) updateMenuPos();
-                return next;
-              });
-            }}
-            className={cx(
-              'inline-flex shrink-0 items-center justify-center rounded-[12px] border shadow-[0_10px_20px_rgba(17,39,84,0.04)] transition active:scale-[0.98] sm:hover:-translate-y-0.5',
-              dense ? 'size-[40px] sm:size-[42px]' : 'size-[44px] sm:size-[54px]',
-              overflowActive || overflowOpen
-                ? activeClasses
-                : 'border-[#d9e4f2] bg-white text-[#314a79] hover:border-[#c8d8ed] hover:bg-[#f8fbff]',
-            )}
-            aria-label="More inventory sections"
-            aria-expanded={overflowOpen}
-            aria-haspopup="menu"
-            title="More"
-          >
-            <MoreVertical className={cx('size-5', overflowActive || overflowOpen ? activeIconClass : 'text-[#53647f]')} />
-          </button>
-        )}
-      </div>
-      {overflowOpen && overflowItems.length > 0 && createPortal(
-        <div
-          ref={overflowMenuRef}
-          role="menu"
-          style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, zIndex: 9999 }}
-          className="min-w-[196px] overflow-hidden rounded-[12px] border border-[#d9e4f2] bg-white py-1.5 shadow-[0_16px_40px_rgba(17,39,84,0.18)]"
-        >
-          {overflowItems.map((item) => {
-            const isActive = resolvedActive === item;
-            const label = fullLabels ? item : getModuleSubnavLabel(item);
-            return (
-              <button
-                key={item}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOverflowOpen(false);
-                  onOpenSection(item);
-                }}
-                className={cx(
-                  'flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-extrabold transition',
-                  isActive ? 'bg-[#f2fffb] text-[#0f766e]' : 'text-[#314a79] hover:bg-[#f8fbff]',
-                )}
-              >
-                <span className={cx('size-2 rounded-full', isActive ? activeDotClass : 'bg-[#b9c4d6]')} />
-                {label}
-              </button>
-            );
-          })}
-        </div>,
-        document.body,
-      )}
-    </section>
+    <div>
+      <section className={cx(panelClass, 'p-3 md:hidden')}>
+        <MobileSubnavSelect className="" items={tabItems} value={resolvedActive} onChange={onOpenSection} tone={tone} />
+      </section>
+      <UnderlineTabs items={tabItems} value={resolvedActive} onChange={onOpenSection} tone={tone} />
+    </div>
   );
 }
 
 function LiaisonSubnavTabs({ activeSection, onOpenSection }) {
-  return (
-    <HorizontalModuleTabs
-      items={liaisonSubItems}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      activeClasses="border-[#bcefd1] bg-[#f1fff6] text-[#087a39] ring-2 ring-[#dff6e7]"
-      activeDotClass="bg-[#14b84c]"
-      activeIconClass="text-[#14b84c]"
-    />
-  );
+  return <HorizontalModuleTabs items={liaisonSubItems} activeSection={activeSection} onOpenSection={onOpenSection} />;
 }
 
 function OmSubnavTabs({ activeSection, onOpenSection }) {
-  return (
-    <HorizontalModuleTabs
-      items={omSubItems}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      tone="amber"
-      activeClasses="border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] ring-2 ring-[#fff0dc]"
-      activeDotClass="bg-[#f59e0b]"
-      activeIconClass="text-[#f59e0b]"
-    />
-  );
+  return <HorizontalModuleTabs items={omSubItems} activeSection={activeSection} onOpenSection={onOpenSection} tone="amber" />;
 }
 
 function EmployeeSubnavTabs({ activeSection, onOpenSection }) {
-  return (
-    <HorizontalModuleTabs
-      items={employeeSubItems}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      tone="blue"
-      activeClasses="border-[#d4e4ff] bg-[#f5f9ff] text-[#1766d3] ring-2 ring-[#e3efff]"
-      activeDotClass="bg-[#0b65e5]"
-      activeIconClass="text-[#0b65e5]"
-    />
-  );
+  return <HorizontalModuleTabs items={employeeSubItems} activeSection={activeSection} onOpenSection={onOpenSection} tone="blue" />;
 }
 
 function ProjectSubnavTabs({ activeSection, onOpenSection }) {
-  return (
-    <HorizontalModuleTabs
-      items={projectSidebarSubItems}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      activeClasses="border-[#cfe8d6] bg-[#f1fff5] text-[#0b8f43] ring-2 ring-[#e3f8eb]"
-      activeDotClass="bg-[#14b84c]"
-      activeIconClass="text-[#14b84c]"
-      dense
-    />
-  );
+  return <HorizontalModuleTabs items={projectSidebarSubItems} activeSection={activeSection} onOpenSection={onOpenSection} />;
 }
 
 function SummarySubnavTabs({ activeSection, onOpenSection }) {
-  return (
-    <HorizontalModuleTabs
-      items={summarySubItems}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      activeClasses="border-[#cfe8d6] bg-[#f1fff5] text-[#0b8f43] ring-2 ring-[#e3f8eb]"
-      activeDotClass="bg-[#14b84c]"
-      activeIconClass="text-[#14b84c]"
-      fullLabels
-    />
-  );
+  return <HorizontalModuleTabs items={summarySubItems} activeSection={activeSection} onOpenSection={onOpenSection} fullLabels />;
 }
 
 function AccountsSubnavTabs({ activeSection, onOpenSection }) {
-  return (
-    <HorizontalModuleTabs
-      items={accountsSubItems}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      tone="blue"
-      activeClasses="border-[#d4e4ff] bg-[#f5f9ff] text-[#1766d3] ring-2 ring-[#e3efff]"
-      activeDotClass="bg-[#0b65e5]"
-      activeIconClass="text-[#0b65e5]"
-      wrapOnDesktop
-      compact
-    />
-  );
+  return <HorizontalModuleTabs items={accountsSubItems} activeSection={activeSection} onOpenSection={onOpenSection} tone="blue" />;
 }
 
 function InventorySubnavTabs({ activeSection, onOpenSection }) {
   const resolvedSection = activeSection === 'Overview' || activeSection === 'Inventory' ? 'Inventory Overview' : activeSection;
-  return (
-    <HorizontalModuleTabs
-      items={inventoryPrimarySubItems}
-      overflowItems={inventoryOverflowSubItems}
-      activeSection={resolvedSection}
-      onOpenSection={onOpenSection}
-      tone="teal"
-      activeClasses="border-[#d7f4ea] bg-[#f2fffb] text-[#0f766e] ring-2 ring-[#e7faf8]"
-      activeDotClass="bg-[#0f766e]"
-      activeIconClass="text-[#0f766e]"
-    />
-  );
+  return <HorizontalModuleTabs items={inventorySubItems} activeSection={resolvedSection} onOpenSection={onOpenSection} tone="teal" />;
 }
 
 function AmcSubnavTabs({ activeSection, onOpenSection }) {
-  return (
-    <HorizontalModuleTabs
-      items={amcSubItems}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      tone="amber"
-      activeClasses="border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] ring-2 ring-[#fff0dc]"
-      activeDotClass="bg-[#f59e0b]"
-      activeIconClass="text-[#f59e0b]"
-      wrapOnDesktop
-      compact
-    />
-  );
+  return <HorizontalModuleTabs items={amcSubItems} activeSection={activeSection} onOpenSection={onOpenSection} tone="amber" />;
 }
 
 function OpsPillBadge({ label, tone }) {
@@ -10195,61 +9998,24 @@ function OperationsPlaceholderPage({ moduleTitle, activeSection, items, onOpenSe
 }
 
 function LiaisoningCommissioningPage({ activeSection, onOpenSection, onNotify }) {
-  // Legacy action routes (create/details/upload/reports) used to render a
-  // static demo form with fake data and a Save button that saved nothing.
-  // Resolve them to the real page for that entity instead — the actual
-  // create/edit flows live in popups on the list pages.
+  // Old sub-pages and legacy create/details routes land on their pipeline step.
   const actionType = liaisonActionPageTypes[activeSection];
-  const section = actionType
+  const redirected = actionType
     ? ({
-        'application-create': 'Applications',
-        'application-detail': 'Applications',
-        'approval-detail': 'Approvals',
-        'inspection-create': 'Inspections',
-        'inspection-detail': 'Inspections',
+        'application-create': 'Application',
+        'application-detail': 'Application',
+        'inspection-create': 'Inspection',
+        'inspection-detail': 'Inspection',
         'commissioning-create': 'Commissioning',
         'commissioning-detail': 'Commissioning',
-        'compliance-create': 'Compliance',
-        'compliance-detail': 'Compliance',
         'document-upload': 'Documents',
         'document-preview': 'Documents',
-        // BUG-011: previously resolved to 'Applications', which is a different
-        // concept entirely. There's no dedicated liaison-reports analytics page,
-        // but "reports" here means inspection/commissioning/compliance report
-        // documents, which the real Documents list already shows.
         reports: 'Documents',
-      }[actionType] ?? 'Applications')
-    : activeSection;
+      }[actionType] ?? 'Liaison Projects')
+    : ({ Applications: 'Application', Inspections: 'Inspection' }[activeSection] ?? activeSection);
+  const section = liaisonSubItems.includes(redirected) ? redirected : 'Liaison Projects';
 
-  if (section === 'Applications') {
-    return <LiaisonApplicationsPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-
-  if (section === 'Approvals') {
-    return <LiaisonApprovalsPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-
-  if (section === 'Inspections') {
-    return <LiaisonInspectionsPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-
-  if (section === 'Commissioning') {
-    return <LiaisonCommissioningPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-
-  if (section === 'Compliance') {
-    return <LiaisonCompliancePage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-
-  if (section === 'Documents') {
-    return <LiaisonDocumentsPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-
-  if (section === 'Subsidy') {
-    return <ProjectSubsidyPage activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-
-  return <OperationsPlaceholderPage moduleTitle="Liaisoning & Commissioning" activeSection={section} items={liaisonSubItems} onOpenSection={onOpenSection} onNotify={onNotify} accent="green" />;
+  return <LiaisonPipelineHub section={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
 }
 
 
@@ -10276,6 +10042,10 @@ function LcStatusBadge({ status }) {
     'In Progress': 'bg-[#fff4df] text-[#d97706]',
     Cancelled: 'bg-[#f1f5f9] text-[#64748b]',
     Overdue: 'bg-[#fee2e2] text-[#dc2626]',
+    Signed: 'bg-[#dcfce7] text-[#16a34a]',
+    Applied: 'bg-[#eef4ff] text-[#0b65e5]',
+    Testing: 'bg-[#fff4df] text-[#d97706]',
+    Installed: 'bg-[#dcfce7] text-[#16a34a]',
     Open: 'bg-[#fee2e2] text-[#dc2626]',
     'On Hold': 'bg-[#f1f5f9] text-[#64748b]',
     Resolved: 'bg-[#dcfce7] text-[#16a34a]',
@@ -10396,7 +10166,6 @@ function LcChecklistSection({ record, api, onNotify, onSaved }) {
 }
 
 function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
-  const PAGE_SIZE = 10;
   const extraFilters = config.extraFilters || [];
   const statuses = config.statuses || [];
   const [search, setSearch] = useState('');
@@ -10407,7 +10176,6 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const [users, setUsers] = useState([]);
   const [lookupData, setLookupData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
   const [viewItem, setViewItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
   const [showNew, setShowNew] = useState(false);
@@ -10448,8 +10216,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   }, [filterStatus, serverFilterValues, listParamsKey, fixedFieldsKey, onNotify]);
 
   useEffect(() => { loadRows(); }, [loadRows]);
-  useEffect(() => { setPage(1); setSearch(''); setFilterStatus(''); setForm(config.defaults); setShowNew(false); setEditItem(null); setViewItem(null); }, [listParamsKey, fixedFieldsKey]);
-  useEffect(() => { setPage(1); }, [search, filterStatus, extraFilterValues]);
+  useEffect(() => { setSearch(''); setFilterStatus(''); setForm(config.defaults); setShowNew(false); setEditItem(null); setViewItem(null); }, [listParamsKey, fixedFieldsKey]);
 
   const filtered = rows.filter((r) => {
     for (const f of extraFilters) {
@@ -10460,8 +10227,9 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     return [r.record_no, r.project_name, r.customer_name, ...config.searchKeys.map((k) => r[k])]
       .some((v) => (v || '').toString().toLowerCase().includes(q));
   });
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const { pageRows, pagination } = usePagedRows(filtered, `crud-${config.title}`, {
+    resetKey: `${search}|${filterStatus}|${JSON.stringify(extraFilterValues)}|${listParamsKey}|${fixedFieldsKey}`,
+  });
 
   function buildBody(f) {
     const body = {};
@@ -10544,6 +10312,12 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     config.api.reject(rejectItem.id, rejectReason)
       .then(() => { onNotify(`${rejectItem.record_no} rejected.`, 'success'); if (viewItem?.id === rejectItem.id) setViewItem(null); setRejectItem(null); loadRows(); })
       .catch(() => onNotify('Reject failed.', 'error'));
+  }
+
+  function openNew() {
+    setForm(config.defaults);
+    setShowNew(true);
+    if (config.fixedFields?.project) config.onProjectSelect?.(config.fixedFields.project, setForm);
   }
 
   function handleComplete(item) {
@@ -10635,23 +10409,38 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   return (
     <div className="space-y-4">
-      <PageHeading
-        title={moduleTitle}
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: moduleTitle },
-          { label: config.title },
-        ]}
-        actions={
-          <button type="button" onClick={() => { setForm(config.defaults); setShowNew(true); }} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
-            <Plus className="size-4" />{config.newLabel}
-          </button>
-        }
-      />
+      {!config.embedded && (
+        <>
+          <PageHeading
+            title={moduleTitle}
+            crumbs={[
+              { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+              { label: moduleTitle },
+              { label: config.title },
+            ]}
+            actions={
+              <button type="button" onClick={openNew} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
+                <Plus className="size-4" />{config.newLabel}
+              </button>
+            }
+          />
 
-      <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
+          <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
+        </>
+      )}
 
       <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
+        {config.embedded && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">
+              {config.title}
+              <span className="ml-2 rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{filtered.length}</span>
+            </h3>
+            <button type="button" onClick={openNew} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0] sm:h-9">
+              <Plus className="size-4" />{config.newLabel}
+            </button>
+          </div>
+        )}
         {/* Toolbar */}
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           <div className="relative col-span-2 flex-1 sm:min-w-[180px]">
@@ -10725,7 +10514,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
             <div className="flex flex-col items-center justify-center gap-3 py-16">
               <FileText className="size-10 text-[#c7d4e0]" />
               <p className="text-[14px] font-bold text-[#7a8fa6]">No {config.title.toLowerCase()} found</p>
-              <button type="button" onClick={() => { setForm(config.defaults); setShowNew(true); }} className="inline-flex h-11 items-center gap-2 rounded-[12px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white sm:h-9 sm:rounded-[8px] sm:text-[12px]">
+              <button type="button" onClick={openNew} className="inline-flex h-11 items-center gap-2 rounded-[12px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white sm:h-9 sm:rounded-[8px] sm:text-[12px]">
                 <Plus className="size-3.5" />{config.newLabel}
               </button>
             </div>
@@ -10775,24 +10564,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
           )}
         </section>
 
-        {/* Pagination */}
-        <MobilePager
-          page={page}
-          totalPages={totalPages}
-          onPrev={() => setPage((p) => p - 1)}
-          onNext={() => setPage((p) => p + 1)}
-          summary={`${page} / ${totalPages}`}
-        />
-        {filtered.length > PAGE_SIZE && (
-          <div className="hidden items-center justify-between text-[13px] text-[#53647f] lg:flex">
-            <span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
-            <div className="flex items-center gap-2">
-              <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="h-8 rounded-[8px] border border-[#e5eaf2] px-3 font-bold disabled:opacity-40">Previous</button>
-              <span className="font-extrabold text-[#1e2a38]">{page} / {totalPages}</span>
-              <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="h-8 rounded-[8px] border border-[#e5eaf2] px-3 font-bold disabled:opacity-40">Next</button>
-            </div>
-          </div>
-        )}
+        {!loading ? <TablePagination {...pagination} className="rounded-[12px] border border-[#e5eaf2]" /> : null}
       </div>
 
       {/* New / Edit popups */}
@@ -10903,575 +10675,1091 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
 
-      <DashboardFooter />
+      {!config.embedded && <DashboardFooter />}
     </div>
   );
 }
 
-function LiaisonApplicationsPage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    title: 'Applications',
-    recordLabel: 'Application',
-    newLabel: 'New Application',
-    api: lcApplicationApi,
-    docModule: 'Application',
-    statuses: ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Completed'],
-    searchKeys: ['application_number', 'discom', 'application_type'],
-    columns: [
-      { label: 'Application No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.application_number || r.record_no}</span> },
-      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
-      { label: 'Customer', render: (r) => r.customer_name || '—' },
-      { label: 'Capacity (kW)', render: (r) => r.capacity_kw ?? '—' },
-      { label: 'DISCOM', render: (r) => r.discom || '—' },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-      { label: 'Submitted Date', render: (r) => lcFormatDate(r.submitted_date) },
-    ],
-    fields: [
-      { name: 'project', label: 'Select Project', type: 'project', required: true },
-      { name: 'application_type', label: 'Application Type', type: 'select', options: ['Net Metering', 'Captive Consumption', 'Rooftop Solar', 'Grid Connection', 'Other'] },
-      { name: 'application_number', label: 'Application Number', type: 'text' },
-      { name: 'capacity_kw', label: 'Capacity (kW)', type: 'number' },
-      { name: 'discom', label: 'DISCOM', type: 'text' },
-      { name: 'submitted_date', label: 'Submitted Date', type: 'date' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Completed'] },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { project: '', application_type: 'Net Metering', application_number: '', capacity_kw: '', discom: '', submitted_date: '', status: 'Submitted', remarks: '' },
-    detailRows: [
-      ['Application No', (r) => r.application_number || r.record_no],
-      ['Application Type', (r) => r.application_type],
-      ['Capacity (kW)', (r) => r.capacity_kw ?? '—'],
-      ['DISCOM', (r) => r.discom || '—'],
-      ['Submitted Date', (r) => lcFormatDate(r.submitted_date)],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+// ── Liaisoning pipeline: won-lead projects → Documents … Subsidy ─────────────
+
+// Site survey already recorded GPS/meter/capacity — surface it in Remarks
+// so the commissioning engineer doesn't need to hunt it down or retype it.
+function lcCommissioningPrefill(projectId, setForm) {
+  if (!projectId) return;
+  projectApi.get(projectId).then((data) => {
+    const s = data?.site_survey;
+    if (!s) return;
+    const parts = [];
+    if (s.latitude && s.longitude) parts.push(`GPS: ${s.latitude}, ${s.longitude}`);
+    if (s.meter_type || s.meter_phase) parts.push(`Meter: ${[s.meter_type, s.meter_phase].filter(Boolean).join(' / ')}`);
+    if (s.approx_plant_capacity) parts.push(`Capacity: ${s.approx_plant_capacity}`);
+    if (s.inverter_location_description) parts.push(`Inverter: ${s.inverter_location_description}`);
+    if (!parts.length) return;
+    setForm((prev) => (prev.remarks ? prev : { ...prev, remarks: `From Site Survey — ${parts.join(' | ')}` }));
+  }).catch(() => {});
 }
 
-// Liaisoning ke apne Approvals (LiaisonApproval, DISCOM/net-metering type) aur Project
-// Management se yahan move hue Project Approvals (ProjectApproval) — dono alag data-model
-// hain, isliye merge nahi kiya, ek hi page ke andar do tabs bana diye.
-function LiaisonApprovalsPage({ activeSection, onOpenSection, onNotify }) {
-  const [approvalsTab, setApprovalsTab] = useState('liaison');
+function getLiaisonStepBaseConfig(stepKey, project) {
+  const noCol = (label) => ({ label, render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> });
+  const statusCol = { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> };
 
-  const tabs = (
-    <div className="mb-3 flex flex-wrap gap-2">
-      <button
-        type="button"
-        onClick={() => setApprovalsTab('liaison')}
-        className={cx(
-          'rounded-full px-4 py-2 text-[13px] font-bold transition',
-          approvalsTab === 'liaison' ? 'bg-[#0b65e5] text-white' : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff]',
-        )}
-      >
-        Liaison Approvals
-      </button>
-      <button
-        type="button"
-        onClick={() => setApprovalsTab('project')}
-        className={cx(
-          'rounded-full px-4 py-2 text-[13px] font-bold transition',
-          approvalsTab === 'project' ? 'bg-[#0b65e5] text-white' : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff]',
-        )}
-      >
-        Project Approvals
-      </button>
-    </div>
-  );
-
-  if (approvalsTab === 'project') {
-    return (
-      <div>
-        {tabs}
-        <ProjectApprovalsPage activeSection="Project Approvals" onOpenSection={onOpenSection} onNotify={onNotify} />
-      </div>
-    );
+  if (stepKey === 'Application') {
+    const statuses = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Completed'];
+    return {
+      title: 'Applications',
+      recordLabel: 'Application',
+      newLabel: 'New Application',
+      api: lcApplicationApi,
+      docModule: 'Application',
+      statuses,
+      searchKeys: ['application_number', 'discom', 'application_type'],
+      columns: [
+        { label: 'Application No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.application_number || r.record_no}</span> },
+        { label: 'Application Type', render: (r) => r.application_type },
+        { label: 'Capacity (kW)', render: (r) => r.capacity_kw ?? '—' },
+        { label: 'DISCOM', render: (r) => r.discom || '—' },
+        statusCol,
+        { label: 'Submitted Date', render: (r) => lcFormatDate(r.submitted_date) },
+      ],
+      fields: [
+        { name: 'application_type', label: 'Application Type', type: 'select', options: ['Net Metering', 'Captive Consumption', 'Rooftop Solar', 'Grid Connection', 'Other'] },
+        { name: 'application_number', label: 'Application Number', type: 'text' },
+        { name: 'capacity_kw', label: 'Capacity (kW)', type: 'number' },
+        { name: 'discom', label: 'DISCOM', type: 'text' },
+        { name: 'submitted_date', label: 'Submitted Date', type: 'date' },
+        { name: 'status', label: 'Status', type: 'select', options: statuses },
+        { name: 'remarks', label: 'Remarks', type: 'textarea' },
+      ],
+      defaults: { application_type: 'Net Metering', application_number: '', capacity_kw: project.capacity_kwp ?? '', discom: project.discom_name || '', submitted_date: '', status: 'Submitted', remarks: '' },
+      detailRows: [
+        ['Application No', (r) => r.application_number || r.record_no],
+        ['Application Type', (r) => r.application_type],
+        ['Capacity (kW)', (r) => r.capacity_kw ?? '—'],
+        ['DISCOM', (r) => r.discom || '—'],
+        ['Submitted Date', (r) => lcFormatDate(r.submitted_date)],
+        ['Remarks', (r) => r.remarks || '—'],
+      ],
+    };
   }
 
-  const config = {
-    title: 'Approvals',
-    recordLabel: 'Approval',
-    newLabel: 'New Approval',
-    api: lcApprovalApi,
-    docModule: 'Approval',
-    canApprove: true,
-    statuses: ['Pending', 'Approved', 'Rejected'],
-    searchKeys: ['approval_type', 'assigned_to_name'],
-    columns: [
-      { label: 'Approval No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
-      { label: 'Approval Type', render: (r) => r.approval_type },
-      { label: 'Assigned To', render: (r) => r.assigned_to_name || '—' },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-      { label: 'Due Date', render: (r) => lcFormatDate(r.due_date) },
-    ],
-    fields: [
-      { name: 'project', label: 'Select Project', type: 'project', required: true },
-      { name: 'approval_type', label: 'Approval Type', type: 'select', options: ['Net Metering Approval', 'DISCOM Approval', 'Electrical Inspector', 'Subsidy Approval', 'Grid Synchronization', 'Other'] },
-      { name: 'assigned_to', label: 'Assigned To', type: 'user' },
-      { name: 'due_date', label: 'Due Date', type: 'date' },
-      { name: 'description', label: 'Description', type: 'textarea' },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { project: '', approval_type: 'Other', assigned_to: '', due_date: '', description: '', remarks: '' },
-    detailRows: [
-      ['Approval Type', (r) => r.approval_type],
-      ['Assigned To', (r) => r.assigned_to_name || '—'],
-      ['Due Date', (r) => lcFormatDate(r.due_date)],
-      ['Description', (r) => r.description || '—'],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
+  if (stepKey === 'Agreement') {
+    const statuses = ['Pending', 'Signed', 'Submitted', 'Approved', 'Rejected'];
+    return {
+      title: 'Agreements',
+      recordLabel: 'Agreement',
+      newLabel: 'New Agreement',
+      api: lcAgreementApi,
+      docModule: 'Agreement',
+      statuses,
+      searchKeys: ['agreement_number', 'agreement_type', 'signed_by'],
+      columns: [
+        { label: 'Agreement No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.agreement_number || r.record_no}</span> },
+        { label: 'Agreement Type', render: (r) => r.agreement_type },
+        { label: 'Agreement Date', render: (r) => lcFormatDate(r.agreement_date) },
+        { label: 'Signed By', render: (r) => r.signed_by || '—' },
+        statusCol,
+      ],
+      fields: [
+        { name: 'agreement_type', label: 'Agreement Type', type: 'select', options: ['Net Metering Agreement', 'Power Purchase Agreement', 'DISCOM Connection Agreement', 'Customer Agreement', 'Other'] },
+        { name: 'agreement_number', label: 'Agreement Number', type: 'text' },
+        { name: 'agreement_date', label: 'Agreement Date', type: 'date' },
+        { name: 'signed_by', label: 'Signed By', type: 'text' },
+        { name: 'status', label: 'Status', type: 'select', options: statuses },
+        { name: 'remarks', label: 'Remarks', type: 'textarea' },
+      ],
+      defaults: { agreement_type: 'Net Metering Agreement', agreement_number: '', agreement_date: '', signed_by: project.customer_name || '', status: 'Pending', remarks: '' },
+      detailRows: [
+        ['Agreement No', (r) => r.agreement_number || r.record_no],
+        ['Agreement Type', (r) => r.agreement_type],
+        ['Agreement Date', (r) => lcFormatDate(r.agreement_date)],
+        ['Signed By', (r) => r.signed_by || '—'],
+        ['Remarks', (r) => r.remarks || '—'],
+      ],
+      docTitle: 'Agreement Copies',
+    };
+  }
+
+  if (stepKey === 'Inspection') {
+    const statuses = ['Scheduled', 'In Progress', 'Completed', 'Cancelled'];
+    return {
+      title: 'Inspections',
+      recordLabel: 'Inspection',
+      newLabel: 'Schedule Inspection',
+      api: lcInspectionApi,
+      docModule: 'Inspection',
+      canComplete: true,
+      statuses,
+      searchKeys: ['inspector'],
+      checklistItems: ['Site readiness verified', 'Earthing checked', 'Structure alignment checked', 'Wiring & connections inspected', 'Safety equipment available', 'Meter installation verified'],
+      columns: [
+        noCol('Inspection No'),
+        { label: 'Inspector', render: (r) => r.inspector || '—' },
+        { label: 'Date', render: (r) => lcFormatDate(r.date) },
+        statusCol,
+      ],
+      fields: [
+        { name: 'inspector', label: 'Inspector', type: 'text' },
+        { name: 'date', label: 'Inspection Date', type: 'date' },
+        { name: 'status', label: 'Status', type: 'select', options: statuses },
+        { name: 'remarks', label: 'Remarks', type: 'textarea' },
+      ],
+      defaults: { inspector: '', date: '', status: 'Scheduled', remarks: '' },
+      detailRows: [
+        ['Inspector', (r) => r.inspector || '—'],
+        ['Inspection Date', (r) => lcFormatDate(r.date)],
+        ['Remarks', (r) => r.remarks || '—'],
+      ],
+    };
+  }
+
+  if (stepKey === 'Net Meter') {
+    const statuses = ['Applied', 'Testing', 'Installed', 'Rejected'];
+    return {
+      title: 'Net Meter',
+      recordLabel: 'Net Meter',
+      newLabel: 'Add Net Meter',
+      api: lcNetMeterApi,
+      docModule: 'Net Meter',
+      statuses,
+      searchKeys: ['meter_number', 'meter_make', 'meter_type'],
+      columns: [
+        { label: 'Meter No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.meter_number || r.record_no}</span> },
+        { label: 'Meter Type', render: (r) => r.meter_type },
+        { label: 'Make', render: (r) => r.meter_make || '—' },
+        { label: 'Phase', render: (r) => r.phase || '—' },
+        { label: 'Installation Date', render: (r) => lcFormatDate(r.installation_date) },
+        statusCol,
+      ],
+      fields: [
+        { name: 'meter_type', label: 'Meter Type', type: 'select', options: ['Bi-directional Meter', 'Net Meter', 'Solar Generation Meter', 'Other'] },
+        { name: 'meter_number', label: 'Meter Number', type: 'text' },
+        { name: 'meter_make', label: 'Meter Make', type: 'text' },
+        { name: 'phase', label: 'Phase', type: 'select', options: ['Single Phase', 'Three Phase'] },
+        { name: 'application_date', label: 'Application Date', type: 'date' },
+        { name: 'installation_date', label: 'Installation Date', type: 'date' },
+        { name: 'status', label: 'Status', type: 'select', options: statuses },
+        { name: 'remarks', label: 'Remarks', type: 'textarea' },
+      ],
+      defaults: { meter_type: 'Bi-directional Meter', meter_number: '', meter_make: '', phase: 'Single Phase', application_date: '', installation_date: '', status: 'Applied', remarks: '' },
+      detailRows: [
+        ['Meter No', (r) => r.meter_number || r.record_no],
+        ['Meter Type', (r) => r.meter_type],
+        ['Make', (r) => r.meter_make || '—'],
+        ['Phase', (r) => r.phase || '—'],
+        ['Application Date', (r) => lcFormatDate(r.application_date)],
+        ['Installation Date', (r) => lcFormatDate(r.installation_date)],
+        ['Remarks', (r) => r.remarks || '—'],
+      ],
+    };
+  }
+
+  if (stepKey === 'Commissioning') {
+    const statuses = ['Scheduled', 'In Progress', 'Completed'];
+    return {
+      title: 'Commissioning',
+      recordLabel: 'Commissioning',
+      newLabel: 'New Commissioning',
+      api: lcCommissioningApi,
+      docModule: 'Commissioning',
+      canComplete: true,
+      statuses,
+      searchKeys: ['engineer'],
+      checklistItems: ['Inverter installed & configured', 'Panels connected & tested', 'Earthing verified', 'Net meter synchronized', 'Generation test completed', 'Handover documentation done'],
+      columns: [
+        noCol('Commission No'),
+        { label: 'Engineer', render: (r) => r.engineer || '—' },
+        { label: 'Date', render: (r) => lcFormatDate(r.date) },
+        statusCol,
+      ],
+      fields: [
+        { name: 'engineer', label: 'Engineer', type: 'text' },
+        { name: 'date', label: 'Commissioning Date', type: 'date' },
+        { name: 'status', label: 'Status', type: 'select', options: statuses },
+        { name: 'remarks', label: 'Remarks', type: 'textarea' },
+      ],
+      defaults: { engineer: '', date: '', status: 'Scheduled', remarks: '' },
+      detailRows: [
+        ['Engineer', (r) => r.engineer || '—'],
+        ['Commissioning Date', (r) => lcFormatDate(r.date)],
+        ['Remarks', (r) => r.remarks || '—'],
+      ],
+      onProjectSelect: lcCommissioningPrefill,
+    };
+  }
+
+  return null;
+}
+
+function getLiaisonStepConfig(stepKey, project) {
+  const base = getLiaisonStepBaseConfig(stepKey, project);
+  if (!base) return null;
+  return {
+    ...base,
+    embedded: true,
+    listParams: { project: project.id },
+    fixedFields: { project: project.id },
   };
+}
+
+function PipelineStageBadge({ stage, pipeline = LIAISON_PIPELINE }) {
+  const completed = stage === PIPELINE_COMPLETED_STAGE;
   return (
-    <div>
-      {tabs}
-      <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+    <span className={cx(
+      'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-extrabold',
+      completed ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#eef4ff] text-[#0b65e5]',
+    )}
+    >
+      {completed ? <CheckCircle2 className="size-3" /> : <span className="size-1.5 rounded-full bg-current" />}
+      {stage || pipeline.stageNames[0]}
+    </span>
+  );
+}
+
+function PipelineStageProgress({ project, pipeline = LIAISON_PIPELINE }) {
+  const total = pipeline.stageNames.length;
+  const done = Math.min(project.stage_index ?? 0, total);
+  return (
+    <span className="flex min-w-[110px] items-center gap-2">
+      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e8eef7]">
+        <span className="block h-full rounded-full bg-[#14b84c]" style={{ width: `${(done / total) * 100}%` }} />
+      </span>
+      <span className="text-[11px] font-extrabold text-[#53647f]">{done}/{total}</span>
+    </span>
+  );
+}
+
+function PipelineProjectTable({ pipeline = LIAISON_PIPELINE, projects, loading, stepKey, onOpen, onRefresh, toolbar = null }) {
+  const step = pipeline.steps.find((s) => s.key === stepKey) || null;
+  const stageOf = (p) => p[pipeline.stageField];
+  const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState('');
+  const [highlightId, setHighlightId] = useState(null);
+
+  const scoped = step ? projects.filter((p) => stageOf(p) === step.stage) : projects;
+  const stageCounts = projects.reduce((acc, p) => ({ ...acc, [stageOf(p)]: (acc[stageOf(p)] || 0) + 1 }), {});
+  const q = search.trim().toLowerCase();
+  const filtered = scoped.filter((p) => {
+    if (!step && stageFilter && stageOf(p) !== stageFilter) return false;
+    if (!q) return true;
+    return [p.project_name, p.project_id, p.customer_name, p.mobile_number, p.city]
+      .some((v) => String(v || '').toLowerCase().includes(q));
+  });
+  const { pageRows, startIndex, pagination } = usePagedRows(filtered, `pipeline-${pipeline.id}`, {
+    resetKey: `${search}|${stageFilter}|${stepKey || ''}`,
+  });
+  const heading = step ? `${getModuleSubnavLabel(step.key)} — Projects` : 'Won Projects';
+  const emptyText = step ? `No project is at the ${getModuleSubnavLabel(step.key)} stage right now` : 'No won projects yet';
+  const hintFor = (p) => pipeline.rowHint?.(p, step) || '';
+
+  const chip = (value, label, count) => (
+    <button
+      key={value || 'all'}
+      type="button"
+      onClick={() => setStageFilter(value)}
+      className={cx(
+        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-extrabold transition',
+        stageFilter === value ? 'border-[#0b65e5] bg-[#0b65e5] text-white' : 'border-[#d9e4f2] bg-white text-[#314a79] hover:bg-[#f4f7ff]',
+      )}
+    >
+      {label}
+      <span className={cx('rounded-full px-1.5 text-[10px]', stageFilter === value ? 'bg-white/25' : 'bg-[#eef4ff] text-[#0b65e5]')}>{count}</span>
+    </button>
+  );
+
+  return (
+    <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">
+            {heading}
+            <span className="ml-2 rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{scoped.length}</span>
+          </h3>
+          <p className="mt-0.5 text-[12px] font-bold text-[#7a8fa6]">
+            <span className="hidden lg:inline">Double-click a project to open its details.</span>
+            <span className="lg:hidden">Tap a project to open its details.</span>
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {toolbar}
+          <button type="button" onClick={onRefresh} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-extrabold text-[#284276] hover:bg-[#f8fbff]">
+            <RefreshCw className={cx('size-3.5', loading && 'animate-spin')} />Refresh
+          </button>
+        </div>
+      </div>
+
+      {!step && (
+        <div className="module-tab-scroll -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+          {chip('', 'All', projects.length)}
+          {pipeline.steps.map((s) => chip(s.stage, getModuleSubnavLabel(s.key), stageCounts[s.stage] || 0))}
+          {chip(PIPELINE_COMPLETED_STAGE, PIPELINE_COMPLETED_STAGE, stageCounts[PIPELINE_COMPLETED_STAGE] || 0)}
+        </div>
+      )}
+
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#7a8fa6]" />
+        <input
+          type="search"
+          className="h-11 w-full rounded-[12px] border border-[#d9e2ec] bg-white pl-10 pr-3 text-[14px] font-bold text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none sm:h-9 sm:rounded-[8px] sm:pl-9 sm:text-[13px] sm:font-normal"
+          placeholder="Search project, customer, mobile or city..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {!loading && filtered.length > 0 ? (
+        <MobileCardList>
+          {pageRows.map((p) => (
+            <MobileRecordCard
+              key={p.id}
+              avatar={p.customer_name}
+              title={p.project_name}
+              subtitle={`${p.project_id} · ${p.customer_name || '—'}`}
+              aside={p.capacity_kwp ? `${p.capacity_kwp} kWp` : null}
+              badges={<PipelineStageBadge stage={stageOf(p)} pipeline={pipeline} />}
+              details={[
+                { label: 'City', value: p.city || '—' },
+                { label: 'Progress', value: <PipelineStageProgress project={p} pipeline={pipeline} /> },
+                hintFor(p) ? { label: 'Status', value: hintFor(p) } : null,
+              ].filter(Boolean)}
+              onOpen={() => onOpen(p)}
+              actions={[
+                p.mobile_number ? { label: 'Call', icon: Phone, tone: 'green', href: `tel:${p.mobile_number}` } : null,
+                { label: 'Open', icon: Eye, tone: 'blue', onClick: () => onOpen(p) },
+              ]}
+            />
+          ))}
+        </MobileCardList>
+      ) : null}
+
+      <section className={cx('overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white', !loading && filtered.length > 0 && 'hidden lg:block')}>
+        {loading && !projects.length ? (
+          <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16">
+            <FolderKanban className="size-10 text-[#c7d4e0]" />
+            <p className="text-center text-[14px] font-bold text-[#7a8fa6]">{q ? 'No project matches your search' : emptyText}</p>
+          </div>
+        ) : (
+          <div className="max-h-[62vh] overflow-auto">
+            <table className="w-full min-w-[900px] text-left text-[13px]">
+              <thead>
+                <tr>
+                  {['#', 'Project', 'Customer', 'City', 'Capacity', 'Status', 'Progress', 'Action'].map((h) => (
+                    <th key={h} className="sticky top-0 z-10 border-b border-[#e5eaf2] bg-[#f8fafc] px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f1f5f9]">
+                {pageRows.map((p, i) => (
+                  <tr
+                    key={p.id}
+                    title="Double-click to open"
+                    onClick={() => setHighlightId(p.id)}
+                    onDoubleClick={() => onOpen(p)}
+                    className={cx('cursor-pointer select-none transition', highlightId === p.id ? 'bg-[#eef6ff]' : 'hover:bg-[#f8fafc]')}
+                  >
+                    <td className="px-4 py-3 text-[#7a8fa6]">{startIndex + i + 1}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-extrabold text-[#1e3261]">{p.project_name}</p>
+                      <p className="text-[11px] font-bold text-[#8a98af]">{p.project_id}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-[#1e2a38]">{p.customer_name || '—'}</p>
+                      {p.mobile_number ? <p className="text-[11px] font-bold text-[#8a98af]">{p.mobile_number}</p> : null}
+                    </td>
+                    <td className="px-4 py-3">{p.city || '—'}</td>
+                    <td className="px-4 py-3">{p.capacity_kwp ? `${p.capacity_kwp} kWp` : '—'}</td>
+                    <td className="px-4 py-3">
+                      <PipelineStageBadge stage={stageOf(p)} pipeline={pipeline} />
+                      {hintFor(p) ? <p className="mt-1 text-[11px] font-bold text-[#8a98af]">{hintFor(p)}</p> : null}
+                    </td>
+                    <td className="px-4 py-3"><PipelineStageProgress project={p} pipeline={pipeline} /></td>
+                    <td className="px-4 py-3">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(p); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#cfe0ff] bg-[#eef4ff] px-3 text-[12px] font-extrabold text-[#0b65e5] hover:bg-[#e0ebff]">
+                        <Eye className="size-3.5" />Open
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {!(loading && !projects.length) ? <TablePagination {...pagination} className="rounded-[12px] border border-[#e5eaf2]" /> : null}
     </div>
   );
 }
 
-function LiaisonInspectionsPage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    title: 'Inspections',
-    recordLabel: 'Inspection',
-    newLabel: 'Schedule Inspection',
-    api: lcInspectionApi,
-    docModule: 'Inspection',
-    canComplete: true,
-    statuses: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'],
-    searchKeys: ['inspector'],
-    checklistItems: ['Site readiness verified', 'Earthing checked', 'Structure alignment checked', 'Wiring & connections inspected', 'Safety equipment available', 'Meter installation verified'],
-    columns: [
-      { label: 'Inspection No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
-      { label: 'Inspector', render: (r) => r.inspector || '—' },
-      { label: 'Date', render: (r) => lcFormatDate(r.date) },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-    ],
-    fields: [
-      { name: 'project', label: 'Select Project', type: 'project', required: true },
-      { name: 'inspector', label: 'Inspector', type: 'text' },
-      { name: 'date', label: 'Inspection Date', type: 'date' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'] },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { project: '', inspector: '', date: '', status: 'Scheduled', remarks: '' },
-    detailRows: [
-      ['Inspector', (r) => r.inspector || '—'],
-      ['Inspection Date', (r) => lcFormatDate(r.date)],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+function PipelineProjectBar({ pipeline = LIAISON_PIPELINE, project, section, busy, onNext, onClose, onMarkDone, extraActions = null }) {
+  const stage = project[pipeline.stageField];
+  const idx = pipeline.subItems.indexOf(section);
+  const nextKey = idx >= 0 ? pipeline.subItems[idx + 1] : null;
+  const sectionStage = pipeline.steps.find((s) => s.key === section)?.stage;
+  const isCompleted = stage === PIPELINE_COMPLETED_STAGE;
+  const canMarkDone = !isCompleted && (section === pipeline.listItem || sectionStage === stage);
+
+  return (
+    <section className={cx(panelClass, 'flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4')}>
+      <button
+        type="button"
+        onClick={() => nextKey && onNext(nextKey)}
+        disabled={!nextKey}
+        className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_8px_18px_rgba(13,159,74,0.22)] transition hover:bg-[#0b8a40] disabled:bg-[#b9c4d6] disabled:shadow-none sm:h-10"
+      >
+        {nextKey ? <>Next: {getModuleSubnavLabel(nextKey)}<ArrowRight className="size-4" /></> : 'Last step'}
+      </button>
+
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] text-white">
+          <FolderKanban className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate font-display text-[15px] font-extrabold text-[#111827]">{project.project_name}</p>
+          <p className="truncate text-[12px] font-bold text-[#7585a2]">
+            {project.project_id} · {project.customer_name || '—'}{project.capacity_kwp ? ` · ${project.capacity_kwp} kWp` : ''}
+          </p>
+        </div>
+        <span className="hidden shrink-0 sm:inline-flex"><PipelineStageBadge stage={stage} pipeline={pipeline} /></span>
+      </div>
+
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <span className="sm:hidden"><PipelineStageBadge stage={stage} pipeline={pipeline} /></span>
+        {canMarkDone && (
+          <button type="button" disabled={busy} onClick={onMarkDone} className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-[#bbf7d0] bg-[#f0fdf4] px-3 text-[12px] font-extrabold text-[#15803d] transition hover:bg-[#dcfce7] disabled:opacity-60 sm:flex-none">
+            <CheckCircle2 className="size-4" />{busy ? 'Saving...' : `Mark ${stage} Done`}
+          </button>
+        )}
+        {extraActions}
+        <button type="button" onClick={onClose} title="Back to project list" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] hover:bg-[#f8fbff]">
+          <X className="size-4" /><span className="hidden sm:inline">Close</span>
+        </button>
+      </div>
+    </section>
+  );
 }
 
-function LiaisonCommissioningPage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    title: 'Commissioning',
-    recordLabel: 'Commissioning',
-    newLabel: 'New Commissioning',
-    api: lcCommissioningApi,
-    docModule: 'Commissioning',
-    canComplete: true,
-    statuses: ['Scheduled', 'In Progress', 'Completed'],
-    searchKeys: ['engineer'],
-    checklistItems: ['Inverter installed & configured', 'Panels connected & tested', 'Earthing verified', 'Net meter synchronized', 'Generation test completed', 'Handover documentation done'],
-    columns: [
-      { label: 'Commission No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
-      { label: 'Engineer', render: (r) => r.engineer || '—' },
-      { label: 'Date', render: (r) => lcFormatDate(r.date) },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-    ],
-    fields: [
-      { name: 'project', label: 'Select Project', type: 'project', required: true },
-      { name: 'engineer', label: 'Engineer', type: 'text' },
-      { name: 'date', label: 'Commissioning Date', type: 'date' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Scheduled', 'In Progress', 'Completed'] },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { project: '', engineer: '', date: '', status: 'Scheduled', remarks: '' },
-    detailRows: [
-      ['Engineer', (r) => r.engineer || '—'],
-      ['Commissioning Date', (r) => lcFormatDate(r.date)],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-    // Site survey already recorded GPS/meter/capacity — surface it in Remarks
-    // so the commissioning engineer doesn't need to hunt it down or retype it.
-    onProjectSelect: (projectId, setForm) => {
-      if (!projectId) return;
-      projectApi.get(projectId).then((data) => {
-        const s = data?.site_survey;
-        if (!s) return;
-        const parts = [];
-        if (s.latitude && s.longitude) parts.push(`GPS: ${s.latitude}, ${s.longitude}`);
-        if (s.meter_type || s.meter_phase) parts.push(`Meter: ${[s.meter_type, s.meter_phase].filter(Boolean).join(' / ')}`);
-        if (s.approx_plant_capacity) parts.push(`Capacity: ${s.approx_plant_capacity}`);
-        if (s.inverter_location_description) parts.push(`Inverter: ${s.inverter_location_description}`);
-        if (!parts.length) return;
-        setForm((prev) => (prev.remarks ? prev : { ...prev, remarks: `From Site Survey — ${parts.join(' | ')}` }));
-      }).catch(() => {});
-    },
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+function PipelineProjectOverview({ pipeline = LIAISON_PIPELINE, project, busy, onOpenStep, onSetStage }) {
+  const stageIndex = project.stage_index ?? 0;
+  const history = [...(project.stage_history || [])].reverse();
+  const info = pipeline.details(project);
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+      <div className="flex flex-col gap-4">
+        <section className={cx(panelClass, 'p-4 sm:p-5')}>
+          <h3 className="mb-3 font-display text-[15px] font-extrabold text-[#1e3261]">{pipeline.progressTitle}</h3>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {pipeline.steps.map((s, i) => {
+              const state = i < stageIndex ? 'done' : i === stageIndex ? 'current' : 'pending';
+              const hint = pipeline.stepHint?.(project, s);
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => onOpenStep(s.key)}
+                  className={cx(
+                    'flex items-center gap-3 rounded-[12px] border px-3 py-2.5 text-left! transition hover:-translate-y-0.5',
+                    state === 'done' && 'border-[#bbf7d0] bg-[#f0fdf4]',
+                    state === 'current' && 'border-[#93c5fd] bg-[#eff6ff] ring-2 ring-[#dbeafe]',
+                    state === 'pending' && 'border-[#e5eaf2] bg-white',
+                  )}
+                >
+                  <span className={cx(
+                    'grid size-8 shrink-0 place-items-center rounded-full text-[12px] font-extrabold',
+                    state === 'done' && 'bg-[#16a34a] text-white',
+                    state === 'current' && 'bg-[#0b65e5] text-white',
+                    state === 'pending' && 'bg-[#eef2f7] text-[#7a8fa6]',
+                  )}
+                  >
+                    {state === 'done' ? <CheckCircle2 className="size-4" /> : i + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-extrabold text-[#1e3261]">{getModuleSubnavLabel(s.key)}</span>
+                    <span className="block truncate text-[11px] font-bold text-[#7a8fa6]">
+                      {state === 'done' ? 'Done' : state === 'current' ? 'Current stage' : 'Pending'}{hint ? ` · ${hint}` : ''}
+                    </span>
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-[#9aa8bc]" />
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#eef2f8] pt-3">
+            <label htmlFor={`${pipeline.id}-stage-override`} className="text-[12px] font-extrabold text-[#53647f]">Change stage manually</label>
+            <select
+              id={`${pipeline.id}-stage-override`}
+              disabled={busy}
+              value={project[pipeline.stageField]}
+              onChange={(e) => onSetStage(e.target.value)}
+              className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] font-bold text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none"
+            >
+              {[...pipeline.stageNames, PIPELINE_COMPLETED_STAGE].map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </section>
+
+        <section className={cx(panelClass, 'p-4 sm:p-5')}>
+          <h3 className="mb-3 font-display text-[15px] font-extrabold text-[#1e3261]">Stage History</h3>
+          {history.length === 0 ? (
+            <p className="text-[13px] font-bold text-[#7a8fa6]">No stage changes yet. Use “Mark Done” to move this project forward.</p>
+          ) : (
+            <ol className="space-y-2">
+              {history.map((h, i) => (
+                <li key={`${h.at}-${i}`} className="flex items-start gap-2.5 text-[13px]">
+                  <span className={cx('mt-0.5 grid size-6 shrink-0 place-items-center rounded-full', h.action === 'done' ? 'bg-[#dcfce7] text-[#16a34a]' : 'bg-[#fff4df] text-[#d97706]')}>
+                    {h.action === 'done' ? <CheckCircle2 className="size-3.5" /> : <Clock3 className="size-3.5" />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-bold text-[#1e3261]">
+                      {h.action === 'done' ? `${h.from} done` : 'Stage changed'} → {h.to}
+                    </span>
+                    <span className="block text-[11px] font-semibold text-[#8a98af]">
+                      {h.by || '—'} · {h.at ? new Date(h.at).toLocaleString('en-IN') : ''}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+
+      <section className={cx(panelClass, 'h-max p-4 sm:p-5')}>
+        <h3 className="mb-3 font-display text-[15px] font-extrabold text-[#1e3261]">Project Details</h3>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-[13px]">
+          {info.map(([label, value, wide]) => (
+            <div key={label} className={wide ? 'col-span-2' : ''}>
+              <dt className={lcLabelCls}>{label}</dt>
+              <dd className="break-words font-semibold text-[#1e2a38]">{value || '—'}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    </div>
+  );
 }
 
-function LiaisonCompliancePage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    title: 'Compliance',
-    recordLabel: 'Compliance',
-    newLabel: 'New Compliance',
-    api: lcComplianceApi,
-    docModule: 'Compliance',
-    statuses: ['Pending', 'Submitted', 'Completed', 'Overdue'],
-    searchKeys: ['compliance_type'],
-    columns: [
-      { label: 'Compliance No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
-      { label: 'Compliance Type', render: (r) => r.compliance_type },
-      {
-        label: 'Due Date',
-        render: (r) => {
-          // Date-only compare: due today is not overdue.
-          const overdue = r.due_date && r.status !== 'Completed' && r.due_date < new Date().toISOString().slice(0, 10);
-          return <span className={overdue ? 'font-bold text-[#dc2626]' : ''}>{lcFormatDate(r.due_date)}</span>;
-        },
-      },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-    ],
-    fields: [
-      { name: 'project', label: 'Select Project', type: 'project', required: true },
-      { name: 'compliance_type', label: 'Compliance Type', type: 'select', options: ['Safety Certificate', 'CEIG Approval', 'Pollution Clearance', 'Fire Safety', 'Annual Compliance', 'Other'] },
-      { name: 'due_date', label: 'Due Date', type: 'date' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Submitted', 'Completed', 'Overdue'] },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { project: '', compliance_type: 'Other', due_date: '', status: 'Pending', remarks: '' },
-    detailRows: [
-      ['Compliance Type', (r) => r.compliance_type],
-      ['Due Date', (r) => lcFormatDate(r.due_date)],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
+const LIAISON_DOC_TYPES = ['Aadhaar Card', 'PAN Card', 'Electricity Bill', 'Property Document', 'Bank Passbook', 'Site Photo', 'Application Form', 'Approval Letter', 'Agreement', 'Inspection Report', 'Net Meter Certificate', 'Commissioning Report', 'Compliance Certificate', 'Other'];
+const LIAISON_REQUIRED_DOCS = ['Aadhaar Card', 'PAN Card', 'Electricity Bill', 'Property Document', 'Bank Passbook', 'Site Photo'];
 
-// Liaisoning ke apne Documents (LiaisonDocument, module/related_id se kisi bhi liaison
-// record se linked) aur Project Management se yahan move hue Project Documents
-// (ProjectDocument, folder/category based) — alag data-model hone ki wajah se ek
-// hi page ke andar do tabs bana diye, merge nahi kiya.
-function LiaisonDocumentsPage({ activeSection, onOpenSection, onNotify }) {
-  const DOC_TYPES = ['Application Form', 'Approval Letter', 'Inspection Report', 'Commissioning Report', 'Compliance Certificate', 'Agreement', 'Other'];
-  const [documentsTab, setDocumentsTab] = useState('liaison');
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('');
+function LiaisonProjectDocuments({ project, onNotify }) {
+  const emptyForm = { doc_type: LIAISON_DOC_TYPES[0], name: '', file: null };
   const [docs, setDocs] = useState([]);
-  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [viewDoc, setViewDoc] = useState(null);
-  const [showUpload, setShowUpload] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [fileKey, setFileKey] = useState(0);
+  const [uploading, setUploading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [uploadForm, setUploadForm] = useState({ project: '', doc_type: 'Other', name: '', file: null });
-  const [replaceFile, setReplaceFile] = useState(null);
-
-  useEffect(() => {
-    projectApi.list({ page_size: 1000 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
-  }, []);
 
   const loadDocs = useCallback(() => {
     setLoading(true);
-    const params = { page_size: 1000 };
-    if (filterType) params.doc_type = filterType;
-    lcDocumentApi.list(params)
-      .then((r) => { setDocs(normalizeApiRows(r)); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [filterType]);
+    lcDocumentApi.list({ project: project.id, page_size: 500 })
+      .then((r) => setDocs(normalizeApiRows(r)))
+      .catch(() => setDocs([]))
+      .finally(() => setLoading(false));
+  }, [project.id]);
 
   useEffect(() => { loadDocs(); }, [loadDocs]);
 
-  const filtered = docs.filter((d) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (d.name || '').toLowerCase().includes(q) || (d.project_name || '').toLowerCase().includes(q);
-  });
+  const presentTypes = new Set(docs.map((d) => d.doc_type));
 
   function handleUpload() {
-    if (!uploadForm.file) return;
-    setSaving(true);
+    if (!form.file) return;
+    setUploading(true);
     const fd = new FormData();
-    if (uploadForm.project) fd.append('project', uploadForm.project);
+    fd.append('project', project.id);
     fd.append('module', 'General');
-    fd.append('doc_type', uploadForm.doc_type);
-    fd.append('name', uploadForm.name || uploadForm.file.name);
-    fd.append('file', uploadForm.file);
+    fd.append('doc_type', form.doc_type);
+    fd.append('name', form.name.trim() || form.file.name);
+    fd.append('file', form.file);
     lcDocumentApi.create(fd)
-      .then(() => { onNotify('Document uploaded.', 'success'); setShowUpload(false); setUploadForm({ project: '', doc_type: 'Other', name: '', file: null }); loadDocs(); })
-      .catch(() => onNotify('Upload failed.', 'error'))
-      .finally(() => setSaving(false));
+      .then(() => { onNotify('Document uploaded.', 'success'); setForm(emptyForm); setFileKey((k) => k + 1); loadDocs(); })
+      .catch((e) => onNotify(e.message || 'Upload failed.', 'error'))
+      .finally(() => setUploading(false));
   }
 
-  function handleReplace() {
-    if (!replaceFile || !viewDoc) return;
-    setSaving(true);
-    const fd = new FormData();
-    fd.append('file', replaceFile);
-    lcDocumentApi.update(viewDoc.id, fd)
-      .then((updated) => { onNotify('File replaced.', 'success'); setReplaceFile(null); setViewDoc(updated); loadDocs(); })
-      .catch(() => onNotify('Replace failed.', 'error'))
-      .finally(() => setSaving(false));
-  }
-
-  function confirmDeleteDoc(doc) {
+  function askDelete(doc) {
     setDeleteConfirm({
       message: doc.name || 'this document',
       onConfirm: () => {
         lcDocumentApi.delete(doc.id)
-          .then(() => { onNotify('Document deleted.', 'success'); setDeleteConfirm(null); if (viewDoc?.id === doc.id) setViewDoc(null); loadDocs(); })
+          .then(() => { onNotify('Document deleted.', 'success'); setDeleteConfirm(null); loadDocs(); })
           .catch(() => onNotify('Delete failed.', 'error'));
       },
     });
   }
 
-  const isImage = (url) => /\.(png|jpe?g|gif|webp)(\?|$)/i.test(url || '');
-
   return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Liaisoning & Commissioning"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Liaisoning & Commissioning' },
-          { label: 'Documents' },
-        ]}
-        actions={
-          documentsTab === 'liaison' ? (
-            <button type="button" onClick={() => setShowUpload(true)} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
-              <Upload className="size-4" />Upload Document
-            </button>
-          ) : null
-        }
-      />
+    <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
+      <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">
+        Documents
+        <span className="ml-2 rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{docs.length}</span>
+      </h3>
 
-      <LiaisonSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setDocumentsTab('liaison')}
-          className={cx(
-            'rounded-full px-4 py-2 text-[13px] font-bold transition',
-            documentsTab === 'liaison' ? 'bg-[#0b65e5] text-white' : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff]',
-          )}
-        >
-          Liaison Documents
-        </button>
-        <button
-          type="button"
-          onClick={() => setDocumentsTab('project')}
-          className={cx(
-            'rounded-full px-4 py-2 text-[13px] font-bold transition',
-            documentsTab === 'project' ? 'bg-[#0b65e5] text-white' : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff]',
-          )}
-        >
-          Project Documents
-        </button>
-      </div>
-
-      {documentsTab === 'project' ? (
-        <ProjectDocumentsPage activeSection="Project Documents" onOpenSection={onOpenSection} onNotify={onNotify} />
-      ) : (
-      <>
-      <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="relative w-full min-w-[180px] flex-1 sm:w-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
-            <input
-              className="h-11 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none sm:h-9"
-              placeholder="Search documents, projects..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <select className="h-11 min-w-0 flex-1 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none sm:h-9 sm:flex-none" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-            <option value="">All Types</option>
-            {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          {(search || filterType) && (
-            <button type="button" onClick={() => { setSearch(''); setFilterType(''); }} className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Clear</button>
-          )}
+      <div>
+        <p className={lcLabelCls}>Document checklist</p>
+        <div className="flex flex-wrap gap-2">
+          {LIAISON_REQUIRED_DOCS.map((t) => {
+            const has = presentTypes.has(t);
+            return (
+              <span key={t} className={cx('inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-extrabold', has ? 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]' : 'border-[#e5eaf2] bg-white text-[#7a8fa6]')}>
+                {has ? <CheckCircle2 className="size-3.5" /> : <span className="size-1.5 rounded-full bg-current" />}{t}
+              </span>
+            );
+          })}
         </div>
-
-        <section className="overflow-hidden rounded-[12px] bg-white lg:border lg:border-[#e5eaf2]">
-          {loading ? (
-            <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">Loading documents...</div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16">
-              <FileText className="size-10 text-[#c7d4e0]" />
-              <p className="text-[14px] font-bold text-[#7a8fa6]">No documents found</p>
-              <button type="button" onClick={() => setShowUpload(true)} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white">
-                <Upload className="size-3.5" />Upload First Document
-              </button>
-            </div>
-          ) : (
-            <>
-            <MobileCardList>
-              {filtered.map((doc) => (
-                <MobileRecordCard
-                  key={doc.id}
-                  icon={FileText}
-                  title={doc.name || '—'}
-                  subtitle={[doc.project_name, lcFormatDate(doc.uploaded_at)].filter(Boolean).join(' · ')}
-                  badges={doc.doc_type ? <span className="inline-flex items-center rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-bold text-[#0b65e5]">{doc.doc_type}</span> : null}
-                  details={[{ label: 'Uploaded By', value: doc.uploaded_by_name || '—' }]}
-                  onOpen={() => { setReplaceFile(null); setViewDoc(doc); }}
-                  actions={[
-                    { label: 'View', icon: Eye, tone: 'blue', onClick: () => { setReplaceFile(null); setViewDoc(doc); } },
-                    { label: 'Download', icon: Download, tone: 'green', href: getMediaUrl(doc.file), external: true },
-                  ]}
-                  menu={[{ label: 'Delete', icon: Trash2, danger: true, onClick: () => confirmDeleteDoc(doc) }]}
-                />
-              ))}
-            </MobileCardList>
-            <div className="hidden max-h-[62vh] overflow-auto lg:block">
-              <table className="w-full min-w-[820px] text-left text-[13px]">
-                <thead>
-                  <tr>
-                    {['Document Name', 'Type', 'Project', 'Uploaded By', 'Date', 'Actions'].map((h) => (
-                      <th key={h} className="sticky top-0 z-10 border-b border-[#e5eaf2] bg-[#f8fafc] px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f1f5f9]">
-                  {filtered.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-[#f8fafc]">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <FileText className="size-4 shrink-0 text-[#7a8fa6]" />
-                          <span className="max-w-[240px] truncate font-semibold text-[#1e2a38]" title={doc.name}>{doc.name || '—'}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-bold text-[#0b65e5]">{doc.doc_type || '—'}</span>
-                      </td>
-                      <td className="px-4 py-3 text-[#53647f]">{doc.project_name || '—'}</td>
-                      <td className="px-4 py-3 text-[#53647f]">{doc.uploaded_by_name || '—'}</td>
-                      <td className="px-4 py-3 text-[#53647f]">{lcFormatDate(doc.uploaded_at)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button type="button" title="View" onClick={() => { setReplaceFile(null); setViewDoc(doc); }} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3.5" /></button>
-                          <a href={getMediaUrl(doc.file)} download target="_blank" rel="noreferrer" title="Download" className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0d9f4a] hover:bg-[#f0fdf4]"><Download className="size-3.5" /></a>
-                          <button type="button" title="Delete" onClick={() => confirmDeleteDoc(doc)} className="grid size-7 place-items-center rounded-[6px] border border-[#fecaca] text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            </>
-          )}
-        </section>
       </div>
 
-      {/* Upload popup */}
-      {showUpload && (
-        <LcModalShell
-          title="Upload Document"
-          onClose={() => setShowUpload(false)}
-          footer={
-            <>
-              <button type="button" onClick={() => setShowUpload(false)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-5 text-[13px] font-bold text-[#53647f]">Cancel</button>
-              <button type="button" onClick={handleUpload} disabled={saving || !uploadForm.file} className="h-9 rounded-[8px] bg-[#0b65e5] px-5 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60">
-                {saving ? 'Uploading...' : 'Upload'}
-              </button>
-            </>
-          }
-        >
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div className="col-span-2">
-              <label className={lcLabelCls}>Select Project</label>
-              <select className={lcInputCls} value={uploadForm.project} onChange={(e) => setUploadForm((p) => ({ ...p, project: e.target.value }))}>
-                <option value="">General (no project)</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={lcLabelCls}>Document Type</label>
-              <select className={lcInputCls} value={uploadForm.doc_type} onChange={(e) => setUploadForm((p) => ({ ...p, doc_type: e.target.value }))}>
-                {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={lcLabelCls}>Document Name</label>
-              <input type="text" className={lcInputCls} placeholder="Auto from file if blank" value={uploadForm.name} onChange={(e) => setUploadForm((p) => ({ ...p, name: e.target.value }))} />
-            </div>
-            <div className="col-span-2">
-              <label className={lcLabelCls}>Upload File *</label>
-              <input type="file" className="block w-full text-[13px] text-[#1e2a38] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:py-1.5 file:text-[12px] file:font-bold file:text-[#0b65e5] hover:file:bg-[#dbeafe]" onChange={(e) => setUploadForm((p) => ({ ...p, file: e.target.files[0] || null }))} />
-            </div>
-          </div>
-        </LcModalShell>
-      )}
+      <div className="grid gap-2 rounded-[12px] border border-dashed border-[#cfdcee] bg-[#f8fbff] p-3 sm:grid-cols-[180px_1fr_1fr_auto] sm:items-end">
+        <label className="grid gap-1">
+          <span className={lcLabelCls}>Document Type</span>
+          <select className={lcInputCls} value={form.doc_type} onChange={(e) => setForm((f) => ({ ...f, doc_type: e.target.value }))}>
+            {LIAISON_DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+        <label className="grid gap-1">
+          <span className={lcLabelCls}>Name (optional)</span>
+          <input className={lcInputCls} value={form.name} placeholder="Defaults to file name" onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+        </label>
+        <label className="grid gap-1">
+          <span className={lcLabelCls}>File</span>
+          <input key={fileKey} type="file" className="block h-9 w-full text-[12px] text-[#1e2a38] file:mr-3 file:h-9 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:text-[12px] file:font-bold file:text-[#0b65e5]" onChange={(e) => setForm((f) => ({ ...f, file: e.target.files?.[0] || null }))} />
+        </label>
+        <button type="button" onClick={handleUpload} disabled={!form.file || uploading} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:h-9">
+          <Upload className="size-4" />{uploading ? 'Uploading...' : 'Upload'}
+        </button>
+      </div>
 
-      {/* View popup */}
-      {viewDoc && (
-        <LcModalShell
-          wide
-          title="Document Details"
-          onClose={() => setViewDoc(null)}
-          footer={
-            <>
-              <button type="button" onClick={() => confirmDeleteDoc(viewDoc)} className="h-9 rounded-[8px] border border-[#fecaca] px-4 text-[13px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Delete</button>
-              <a href={getMediaUrl(viewDoc.file)} download target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white hover:bg-[#078c3e]"><Download className="size-4" />Download</a>
-              <button type="button" onClick={() => setViewDoc(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
-            </>
-          }
-        >
-          <div className="space-y-4">
-            {isImage(viewDoc.file) ? (
-              <img src={getMediaUrl(viewDoc.file)} alt={viewDoc.name} className="max-h-[320px] w-full rounded-[10px] border border-[#e5eaf2] object-contain bg-[#f8fafc]" />
-            ) : (
-              <div className="flex items-center gap-3 rounded-[10px] border border-[#e5eaf2] bg-[#f8fafc] p-4">
-                <FileText className="size-8 shrink-0 text-[#7a8fa6]" />
-                <div className="min-w-0">
-                  <p className="truncate font-extrabold text-[#1e2a38]">{viewDoc.name}</p>
-                  <p className="text-[12px] text-[#7a8fa6]">Preview not available — download to view.</p>
-                </div>
-              </div>
-            )}
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
-              {[
-                ['Type', viewDoc.doc_type || '—'],
-                ['Project', viewDoc.project_name || 'General'],
-                ['Uploaded By', viewDoc.uploaded_by_name || '—'],
-                ['Date', lcFormatDate(viewDoc.uploaded_at)],
-              ].map(([label, val]) => (
-                <div key={label}>
-                  <dt className={lcLabelCls}>{label}</dt>
-                  <dd className="font-semibold text-[#1e2a38]">{val}</dd>
-                </div>
-              ))}
-            </dl>
-            <div>
-              <label className={lcLabelCls}>Replace File</label>
-              <div className="flex items-center gap-2">
-                <input type="file" className="block flex-1 text-[12px] text-[#1e2a38] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:py-1.5 file:text-[12px] file:font-bold file:text-[#0b65e5]" onChange={(e) => setReplaceFile(e.target.files[0] || null)} />
-                <button type="button" onClick={handleReplace} disabled={!replaceFile || saving} className="h-8 shrink-0 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white disabled:opacity-50">
-                  {saving ? 'Replacing...' : 'Replace'}
-                </button>
-              </div>
-            </div>
+      {loading ? (
+        <p className="py-8 text-center text-[13px] font-bold text-[#8a98af]">Loading...</p>
+      ) : docs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-10">
+          <FileText className="size-10 text-[#c7d4e0]" />
+          <p className="text-[13px] font-bold text-[#7a8fa6]">No documents uploaded for this project yet</p>
+        </div>
+      ) : (
+        <>
+          <MobileCardList>
+            {docs.map((d) => (
+              <MobileRecordCard
+                key={d.id}
+                icon={FileText}
+                title={d.name}
+                subtitle={d.doc_type}
+                badges={d.module && d.module !== 'General' ? <LcStatusBadge status={d.module} /> : null}
+                details={[
+                  { label: 'Uploaded By', value: d.uploaded_by_name || '—' },
+                  { label: 'Date', value: lcFormatDate(d.uploaded_at) },
+                ]}
+                actions={[
+                  { label: 'Open', icon: Download, tone: 'blue', href: getMediaUrl(d.file), external: true },
+                  { label: 'Delete', icon: Trash2, tone: 'red', onClick: () => askDelete(d) },
+                ]}
+              />
+            ))}
+          </MobileCardList>
+          <div className="hidden overflow-hidden rounded-[12px] border border-[#e5eaf2] lg:block">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr>
+                  {['Name', 'Type', 'Step', 'Uploaded By', 'Date', 'Actions'].map((h) => (
+                    <th key={h} className="border-b border-[#e5eaf2] bg-[#f8fafc] px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f1f5f9]">
+                {docs.map((d) => (
+                  <tr key={d.id} className="hover:bg-[#f8fafc]">
+                    <td className="px-4 py-3">
+                      <a href={getMediaUrl(d.file)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 font-bold text-[#0b65e5]! hover:underline">
+                        <FileText className="size-4 shrink-0" />{d.name}
+                      </a>
+                    </td>
+                    <td className="px-4 py-3">{d.doc_type}</td>
+                    <td className="px-4 py-3">{d.module || '—'}</td>
+                    <td className="px-4 py-3">{d.uploaded_by_name || '—'}</td>
+                    <td className="px-4 py-3">{lcFormatDate(d.uploaded_at)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <a href={getMediaUrl(d.file)} target="_blank" rel="noreferrer" title="Download" className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0b65e5]! hover:bg-[#eef4ff]"><Download className="size-3.5" /></a>
+                        <button type="button" title="Delete" onClick={() => askDelete(d)} className="grid size-7 place-items-center rounded-[6px] border border-[#fecaca] text-[#ef4444] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </LcModalShell>
+        </>
       )}
 
       {deleteConfirm ? (
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
-      </>
+    </div>
+  );
+}
+
+function readStoredPipelineProject(storageKey) {
+  try {
+    return sessionStorage.getItem(storageKey) || null;
+  } catch {
+    return null;
+  }
+}
+
+function storePipelineProject(storageKey, id) {
+  try {
+    if (id) sessionStorage.setItem(storageKey, String(id));
+    else sessionStorage.removeItem(storageKey);
+  } catch { /* storage unavailable (private mode) — selection just won't survive refresh */ }
+}
+
+function usePipelineHub(pipeline, section, onNotify) {
+  const { api, stageField, storageKey, completedMessage } = pipeline;
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [selectedId, setSelectedId] = useState(() => readStoredPipelineProject(storageKey));
+  const [busy, setBusy] = useState(false);
+
+  const loadProjects = useCallback(() => {
+    setLoading(true);
+    api.list({ page_size: 1000 })
+      .then((r) => setProjects(normalizeApiRows(r)))
+      .catch((e) => onNotify(e.message || 'Could not load projects.', 'error'))
+      .finally(() => { setLoading(false); setLoaded(true); });
+  }, [api, onNotify]);
+
+  // Reload on every tab switch so step counts / stages reflect records just added.
+  useEffect(() => { loadProjects(); }, [loadProjects, section]);
+
+  const selected = selectedId ? projects.find((p) => String(p.id) === String(selectedId)) || null : null;
+
+  useEffect(() => {
+    if (loaded && !loading && selectedId && !selected) {
+      setSelectedId(null);
+      storePipelineProject(storageKey, null);
+    }
+  }, [loaded, loading, selectedId, selected, storageKey]);
+
+  const openProject = useCallback((p) => {
+    setSelectedId(String(p.id));
+    storePipelineProject(storageKey, p.id);
+  }, [storageKey]);
+
+  const closeProject = useCallback(() => {
+    setSelectedId(null);
+    storePipelineProject(storageKey, null);
+  }, [storageKey]);
+
+  function replaceProject(updated) {
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  }
+
+  function markDone() {
+    if (!selected) return;
+    const from = selected[stageField];
+    setBusy(true);
+    api.advance(selected.id, from)
+      .then((updated) => {
+        replaceProject(updated);
+        const to = updated[stageField];
+        onNotify(to === PIPELINE_COMPLETED_STAGE ? `${from} done — ${completedMessage}.` : `${from} done — moved to ${to}.`, 'success');
+      })
+      .catch((e) => { onNotify(e.message || 'Could not update stage.', 'error'); loadProjects(); })
+      .finally(() => setBusy(false));
+  }
+
+  function setStage(stage) {
+    if (!selected || stage === selected[stageField]) return;
+    setBusy(true);
+    api.setStage(selected.id, stage)
+      .then((updated) => { replaceProject(updated); onNotify(`Stage changed to ${updated[stageField]}.`, 'success'); })
+      .catch((e) => onNotify(e.message || 'Could not change stage.', 'error'))
+      .finally(() => setBusy(false));
+  }
+
+  return { projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage };
+}
+
+function LiaisonPipelineHub({ section, onOpenSection, onNotify }) {
+  const pipeline = LIAISON_PIPELINE;
+  const { projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage } = usePipelineHub(pipeline, section, onNotify);
+
+  const step = pipeline.steps.find((s) => s.key === section) || null;
+  const sectionLabel = getModuleSubnavLabel(section);
+
+  let content;
+  if (!selected) {
+    content = <PipelineProjectTable pipeline={pipeline} projects={projects} loading={loading} stepKey={step?.key || null} onOpen={openProject} onRefresh={loadProjects} />;
+  } else if (!step) {
+    content = <PipelineProjectOverview pipeline={pipeline} project={selected} busy={busy} onOpenStep={onOpenSection} onSetStage={setStage} />;
+  } else if (step.key === 'Documents') {
+    content = <LiaisonProjectDocuments key={selected.id} project={selected} onNotify={onNotify} />;
+  } else if (step.key === 'Liaison Subsidy') {
+    content = <ProjectSubsidyPage key={selected.id} embedded presetProject={selected} activeSection="Subsidy" onOpenSection={onOpenSection} onNotify={onNotify} />;
+  } else {
+    content = (
+      <LiaisonCrudPage
+        key={`${step.key}-${selected.id}`}
+        config={getLiaisonStepConfig(step.key, selected)}
+        activeSection={section}
+        onOpenSection={onOpenSection}
+        onNotify={onNotify}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={pipeline.title}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: pipeline.title, onClick: selected ? closeProject : undefined },
+          { label: selected ? `${sectionLabel} · ${selected.project_name}` : sectionLabel },
+        ]}
+      />
+
+      <LiaisonSubnavTabs activeSection={section} onOpenSection={onOpenSection} />
+
+      {selected && (
+        <PipelineProjectBar
+          pipeline={pipeline}
+          project={selected}
+          section={section}
+          busy={busy}
+          onNext={onOpenSection}
+          onClose={closeProject}
+          onMarkDone={markDone}
+        />
       )}
+
+      {content}
+
+      <DashboardFooter />
+    </div>
+  );
+}
+
+function PipelineViewToggle({ value, onChange, labels = ['At this stage', 'All records'] }) {
+  return (
+    <div className="inline-flex rounded-[9px] border border-[#dce6f3] bg-[#f6f9fd] p-0.5" role="group" aria-label="List view">
+      {[['stage', labels[0]], ['all', labels[1]]].map(([v, label]) => (
+        <button
+          key={v}
+          type="button"
+          aria-pressed={value === v}
+          onClick={() => onChange(v)}
+          className={cx(
+            'h-8 rounded-[7px] px-3 text-[12px] font-extrabold transition',
+            value === v ? 'bg-white text-[#0b65e5] shadow-[0_2px_6px_rgba(17,39,84,0.08)]' : 'text-[#53647f] hover:text-[#1e3261]',
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Project Management pipeline: Won projects move Site Survey → … → Invoice.
+// Selection lives in this hub (sessionStorage), not in the App's selectedProject.
+function ProjectPipelineHub({
+  section,
+  onOpenSection,
+  onSelectProject,
+  onNotify,
+  loggedInUser = null,
+  externalProject = null,
+  onConsumeExternalProject,
+  autoOpenQuotation = false,
+  onConsumeAutoOpenQuotation,
+}) {
+  const pipeline = PM_PIPELINE;
+  const { projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage } = usePipelineHub(pipeline, section, onNotify);
+  const [viewBySection, setViewBySection] = useState(() => (autoOpenQuotation ? { Quotation: 'all' } : {}));
+  const [surveyEditOpen, setSurveyEditOpen] = useState(false);
+  const [surveyReloadKey, setSurveyReloadKey] = useState(0);
+  const projectCaps = moduleCaps(loggedInUser, 'Project Management');
+
+  const step = pipeline.steps.find((s) => s.key === section) || null;
+  const sectionLabel = getModuleSubnavLabel(section);
+  const stageView = viewBySection[section] || 'stage';
+  const setStageView = (v) => setViewBySection((prev) => ({ ...prev, [section]: v }));
+
+  // A project chosen elsewhere (Tracker, action menus) opens inside the hub.
+  const externalId = externalProject?.id;
+  useEffect(() => {
+    if (!externalId) return;
+    openProject({ id: externalId });
+    onConsumeExternalProject?.();
+  }, [externalId, openProject, onConsumeExternalProject]);
+
+  useEffect(() => {
+    if (!autoOpenQuotation) return;
+    closeProject();
+    setViewBySection((prev) => ({ ...prev, Quotation: 'all' }));
+  }, [autoOpenQuotation, closeProject]);
+
+  const openFromRow = (row) => openProject({ id: row.id });
+  const selectProjectFor = (target) => (project, to = target) => onSelectProject?.(project, to);
+  const toggleLabels = step ? ['At this stage', 'All records'] : ['Project Status', 'Full Project List'];
+  const viewToggle = <PipelineViewToggle value={stageView} onChange={setStageView} labels={toggleLabels} />;
+
+  let content;
+  if (!selected && stageView === 'stage') {
+    content = (
+      <PipelineProjectTable
+        pipeline={pipeline}
+        projects={projects}
+        loading={loading}
+        stepKey={step?.key || null}
+        onOpen={openProject}
+        onRefresh={loadProjects}
+        toolbar={viewToggle}
+      />
+    );
+  } else if (!selected) {
+    let legacy;
+    if (!step) {
+      legacy = (
+        <ProjectListPage
+          embedded
+          loggedInUser={loggedInUser}
+          activeSection={pipeline.listItem}
+          onOpenSection={onOpenSection}
+          onSelectProject={onSelectProject}
+          onNotify={onNotify}
+          onOpenPipeline={openFromRow}
+        />
+      );
+    } else if (section === 'Project Site Survey') {
+      legacy = (
+        <ProjectListPage
+          embedded
+          loggedInUser={loggedInUser}
+          activeSection="Project Site Survey"
+          onOpenSection={onOpenSection}
+          onSelectProject={selectProjectFor('Project Site Survey')}
+          onNotify={onNotify}
+          onOpenPipeline={openFromRow}
+        />
+      );
+    } else if (section === 'Quotation') {
+      legacy = (
+        <QuotationListPage
+          loggedInUser={loggedInUser}
+          autoOpenCreate={autoOpenQuotation}
+          onConsumeAutoOpenCreate={onConsumeAutoOpenQuotation}
+          onNotify={onNotify}
+        />
+      );
+    } else if (section === 'Project Material Planning') {
+      legacy = <MaterialPlanningProjectHub embedded activeSection={section} onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
+    } else if (section === 'Project Job Sheet') {
+      legacy = <OpsJobSheetPage embedded activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    } else if (section === 'Project Dispatch') {
+      legacy = <OpsDispatchPage embedded activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    } else if (section === 'Project Installation') {
+      legacy = <OpsInstallationPage embedded activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    } else {
+      const BillingPage = section === 'Project Invoice' ? ProjectInvoicePage : ProjectSalesChallanPage;
+      legacy = <BillingPage key={section} embedded activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    }
+    content = (
+      <>
+        <section className={cx(panelClass, 'flex flex-wrap items-center justify-between gap-2 px-4 py-3')}>
+          <p className="text-[13px] font-extrabold text-[#1e3261]">
+            {step ? `All ${sectionLabel} records` : 'Full Project List'}
+            <span className="ml-2 hidden text-[12px] font-bold text-[#7a8fa6] sm:inline">Switch to “{toggleLabels[0]}” to work project by project.</span>
+          </p>
+          {viewToggle}
+        </section>
+        {legacy}
+      </>
+    );
+  } else if (!step) {
+    content = <PipelineProjectOverview pipeline={pipeline} project={selected} busy={busy} onOpenStep={onOpenSection} onSetStage={setStage} />;
+  } else if (section === 'Project Site Survey') {
+    const surveyRow = { id: selected.id, projectName: selected.project_name, projectId: selected.project_id, customer: selected.customer_name };
+    content = (
+      <>
+        <SiteSurveyViewModal
+          key={`${selected.id}-${surveyReloadKey}`}
+          inline
+          row={surveyRow}
+          onClose={() => {}}
+          onNotify={onNotify}
+          onEdit={projectCaps.edit ? () => setSurveyEditOpen(true) : null}
+        />
+        {surveyEditOpen ? (
+          <SiteSurveyEditModal
+            row={surveyRow}
+            onOpenSection={onOpenSection}
+            onNotify={onNotify}
+            onClose={() => {
+              setSurveyEditOpen(false);
+              setSurveyReloadKey((k) => k + 1);
+              loadProjects();
+            }}
+          />
+        ) : null}
+      </>
+    );
+  } else if (section === 'Quotation') {
+    content = <ProjectQuotationsPanel key={selected.id} project={selected} loggedInUser={loggedInUser} onNotify={onNotify} onChanged={loadProjects} />;
+  } else if (section === 'Project Material Planning') {
+    content = <MaterialPlanningBomModal key={selected.id} inline project={selected} onClose={() => {}} onNotify={onNotify} onPlansChanged={loadProjects} />;
+  } else if (section === 'Project Job Sheet') {
+    content = <OpsJobSheetPage key={selected.id} embedded lockedProjectId={selected.id} activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  } else if (section === 'Project Dispatch') {
+    content = <ProjectDispatchPanel key={selected.id} project={selected} onNotify={onNotify} onOpenPlanning={() => onOpenSection('Project Material Planning')} />;
+  } else if (section === 'Project Installation') {
+    content = <ProjectInstallationPanel key={selected.id} project={selected} onNotify={onNotify} onChanged={loadProjects} />;
+  } else {
+    const BillingPage = section === 'Project Invoice' ? ProjectInvoicePage : ProjectSalesChallanPage;
+    content = <BillingPage key={`${section}-${selected.id}`} embedded lockedProjectId={selected.id} activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <PageHeading
+        title={pipeline.title}
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: pipeline.title, onClick: selected ? closeProject : () => onOpenSection(pipeline.listItem) },
+          { label: selected ? `${sectionLabel} · ${selected.project_name}` : sectionLabel },
+        ]}
+      />
+
+      <ProjectSubnavTabs activeSection={section} onOpenSection={onOpenSection} />
+
+      {selected && (
+        <PipelineProjectBar
+          pipeline={pipeline}
+          project={selected}
+          section={section}
+          busy={busy}
+          onNext={onOpenSection}
+          onClose={closeProject}
+          onMarkDone={markDone}
+          extraActions={onSelectProject ? (
+            <button
+              type="button"
+              onClick={() => onSelectProject({ id: selected.id, project_name: selected.project_name }, 'Project Details')}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#cfe0ff] bg-[#eef4ff] px-3 text-[12px] font-extrabold text-[#0b65e5] hover:bg-[#e0ebff]"
+            >
+              <Eye className="size-4" /><span className="hidden sm:inline">Full Details</span>
+            </button>
+          ) : null}
+        />
+      )}
+
+      {content}
 
       <DashboardFooter />
     </div>
@@ -11871,6 +12159,7 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
     const q = search.toLowerCase();
     return [r.record_no, r.name, r.report_type, r.generated_by_name].some((v) => (v || '').toLowerCase().includes(q));
   });
+  const { pageRows, pagination } = usePagedRows(filtered, 'om-reports', { resetKey: `${search}|${filterType}` });
 
   function handleCreate() {
     if (!form.name) return;
@@ -11954,7 +12243,7 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
           ) : (
             <>
             <MobileCardList>
-              {filtered.map((item) => (
+              {pageRows.map((item) => (
                 <MobileRecordCard
                   key={item.id}
                   icon={FileText}
@@ -11981,7 +12270,7 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f5f9]">
-                  {filtered.map((item) => (
+                  {pageRows.map((item) => (
                     <tr key={item.id} className="hover:bg-[#f8fafc]">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -12008,6 +12297,7 @@ function OmReportsPage({ activeSection, onOpenSection, onNotify }) {
                 </tbody>
               </table>
             </div>
+            <TablePagination {...pagination} />
             </>
           )}
         </section>
@@ -13557,7 +13847,23 @@ function SummaryFinancePage({ activeSection, onOpenSection, onNotify }) {
   );
 }
 
-function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSection, selectedProject, onSelectProject, onNotify, loggedInUser = null }) {
+const PM_PIPELINE_SECTION_ALIASES = {
+  'Project Management': 'Project List',
+  'Project Overview': 'Project List',
+  'Survey Dashboard': 'Project Site Survey',
+};
+
+function ProjectManagementPage({
+  activeSection = 'Project Overview',
+  onOpenSection,
+  selectedProject,
+  onSelectProject,
+  onConsumeSelectedProject,
+  onNotify,
+  loggedInUser = null,
+  autoOpenQuotation = false,
+  onConsumeAutoOpenQuotation,
+}) {
   if (activeSection === 'Project Document Upload') {
     if (selectedProject?.id) {
       return (
@@ -13627,22 +13933,25 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
     );
   }
 
-  if (activeSection === 'Project Management' || activeSection === 'Project Overview') {
-    return <ProjectListPage loggedInUser={loggedInUser} activeSection="Project List" onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
+  const pipelineSection = PM_PIPELINE_SECTION_ALIASES[activeSection] || activeSection;
+  if (PM_PIPELINE.subItems.includes(pipelineSection)) {
+    return (
+      <ProjectPipelineHub
+        section={pipelineSection}
+        onOpenSection={onOpenSection}
+        onSelectProject={onSelectProject}
+        onNotify={onNotify}
+        loggedInUser={loggedInUser}
+        externalProject={selectedProject}
+        onConsumeExternalProject={onConsumeSelectedProject}
+        autoOpenQuotation={autoOpenQuotation}
+        onConsumeAutoOpenQuotation={onConsumeAutoOpenQuotation}
+      />
+    );
   }
 
   if (activeSection === 'Project KPI Analytics') {
     return <ProjectKpiAnalyticsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-
-  if (activeSection === 'Project List') {
-    return <ProjectListPage loggedInUser={loggedInUser} activeSection={activeSection} onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
-  }
-
-  // 'Survey Dashboard' category was merged into 'Site Survey' — the survey
-  // stats now live on the Site Survey page. Redirect any old link/bookmark.
-  if (activeSection === 'Survey Dashboard') {
-    return <ProjectSiteSurveyPage loggedInUser={loggedInUser} activeSection="Project Site Survey" onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project Details') {
@@ -13651,70 +13960,6 @@ function ProjectManagementPage({ activeSection = 'Project Overview', onOpenSecti
 
   if (activeSection === 'Project Timeline') {
     return <ProjectTimelinePage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
-  }
-
-  if (activeSection === 'Project Site Survey') {
-    return <ProjectSiteSurveyPage loggedInUser={loggedInUser} activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onSelectProject={onSelectProject} onNotify={onNotify} />;
-  }
-
-  if (activeSection === 'Project Installation') {
-    return (
-      <ProjectInstallationPage
-        activeSection={activeSection}
-        onOpenSection={onOpenSection}
-        onNotify={onNotify}
-        initialProjectId={selectedProject?.id}
-      />
-    );
-  }
-
-  if (activeSection === 'Project Dispatch') {
-    return (
-      <ProjectMaterialDispatchPage
-        activeSection="Project Dispatch"
-        onOpenSection={onOpenSection}
-        onNotify={onNotify}
-        initialProjectId={selectedProject?.id}
-      />
-    );
-  }
-
-  if (activeSection === 'Project Material Planning') {
-    return (
-      <ProjectMaterialPlanningPage
-        activeSection={activeSection}
-        onOpenSection={onOpenSection}
-        project={selectedProject}
-        onSelectProject={onSelectProject}
-        onNotify={onNotify}
-      />
-    );
-  }
-
-  if (activeSection === 'Project Job Sheet') {
-    return (
-      <OpsJobSheetPage
-        activeSection={activeSection}
-        onOpenSection={onOpenSection}
-        onNotify={onNotify}
-        Subnav={ProjectSubnavTabs}
-        initialProjectId={selectedProject?.id}
-      />
-    );
-  }
-
-  if (activeSection === 'Project Sales Challan' || activeSection === 'Project Invoice') {
-    const BillingPage = activeSection === 'Project Invoice' ? ProjectInvoicePage : ProjectSalesChallanPage;
-    return (
-      <BillingPage
-        key={activeSection}
-        activeSection={activeSection}
-        onOpenSection={onOpenSection}
-        onNotify={onNotify}
-        Subnav={ProjectSubnavTabs}
-        initialProjectId={selectedProject?.id}
-      />
-    );
   }
 
   if (activeSection === 'Subsidy') {
@@ -14251,6 +14496,13 @@ function buildSiteSurveyViewHtml(row, detail) {
   const listTable = (headers, rows) => `<table class="list"><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${
     rows.length ? rows.join('') : `<tr><td colspan="${headers.length}" class="empty">No records</td></tr>`
   }</tbody></table>`;
+  const surveyPhotos = Array.isArray(survey.photos) ? survey.photos : [];
+  const surveyPhotoHtml = (slot, label) => {
+    const photo = surveyPhotos.find((p) => p.slot === slot);
+    return photo
+      ? `<div class="photo"><p class="sub">${esc(label)}</p><img src="${esc(new URL(getMediaUrl(photo.image), window.location.origin).href)}" alt="${esc(label)}"></div>`
+      : `<p class="muted" style="margin-top:8px">${esc(label)}: not uploaded</p>`;
+  };
 
   const paymentsRows = payments.map((p) => `<tr><td>${esc(fmtDate(p.payment_date))}</td><td>${esc(inr(p.amount))}</td><td>${esc(p.payment_mode)}</td><td>${esc(p.reference || '-')}</td><td>${esc(p.created_by_name || '-')}</td></tr>`);
   const teamRows = team.map((m) => `<tr><td>${esc(m.user_name)}</td><td>${esc(m.role_title || 'Member')}</td><td>${esc(m.access_level_display || '-')}</td><td>${esc(m.user_email || '-')}</td><td>${esc(m.user_mobile || '-')}</td></tr>`);
@@ -14281,6 +14533,8 @@ function buildSiteSurveyViewHtml(row, detail) {
     .empty{color:#8a98af;text-align:center;}
     .full{grid-column:1 / -1;}
     .sub{font-size:12px;margin:0 0 8px;color:#53647f;font-weight:800;}
+    .photo{margin-top:10px;}
+    .photo img{display:block;width:180px;height:180px;object-fit:cover;border:1px solid #e7eef7;border-radius:8px;}
     .foot{margin-top:26px;font-size:11px;color:#8a98af;text-align:center;border-top:1px solid #e7eef7;padding-top:12px;}
     @media print{body{padding:14px;} section{break-inside:avoid;}}
   </style></head><body>
@@ -14336,7 +14590,7 @@ function buildSiteSurveyViewHtml(row, detail) {
       ${infoRow('IVRS', survey.ivrs_number)}
       ${infoRow('Alternate Mobile', survey.alternate_mobile)}
       ${infoRow('Email', survey.email_id)}
-      ${infoRow('Meter Location', survey.meter_location)}
+      ${infoRow('Types of Meters', survey.meter_location)}
       ${infoRow('Main Supply From', survey.main_supply_from)}
       ${infoRow('Supply Voltage', survey.supply_voltage)}
     </table></section>
@@ -14379,6 +14633,31 @@ function buildSiteSurveyViewHtml(row, detail) {
     ${infoRow('Decision maker', survey.customer_confirmation_name)}
     ${infoRow('Customer Mobile Number', survey.mobile_number)}
   </table></section>
+
+  <h2 class="section-title">Panel, Inverter &amp; Meter</h2>
+  <div class="grid">
+    <section><p class="sub">Panel Details</p><table>
+      ${infoRow('Brand', survey.panel_brand)}
+      ${infoRow('Type', survey.panel_type)}
+      ${infoRow('Wattage', survey.panel_wattage_w ? `${survey.panel_wattage_w} W` : '')}
+      ${infoRow('No. of Panels', survey.panel_count)}
+      ${infoRow('Total DC Capacity', Number(survey.panel_wattage_w) > 0 && Number(survey.panel_count) > 0 ? `${((Number(survey.panel_wattage_w) * Number(survey.panel_count)) / 1000).toFixed(2)} kWp` : '')}
+    </table>${surveyPhotoHtml(SURVEY_PANEL_PHOTO_SLOT, 'Panel Placement Photo')}</section>
+    <section><p class="sub">Inverter Details</p><table>
+      ${infoRow('Brand', survey.inverter_brand)}
+      ${infoRow('Type', survey.inverter_type)}
+      ${infoRow('Capacity', survey.inverter_capacity_kw ? `${survey.inverter_capacity_kw} kW` : '')}
+      ${infoRow('No. of Inverters', survey.inverter_quantity)}
+      ${infoRow('Placement / Mounting', [survey.inverter_placement, survey.inverter_mounting].filter(Boolean).join(' / '))}
+    </table>${surveyPhotoHtml(SURVEY_INVERTER_PHOTO_SLOT, 'Inverter Location Photo')}</section>
+    <section class="full"><p class="sub">Meter Details</p><table>
+      ${infoRow('Meter Number', survey.meter_number || d.meter_number)}
+      ${infoRow('Types of Meters', survey.meter_location)}
+      ${infoRow('Meter Capacity', survey.meter_capacity)}
+      ${infoRow('Existing MCB', survey.existing_mcb)}
+      ${infoRow('Main DB Location', survey.main_db_location)}
+    </table>${surveyPhotoHtml(SURVEY_METER_PHOTO_SLOT, 'Meter Photo')}</section>
+  </div>
 
   <h2 class="section-title">System Details</h2>
   <div class="grid">
@@ -14533,6 +14812,7 @@ function projectRowFromApi(p) {
     surveyedBy: p.surveyed_by_name || '',
     surveyFeasibility: p.survey_feasibility || '',
     surveyStatus: p.survey_status || '',
+    pmStage: p.pm_stage || PM_STAGE_NAMES[0],
   };
 }
 
@@ -14551,18 +14831,20 @@ function openProjectAddressInMaps(parts, onNotify) {
   window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
 }
 
-function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNotify, loggedInUser = null }) {
+function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNotify, loggedInUser = null, onOpenPipeline = null, embedded = false }) {
   const projectCaps = moduleCaps(loggedInUser, 'Project Management');
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [stageFilter, setStageFilter] = useState('All');
   const [managerFilter, setManagerFilter] = useState('All');
   const [projectTypeFilter, setProjectTypeFilter] = useState('All');
   const [surveyedByFilter, setSurveyedByFilter] = useState('All');
   const [feasibilityFilter, setFeasibilityFilter] = useState('All');
   const [activePage, setActivePage] = useState(1);
+  const [projectPageSize, setProjectPageSize] = usePageSize(activeSection === 'Project Site Survey' ? 'project-survey-list' : 'project-list');
   const [projectRows, setProjectRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -14626,6 +14908,9 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     }
     setViewProjectRow(row);
   };
+
+  const handleOpenRow = (row) => (onOpenPipeline ? onOpenPipeline(row) : handleViewRow(row));
+  const openRowTitle = onOpenPipeline ? 'Double-click to open project pipeline' : 'Double-tap to view project';
 
   const handleEditRow = (row) => {
     if (isSiteSurveyPicker) {
@@ -14719,18 +15004,20 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         if (projectTypeFilter !== 'All' && (row.type || '') !== projectTypeFilter) return false;
         if (statusFilter !== 'All' && row.status !== statusFilter) return false;
         if (managerFilter !== 'All' && row.manager.name !== managerFilter) return false;
+        if (stageFilter !== 'All' && row.pmStage !== stageFilter) return false;
       }
       if (dateFrom && row.startDate && row.startDate < dateFrom) return false;
       if (dateTo && row.startDate && row.startDate > dateTo) return false;
       return true;
     });
-  }, [deferredQuery, projectRows, statusFilter, managerFilter, projectTypeFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo, isSiteSurveyPicker]);
+  }, [deferredQuery, projectRows, statusFilter, managerFilter, projectTypeFilter, surveyedByFilter, feasibilityFilter, stageFilter, dateFrom, dateTo, isSiteSurveyPicker]);
 
-  const PROJECT_PAGE_SIZE = 10;
-  const totalProjectPages = Math.max(1, Math.ceil(filteredRows.length / PROJECT_PAGE_SIZE));
-  const pagedProjectRows = filteredRows.slice((activePage - 1) * PROJECT_PAGE_SIZE, activePage * PROJECT_PAGE_SIZE);
+  const totalProjectPages = Math.max(1, Math.ceil(filteredRows.length / projectPageSize));
+  const safeProjectPage = Math.min(activePage, totalProjectPages);
+  const pagedProjectRows = filteredRows.slice((safeProjectPage - 1) * projectPageSize, safeProjectPage * projectPageSize);
+  const pmStageOptions = ['All', ...PM_STAGE_NAMES, PIPELINE_COMPLETED_STAGE];
 
-  useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, managerFilter, projectTypeFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo]);
+  useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, managerFilter, projectTypeFilter, surveyedByFilter, feasibilityFilter, stageFilter, dateFrom, dateTo]);
 
   const exportProjects = () => {
     if (loading) {
@@ -14767,22 +15054,25 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         { label: 'Project List' },
       ];
 
+  const headingActions = (
+    <>
+      <div className="w-full sm:w-[280px]">
+        <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
+      </div>
+      {projectCaps.export ? (<button type="button" data-custom-export="true" disabled={loading} onClick={exportProjects} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"><Download className="size-4 text-[#0b65e5]" />Export</button>) : null}
+    </>
+  );
+
   return (
     <div className="space-y-2.5">
-      <PageHeading
-        title={pageTitle}
-        crumbs={pageCrumbs}
-        actions={(
-          <>
-            <div className="w-full sm:w-[280px]">
-              <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
-            </div>
-            {projectCaps.export ? (<button type="button" data-custom-export="true" disabled={loading} onClick={exportProjects} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"><Download className="size-4 text-[#0b65e5]" />Export</button>) : null}
-          </>
-        )}
-      />
-
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+      {embedded ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">{headingActions}</div>
+      ) : (
+        <>
+          <PageHeading title={pageTitle} crumbs={pageCrumbs} actions={headingActions} />
+          <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+        </>
+      )}
 
       {isSiteSurveyPicker ? (
         <section className="flex gap-1.5 md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-4">
@@ -14886,7 +15176,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         ) : (
         <>
         <div className="hidden overflow-x-auto rounded-[14px] border border-[#e7eef7] bg-white lg:block">
-          <table className={cx('crm-table crm-table--lead-dense crm-table--project-list w-full', isSiteSurveyPicker ? 'min-w-[1180px]' : 'min-w-[1320px]')}>
+          <table className={cx('crm-table crm-table--lead-dense crm-table--project-list w-full', isSiteSurveyPicker ? 'min-w-[1180px]' : 'min-w-[1440px]')}>
             {!isSiteSurveyPicker ? (
               <colgroup>
                 <col style={{ width: 44 }} />
@@ -14895,10 +15185,11 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                 <col style={{ width: 96 }} />
                 <col style={{ width: 80 }} />
                 <col style={{ width: 100 }} />
+                <col style={{ width: 132 }} />
                 <col style={{ width: 120 }} />
                 <col style={{ width: 148 }} />
                 <col style={{ width: 128 }} />
-                <col style={{ width: 132 }} />
+                <col style={{ width: onOpenPipeline ? 172 : 132 }} />
               </colgroup>
             ) : null}
             <thead>
@@ -14971,6 +15262,15 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                         onChange={(v) => { setStatusFilter(v); setActivePage(1); }}
                       />
                     </th>
+                    <th title="Pipeline Stage">
+                      <TableHeaderFilter
+                        label="Stage"
+                        value={stageFilter}
+                        active={stageFilter !== 'All'}
+                        options={pmStageOptions}
+                        onChange={(v) => { setStageFilter(v); setActivePage(1); }}
+                      />
+                    </th>
                     <th title="Project Manager">
                       <TableHeaderFilter
                         label="Project Manager"
@@ -14989,8 +15289,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             </thead>
             <tbody>
               {pagedProjectRows.map((row, index) => (
-                <tr key={row.id} {...rowDoubleOpenProps(() => handleViewRow(row), { title: 'Double-tap to view project' })}>
-                  <td>{(activePage - 1) * PROJECT_PAGE_SIZE + index + 1}</td>
+                <tr key={row.id} {...rowDoubleOpenProps(() => handleOpenRow(row), { title: openRowTitle })}>
+                  <td>{(safeProjectPage - 1) * projectPageSize + index + 1}</td>
                   <td className="font-extrabold text-[#1e3261]">{row.projectName}</td>
                   <td>
                     <div className="space-y-1">
@@ -15011,6 +15311,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                       <td><ProjectTypeBadge type={row.type} /></td>
                       <td className="font-extrabold text-[#1e3261]">{row.capacity}</td>
                       <td><ProjectPhaseBadge label={row.status} /></td>
+                      <td><PipelineStageBadge stage={row.pmStage} pipeline={PM_PIPELINE} /></td>
                       <td><AssigneeCell assignee={row.manager} compact /></td>
                       <td className="crm-col-team">
                         <span className="crm-team-cell inline-flex max-w-full items-start gap-1.5 font-bold text-[#314a79]" title={row.installationTeam || 'Unassigned'}>
@@ -15023,6 +15324,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                   )}
                   <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
                     <div className="flex items-center gap-2">
+                      {onOpenPipeline ? <UserActionButton label={`Open ${row.projectName} pipeline`} icon={FolderKanban} tone="green" onClick={() => onOpenPipeline(row)} /> : null}
                       <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => handleViewRow(row)} />
                       <UserActionButton label={`Edit ${row.projectName}`} icon={Pencil} tone="green" onClick={() => handleEditRow(row)} />
                       <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={(event) => openActionMenu(event, row)} />
@@ -15031,7 +15333,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                 </tr>
               ))}
               {pagedProjectRows.length === 0 ? (
-                <tr><td colSpan={isSiteSurveyPicker ? 9 : 10} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</td></tr>
+                <tr><td colSpan={isSiteSurveyPicker ? 9 : 11} className="py-8 text-center text-[13px] font-bold text-[#8a98af]">No projects found.</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -15079,10 +15381,16 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                   {projectStatusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </label>
-              <label className="grid gap-1 text-[10px] font-bold uppercase text-[#8a98af] col-span-2 sm:col-span-1">
+              <label className="grid gap-1 text-[10px] font-bold uppercase text-[#8a98af]">
                 Project Manager
                 <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-2 text-[12px] font-semibold text-[#314a79]">
                   {managerOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase text-[#8a98af]">
+                Stage
+                <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} className="h-9 rounded-[8px] border border-[#d5e0ef] bg-white px-2 text-[12px] font-semibold text-[#314a79]">
+                  {pmStageOptions.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </label>
             </div>
@@ -15090,7 +15398,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           {pagedProjectRows.map((row) => (
             <article
               key={row.id}
-              {...rowDoubleOpenProps(() => handleViewRow(row), { title: 'Double-tap to view project' })}
+              {...rowDoubleOpenProps(() => handleOpenRow(row), { title: openRowTitle })}
               className="crm-row-clickable rounded-[14px] border border-[#e7eef7] bg-white p-3 shadow-[0_10px_22px_rgba(17,39,84,0.05)]"
             >
               <div className="flex items-start justify-between gap-3">
@@ -15115,6 +15423,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                 <>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <ProjectTypeBadge type={row.type} />
+                    <PipelineStageBadge stage={row.pmStage} pipeline={PM_PIPELINE} />
                     <span className="text-[12px] font-extrabold text-[#314a79]">{row.capacity} KWp</span>
                     <span className="ml-1 inline-flex min-w-0"><AssigneeCell assignee={row.manager} compact /></span>
                   </div>
@@ -15131,6 +15440,9 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
               )}
 
               <div className="mt-3 flex gap-2" data-no-row-open onDoubleClick={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
+                {onOpenPipeline ? (
+                  <button type="button" onClick={() => onOpenPipeline(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] bg-[#0d9f4a] text-[12px] font-extrabold text-white"><FolderKanban className="size-4" />Open</button>
+                ) : null}
                 <button type="button" onClick={() => handleViewRow(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
                 <button type="button" onClick={() => handleEditRow(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0d9f4a]"><Pencil className="size-4" />Edit</button>
                 <button type="button" onClick={(event) => openActionMenu(event, row)} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
@@ -15142,21 +15454,19 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           ) : null}
         </div>
 
-        <div className="mt-3 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[13px] font-bold text-[#53647f]">Showing {filteredRows.length === 0 ? 0 : (activePage - 1) * PROJECT_PAGE_SIZE + 1} to {Math.min(activePage * PROJECT_PAGE_SIZE, filteredRows.length)} of {filteredRows.length} entries</p>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <PaginationButton onClick={() => setActivePage((p) => Math.max(1, p - 1))}><ChevronLeft className="size-4" /></PaginationButton>
-            {Array.from({ length: totalProjectPages }, (_, i) => i + 1).map((page) => (
-              <PaginationButton key={page} active={page === activePage} onClick={() => setActivePage(page)}>{page}</PaginationButton>
-            ))}
-            <PaginationButton onClick={() => setActivePage((p) => Math.min(totalProjectPages, p + 1))}><ChevronRight className="size-4" /></PaginationButton>
-          </div>
-        </div>
+        <TablePagination
+          total={filteredRows.length}
+          page={safeProjectPage}
+          pageSize={projectPageSize}
+          onPageChange={setActivePage}
+          onPageSizeChange={(next) => { setProjectPageSize(next); setActivePage(1); }}
+          className="mt-3 rounded-b-[10px]"
+        />
         </>
         )}
       </article>
 
-      <DashboardFooter />
+      {embedded ? null : <DashboardFooter />}
 
       {editProject ? (
         <LeadFormModal
@@ -15604,7 +15914,7 @@ function ProjectListViewModal({ row, onClose, onNotify }) {
   );
 }
 
-function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject }) {
+function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject, onEdit = null, inline = false }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -15630,11 +15940,23 @@ function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject }) {
 
   const d = detail || {};
   const survey = d.site_survey || {};
+  const surveyPhotoBySlot = Object.fromEntries((survey.photos || []).map((photo) => [photo.slot, photo]));
+  const surveyDcKwp = (() => {
+    const watt = Number(survey.panel_wattage_w);
+    const count = Number(survey.panel_count);
+    return watt > 0 && count > 0 ? Math.round((watt * count) / 10) / 100 : 0;
+  })();
   const feasibilityTone = survey.feasibility === 'Feasible' ? 'green' : survey.feasibility === 'Not Feasible' ? 'red' : survey.feasibility ? 'amber' : 'slate';
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-[#0b1226]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className="flex max-h-[92vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_36px_80px_rgba(11,18,38,0.32)]">
+    <div
+      className={inline ? 'w-full' : 'fixed inset-0 z-100 flex items-center justify-center bg-[#0b1226]/55 p-4'}
+      onMouseDown={inline ? undefined : (event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className={inline
+        ? `${panelClass} flex w-full flex-col overflow-hidden`
+        : 'flex max-h-[92vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_36px_80px_rgba(11,18,38,0.32)]'}
+      >
         <div className="flex items-start justify-between gap-4 border-b border-[#e7eef7] px-5 py-4 sm:px-6">
           <div className="flex items-start gap-3">
             <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#dff7e8] text-[#0d9f4a]"><ClipboardPlus className="size-5" /></span>
@@ -15643,12 +15965,14 @@ function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject }) {
               <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.projectId || d.project_id} • Survey {survey.survey_id || 'Not yet created'} • {row.customer}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-[8px] text-[#7585a2] transition hover:bg-[#f1f5fa]" aria-label="Close site survey details">
-            <X className="size-5" />
-          </button>
+          {inline ? null : (
+            <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-[8px] text-[#7585a2] transition hover:bg-[#f1f5fa]" aria-label="Close site survey details">
+              <X className="size-5" />
+            </button>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        <div className={cx('flex-1 px-5 py-5 sm:px-6', !inline && 'overflow-y-auto')}>
           {loading ? (
             <PageLoadingState message="Loading site survey details..." />
           ) : (
@@ -15734,12 +16058,93 @@ function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject }) {
                 </div>
               </ProjectInfoCard>
 
+              <ProjectInfoCard title="Panel, Inverter & Meter" icon={Sun} tone="green">
+                <div className="space-y-5">
+                  {[
+                    {
+                      key: 'panel',
+                      title: 'Panel Details',
+                      slot: SURVEY_PANEL_PHOTO_SLOT,
+                      photoLabel: 'Panel Placement Photo',
+                      cells: [
+                        ['Brand', survey.panel_brand],
+                        ['Type', survey.panel_type],
+                        ['Wattage', survey.panel_wattage_w ? `${survey.panel_wattage_w} W` : ''],
+                        ['No. of Panels', survey.panel_count],
+                        ['Total DC Capacity', surveyDcKwp ? `${surveyDcKwp} kWp` : ''],
+                      ],
+                    },
+                    {
+                      key: 'inverter',
+                      title: 'Inverter Details',
+                      slot: SURVEY_INVERTER_PHOTO_SLOT,
+                      photoLabel: 'Inverter Location Photo',
+                      cells: [
+                        ['Brand', survey.inverter_brand],
+                        ['Type', survey.inverter_type],
+                        ['Capacity', survey.inverter_capacity_kw ? `${survey.inverter_capacity_kw} kW` : ''],
+                        ['No. of Inverters', survey.inverter_quantity],
+                        ['Placement', survey.inverter_placement],
+                        ['Mounting', survey.inverter_mounting],
+                      ],
+                    },
+                    {
+                      key: 'meter',
+                      title: 'Meter Details',
+                      slot: SURVEY_METER_PHOTO_SLOT,
+                      photoLabel: 'Meter Photo',
+                      cells: [
+                        ['Meter Number', survey.meter_number || d.meter_number],
+                        ['Types of Meters', survey.meter_location],
+                        ['Meter Capacity', survey.meter_capacity],
+                        ['Existing MCB', survey.existing_mcb],
+                        ['Main DB Location', survey.main_db_location],
+                      ],
+                    },
+                  ].map((group, index) => {
+                    const photo = surveyPhotoBySlot[group.slot];
+                    return (
+                      <div key={group.key} className={cx('grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]', index > 0 && 'border-t border-[#edf2f8] pt-5')}>
+                        <div className="min-w-0">
+                          <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">{group.title}</p>
+                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {group.cells.map(([label, value]) => (
+                              <InfoCell key={label} label={label} value={value || '—'} />
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="mb-2 truncate text-[11px] font-extrabold text-[#34466c]">{group.photoLabel}</p>
+                          {photo ? (
+                            <a href={getMediaUrl(photo.image)} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden rounded-[10px] border border-[#d9e4f2] bg-[#f4f7fb]">
+                              <img src={getMediaUrl(photo.image)} alt={group.photoLabel} className="h-full w-full object-cover" />
+                            </a>
+                          ) : (
+                            <div className="grid aspect-square place-items-center rounded-[10px] border border-dashed border-[#c9d6e8] bg-[#f8fbff] px-3 text-center text-[11px] font-bold text-[#8a98af]">
+                              No photo uploaded
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ProjectInfoCard>
+
             </div>
           )}
         </div>
 
         <div className="flex flex-col-reverse gap-3 border-t border-[#e7eef7] px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
-          <button type="button" onClick={onClose} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">Close</button>
+          {inline ? null : (
+            <button type="button" onClick={onClose} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">Close</button>
+          )}
+          {onEdit ? (
+            <button type="button" onClick={onEdit} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#0d9f4a] transition hover:bg-[#f3fbf6]">
+              <Pencil className="size-4" />
+              Edit Survey
+            </button>
+          ) : null}
           {onViewFullProject ? (
             <button type="button" onClick={onViewFullProject} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
               <FolderKanban className="size-4" />
@@ -15779,6 +16184,7 @@ function SurveyDashboardPage({ onNotify }) {
       onNotify?.('Failed to load survey dashboard', 'error');
     }).finally(() => setLoading(false));
   }, [statusFilter, refreshKey, onNotify]);
+  const { pageRows: pagedSurveys, pagination: surveysPagination } = usePagedRows(surveys, 'survey-dashboard', { resetKey: statusFilter });
 
   const stats = [
     { label: 'Total Surveys', value: summary?.total ?? '—', toneClass: 'bg-linear-to-br from-[#1578ff] to-[#0a9ff5]', icon: ClipboardPlus },
@@ -15872,7 +16278,7 @@ function SurveyDashboardPage({ onNotify }) {
                 </tr>
               </thead>
               <tbody>
-                {surveys.map((row) => (
+                {pagedSurveys.map((row) => (
                   <tr key={row.id}>
                     <td>{row.survey_date ? new Date(row.survey_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
                     <td className="font-bold text-[#233a6b]">{row.project_name || '—'}</td>
@@ -15901,6 +16307,7 @@ function SurveyDashboardPage({ onNotify }) {
                 ))}
               </tbody>
             </table>
+            <TablePagination {...surveysPagination} />
           </div>
         )}
       </article>
@@ -15938,14 +16345,16 @@ const SURVEY_BASE_PHOTO_SLOTS = [
   { slot: 'South-East Side', required: true },
   { slot: 'South-West Side', required: true },
   { slot: 'Front View', required: true },
-  { slot: 'Inverter Location Photo', required: false },
-  { slot: 'Meter Photo Close to Main DB', required: false },
   { slot: 'Earthing Location Photo', required: false },
 ];
+const SURVEY_PANEL_PHOTO_SLOT = 'Panel Placement Photo';
+const SURVEY_INVERTER_PHOTO_SLOT = 'Inverter Location Photo';
+const SURVEY_METER_PHOTO_SLOT = 'Meter Photo Close to Main DB';
 const SURVEY_CONDUITING_PHOTO_SLOTS = Array.from({ length: 8 }, (_, i) => `Conduiting Photo ${i + 1}`);
 const SURVEY_SITE_DRAWING_PHOTO_SLOTS = Array.from({ length: 4 }, (_, i) => `Site Drawing ${i + 1}`);
 const SURVEY_ROOF_PHOTO_SLOTS = [
   ...SURVEY_BASE_PHOTO_SLOTS,
+  ...[SURVEY_PANEL_PHOTO_SLOT, SURVEY_INVERTER_PHOTO_SLOT, SURVEY_METER_PHOTO_SLOT].map((slot) => ({ slot, required: false })),
   ...SURVEY_CONDUITING_PHOTO_SLOTS.map((slot) => ({ slot, required: false })),
   ...SURVEY_SITE_DRAWING_PHOTO_SLOTS.map((slot) => ({ slot, required: false })),
 ];
@@ -15965,6 +16374,8 @@ const SURVEY_INVERTER_PLACEMENT_OPTIONS = ['Indoor', 'Outdoor'];
 const SURVEY_INVERTER_MOUNTING_OPTIONS = ['Wall Mounted', 'Floor Mounted'];
 const SURVEY_METER_PHASE_OPTIONS = ['Normal Single Phase', 'Normal 3 Phase', 'Smart Single Phase', 'Smart 3 Phase', 'Normal LTCT', 'Smart LTCT'];
 const SURVEY_MODULE_ORIENTATION_OPTIONS = ['Portrait', 'Landscape', 'Both'];
+const SURVEY_PANEL_TYPE_OPTIONS = ['Mono PERC', 'TOPCon', 'Bifacial', 'Polycrystalline'];
+const SURVEY_INVERTER_TYPE_OPTIONS = ['String Inverter', 'Micro Inverter', 'Hybrid Inverter', 'Off-Grid Inverter'];
 const SURVEY_VIDEO_CATEGORIES = ['Conduiting & Earthing Video', 'Structure & Inverter Location Video'];
 const SURVEY_ADDITIONAL_DOC_SLOTS = Array.from({ length: 8 }, (_, i) => `Document ${i + 1}`);
 const SURVEY_ADDITIONAL_DOC_CATEGORIES = [...SURVEY_VIDEO_CATEGORIES, ...SURVEY_ADDITIONAL_DOC_SLOTS, 'Other Documents'];
@@ -16015,8 +16426,10 @@ const SURVEY_EMPTY_FORM = {
   customer_confirmation_name: '', customer_confirmation_date: '',
   survey_engineer_name: '', survey_engineer_date: '',
   earthing_required: false, earthing_count: '', earthing_type: '', earthing_location: '', earthing_remarks: '',
+  panel_brand: '', panel_type: '', panel_wattage_w: '', panel_count: '',
+  inverter_brand: '', inverter_type: '', inverter_capacity_kw: '', inverter_quantity: '',
   inverter_placement: '', inverter_mounting: '', inverter_location_description: '', inverter_distance_from_roof: '',
-  meter_type: '', meter_phase: '', meter_capacity: '', existing_mcb: '', connection_point_after_commissioning: '', meter_remarks: '',
+  meter_number: '', meter_type: '', meter_phase: '', meter_capacity: '', existing_mcb: '', connection_point_after_commissioning: '', meter_remarks: '',
   conduit_route_description: '', ac_cable_route: '', dc_cable_route: '', ac_cable_length_approx: '', dc_cable_length_approx: '', conduit_length_approx: '',
   module_orientation: '', tilt_angle: '', structure_rows: '', structure_columns: '', approx_plant_capacity: '', future_expansion: false,
   safety_roof_safe: false, safety_shadow_checked: false, safety_earthing_finalized: false, safety_meter_verified: false,
@@ -16393,10 +16806,19 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
         earthing_type: data.earthing_type || '',
         earthing_location: data.earthing_location || '',
         earthing_remarks: data.earthing_remarks || '',
+        panel_brand: data.panel_brand || '',
+        panel_type: data.panel_type || '',
+        panel_wattage_w: data.panel_wattage_w || '',
+        panel_count: data.panel_count || '',
+        inverter_brand: data.inverter_brand || '',
+        inverter_type: data.inverter_type || '',
+        inverter_capacity_kw: data.inverter_capacity_kw || '',
+        inverter_quantity: data.inverter_quantity || '',
         inverter_placement: data.inverter_placement || '',
         inverter_mounting: data.inverter_mounting || '',
         inverter_location_description: data.inverter_location_description || '',
         inverter_distance_from_roof: data.inverter_distance_from_roof || '',
+        meter_number: data.meter_number || '',
         meter_type: data.meter_type || '',
         meter_phase: data.meter_phase || '',
         meter_capacity: data.meter_capacity || '',
@@ -16641,6 +17063,10 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
     setMediaPreview({ title, src, kind });
   };
 
+  const surveyDcCapacityKwp = (() => {
+    const kwp = (Number(form.panel_wattage_w) * Number(form.panel_count)) / 1000;
+    return Number.isFinite(kwp) && kwp > 0 ? String(Math.round(kwp * 100) / 100) : '';
+  })();
   const uploadedRoofPhotoCount = (survey?.photos ?? []).filter((p) => SURVEY_ROOF_PHOTO_SLOTS.some((s) => s.slot === p.slot)).length;
   const totalRoofPhotoSlots = SURVEY_ROOF_PHOTO_SLOTS.length;
   const overallProgress = Math.round((
@@ -16768,12 +17194,6 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyField label="Extend Sanction Load (kW)">
                 <input value={form.extend_sanction_load_kw} onChange={(e) => updateField('extend_sanction_load_kw', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Types of Meters">
-                <select value={form.meter_location} onChange={(e) => updateField('meter_location', e.target.value)} className={surveyFieldClass}>
-                  <option value="">Select</option>
-                  {SURVEY_METER_PHASE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-              </SurveyField>
               <SurveyField label="Average Monthly Bill">
                 <input value={form.average_monthly_bill} onChange={(e) => updateField('average_monthly_bill', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
@@ -16862,7 +17282,137 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             {!survey?.id ? <p className="mt-2 text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
           </SurveySection>
 
-          <SurveySection number={5} title="Shadow Analysis">
+          <SurveySection number={5} title="Panel Details">
+            <p className="-mt-1 text-[11px] font-bold text-[#8a98af]">Pre-filled from the project's system config / quotation — update if the site needs something different.</p>
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_170px]">
+              <div className="grid content-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <SurveyField label="Panel Brand">
+                  <input value={form.panel_brand} onChange={(e) => updateField('panel_brand', e.target.value)} placeholder="e.g. Waaree" className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="Panel Type">
+                  <select value={form.panel_type} onChange={(e) => updateField('panel_type', e.target.value)} className={surveyFieldClass}>
+                    <option value="">Select</option>
+                    {SURVEY_PANEL_TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </SurveyField>
+                <SurveyField label="Panel Wattage (W)">
+                  <input type="number" min="0" inputMode="decimal" value={form.panel_wattage_w} onChange={(e) => updateField('panel_wattage_w', e.target.value)} placeholder="e.g. 540" className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="No. of Panels">
+                  <input type="number" min="0" inputMode="decimal" value={form.panel_count} onChange={(e) => updateField('panel_count', e.target.value)} placeholder="e.g. 10" className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="Total DC Capacity (kWp)">
+                  <input value={surveyDcCapacityKwp} readOnly placeholder="Auto" className={`${surveyFieldClass} bg-[#f8fafc] text-[#53647f]`} />
+                </SurveyField>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-1">
+                <SurveyPhotoSlot
+                  label="Panel Placement Photo"
+                  photo={getPhoto(SURVEY_PANEL_PHOTO_SLOT)}
+                  uploading={uploadingSlot === SURVEY_PANEL_PHOTO_SLOT}
+                  onUpload={(file) => handlePhotoUpload(SURVEY_PANEL_PHOTO_SLOT, file)}
+                  onDelete={() => handlePhotoDelete(getPhoto(SURVEY_PANEL_PHOTO_SLOT).id)}
+                  onView={() => openPhotoPreview(getPhoto(SURVEY_PANEL_PHOTO_SLOT), 'Panel Placement Photo')}
+                />
+              </div>
+            </div>
+          </SurveySection>
+
+          <SurveySection number={6} title="Inverter Details">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_170px]">
+              <div className="grid content-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <SurveyField label="Inverter Brand">
+                  <input value={form.inverter_brand} onChange={(e) => updateField('inverter_brand', e.target.value)} placeholder="e.g. Growatt" className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="Inverter Type">
+                  <select value={form.inverter_type} onChange={(e) => updateField('inverter_type', e.target.value)} className={surveyFieldClass}>
+                    <option value="">Select</option>
+                    {SURVEY_INVERTER_TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </SurveyField>
+                <SurveyField label="Inverter Capacity (kW)">
+                  <input type="number" min="0" inputMode="decimal" value={form.inverter_capacity_kw} onChange={(e) => updateField('inverter_capacity_kw', e.target.value)} placeholder="e.g. 5" className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="No. of Inverters">
+                  <input type="number" min="0" inputMode="decimal" value={form.inverter_quantity} onChange={(e) => updateField('inverter_quantity', e.target.value)} placeholder="e.g. 1" className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="Placement">
+                  <select value={form.inverter_placement} onChange={(e) => updateField('inverter_placement', e.target.value)} className={surveyFieldClass}>
+                    <option value="">Select</option>
+                    {SURVEY_INVERTER_PLACEMENT_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </SurveyField>
+                <SurveyField label="Mounting">
+                  <select value={form.inverter_mounting} onChange={(e) => updateField('inverter_mounting', e.target.value)} className={surveyFieldClass}>
+                    <option value="">Select</option>
+                    {SURVEY_INVERTER_MOUNTING_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </SurveyField>
+                <SurveyField label="Distance from Roof (m)">
+                  <input value={form.inverter_distance_from_roof} onChange={(e) => updateField('inverter_distance_from_roof', e.target.value)} className={surveyFieldClass} />
+                </SurveyField>
+                <div className="sm:col-span-2">
+                  <SurveyField label="Inverter Location">
+                    <input value={form.inverter_location_description} onChange={(e) => updateField('inverter_location_description', e.target.value)} placeholder="e.g. Ground floor, near main DB" className={surveyFieldClass} />
+                  </SurveyField>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-1">
+                <SurveyPhotoSlot
+                  label="Inverter Location Photo"
+                  photo={getPhoto(SURVEY_INVERTER_PHOTO_SLOT)}
+                  uploading={uploadingSlot === SURVEY_INVERTER_PHOTO_SLOT}
+                  onUpload={(file) => handlePhotoUpload(SURVEY_INVERTER_PHOTO_SLOT, file)}
+                  onDelete={() => handlePhotoDelete(getPhoto(SURVEY_INVERTER_PHOTO_SLOT).id)}
+                  onView={() => openPhotoPreview(getPhoto(SURVEY_INVERTER_PHOTO_SLOT), 'Inverter Location Photo')}
+                />
+              </div>
+            </div>
+          </SurveySection>
+
+          <SurveySection number={7} title="Meter Details">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_170px]">
+              <div className="grid content-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <SurveyField label="Meter Number">
+                  <input value={form.meter_number} onChange={(e) => updateField('meter_number', e.target.value)} className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="Types of Meters">
+                  <select value={form.meter_location} onChange={(e) => updateField('meter_location', e.target.value)} className={surveyFieldClass}>
+                    <option value="">Select</option>
+                    {SURVEY_METER_PHASE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </SurveyField>
+                <SurveyField label="Meter Capacity / Rating">
+                  <input value={form.meter_capacity} onChange={(e) => updateField('meter_capacity', e.target.value)} placeholder="e.g. 10-60 A" className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="Existing MCB / Main Switch">
+                  <input value={form.existing_mcb} onChange={(e) => updateField('existing_mcb', e.target.value)} placeholder="e.g. 32A DP MCB" className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="Main DB Location">
+                  <input value={form.main_db_location} onChange={(e) => updateField('main_db_location', e.target.value)} className={surveyFieldClass} />
+                </SurveyField>
+                <SurveyField label="Connection Point (after commissioning)">
+                  <input value={form.connection_point_after_commissioning} onChange={(e) => updateField('connection_point_after_commissioning', e.target.value)} className={surveyFieldClass} />
+                </SurveyField>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-1">
+                <SurveyPhotoSlot
+                  label="Meter Photo"
+                  photo={getPhoto(SURVEY_METER_PHOTO_SLOT)}
+                  uploading={uploadingSlot === SURVEY_METER_PHOTO_SLOT}
+                  onUpload={(file) => handlePhotoUpload(SURVEY_METER_PHOTO_SLOT, file)}
+                  onDelete={() => handlePhotoDelete(getPhoto(SURVEY_METER_PHOTO_SLOT).id)}
+                  onView={() => openPhotoPreview(getPhoto(SURVEY_METER_PHOTO_SLOT), 'Meter Photo')}
+                />
+              </div>
+            </div>
+            <SurveyField label="Meter Remarks">
+              <textarea value={form.meter_remarks} onChange={(e) => updateField('meter_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
+            </SurveyField>
+            {!survey?.id ? <p className="text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
+          </SurveySection>
+
+          <SurveySection number={8} title="Shadow Analysis">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <SurveyCheckbox label="Water Tank Present" checked={form.water_tank_present} onChange={(v) => updateField('water_tank_present', v)} />
               <SurveyCheckbox label="Tree Nearby" checked={form.tree_nearby} onChange={(v) => updateField('tree_nearby', v)} />
@@ -16914,7 +17464,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </SurveyField>
           </SurveySection>
 
-          <SurveySection number={6} title="Earthing Details">
+          <SurveySection number={9} title="Earthing Details">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <SurveyField label="Number of Earthing">
                 <input value={form.earthing_count} onChange={(e) => updateField('earthing_count', e.target.value)} className={surveyFieldClass} />
@@ -16931,7 +17481,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </SurveyField>
           </SurveySection>
 
-          <SurveySection number={7} title="Media & Evidence">
+          <SurveySection number={10} title="Media & Evidence">
             <div className="flex flex-wrap items-stretch gap-2.5">
               {SURVEY_VIDEO_CATEGORIES.map((category) => (
                 <SurveyVideoSlot
@@ -16948,7 +17498,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             {!survey?.id ? <p className="text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable video uploads.</p> : null}
           </SurveySection>
 
-          <SurveySection number={8} title="Cable & Conduit Route">
+          <SurveySection number={11} title="Cable & Conduit Route">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <SurveyField label="AC Cable Length (m)">
                 <input value={form.ac_cable_length_approx} onChange={(e) => updateField('ac_cable_length_approx', e.target.value)} className={surveyFieldClass} />
@@ -16965,7 +17515,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </SurveyField>
           </SurveySection>
 
-          <SurveySection number={9} title="Structure Layout">
+          <SurveySection number={12} title="Structure Layout">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <SurveyField label="Structure Type">
                 <select value={form.structure_type} onChange={(e) => updateField('structure_type', e.target.value)} className={surveyFieldClass}>
@@ -17006,7 +17556,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={10} title="Documents">
+          <SurveySection number={13} title="Documents">
             <div className="rounded-[12px] border border-[#8fa0b8] bg-[#fbfcff] p-3">
               <div className="mb-2.5 flex items-center justify-between gap-2">
                 <p className="text-[12px] font-extrabold text-[#34466c]">Documents</p>
@@ -17040,7 +17590,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </div>
           </SurveySection>
 
-          <SurveySection number={11} title="Decision maker">
+          <SurveySection number={14} title="Decision maker">
             <div className="grid gap-3 sm:grid-cols-2">
               <SurveyField label="Customer Name">
                 <input value={form.customer_confirmation_name} onChange={(e) => updateField('customer_confirmation_name', e.target.value)} className={surveyFieldClass} />
@@ -17054,7 +17604,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             </SurveyField>
           </SurveySection>
 
-          <SurveySection number={12} title="Survey Completion">
+          <SurveySection number={15} title="Survey Completion">
             <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[12px] font-extrabold text-[#34466c]">Survey Summary</span>
@@ -17066,7 +17616,9 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <div className="mt-3 space-y-1.5 text-[12px] font-bold text-[#4b5b78]">
                 <div className="flex items-center justify-between"><span>Roof Photos</span><span>{uploadedRoofPhotoCount >= totalRoofPhotoSlots ? '✅' : '⏳'} {uploadedRoofPhotoCount}/{totalRoofPhotoSlots}</span></div>
                 <div className="flex items-center justify-between"><span>Earthing</span><span>{form.earthing_count || getPhoto('Earthing Location Photo') ? '✅ Done' : '⏳ Pending'}</span></div>
-                <div className="flex items-center justify-between"><span>Inverter / Meter Photos</span><span>{getPhoto('Inverter Location Photo') || getPhoto('Meter Photo Close to Main DB') ? '✅ Done' : '⏳ Pending'}</span></div>
+                <div className="flex items-center justify-between"><span>Panel Details</span><span>{form.panel_wattage_w && form.panel_count ? '✅ Done' : '⏳ Pending'}</span></div>
+                <div className="flex items-center justify-between"><span>Inverter Details</span><span>{form.inverter_capacity_kw && (form.inverter_location_description || getPhoto(SURVEY_INVERTER_PHOTO_SLOT)) ? '✅ Done' : '⏳ Pending'}</span></div>
+                <div className="flex items-center justify-between"><span>Meter Details / Photo</span><span>{form.meter_location && getPhoto(SURVEY_METER_PHOTO_SLOT) ? '✅ Done' : '⏳ Pending'}</span></div>
                 <div className="flex items-center justify-between"><span>AC / DC Cable</span><span>{form.ac_cable_length_approx || form.dc_cable_length_approx ? '✅ Done' : '⏳ Pending'}</span></div>
                 <div className="flex items-center justify-between"><span>Conduit Route</span><span>{form.conduit_route_description ? '✅ Done' : '⏳ Pending'}</span></div>
               </div>
@@ -17172,7 +17724,7 @@ function milestoneStatusColor(status) {
   return '#8b5cf6';
 }
 
-function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp, onNotify, hubMode = false, initialHubTab = 'Overview', initialEditMode = false, stackedSections = false, onClose }) {
+function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp, onNotify, hubMode = false, initialHubTab = 'Overview', initialEditMode = false, stackedSections = false, onClose, embedded = false }) {
   const openProjectSection = (section) => onOpenSection(section, { preserveProject: true });
   const hubTabFromSurvey = (tab) => ({
     Overview: 'Overview',
@@ -17222,6 +17774,20 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   const [uploadingProjectImage, setUploadingProjectImage] = useState(false);
   const [progressDraft, setProgressDraft] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const fullView = !hubMode && !embedded && !stackedSections;
+  const [pipelineInfo, setPipelineInfo] = useState(null);
+
+  useEffect(() => {
+    if (!fullView || !projectProp?.id) {
+      setPipelineInfo(null);
+      return undefined;
+    }
+    let cancelled = false;
+    pmPipelineApi.get(projectProp.id)
+      .then((res) => { if (!cancelled) setPipelineInfo(res); })
+      .catch(() => { if (!cancelled) setPipelineInfo(null); });
+    return () => { cancelled = true; };
+  }, [fullView, projectProp?.id]);
 
   useEffect(() => {
     userApi.list({ is_active: true }).then((res) => {
@@ -17690,10 +18256,26 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
     }
   };
 
+  const shellHeading = fullView ? (
+    <>
+      <PageHeading
+        title="Project Management"
+        crumbs={[
+          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+          { label: 'Full Details' },
+        ]}
+      />
+      <ProjectSubnavTabs activeSection="Project List" onOpenSection={openProjectSection} />
+    </>
+  ) : (
+    <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project List', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
+  );
+
   if (!projectProp?.id) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project List', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
+        {shellHeading}
         <article className={`${panelClass} p-8 text-center`}>
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef4ff] text-[#0b65e5]"><FolderKanban className="size-8" /></span>
           <h2 className="mt-5 font-display text-[20px] font-extrabold text-[#111827]">No project selected</h2>
@@ -17707,7 +18289,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   if (loading) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project List', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
+        {shellHeading}
         <article className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
           <PageLoadingState message="Loading project..." />
         </article>
@@ -17718,7 +18300,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   if (!data) {
     return (
       <div className="space-y-4">
-        <PageHeading title="Project Details" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Project Management', onClick: () => onOpenSection('Project List') }, { label: 'Project List', onClick: () => onOpenSection('Project List') }, { label: 'Project Details' }]} />
+        {shellHeading}
         <article className={`${panelClass} p-8 text-center`}>
           <p className="text-[13px] font-bold text-[#53647f]">{loadError || 'Project not found.'}</p>
           <button type="button" onClick={() => fetchProjectDetails()} className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]">
@@ -18266,29 +18848,212 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
         { label: activeDetailTab },
       ];
 
+  const detailTabsNav = (
+    <>
+      <MobileSubnavSelect
+        label="Project Section"
+        items={detailTabs.map((tab) => ({ value: tab.label, label: tab.label }))}
+        value={activeDetailTab}
+        onChange={setActiveDetailTab}
+      />
+      <div className="module-tab-scroll hidden gap-2 overflow-x-auto pb-0 md:flex">
+        {detailTabs.map((tab) => {
+          const Icon = tab.icon;
+          const active = activeDetailTab === tab.label;
+          return (
+            <button
+              key={tab.label}
+              type="button"
+              onClick={() => setActiveDetailTab(tab.label)}
+              className={cx(
+                'relative inline-flex h-12 shrink-0 items-center gap-2 border-b-2 px-3 text-[13px] font-extrabold transition sm:px-4',
+                active ? 'border-[#14b84c] text-[#0d9f4a]' : 'border-transparent text-[#314a79] hover:border-[#dce6f3] hover:text-[#0b65e5]',
+              )}
+            >
+              <Icon className="size-4" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  let fullViewHeader = null;
+  if (fullView) {
+    const pmStage = pipelineInfo?.pm_stage || null;
+    const stageIndex = pipelineInfo ? (pipelineInfo.stage_index ?? 0) : -1;
+    const totalStages = PM_PIPELINE.steps.length;
+    const currentStep = PM_PIPELINE.steps.find((s) => s.stage === pmStage) || null;
+    const fullAddress = [d.site_address, d.city, d.state].filter(Boolean).join(', ');
+    const totalValue = Number(d.total_value);
+    const heroFacts = [
+      { label: 'Capacity', value: project.capacity ? `${Number(project.capacity)} kWp` : '—' },
+      { label: 'Project Value', value: totalValue ? formatMoney(totalValue) : '—' },
+      { label: 'Project Manager', node: <AssigneeCell assignee={project.manager} compact /> },
+      { label: 'Start Date', value: formatProjectDisplayDate(project.startDate) },
+      { label: 'Target Date', value: formatProjectDisplayDate(project.targetDate), caption: project.targetDate ? project.workDaysLeft : '' },
+      { label: 'Survey Status', node: <ProjectInfoPill tone={surveyForm.status === 'Completed' ? 'green' : 'amber'}>{surveyForm.status || 'Draft'}</ProjectInfoPill> },
+    ];
+
+    fullViewHeader = (
+      <>
+        <PageHeading
+          title="Project Management"
+          crumbs={[
+            { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+            { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+            { label: `Full Details · ${project.name}` },
+          ]}
+        />
+
+        <ProjectSubnavTabs activeSection="Project List" onOpenSection={openProjectSection} />
+
+        <section className={cx(panelClass, 'overflow-hidden')}>
+          <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center">
+            <div className="relative shrink-0">
+              <img src={projectImageUrl} alt={project.name} loading="lazy" decoding="async" className="h-[120px] w-full rounded-[10px] object-cover sm:h-[92px] sm:w-[150px]" />
+              {canEdit ? (
+                <label title="Upload project image" className="absolute bottom-1.5 right-1.5 grid size-8 cursor-pointer place-items-center rounded-full bg-white/95 text-[#0b65e5] shadow-[0_4px_12px_rgba(15,23,42,0.18)] transition hover:bg-white">
+                  {uploadingProjectImage ? <RefreshCw className="size-4 animate-spin" /> : <Camera className="size-4" />}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleProjectImageUpload} disabled={uploadingProjectImage} />
+                </label>
+              ) : null}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="font-display text-[20px] font-extrabold leading-tight text-[#06135a] sm:text-[24px]">{project.name}</h2>
+                {pmStage ? <PipelineStageBadge stage={pmStage} pipeline={PM_PIPELINE} /> : null}
+                {project.type ? <ProjectTypeBadge type={project.type} /> : null}
+              </div>
+              <p className="mt-1 truncate text-[13px] font-bold text-[#53647f]">
+                {project.projectId}{project.customer ? ` · ${project.customer}` : ''}{d.mobile_number ? ` · ${d.mobile_number}` : ''}
+              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-bold text-[#1f3360]">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <MapPin className="size-4 shrink-0 text-[#7386a3]" />
+                  <span className="truncate">{fullAddress || '—'}</span>
+                </span>
+                <button type="button" onClick={handleOpenProjectMap} className="text-[12px] font-extrabold text-[#2563eb] hover:underline">View on Map</button>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {currentStep ? (
+                <button
+                  type="button"
+                  onClick={() => openProjectSection(currentStep.key)}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_8px_18px_rgba(13,159,74,0.22)] transition hover:bg-[#0b8a40]"
+                >
+                  Open {getModuleSubnavLabel(currentStep.key)}
+                  <ArrowRight className="size-4" />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => openProjectSection(PM_PIPELINE.listItem)}
+                title="Back to this project in the pipeline"
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"
+              >
+                <ChevronLeft className="size-4" />
+                Back to Pipeline
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-px border-t border-[#edf2f8] bg-[#edf2f8] sm:grid-cols-3 xl:grid-cols-6">
+            {heroFacts.map((fact) => (
+              <div key={fact.label} className="min-w-0 bg-white px-4 py-3 sm:px-5">
+                <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">{fact.label}</p>
+                <div className="mt-1 min-w-0">
+                  {fact.node ?? <p className="truncate text-[14px] font-extrabold text-[#06135a]">{fact.value}</p>}
+                  {fact.caption ? <p className={cx('text-[11px] font-bold', fact.caption === 'Overdue' ? 'text-[#ef4444]' : 'text-[#14b84c]')}>{fact.caption}</p> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {pipelineInfo ? (
+            <div className="border-t border-[#edf2f8] px-4 py-3 sm:px-5">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">Project Journey</p>
+                <span className="text-[12px] font-extrabold text-[#53647f]">
+                  {pmStage === PIPELINE_COMPLETED_STAGE ? 'All stages completed' : `${Math.min(stageIndex, totalStages)}/${totalStages} stages done`}
+                </span>
+              </div>
+              <ol className="module-tab-scroll flex gap-2 overflow-x-auto pb-1">
+                {PM_PIPELINE.steps.map((s, i) => {
+                  const state = i < stageIndex ? 'done' : i === stageIndex ? 'current' : 'pending';
+                  const hint = PM_PIPELINE.stepHint?.(pipelineInfo, s);
+                  return (
+                    <li key={s.key} className="min-w-[124px] flex-1">
+                      <button
+                        type="button"
+                        onClick={() => openProjectSection(s.key)}
+                        title={`Open ${getModuleSubnavLabel(s.key)} for this project`}
+                        className={cx(
+                          'flex w-full items-center gap-2 rounded-[10px] border px-2.5 py-2 text-left! transition hover:-translate-y-0.5',
+                          state === 'done' && 'border-[#bbf7d0] bg-[#f0fdf4]',
+                          state === 'current' && 'border-[#93c5fd] bg-[#eff6ff] ring-2 ring-[#dbeafe]',
+                          state === 'pending' && 'border-[#e5eaf2] bg-white',
+                        )}
+                      >
+                        <span className={cx(
+                          'grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-extrabold',
+                          state === 'done' && 'bg-[#16a34a] text-white',
+                          state === 'current' && 'bg-[#0b65e5] text-white',
+                          state === 'pending' && 'bg-[#eef2f7] text-[#7a8fa6]',
+                        )}
+                        >
+                          {state === 'done' ? <Check className="size-3.5" /> : i + 1}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12px] font-extrabold text-[#1e3261]">{getModuleSubnavLabel(s.key)}</span>
+                          <span className="block truncate text-[10.5px] font-bold text-[#7a8fa6]">
+                            {hint || (state === 'done' ? 'Done' : state === 'current' ? 'Current stage' : 'Pending')}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          ) : null}
+
+          <div className="border-t border-[#edf2f8] px-3 max-md:py-3">
+            {detailTabsNav}
+          </div>
+        </section>
+      </>
+    );
+  }
+
   return (
     <div className={cx(hubMode && !stackedSections && 'site-survey-compact space-y-2', !hubMode && 'space-y-4')}>
-      {!stackedSections ? (
-      <PageHeading
-        title={pageTitle}
-        crumbs={pageCrumbs}
-        actions={(
+      {fullView ? fullViewHeader : (
+      <>
+      {!stackedSections ? (() => {
+        const headingActions = (
           <>
             {hubMode ? <EditModeToggle enabled={editMode} onToggle={setEditMode} /> : null}
             {canEdit ? (
               <button type="button" onClick={openDetailUpdate} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><FileText className="size-4 text-[#0b65e5]" />Update Details</button>
             ) : null}
           </>
-        )}
-      />
-      ) : null}
+        );
+        return embedded
+          ? <div className="flex flex-wrap items-center justify-end gap-2">{headingActions}</div>
+          : <PageHeading title={pageTitle} crumbs={pageCrumbs} actions={headingActions} />;
+      })() : null}
       {!hubMode ? (
       <p className="-mt-3 px-2 text-[13px] font-bold text-[#20345f] sm:text-[14px]">
         {activeDetailDescription}
       </p>
       ) : null}
 
-      {!stackedSections ? <ProjectSubnavTabs activeSection={activeSection} onOpenSection={openProjectSection} /> : null}
+      {!stackedSections && !embedded ? <ProjectSubnavTabs activeSection={activeSection} onOpenSection={openProjectSection} /> : null}
 
       {!stackedSections ? (
       <section className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
@@ -18338,34 +19103,11 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
 
       {!stackedSections ? (
       <section className={`${panelClass} overflow-hidden px-3 pt-3 max-md:pb-3`}>
-        <MobileSubnavSelect
-          label="Project Section"
-          items={detailTabs.map((tab) => ({ value: tab.label, label: tab.label }))}
-          value={activeDetailTab}
-          onChange={setActiveDetailTab}
-        />
-        <div className="module-tab-scroll hidden gap-2 overflow-x-auto pb-0 md:flex">
-          {detailTabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeDetailTab === tab.label;
-            return (
-              <button
-                key={tab.label}
-                type="button"
-                onClick={() => setActiveDetailTab(tab.label)}
-                className={cx(
-                  'relative inline-flex h-12 shrink-0 items-center gap-2 border-b-2 px-3 text-[13px] font-extrabold transition sm:px-4',
-                  active ? 'border-[#14b84c] text-[#0d9f4a]' : 'border-transparent text-[#314a79] hover:border-[#dce6f3] hover:text-[#0b65e5]',
-                )}
-              >
-                <Icon className="size-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        {detailTabsNav}
       </section>
       ) : null}
+      </>
+      )}
 
       {(() => {
       const activitiesSection = (
@@ -20307,7 +21049,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       return sectionByTab[activeDetailTab] ?? fallbackSection;
       })()}
 
-      {!stackedSections ? <DashboardFooter /> : null}
+      {!stackedSections && !embedded ? <DashboardFooter /> : null}
       {deleteConfirm ? (
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
@@ -21862,30 +22604,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
   );
 }
 
-function ProjectInstallationPage(props) {
-  return <OpsInstallationPage {...props} Subnav={ProjectSubnavTabs} initialProjectId={props.initialProjectId} />;
-}
-
-function ProjectMaterialDispatchPage(props) {
-  return <OpsDispatchPage {...props} Subnav={ProjectSubnavTabs} initialProjectId={props.initialProjectId} />;
-}
-
-function ProjectMaterialPlanningPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify }) {
-  return (
-    <MaterialPlanningProjectHub
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      initialBomProject={projectProp}
-      onClearBomProject={() => {
-        if (projectProp?.id) onSelectProject?.(null, 'Project Material Planning');
-      }}
-      onSelectProject={onSelectProject}
-      onNotify={onNotify}
-    />
-  );
-}
-
-function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomProject, onClearBomProject, onSelectProject, onNotify }) {
+function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomProject, onClearBomProject, onSelectProject, onNotify, embedded = false }) {
   const [projects, setProjects] = useState([]);
   const [planByProject, setPlanByProject] = useState({});
   const [loading, setLoading] = useState(true);
@@ -21974,6 +22693,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
     if (planStatusFilter !== 'All' && planStatusFor(p.id) !== planStatusFilter) return false;
     return true;
   });
+  const { pageRows, startIndex, pagination } = usePagedRows(filtered, 'material-planning-projects', { resetKey: `${deferredQuery}|${projectStatusFilter}|${planStatusFilter}` });
 
   const projectStatusOptions = ['All', 'Planning', 'Active', 'On Hold', 'Completed', 'Cancelled'];
   const planStatusOptions = ['All', 'Not Planned', 'Not Started', 'In Progress', 'Ready', 'Delayed'];
@@ -22006,16 +22726,20 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
 
   return (
     <div className="space-y-2.5">
-      <PageHeading
-        title="Material Planning"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Material Planning' },
-        ]}
-      />
+      {embedded ? null : (
+        <>
+          <PageHeading
+            title="Material Planning"
+            crumbs={[
+              { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+              { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+              { label: 'Material Planning' },
+            ]}
+          />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+          <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+        </>
+      )}
 
       <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -22093,12 +22817,12 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
                       No won projects found for material planning.
                     </td>
                   </tr>
-                ) : filtered.map((project, index) => {
+                ) : pageRows.map((project, index) => {
                   const stats = planByProject[project.id] || { total: 0 };
                   const planStatus = planStatusFor(project.id);
                   return (
                     <tr key={project.id} {...rowDoubleOpenProps(() => openPlan(project), { title: 'Double-tap to open BOM' })}>
-                      <td className="crm-col-index">{index + 1}</td>
+                      <td className="crm-col-index">{startIndex + index + 1}</td>
                       <td>
                         <div className="font-semibold text-[#1e3261] leading-tight">{project.project_name || project.project_id}</div>
                         <div className="text-[11px] font-medium text-[#8a98af] leading-tight">{project.project_id}</div>
@@ -22140,6 +22864,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
                 })}
               </tbody>
             </table>
+            <TablePagination {...pagination} />
           </div>
         )}
       </section>
@@ -22153,12 +22878,12 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
         />
       ) : null}
 
-      <DashboardFooter />
+      {embedded ? null : <DashboardFooter />}
     </div>
   );
 }
 
-function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onPlansChanged }) {
+function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onPlansChanged, inline = false }) {
   const MATERIAL_STATUS = ['Not Started', 'In Progress', 'Partially Completed', 'Completed', 'Delayed'];
   const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair', 'Unit', 'Packet', 'Bundels', 'kW', 'pcs', 'Meter'];
   const emptyForm = { category: '', items: '', uom: 'Nos', planned_qty: '', planned_value: '', planning_unit_price: '', status: 'Not Started', inventory_item: '' };
@@ -22452,10 +23177,13 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
   return (
     <>
       <div
-        className="fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4"
-        onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        className={inline ? 'w-full' : 'fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4'}
+        onMouseDown={inline ? undefined : (e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <div className="flex max-h-[96vh] w-full max-w-[920px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:max-h-[90vh] sm:rounded-[16px]">
+        <div className={inline
+          ? `${panelClass} flex w-full flex-col overflow-hidden`
+          : 'flex max-h-[96vh] w-full max-w-[920px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:max-h-[90vh] sm:rounded-[16px]'}
+        >
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3 sm:px-5">
             <div className="min-w-0">
               <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Project BOM</h2>
@@ -22473,13 +23201,15 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
                 <Plus className="size-4" />
                 Add Material
               </button>
-              <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]" aria-label="Close">
-                <X className="size-5" />
-              </button>
+              {inline ? null : (
+                <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]" aria-label="Close">
+                  <X className="size-5" />
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          <div className={cx('min-h-0 flex-1 px-4 py-4 sm:px-5', !inline && 'overflow-y-auto')}>
             {!loadingRows && rows.length > 0 ? (
               <p className="mb-3 text-[13px] font-semibold text-[#7386a3]">
                 {filteredRows.length === rows.length
@@ -22605,11 +23335,13 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
             )}
           </div>
 
-          <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3 sm:px-5">
-            <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] bg-white px-5 text-[13px] font-semibold text-[#314a79]">
-              Close
-            </button>
-          </div>
+          {inline ? null : (
+            <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3 sm:px-5">
+              <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] bg-white px-5 text-[13px] font-semibold text-[#314a79]">
+                Close
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -22941,6 +23673,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
       return true;
     });
   }, [orders, activeOrderTab, searchTerm, todayIso]);
+  const { pageRows: pagedOrders, startIndex: ordersStartIndex, pagination: ordersPagination } = usePagedRows(filteredOrders, 'project-work-orders', { resetKey: `${activeOrderTab}|${searchTerm}` });
 
   const statusCounts = useMemo(() => ({
     Total: orders.length,
@@ -23140,9 +23873,9 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
                 <tr>{['#', 'Work Order ID', 'Task / Activity', 'Category', 'Assigned To', 'Status', 'Start Date', 'Due Date', 'Action'].map((h) => <th key={h}>{h}</th>)}</tr>
               </thead>
               <tbody>
-                {filteredOrders.map((order, index) => (
+                {pagedOrders.map((order, index) => (
                   <tr key={order.id}>
-                    <td>{index + 1}</td>
+                    <td>{ordersStartIndex + index + 1}</td>
                     <td className="font-extrabold text-[#1e3261]">{order.order_id || '—'}</td>
                     <td>{order.task}</td>
                     <td>{order.category || '—'}</td>
@@ -23164,7 +23897,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
             </table>
           </div>
           <div className="space-y-3 p-3 lg:hidden">
-            {filteredOrders.map((order) => (
+            {pagedOrders.map((order) => (
               <article key={order.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -23184,7 +23917,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
             )}
           </div>
         </div>
-        <p className="mt-3 text-[13px] font-bold text-[#53647f]">Showing {filteredOrders.length} of {orders.length} entries</p>
+        <TablePagination {...ordersPagination} className="mt-3 rounded-[12px] border border-[#edf2f8]" />
       </article>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
@@ -23340,6 +24073,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
     const q = search.toLowerCase();
     return (d.name || '').toLowerCase().includes(q) || getProjectName(d.project).toLowerCase().includes(q);
   });
+  const { pageRows, pagination } = usePagedRows(filtered, 'project-documents', { resetKey: search });
 
   function handleUpload() {
     if (!uploadForm.project || !uploadForm.file) return;
@@ -23470,7 +24204,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f1f5f9]">
-                {filtered.map((doc) => {
+                {pageRows.map((doc) => {
                   const ext = fileExt(doc.name);
                   return (
                     <tr key={doc.id} className="hover:bg-[#f8fafc]">
@@ -23499,6 +24233,7 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
                 })}
               </tbody>
             </table>
+            <TablePagination {...pagination} />
           </div>
         )}
       </section>
@@ -23690,6 +24425,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
       || (a.project_name || '').toLowerCase().includes(q)
       || (a.requested_by || '').toLowerCase().includes(q);
   });
+  const { pageRows, pagination } = usePagedRows(filtered, 'project-approvals', { resetKey: search });
 
   function handleCreate() {
     if (!form.project || !form.subject) return;
@@ -23916,7 +24652,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f1f5f9]">
-                {filtered.map((item) => (
+                {pageRows.map((item) => (
                   <tr key={item.id} className="hover:bg-[#f8fafc]">
                     <td className="px-4 py-3 font-extrabold text-[#0b65e5]">{item.approval_id}</td>
                     <td className="px-4 py-3 font-semibold text-[#1e2a38]">{item.project_name || getProjectName(item.project)}</td>
@@ -23941,6 +24677,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
                 ))}
               </tbody>
             </table>
+            <TablePagination {...pagination} />
           </div>
         )}
       </section>
@@ -24651,6 +25388,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
       if (!query) return true;
       return [item.name, item.category, item.generatedBy?.name].some((field) => String(field || '').toLowerCase().includes(query));
     });
+  const { pageRows: pagedReports, startIndex: reportsStartIndex, pagination: reportsPagination } = usePagedRows(filteredReports, 'project-reports', { resetKey: `${activeReportTab}|${searchQuery}` });
   const activeReportDetail = reportTabDetails[activeReportTab];
 
   const openReportStat = (label) => {
@@ -24856,9 +25594,9 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
               <span>Status</span>
               <span>Actions</span>
             </div>
-            {filteredReports.map((item, index) => (
+            {pagedReports.map((item, index) => (
               <div key={item.name} className="grid grid-cols-[0.45fr_1.75fr_1.05fr_1.2fr_0.95fr_0.8fr_0.8fr_0.65fr] gap-3 border-b border-[#edf2f8] px-4 py-3 text-[12px] font-bold text-[#53647f] last:border-b-0">
-                <span className="font-extrabold text-[#1e3261]">{index + 1}</span>
+                <span className="font-extrabold text-[#1e3261]">{reportsStartIndex + index + 1}</span>
                 <span className="font-extrabold text-[#1e3261]">{item.name}</span>
                 <span>{item.category}</span>
                 <span>{item.generatedOn}</span>
@@ -24874,18 +25612,7 @@ function ProjectReportsPage({ activeSection, onOpenSection, onNotify }) {
             ))}
           </div>
 
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-[13px] font-bold text-[#53647f]">Showing 1 to {filteredReports.length} of 128 entries</span>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => onNotify('Previous reports page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Previous</button>
-              {[1, 2, 3].map((page) => (
-                <button key={page} type="button" onClick={() => onNotify(`Project reports page ${page}`)} className={cx('rounded-[8px] px-4 py-2 text-[12px] font-extrabold', page === 1 ? 'bg-[#2f80ff] text-white' : 'border border-[#dce6f3] text-[#284276]')}>{page}</button>
-              ))}
-              <span className="px-2 text-[12px] font-extrabold text-[#53647f]">...</span>
-              <button type="button" onClick={() => onNotify('Project reports page 16')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">16</button>
-              <button type="button" onClick={() => onNotify('Next reports page')} className="rounded-[8px] border border-[#dce6f3] px-4 py-2 text-[12px] font-extrabold text-[#284276]">Next</button>
-            </div>
-          </div>
+          <TablePagination {...reportsPagination} className="mt-4 rounded-[12px] border border-[#edf2f8]" />
         </article>
 
         <div className="space-y-4">
@@ -24968,13 +25695,15 @@ function ProjectModulePlaceholderPage({ activeSection, onOpenSection, onNotify }
   );
 }
 
-function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
+// `embedded` + `presetProject`: rendered inside the Liaisoning pipeline for one
+// project (parent supplies heading, tabs and project bar; remount via `key`).
+function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify, presetProject = null, embedded = false }) {
   const STATUS_OPTIONS = ['Draft', 'Submitted', 'Under Process', 'Approved', 'Rejected', 'Completed'];
   const DOC_TYPES = ['Electricity Bill', 'Aadhaar', 'PAN', 'Approval Letter', 'Other'];
   const emptyForm = { application_number: '', application_date: '', discom: '', status: 'Draft', assigned_employee: '', remarks: '' };
 
   // Project selection
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(presetProject);
   const [allProjects, setAllProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
@@ -25015,7 +25744,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
     finally { setLoadingProjects(false); }
   }, []);
 
-  useEffect(() => { loadProjects(); }, [loadProjects]);
+  useEffect(() => { if (!embedded) loadProjects(); }, [loadProjects, embedded]);
 
   // ── Load Subsidy data when project selected ──
   const loadData = useCallback(async (proj) => {
@@ -25066,7 +25795,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
     setDocUploading(true);
     try {
       const fd = new FormData();
-      fd.append('sub_cd', SubsidyId);
+      fd.append('subsidy', SubsidyId);
       fd.append('doc_type', docType);
       fd.append('name', docName.trim());
       fd.append('file', docFile);
@@ -25105,6 +25834,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
     }
     return true;
   });
+  const { pageRows, startIndex, pagination } = usePagedRows(filtered, 'project-subsidy', { resetKey: `${statusFilter}|${query}` });
 
   const STAT_CARDS = [
     { label: 'Total', value: dashStats.total, icon: ClipboardPlus, tone: 'blue' },
@@ -25117,16 +25847,20 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
 
   return (
     <div className="space-y-2">
-      <PageHeading
-        title="Subsidy"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-          { label: 'Subsidy' },
-        ]}
-      />
+      {!embedded && (
+        <>
+          <PageHeading
+            title="Subsidy"
+            crumbs={[
+              { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+              { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+              { label: 'Subsidy' },
+            ]}
+          />
 
-      <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+          <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
+        </>
+      )}
 
       {/* Toolbar */}
       <section className={`${panelClass} p-3`}>
@@ -25139,9 +25873,11 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
             <option value="All">All Status</option>
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <button type="button" onClick={() => setProjectPickerOpen(true)} className={cx('inline-flex h-10 items-center gap-2 rounded-[10px] border px-3 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
-            <FolderKanban className="size-4" />{selectedProject ? selectedProject.project_name : 'Select Project'}
-          </button>
+          {!embedded && (
+            <button type="button" onClick={() => setProjectPickerOpen(true)} className={cx('inline-flex h-10 items-center gap-2 rounded-[10px] border px-3 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
+              <FolderKanban className="size-4" />{selectedProject ? selectedProject.project_name : 'Select Project'}
+            </button>
+          )}
           {selectedProject && (
             <button type="button" onClick={openAdd} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white transition hover:bg-[#0952c6]">
               <Plus className="size-4" />Add Subsidy
@@ -25165,7 +25901,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
       ) : (
         <div className="space-y-2">
           {/* Project Summary Card */}
-          <article className={`${panelClass} p-3`}>
+          <article className={cx(panelClass, 'p-3', embedded && 'hidden')}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[linear-gradient(135deg,#2d7ff9,#126fd1)] shadow-[0_8px_18px_rgba(37,99,235,0.2)]">
@@ -25225,9 +25961,9 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
                     <th>Action</th>
                   </tr></thead>
                   <tbody>
-                    {filtered.map((row, idx) => (
+                    {pageRows.map((row, idx) => (
                       <tr key={row.id}>
-                        <td>{idx + 1}</td>
+                        <td>{startIndex + idx + 1}</td>
                         <td className="font-extrabold text-[#1e3261]">{row.application_number || '—'}</td>
                         <td className="font-bold text-[#314a79]">{row.application_date || '—'}</td>
                         <td><ProjectInfoPill tone={statusTone(row.status)}>{row.status}</ProjectInfoPill></td>
@@ -25244,7 +25980,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify }) {
                     ))}
                   </tbody>
                 </table>
-                <div className="border-t border-[#edf2f8] px-4 py-2 text-[12px] font-bold text-[#7386a3]">Showing {filtered.length} of {rows.length} records</div>
+                <TablePagination {...pagination} />
               </div>
             )}
           </article>
@@ -26205,6 +26941,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
     const branchMatch = branch === 'All Branches' || user.branch === branch;
     return queryMatch && roleMatch && statusMatch && branchMatch;
   });
+  const { pageRows: pagedUsers, startIndex: usersStartIndex, pagination: usersPagination } = usePagedRows(filteredUsers, 'settings-users', { resetKey: `${query}|${role}|${status}|${branch}` });
 
   const activeUsers = users.filter((user) => user.status === 'Active').length;
   const inactiveUsers = users.filter((user) => user.status === 'Inactive').length;
@@ -26335,11 +27072,11 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
         {loading ? <p className="px-3 py-8 text-center text-[13px] font-bold text-[#53647f]">Loading users...</p> : null}
         <div className="space-y-3 lg:hidden">
-          {!loading ? filteredUsers.map((user, index) => (
+          {!loading ? pagedUsers.map((user, index) => (
             <article key={user.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[12px] font-extrabold text-[#8a98af]">#{index + 1}</p>
+                  <p className="text-[12px] font-extrabold text-[#8a98af]">#{usersStartIndex + index + 1}</p>
                   <div className="mt-1 flex items-center gap-2">
                     <AssigneeCell assignee={user.assignee} />
                     {user.isYou ? <SettingsTokenBadge label="You" tone="green" /> : null}
@@ -26410,9 +27147,9 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
               </tr>
             </thead>
             <tbody>
-              {!loading ? filteredUsers.map((user, index) => (
+              {!loading ? pagedUsers.map((user, index) => (
                 <tr key={user.id}>
-                  <td>{index + 1}</td>
+                  <td>{usersStartIndex + index + 1}</td>
                   <td>
                     <div className="flex items-center gap-3">
                       <AssigneeCell assignee={user.assignee} compact />
@@ -26447,9 +27184,9 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
           </table>
         </div>
 
-        <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-          <p>Showing 1 to {filteredUsers.length} of {users.length} entries</p>
-        </div>
+        {!loading ? (
+          <TablePagination {...usersPagination} className="mt-3 rounded-[12px] border border-[#e7eef7]" />
+        ) : null}
       </section>
 
       <DashboardFooter />
@@ -26730,6 +27467,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
     if (statusFilter !== 'All' && role.status !== statusFilter) return false;
     return true;
   });
+  const { pageRows: pagedRoles, startIndex: rolesStartIndex, pagination: rolesPagination } = usePagedRows(filteredRoles, 'settings-roles', { resetKey: `${query}|${statusFilter}` });
 
   const selectedRole = roles.find((role) => role.name === selectedRoleName) ?? roles[0];
   const selectedRoleUsers = selectedRole ? users.filter((user) => user.role === selectedRole.name) : [];
@@ -26856,7 +27594,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
           </div>
 
           <div className="mt-4 space-y-3 lg:hidden">
-            {filteredRoles.map((role) => (
+            {pagedRoles.map((role) => (
               <button
                 key={role.id}
                 type="button"
@@ -26900,9 +27638,9 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
                 <th>Actions</th>
               </tr></thead>
               <tbody>
-                {filteredRoles.map((role, index) => (
+                {pagedRoles.map((role, index) => (
                   <tr key={role.id} className={cx(selectedRoleName === role.name && 'bg-[#f7fff9]')}>
-                    <td className="crm-col-index">{index + 1}</td>
+                    <td className="crm-col-index">{rolesStartIndex + index + 1}</td>
                     <td>
                       <button type="button" onClick={() => switchRole(role.name)} className="flex min-w-0 items-center gap-3 text-left">
                         <span className={cx('grid size-10 shrink-0 place-items-center rounded-[12px]', getRoleToneClass(role.tone))}>
@@ -26955,6 +27693,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
               </tbody>
             </table>
           </div>
+          <TablePagination {...rolesPagination} className="mt-3 rounded-[12px] border border-[#e7eef7]" />
         </section>
 
       <DashboardFooter />
@@ -27233,6 +27972,7 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
     const statusMatch = status === 'All Status' || log.status === status;
     return queryMatch && userMatch && actionMatch && moduleMatch && statusMatch;
   });
+  const { pageRows: pagedLogs, startIndex: logsStartIndex, pagination: logsPagination } = usePagedRows(filteredLogs, 'settings-activity-log', { resetKey: `${query}|${user}|${action}|${moduleName}|${status}` });
 
   const uniqueUsers = [...new Set(logs.map((log) => log.user.name))];
   const uniqueActions = [...new Set(logs.map((log) => log.action))];
@@ -27292,10 +28032,10 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
         {loading ? <p className="px-3 py-8 text-center text-[13px] font-bold text-[#53647f]">Loading activity logs...</p> : null}
         {!loading && filteredLogs.length === 0 ? <p className="px-3 py-8 text-center text-[13px] font-bold text-[#53647f]">No activity logs found.</p> : null}
         <div className="space-y-3 lg:hidden">
-          {!loading ? filteredLogs.map((log, index) => (
+          {!loading ? pagedLogs.map((log, index) => (
             <article key={log.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
               <div className="flex items-start justify-between gap-3">
-                <div><p className="text-[12px] font-extrabold text-[#8a98af]">#{index + 1}</p><p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{log.time}</p></div>
+                <div><p className="text-[12px] font-extrabold text-[#8a98af]">#{logsStartIndex + index + 1}</p><p className="mt-1 text-[14px] font-extrabold text-[#1e3261]">{log.time}</p></div>
                 <SettingsResultBadge status={log.status} />
               </div>
               <div className="mt-4 grid gap-3 text-[12px]">
@@ -27367,9 +28107,9 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
               <th>Details</th>
             </tr></thead>
             <tbody>
-              {!loading ? filteredLogs.map((log, index) => (
+              {!loading ? pagedLogs.map((log, index) => (
                 <tr key={log.id}>
-                  <td>{index + 1}</td>
+                  <td>{logsStartIndex + index + 1}</td>
                   <td className="font-extrabold text-[#1e3261]">{log.time}</td>
                   <td><AssigneeCell assignee={log.user.assignee} compact /></td>
                   <td><SettingsActionBadge action={log.action} /></td>
@@ -27388,9 +28128,9 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
           </table>
         </div>
 
-        <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-          <p>Showing {filteredLogs.length} of {logs.length} entries</p>
-        </div>
+        {!loading ? (
+          <TablePagination {...logsPagination} className="mt-3 rounded-[12px] border border-[#e7eef7]" />
+        ) : null}
       </section>
 
       <DashboardFooter />
@@ -27407,6 +28147,7 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
   const [editingRule, setEditingRule] = useState(null);
   const [addRuleOpen, setAddRuleOpen] = useState(false);
   const [rulesPage, setRulesPage] = useState(1);
+  const [ipPageSize, setIpPageSize] = usePageSize('settings-ip-rules');
   const [securityConfig, setSecurityConfig] = useState({
     strictMode: true,
     whitelistOnly: false,
@@ -27455,12 +28196,11 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
   const blockCount = rules.filter((rule) => rule.type === 'Block').length;
   const lastBlocked = blockedAttempts[0] ?? { attemptedAt: '—', ip: '—' };
 
-  const IP_PAGE_SIZE = 10;
-  const rulesTotalPages = Math.max(1, Math.ceil(filteredRules.length / IP_PAGE_SIZE));
+  const rulesTotalPages = Math.max(1, Math.ceil(filteredRules.length / ipPageSize));
   const safeRulesPage = Math.min(rulesPage, rulesTotalPages);
   const pagedRules = filteredRules.slice(
-    (safeRulesPage - 1) * IP_PAGE_SIZE,
-    safeRulesPage * IP_PAGE_SIZE,
+    (safeRulesPage - 1) * ipPageSize,
+    safeRulesPage * ipPageSize,
   );
 
   useEffect(() => {
@@ -27559,7 +28299,7 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
                 {pagedRules.map((rule, index) => (
                   <article key={rule.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
                     <div className="flex items-start justify-between gap-3">
-                      <div><p className="text-[12px] font-extrabold text-[#8a98af]">#{(safeRulesPage - 1) * IP_PAGE_SIZE + index + 1}</p><p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{rule.name}</p></div>
+                      <div><p className="text-[12px] font-extrabold text-[#8a98af]">#{(safeRulesPage - 1) * ipPageSize + index + 1}</p><p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{rule.name}</p></div>
                       <SettingsTokenBadge label={rule.type} tone={rule.type === 'Allow' ? 'green' : 'red'} />
                     </div>
                     <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
@@ -27587,7 +28327,7 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
                     ) : null}
                     {pagedRules.map((rule, index) => (
                       <tr key={rule.id}>
-                        <td>{(safeRulesPage - 1) * IP_PAGE_SIZE + index + 1}</td>
+                        <td>{(safeRulesPage - 1) * ipPageSize + index + 1}</td>
                         <td className="font-extrabold text-[#1e3261]">{rule.name}</td>
                         <td><SettingsTokenBadge label={rule.type} tone={rule.type === 'Allow' ? 'green' : 'red'} /></td>
                         <td>{rule.ipRange}</td>
@@ -27652,52 +28392,20 @@ function SettingsIpRestrictionsPage({ activeSection = 'Settings IP Restrictions'
             </div>
           )}
 
-          <div className="mt-5 flex flex-col gap-4 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-            <p>
-              {activeTab === 'IP Access Rules'
-                ? (filteredRules.length > 0
-                  ? `Showing ${(safeRulesPage - 1) * IP_PAGE_SIZE + 1} to ${Math.min(safeRulesPage * IP_PAGE_SIZE, filteredRules.length)} of ${filteredRules.length} entries`
-                  : 'Showing 0 entries')
-                : activeTab === 'Blocked Attempts'
-                  ? `Showing ${blockedAttempts.length} entries`
-                  : `Showing ${settingsIpAuditSeed.length} entries`}
+          {activeTab === 'IP Access Rules' ? (
+            <TablePagination
+              total={filteredRules.length}
+              page={safeRulesPage}
+              pageSize={ipPageSize}
+              onPageChange={setRulesPage}
+              onPageSizeChange={(next) => { setIpPageSize(next); setRulesPage(1); }}
+              className="mt-5 border-t-0 px-0"
+            />
+          ) : (
+            <p className="mt-5 text-[13px] font-bold text-[#53647f]">
+              {activeTab === 'Blocked Attempts' ? `Showing ${blockedAttempts.length} entries` : `Showing ${settingsIpAuditSeed.length} entries`}
             </p>
-            {activeTab === 'IP Access Rules' && rulesTotalPages > 1 ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <PaginationButton onClick={() => setRulesPage((p) => Math.max(1, p - 1))}>
-                  <ChevronLeft className="size-4" />
-                </PaginationButton>
-                {(() => {
-                  const pages = [];
-                  if (rulesTotalPages <= 5) {
-                    for (let i = 1; i <= rulesTotalPages; i += 1) pages.push(i);
-                  } else {
-                    pages.push(1);
-                    if (safeRulesPage > 3) pages.push('ellipsis-start');
-                    const start = Math.max(2, safeRulesPage - 1);
-                    const end = Math.min(rulesTotalPages - 1, safeRulesPage + 1);
-                    for (let i = start; i <= end; i += 1) pages.push(i);
-                    if (safeRulesPage < rulesTotalPages - 2) pages.push('ellipsis-end');
-                    pages.push(rulesTotalPages);
-                  }
-                  return pages.map((page) => (page === 'ellipsis-start' || page === 'ellipsis-end')
-                    ? <span key={page} className="px-2 text-[#53647f]">...</span>
-                    : (
-                      <PaginationButton
-                        key={page}
-                        active={safeRulesPage === page}
-                        onClick={() => setRulesPage(page)}
-                      >
-                        {page}
-                      </PaginationButton>
-                    ));
-                })()}
-                <PaginationButton onClick={() => setRulesPage((p) => Math.min(rulesTotalPages, p + 1))}>
-                  <ChevronRight className="size-4" />
-                </PaginationButton>
-              </div>
-            ) : null}
-          </div>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -28187,6 +28895,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
     if (statusFilter !== 'All Status' && (row.status || 'Available') !== statusFilter) return false;
     return true;
   });
+  const { pageRows: pagedEmployees, startIndex: employeesStartIndex, pagination: employeesPagination } = usePagedRows(filteredEmployees, 'employees', { resetKey: `${search}|${skillFilter}|${statusFilter}` });
 
   const selectedEmployee = employees.find((row) => String(row.id) === String(selectedEmployeeId)) ?? null;
   const periodCardLabel = rangeMode === 'weekly' ? 'Weekly' : rangeMode === 'monthly' ? 'Monthly' : 'Period';
@@ -28635,7 +29344,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
               <MobileCardEmpty icon={UsersRound} title="No employees found" hint='Click on "Add Employee" to create a new employee record.' />
             ) : (
               <MobileCardList>
-                {filteredEmployees.map((row) => {
+                {pagedEmployees.map((row) => {
                   const balance = Number(row.net_balance || 0);
                   const digits = String(row.mobile || '').replace(/\D/g, '');
                   return (
@@ -28714,12 +29423,12 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
                         <p className="mt-1 text-[14px] font-medium text-[#7585a2]">Click on \"Add Employee\" to create a new employee record.</p>
                       </td>
                     </tr>
-                  ) : filteredEmployees.map((row, index) => {
+                  ) : pagedEmployees.map((row, index) => {
                     const balance = Number(row.net_balance || 0);
                     const hourly = Number(row.hourly_rate || 0);
                     return (
                       <tr key={row.id}>
-                        <td>{index + 1}</td>
+                        <td>{employeesStartIndex + index + 1}</td>
                         <td className="font-semibold text-[#1e3261]">{row.name}</td>
                         <td>{row.mobile || '-'}</td>
                         <td>{row.aadhaar_number || '-'}</td>
@@ -28755,6 +29464,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
                 </tbody>
               </table>
             </div>
+            <TablePagination {...employeesPagination} />
             </>
           )}
         </section>
@@ -29292,6 +30002,15 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
     }).catch((error) => onNotify?.(error.message || 'Failed to load users')).finally(() => setLoading(false));
   }, [canManageUsers]);
 
+  const filteredUsers = users.filter((user) => {
+    const queryMatch = [user.name, user.email, user.mobile].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const roleMatch = role === 'All' || user.role === role;
+    const statusMatch = status === 'All' || user.status === status;
+    const branchMatch = branch === 'All' || user.branch === branch;
+    return queryMatch && roleMatch && statusMatch && branchMatch;
+  });
+  const { pageRows: pagedUsers, startIndex: usersStartIndex, pagination: usersPagination } = usePagedRows(filteredUsers, 'user-management', { resetKey: `${query}|${role}|${status}|${branch}` });
+
   if (!canManageUsers) {
     return (
       <div className="space-y-4">
@@ -29305,13 +30024,6 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
     );
   }
 
-  const filteredUsers = users.filter((user) => {
-    const queryMatch = [user.name, user.email, user.mobile].some((value) => value.toLowerCase().includes(query.toLowerCase()));
-    const roleMatch = role === 'All' || user.role === role;
-    const statusMatch = status === 'All' || user.status === status;
-    const branchMatch = branch === 'All' || user.branch === branch;
-    return queryMatch && roleMatch && statusMatch && branchMatch;
-  });
 
   const stats = [
     { ...userManagementStats[0], value: String(users.length) },
@@ -29443,7 +30155,7 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
 
       <section className={`${panelClass} overflow-hidden p-3 sm:p-4`}>
         <div className="space-y-3 lg:hidden">
-          {filteredUsers.map((user) => (
+          {pagedUsers.map((user) => (
             <UserMobileCard key={user.id} user={user} onView={() => setSelectedUser(user)} onDelete={() => deleteUser(user)} onNotify={onNotify} />
           ))}
         </div>
@@ -29490,9 +30202,9 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
             <tbody>
               {loading ? (
                 <tr><td colSpan={9}><PageLoadingState message="Loading users..." compact /></td></tr>
-              ) : filteredUsers.map((user, index) => (
+              ) : pagedUsers.map((user, index) => (
                 <tr key={user.id}>
-                  <td>{index + 1}</td>
+                  <td>{usersStartIndex + index + 1}</td>
                   <td><AssigneeCell assignee={user.assignee} compact /></td>
                   <td>{user.email}</td>
                   <td>{user.mobile}</td>
@@ -29517,16 +30229,9 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
           </table>
         </div>
 
-        <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-          <p>Showing 1 to {filteredUsers.length} of {users.length} entries</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <PaginationButton onClick={() => onNotify('Previous users page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-            <PaginationButton active onClick={() => onNotify('Users page 1 selected')}>1</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Users page 2 selected')}>2</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Users page 3 selected')}>3</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Next users page selected')}><ChevronRight className="size-4" /></PaginationButton>
-          </div>
-        </div>
+        {!loading ? (
+          <TablePagination {...usersPagination} className="mt-3 rounded-[12px] border border-[#e7eef7]" />
+        ) : null}
       </section>
 
       <DashboardFooter />
@@ -30208,6 +30913,7 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
     const actionMatch = action === 'All Actions' || log.action === action;
     return userMatch && moduleMatch && actionMatch;
   });
+  const { pageRows: pagedLogs, startIndex: logsStartIndex, pagination: logsPagination } = usePagedRows(filteredLogs, 'activity-logs', { resetKey: `${user}|${moduleName}|${action}` });
 
   const resetLogs = () => {
     setUser('All Users');
@@ -30254,7 +30960,7 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
           <div className="flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]">No activity logs found.</div>
         )}
         <div className={cx('space-y-3 lg:hidden', loading && 'hidden')}>
-          {filteredLogs.map((log) => (
+          {pagedLogs.map((log) => (
             <article key={log.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
               <div className="flex items-start justify-between gap-3">
                 <AssigneeCell assignee={log.user.assignee} compact />
@@ -30272,9 +30978,9 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
           <table className="crm-table min-w-[1180px] w-full">
             <thead><tr>{['#', 'Date & Time', 'User', 'Module', 'Action', 'Details', 'IP Address'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
             <tbody>
-              {filteredLogs.map((log, index) => (
+              {pagedLogs.map((log, index) => (
                 <tr key={log.id} onClick={() => onNotify(`Activity log #${log.id} opened`)} className="cursor-pointer">
-                  <td>{index + 1}</td>
+                  <td>{logsStartIndex + index + 1}</td>
                   <td className="font-extrabold text-[#1e3261]">{log.time}</td>
                   <td><AssigneeCell assignee={log.user.assignee} compact /></td>
                   <td><ModuleBadge module={log.module} /></td>
@@ -30291,18 +30997,9 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
           </table>
         </div>
 
-        <div className="flex flex-col gap-4 px-3 py-5 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-          <p>Showing 1 to {filteredLogs.length} of {logs.length} entries</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <PaginationButton onClick={() => onNotify('Previous activity page selected')}><ChevronLeft className="size-4" /></PaginationButton>
-            <PaginationButton active onClick={() => onNotify('Activity page 1 selected')}>1</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Activity page 2 selected')}>2</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Activity page 3 selected')}>3</PaginationButton>
-            <span className="px-2 text-[#53647f]">...</span>
-            <PaginationButton onClick={() => onNotify('Activity page 13 selected')}>13</PaginationButton>
-            <PaginationButton onClick={() => onNotify('Next activity page selected')}><ChevronRight className="size-4" /></PaginationButton>
-          </div>
-        </div>
+        {!loading ? (
+          <TablePagination {...logsPagination} className="mt-3 rounded-[12px] border border-[#e7eef7]" />
+        ) : null}
       </section>
 
       <DashboardFooter />
@@ -34262,6 +34959,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   const [statusFilter, setStatusFilter] = useState('All');
   const [templateFilter, setTemplateFilter] = useState('All');
   const [activePage, setActivePage] = useState(1);
+  const [quotationPageSize, setQuotationPageSize] = usePageSize('quotation-list');
   const quotationTableRef = useRef(null);
   const [viewQuotationId, setViewQuotationId] = useState(null);
   const [editQuotationId, setEditQuotationId] = useState(null);
@@ -34310,6 +35008,8 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
       })
       .finally(() => setLoading(false));
   }, [onNotify]);
+
+  const startNewQuotation = () => setCreateFlow({ step: 'lead' });
 
   useEffect(() => {
     loadQuotations();
@@ -34384,10 +35084,9 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
     return statusMatch && templateMatch && searchMatch && dateMatch;
   });
 
-  const QUOTATION_PAGE_SIZE = 10;
-  const totalQuotationPages = Math.max(1, Math.ceil(filteredQuotations.length / QUOTATION_PAGE_SIZE));
+  const totalQuotationPages = Math.max(1, Math.ceil(filteredQuotations.length / quotationPageSize));
   const safeQuotationPage = Math.min(activePage, totalQuotationPages);
-  const pagedQuotations = filteredQuotations.slice((safeQuotationPage - 1) * QUOTATION_PAGE_SIZE, safeQuotationPage * QUOTATION_PAGE_SIZE);
+  const pagedQuotations = filteredQuotations.slice((safeQuotationPage - 1) * quotationPageSize, safeQuotationPage * quotationPageSize);
 
   // Reset to first page whenever the filters/search change the result set.
   useEffect(() => {
@@ -34477,7 +35176,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
           {quoteCaps.add ? (
             <button
               type="button"
-              onClick={() => setCreateFlow({ step: 'lead' })}
+              onClick={startNewQuotation}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e] sm:col-span-2 xl:col-span-1 xl:w-auto"
             >
               <Plus className="size-4" />
@@ -34593,41 +35292,15 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
           </>
         )}
 
-        {!loading && filteredQuotations.length > 0 && (
-          <div className="flex shrink-0 flex-col gap-3 px-3 py-3 text-[13px] font-bold text-[#53647f] sm:flex-row sm:items-center sm:justify-between">
-            <p>
-              {`Showing ${(safeQuotationPage - 1) * QUOTATION_PAGE_SIZE + 1} to ${Math.min(safeQuotationPage * QUOTATION_PAGE_SIZE, filteredQuotations.length)} of ${filteredQuotations.length} entries`}
-            </p>
-            {totalQuotationPages > 1 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <PaginationButton onClick={() => selectQuotationPage(Math.max(1, safeQuotationPage - 1))}>
-                  <ChevronLeft className="size-4" />
-                </PaginationButton>
-                {(() => {
-                  const pages = [];
-                  if (totalQuotationPages <= 5) {
-                    for (let i = 1; i <= totalQuotationPages; i++) pages.push(i);
-                  } else {
-                    pages.push(1);
-                    if (safeQuotationPage > 3) pages.push('ellipsis-start');
-                    const start = Math.max(2, safeQuotationPage - 1);
-                    const end = Math.min(totalQuotationPages - 1, safeQuotationPage + 1);
-                    for (let i = start; i <= end; i++) pages.push(i);
-                    if (safeQuotationPage < totalQuotationPages - 2) pages.push('ellipsis-end');
-                    pages.push(totalQuotationPages);
-                  }
-                  return pages.map((page) => (page === 'ellipsis-start' || page === 'ellipsis-end')
-                    ? <span key={page} className="px-2 text-[#53647f]">...</span>
-                    : <PaginationButton key={page} active={safeQuotationPage === page} onClick={() => selectQuotationPage(page)}>{page}</PaginationButton>
-                  );
-                })()}
-                <PaginationButton onClick={() => selectQuotationPage(Math.min(totalQuotationPages, safeQuotationPage + 1))}>
-                  <ChevronRight className="size-4" />
-                </PaginationButton>
-              </div>
-            )}
-          </div>
-        )}
+        {!loading ? (
+          <TablePagination
+            total={filteredQuotations.length}
+            page={safeQuotationPage}
+            pageSize={quotationPageSize}
+            onPageChange={selectQuotationPage}
+            onPageSizeChange={(next) => { setQuotationPageSize(next); setActivePage(1); }}
+          />
+        ) : null}
       </section>
 
       {createFlow?.step === 'lead' ? (
@@ -34690,6 +35363,434 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
           }}
         />
       ) : null}
+      {deleteConfirm ? (
+        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
+    </div>
+  );
+}
+
+const PROJECT_QUOTATION_STATUS_TONE = {
+  Draft: 'bg-[#fff4df] text-[#b45309]',
+  Sent: 'bg-[#f1ecff] text-[#6d4bd8]',
+  Approved: 'bg-[#e8f8eb] text-[#18a34a]',
+  Rejected: 'bg-[#ffe9e6] text-[#e2594c]',
+};
+
+function projectQuotationMoney(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? formatMoney(num) : '—';
+}
+
+function ProjectQuotationsPanel({ project, loggedInUser, onNotify, onChanged }) {
+  const quoteCaps = moduleCaps(loggedInUser, 'Quotation');
+  const leadId = project?.lead || null;
+  const [quotations, setQuotations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [lead, setLead] = useState(null);
+  const [createFlow, setCreateFlow] = useState(null);
+  const [composeSaving, setComposeSaving] = useState(false);
+  const [viewQuotationId, setViewQuotationId] = useState(null);
+  const [editQuotationId, setEditQuotationId] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const [showCompare, setShowCompare] = useState(false);
+
+  useEffect(() => {
+    if (!leadId) {
+      setQuotations([]);
+      setLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setLoading(true);
+    quotationApi.listAll({ lead: leadId, page_size: 200 })
+      .then((data) => {
+        if (cancelled) return;
+        const rows = normalizeApiRows(data).slice().sort((a, b) => (
+          String(a.created_at || a.quotation_date || '').localeCompare(String(b.created_at || b.quotation_date || '')) || a.id - b.id
+        ));
+        setQuotations(rows);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setQuotations([]);
+        onNotify?.('Failed to load quotations');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [leadId, refreshKey, onNotify]);
+
+  const refresh = () => {
+    setRefreshKey((k) => k + 1);
+    onChanged?.();
+  };
+
+  const ensureLead = async () => {
+    if (lead?.id === leadId) return lead;
+    const data = await leadApi.get(leadId);
+    setLead(data);
+    return data;
+  };
+
+  const finalQuotation = quotations.find((q) => q.status === 'Approved') || null;
+  const amounts = quotations.map((q) => Number(q.grand_total)).filter((n) => Number.isFinite(n) && n > 0);
+  const lowest = amounts.length ? Math.min(...amounts) : null;
+  const highest = amounts.length ? Math.max(...amounts) : null;
+
+  const startNewQuotation = async () => {
+    try {
+      const leadData = await ensureLead();
+      setCreateFlow({ step: 'template', lead: leadData });
+    } catch (err) {
+      onNotify?.(err.message || 'Could not load the project lead');
+    }
+  };
+
+  const duplicateQuotation = async (quotation) => {
+    setBusyId(quotation.id);
+    try {
+      const [full, leadData] = await Promise.all([quotationApi.get(quotation.id), ensureLead()]);
+      const today = formatIsoDate(new Date());
+      let validTill = '';
+      if (full.quotation_date && full.valid_till) {
+        const days = Math.round((new Date(`${full.valid_till}T00:00:00`) - new Date(`${full.quotation_date}T00:00:00`)) / 86400000);
+        if (Number.isFinite(days) && days >= 0) validTill = addDaysToIso(today, days);
+      }
+      const template = full.template || 'Residential Subsidy';
+      setCreateFlow({
+        step: 'detail',
+        lead: leadData,
+        template,
+        draft: {
+          template,
+          form: { ...quotationToDetailForm(full, leadData), quotation_date: today, valid_till: validTill },
+          items: quotationToDetailItems(full),
+        },
+      });
+    } catch (err) {
+      onNotify?.(err.message || 'Could not copy this quotation');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const closeCreateFlow = () => {
+    setCreateFlow(null);
+    setComposeSaving(false);
+  };
+
+  const handleCreateQuotationSave = async (template, form, items) => {
+    if (!createFlow?.lead?.id || composeSaving) return;
+    setComposeSaving(true);
+    try {
+      const payload = buildQuotationDetailPayload(template, form, createFlow.lead.id, items);
+      payload.status = 'Draft';
+      const created = await quotationApi.create(payload);
+      if (!created?.id) throw new Error('Failed to create quotation');
+      closeCreateFlow();
+      refresh();
+      onNotify?.(`Quotation ${created.quotation_number || `#${created.id}`} created`);
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to create quotation');
+    } finally {
+      setComposeSaving(false);
+    }
+  };
+
+  const setQuotationStatus = async (quotation, status) => {
+    setBusyId(quotation.id);
+    try {
+      if (status === 'Approved') {
+        const others = quotations.filter((q) => q.id !== quotation.id && q.status === 'Approved');
+        await Promise.all(others.map((q) => quotationApi.update(q.id, { status: 'Rejected' })));
+      }
+      await quotationApi.update(quotation.id, { status });
+      onNotify?.(status === 'Approved'
+        ? `${quotation.quotation_number || 'Quotation'} marked as final`
+        : `${quotation.quotation_number || 'Quotation'} marked as ${status}`);
+      refresh();
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to update quotation status');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const printQuotation = async (quotation) => {
+    try {
+      await printQuotationRecord(quotation.id);
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to print quotation');
+    }
+  };
+
+  const deleteQuotation = (quotation) => {
+    setDeleteConfirm({
+      message: `quotation ${quotation.quotation_number || '#' + quotation.id}`,
+      onConfirm: async () => {
+        try {
+          await quotationApi.delete(quotation.id);
+          setDeleteConfirm(null);
+          onNotify?.('Quotation deleted');
+          refresh();
+        } catch (err) {
+          setDeleteConfirm(null);
+          onNotify?.(err.message || 'Failed to delete quotation');
+        }
+      },
+    });
+  };
+
+  if (!leadId) {
+    return (
+      <div className={`${panelClass} p-6 text-center text-[13px] font-bold text-[#7386a3]`}>
+        This project is not linked to a lead, so quotations cannot be added here.
+      </div>
+    );
+  }
+
+  const actionBtn = 'inline-flex h-8 items-center justify-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 text-[11px] font-extrabold text-[#233a6b] transition hover:border-[#2563eb] hover:text-[#2563eb] disabled:cursor-not-allowed disabled:opacity-50';
+  const compareRows = [
+    ['Template', (q) => q.template || '—'],
+    ['Quotation Date', (q) => (q.quotation_date ? formatReportDate(q.quotation_date) : '—')],
+    ['Valid Till', (q) => (q.valid_till ? formatReportDate(q.valid_till) : '—')],
+    ['Plant Capacity', (q) => (q.plant_capacity_kw ? `${Number(q.plant_capacity_kw)} kW` : '—')],
+    ['Panel', (q) => [q.panel_brand, q.panel_wattage ? `${Number(q.panel_wattage)} Wp` : ''].filter(Boolean).join(' ') || '—'],
+    ['Inverter', (q) => [q.inverter_brand, q.inverter_capacity && /^\d+(\.\d+)?$/.test(String(q.inverter_capacity).trim()) ? `${q.inverter_capacity} kW` : q.inverter_capacity].filter(Boolean).join(' ') || '—'],
+    ['Subtotal', (q) => projectQuotationMoney(q.subtotal)],
+    ['GST', (q) => projectQuotationMoney(q.gst_amount)],
+    ['Discount', (q) => projectQuotationMoney(q.discount)],
+    ['Grand Total', (q) => projectQuotationMoney(q.grand_total)],
+    ['Status', (q) => (q.status === 'Approved' ? 'Final' : q.status || '—')],
+  ];
+
+  return (
+    <div className="space-y-3">
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+        <LiaisonApprovalStatCard label="Quotations" value={String(quotations.length)} caption="For this project" icon={FileText} tone="green" />
+        <LiaisonApprovalStatCard
+          label="Final Quotation"
+          value={finalQuotation ? projectQuotationMoney(finalQuotation.grand_total) : 'Not finalized'}
+          caption={finalQuotation?.quotation_number || 'Mark one as final'}
+          icon={BadgeCheck}
+          tone="blue"
+        />
+        <LiaisonApprovalStatCard label="Lowest" value={lowest === null ? '—' : formatMoney(lowest)} caption="Grand total" icon={IndianRupee} tone="amber" />
+        <LiaisonApprovalStatCard label="Highest" value={highest === null ? '—' : formatMoney(highest)} caption="Grand total" icon={TrendingUp} tone="purple" />
+      </section>
+
+      <article className={`${panelClass} p-3 sm:p-4`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-black text-[#172b4d]">Quotations for {project.project_name || 'this project'}</h3>
+            <p className="text-[12px] font-bold text-[#7386a3]">Create several options (different capacity, brand or price) and mark the one the customer accepts as final.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {quotations.length > 1 ? (
+              <button type="button" onClick={() => setShowCompare((v) => !v)} className={cx(actionBtn, 'h-10 px-4 text-[12px]', showCompare && 'border-[#2563eb] text-[#2563eb]')}>
+                <BarChart3 className="size-4" />
+                {showCompare ? 'Hide Comparison' : 'Compare'}
+              </button>
+            ) : null}
+            {quoteCaps.add ? (
+              <button type="button" onClick={startNewQuotation} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#2563eb] px-4 text-[12px] font-extrabold text-white shadow-sm transition hover:bg-[#1d4ed8]">
+                <Plus className="size-4" />
+                New Quotation
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="py-8"><PageLoadingState message="Loading quotations..." compact /></div>
+        ) : quotations.length === 0 ? (
+          <div className="mt-4 rounded-[10px] border border-dashed border-[#c9d6ea] bg-[#f8fbff] px-4 py-10 text-center">
+            <FileText className="mx-auto size-8 text-[#9fb1cc]" />
+            <p className="mt-2 text-[13px] font-extrabold text-[#30466d]">No quotations yet for this project</p>
+            <p className="mt-1 text-[12px] font-bold text-[#7386a3]">Click "New Quotation" to create the first option.</p>
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {quotations.map((q, index) => {
+              const isFinal = q.status === 'Approved';
+              const expired = isQuotationExpired(q);
+              const busy = busyId === q.id;
+              return (
+                <div
+                  key={q.id}
+                  onDoubleClick={() => setViewQuotationId(q.id)}
+                  className={cx(
+                    'relative flex flex-col rounded-[12px] border bg-white p-3.5 shadow-sm transition hover:shadow-md',
+                    isFinal ? 'border-[#18a34a] ring-2 ring-[#18a34a]/15' : 'border-[#dbe5f2]',
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-black uppercase tracking-wide text-[#7386a3]">Option {index + 1}</p>
+                      <p className="truncate text-[14px] font-black text-[#172b4d]">{q.quotation_number || `#${q.id}`}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                      {isFinal ? (
+                        <span className="inline-flex items-center gap-1 rounded-[8px] bg-[#18a34a] px-2 py-1 text-[11px] font-extrabold text-white">
+                          <BadgeCheck className="size-3.5" />
+                          Final
+                        </span>
+                      ) : (
+                        <span className={cx('inline-flex rounded-[8px] px-2 py-1 text-[11px] font-extrabold', PROJECT_QUOTATION_STATUS_TONE[q.status] || 'bg-[#eff3f8] text-[#64748b]')}>{q.status || 'Draft'}</span>
+                      )}
+                      {expired ? <span className="inline-flex rounded-[8px] bg-[#ffe9e6] px-2 py-1 text-[11px] font-extrabold text-[#e2594c]">Expired</span> : null}
+                    </div>
+                  </div>
+
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[12px]">
+                    <dt className="font-bold text-[#7386a3]">Template</dt>
+                    <dd className="truncate text-right font-extrabold text-[#30466d]">{q.template || '—'}</dd>
+                    <dt className="font-bold text-[#7386a3]">Capacity</dt>
+                    <dd className="text-right font-extrabold text-[#30466d]">{q.plant_capacity_kw ? `${Number(q.plant_capacity_kw)} kW` : '—'}</dd>
+                    <dt className="font-bold text-[#7386a3]">Date</dt>
+                    <dd className="text-right font-extrabold text-[#30466d]">{q.quotation_date ? formatReportDate(q.quotation_date) : '—'}</dd>
+                    <dt className="font-bold text-[#7386a3]">Valid Till</dt>
+                    <dd className={cx('text-right font-extrabold', expired ? 'text-[#e2594c]' : 'text-[#30466d]')}>{q.valid_till ? formatReportDate(q.valid_till) : '—'}</dd>
+                  </dl>
+
+                  <div className="mt-3 flex items-end justify-between border-t border-[#eef2f8] pt-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-[#7386a3]">Grand Total</span>
+                    <span className="text-[18px] font-black text-[#172b4d]">{projectQuotationMoney(q.grand_total)}</span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <button type="button" className={actionBtn} onClick={() => setViewQuotationId(q.id)} title="View quotation">
+                      <Eye className="size-3.5" />View
+                    </button>
+                    {quoteCaps.edit ? (
+                      <button type="button" className={actionBtn} onClick={() => setEditQuotationId(q.id)} title="Edit quotation">
+                        <Pencil className="size-3.5" />Edit
+                      </button>
+                    ) : null}
+                    <button type="button" className={actionBtn} onClick={() => printQuotation(q)} title="Print quotation">
+                      <Printer className="size-3.5" />Print
+                    </button>
+                    {quoteCaps.add ? (
+                      <button type="button" className={actionBtn} disabled={busy} onClick={() => duplicateQuotation(q)} title="Create a new quotation from this one">
+                        <Copy className="size-3.5" />Duplicate
+                      </button>
+                    ) : null}
+                    {quoteCaps.edit && q.status === 'Draft' ? (
+                      <button type="button" className={actionBtn} disabled={busy} onClick={() => setQuotationStatus(q, 'Sent')} title="Mark as sent to customer">
+                        <Mail className="size-3.5" />Mark Sent
+                      </button>
+                    ) : null}
+                    {quoteCaps.edit && !isFinal ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => setQuotationStatus(q, 'Approved')}
+                        title="Customer accepted this option"
+                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[7px] border border-[#18a34a] bg-[#e8f8eb] px-2.5 text-[11px] font-extrabold text-[#15803d] transition hover:bg-[#d4f2da] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <BadgeCheck className="size-3.5" />Mark Final
+                      </button>
+                    ) : null}
+                    {quoteCaps.delete ? (
+                      <button type="button" className={cx(actionBtn, 'hover:border-[#e2594c] hover:text-[#e2594c]')} onClick={() => deleteQuotation(q)} title="Delete quotation">
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {showCompare && quotations.length > 1 ? (
+          <div className="mt-4 overflow-x-auto rounded-[10px] border border-[#dbe5f2]">
+            <table className="w-full min-w-[640px] border-collapse text-[12px]">
+              <thead>
+                <tr className="bg-[#f4f7fc]">
+                  <th className="sticky left-0 bg-[#f4f7fc] px-3 py-2 text-left font-black text-[#30466d]">Field</th>
+                  {quotations.map((q, index) => (
+                    <th key={q.id} className={cx('px-3 py-2 text-left font-black', q.status === 'Approved' ? 'text-[#15803d]' : 'text-[#30466d]')}>
+                      Option {index + 1}
+                      <span className="block text-[11px] font-bold text-[#7386a3]">{q.quotation_number || `#${q.id}`}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {compareRows.map(([label, read]) => (
+                  <tr key={label} className="border-t border-[#eef2f8]">
+                    <td className="sticky left-0 bg-white px-3 py-2 font-extrabold text-[#7386a3]">{label}</td>
+                    {quotations.map((q) => (
+                      <td key={q.id} className={cx('px-3 py-2 font-bold text-[#30466d]', label === 'Grand Total' && 'font-black text-[#172b4d]', q.status === 'Approved' && 'bg-[#f3fbf5]')}>
+                        {read(q)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </article>
+
+      {createFlow?.step === 'template' ? (
+        <QuotationTemplatePickerModal
+          lead={createFlow.lead}
+          initialTemplate={createFlow.template}
+          onClose={closeCreateFlow}
+          onBack={closeCreateFlow}
+          onContinue={(template) => setCreateFlow((prev) => ({ ...prev, step: 'detail', template }))}
+        />
+      ) : null}
+
+      {createFlow?.step === 'detail' && createFlow.template ? (
+        <QuotationDetailModal
+          template={createFlow.template}
+          initialForm={createFlow.draft?.template === createFlow.template ? createFlow.draft.form : null}
+          initialItems={createFlow.draft?.template === createFlow.template ? createFlow.draft.items : null}
+          leadSnapshot={buildLeadSnapshotFromLead(createFlow.lead)}
+          leadIdDisplay={createFlow.lead?.ivrs_number || '—'}
+          onClose={closeCreateFlow}
+          onBack={() => setCreateFlow((prev) => ({ step: 'template', lead: prev.lead, template: prev.template, draft: prev.draft }))}
+          onTemplateChange={(template) => setCreateFlow((prev) => ({ ...prev, template }))}
+          onSave={(template, form, items) => {
+            setCreateFlow((prev) => ({ ...prev, draft: { template, form, items } }));
+            handleCreateQuotationSave(template, form, items);
+          }}
+          saveLabel="Create Quotation"
+          saving={composeSaving}
+        />
+      ) : null}
+
+      {editQuotationId ? (
+        <QuotationEditDetailModal
+          quotationId={editQuotationId}
+          onClose={() => setEditQuotationId(null)}
+          onSaved={() => {
+            setEditQuotationId(null);
+            refresh();
+          }}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {viewQuotationId ? (
+        <QuotationViewModal
+          quotationId={viewQuotationId}
+          onClose={() => setViewQuotationId(null)}
+          onEdit={quoteCaps.edit ? () => {
+            const id = viewQuotationId;
+            setViewQuotationId(null);
+            setEditQuotationId(id);
+          } : undefined}
+        />
+      ) : null}
+
       {deleteConfirm ? (
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
       ) : null}
@@ -36092,6 +37193,7 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
       || approvalProjectName(row).toLowerCase().includes(q);
     return matchesTab && matchesType && matchesSearch;
   });
+  const { pageRows: pagedApprovals, startIndex: approvalsStartIndex, pagination: approvalsPagination } = usePagedRows(filteredRows, 'admin-approvals', { resetKey: `${activeTab}|${projectTypeFilter}|${searchQuery}` });
 
   const selectedRow = filteredRows.find((r) => r.id === selectedId) || filteredRows[0] || null;
   const pendingCount = (rows ?? []).filter((r) => r.status === 'Pending').length;
@@ -36230,9 +37332,9 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
                   <tr><td colSpan={9}><PageLoadingState message="Loading approvals..." compact /></td></tr>
                 ) : filteredRows.length === 0 ? (
                   <tr><td colSpan={9} className="py-8 text-center text-[13px] font-bold text-[#53647f]">No records found</td></tr>
-                ) : filteredRows.map((row, index) => (
+                ) : pagedApprovals.map((row, index) => (
                   <tr key={row.id} onClick={() => setSelectedId(row.id)} className={cx('cursor-pointer', selectedId === row.id ? 'bg-[#f3f8ff]' : '')}>
-                    <td>{index + 1}</td>
+                    <td>{approvalsStartIndex + index + 1}</td>
                     <td className="font-extrabold text-[#233a6b]">{row.ivrs_number}</td>
                     <td>{approvalCustomerName(row) || '—'}</td>
                     <td>{approvalMobileNumber(row) || '—'}</td>
@@ -36256,7 +37358,7 @@ function AdminApprovalPage({ onOpenSection, onViewLead, onNotify }) {
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between px-4 py-4 text-[13px] font-bold text-[#53647f]"><span>Showing {filteredRows.length} of {(rows ?? []).length} entries</span></div>
+          <TablePagination {...approvalsPagination} className="px-4 py-3" />
         </article>
         <div className="space-y-4">
           <InfoPanel title="IVRS Request Details" icon={CalendarDays} tone="primary">
