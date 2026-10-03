@@ -14,7 +14,7 @@ import {
   workOrderApi,
   lcApplicationApi, lcInspectionApi, lcCommissioningApi, lcDocumentApi,
   lcAgreementApi, lcNetMeterApi, lcProjectApi, pmPipelineApi,
-  omAssetApi, omMaintenanceApi, omTicketApi, omVisitApi, omSparePartApi, omReportApi, omDocumentApi,
+  omAssetApi, omSparePartApi, omReportApi, omDocumentApi, notificationApi,
   inventoryApi, amcModuleApi, reportsApi, settingsApi, siteSurveyPhotoApi,   siteSurveyApi,
   getMediaUrl,
   tokenStore,
@@ -62,6 +62,7 @@ import {
 import { ProjectJobSheetPage as OpsJobSheetPage } from './projectJobSheetPage.jsx';
 import { ProjectInvoicePage, ProjectSalesChallanPage } from './projectBillingPages.jsx';
 import { OmPendingFlowPage, OM_PENDING_SECTIONS, OM_PENDING_STEPS } from './omPendingPages.jsx';
+import { OmModulePage, OM_LEGACY_SECTIONS, OM_MODULE_SECTIONS, OM_SECTION_ROUTES } from './omPlantPages.jsx';
 import {
   SETTINGS_PILLARS,
   SettingsArchitectureTabs,
@@ -95,7 +96,9 @@ import {
   BadgeCheck,
   BarChart3,
   Bell,
+  BellRing,
   Boxes,
+  CheckCheck,
   CalendarDays,
   Camera,
   Check,
@@ -707,8 +710,28 @@ const PM_PIPELINE = {
 const liaisonLegacyPages = ['Applications', 'Approvals', 'Inspections', 'Compliance'];
 const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
 const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems, ...liaisonLegacyPages];
-const omSubItems = ['Maintenance Tasks', 'Breakdown Tickets', 'Site Visits', 'Asset Management', 'Spare Parts', 'O&M Reports'];
-const omRelatedPages = ['O&M', 'O&M Overview', 'Energy Performance', ...omSubItems];
+const omSubItems = [...OM_MODULE_SECTIONS, 'Asset Management', 'Spare Parts', 'O&M Reports'];
+const omRelatedPages = ['O&M', 'Energy Performance', ...Object.keys(OM_LEGACY_SECTIONS), ...omSubItems];
+const OM_FIELD_WORK_SECTION = 'My Tasks';
+const OM_FOCUS_KEYS = ['plant', 'ticket', 'task', 'policy', 'filter', 'alert'];
+
+function omFocusFromSearch(search) {
+  const params = new URLSearchParams(search || '');
+  const focus = {};
+  OM_FOCUS_KEYS.forEach((key) => {
+    const value = params.get(key);
+    if (value) focus[key] = value;
+  });
+  return Object.keys(focus).length ? focus : null;
+}
+
+function readOmFocusFromLocation() {
+  if (typeof window === 'undefined' || !window.location.pathname.startsWith('/om/')) return null;
+  return omFocusFromSearch(window.location.search);
+}
+const isOmFieldOnlyUser = (user) => Boolean(user)
+  && !hasAnyModuleAccess(user, 'O&M')
+  && hasAnyModuleAccess(user, 'O&M Field Work');
 const omPendingSubItems = OM_PENDING_SECTIONS;
 const omPendingRelatedPages = ['Tracker', ...omPendingSubItems];
 const amcSubItems = ['AMC Overview', 'AMC Contracts', 'Warranties', 'Service Requests', 'Visits / Maintenance', 'Renewals', 'Claims', 'AMC Documents'];
@@ -854,6 +877,7 @@ function permissionModuleForSection(section) {
   if (section === 'Quotation') return 'Quotation';
   if (section === 'Project Management' || projectRelatedPages.includes(section)) return 'Project Management';
   if (section === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(section)) return 'Liaisoning & Commissioning';
+  if (section === OM_FIELD_WORK_SECTION) return 'O&M Field Work';
   if (omRelatedPages.includes(section) || omPendingRelatedPages.includes(section)) return 'O&M';
   if (section === 'AMC & Warranty' || amcRelatedPages.includes(section)) return 'AMC & Warranty';
   if (section === 'Accounts' || accountsRelatedPages.includes(section)) return 'Accounts';
@@ -1070,6 +1094,7 @@ const liaisonActionPageTypes = {
 };
 
 const omSubRoutes = {
+  ...OM_SECTION_ROUTES,
   'O&M Overview': '/om/overview',
   'Maintenance Tasks': '/om/maintenance-tasks',
   'Breakdown Tickets': '/om/breakdown-tickets',
@@ -1125,7 +1150,7 @@ const sectionRoutes = {
   Summary: '/insights?tab=overview',
   Settings: '/settings',
   Quotation: '/quotation',
-  'O&M': '/om/overview',
+  'O&M': '/om/dashboard',
   'Tracker': OM_PENDING_STEPS[0].route,
   Reports: '/insights?tab=sales',
   Employee: '/employees/details',
@@ -1969,8 +1994,6 @@ function formatDashboardRange(start, end) {
 
 // Real notification/message feeds are not wired to the backend yet — keep these
 // empty rather than showing hardcoded demo entries that look like live data.
-const recentNotifications = [];
-
 const unreadWhatsAppMessages = [];
 
 const panelClass =
@@ -2117,6 +2140,48 @@ function App() {
   const [messageMenuOpen, setMessageMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [loggedInUser, setLoggedInUser] = useState(null);
+  // Deep-link target inside O&M (from a notification or dashboard card), e.g. { plant: 5 }.
+  const [omFocus, setOmFocus] = useState(readOmFocusFromLocation);
+  const clearOmFocus = useCallback(() => setOmFocus(null), []);
+  const openOmSection = useCallback((section, focus) => {
+    setOmFocus(focus && Object.keys(focus).length ? focus : null);
+    setActiveSidebarItem(section);
+  }, []);
+  const [notificationUnread, setNotificationUnread] = useState(0);
+  const refreshNotificationCount = useCallback(() => {
+    notificationApi.unreadCount()
+      .then((r) => setNotificationUnread(Number(r?.count) || 0))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!loggedInUser) {
+      setNotificationUnread(0);
+      return undefined;
+    }
+    refreshNotificationCount();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refreshNotificationCount();
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [loggedInUser, refreshNotificationCount]);
+  const openNotificationLink = useCallback((link) => {
+    setNotificationMenuOpen(false);
+    if (!link) return;
+    let url;
+    try {
+      url = new URL(link, window.location.origin);
+    } catch {
+      return;
+    }
+    const { section } = resolveSectionFromPath(url.pathname);
+    if (!section || !isKnownSection(section)) return;
+    if (url.pathname.startsWith('/om/')) {
+      openOmSection(section, omFocusFromSearch(url.search));
+    } else {
+      setActiveSidebarItem(section);
+    }
+    setMobileSidebarOpen(false);
+  }, [openOmSection]);
   const [selectedLead, setSelectedLead] = useState(() => {
     const id = Number(initialRoute.params.leadId);
     return Number.isFinite(id) && id > 0 ? { id } : null;
@@ -2286,6 +2351,9 @@ function App() {
       if (item.label === 'Project Management') {
         return hasAnyModuleAccess(loggedInUser, 'Project Management') || hasAnyModuleAccess(loggedInUser, 'Quotation');
       }
+      if (item.label === 'O&M') {
+        return hasAnyModuleAccess(loggedInUser, 'O&M') || hasAnyModuleAccess(loggedInUser, 'O&M Field Work');
+      }
       const mod = SIDEBAR_MODULE_BY_LABEL[item.label];
       if (!mod) return true;
       return hasAnyModuleAccess(loggedInUser, mod);
@@ -2299,12 +2367,22 @@ function App() {
     return projectSidebarSubItems.filter((subItem) => (subItem === 'Quotation' ? canQuotation : canProject));
   }, [loggedInUser]);
 
+  const visibleOmSubItems = useMemo(
+    () => (isOmFieldOnlyUser(loggedInUser) ? [OM_FIELD_WORK_SECTION] : omSubItems),
+    [loggedInUser],
+  );
+
   // Deep-link / stale section: leave pages with zero module permissions.
   useEffect(() => {
     if (!loggedInUser || currentPage !== 'dashboard') return;
     const mod = permissionModuleForSection(activeSidebarItem);
     if (!mod) return;
     if (hasAnyModuleAccess(loggedInUser, mod)) return;
+    if (mod === 'O&M Field Work' && hasAnyModuleAccess(loggedInUser, 'O&M')) return;
+    if (omRelatedPages.includes(activeSidebarItem) && isOmFieldOnlyUser(loggedInUser)) {
+      setActiveSidebarItem(OM_FIELD_WORK_SECTION);
+      return;
+    }
     const fallback = visibleSidebarItems[0]?.label === 'Dashboard'
       ? 'Dashboard'
       : (visibleSidebarItems[0]?.label === 'Lead' ? 'Lead List' : (visibleSidebarItems[0]?.label || 'Dashboard'));
@@ -3020,7 +3098,7 @@ function App() {
                             } else {
                               setExpandedSection(sectionKey);
                               const projectLanding = !loggedInUser || hasAnyModuleAccess(loggedInUser, 'Project Management') ? 'Project Overview' : 'Quotation';
-                              const nextItem = isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Liaison Projects' : isOmSection ? 'Maintenance Tasks' : isOmPendingSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : 'Project List';
+                              const nextItem = isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Liaison Projects' : isOmSection ? visibleOmSubItems[0] : isOmPendingSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : 'Project List';
                               setActiveSidebarItem(nextItem);
                               notify(`${nextItem} section selected`);
                             }
@@ -3381,8 +3459,8 @@ function App() {
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
-                            {omSubItems.map((subItem) => {
-                              const isSubActive = activeSidebarItem === subItem;
+                            {visibleOmSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem || OM_LEGACY_SECTIONS[activeSidebarItem] === subItem;
 
                               return (
                                 <button
@@ -3559,6 +3637,9 @@ function App() {
               loggedInUser={loggedInUser}
               showInstallApp={!pwaInstall.isStandalone}
               onInstallApp={handlePwaInstall}
+              notificationUnread={notificationUnread}
+              onNotificationsChanged={refreshNotificationCount}
+              onOpenNotificationLink={openNotificationLink}
             />
             <div className="px-3 pt-2 md:hidden">
               <PwaInstallBanner notify={notify} />
@@ -3637,10 +3718,19 @@ function App() {
               <UnifiedDashboardPage
                 activeTab={activeSidebarItem === 'Insights' ? insightsTab : (INSIGHTS_LEGACY_TAB_MAP[activeSidebarItem] || insightsTab)}
                 onTabChange={setInsightsTab}
-                onOpenSection={(section) => {
+                onOpenSection={(section, focus) => {
                   if (section === 'Create Lead') {
                     setDashboardCreateLeadOpen(true);
                     notify('Create Lead opened');
+                    return;
+                  }
+                  if (omRelatedPages.includes(section)) {
+                    if (loggedInUser && !hasAnyModuleAccess(loggedInUser, 'O&M')) {
+                      notify(`You do not have access to ${section}`, 'error');
+                      return;
+                    }
+                    openOmSection(section, focus);
+                    notify(`${section} opened`);
                     return;
                   }
                   if (INSIGHTS_LEGACY_TAB_MAP[section]) {
@@ -3699,6 +3789,10 @@ function App() {
             ) : omRelatedPages.includes(activeSidebarItem) ? (
               <OmPage
                 activeSection={activeSidebarItem}
+                loggedInUser={loggedInUser}
+                focus={omFocus}
+                onFocusConsumed={clearOmFocus}
+                onNavigate={openOmSection}
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
                   notify(`${section} opened`);
@@ -4247,7 +4341,22 @@ function AppHeader({
   profileMenuOpen, setProfileMenuOpen, handleProfileAction,
   globalSearch, setGlobalSearch, setGlobalSearchNonce, setActiveSidebarItem,
   theme, setTheme, loggedInUser, showInstallApp, onInstallApp,
+  notificationUnread = 0, onNotificationsChanged, onOpenNotificationLink,
 }) {
+  const headerActions = actionIcons.map((action) => (
+    action.label === 'Notifications' && notificationUnread > 0
+      ? { ...action, badge: notificationUnread > 99 ? '99+' : notificationUnread }
+      : action
+  ));
+  const notificationMenu = (
+    <NotificationMenu
+      onOpenLink={onOpenNotificationLink}
+      onChanged={onNotificationsChanged}
+      onViewAll={() => (hasAnyModuleAccess(loggedInUser, 'O&M')
+        ? openDashboardSection('O&M Dashboard', 'O&M alerts opened')
+        : openDashboardSection(OM_FIELD_WORK_SECTION, 'My Tasks opened'))}
+    />
+  );
   const renderSearch = (className, placeholder) => (
     <label className={cx('search-input h-11 items-center rounded-[12px] border border-black/15 bg-[#fbfcff] px-3 shadow-[0_4px_12px_rgba(15,39,92,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 md:h-12 md:px-4 dark:border-slate-600 dark:bg-slate-800', className)}>
       <Search className="size-4 shrink-0 text-[#7486a3]" />
@@ -4313,6 +4422,9 @@ function AppHeader({
               aria-expanded={profileMenuOpen}
             >
               <AdminAvatar name={loggedInUser?.name} />
+              {notificationUnread > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-white bg-[#ff4b4f] dark:border-slate-900" aria-label={`${notificationUnread} unread notifications`} />
+              ) : null}
               <span className="absolute -bottom-0.5 -right-0.5 grid size-[18px] place-items-center rounded-full border-2 border-white bg-[#0b65e5] text-white dark:border-slate-900">
                 <ChevronDown className={cx('size-2.5 transition', profileMenuOpen && 'rotate-180')} />
               </span>
@@ -4354,7 +4466,7 @@ function AppHeader({
                       }}
                     />
                   ) : null}
-                  {actionIcons.map((action) => (
+                  {headerActions.map((action) => (
                     <MobileProfileMenuRow
                       key={`mobile-${action.label}`}
                       icon={action.icon}
@@ -4376,9 +4488,7 @@ function AppHeader({
 
           {/* Zero-width anchor so the notification / message panels open under the avatar. */}
           <div className="relative -ml-2 w-0 self-stretch lg:hidden" data-header-actions="true">
-            {notificationMenuOpen ? (
-              <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
-            ) : null}
+            {notificationMenuOpen ? notificationMenu : null}
             {messageMenuOpen ? (
               <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
             ) : null}
@@ -4397,7 +4507,7 @@ function AppHeader({
         </div>
 
         <div className="hidden flex-wrap items-center justify-end gap-2 lg:col-span-2 lg:flex xl:col-span-1 xl:gap-3">
-          {actionIcons.map((action) => {
+          {headerActions.map((action) => {
             const Icon = action.icon;
 
             return (
@@ -4419,9 +4529,7 @@ function AppHeader({
                   </span>
                 ) : null}
               </motion.button>
-              {action.label === 'Notifications' && notificationMenuOpen ? (
-                <NotificationMenu onOpenNotification={(item) => openDashboardSection(item.target, item.title)} />
-              ) : null}
+              {action.label === 'Notifications' && notificationMenuOpen ? notificationMenu : null}
               {action.label === 'Messages' && messageMenuOpen ? (
                 <WhatsAppMessageMenu onOpenMessage={openWhatsApp} onOpenWhatsApp={openWhatsApp} />
               ) : null}
@@ -4534,49 +4642,135 @@ function Toast({ toast }) {
   );
 }
 
-function NotificationMenu({ onOpenNotification }) {
-  const toneClass = {
-    green: 'bg-[#e8f8eb] text-[#0d9f4a]',
-    blue: 'bg-[#eef5ff] text-[#0b65e5]',
-    amber: 'bg-[#fff4df] text-[#b45309]',
-    purple: 'bg-[#f6f0ff] text-[#8b5cf6]',
-    red: 'bg-[#ffefef] text-[#e44d4d]',
+const NOTIFICATION_SEVERITY_STYLE = {
+  critical: { icon: AlertTriangle, tone: 'bg-[#ffefef] text-[#e44d4d]' },
+  upcoming: { icon: BellRing, tone: 'bg-[#fff4df] text-[#b45309]' },
+  info: { icon: Info, tone: 'bg-[#eef5ff] text-[#0b65e5]' },
+};
+
+function timeAgo(value) {
+  const ts = value ? new Date(value).getTime() : NaN;
+  if (!Number.isFinite(ts)) return '';
+  const mins = Math.max(0, Math.round((Date.now() - ts) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return new Date(ts).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function NotificationMenu({ onOpenLink, onChanged, onViewAll }) {
+  const [tab, setTab] = useState('unread');
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError('');
+    notificationApi.list({ limit: 40, unread: tab === 'unread' ? 1 : '' })
+      .then((rows) => { if (alive) setItems(Array.isArray(rows) ? rows : normalizeApiRows(rows)); })
+      .catch((e) => { if (alive) { setItems([]); setError(e?.message || 'Could not load notifications.'); } })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [tab]);
+
+  const unreadShown = items.filter((n) => !n.is_read).length;
+
+  const openItem = (item) => {
+    if (!item.is_read) {
+      setItems((rows) => rows.map((n) => (n.id === item.id ? { ...n, is_read: true } : n)));
+      notificationApi.markRead([item.id]).then(() => onChanged?.()).catch(() => {});
+    }
+    onOpenLink?.(item.link);
+  };
+
+  const markAll = () => {
+    setItems((rows) => (tab === 'unread' ? [] : rows.map((n) => ({ ...n, is_read: true }))));
+    notificationApi.markAllRead().then(() => onChanged?.()).catch(() => {});
   };
 
   return (
-    <div className="absolute right-0 top-[calc(100%+10px)] z-80 w-[320px] overflow-hidden rounded-[14px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.18)] sm:w-[360px]">
-      <div className="flex items-center justify-between border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3">
-        <div>
-          <p className="text-[14px] font-extrabold text-[#1e3261]">Recent Notifications</p>
-          <p className="mt-0.5 text-[11px] font-bold text-[#7b8ca8]">{recentNotifications.length} unread updates</p>
+    <div className="absolute right-0 top-[calc(100%+10px)] z-80 w-[320px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[14px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.18)] sm:w-[380px] dark:border-slate-600 dark:bg-slate-900">
+      <div className="flex items-center justify-between gap-2 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+        <div className="min-w-0">
+          <p className="text-[14px] font-extrabold text-[#1e3261] dark:text-slate-100">Notifications</p>
+          <p className="mt-0.5 text-[11px] font-bold text-[#7b8ca8]">
+            {loading ? 'Loading…' : `${unreadShown} unread`}
+          </p>
         </div>
-        <span className="rounded-full bg-[#ffefef] px-2.5 py-1 text-[11px] font-extrabold text-[#e44d4d]">New</span>
+        <button
+          type="button"
+          onClick={markAll}
+          disabled={loading || unreadShown === 0}
+          className="inline-flex items-center gap-1 rounded-full bg-[#eef5ff] px-2.5 py-1 text-[11px] font-extrabold text-[#0b65e5] transition hover:bg-[#dfeaff] disabled:opacity-40"
+        >
+          <CheckCheck className="size-3.5" />
+          Mark all read
+        </button>
       </div>
-      <div className="max-h-[360px] overflow-y-auto p-2">
-        {recentNotifications.length === 0 && (
-          <p className="p-4 text-center text-[12px] font-bold text-[#7b8ca8]">No new notifications</p>
-        )}
-        {recentNotifications.map((item) => (
+      <div className="flex gap-1 border-b border-[#edf2f8] px-3 py-2 dark:border-slate-700">
+        {[['unread', 'Unread'], ['all', 'All']].map(([value, label]) => (
           <button
-            key={`${item.title}-${item.time}`}
+            key={value}
             type="button"
-            onClick={() => onOpenNotification(item)}
-            className="flex w-full items-start gap-3 rounded-[10px] p-3 text-left transition hover:bg-[#f8fbff]"
+            onClick={() => setTab(value)}
+            className={cx(
+              'rounded-full px-3 py-1 text-[12px] font-extrabold transition',
+              tab === value ? 'bg-[#1e3261] text-white' : 'text-[#53647f] hover:bg-[#f1f5fb]',
+            )}
           >
-            <span className={cx('mt-0.5 grid size-9 shrink-0 place-items-center rounded-[10px]', toneClass[item.tone] ?? toneClass.blue)}>
-              <Bell className="size-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{item.title}</span>
-              <span className="mt-1 block text-[12px] font-bold leading-5 text-[#53647f]">{item.note}</span>
-              <span className="mt-1 block text-[11px] font-extrabold text-[#8a98af]">{item.time}</span>
-            </span>
-            <ChevronRight className="mt-2 size-4 shrink-0 text-[#91a3bd]" />
+            {label}
           </button>
         ))}
       </div>
-      <button type="button" onClick={() => onOpenNotification({ title: 'All notifications opened', target: 'Settings User Activity Log' })} className="flex h-11 w-full items-center justify-center gap-2 border-t border-[#edf2f8] text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
-        View All Notifications
+      <div className="max-h-[min(380px,60vh)] overflow-y-auto p-2">
+        {loading ? (
+          <p className="p-4 text-center text-[12px] font-bold text-[#7b8ca8]">Loading notifications…</p>
+        ) : error ? (
+          <p className="p-4 text-center text-[12px] font-bold text-[#e44d4d]">{error}</p>
+        ) : items.length === 0 ? (
+          <p className="p-4 text-center text-[12px] font-bold text-[#7b8ca8]">
+            {tab === 'unread' ? 'You are all caught up' : 'No notifications yet'}
+          </p>
+        ) : items.map((item) => {
+          const style = NOTIFICATION_SEVERITY_STYLE[item.severity] || NOTIFICATION_SEVERITY_STYLE.info;
+          const Icon = style.icon;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => openItem(item)}
+              className={cx(
+                'flex w-full items-start gap-3 rounded-[10px] p-3 text-left transition hover:bg-[#f8fbff] dark:hover:bg-slate-800',
+                !item.is_read && 'bg-[#f7faff] dark:bg-slate-800/60',
+              )}
+            >
+              <span className={cx('mt-0.5 grid size-9 shrink-0 place-items-center rounded-[10px]', style.tone)}>
+                <Icon className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate text-[13px] font-extrabold text-[#1e3261] dark:text-slate-100">{item.title}</span>
+                  {!item.is_read ? <span className="size-2 shrink-0 rounded-full bg-[#0b65e5]" /> : null}
+                </span>
+                {item.message ? (
+                  <span className="mt-1 line-clamp-2 block text-[12px] font-bold leading-5 text-[#53647f] dark:text-slate-300">{item.message}</span>
+                ) : null}
+                <span className="mt-1 block text-[11px] font-extrabold text-[#8a98af]">
+                  {[item.category, item.plant_code, timeAgo(item.created_at)].filter(Boolean).join(' · ')}
+                </span>
+              </span>
+              {item.link ? <ChevronRight className="mt-2 size-4 shrink-0 text-[#91a3bd]" /> : null}
+            </button>
+          );
+        })}
+      </div>
+      <button type="button" onClick={onViewAll} className="flex h-11 w-full items-center justify-center gap-2 border-t border-[#edf2f8] text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff] dark:border-slate-700">
+        Open O&amp;M Alerts
         <ArrowRight className="size-4" />
       </button>
     </div>
@@ -9810,6 +10004,10 @@ function getModuleSubnavLabel(item) {
     return 'Overview';
   }
 
+  if (item === 'O&M Dashboard') {
+    return 'Dashboard';
+  }
+
   if (item === 'Project Overview' || item === 'Inventory Overview' || item === 'Accounts Overview' || item === 'AMC Overview') {
     return 'Overview';
   }
@@ -11845,13 +12043,7 @@ function LiaisonApprovalSubmittedBy({ user }) {
 
 // ── O&M (simplified popup-based work management module) ───────────────────────
 
-function OmPage({ activeSection, onOpenSection, onNotify }) {
-  if (activeSection === 'Breakdown Tickets') {
-    return <OmBreakdownTicketsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'Site Visits') {
-    return <OmSiteVisitsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
+function OmPage({ activeSection, onOpenSection, onNotify, loggedInUser, focus, onFocusConsumed, onNavigate }) {
   if (activeSection === 'Asset Management') {
     return <OmAssetManagementPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
@@ -11866,147 +12058,18 @@ function OmPage({ activeSection, onOpenSection, onNotify }) {
     // the Asset record itself (BUG-010) — Asset Management is where they're editable.
     return <OmAssetManagementPage activeSection="Asset Management" onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
-  // 'Maintenance Tasks' + legacy section ('O&M Overview') land here
-  return <OmMaintenanceTasksPage activeSection="Maintenance Tasks" onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
-
-function OmMaintenanceTasksPage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    moduleTitle: 'O&M',
-    Subnav: OmSubnavTabs,
-    title: 'Maintenance Tasks',
-    recordLabel: 'Task',
-    newLabel: 'New Maintenance',
-    api: omMaintenanceApi,
-    docApi: omDocumentApi,
-    docModule: 'Maintenance',
-    statuses: ['Pending', 'In Progress', 'Completed', 'Overdue'],
-    searchKeys: ['title', 'site', 'engineer', 'task_type'],
-    checklistItems: ['Visual inspection done', 'Cleaning completed', 'Connections tightened', 'Earthing checked', 'Performance verified', 'Site left safe & clean'],
-    columns: [
-      { label: 'Task ID', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Project', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.project_name || '—'}</span> },
-      { label: 'Site', render: (r) => r.site || '—' },
-      { label: 'Engineer', render: (r) => r.engineer || '—' },
-      { label: 'Due Date', render: (r) => lcFormatDate(r.due_date) },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-    ],
-    fields: [
-      { name: 'title', label: 'Task Title', type: 'text', required: true },
-      { name: 'project', label: 'Project', type: 'project' },
-      { name: 'site', label: 'Site', type: 'text' },
-      { name: 'task_type', label: 'Task Type', type: 'select', options: ['Preventive', 'Corrective'] },
-      { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Medium', 'High'] },
-      { name: 'engineer', label: 'Assigned Engineer', type: 'text' },
-      { name: 'due_date', label: 'Due Date', type: 'date' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'In Progress', 'Completed', 'Overdue'] },
-      { name: 'work_details', label: 'Work Details', type: 'textarea' },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { title: '', project: '', site: '', task_type: 'Preventive', priority: 'Medium', engineer: '', due_date: '', status: 'Pending', work_details: '', remarks: '' },
-    detailRows: [
-      ['Task Title', (r) => r.title, true],
-      ['Site', (r) => r.site || '—'],
-      ['Task Type', (r) => r.task_type],
-      ['Priority', (r) => <LcStatusBadge status={r.priority} />],
-      ['Engineer', (r) => r.engineer || '—'],
-      ['Due Date', (r) => lcFormatDate(r.due_date)],
-      ['Work Details', (r) => r.work_details || '—', true],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
-
-function OmBreakdownTicketsPage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    moduleTitle: 'O&M',
-    Subnav: OmSubnavTabs,
-    title: 'Breakdown Tickets',
-    recordLabel: 'Ticket',
-    newLabel: 'New Ticket',
-    api: omTicketApi,
-    docApi: omDocumentApi,
-    docModule: 'Ticket',
-    docTitle: 'Photos',
-    statuses: ['Open', 'In Progress', 'On Hold', 'Resolved'],
-    searchKeys: ['subject', 'site', 'asset_name', 'assigned_to_name'],
-    lookups: { assets: { api: omAssetApi, label: (a) => a.name } },
-    columns: [
-      { label: 'Ticket No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Site', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.site || r.project_name || '—'}</span> },
-      { label: 'Asset', render: (r) => r.asset_name || '—' },
-      { label: 'Priority', render: (r) => <LcStatusBadge status={r.priority} /> },
-      { label: 'Assigned To', render: (r) => r.assigned_to_name || '—' },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-    ],
-    fields: [
-      { name: 'subject', label: 'Subject', type: 'text', required: true },
-      { name: 'project', label: 'Project', type: 'project' },
-      { name: 'site', label: 'Site', type: 'text' },
-      { name: 'asset', label: 'Asset', type: 'lookup', lookup: 'assets' },
-      { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Medium', 'High'] },
-      { name: 'assigned_to', label: 'Assigned To', type: 'user' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Open', 'In Progress', 'On Hold', 'Resolved'] },
-      { name: 'issue_description', label: 'Issue Description', type: 'textarea' },
-      { name: 'resolution', label: 'Resolution', type: 'textarea' },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { subject: '', project: '', site: '', asset: '', priority: 'Medium', assigned_to: '', status: 'Open', issue_description: '', resolution: '', remarks: '' },
-    detailRows: [
-      ['Subject', (r) => r.subject, true],
-      ['Site', (r) => r.site || '—'],
-      ['Asset', (r) => r.asset_name || '—'],
-      ['Priority', (r) => <LcStatusBadge status={r.priority} />],
-      ['Assigned To', (r) => r.assigned_to_name || '—'],
-      ['Issue Description', (r) => r.issue_description || '—', true],
-      ['Resolution', (r) => r.resolution || '—', true],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-}
-
-function OmSiteVisitsPage({ activeSection, onOpenSection, onNotify }) {
-  const config = {
-    moduleTitle: 'O&M',
-    Subnav: OmSubnavTabs,
-    title: 'Site Visits',
-    recordLabel: 'Visit',
-    newLabel: 'Schedule Visit',
-    api: omVisitApi,
-    docApi: omDocumentApi,
-    docModule: 'Visit',
-    docTitle: 'Images',
-    statuses: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'],
-    searchKeys: ['site', 'purpose', 'engineer'],
-    checklistItems: ['Site inspection completed', 'Photos captured', 'Customer interaction done', 'Issues noted', 'Report prepared'],
-    columns: [
-      { label: 'Visit No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-      { label: 'Site', render: (r) => <span className="font-semibold text-[#1e2a38]">{r.site || r.project_name || '—'}</span> },
-      { label: 'Engineer', render: (r) => r.engineer || '—' },
-      { label: 'Date', render: (r) => lcFormatDate(r.date) },
-      { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
-    ],
-    fields: [
-      { name: 'project', label: 'Project', type: 'project' },
-      { name: 'site', label: 'Site', type: 'text' },
-      { name: 'purpose', label: 'Purpose', type: 'text' },
-      { name: 'engineer', label: 'Engineer', type: 'text' },
-      { name: 'date', label: 'Visit Date', type: 'date' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'] },
-      { name: 'remarks', label: 'Remarks', type: 'textarea' },
-    ],
-    defaults: { project: '', site: '', purpose: '', engineer: '', date: '', status: 'Scheduled', remarks: '' },
-    detailRows: [
-      ['Site', (r) => r.site || '—'],
-      ['Purpose', (r) => r.purpose || '—'],
-      ['Engineer', (r) => r.engineer || '—'],
-      ['Visit Date', (r) => lcFormatDate(r.date)],
-      ['Remarks', (r) => r.remarks || '—'],
-    ],
-  };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  return (
+    <OmModulePage
+      activeSection={activeSection === 'O&M' ? 'O&M Dashboard' : activeSection}
+      onOpenSection={onOpenSection}
+      onNotify={onNotify}
+      loggedInUser={loggedInUser}
+      Subnav={OmSubnavTabs}
+      focus={focus}
+      onFocusConsumed={onFocusConsumed}
+      onNavigate={onNavigate}
+    />
+  );
 }
 
 function OmAssetManagementPage({ activeSection, onOpenSection, onNotify }) {
@@ -26748,6 +26811,7 @@ function createSettingsRolePermissions(roleName) {
     { module: 'Project Management', description: 'Create and manage solar projects' },
     { module: 'Liaisoning & Commissioning', description: 'LC applications and approvals' },
     { module: 'O&M', description: 'Operation and maintenance activities' },
+    { module: 'O&M Field Work', description: 'Engineer app: My Tasks and the service form only' },
     { module: 'Accounts', description: 'Invoices, payments and accounting' },
     { module: 'Customer', description: 'Customer details, ledger and credit settle' },
     { module: 'Vendors', description: 'Vendor details, ledger and payments' },
@@ -26770,6 +26834,7 @@ function createSettingsRolePermissions(roleName) {
     'Project Management': { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     'Liaisoning & Commissioning': { View: true, Add: true, Edit: true, Delete: false, Export: false, Assign: false },
     'O&M': { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    'O&M Field Work': { View: true, Add: true, Edit: true, Delete: false, Export: false, Assign: false },
     Accounts: { View: true, Add: true, Edit: false, Delete: false, Export: true, Assign: false },
     Customer: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     Vendors: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },

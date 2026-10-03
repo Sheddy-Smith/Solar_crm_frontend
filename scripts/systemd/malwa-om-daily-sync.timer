@@ -1,0 +1,9 @@
+[Unit]
+Description=Run the O&M daily alert sync every morning
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 Asia/Kolkata
+Persistent=true
+
+[Install]
+WantedBy=timers.target

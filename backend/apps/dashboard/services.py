@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 
 from django.core.cache import cache
 
@@ -12,6 +13,7 @@ from apps.projects.models import Project
 from apps.reports.services import reports_dashboard
 
 CACHE_TTL_SECONDS = 45
+logger = logging.getLogger(__name__)
 
 
 def _cache_key(params):
@@ -20,10 +22,32 @@ def _cache_key(params):
     return f'unified_dashboard:{digest}'
 
 
+def _om_alerts():
+    try:
+        from apps.om.dashboard import dashboard_summary
+        data = dashboard_summary()
+    except Exception:
+        logger.exception('O&M alerts for the unified dashboard failed')
+        return {}
+    summary = data['summary']
+    upcoming = {row['key']: row['count'] for row in data['alerts']['upcoming']}
+    return {
+        'om_service_overdue': summary['service_overdue'],
+        'om_service_due': summary['service_due'],
+        'om_critical_complaints': summary['critical_complaints'],
+        'om_open_tickets': summary['open_tickets'],
+        'om_insurance_expiring': summary['insurance_expiring'],
+        'om_insurance_expired': summary['insurance_expired'],
+        'om_free_expiring': upcoming.get('free_expiring', 0),
+        'om_free_expired': summary['expired_service_plants'],
+    }
+
+
 def _build_alerts(reports, sales, inventory, amc, accounts):
     ops = reports.get('operations') or {}
     flow = ops.get('pending_flow') or {}
     return {
+        **_om_alerts(),
         'overdue_followups': sales.get('overdue', 0),
         'low_stock_items': (inventory or {}).get('low_stock', 0),
         'out_of_stock_items': (inventory or {}).get('out_of_stock', 0),

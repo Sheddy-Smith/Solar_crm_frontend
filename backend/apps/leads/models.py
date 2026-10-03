@@ -596,8 +596,11 @@ def create_project_for_won_lead(sender, instance, **kwargs):
         return
 
     from apps.projects.models import Project, SiteSurvey, ProjectDocument
+    from apps.liaisoning.models import LiaisonProjectStage
 
-    if Project.objects.filter(lead=instance).exists():
+    existing = Project.objects.filter(lead=instance).first()
+    if existing:
+        LiaisonProjectStage.objects.get_or_create(project=existing)
         return
 
     try:
@@ -635,6 +638,8 @@ def create_project_for_won_lead(sender, instance, **kwargs):
         status='Planning',
         created_by=instance.created_by,
     )
+    # Liaisoning (net metering / DISCOM work) runs in parallel with the project.
+    LiaisonProjectStage.objects.get_or_create(project=project)
 
     try:
         from apps.accounts_module.services import get_or_create_party_for_project

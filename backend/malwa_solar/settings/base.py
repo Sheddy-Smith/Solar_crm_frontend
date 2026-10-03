@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'apps.dashboard',
     'apps.crm_settings',
     'apps.daily_tasks',
+    'apps.notifications',
 ]
 
 MIDDLEWARE = [

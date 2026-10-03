@@ -731,13 +731,52 @@ const omCrud = (base) => ({
   delete: (id) => request(`/om/${base}/${id}/`, { method: 'DELETE' }),
 });
 
+const omPost = (path, body = {}) => request(`/om/${path}`, { method: 'POST', body });
+
 export const omAssetApi = omCrud('assets');
-export const omMaintenanceApi = omCrud('maintenance-tasks');
-export const omTicketApi = omCrud('tickets');
-export const omVisitApi = omCrud('site-visits');
+export const omMaintenanceApi = {
+  ...omCrud('maintenance-tasks'),
+  accept: (id) => omPost(`maintenance-tasks/${id}/accept/`),
+  start: (id) => omPost(`maintenance-tasks/${id}/start/`),
+  cancel: (id, reason = '') => omPost(`maintenance-tasks/${id}/cancel/`, { reason }),
+  assignEngineer: (id, assignedEngineer, extra = {}) => omPost(`maintenance-tasks/${id}/assign-engineer/`, { assigned_engineer: assignedEngineer, ...extra }),
+  myTasks: () => request('/om/maintenance-tasks/my-tasks/'),
+};
+export const omTicketApi = {
+  ...omCrud('tickets'),
+  createTask: (id, data) => omPost(`tickets/${id}/create-task/`, data),
+  resolve: (id, resolution = '') => omPost(`tickets/${id}/resolve/`, { resolution }),
+  close: (id, resolution = '') => omPost(`tickets/${id}/close/`, { resolution }),
+};
+export const omVisitApi = {
+  ...omCrud('site-visits'),
+  complete: (formData) => request('/om/site-visits/complete/', { method: 'POST', body: formData, timeoutMs: 120000 }),
+  cancel: (id, reason = '') => omPost(`site-visits/${id}/cancel/`, { reason }),
+};
 export const omSparePartApi = omCrud('spare-parts');
 export const omReportApi = omCrud('reports');
 export const omDocumentApi = omCrud('documents');
+export const omPlantApi = {
+  ...omCrud('plants'),
+  history: (id) => request(`/om/plants/${id}/history/`),
+  refresh: (id, commissioningDate) => omPost(`plants/${id}/refresh/`, commissioningDate ? { commissioning_date: commissioningDate } : {}),
+};
+export const omInsuranceApi = omCrud('insurance');
+export const omVisitPartApi = omCrud('visit-parts');
+export const omDashboardApi = { get: () => request('/om/dashboard/') };
+export const omEngineerApi = { list: () => request('/om/engineers/') };
+
+export const notificationApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/notifications/${qs ? '?' + qs : ''}`);
+  },
+  unreadCount: () => request('/notifications/unread-count/'),
+  markRead: (ids) => request('/notifications/mark-read/', { method: 'POST', body: { ids } }),
+  markAllRead: () => request('/notifications/mark-all-read/', { method: 'POST', body: {} }),
+};
 
 // ─── O&M pending flow (work order → quotation → dispatch → install → invoice) ──
 

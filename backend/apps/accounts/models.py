@@ -40,6 +40,8 @@ class RolePermission(models.Model):
         ('Project Management', 'Project Management'),
         ('Liaisoning & Commissioning', 'Liaisoning & Commissioning'),
         ('O&M', 'O&M'),
+        # Engineers: only "My Tasks" + the mobile service form, not the full O&M module.
+        ('O&M Field Work', 'O&M Field Work'),
         ('Accounts', 'Accounts'),
         ('Customer', 'Customer'),
         ('Vendors', 'Vendors'),

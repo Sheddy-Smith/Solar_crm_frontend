@@ -1,0 +1,9 @@
+[Unit]
+Description=Malwa Solar CRM — O&M daily alert sync (service due, free service, insurance, tickets, tasks)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=malwa
+WorkingDirectory=/var/www/ecomalwa-crm/backend
+ExecStart=/var/www/ecomalwa-crm/backend/.venv/bin/python manage.py om_daily_sync

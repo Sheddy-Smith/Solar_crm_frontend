@@ -5,6 +5,7 @@ import {
   Hourglass, IndianRupee, LineChart, Package,
   PackageMinus, PackageX, Receipt, RefreshCw, Target, Ticket, TrendingUp, Trophy, Truck,
   UserPlus, Users, Wallet, Wrench, XCircle, ArrowLeftRight,
+  AlertTriangle, CalendarClock, ShieldAlert, ShieldX, SunMedium, Siren,
 } from 'lucide-react';
 import {
   Area, AreaChart, CartesianGrid, Cell, Legend, Line, LineChart as ReLineChart,
@@ -445,6 +446,14 @@ const ALERT_DEFS = [
   { key: 'short_materials', label: 'Short Listed Material', section: 'Short Listed Material', icon: PackageMinus, iconBg: 'bg-[#fce7f3]', iconColor: 'text-[#db2777]' },
   { key: 'pending_cheques', label: 'Pending Cheques', section: 'Cheques List', icon: FileText, iconBg: 'bg-[#fef9c3]', iconColor: 'text-[#ca8a04]' },
   { key: 'stale_stock_items', label: 'Stale Stock (15d+)', section: 'Products', icon: Boxes, iconBg: 'bg-[#fce7f3]', iconColor: 'text-[#ec4899]' },
+  { key: 'om_service_overdue', label: 'O&M Service Overdue', section: 'Plants', focus: { filter: 'service_overdue' }, icon: AlertTriangle, iconBg: 'bg-[#fee2e2]', iconColor: 'text-[#dc2626]' },
+  { key: 'om_service_due', label: 'O&M Service Due (15d)', section: 'Plants', focus: { filter: 'service_due' }, icon: CalendarClock, iconBg: 'bg-[#fef3c7]', iconColor: 'text-[#d97706]' },
+  { key: 'om_critical_complaints', label: 'Critical Complaints', section: 'Plants', focus: { filter: 'critical_tickets' }, icon: Siren, iconBg: 'bg-[#fee2e2]', iconColor: 'text-[#dc2626]' },
+  { key: 'om_open_tickets', label: 'Open Complaint Tickets', section: 'Complaint Tickets', icon: Ticket, iconBg: 'bg-[#ffedd5]', iconColor: 'text-[#ea580c]' },
+  { key: 'om_insurance_expiring', label: 'Insurance Expiring (30d)', section: 'Plants', focus: { filter: 'insurance_expiring' }, icon: ShieldAlert, iconBg: 'bg-[#fef3c7]', iconColor: 'text-[#d97706]' },
+  { key: 'om_insurance_expired', label: 'Insurance Expired', section: 'Plants', focus: { filter: 'insurance_expired' }, icon: ShieldX, iconBg: 'bg-[#fee2e2]', iconColor: 'text-[#dc2626]' },
+  { key: 'om_free_expiring', label: 'Free Service Expiring (30d)', section: 'Plants', focus: { filter: 'free_expiring' }, icon: SunMedium, iconBg: 'bg-[#e0f2fe]', iconColor: 'text-[#0284c7]' },
+  { key: 'om_free_expired', label: 'AMC Renewal Required', section: 'Plants', focus: { filter: 'free_expired' }, icon: Hourglass, iconBg: 'bg-[#ede9fe]', iconColor: 'text-[#7c3aed]' },
 ];
 
 export function UnifiedDashboardPage({
@@ -521,10 +530,12 @@ export function UnifiedDashboardPage({
   const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
   const cashFlowTrend = useMemo(() => buildCashFlowTrend(finance), [finance]);
 
-  const alertCards = ALERT_DEFS.map((def) => ({
-    ...def,
-    value: Number(alerts?.[def.key] ?? 0),
-  }));
+  const alertCards = ALERT_DEFS
+    .filter((def) => !def.key.startsWith('om_') || (alerts && def.key in alerts))
+    .map((def) => ({
+      ...def,
+      value: Number(alerts?.[def.key] ?? 0),
+    }));
 
   const alertBadgeCount = alertCards.filter((a) => a.value > 0).length;
 
@@ -748,7 +759,7 @@ export function UnifiedDashboardPage({
                     icon={item.icon}
                     iconBg={item.iconBg}
                     iconColor={item.iconColor}
-                    onClick={() => onOpenSection(item.section)}
+                    onClick={() => onOpenSection(item.section, item.focus)}
                   />
                 ))}
               </section>
