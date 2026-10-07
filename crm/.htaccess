@@ -4,7 +4,7 @@ AddType application/manifest+json .webmanifest
 
 <IfModule mod_headers.c>
   <FilesMatch "\.apk$">
-    Header set Content-Disposition "attachment; filename=\"malwa-solar.apk\""
+    Header set Content-Disposition "attachment; filename=malwa-solar.apk"
     Header set Cache-Control "no-cache"
   </FilesMatch>
 </IfModule>
