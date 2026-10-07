@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.ecomalwa.crm",
+        "sha256_cert_fingerprints": ["B9:E8:47:2F:9D:4D:29:1E:1F:86:04:93:E5:48:2A:E7:98:5E:CF:F2:58:4F:B9:79:D5:6A:89:B5:47:AD:10:DF"]
+      }
+    }]

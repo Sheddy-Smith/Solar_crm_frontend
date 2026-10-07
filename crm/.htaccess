@@ -1,3 +1,14 @@
+AddType application/vnd.android.package-archive .apk
+AddType application/json .json
+AddType application/manifest+json .webmanifest
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.apk$">
+    Header set Content-Disposition "attachment; filename=\"malwa-solar.apk\""
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /

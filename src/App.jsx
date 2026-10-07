@@ -81,7 +81,7 @@ import {
   SIDEBAR_MODULE_BY_LABEL,
 } from './settingsHubPages.jsx';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
-import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide } from './components/mobile/PwaInstallControls.jsx';
+import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide, downloadAndroidApp, isAndroidDevice, isIosDevice } from './components/mobile/PwaInstallControls.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
@@ -2282,6 +2282,11 @@ function App() {
       notify('Already running from your home screen.', 'success');
       return;
     }
+    if (isAndroidDevice()) {
+      downloadAndroidApp();
+      setPwaGuideOpen(true);
+      return;
+    }
     if (pwaInstall.justInstalled) {
       notify("Already installed — open Malwa Solar from your home screen.");
       return;
@@ -3579,7 +3584,7 @@ function App() {
                   >
                     <MonitorSmartphone className="size-[17px] shrink-0" />
                     <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">
-                      {pwaInstall.justInstalled ? 'Already Installed' : 'Add to Home Screen'}
+                      {isAndroidDevice() ? 'Download Android App' : pwaInstall.justInstalled ? 'Already Installed' : 'Add to Home Screen'}
                     </span>
                   </button>
                 ) : null}
@@ -4324,7 +4329,8 @@ function App() {
       <PwaInstallGuide
         open={pwaGuideOpen}
         onClose={() => setPwaGuideOpen(false)}
-        ios={typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))}
+        ios={isIosDevice()}
+        android={isAndroidDevice()}
       />
       <Toast toast={toast} />
     </div>

@@ -17,7 +17,7 @@
 //   - Everything else (API calls, cross-origin requests, auth endpoints):
 //     left completely untouched — the browser handles them natively.
 
-const VERSION = 'malwa-solar-crm-v89';
+const VERSION = 'malwa-solar-crm-v90';
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 
 self.addEventListener('install', (event) => {
@@ -42,6 +42,10 @@ function isApiRequest(url) {
   return url.pathname.startsWith('/api/');
 }
 
+function isPassthrough(url) {
+  return url.pathname.startsWith('/downloads/') || url.pathname.startsWith('/.well-known/');
+}
+
 function isBuildAsset(url) {
   return url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/');
 }
@@ -52,7 +56,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (isApiRequest(url)) return; // never intercept API/auth traffic
+  if (isApiRequest(url) || isPassthrough(url)) return; // never intercept API/auth traffic or file downloads
 
   if (request.mode === 'navigate') {
     event.respondWith(
