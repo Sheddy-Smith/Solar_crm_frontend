@@ -38,7 +38,7 @@ const BUILD_ID = createHash('sha1')
   .slice(0, 12);
 const RELEASE_NOTES = String(
   process.env.MALWA_RELEASE_NOTES
-    || 'Android: delete ke baad bina history clear kiye dubara Download/APK; Play-related_applications hataaya (cannot be installed fix).',
+    || 'Standalone app feel: manifest fullscreen/standalone + maskable icons; TWA assetlinks hardened so URL bar (Custom Tab) na aaye.',
 );
 
 function swBuildIdPlugin() {

@@ -1,0 +1,11 @@
+# Digital Asset Links for the Android TWA (com.ecomalwa.crm).
+# Must return raw JSON with HTTP 200 — never HTML / bot interstitial.
+<IfModule mod_headers.c>
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+  Header set Content-Type "application/json"
+  Header unset X-Frame-Options
+</IfModule>
+
+<Files "assetlinks.json">
+  ForceType application/json
+</Files>

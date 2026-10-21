@@ -235,9 +235,9 @@ export function PwaInstallGuide({ open, onClose, ios, android = false }) {
           </div>
           <ol className="mt-4 space-y-3 text-[13px] font-semibold leading-6 text-[#33456b] dark:text-slate-300">
             <GuideStep n={1}>Open the downloaded <strong className="font-extrabold">malwa-solar.apk</strong> from the notification or Downloads.</GuideStep>
-            <GuideStep n={2}>If asked, allow <strong className="font-extrabold">Install unknown apps</strong> for your browser, then go back.</GuideStep>
-            <GuideStep n={3}>Tap <strong className="font-extrabold">Install</strong>, then open <strong className="font-extrabold">Malwa Solar</strong> and sign in.</GuideStep>
-            <GuideStep n={4}>Android 8 phones: update <strong className="font-extrabold">Google Chrome</strong> from Play Store first. If an old Malwa Solar icon will not open, uninstall it, then install this APK again.</GuideStep>
+            <GuideStep n={2}>If asked, allow <strong className="font-extrabold">Install unknown apps</strong> for Chrome, then go back.</GuideStep>
+            <GuideStep n={3}>Tap <strong className="font-extrabold">Install</strong>, then open the app from the <strong className="font-extrabold">phone app drawer</strong> (Malwa Solar icon) — not from a Chrome tab.</GuideStep>
+            <GuideStep n={4}>Agar upar <strong className="font-extrabold">crm.ecomalwa.com</strong> URL bar dikhe, yeh Chrome shortcut hai. Us icon ko uninstall/remove karo, APK dubara install karo, phir drawer se kholo — URL bar nahi aani chahiye.</GuideStep>
           </ol>
           <div className="mt-5 grid grid-cols-2 gap-2">
             <a

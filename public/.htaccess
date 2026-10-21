@@ -15,12 +15,18 @@ AddType application/manifest+json .webmanifest
     Header set Cache-Control "no-cache, no-store, must-revalidate"
     Header set Pragma "no-cache"
   </FilesMatch>
+  <FilesMatch "assetlinks\.json$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Content-Type "application/json"
+  </FilesMatch>
 </IfModule>
 
 # Relative SPA fallback works for both crm.ecomalwa.com/ (docroot=crm)
 # and ecomalwa.com/crm/ (subdir). Absolute /index.html would hit WordPress root.
 <IfModule mod_rewrite.c>
   RewriteEngine On
+  # Never rewrite Digital Asset Links — TWA needs a clean JSON 200 (no URL bar).
+  RewriteRule ^\.well-known/assetlinks\.json$ - [L]
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
