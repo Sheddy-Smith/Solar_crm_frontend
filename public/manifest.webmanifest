@@ -18,6 +18,15 @@
     {
       "platform": "webapp",
       "url": "https://crm.ecomalwa.com/manifest.webmanifest"
+    },
+    {
+      "platform": "webapp",
+      "url": "https://ecomalwa.com/crm/manifest.webmanifest"
+    },
+    {
+      "platform": "play",
+      "id": "com.ecomalwa.crm",
+      "url": "https://play.google.com/store/apps/details?id=com.ecomalwa.crm"
     }
   ],
   "icons": [

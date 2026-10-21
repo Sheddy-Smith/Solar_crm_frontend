@@ -3,6 +3,12 @@ import { CheckCircle2, Download, MonitorSmartphone, RefreshCw, Share, X } from '
 import { cx } from '../../lib/utils.js';
 import { usePwaInstall } from '../../hooks/usePwaInstall.js';
 import { probeUpdateForInstallButton } from '../../lib/appUpdate.js';
+import {
+  getInstallState,
+  promptInstall,
+  refreshInstalledRelatedApps,
+  waitForInstallPrompt,
+} from '../../lib/pwaInstall.js';
 
 // Signed TWA build of the live site. Unlike a Chrome-minted WebAPK it is a
 // regular APK, so it survives phone-clone / backup-restore onto a new device.
@@ -88,74 +94,81 @@ export function usePwaInstallAction(notify) {
   const android = useMemo(() => isAndroidDevice(), []);
 
   const runInstalledFlow = async () => {
-    setBusy(true);
-    try {
-      const result = await probeUpdateForInstallButton();
-      if (result.status === 'update') {
-        notify?.('New version available — update CRM.', 'success');
-        return;
-      }
-      if (result.status === 'uptodate') {
-        setUpToDateMeta({
-          version: (result.latest && result.latest.releaseVersion) || (result.running && result.running.releaseVersion) || '',
-          buildId: (result.latest && result.latest.buildId) || (result.running && result.running.buildId) || '',
-        });
-        setUpToDateOpen(true);
-        return;
-      }
-      notify?.('Could not check for updates. Try again online.', 'error');
-    } finally {
-      setBusy(false);
+    const result = await probeUpdateForInstallButton();
+    if (result.status === 'update') {
+      notify?.('New version available — update CRM.', 'success');
+      return;
     }
+    if (result.status === 'uptodate') {
+      setUpToDateMeta({
+        version: (result.latest && result.latest.releaseVersion) || (result.running && result.running.releaseVersion) || '',
+        buildId: (result.latest && result.latest.buildId) || (result.running && result.running.buildId) || '',
+      });
+      setUpToDateOpen(true);
+      return;
+    }
+    notify?.('Could not check for updates. Try again online.', 'error');
   };
 
   const runInstall = async () => {
-    // Already installed (standalone window, related webapp, or just installed this session).
-    if (pwaInstall.isInstalled || pwaInstall.isStandalone || pwaInstall.justInstalled) {
-      await runInstalledFlow();
-      return 'installed-check';
-    }
+    setBusy(true);
+    try {
+      // Fresh related-apps check — Chrome often has the PWA installed ("Open in app")
+      // but beforeinstallprompt never fires, so we must not show the how-to guide.
+      await refreshInstalledRelatedApps();
+      let state = getInstallState();
 
-    // Not installed — offer install.
-    if (android) {
-      // Prefer Chrome install prompt when available; otherwise APK download.
-      if (pwaInstall.canPromptInstall) {
-        const choice = await pwaInstall.promptInstall();
+      if (state.isInstalled || state.isStandalone || state.justInstalled) {
+        await runInstalledFlow();
+        return 'installed-check';
+      }
+
+      // Wait briefly — BIP can arrive after SW activation / first engagement.
+      await waitForInstallPrompt(2500);
+      state = getInstallState();
+
+      if (state.canPromptInstall) {
+        const choice = await promptInstall();
         if (choice.outcome === 'accepted') {
           notify?.('Malwa Solar CRM installed!', 'success');
           return 'installed';
         }
+        if (choice.outcome === 'dismissed') return 'prompt-dismissed';
       }
-      downloadAndroidApp();
-      setGuideOpen(true);
-      return 'guide';
-    }
 
-    if (pwaInstall.canPromptInstall) {
-      const choice = await pwaInstall.promptInstall();
-      if (choice.outcome === 'accepted') {
-        notify?.('Malwa Solar CRM installed!', 'success');
-        return 'installed';
+      // Re-check: BIP missing on Chromium usually means already installed.
+      await refreshInstalledRelatedApps();
+      state = getInstallState();
+      if (state.isInstalled || state.isStandalone || state.justInstalled) {
+        await runInstalledFlow();
+        return 'installed-check';
       }
-      return 'prompt-dismissed';
-    }
 
-    if (ios) {
+      if (ios) {
+        setGuideOpen(true);
+        return 'guide';
+      }
+
+      if (android) {
+        downloadAndroidApp();
+        setGuideOpen(true);
+        return 'guide';
+      }
+
+      // Last resort on desktop Chromium: toast only (no full how-to modal).
+      // Native prompt is unavailable until Chrome re-offers installability.
+      if (state.supportsNativePrompt) {
+        notify?.(
+          'Install icon address bar me dekho, ya menu (⋮) → Install Malwa Solar / Add to Home screen.',
+        );
+        return 'omnibox-hint';
+      }
+
       setGuideOpen(true);
       return 'guide';
+    } finally {
+      setBusy(false);
     }
-
-    if (pwaInstall.supportsNativePrompt) {
-      // Chromium may still show omnibox install even if beforeinstallprompt already fired.
-      notify?.(
-        'Use the install icon in the address bar, or browser menu (⋮) → Install Malwa Solar / Add to Home screen.',
-      );
-      setGuideOpen(true);
-      return 'guide';
-    }
-
-    setGuideOpen(true);
-    return 'guide';
   };
 
   return {
