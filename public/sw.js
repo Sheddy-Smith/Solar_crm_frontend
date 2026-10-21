@@ -1,26 +1,19 @@
-// Malwa Solar CRM — minimal PWA service worker.
+// Malwa Solar CRM — version-safe PWA service worker (Android 8.1 TWA/WebView safe).
 //
-// Goals (in priority order):
-//   1. Never break the live app or its API calls.
-//   2. Satisfy PWA "installability" requirements (fetch handler + manifest).
-//   3. Provide a small offline fallback for the app shell.
+// Goals:
+//   1. Never break API / auth / media traffic.
+//   2. Never pin a stale index.html to missing hashed JS chunks.
+//   3. On activate, drop only obsolete *app* caches (never localStorage / IndexedDB).
+//   4. Satisfy installability (fetch handler + manifest).
 //
-// Strategy:
-//   - Navigation requests (HTML): network-first, falling back to the last
-//     cached shell only when fully offline. We deliberately do NOT cache
-//     index.html on every load — after a new deploy, Vite emits new
-//     content-hashed JS/CSS filenames, so a stale cached index.html could
-//     reference assets that no longer exist on the server.
-//   - Same-origin build assets (/assets/*, hashed JS/CSS/fonts/images):
-//     cache-first with a background refresh. Safe because each new build
-//     produces new hashed filenames — nothing is ever "stale" in place.
-//   - Everything else (API calls, cross-origin requests, auth endpoints):
-//     left completely untouched — the browser handles them natively.
+// BUILD_ID is stamped at `vite build` time (see vite.config.js). Do not edit by hand.
 
-const VERSION = 'malwa-solar-crm-v91-android81';
+const BUILD_ID = '__MALWA_BUILD_ID__';
+const VERSION = `malwa-solar-crm-${BUILD_ID}`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
+const APP_CACHE_PREFIX = 'malwa-solar-crm-';
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -30,7 +23,7 @@ self.addEventListener('activate', (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => key.startsWith('malwa-solar-crm-') && key !== RUNTIME_CACHE)
+          .filter((key) => key.startsWith(APP_CACHE_PREFIX) && key !== RUNTIME_CACHE)
           .map((key) => caches.delete(key)),
       );
       await self.clients.claim();
@@ -43,7 +36,12 @@ function isApiRequest(url) {
 }
 
 function isPassthrough(url) {
-  return url.pathname.startsWith('/downloads/') || url.pathname.startsWith('/.well-known/');
+  return (
+    url.pathname.startsWith('/downloads/') ||
+    url.pathname.startsWith('/.well-known/') ||
+    url.pathname === '/sw.js' ||
+    url.pathname === '/build-id.json'
+  );
 }
 
 function isBuildAsset(url) {
@@ -56,19 +54,19 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (isApiRequest(url) || isPassthrough(url)) return; // never intercept API/auth traffic or file downloads
+  if (isApiRequest(url) || isPassthrough(url)) return;
 
+  // Navigations: always network-first. Do NOT cache HTML — after a deploy the
+  // hashed chunk names change; a cached shell can point at deleted assets and
+  // brick Android WebView on launch.
   if (request.mode === 'navigate') {
     event.respondWith(
       (async () => {
         try {
-          const response = await fetch(request);
-          const cache = await caches.open(RUNTIME_CACHE);
-          cache.put('/', response.clone());
-          return response;
+          return await fetch(request);
         } catch {
           const cache = await caches.open(RUNTIME_CACHE);
-          const cached = await cache.match('/');
+          const cached = await cache.match('/offline-shell');
           return cached || Response.error();
         }
       })(),
@@ -76,18 +74,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Hashed build assets: cache-first is safe (filename changes every build).
   if (isBuildAsset(url)) {
     event.respondWith(
       (async () => {
         const cache = await caches.open(RUNTIME_CACHE);
         const cached = await cache.match(request);
-        const networkFetch = fetch(request)
-          .then((response) => {
-            if (response && response.ok) cache.put(request, response.clone());
-            return response;
-          })
-          .catch(() => null);
-        return cached || (await networkFetch) || Response.error();
+        if (cached) return cached;
+        try {
+          const response = await fetch(request);
+          if (response && response.ok) cache.put(request, response.clone());
+          return response;
+        } catch {
+          return Response.error();
+        }
       })(),
     );
   }

@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "dev:lan": "vite --host 0.0.0.0 --port 5173",
-    "build": "vite build",
+    "build": "vite build && node scripts/check-android61-syntax.mjs",
+    "build:force": "vite build",
+    "check:android61": "node scripts/check-android61-syntax.mjs",
+    "scan:production-android61": "node scripts/scan-production-android61.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 5173",
     "lint": "eslint src",
     "i18n:extract": "node scripts/i18n/extract.mjs",

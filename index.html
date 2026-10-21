@@ -49,39 +49,93 @@
       </noscript>
     </div>
     <script>
-      // Surface boot failures (common on Android 8 WebView when a stale
-      // service-worker cache serves a broken modern bundle).
-      window.addEventListener('error', function (event) {
-        var msg = (event && event.message) || '';
-        if (msg.indexOf('Unexpected token') === -1 && msg.indexOf('SyntaxError') === -1) return;
-        var root = document.getElementById('root');
-        if (!root || root.getAttribute('data-boot-error') === '1') return;
-        root.setAttribute('data-boot-error', '1');
-        root.innerHTML =
-          '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f3f7fb;font-family:Arial,sans-serif;padding:24px">' +
-          '<div style="max-width:520px;text-align:center">' +
-          '<h1 style="color:#1e3261;font-size:22px;font-weight:800;margin:0 0 10px">Update needed to open Malwa Solar</h1>' +
-          '<p style="color:#53647f;font-size:14px;font-weight:600;line-height:1.6;margin:0 0 16px">' +
-          'This phone\\'s browser/WebView is too old for the cached app files. Tap below to clear the offline cache and reload. If it still fails, open Chrome → update Chrome from Play Store, then reopen Malwa Solar.' +
-          '</p>' +
-          '<button id="malwa-clear-sw" style="background:#0d9f4a;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:700">Clear cache &amp; reload</button>' +
-          '</div></div>';
-        var btn = document.getElementById('malwa-clear-sw');
-        if (btn) {
-          btn.onclick = function () {
-            var done = function () { location.reload(true); };
-            if (!('serviceWorker' in navigator)) return done();
-            navigator.serviceWorker.getRegistrations().then(function (regs) {
-              return Promise.all(regs.map(function (r) { return r.unregister(); }));
-            }).then(function () {
-              if (!window.caches) return;
-              return caches.keys().then(function (keys) {
-                return Promise.all(keys.map(function (k) { return caches.delete(k); }));
-              });
-            }).then(done).catch(done);
-          };
+      // Capture boot failures without wiping CRM auth/local data.
+      // Recovery clears only Cache Storage + service workers (not localStorage).
+      (function () {
+        var shown = false;
+        var RECOVERY_KEY = 'malwa_boot_recovery_at';
+
+        function buildId() {
+          var meta = document.querySelector('meta[name="malwa-build-id"]');
+          return (meta && meta.getAttribute('content')) || 'unknown';
         }
-      });
+
+        function showBootError(detail) {
+          if (shown) return;
+          shown = true;
+          var root = document.getElementById('root');
+          if (!root) return;
+          try {
+            console.error('[Malwa boot]', detail);
+          } catch (e) {}
+          var safeDetail = String(detail || 'Unknown startup error').slice(0, 500);
+          root.setAttribute('data-boot-error', '1');
+          root.innerHTML =
+            '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f3f7fb;font-family:Arial,sans-serif;padding:24px">' +
+            '<div style="max-width:540px;text-align:left">' +
+            '<h1 style="color:#1e3261;font-size:22px;font-weight:800;margin:0 0 10px;text-align:center">Malwa Solar could not start</h1>' +
+            '<p style="color:#53647f;font-size:14px;font-weight:600;line-height:1.6;margin:0 0 12px;text-align:center">' +
+            'This is usually an outdated offline app cache on Android WebView. Tap recovery once — login data is kept.' +
+            '</p>' +
+            '<pre style="background:#fff;border:1px solid #d9e2ec;border-radius:8px;padding:12px;font-size:11px;color:#b91c1c;white-space:pre-wrap;word-break:break-word;margin:0 0 16px">' +
+            safeDetail.replace(/</g, '&lt;') +
+            '\\nbuild: ' + buildId() +
+            '</pre>' +
+            '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">' +
+            '<button id="malwa-recover-cache" style="background:#0d9f4a;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700">Recover offline cache</button>' +
+            '<button id="malwa-reload-once" style="background:#fff;color:#1e3261;border:1px solid #d9e2ec;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700">Reload</button>' +
+            '</div></div></div>';
+
+          var recover = document.getElementById('malwa-recover-cache');
+          var reload = document.getElementById('malwa-reload-once');
+          if (reload) {
+            reload.onclick = function () { location.reload(); };
+          }
+          if (recover) {
+            recover.onclick = function () {
+              var last = 0;
+              try { last = Number(sessionStorage.getItem(RECOVERY_KEY) || 0); } catch (e) {}
+              if (last && Date.now() - last < 15000) {
+                alert('Recovery already tried. Open Chrome, update it from Play Store, then reopen Malwa Solar.');
+                return;
+              }
+              try { sessionStorage.setItem(RECOVERY_KEY, String(Date.now())); } catch (e) {}
+              var done = function () { location.reload(); };
+              // Only unregister SW + delete Cache Storage. Never touch localStorage/session CRM data.
+              var clearCaches = function () {
+                if (!window.caches) return Promise.resolve();
+                return caches.keys().then(function (keys) {
+                  return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                });
+              };
+              if (!('serviceWorker' in navigator)) {
+                clearCaches().then(done).catch(done);
+                return;
+              }
+              navigator.serviceWorker.getRegistrations().then(function (regs) {
+                return Promise.all(regs.map(function (r) { return r.unregister(); }));
+              }).then(clearCaches).then(done).catch(done);
+            };
+          }
+        }
+
+        window.addEventListener('error', function (event) {
+          var msg = (event && event.message) || '';
+          var isSyntax = msg.indexOf('Unexpected token') !== -1 || msg.indexOf('SyntaxError') !== -1;
+          var isChunk = msg.indexOf('Loading chunk') !== -1 || msg.indexOf('Failed to fetch') !== -1;
+          if (!isSyntax && !isChunk) return;
+          var file = (event && (event.filename || (event.target && event.target.src))) || '';
+          var line = event && event.lineno ? (':' + event.lineno + ':' + (event.colno || 0)) : '';
+          showBootError(msg + (file ? '\\n' + file + line : ''));
+        });
+
+        window.addEventListener('unhandledrejection', function (event) {
+          var reason = event && event.reason;
+          var msg = reason && (reason.message || String(reason)) || 'Unhandled promise rejection';
+          if (String(msg).indexOf('Loading CSS chunk') === -1 && String(msg).indexOf('Failed to fetch dynamically imported module') === -1) return;
+          showBootError(String(msg));
+        });
+      })();
     </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>

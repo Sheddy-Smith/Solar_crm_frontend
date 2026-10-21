@@ -2,56 +2,96 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import legacy from '@vitejs/plugin-legacy';
 import tailwindcss from '@tailwindcss/vite';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
-// Android 8.1 System WebView / Chrome ~61 and the Malwa Solar TWA
-// (WebViewFallbackActivity) must be able to parse the bundle. Vite's default
-// baseline emits optional chaining / private fields that crash those engines
-// on first paint — which is the "failed to start several times" loop.
+/**
+ * Permanent Android 8.1 / Chrome 61 support
+ * -----------------------------------------
+ * APK evidence (aapt on public/downloads/malwa-solar.apk):
+ *   package            = com.ecomalwa.crm
+ *   generator          = twa_generator (Bubblewrap / androidbrowserhelper)
+ *   launch activity    = com.ecomalwa.crm.LauncherActivity
+ *   DEFAULT_URL        = https://crm.ecomalwa.com/?source=twa
+ *   FALLBACK_STRATEGY  = webview  → WebViewFallbackActivity
+ *   minSdk             = 21
+ *
+ * When TWA/Chrome Custom Tabs cannot start, System WebView loads the site.
+ * Un-updated Android 8.1 WebView is Chrome ~61 and cannot parse optional
+ * chaining / nullish coalescing. That produces a startup failure loop
+ * ("Malwa Solar failed to start several times"), not a CRM data problem.
+ *
+ * Build strategy (maintainable):
+ *   1. @vitejs/plugin-legacy → Babel SystemJS legacy chunks for Chrome 61+.
+ *   2. build.target = chrome61 → downlevel modern chunks / deps where possible.
+ *   3. Per-release BUILD_ID stamped into sw.js so caches cannot pin stale HTML
+ *      to missing hashed chunks across deploys.
+ */
+
 const LEGACY_TARGETS = ['Android >= 5', 'Chrome >= 61', 'iOS >= 11', 'Safari >= 11', 'Firefox >= 60'];
+const BUILD_ID = createHash('sha1')
+  .update(`${Date.now()}-${process.env.GITHUB_SHA || process.env.npm_package_version || '0.1.0'}`)
+  .digest('hex')
+  .slice(0, 12);
+
+function swBuildIdPlugin() {
+  return {
+    name: 'malwa-sw-build-id',
+    transformIndexHtml(html) {
+      return html.replace(
+        '<head>',
+        `<head>\n    <meta name="malwa-build-id" content="${BUILD_ID}" />`,
+      );
+    },
+    closeBundle() {
+      const distDir = path.resolve('dist');
+      const swPath = path.join(distDir, 'sw.js');
+      if (fs.existsSync(swPath)) {
+        const text = fs.readFileSync(swPath, 'utf8').replace(/__MALWA_BUILD_ID__/g, BUILD_ID);
+        fs.writeFileSync(swPath, text);
+      }
+      fs.writeFileSync(
+        path.join(distDir, 'build-id.json'),
+        `${JSON.stringify({
+          buildId: BUILD_ID,
+          minBrowser: 'chrome61',
+          apkPackage: 'com.ecomalwa.crm',
+          twaFallback: 'webview',
+          generatedAt: new Date().toISOString(),
+        }, null, 2)}\n`,
+      );
+    },
+  };
+}
 
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_BUILD_ID': JSON.stringify(BUILD_ID),
+  },
   plugins: [
     react(),
     tailwindcss(),
     legacy({
       targets: LEGACY_TARGETS,
-      // Chrome 61–89 support type=module but not ?. / #fields — polyfill the
-      // modern chunk path so the TWA/WebView does not load a SyntaxError.
       modernPolyfills: true,
       renderLegacyChunks: true,
       additionalLegacyPolyfills: ['regenerator-runtime/runtime'],
     }),
+    swBuildIdPlugin(),
   ],
   build: {
-    // Keep the modern chunk itself reasonably old-friendly when browsers pass
-    // the module gate but still choke on newer syntax without polyfills.
-    target: ['es2018', 'chrome70', 'safari12', 'firefox70', 'edge79'],
+    target: 'chrome61',
     cssTarget: 'chrome61',
+    modulePreload: { polyfill: true },
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (!id.includes('node_modules')) {
-            return undefined;
-          }
-
-          if (id.includes('lucide-react')) {
-            return 'icons';
-          }
-
-          // Big libraries get their own chunk so a change in one doesn't
-          // invalidate the browser cache for the others.
-          if (id.includes('recharts') || id.includes('d3-')) {
-            return 'charts';
-          }
-
-          if (id.includes('framer-motion') || id.includes('motion-')) {
-            return 'motion';
-          }
-
-          if (id.includes('react')) {
-            return 'react';
-          }
-
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('lucide-react')) return 'icons';
+          if (id.includes('recharts') || id.includes('d3-')) return 'charts';
+          if (id.includes('framer-motion') || id.includes('motion-')) return 'motion';
+          if (id.includes('react')) return 'react';
           return 'vendor';
         },
       },
