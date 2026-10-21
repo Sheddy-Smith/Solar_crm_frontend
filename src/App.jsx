@@ -81,6 +81,7 @@ import {
   SIDEBAR_MODULE_BY_LABEL,
 } from './settingsHubPages.jsx';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
+import { setUnsavedWork } from './lib/unsavedWork.js';
 import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide, downloadAndroidApp, isAndroidDevice, isIosDevice } from './components/mobile/PwaInstallControls.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
@@ -16781,6 +16782,10 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
   }, [reloadAdditionalDocuments]);
 
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
+  useEffect(() => {
+    setUnsavedWork('site-survey', dirty);
+    return () => setUnsavedWork('site-survey', false);
+  }, [dirty]);
 
   useEffect(() => {
     if (!survey?.photos) return;

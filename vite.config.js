@@ -30,10 +30,16 @@ import path from 'node:path';
  */
 
 const LEGACY_TARGETS = ['Android >= 5', 'Chrome >= 61', 'iOS >= 11', 'Safari >= 11', 'Firefox >= 60'];
+const pkg = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'));
+const RELEASE_VERSION = String(pkg.version || '0.0.0');
 const BUILD_ID = createHash('sha1')
-  .update(`${Date.now()}-${process.env.GITHUB_SHA || process.env.npm_package_version || '0.1.0'}`)
+  .update(`${Date.now()}-${process.env.GITHUB_SHA || RELEASE_VERSION}`)
   .digest('hex')
   .slice(0, 12);
+const RELEASE_NOTES = String(
+  process.env.MALWA_RELEASE_NOTES
+    || 'Latest improvements, bug fixes aur performance updates paane ke liye CRM update karein.',
+);
 
 function swBuildIdPlugin() {
   return {
@@ -41,7 +47,7 @@ function swBuildIdPlugin() {
     transformIndexHtml(html) {
       return html.replace(
         '<head>',
-        `<head>\n    <meta name="malwa-build-id" content="${BUILD_ID}" />`,
+        `<head>\n    <meta name="malwa-build-id" content="${BUILD_ID}" />\n    <meta name="malwa-release-version" content="${RELEASE_VERSION}" />`,
       );
     },
     closeBundle() {
@@ -51,16 +57,20 @@ function swBuildIdPlugin() {
         const text = fs.readFileSync(swPath, 'utf8').replace(/__MALWA_BUILD_ID__/g, BUILD_ID);
         fs.writeFileSync(swPath, text);
       }
-      fs.writeFileSync(
-        path.join(distDir, 'build-id.json'),
-        `${JSON.stringify({
-          buildId: BUILD_ID,
-          minBrowser: 'chrome61',
-          apkPackage: 'com.ecomalwa.crm',
-          twaFallback: 'webview',
-          generatedAt: new Date().toISOString(),
-        }, null, 2)}\n`,
-      );
+      const payload = {
+        releaseVersion: RELEASE_VERSION,
+        buildId: BUILD_ID,
+        releaseNotes: RELEASE_NOTES,
+        minBrowser: 'chrome61',
+        apkPackage: 'com.ecomalwa.crm',
+        twaFallback: 'webview',
+        requiresApkUpdate: false,
+        updateChannel: 'web',
+        generatedAt: new Date().toISOString(),
+      };
+      fs.writeFileSync(path.join(distDir, 'build-id.json'), `${JSON.stringify(payload, null, 2)}\n`);
+      // version.json is the no-cache update probe (same payload; kept as a stable filename).
+      fs.writeFileSync(path.join(distDir, 'version.json'), `${JSON.stringify(payload, null, 2)}\n`);
     },
   };
 }
@@ -73,6 +83,7 @@ export default defineConfig({
   base: './',
   define: {
     'import.meta.env.VITE_BUILD_ID': JSON.stringify(BUILD_ID),
+    'import.meta.env.VITE_RELEASE_VERSION': JSON.stringify(RELEASE_VERSION),
   },
   plugins: [
     react(),

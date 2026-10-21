@@ -1,0 +1,24 @@
+AddType application/vnd.android.package-archive .apk
+AddType application/json .json
+AddType application/manifest+json .webmanifest
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.apk$">
+    Header set Content-Disposition "attachment; filename=malwa-solar.apk"
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "^(version\.json|build-id\.json)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+  </FilesMatch>
+</IfModule>
+
+# Relative SPA fallback works for both crm.ecomalwa.com/ (docroot=crm)
+# and ecomalwa.com/crm/ (subdir). Absolute /index.html would hit WordPress root.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . index.html [L]
+</IfModule>

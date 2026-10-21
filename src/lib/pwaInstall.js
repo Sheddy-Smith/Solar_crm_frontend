@@ -90,18 +90,33 @@ export async function promptInstall() {
 // Registered from main.jsx once at boot. Guarded so calling it more than
 // once (e.g. hot reload) never attaches a second registration.
 let swRegistrationStarted = false;
-export function registerServiceWorker() {
-  if (swRegistrationStarted) return;
-  swRegistrationStarted = true;
-  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+let swRegistrationPromise = null;
 
-  window.addEventListener('load', () => {
-    // Relative SW URL so registration works on both crm.ecomalwa.com/ and
-    // ecomalwa.com/crm/. Bust caches with BUILD_ID after each deploy.
-    const swUrl = `./sw.js?v=${encodeURIComponent(import.meta.env.VITE_BUILD_ID || 'dev')}`;
-    navigator.serviceWorker.register(swUrl, { scope: './' }).catch(() => {
-      // Non-fatal — the app works fully without the offline fallback the
-      // service worker provides; we just quietly skip it.
-    });
+/** @returns {Promise<ServiceWorkerRegistration|null>} */
+export function registerServiceWorker() {
+  if (swRegistrationStarted) return swRegistrationPromise || Promise.resolve(null);
+  swRegistrationStarted = true;
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+    swRegistrationPromise = Promise.resolve(null);
+    return swRegistrationPromise;
+  }
+
+  swRegistrationPromise = new Promise((resolve) => {
+    const start = () => {
+      // Relative SW URL so registration works on both crm.ecomalwa.com/ and
+      // ecomalwa.com/crm/. Bust caches with BUILD_ID after each deploy.
+      const swUrl = `./sw.js?v=${encodeURIComponent(import.meta.env.VITE_BUILD_ID || 'dev')}`;
+      navigator.serviceWorker
+        .register(swUrl, { scope: './' })
+        .then((reg) => resolve(reg))
+        .catch(() => resolve(null));
+    };
+    if (document.readyState === 'complete') start();
+    else window.addEventListener('load', start, { once: true });
   });
+  return swRegistrationPromise;
+}
+
+export function getServiceWorkerRegistration() {
+  return swRegistrationPromise || Promise.resolve(null);
 }

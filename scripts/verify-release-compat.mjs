@@ -68,6 +68,28 @@ check('dist_legacy_chunks', legacyJs.length > 0, `${legacyJs.length} legacy JS f
 const buildIdPath = path.join(dist, 'build-id.json');
 check('dist_build_id_json', fs.existsSync(buildIdPath), fs.existsSync(buildIdPath) ? fs.readFileSync(buildIdPath, 'utf8').trim().slice(0, 120) : 'missing');
 
+const versionPath = path.join(dist, 'version.json');
+let versionOk = false;
+let versionDetail = 'missing';
+if (fs.existsSync(versionPath)) {
+  try {
+    const v = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+    versionOk = Boolean(v.buildId && v.releaseVersion);
+    versionDetail = `release=${v.releaseVersion} build=${v.buildId}`;
+  } catch (e) {
+    versionDetail = String(e.message || e);
+  }
+}
+check('dist_version_json', versionOk, versionDetail);
+
+const skipIdx = sw.indexOf('skipWaiting()');
+const skipMsgIdx = sw.indexOf('SKIP_WAITING');
+check(
+  'dist_sw_user_driven_skip_waiting',
+  skipMsgIdx >= 0 && skipIdx > skipMsgIdx,
+  'skipWaiting only after SKIP_WAITING message (user-driven)',
+);
+
 const guard = spawnSync(process.execPath, [path.resolve('scripts/check-android61-syntax.mjs')], {
   encoding: 'utf8',
 });
@@ -106,6 +128,20 @@ async function probeHost(base) {
       || null;
     row.details.sw_build = swBuild;
     row.details.sw_is_new_stamp = Boolean(swBuild && /^[a-f0-9]{12}$/.test(swBuild));
+
+    try {
+      const verRes = await fetch(new URL(`version.json?t=${Date.now()}`, base).href, {
+        cache: 'no-store',
+      });
+      row.details.version_http = verRes.status;
+      if (verRes.ok) {
+        const ver = await verRes.json();
+        row.details.version_build = ver.buildId || null;
+        row.details.version_release = ver.releaseVersion || null;
+      }
+    } catch {
+      row.details.version_http = 0;
+    }
 
     // Subpath MUST use relative assets. Root may still use absolute until redeployed,
     // but target build uses relative for both.

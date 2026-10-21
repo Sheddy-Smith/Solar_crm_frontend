@@ -5,6 +5,8 @@ import { startKeepAlive } from './lib/keepAlive.js';
 import { enableCrmTableColumnResize } from './lib/crmTableResize.js';
 import { enableNativeEditShortcuts } from './lib/nativeEditShortcuts.js';
 import { registerServiceWorker } from './lib/pwaInstall.js';
+import { startAppUpdateMonitor } from './lib/appUpdate.js';
+import AppUpdatePopup from './components/AppUpdatePopup.jsx';
 import { initI18n } from './i18n/index.js';
 import './index.css';
 
@@ -20,7 +22,9 @@ enableNativeEditShortcuts();
 
 // PWA: register the service worker so the app is installable (desktop +
 // mobile "Add to Home Screen") and gets a minimal offline fallback.
-registerServiceWorker();
+// Update monitor uses ./version.json + waiting-worker activation (no data wipe).
+const swReady = registerServiceWorker();
+startAppUpdateMonitor(() => swReady);
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -62,6 +66,7 @@ function renderApp() {
     <React.StrictMode>
       <ErrorBoundary>
         <App />
+        <AppUpdatePopup />
       </ErrorBoundary>
     </React.StrictMode>,
   );
