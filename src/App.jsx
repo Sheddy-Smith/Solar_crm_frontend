@@ -3573,9 +3573,13 @@ function App() {
                   <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">
                     {pwaInstallAction.busy
                       ? 'Checking…'
-                      : pwaInstall.isInstalled || pwaInstall.isStandalone || pwaInstall.justInstalled
-                        ? 'App status'
-                        : 'Add to Home Screen'}
+                      : isAndroidDevice()
+                        ? pwaInstall.isStandalone
+                          ? 'App status'
+                          : 'Download Android App'
+                        : pwaInstall.isInstalled || pwaInstall.isStandalone || pwaInstall.justInstalled
+                          ? 'App status'
+                          : 'Add to Home Screen'}
                   </span>
                 </button>
                 <button

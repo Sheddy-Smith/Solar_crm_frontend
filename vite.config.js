@@ -38,7 +38,7 @@ const BUILD_ID = createHash('sha1')
   .slice(0, 12);
 const RELEASE_NOTES = String(
   process.env.MALWA_RELEASE_NOTES
-    || 'Unstick Connection needed: new SW never intercepts page loads; recover.html + cache purge for stuck PWAs.',
+    || 'Android: delete ke baad bina history clear kiye dubara Download/APK; Play-related_applications hataaya (cannot be installed fix).',
 );
 
 function swBuildIdPlugin() {

@@ -4,6 +4,7 @@ import { cx } from '../../lib/utils.js';
 import { usePwaInstall } from '../../hooks/usePwaInstall.js';
 import { probeUpdateForInstallButton } from '../../lib/appUpdate.js';
 import {
+  clearInstalledMarks,
   getInstallState,
   promptInstall,
   refreshInstalledRelatedApps,
@@ -116,17 +117,37 @@ export function usePwaInstallAction(notify) {
   const runInstall = async () => {
     setBusy(true);
     try {
-      // Fresh related-apps check — Chrome often has the PWA installed ("Open in app")
-      // but beforeinstallprompt never fires, so we must not show the how-to guide.
       await refreshInstalledRelatedApps();
       let state = getInstallState();
 
-      if (state.isInstalled || state.isStandalone || state.justInstalled) {
+      // Android in Chrome tab: never block on stale "installed" after delete.
+      // Standalone window → update check; otherwise BIP then always APK.
+      if (android) {
+        if (state.isStandalone) {
+          await runInstalledFlow();
+          return 'installed-check';
+        }
+        await waitForInstallPrompt(1200);
+        state = getInstallState();
+        if (state.canPromptInstall) {
+          const choice = await promptInstall();
+          if (choice.outcome === 'accepted') {
+            notify?.('Malwa Solar CRM installed!', 'success');
+            return 'installed';
+          }
+        }
+        // Deleted app / no BIP → direct APK. No browser-history clear needed.
+        clearInstalledMarks();
+        downloadAndroidApp();
+        notify?.('Download start — APK open karke Install dabao.', 'success');
+        return 'apk';
+      }
+
+      if (state.isStandalone || state.isInstalled) {
         await runInstalledFlow();
         return 'installed-check';
       }
 
-      // Wait briefly — BIP can arrive after SW activation / first engagement.
       await waitForInstallPrompt(2500);
       state = getInstallState();
 
@@ -139,10 +160,9 @@ export function usePwaInstallAction(notify) {
         if (choice.outcome === 'dismissed') return 'prompt-dismissed';
       }
 
-      // Re-check: BIP missing on Chromium usually means already installed.
       await refreshInstalledRelatedApps();
       state = getInstallState();
-      if (state.isInstalled || state.isStandalone || state.justInstalled) {
+      if (state.isStandalone || state.isInstalled) {
         await runInstalledFlow();
         return 'installed-check';
       }
@@ -152,14 +172,6 @@ export function usePwaInstallAction(notify) {
         return 'guide';
       }
 
-      if (android) {
-        downloadAndroidApp();
-        setGuideOpen(true);
-        return 'guide';
-      }
-
-      // Last resort on desktop Chromium: toast only (no full how-to modal).
-      // Native prompt is unavailable until Chrome re-offers installability.
       if (state.supportsNativePrompt) {
         notify?.(
           'Install icon address bar me dekho, ya menu (⋮) → Install Malwa Solar / Add to Home screen.',
@@ -320,7 +332,8 @@ export function PwaInstallGuide({ open, onClose, ios, android = false }) {
 
 function buttonLabel(pwaInstall, android, busy) {
   if (busy) return 'Checking…';
-  if (android && !pwaInstall.isInstalled && !pwaInstall.isStandalone) return 'Download Android App';
+  // Android Chrome tab always offers Download (standalone window = App status).
+  if (android) return pwaInstall.isStandalone ? 'App status' : 'Download Android App';
   if (pwaInstall.isInstalled || pwaInstall.isStandalone || pwaInstall.justInstalled) return 'App status';
   return 'Add to Home Screen';
 }
@@ -387,15 +400,27 @@ export function PwaInstallBanner({ notify, className = '' }) {
             {buttonLabel(pwaInstall, android, busy)}
           </span>
           <span className="block text-[11px] font-semibold text-[#3d7a56] dark:text-emerald-300/90">
-            {pwaInstall.isInstalled || pwaInstall.isStandalone
-              ? 'Check for CRM updates or confirm you are up to date'
-              : android
-                ? 'Full-screen app that keeps working after a phone change'
+            {android
+              ? pwaInstall.isStandalone
+                ? 'Check for CRM updates or confirm you are up to date'
+                : 'Full-screen app that keeps working after a phone change'
+              : pwaInstall.isInstalled || pwaInstall.isStandalone
+                ? 'Check for CRM updates or confirm you are up to date'
                 : 'Install for full-screen app experience'}
           </span>
         </span>
         <span className="shrink-0 rounded-full bg-[#0d9f4a] px-3 py-1.5 text-[11px] font-extrabold text-white">
-          {busy ? '…' : pwaInstall.isInstalled || pwaInstall.isStandalone ? 'Check' : android ? 'Download' : pwaInstall.canPromptInstall ? 'Install' : 'How'}
+          {busy
+            ? '…'
+            : android
+              ? pwaInstall.isStandalone
+                ? 'Check'
+                : 'Download'
+              : pwaInstall.isInstalled || pwaInstall.isStandalone
+                ? 'Check'
+                : pwaInstall.canPromptInstall
+                  ? 'Install'
+                  : 'How'}
         </span>
       </button>
       <PwaInstallGuide open={guideOpen} onClose={() => setGuideOpen(false)} ios={ios} android={android} />

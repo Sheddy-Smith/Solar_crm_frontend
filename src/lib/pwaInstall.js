@@ -4,8 +4,6 @@
 // cached), so the `beforeinstallprompt` / `appinstalled` listeners below are
 // attached exactly once for the lifetime of the page — no matter how many
 // times consuming components mount/unmount/re-render via `usePwaInstall()`.
-// That sidesteps the classic "duplicate listener" / memory-leak pitfall of
-// registering these inside a component's `useEffect`.
 
 const INSTALLED_FLAG_KEY = 'malwa_pwa_installed';
 
@@ -33,6 +31,14 @@ function writeInstalledFlag(on) {
   installedFlagCached = on;
 }
 
+/** Clear stale "installed" marks after the user deletes the app / PWA. */
+export function clearInstalledMarks() {
+  installedThisSession = false;
+  installedAppDetected = false;
+  writeInstalledFlag(false);
+  notify();
+}
+
 function isRunningStandalone() {
   if (typeof window === 'undefined') return false;
   const standaloneMedia = window.matchMedia?.('(display-mode: standalone)')?.matches;
@@ -52,9 +58,9 @@ function captureDeferredPrompt(event) {
     /* already prevented by early boot script */
   }
   deferredPrompt = event;
-  // If Chrome offers install again, previous "installed" flag is stale.
-  if (installedFlagCached) writeInstalledFlag(false);
-  installedAppDetected = false;
+  // Chrome offering install again ⇒ previous install marks are stale.
+  clearInstalledMarks();
+  deferredPrompt = event;
   notify();
 }
 
@@ -73,8 +79,11 @@ function syncEarlyDeferredPrompt() {
 
 if (typeof window !== 'undefined') {
   installedFlagCached = readInstalledFlag();
-  // Visiting the installed app window marks install for later browser-tab clicks.
   if (isRunningStandalone()) writeInstalledFlag(true);
+  else if (installedFlagCached) {
+    // Browser tab + leftover flag from a deleted install — do not trust yet;
+    // refreshInstalledRelatedApps() will confirm or clear.
+  }
   syncEarlyDeferredPrompt();
 
   window.addEventListener('beforeinstallprompt', (event) => {
@@ -88,15 +97,27 @@ if (typeof window !== 'undefined') {
     notify();
   });
 
-  // Chrome/Edge don't fire beforeinstallprompt when the PWA is ALREADY
-  // installed — without this check the button would wrongly show the
-  // how-to guide. Requires `related_applications` with a "webapp" entry.
   refreshInstalledRelatedApps();
+
+  // After user deletes the home-screen app and returns to Chrome, re-check.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshInstalledRelatedApps();
+  });
 }
 
-/** Re-query getInstalledRelatedApps (call before treating as "not installed"). */
+/**
+ * Re-query getInstalledRelatedApps.
+ * If nothing is installed and we are not in a standalone window, clear stale
+ * localStorage so Download / Install works again without clearing history.
+ */
 export function refreshInstalledRelatedApps() {
   if (typeof navigator === 'undefined' || !('getInstalledRelatedApps' in navigator)) {
+    if (!isRunningStandalone() && !deferredPrompt) {
+      // No API — never block Android download on a leftover flag alone.
+      if (installedFlagCached && !isRunningStandalone()) {
+        /* keep flag only as soft hint; getInstallState ignores flag-only */
+      }
+    }
     return Promise.resolve(false);
   }
   return navigator
@@ -106,17 +127,18 @@ export function refreshInstalledRelatedApps() {
       if (found) {
         installedAppDetected = true;
         writeInstalledFlag(true);
-        notify();
+      } else if (!isRunningStandalone()) {
+        // App / PWA removed — allow reinstall / APK download immediately.
+        installedAppDetected = false;
+        installedThisSession = false;
+        writeInstalledFlag(false);
       }
+      notify();
       return found;
     })
     .catch(() => false);
 }
 
-/**
- * Wait until beforeinstallprompt is available (or timeout).
- * BIP often arrives shortly after the SW is ready.
- */
 export function waitForInstallPrompt(timeoutMs = 2000) {
   syncEarlyDeferredPrompt();
   if (deferredPrompt) return Promise.resolve(true);
@@ -142,19 +164,17 @@ export function waitForInstallPrompt(timeoutMs = 2000) {
 export function getInstallState() {
   syncEarlyDeferredPrompt();
   const standalone = isRunningStandalone();
-  const flagInstalled = installedFlagCached || readInstalledFlag();
-  const detected = installedThisSession || installedAppDetected || flagInstalled;
+  // Trust only live signals — NOT localStorage alone (that forced "App status"
+  // after delete until the user cleared browser history).
+  const liveInstalled = Boolean(standalone || installedThisSession || installedAppDetected);
   return {
-    // Already running as the installed app — nothing to prompt for.
     isStandalone: standalone,
-    // App is installed on this device but currently viewed in a browser tab.
-    justInstalled: detected && !standalone,
-    // Installed either as standalone window or detected related webapp/APK.
-    isInstalled: Boolean(standalone || detected),
-    // A native install prompt is ready to fire on click.
+    justInstalled: liveInstalled && !standalone,
+    isInstalled: liveInstalled,
     canPromptInstall: Boolean(deferredPrompt),
-    // Chromium-style browser that supports the native install flow at all.
     supportsNativePrompt: typeof window !== 'undefined' && 'onbeforeinstallprompt' in window,
+    /** Soft leftover flag — UI may ignore; Android download must not. */
+    hadInstalledFlag: installedFlagCached || readInstalledFlag(),
   };
 }
 
@@ -183,8 +203,6 @@ export async function promptInstall() {
   return choice;
 }
 
-// Registered from main.jsx once at boot. Guarded so calling it more than
-// once (e.g. hot reload) never attaches a second registration.
 let swRegistrationStarted = false;
 let swRegistrationPromise = null;
 
@@ -218,8 +236,6 @@ export function registerServiceWorker() {
 
   swRegistrationPromise = new Promise((resolve) => {
     const start = () => {
-      // Root-absolute, build-stamped SW filename so CDNs cannot pin an ancient
-      // worker (we previously saw live /sw.js stuck on malwa-solar-crm-v90).
       const base = appBasePath();
       const buildId = import.meta.env.VITE_BUILD_ID || 'dev';
       const swUrl = `${base}sw-${encodeURIComponent(buildId)}.js`;
@@ -229,7 +245,6 @@ export function registerServiceWorker() {
           Promise.all(
             regs.map((reg) => {
               const script = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '';
-              // Drop legacy /sw.js and old hashed workers for this scope.
               if (script.includes('/sw.js') || (script.includes('/sw-') && !script.includes(`/sw-${buildId}.js`))) {
                 return reg.unregister();
               }
