@@ -41,7 +41,48 @@
     <title>Malwa Solar CRM</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <noscript>
+        <p style="font-family:Arial,sans-serif;padding:24px;text-align:center;color:#1e3261">
+          Malwa Solar CRM needs JavaScript enabled.
+        </p>
+      </noscript>
+    </div>
+    <script>
+      // Surface boot failures (common on Android 8 WebView when a stale
+      // service-worker cache serves a broken modern bundle).
+      window.addEventListener('error', function (event) {
+        var msg = (event && event.message) || '';
+        if (msg.indexOf('Unexpected token') === -1 && msg.indexOf('SyntaxError') === -1) return;
+        var root = document.getElementById('root');
+        if (!root || root.getAttribute('data-boot-error') === '1') return;
+        root.setAttribute('data-boot-error', '1');
+        root.innerHTML =
+          '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f3f7fb;font-family:Arial,sans-serif;padding:24px">' +
+          '<div style="max-width:520px;text-align:center">' +
+          '<h1 style="color:#1e3261;font-size:22px;font-weight:800;margin:0 0 10px">Update needed to open Malwa Solar</h1>' +
+          '<p style="color:#53647f;font-size:14px;font-weight:600;line-height:1.6;margin:0 0 16px">' +
+          'This phone\\'s browser/WebView is too old for the cached app files. Tap below to clear the offline cache and reload. If it still fails, open Chrome → update Chrome from Play Store, then reopen Malwa Solar.' +
+          '</p>' +
+          '<button id="malwa-clear-sw" style="background:#0d9f4a;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:700">Clear cache &amp; reload</button>' +
+          '</div></div>';
+        var btn = document.getElementById('malwa-clear-sw');
+        if (btn) {
+          btn.onclick = function () {
+            var done = function () { location.reload(true); };
+            if (!('serviceWorker' in navigator)) return done();
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            }).then(function () {
+              if (!window.caches) return;
+              return caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+              });
+            }).then(done).catch(done);
+          };
+        }
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

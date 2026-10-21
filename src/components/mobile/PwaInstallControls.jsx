@@ -108,7 +108,7 @@ export function PwaInstallGuide({ open, onClose, ios, android = false }) {
             <GuideStep n={1}>Open the downloaded <strong className="font-extrabold">malwa-solar.apk</strong> from the notification or Downloads.</GuideStep>
             <GuideStep n={2}>If asked, allow <strong className="font-extrabold">Install unknown apps</strong> for your browser, then go back.</GuideStep>
             <GuideStep n={3}>Tap <strong className="font-extrabold">Install</strong>, then open <strong className="font-extrabold">Malwa Solar</strong> and sign in.</GuideStep>
-            <GuideStep n={4}>If you had an old Malwa Solar icon that does not open, uninstall that one.</GuideStep>
+            <GuideStep n={4}>Android 8 phones: update <strong className="font-extrabold">Google Chrome</strong> from Play Store first. If an old Malwa Solar icon will not open, uninstall it, then install this APK again.</GuideStep>
           </ol>
           <div className="mt-5 grid grid-cols-2 gap-2">
             <a
