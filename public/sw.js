@@ -4,7 +4,8 @@
 //   1. Never break API / auth / media traffic.
 //   2. Never pin a stale index.html to missing hashed JS chunks.
 //   3. On activate, drop only obsolete *app* caches (never localStorage / IndexedDB).
-//   4. Wait for the page to request SKIP_WAITING so updates are user-driven.
+//   4. Activate quickly on already-installed TWA/PWA devices so web updates land
+//      without APK reinstall; the CRM UI still shows a confirmation popup via version.json.
 //
 // BUILD_ID is stamped at `vite build` time (see vite.config.js). Do not edit by hand.
 
@@ -14,8 +15,9 @@ const RUNTIME_CACHE = VERSION + '-runtime';
 const APP_CACHE_PREFIX = 'malwa-solar-crm-';
 
 self.addEventListener('install', () => {
-  // Do not skipWaiting here. The CRM UI posts SKIP_WAITING after the user
-  // confirms "Update Now" (or on first install when no controller exists).
+  // Activate ASAP so already-installed Android TWA / PWA clients leave the old
+  // worker. Clients that already run the update UI still confirm via popup + reload.
+  self.skipWaiting();
 });
 
 self.addEventListener('message', (event) => {
@@ -34,6 +36,14 @@ self.addEventListener('activate', (event) => {
           .map((key) => caches.delete(key)),
       );
       await self.clients.claim();
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      clients.forEach((client) => {
+        try {
+          client.postMessage({ type: 'MALWA_SW_ACTIVATED', buildId: BUILD_ID });
+        } catch (e) {
+          /* ignore */
+        }
+      });
     })(),
   );
 });

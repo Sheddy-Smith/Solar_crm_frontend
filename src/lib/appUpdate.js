@@ -92,10 +92,25 @@ export function subscribeAppUpdate(fn) {
   return () => subscribers.delete(fn);
 }
 
+function removeEarlyOverlay() {
+  try {
+    const el = document.getElementById('malwa-early-update');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  } catch {
+    /* ignore */
+  }
+}
+
 function openPopupIfNeeded() {
   const state = getUpdateState();
   if (state.updateAvailable && !popupOpen) {
     popupOpen = true;
+    try {
+      window.__MALWA_REACT_UPDATE_UI__ = true;
+    } catch {
+      /* ignore */
+    }
+    removeEarlyOverlay();
     notify();
   } else {
     notify();
@@ -148,8 +163,39 @@ export async function applyAppUpdate({ force = false } = {}) {
     /* ignore */
   }
   await activateWaitingWorker();
-  // Network-first navigations load the new index.html + hashed assets.
-  window.location.reload();
+  // Also nudge every registration (already-installed TWA may have a waiting worker).
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      regs.forEach((reg) => {
+        if (reg.waiting) {
+          try {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          } catch {
+            /* ignore */
+          }
+        }
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+  // Clear only CRM Cache Storage namespaces — never auth / IndexedDB / form drafts.
+  try {
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((k) => k.indexOf('malwa-solar-crm-') === 0)
+          .map((k) => caches.delete(k)),
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+  const url = window.location.href.split('#')[0];
+  const sep = url.indexOf('?') >= 0 ? '&' : '?';
+  window.location.replace(`${url}${sep}malwa_updated=${Date.now()}`);
   return { ok: true, reason: 'reloading' };
 }
 
@@ -250,7 +296,9 @@ export function startAppUpdateMonitor(getRegistration) {
     pollServiceWorkerUpdate();
   };
 
-  window.setTimeout(runCheck, 2500);
+  // Fast first probe so already-open / TWA sessions see the popup quickly.
+  window.setTimeout(runCheck, 600);
+  window.setTimeout(runCheck, 3000);
   checkTimer = window.setInterval(runCheck, CHECK_INTERVAL_MS);
 
   document.addEventListener('visibilitychange', () => {
@@ -258,6 +306,9 @@ export function startAppUpdateMonitor(getRegistration) {
   });
   window.addEventListener('online', runCheck);
   window.addEventListener('focus', runCheck);
+  window.addEventListener('pageshow', (event) => {
+    if (event && event.persisted) runCheck();
+  });
 
   Promise.resolve()
     .then(() => (typeof getRegistration === 'function' ? getRegistration() : null))
@@ -270,7 +321,7 @@ export function startAppUpdateMonitor(getRegistration) {
     navigator.serviceWorker.ready.then((reg) => attachRegistration(reg)).catch(() => {});
     navigator.serviceWorker.addEventListener('message', (event) => {
       const data = event && event.data;
-      if (data && data.type === 'MALWA_SW_WAITING') {
+      if (data && (data.type === 'MALWA_SW_WAITING' || data.type === 'MALWA_SW_ACTIVATED')) {
         checkForAppUpdate();
       }
     });

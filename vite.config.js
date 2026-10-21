@@ -38,7 +38,7 @@ const BUILD_ID = createHash('sha1')
   .slice(0, 12);
 const RELEASE_NOTES = String(
   process.env.MALWA_RELEASE_NOTES
-    || 'Latest improvements, bug fixes aur performance updates paane ke liye CRM update karein.',
+    || 'Installed apps ke liye automatic update: New Version popup, safer cache refresh, aur web-only updates bina APK reinstall ke.',
 );
 
 function swBuildIdPlugin() {

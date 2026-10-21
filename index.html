@@ -137,6 +137,130 @@
         });
       })();
     </script>
+    <script>
+      // Early update gate (classic JS / Chrome 61 safe) for already-installed TWA/PWA.
+      // If this HTML shell is older than ./version.json, show Update CRM before React loads.
+      (function () {
+        var DISMISS_KEY = 'malwa_update_dismissed_';
+        var overlayId = 'malwa-early-update';
+
+        function currentBuild() {
+          var meta = document.querySelector('meta[name="malwa-build-id"]');
+          return (meta && meta.getAttribute('content')) || '';
+        }
+
+        function currentRelease() {
+          var meta = document.querySelector('meta[name="malwa-release-version"]');
+          return (meta && meta.getAttribute('content')) || '';
+        }
+
+        function dismissed(id) {
+          try { return sessionStorage.getItem(DISMISS_KEY + id) === '1'; } catch (e) { return false; }
+        }
+
+        function markDismissed(id) {
+          try { sessionStorage.setItem(DISMISS_KEY + id, '1'); } catch (e) {}
+        }
+
+        function activateWaitingWorkers() {
+          if (!('serviceWorker' in navigator)) return Promise.resolve();
+          return navigator.serviceWorker.getRegistrations().then(function (regs) {
+            regs.forEach(function (reg) {
+              try { if (reg.update) reg.update(); } catch (e) {}
+              if (reg.waiting) {
+                try { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch (e2) {}
+              }
+            });
+          }).catch(function () {});
+        }
+
+        function applyUpdate() {
+          activateWaitingWorkers().then(function () {
+            // Drop only app Cache Storage entries — never localStorage / login.
+            var clear = Promise.resolve();
+            if (window.caches) {
+              clear = caches.keys().then(function (keys) {
+                return Promise.all(keys.filter(function (k) {
+                  return k.indexOf('malwa-solar-crm-') === 0;
+                }).map(function (k) { return caches.delete(k); }));
+              });
+            }
+            return clear;
+          }).then(function () {
+            var url = location.href.split('#')[0];
+            var sep = url.indexOf('?') >= 0 ? '&' : '?';
+            location.replace(url + sep + 'malwa_updated=' + Date.now());
+          }).catch(function () {
+            location.reload();
+          });
+        }
+
+        function showOverlay(remote) {
+          if (document.getElementById(overlayId)) return;
+          if (window.__MALWA_REACT_UPDATE_UI__) return;
+          var wrap = document.createElement('div');
+          wrap.id = overlayId;
+          wrap.setAttribute('role', 'dialog');
+          wrap.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-end;justify-content:center;padding:12px;background:rgba(11,26,51,0.55);font-family:Arial,sans-serif';
+          wrap.innerHTML =
+            '<div style="width:100%;max-width:420px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 24px 60px rgba(15,39,92,0.28)">' +
+            '<div style="background:linear-gradient(90deg,#0d9f4a,#0b7a39);color:#fff;padding:16px 20px">' +
+            '<div style="font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;opacity:0.9">Malwa Solar CRM</div>' +
+            '<div style="font-size:20px;font-weight:800;margin-top:4px">Software Update</div></div>' +
+            '<div style="padding:20px">' +
+            '<div style="color:#0d9f4a;font-size:12px;font-weight:800;text-transform:uppercase">New version</div>' +
+            '<div style="color:#1e3261;font-size:15px;font-weight:700;margin-top:6px">A new version of Malwa Solar CRM is available!</div>' +
+            '<div style="color:#53647f;font-size:13px;font-weight:600;line-height:1.5;margin-top:8px">' +
+            String(remote.releaseNotes || 'Latest improvements, bug fixes aur performance updates paane ke liye CRM update karein.').replace(/</g, '&lt;') +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;padding:12px;border:1px solid #e4edf7;border-radius:12px;background:#f6f9fc">' +
+            '<div><div style="font-size:10px;font-weight:700;color:#7585a2;text-transform:uppercase">Current</div>' +
+            '<div style="font-size:15px;font-weight:800;color:#1e3261">' + (currentRelease() || '—') + '</div>' +
+            '<div style="font-size:10px;color:#94a3b8">build ' + (currentBuild() || 'old') + '</div></div>' +
+            '<div><div style="font-size:10px;font-weight:700;color:#7585a2;text-transform:uppercase">Latest</div>' +
+            '<div style="font-size:15px;font-weight:800;color:#0d9f4a">' + (remote.releaseVersion || remote.buildId) + '</div>' +
+            '<div style="font-size:10px;color:#94a3b8">build ' + remote.buildId + '</div></div></div>' +
+            '<div style="color:#53647f;font-size:12px;font-weight:600;margin-top:12px">Naye files load honge; saved CRM data / login delete nahi hoga. APK reinstall zaroori nahi.</div>' +
+            '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">' +
+            '<button type="button" id="malwa-upd-later" style="height:44px;padding:0 16px;border-radius:10px;border:1px solid #d9e4f2;background:#fff;color:#1e3261;font-size:14px;font-weight:800">Later</button>' +
+            '<button type="button" id="malwa-upd-now" style="height:44px;padding:0 18px;border-radius:10px;border:none;background:#0d9f4a;color:#fff;font-size:14px;font-weight:800">Update CRM</button>' +
+            '</div></div></div>';
+          document.body.appendChild(wrap);
+          document.getElementById('malwa-upd-later').onclick = function () {
+            markDismissed(remote.buildId);
+            wrap.parentNode && wrap.parentNode.removeChild(wrap);
+          };
+          document.getElementById('malwa-upd-now').onclick = function () {
+            applyUpdate();
+          };
+        }
+
+        function check() {
+          if (window.__MALWA_REACT_UPDATE_UI__) return;
+          var cur = currentBuild();
+          fetch('./version.json?t=' + Date.now(), { cache: 'no-store' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (v) {
+              if (!v || !v.buildId) return;
+              if (cur && cur === v.buildId) return;
+              if (dismissed(v.buildId)) return;
+              showOverlay(v);
+              activateWaitingWorkers();
+            })
+            .catch(function () {});
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function () { setTimeout(check, 400); });
+        } else {
+          setTimeout(check, 400);
+        }
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'visible') check();
+        });
+        window.addEventListener('online', check);
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

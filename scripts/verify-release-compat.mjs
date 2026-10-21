@@ -82,12 +82,10 @@ if (fs.existsSync(versionPath)) {
 }
 check('dist_version_json', versionOk, versionDetail);
 
-const skipIdx = sw.indexOf('skipWaiting()');
-const skipMsgIdx = sw.indexOf('SKIP_WAITING');
 check(
-  'dist_sw_user_driven_skip_waiting',
-  skipMsgIdx >= 0 && skipIdx > skipMsgIdx,
-  'skipWaiting only after SKIP_WAITING message (user-driven)',
+  'dist_sw_skip_waiting',
+  sw.includes('skipWaiting()') && sw.includes('SKIP_WAITING'),
+  'skipWaiting on install + SKIP_WAITING message for installed TWA/PWA updates',
 );
 
 const guard = spawnSync(process.execPath, [path.resolve('scripts/check-android61-syntax.mjs')], {
