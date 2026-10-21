@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Recover — Malwa Solar CRM</title>
+    <style>
+      body { margin: 0; font-family: Arial, sans-serif; background: #f3f7fb; color: #1e3261; }
+      main { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+      .card { max-width: 420px; text-align: center; }
+      h1 { font-size: 22px; font-weight: 800; margin: 0; }
+      p { color: #53647f; font-size: 14px; font-weight: 600; line-height: 1.5; margin: 12px 0 0; }
+      button { margin-top: 16px; background: #0d9f4a; color: #fff; border: 0; border-radius: 8px; padding: 12px 18px; font-size: 14px; font-weight: 800; cursor: pointer; }
+      #status { margin-top: 12px; font-size: 13px; font-weight: 700; color: #0d9f4a; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="card">
+        <h1>Recover Malwa Solar CRM</h1>
+        <p>Ye page purana offline cache / service worker clear karta hai. Login data safe rehta hai.</p>
+        <button type="button" id="go">Recover now</button>
+        <div id="status"></div>
+      </div>
+    </main>
+    <script>
+      (function () {
+        var status = document.getElementById('status');
+        function setStatus(t) { if (status) status.textContent = t; }
+        document.getElementById('go').onclick = function () {
+          setStatus('Recovering…');
+          var clearCaches = function () {
+            if (!window.caches) return Promise.resolve();
+            return caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            });
+          };
+          var unreg = function () {
+            if (!('serviceWorker' in navigator)) return Promise.resolve();
+            return navigator.serviceWorker.getRegistrations().then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            });
+          };
+          Promise.all([clearCaches(), unreg()])
+            .then(function () {
+              try { localStorage.removeItem('malwa_ack_build'); } catch (e) {}
+              setStatus('Done. Opening CRM…');
+              location.replace('/?malwa_recovered=' + Date.now());
+            })
+            .catch(function () {
+              setStatus('Done (with warnings). Opening CRM…');
+              location.replace('/?malwa_recovered=' + Date.now());
+            });
+        };
+      })();
+    </script>
+  </body>
+</html>

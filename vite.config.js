@@ -38,7 +38,7 @@ const BUILD_ID = createHash('sha1')
   .slice(0, 12);
 const RELEASE_NOTES = String(
   process.env.MALWA_RELEASE_NOTES
-    || 'Stop fake Connection needed screen: service worker no longer hides Cloudflare/network HTTP errors; recover button on offline page.',
+    || 'Unstick Connection needed: new SW never intercepts page loads; recover.html + cache purge for stuck PWAs.',
 );
 
 function swBuildIdPlugin() {
@@ -52,11 +52,16 @@ function swBuildIdPlugin() {
     },
     closeBundle() {
       const distDir = path.resolve('dist');
+      const publicSw = path.resolve('public/sw.js');
       const swPath = path.join(distDir, 'sw.js');
-      if (fs.existsSync(swPath)) {
-        const text = fs.readFileSync(swPath, 'utf8').replace(/__MALWA_BUILD_ID__/g, BUILD_ID);
-        fs.writeFileSync(swPath, text);
-      }
+      // Always stamp from public/sw.js so a missed copy cannot leave a stale worker live.
+      const source = fs.existsSync(swPath)
+        ? fs.readFileSync(swPath, 'utf8')
+        : fs.readFileSync(publicSw, 'utf8');
+      const text = source.replace(/__MALWA_BUILD_ID__/g, BUILD_ID);
+      fs.writeFileSync(swPath, text);
+      // Unique filename so CDNs / stuck clients cannot keep an ancient sw.js forever.
+      fs.writeFileSync(path.join(distDir, `sw-${BUILD_ID}.js`), text);
       const payload = {
         releaseVersion: RELEASE_VERSION,
         buildId: BUILD_ID,

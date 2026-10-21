@@ -218,13 +218,35 @@ export function registerServiceWorker() {
 
   swRegistrationPromise = new Promise((resolve) => {
     const start = () => {
-      // Root-absolute SW URL (via <base> / __MALWA_APP_BASE__) so /tele/leads
-      // and /leads never register a broken nested scope.
+      // Root-absolute, build-stamped SW filename so CDNs cannot pin an ancient
+      // worker (we previously saw live /sw.js stuck on malwa-solar-crm-v90).
       const base = appBasePath();
-      const swUrl = `${base}sw.js?v=${encodeURIComponent(import.meta.env.VITE_BUILD_ID || 'dev')}`;
+      const buildId = import.meta.env.VITE_BUILD_ID || 'dev';
+      const swUrl = `${base}sw-${encodeURIComponent(buildId)}.js`;
       navigator.serviceWorker
-        .register(swUrl, { scope: base })
-        .then((reg) => resolve(reg))
+        .getRegistrations()
+        .then((regs) =>
+          Promise.all(
+            regs.map((reg) => {
+              const script = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '';
+              // Drop legacy /sw.js and old hashed workers for this scope.
+              if (script.includes('/sw.js') || (script.includes('/sw-') && !script.includes(`/sw-${buildId}.js`))) {
+                return reg.unregister();
+              }
+              return null;
+            }),
+          ),
+        )
+        .catch(() => {})
+        .then(() => navigator.serviceWorker.register(swUrl, { scope: base }))
+        .then((reg) => {
+          try {
+            reg.update();
+          } catch {
+            /* ignore */
+          }
+          resolve(reg);
+        })
         .catch(() => resolve(null));
     };
     if (document.readyState === 'complete') start();
