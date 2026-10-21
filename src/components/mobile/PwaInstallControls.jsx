@@ -9,10 +9,12 @@ import {
   refreshInstalledRelatedApps,
   waitForInstallPrompt,
 } from '../../lib/pwaInstall.js';
+import { urlUnderAppBase } from '../../lib/appBase.js';
 
 // Signed TWA build of the live site. Unlike a Chrome-minted WebAPK it is a
 // regular APK, so it survives phone-clone / backup-restore onto a new device.
-export const ANDROID_APK_URL = './downloads/malwa-solar.apk';
+// Resolved from app root so /leads or /tele/* never download index.html by mistake.
+export const ANDROID_APK_URL = 'downloads/malwa-solar.apk';
 
 export function isIosDevice() {
   if (typeof navigator === 'undefined') return false;
@@ -27,8 +29,9 @@ export function isAndroidDevice() {
 
 export function downloadAndroidApp() {
   const link = document.createElement('a');
-  link.href = ANDROID_APK_URL;
-  link.download = 'malwa-solar.apk';
+  link.href = urlUnderAppBase(ANDROID_APK_URL);
+  link.setAttribute('download', 'malwa-solar.apk');
+  link.rel = 'noopener';
   document.body.appendChild(link);
   link.click();
   link.remove();

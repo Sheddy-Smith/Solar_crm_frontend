@@ -2,6 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      MUST run before any relative href/src. Path routes like /tele/leads or /leads
+      would otherwise resolve ./assets/* to /tele/assets/* → HTML 404 shell →
+      "Unexpected token '<'" and Chrome "This app cannot be installed".
+    -->
+    <script>
+      (function () {
+        var path = location.pathname || '/';
+        var basePath = /^\/crm(\/|$)/i.test(path) ? '/crm/' : '/';
+        var existing = document.querySelector('base');
+        if (existing) {
+          existing.setAttribute('href', basePath);
+        } else {
+          var b = document.createElement('base');
+          b.setAttribute('href', basePath);
+          document.head.insertBefore(b, document.head.firstChild);
+        }
+        window.__MALWA_APP_BASE__ = basePath;
+      })();
+    </script>
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"

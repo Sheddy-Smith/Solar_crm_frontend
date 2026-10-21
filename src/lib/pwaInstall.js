@@ -188,6 +188,25 @@ export async function promptInstall() {
 let swRegistrationStarted = false;
 let swRegistrationPromise = null;
 
+function appBasePath() {
+  if (typeof window !== 'undefined' && window.__MALWA_APP_BASE__) {
+    return String(window.__MALWA_APP_BASE__);
+  }
+  try {
+    const el = document.querySelector('base[href]');
+    if (el) {
+      const u = new URL(el.href, window.location.origin);
+      let path = u.pathname || '/';
+      if (!path.endsWith('/')) path += '/';
+      return path;
+    }
+  } catch {
+    /* ignore */
+  }
+  const path = (typeof window !== 'undefined' && window.location.pathname) || '/';
+  return /^\/crm(\/|$)/i.test(path) ? '/crm/' : '/';
+}
+
 /** @returns {Promise<ServiceWorkerRegistration|null>} */
 export function registerServiceWorker() {
   if (swRegistrationStarted) return swRegistrationPromise || Promise.resolve(null);
@@ -199,11 +218,12 @@ export function registerServiceWorker() {
 
   swRegistrationPromise = new Promise((resolve) => {
     const start = () => {
-      // Relative SW URL so registration works on both crm.ecomalwa.com/ and
-      // ecomalwa.com/crm/. Bust caches with BUILD_ID after each deploy.
-      const swUrl = `./sw.js?v=${encodeURIComponent(import.meta.env.VITE_BUILD_ID || 'dev')}`;
+      // Root-absolute SW URL (via <base> / __MALWA_APP_BASE__) so /tele/leads
+      // and /leads never register a broken nested scope.
+      const base = appBasePath();
+      const swUrl = `${base}sw.js?v=${encodeURIComponent(import.meta.env.VITE_BUILD_ID || 'dev')}`;
       navigator.serviceWorker
-        .register(swUrl, { scope: './' })
+        .register(swUrl, { scope: base })
         .then((reg) => resolve(reg))
         .catch(() => resolve(null));
     };
