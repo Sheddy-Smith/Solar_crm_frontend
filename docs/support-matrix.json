@@ -1,0 +1,122 @@
+{
+  "project": "Malwa Solar CRM",
+  "minimumSupportedEngine": {
+    "label": "Chrome / System WebView 61+",
+    "notes": [
+      "JS syntax is downleveled via @vitejs/plugin-legacy (SystemJS) for Chrome 61+.",
+      "chrome61 target does NOT guarantee every Web API, CSS feature, or WebView quirk.",
+      "TWA package com.ecomalwa.crm uses FALLBACK_STRATEGY=webview; OS version ≠ WebView version."
+    ]
+  },
+  "urlLayouts": [
+    {
+      "url": "https://crm.ecomalwa.com/",
+      "role": "primary TWA / production root",
+      "assetBase": "relative (./)"
+    },
+    {
+      "url": "https://ecomalwa.com/crm/",
+      "role": "subdirectory mirror",
+      "assetBase": "relative (./) — must NOT request /assets/ at site root"
+    }
+  ],
+  "matrix": [
+    {
+      "id": "android81-webview61",
+      "os": "Android 8.1",
+      "engine": "System WebView ≈ Chrome 61 (unupdated)",
+      "wrapper": "TWA → WebView fallback",
+      "expectation": "SUPPORTED (primary fix target)",
+      "status": "NOT_TESTED_PHYSICAL",
+      "evidence": "local legacy build + syntax guard; no adb logcat yet"
+    },
+    {
+      "id": "android81-chrome-updated",
+      "os": "Android 8.1",
+      "engine": "Chrome (Play Store updated, 100+)",
+      "wrapper": "TWA Custom Tabs",
+      "expectation": "SUPPORTED",
+      "status": "NOT_TESTED_PHYSICAL",
+      "evidence": null
+    },
+    {
+      "id": "android-current-chrome",
+      "os": "Android 12–15",
+      "engine": "Chrome current",
+      "wrapper": "browser / TWA / PWA",
+      "expectation": "SUPPORTED",
+      "status": "NOT_TESTED_PHYSICAL",
+      "evidence": null
+    },
+    {
+      "id": "desktop-chrome",
+      "os": "Windows / macOS / Linux",
+      "engine": "Chrome current",
+      "wrapper": "browser",
+      "expectation": "SUPPORTED",
+      "status": "PASS_LOCAL_BUILD",
+      "evidence": "npm run build + check:android61"
+    },
+    {
+      "id": "desktop-edge",
+      "os": "Windows",
+      "engine": "Edge current",
+      "wrapper": "browser",
+      "expectation": "SUPPORTED",
+      "status": "NOT_TESTED",
+      "evidence": null
+    },
+    {
+      "id": "desktop-firefox",
+      "os": "desktop",
+      "engine": "Firefox 60+",
+      "wrapper": "browser",
+      "expectation": "SUPPORTED (legacy path)",
+      "status": "NOT_TESTED",
+      "evidence": null
+    },
+    {
+      "id": "safari-ios",
+      "os": "iOS 11+",
+      "engine": "Safari / WKWebView",
+      "wrapper": "browser / Add to Home Screen",
+      "expectation": "SUPPORTED with CSS limitations (:has, some dvh)",
+      "status": "NOT_TESTED",
+      "evidence": null
+    },
+    {
+      "id": "safari-macos",
+      "os": "macOS",
+      "engine": "Safari 11+",
+      "wrapper": "browser",
+      "expectation": "SUPPORTED (legacy path)",
+      "status": "NOT_TESTED",
+      "evidence": null
+    },
+    {
+      "id": "samsung-internet",
+      "os": "Android",
+      "engine": "Samsung Internet current",
+      "wrapper": "browser",
+      "expectation": "SUPPORTED where Chromium ≥ 61",
+      "status": "NOT_TESTED",
+      "evidence": null
+    },
+    {
+      "id": "android5-7-unupdated-webview",
+      "os": "Android 5–7",
+      "engine": "System WebView < 61",
+      "wrapper": "any",
+      "expectation": "UNSUPPORTED",
+      "status": "DOCUMENTED",
+      "evidence": "Show boot recovery / update Chrome message; no safe polyfill for missing engine"
+    }
+  ],
+  "knownLimitations": [
+    "File/camera capture uses <input type=file capture> — behavior varies by OEM WebView.",
+    "CSS :has() ignored on engines before Chrome 105; portal landing relies on direct class rules.",
+    "Modern index-*.js may still contain ?. / ?? — Chrome 61 must take the nomodule/legacy path.",
+    "MediaRecorder / canvas.captureStream features degrade where unsupported.",
+    "Fonts loaded from Google Fonts may fail offline; UI remains usable with system fallbacks."
+  ]
+}

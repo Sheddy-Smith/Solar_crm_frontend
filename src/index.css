@@ -1723,7 +1723,9 @@ html.dark .tele-portal [class*="hover:bg-[#feecec]"]:hover {
 html,
 body,
 #root {
+  /* 100vh first — Android 8.1 / Chrome 61 lack dvh support */
   min-height: 100%;
+  min-height: 100vh;
   min-height: 100dvh;
 }
 
@@ -1740,9 +1742,11 @@ body {
 }
 
 /* Welcome / portal chooser: document scroll so laptop trackpad two-finger scroll works */
+/* :has() is unsupported on Chrome < 105 — layout still works via .portal-landing rules below */
 html:has(.portal-landing) {
   height: auto;
   min-height: 100%;
+  min-height: 100vh;
   min-height: 100dvh;
   overflow-x: hidden;
   overflow-y: auto;
@@ -1753,6 +1757,7 @@ html:has(.portal-landing) body,
 html:has(.portal-landing) #root {
   height: auto;
   min-height: 100%;
+  min-height: 100vh;
   min-height: 100dvh;
   overflow: visible;
   overscroll-behavior-y: auto;
@@ -1762,6 +1767,8 @@ html:has(.portal-landing) #root {
 .portal-landing,
 .portal-landing-page {
   overflow: visible;
+  min-height: 100%;
+  min-height: 100vh;
   min-height: 100dvh;
   height: auto;
 }
@@ -1771,6 +1778,7 @@ html:has(.portal-landing) #root {
   body,
   #root {
     height: auto !important;
+    min-height: 100vh;
     min-height: 100dvh;
     overflow-x: hidden;
     overflow-y: auto;
@@ -1788,6 +1796,7 @@ html:has(.portal-landing) #root {
 
   .app-mobile-shell {
     height: auto !important;
+    min-height: 100vh;
     min-height: 100dvh;
     overflow: visible !important;
     background: #eef3f7;
@@ -1877,8 +1886,19 @@ html:has(.portal-landing) #root {
   }
 
   .app-mobile-shell {
+    min-height: 100vh;
     min-height: 100dvh;
   }
+}
+
+/* Tailwind dvh utilities: Chrome 61 / Android 8.1 need vh fallback first */
+.min-h-dvh {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.h-dvh {
+  height: 100vh;
+  height: 100dvh;
 }
 
 .main-scroll-area {
