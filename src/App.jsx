@@ -82,7 +82,7 @@ import {
 } from './settingsHubPages.jsx';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
 import { setUnsavedWork } from './lib/unsavedWork.js';
-import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide, downloadAndroidApp, isAndroidDevice, isIosDevice } from './components/mobile/PwaInstallControls.jsx';
+import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide, UpToDateDialog, usePwaInstallAction, downloadAndroidApp, isAndroidDevice, isIosDevice } from './components/mobile/PwaInstallControls.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
@@ -2278,26 +2278,12 @@ function App() {
     setToast({ id: Date.now(), message: msg, type });
   }, []);
 
+  const pwaInstallAction = usePwaInstallAction(notify);
+
   const handlePwaInstall = async () => {
-    if (pwaInstall.isStandalone) {
-      notify('Already running from your home screen.', 'success');
-      return;
-    }
-    if (isAndroidDevice()) {
-      downloadAndroidApp();
-      setPwaGuideOpen(true);
-      return;
-    }
-    if (pwaInstall.justInstalled) {
-      notify("Already installed — open Malwa Solar from your home screen.");
-      return;
-    }
-    if (pwaInstall.canPromptInstall) {
-      const choice = await pwaInstall.promptInstall();
-      if (choice.outcome === 'accepted') notify('Malwa Solar CRM installed!', 'success');
-      return;
-    }
-    setPwaGuideOpen(true);
+    // Not installed → install popup; installed → update popup or up-to-date popup.
+    const result = await pwaInstallAction.runInstall();
+    if (result === 'guide') setPwaGuideOpen(true);
   };
 
   const handleProfileAction = (action) => {
@@ -3573,22 +3559,25 @@ function App() {
               </nav>
 
               <>
-                {!pwaInstall.isStandalone ? (
-                  <button
-                    type="button"
-                    onClick={handlePwaInstall}
-                    className={cx(
-                      'mt-8 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]',
-                      desktopSidebarCollapsed && 'xl:hidden',
-                      pwaInstall.justInstalled && 'opacity-80',
-                    )}
-                  >
-                    <MonitorSmartphone className="size-[17px] shrink-0" />
-                    <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">
-                      {isAndroidDevice() ? 'Download Android App' : pwaInstall.justInstalled ? 'Already Installed' : 'Add to Home Screen'}
-                    </span>
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={handlePwaInstall}
+                  disabled={pwaInstallAction.busy}
+                  className={cx(
+                    'mt-8 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]',
+                    desktopSidebarCollapsed && 'xl:hidden',
+                    (pwaInstall.isInstalled || pwaInstall.justInstalled) && 'opacity-90',
+                  )}
+                >
+                  <MonitorSmartphone className="size-[17px] shrink-0" />
+                  <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight">
+                    {pwaInstallAction.busy
+                      ? 'Checking…'
+                      : pwaInstall.isInstalled || pwaInstall.isStandalone || pwaInstall.justInstalled
+                        ? 'App status'
+                        : 'Add to Home Screen'}
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -3597,9 +3586,8 @@ function App() {
                     notify('Logged out');
                   }}
                   className={cx(
-                    'flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]',
+                    'mt-2 flex min-h-[43px] w-full items-center gap-3 rounded-[8px] border border-white/12 bg-white/9 px-4 text-left text-white transition hover:border-white/20 hover:bg-white/[0.14]',
                     desktopSidebarCollapsed && 'xl:justify-center xl:px-0',
-                    pwaInstall.isStandalone ? 'mt-8' : 'mt-2',
                   )}
                 >
                   <LogOut className="size-[17px] shrink-0" />
@@ -4328,10 +4316,19 @@ function App() {
       ) : null}
 
       <PwaInstallGuide
-        open={pwaGuideOpen}
-        onClose={() => setPwaGuideOpen(false)}
+        open={pwaGuideOpen || pwaInstallAction.guideOpen}
+        onClose={() => {
+          setPwaGuideOpen(false);
+          pwaInstallAction.setGuideOpen(false);
+        }}
         ios={isIosDevice()}
         android={isAndroidDevice()}
+      />
+      <UpToDateDialog
+        open={pwaInstallAction.upToDateOpen}
+        onClose={() => pwaInstallAction.setUpToDateOpen(false)}
+        versionLabel={pwaInstallAction.upToDateMeta.version}
+        buildId={pwaInstallAction.upToDateMeta.buildId}
       />
       <Toast toast={toast} />
     </div>

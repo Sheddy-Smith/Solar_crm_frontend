@@ -22,6 +22,7 @@ let latestInfo = null;
 let waitingWorker = null;
 let registration = null;
 let popupOpen = false;
+let forceShowPopup = false;
 let checkTimer = null;
 
 export function getRunningBuild() {
@@ -111,6 +112,8 @@ export function getUpdateState() {
   const running = getRunningBuild();
   const ackedBuild = getAckedBuild();
   const available = Boolean(latestInfo && needsUpdatePrompt(latestInfo));
+  const shellStale = Boolean(latestInfo && latestInfo.buildId !== running.buildId);
+  const show = Boolean(popupOpen && latestInfo && (available || forceShowPopup || shellStale));
   return {
     current: {
       buildId: ackedBuild || running.buildId,
@@ -118,8 +121,8 @@ export function getUpdateState() {
     },
     running,
     latest: latestInfo,
-    updateAvailable: available,
-    popupOpen: available && popupOpen,
+    updateAvailable: available || shellStale,
+    popupOpen: show,
     alreadyOnLatest: Boolean(latestInfo && latestInfo.buildId === running.buildId),
     waitingWorker: Boolean(waitingWorker),
     hasUnsavedWork: hasUnsavedWork(),
@@ -161,12 +164,49 @@ function openPopupIfNeeded() {
 export function dismissUpdateLater() {
   if (latestInfo && latestInfo.buildId) markDismissed(latestInfo.buildId);
   popupOpen = false;
+  forceShowPopup = false;
   try {
     window.__MALWA_REACT_UPDATE_UI__ = false;
   } catch {
     /* ignore */
   }
   notify();
+}
+
+/**
+ * Used by “Add to Home Screen” when the app is already installed.
+ * Returns { status: 'update' | 'uptodate' | 'error', running, latest }.
+ */
+export async function probeUpdateForInstallButton() {
+  try {
+    const remote = await fetchLatestVersion();
+    latestInfo = remote;
+    const running = getRunningBuild();
+    if (remote.buildId !== running.buildId) {
+      try {
+        sessionStorage.removeItem(DISMISS_PREFIX + remote.buildId);
+      } catch {
+        /* ignore */
+      }
+      popupOpen = true;
+      forceShowPopup = true;
+      try {
+        window.__MALWA_REACT_UPDATE_UI__ = true;
+      } catch {
+        /* ignore */
+      }
+      removeEarlyOverlay();
+      notify();
+      return { status: 'update', running, latest: remote };
+    }
+    acknowledgeBuild(remote.buildId, remote.releaseVersion);
+    popupOpen = false;
+    forceShowPopup = false;
+    notify();
+    return { status: 'uptodate', running, latest: remote };
+  } catch (error) {
+    return { status: 'error', error, running: getRunningBuild(), latest: latestInfo };
+  }
 }
 
 async function activateWaitingWorker() {

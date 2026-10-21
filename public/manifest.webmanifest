@@ -14,6 +14,12 @@
   "lang": "en",
   "dir": "ltr",
   "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://crm.ecomalwa.com/manifest.webmanifest"
+    }
+  ],
   "icons": [
     { "src": "./icons/icon-72.png?v=8", "sizes": "72x72", "type": "image/png", "purpose": "any" },
     { "src": "./icons/icon-96.png?v=8", "sizes": "96x96", "type": "image/png", "purpose": "any" },

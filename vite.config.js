@@ -38,7 +38,7 @@ const BUILD_ID = createHash('sha1')
   .slice(0, 12);
 const RELEASE_NOTES = String(
   process.env.MALWA_RELEASE_NOTES
-    || 'Update CRM popup ab automatically aata hai jab naya web release deploy hota hai — installed mobile/desktop apps included, bina APK reinstall ke.',
+    || 'Update CRM popup ab automatically aata hai jab naya web release deploy hota hai - installed mobile/desktop apps included, bina APK reinstall ke.',
 );
 
 function swBuildIdPlugin() {

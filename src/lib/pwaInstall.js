@@ -61,6 +61,8 @@ export function getInstallState() {
     isStandalone: standalone,
     // App is installed on this device but currently viewed in a browser tab.
     justInstalled: alreadyInstalled,
+    // Installed either as standalone window or detected related webapp/APK.
+    isInstalled: Boolean(standalone || installedThisSession || installedAppDetected),
     // A native install prompt is ready to fire on click.
     canPromptInstall: Boolean(deferredPrompt),
     // Chromium-style browser that supports the native install flow at all.
