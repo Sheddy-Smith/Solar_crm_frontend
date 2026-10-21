@@ -42,6 +42,14 @@
   </head>
   <body>
     <div id="root">
+      <div id="malwa-boot-splash" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f3f7fb;font-family:Arial,sans-serif;padding:24px">
+        <div style="text-align:center;max-width:360px">
+          <div style="color:#0d9f4a;font-size:14px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase">Malwa Solar CRM</div>
+          <div style="margin-top:10px;color:#1e3261;font-size:18px;font-weight:800">Loading…</div>
+          <p style="margin-top:10px;color:#53647f;font-size:13px;font-weight:600;line-height:1.5">If this stays blank, tap Recover once. Login data is kept.</p>
+          <button type="button" id="malwa-boot-recover" style="margin-top:14px;background:#0d9f4a;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:800">Recover offline cache</button>
+        </div>
+      </div>
       <noscript>
         <p style="font-family:Arial,sans-serif;padding:24px;text-align:center;color:#1e3261">
           Malwa Solar CRM needs JavaScript enabled.
@@ -262,13 +270,42 @@
             .then(function (v) {
               if (!v || !v.buildId) return;
               if (dismissed(v.buildId)) return;
-              // Key fix: compare to last acknowledged build, not only shell meta.
+              var acked = ackedBuild();
+              var shell = shellBuild();
+              // First boot: remember shell quietly — avoids blank full-screen update sheet.
+              if (!acked) {
+                setAck(shell || v.buildId, shellRelease() || v.releaseVersion || '');
+                if (!shell || shell === v.buildId) return;
+              }
               if (v.buildId === ackedBuild()) return;
               showOverlay(v);
               activateWaitingWorkers();
             })
             .catch(function () {});
         }
+
+        // Boot splash recover (installed PWA blank-screen escape hatch).
+        document.addEventListener('DOMContentLoaded', function () {
+          var btn = document.getElementById('malwa-boot-recover');
+          if (!btn) return;
+          btn.onclick = function () {
+            var done = function () { location.reload(); };
+            var clearCaches = function () {
+              if (!window.caches) return Promise.resolve();
+              return caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+              });
+            };
+            try { localStorage.removeItem(ACK_BUILD_KEY); } catch (e) {}
+            if (!('serviceWorker' in navigator)) {
+              clearCaches().then(done).catch(done);
+              return;
+            }
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            }).then(clearCaches).then(done).catch(done);
+          };
+        });
 
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', function () { setTimeout(check, 300); });

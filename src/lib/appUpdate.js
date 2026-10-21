@@ -97,7 +97,13 @@ function needsUpdatePrompt(remote) {
   if (!remote || !remote.buildId) return false;
   if (isDismissed(remote.buildId)) return false;
   const acked = getAckedBuild();
-  // Show whenever this live release has not been acknowledged yet.
+  const running = getRunningBuild();
+  // First successful boot: remember current build quietly (no popup spam / blank PWA).
+  if (!acked) {
+    acknowledgeBuild(running.buildId, running.releaseVersion);
+    return remote.buildId !== running.buildId;
+  }
+  // Show when user last acknowledged an older release than what is live now.
   return remote.buildId !== acked;
 }
 

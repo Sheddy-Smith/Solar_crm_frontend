@@ -4,8 +4,7 @@
 //   1. Never break API / auth / media traffic.
 //   2. Never pin a stale index.html to missing hashed JS chunks.
 //   3. On activate, drop only obsolete *app* caches (never localStorage / IndexedDB).
-//   4. Activate quickly on already-installed TWA/PWA devices so web updates land
-//      without APK reinstall; the CRM UI still shows a confirmation popup via version.json.
+//   4. Never return Response.error() for navigations (blank white PWA window).
 //
 // BUILD_ID is stamped at `vite build` time (see vite.config.js). Do not edit by hand.
 
@@ -15,8 +14,6 @@ const RUNTIME_CACHE = VERSION + '-runtime';
 const APP_CACHE_PREFIX = 'malwa-solar-crm-';
 
 self.addEventListener('install', () => {
-  // Activate ASAP so already-installed Android TWA / PWA clients leave the old
-  // worker. Clients that already run the update UI still confirm via popup + reload.
   self.skipWaiting();
 });
 
@@ -36,14 +33,6 @@ self.addEventListener('activate', (event) => {
           .map((key) => caches.delete(key)),
       );
       await self.clients.claim();
-      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      clients.forEach((client) => {
-        try {
-          client.postMessage({ type: 'MALWA_SW_ACTIVATED', buildId: BUILD_ID });
-        } catch (e) {
-          /* ignore */
-        }
-      });
     })(),
   );
 });
@@ -68,6 +57,19 @@ function isBuildAsset(url) {
   return path.includes('/assets/') || path.includes('/icons/');
 }
 
+function offlineNavigationHtml() {
+  return (
+    '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>' +
+    '<title>Malwa Solar CRM</title></head><body style="margin:0;font-family:Arial,sans-serif;background:#f3f7fb">' +
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">' +
+    '<div style="max-width:420px;text-align:center">' +
+    '<h1 style="color:#1e3261;font-size:22px;font-weight:800">Connection needed</h1>' +
+    '<p style="color:#53647f;font-size:14px;font-weight:600;line-height:1.5">Malwa Solar CRM could not load. Check internet, then tap Reload. Login data is kept.</p>' +
+    '<button onclick="location.reload()" style="margin-top:12px;background:#0d9f4a;color:#fff;border:0;border-radius:8px;padding:12px 20px;font-weight:800">Reload</button>' +
+    '</div></div></body></html>'
+  );
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -76,23 +78,24 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   if (isApiRequest(url) || isPassthrough(url)) return;
 
-  // Navigations: always network-first. Do NOT cache HTML.
   if (request.mode === 'navigate') {
     event.respondWith(
       (async () => {
         try {
-          return await fetch(request);
-        } catch {
-          const cache = await caches.open(RUNTIME_CACHE);
-          const cached = await cache.match('/offline-shell');
-          return cached || Response.error();
+          const response = await fetch(request);
+          if (response && response.ok) return response;
+        } catch (e) {
+          /* fall through */
         }
+        return new Response(offlineNavigationHtml(), {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        });
       })(),
     );
     return;
   }
 
-  // Hashed build assets: cache-first is safe (filename changes every build).
   if (isBuildAsset(url)) {
     event.respondWith(
       (async () => {
@@ -103,8 +106,8 @@ self.addEventListener('fetch', (event) => {
           const response = await fetch(request);
           if (response && response.ok) cache.put(request, response.clone());
           return response;
-        } catch {
-          return Response.error();
+        } catch (e) {
+          return cached || new Response('', { status: 503, statusText: 'Offline' });
         }
       })(),
     );
