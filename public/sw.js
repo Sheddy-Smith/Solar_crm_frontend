@@ -4,7 +4,8 @@
 //   1. Never break API / auth / media traffic.
 //   2. Never pin a stale index.html to missing hashed JS chunks.
 //   3. On activate, drop only obsolete *app* caches (never localStorage / IndexedDB).
-//   4. Never return Response.error() for navigations (blank white PWA window).
+//   4. JS/CSS assets are network-first so installed PWAs cannot stick on a bad cache.
+//   5. Navigations never return Response.error() (blank white window).
 //
 // BUILD_ID is stamped at `vite build` time (see vite.config.js). Do not edit by hand.
 
@@ -57,6 +58,10 @@ function isBuildAsset(url) {
   return path.includes('/assets/') || path.includes('/icons/');
 }
 
+function isScriptOrStyle(url) {
+  return /\.(?:js|mjs|css)$/i.test(url.pathname);
+}
+
 function offlineNavigationHtml() {
   return (
     '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>' +
@@ -100,6 +105,25 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(RUNTIME_CACHE);
+        // JS/CSS: network-first so a poisoned cache cannot freeze the installed PWA on Loading…
+        if (isScriptOrStyle(url)) {
+          try {
+            const response = await fetch(request);
+            if (response && response.ok) {
+              cache.put(request, response.clone());
+              return response;
+            }
+          } catch (e) {
+            /* try cache */
+          }
+          const cached = await cache.match(request);
+          if (cached) return cached;
+          return new Response('/* offline */', {
+            status: 503,
+            headers: { 'Content-Type': 'application/javascript' },
+          });
+        }
+
         const cached = await cache.match(request);
         if (cached) return cached;
         try {
@@ -107,7 +131,7 @@ self.addEventListener('fetch', (event) => {
           if (response && response.ok) cache.put(request, response.clone());
           return response;
         } catch (e) {
-          return cached || new Response('', { status: 503, statusText: 'Offline' });
+          return new Response('', { status: 503, statusText: 'Offline' });
         }
       })(),
     );
