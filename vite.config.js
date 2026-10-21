@@ -38,7 +38,7 @@ const BUILD_ID = createHash('sha1')
   .slice(0, 12);
 const RELEASE_NOTES = String(
   process.env.MALWA_RELEASE_NOTES
-    || 'Fix PWA install on /leads and /tele routes: assets always load from app root (no more Unexpected token / cannot be installed).',
+    || 'Stop fake Connection needed screen: service worker no longer hides Cloudflare/network HTTP errors; recover button on offline page.',
 );
 
 function swBuildIdPlugin() {
