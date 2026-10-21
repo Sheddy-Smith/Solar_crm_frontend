@@ -1,7 +1,7 @@
 {
   "name": "malwa-solar-crm",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Malwa Solar CRM frontend built with React, Tailwind, and Vite.",
   "scripts": {
     "dev": "vite",

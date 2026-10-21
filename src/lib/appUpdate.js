@@ -1,20 +1,19 @@
 /**
  * Web-release update detection for Malwa Solar CRM (TWA / PWA / browser).
  *
- * Design:
- *   - Source of truth for "what's live" = ./version.json (no-cache fetch).
- *   - Running app identity = VITE_BUILD_ID / meta[name=malwa-build-id].
- *   - Service worker waiting worker is a secondary signal; activation is
- *     user-driven (SKIP_WAITING) so we never mix old HTML with new chunks mid-edit.
- *
- * Native APK / Bubblewrap wrapper changes cannot be applied by this module —
- * those require a signed APK/AAB via the existing download channel / Play.
+ * Why localStorage ack (not only running===remote):
+ *   After a deploy, network-first HTML often loads the NEW build immediately,
+ *   so runningBuild === version.json and a mismatch-only popup never appears.
+ *   We show the Update CRM dialog whenever the live buildId differs from the
+ *   last build the user acknowledged — including already-installed devices.
  */
 
 import { hasUnsavedWork } from './unsavedWork.js';
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DISMISS_PREFIX = 'malwa_update_dismissed_';
+const ACK_BUILD_KEY = 'malwa_ack_build';
+const ACK_RELEASE_KEY = 'malwa_ack_release';
 const APPLYING_KEY = 'malwa_update_applying';
 
 const subscribers = new Set();
@@ -38,6 +37,32 @@ export function getRunningBuild() {
   const buildId = String(fromEnv || fromMeta || 'dev');
   const releaseVersion = String((env && env.VITE_RELEASE_VERSION) || '0.0.0');
   return { buildId, releaseVersion };
+}
+
+function getAckedBuild() {
+  try {
+    return localStorage.getItem(ACK_BUILD_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function getAckedRelease() {
+  try {
+    return localStorage.getItem(ACK_RELEASE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function acknowledgeBuild(buildId, releaseVersion) {
+  if (!buildId) return;
+  try {
+    localStorage.setItem(ACK_BUILD_KEY, buildId);
+    if (releaseVersion) localStorage.setItem(ACK_RELEASE_KEY, String(releaseVersion));
+  } catch {
+    /* ignore */
+  }
 }
 
 function notify() {
@@ -68,19 +93,28 @@ function markDismissed(buildId) {
   }
 }
 
+function needsUpdatePrompt(remote) {
+  if (!remote || !remote.buildId) return false;
+  if (isDismissed(remote.buildId)) return false;
+  const acked = getAckedBuild();
+  // Show whenever this live release has not been acknowledged yet.
+  return remote.buildId !== acked;
+}
+
 export function getUpdateState() {
-  const current = getRunningBuild();
-  const available = Boolean(
-    latestInfo
-      && latestInfo.buildId
-      && latestInfo.buildId !== current.buildId
-      && !isDismissed(latestInfo.buildId),
-  );
+  const running = getRunningBuild();
+  const ackedBuild = getAckedBuild();
+  const available = Boolean(latestInfo && needsUpdatePrompt(latestInfo));
   return {
-    current,
+    current: {
+      buildId: ackedBuild || running.buildId,
+      releaseVersion: getAckedRelease() || running.releaseVersion,
+    },
+    running,
     latest: latestInfo,
     updateAvailable: available,
     popupOpen: available && popupOpen,
+    alreadyOnLatest: Boolean(latestInfo && latestInfo.buildId === running.buildId),
     waitingWorker: Boolean(waitingWorker),
     hasUnsavedWork: hasUnsavedWork(),
   };
@@ -113,6 +147,7 @@ function openPopupIfNeeded() {
     removeEarlyOverlay();
     notify();
   } else {
+    if (!state.updateAvailable) popupOpen = false;
     notify();
   }
 }
@@ -120,6 +155,11 @@ function openPopupIfNeeded() {
 export function dismissUpdateLater() {
   if (latestInfo && latestInfo.buildId) markDismissed(latestInfo.buildId);
   popupOpen = false;
+  try {
+    window.__MALWA_REACT_UPDATE_UI__ = false;
+  } catch {
+    /* ignore */
+  }
   notify();
 }
 
@@ -144,18 +184,23 @@ async function activateWaitingWorker() {
       done(false);
       return;
     }
-    // Fallback if controllerchange never fires (already controlling).
     window.setTimeout(() => done(Boolean(navigator.serviceWorker.controller)), 2500);
   });
 }
 
 /**
- * Apply the web update: activate waiting SW (if any), then reload.
- * Returns { ok, reason } — never clears auth / CRM storage.
+ * Apply / acknowledge the web update. Never clears auth or CRM records.
  */
 export async function applyAppUpdate({ force = false } = {}) {
   if (!force && hasUnsavedWork()) {
     return { ok: false, reason: 'unsaved' };
+  }
+  const remote = latestInfo;
+  const running = getRunningBuild();
+  if (remote && remote.buildId) {
+    acknowledgeBuild(remote.buildId, remote.releaseVersion);
+  } else {
+    acknowledgeBuild(running.buildId, running.releaseVersion);
   }
   try {
     sessionStorage.setItem(APPLYING_KEY, String(Date.now()));
@@ -163,7 +208,6 @@ export async function applyAppUpdate({ force = false } = {}) {
     /* ignore */
   }
   await activateWaitingWorker();
-  // Also nudge every registration (already-installed TWA may have a waiting worker).
   try {
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
@@ -180,7 +224,6 @@ export async function applyAppUpdate({ force = false } = {}) {
   } catch {
     /* ignore */
   }
-  // Clear only CRM Cache Storage namespaces — never auth / IndexedDB / form drafts.
   try {
     if (window.caches) {
       const keys = await caches.keys();
@@ -193,7 +236,9 @@ export async function applyAppUpdate({ force = false } = {}) {
   } catch {
     /* ignore */
   }
-  const url = window.location.href.split('#')[0];
+
+  // Always reload once so installed TWA/PWA pick up the latest shell/assets.
+  const url = window.location.href.split('#')[0].replace(/([?&])malwa_updated=\d+/g, '').replace(/[?&]$/, '');
   const sep = url.indexOf('?') >= 0 ? '&' : '?';
   window.location.replace(`${url}${sep}malwa_updated=${Date.now()}`);
   return { ok: true, reason: 'reloading' };
@@ -224,8 +269,7 @@ export async function checkForAppUpdate() {
   try {
     const remote = await fetchLatestVersion();
     latestInfo = remote;
-    const current = getRunningBuild();
-    if (remote.buildId !== current.buildId && !isDismissed(remote.buildId)) {
+    if (needsUpdatePrompt(remote)) {
       openPopupIfNeeded();
     } else {
       popupOpen = false;
@@ -233,7 +277,6 @@ export async function checkForAppUpdate() {
     }
     return getUpdateState();
   } catch {
-    // Offline / endpoint error — never show a false update.
     notify();
     return getUpdateState();
   }
@@ -242,34 +285,26 @@ export async function checkForAppUpdate() {
 function attachRegistration(reg) {
   registration = reg;
   if (reg.waiting) {
-    if (navigator.serviceWorker.controller) {
-      waitingWorker = reg.waiting;
-      openPopupIfNeeded();
-    } else {
-      // First install: activate immediately so installability works.
-      try {
-        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-      } catch {
-        /* ignore */
-      }
+    waitingWorker = reg.waiting;
+    try {
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    } catch {
+      /* ignore */
     }
+    checkForAppUpdate();
   }
   reg.addEventListener('updatefound', () => {
     const installing = reg.installing;
     if (!installing) return;
     installing.addEventListener('statechange', () => {
       if (installing.state === 'installed') {
-        if (navigator.serviceWorker.controller) {
-          waitingWorker = installing;
-          // Prefer version.json confirmation; still surface SW-ready state.
-          checkForAppUpdate();
-        } else {
-          try {
-            installing.postMessage({ type: 'SKIP_WAITING' });
-          } catch {
-            /* ignore */
-          }
+        waitingWorker = installing;
+        try {
+          installing.postMessage({ type: 'SKIP_WAITING' });
+        } catch {
+          /* ignore */
         }
+        checkForAppUpdate();
       }
     });
   });
@@ -284,9 +319,6 @@ async function pollServiceWorkerUpdate() {
   }
 }
 
-/**
- * Start listeners once (from main.jsx). Safe to call repeatedly.
- */
 export function startAppUpdateMonitor(getRegistration) {
   if (started || typeof window === 'undefined') return;
   started = true;
@@ -296,9 +328,8 @@ export function startAppUpdateMonitor(getRegistration) {
     pollServiceWorkerUpdate();
   };
 
-  // Fast first probe so already-open / TWA sessions see the popup quickly.
-  window.setTimeout(runCheck, 600);
-  window.setTimeout(runCheck, 3000);
+  window.setTimeout(runCheck, 400);
+  window.setTimeout(runCheck, 2000);
   checkTimer = window.setInterval(runCheck, CHECK_INTERVAL_MS);
 
   document.addEventListener('visibilitychange', () => {
@@ -306,9 +337,7 @@ export function startAppUpdateMonitor(getRegistration) {
   });
   window.addEventListener('online', runCheck);
   window.addEventListener('focus', runCheck);
-  window.addEventListener('pageshow', (event) => {
-    if (event && event.persisted) runCheck();
-  });
+  window.addEventListener('pageshow', () => runCheck());
 
   Promise.resolve()
     .then(() => (typeof getRegistration === 'function' ? getRegistration() : null))

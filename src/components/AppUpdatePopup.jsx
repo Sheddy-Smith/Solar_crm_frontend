@@ -25,7 +25,7 @@ export default function AppUpdatePopup() {
 
   if (!state.popupOpen || !state.latest) return null;
 
-  const currentLabel = state.current.releaseVersion || '—';
+  const currentLabel = state.current.releaseVersion || (state.running && state.running.releaseVersion) || '—';
   const latestLabel = state.latest.releaseVersion || state.latest.buildId;
   const notes =
     state.latest.releaseNotes

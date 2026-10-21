@@ -139,19 +139,37 @@
     </script>
     <script>
       // Early update gate (classic JS / Chrome 61 safe) for already-installed TWA/PWA.
-      // If this HTML shell is older than ./version.json, show Update CRM before React loads.
+      // Show Update CRM when live version.json buildId !== last acknowledged build
+      // (not only when HTML shell is stale — network-first often loads new HTML silently).
       (function () {
         var DISMISS_KEY = 'malwa_update_dismissed_';
+        var ACK_BUILD_KEY = 'malwa_ack_build';
+        var ACK_RELEASE_KEY = 'malwa_ack_release';
         var overlayId = 'malwa-early-update';
 
-        function currentBuild() {
+        function shellBuild() {
           var meta = document.querySelector('meta[name="malwa-build-id"]');
           return (meta && meta.getAttribute('content')) || '';
         }
 
-        function currentRelease() {
+        function shellRelease() {
           var meta = document.querySelector('meta[name="malwa-release-version"]');
           return (meta && meta.getAttribute('content')) || '';
+        }
+
+        function ackedBuild() {
+          try { return localStorage.getItem(ACK_BUILD_KEY) || ''; } catch (e) { return ''; }
+        }
+
+        function ackedRelease() {
+          try { return localStorage.getItem(ACK_RELEASE_KEY) || ''; } catch (e) { return ''; }
+        }
+
+        function setAck(buildId, releaseVersion) {
+          try {
+            localStorage.setItem(ACK_BUILD_KEY, buildId);
+            if (releaseVersion) localStorage.setItem(ACK_RELEASE_KEY, releaseVersion);
+          } catch (e) {}
         }
 
         function dismissed(id) {
@@ -174,9 +192,9 @@
           }).catch(function () {});
         }
 
-        function applyUpdate() {
+        function applyUpdate(remote) {
+          if (remote && remote.buildId) setAck(remote.buildId, remote.releaseVersion || '');
           activateWaitingWorkers().then(function () {
-            // Drop only app Cache Storage entries — never localStorage / login.
             var clear = Promise.resolve();
             if (window.caches) {
               clear = caches.keys().then(function (keys) {
@@ -187,7 +205,7 @@
             }
             return clear;
           }).then(function () {
-            var url = location.href.split('#')[0];
+            var url = location.href.split('#')[0].replace(/([?&])malwa_updated=\d+/g, '').replace(/[?&]$/, '');
             var sep = url.indexOf('?') >= 0 ? '&' : '?';
             location.replace(url + sep + 'malwa_updated=' + Date.now());
           }).catch(function () {
@@ -198,6 +216,8 @@
         function showOverlay(remote) {
           if (document.getElementById(overlayId)) return;
           if (window.__MALWA_REACT_UPDATE_UI__) return;
+          var prevRel = ackedRelease() || shellRelease() || '—';
+          var prevBuild = ackedBuild() || shellBuild() || 'old';
           var wrap = document.createElement('div');
           wrap.id = overlayId;
           wrap.setAttribute('role', 'dialog');
@@ -215,8 +235,8 @@
             '</div>' +
             '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;padding:12px;border:1px solid #e4edf7;border-radius:12px;background:#f6f9fc">' +
             '<div><div style="font-size:10px;font-weight:700;color:#7585a2;text-transform:uppercase">Current</div>' +
-            '<div style="font-size:15px;font-weight:800;color:#1e3261">' + (currentRelease() || '—') + '</div>' +
-            '<div style="font-size:10px;color:#94a3b8">build ' + (currentBuild() || 'old') + '</div></div>' +
+            '<div style="font-size:15px;font-weight:800;color:#1e3261">' + prevRel + '</div>' +
+            '<div style="font-size:10px;color:#94a3b8">build ' + prevBuild + '</div></div>' +
             '<div><div style="font-size:10px;font-weight:700;color:#7585a2;text-transform:uppercase">Latest</div>' +
             '<div style="font-size:15px;font-weight:800;color:#0d9f4a">' + (remote.releaseVersion || remote.buildId) + '</div>' +
             '<div style="font-size:10px;color:#94a3b8">build ' + remote.buildId + '</div></div></div>' +
@@ -231,19 +251,19 @@
             wrap.parentNode && wrap.parentNode.removeChild(wrap);
           };
           document.getElementById('malwa-upd-now').onclick = function () {
-            applyUpdate();
+            applyUpdate(remote);
           };
         }
 
         function check() {
           if (window.__MALWA_REACT_UPDATE_UI__) return;
-          var cur = currentBuild();
           fetch('./version.json?t=' + Date.now(), { cache: 'no-store' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (v) {
               if (!v || !v.buildId) return;
-              if (cur && cur === v.buildId) return;
               if (dismissed(v.buildId)) return;
+              // Key fix: compare to last acknowledged build, not only shell meta.
+              if (v.buildId === ackedBuild()) return;
               showOverlay(v);
               activateWaitingWorkers();
             })
@@ -251,14 +271,15 @@
         }
 
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', function () { setTimeout(check, 400); });
+          document.addEventListener('DOMContentLoaded', function () { setTimeout(check, 300); });
         } else {
-          setTimeout(check, 400);
+          setTimeout(check, 300);
         }
         document.addEventListener('visibilitychange', function () {
           if (document.visibilityState === 'visible') check();
         });
         window.addEventListener('online', check);
+        window.addEventListener('pageshow', check);
       })();
     </script>
     <script type="module" src="/src/main.jsx"></script>
