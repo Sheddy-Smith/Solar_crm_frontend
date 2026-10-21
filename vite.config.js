@@ -66,6 +66,11 @@ function swBuildIdPlugin() {
 }
 
 export default defineConfig({
+  // Relative base so the same build works on both:
+  //   https://crm.ecomalwa.com/     (document root)
+  //   https://ecomalwa.com/crm/     (subdirectory)
+  // Absolute "/assets/..." breaks the /crm/ URL (resolves to ecomalwa.com/assets → 404).
+  base: './',
   define: {
     'import.meta.env.VITE_BUILD_ID': JSON.stringify(BUILD_ID),
   },

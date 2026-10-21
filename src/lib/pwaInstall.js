@@ -96,10 +96,10 @@ export function registerServiceWorker() {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
 
   window.addEventListener('load', () => {
-    // Bust HTTP caches for sw.js itself so Android WebView picks up a new
-    // BUILD_ID after deploy (otherwise it can keep a stale controller).
-    const swUrl = `/sw.js?v=${encodeURIComponent(import.meta.env.VITE_BUILD_ID || 'dev')}`;
-    navigator.serviceWorker.register(swUrl).catch(() => {
+    // Relative SW URL so registration works on both crm.ecomalwa.com/ and
+    // ecomalwa.com/crm/. Bust caches with BUILD_ID after each deploy.
+    const swUrl = `./sw.js?v=${encodeURIComponent(import.meta.env.VITE_BUILD_ID || 'dev')}`;
+    navigator.serviceWorker.register(swUrl, { scope: './' }).catch(() => {
       // Non-fatal — the app works fully without the offline fallback the
       // service worker provides; we just quietly skip it.
     });

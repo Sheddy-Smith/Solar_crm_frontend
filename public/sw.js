@@ -32,20 +32,23 @@ self.addEventListener('activate', (event) => {
 });
 
 function isApiRequest(url) {
-  return url.pathname.startsWith('/api/');
+  // Match /api/ at root or under a subdirectory mount (e.g. /crm/… proxies).
+  return /\/api\//.test(url.pathname);
 }
 
 function isPassthrough(url) {
+  const path = url.pathname;
   return (
-    url.pathname.startsWith('/downloads/') ||
-    url.pathname.startsWith('/.well-known/') ||
-    url.pathname === '/sw.js' ||
-    url.pathname === '/build-id.json'
+    path.includes('/downloads/') ||
+    path.includes('/.well-known/') ||
+    path.endsWith('/sw.js') ||
+    path.endsWith('/build-id.json')
   );
 }
 
 function isBuildAsset(url) {
-  return url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/');
+  const path = url.pathname;
+  return path.includes('/assets/') || path.includes('/icons/');
 }
 
 self.addEventListener('fetch', (event) => {
