@@ -225,6 +225,8 @@ class SiteSurveySerializer(serializers.ModelSerializer):
                 data['purpose'] = lead.project_type
             if not data.get('capacity_required_kw') and lead.estimated_capacity:
                 data['capacity_required_kw'] = str(lead.estimated_capacity)
+            if not data.get('customer_confirmation_mobile'):
+                data['customer_confirmation_mobile'] = lead.mobile_number or ''
         if not data.get('material_checklist'):
             data['material_checklist'] = SiteSurvey.default_material_checklist()
         self._fill_equipment_defaults(instance, data)

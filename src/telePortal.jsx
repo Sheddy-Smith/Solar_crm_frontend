@@ -252,7 +252,7 @@ function TeleReminderField({ value, onChange, label = 'Reminder' }) {
   );
 }
 
-const LEAD_SOURCES = ['Walk-in', 'Campaign', 'Reference', 'Other'];
+const LEAD_SOURCES = ['Walk-in', 'Campaign', 'Reference', 'Just Dial', 'Telecaller', 'Meta Ads', 'Expo', 'Other'];
 
 function StatusPill({ value }) {
   return (

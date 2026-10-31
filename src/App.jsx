@@ -14702,7 +14702,7 @@ function buildSiteSurveyViewHtml(row, detail) {
   </table></section>
   <section class="full"><table>
     ${infoRow('Decision maker', survey.customer_confirmation_name)}
-    ${infoRow('Customer Mobile Number', survey.mobile_number)}
+    ${infoRow('Customer Mobile Number', survey.customer_confirmation_mobile || survey.mobile_number)}
   </table></section>
 
   <h2 class="section-title">Panel, Inverter &amp; Meter</h2>
@@ -16434,7 +16434,7 @@ function getMultiPhotoVisibleCount(slots, photos) {
   const filled = slots.filter((slot) => (photos ?? []).some((photo) => photo.slot === slot && photo.image)).length;
   return Math.min(slots.length, Math.max(1, filled));
 }
-const SURVEY_ROOF_TYPE_OPTIONS = ['RBC Roof', 'Ground Mount'];
+const SURVEY_ROOF_TYPE_OPTIONS = ['RCC', 'Coba', 'Tin Shade', 'RBC', 'Ground Mounted'];
 const SURVEY_PROJECT_CATEGORY_OPTIONS = ['Residential', 'Commercial', 'Industrial', 'Other'];
 const SURVEY_PURPOSE_OPTIONS = ['On-Grid', 'Off-Grid', 'Hybrid'];
 const SURVEY_ROOF_CONDITION_OPTIONS = ['Excellent', 'Good', 'Average', 'Poor'];
@@ -16445,7 +16445,8 @@ const SURVEY_INVERTER_PLACEMENT_OPTIONS = ['Indoor', 'Outdoor'];
 const SURVEY_INVERTER_MOUNTING_OPTIONS = ['Wall Mounted', 'Floor Mounted'];
 const SURVEY_METER_PHASE_OPTIONS = ['Normal Single Phase', 'Normal 3 Phase', 'Smart Single Phase', 'Smart 3 Phase', 'Normal LTCT', 'Smart LTCT'];
 const SURVEY_MODULE_ORIENTATION_OPTIONS = ['Portrait', 'Landscape', 'Both'];
-const SURVEY_PANEL_TYPE_OPTIONS = ['Mono PERC', 'TOPCon', 'Bifacial', 'Polycrystalline'];
+const SURVEY_PANEL_TYPE_OPTIONS = ['Topcon', 'Bifacial', 'HJT', 'Mono PERC'];
+const LEAD_SOURCE_OPTIONS = ['Walk-in', 'Campaign', 'Reference', 'Just Dial', 'Telecaller', 'Meta Ads', 'Expo', 'Other'];
 const SURVEY_INVERTER_TYPE_OPTIONS = ['String Inverter', 'Micro Inverter', 'Hybrid Inverter', 'Off-Grid Inverter'];
 const SURVEY_VIDEO_CATEGORIES = ['Conduiting & Earthing Video', 'Structure & Inverter Location Video'];
 const SURVEY_ADDITIONAL_DOC_SLOTS = Array.from({ length: 8 }, (_, i) => `Document ${i + 1}`);
@@ -16494,7 +16495,7 @@ const SURVEY_EMPTY_FORM = {
   ac_cable_entry_point: '', la_wire_length_m: '',
   material_checklist: SURVEY_DEFAULT_MATERIAL_CHECKLIST.map((r) => ({ ...r })),
   additional_observations: '',
-  customer_confirmation_name: '', customer_confirmation_date: '',
+  customer_confirmation_name: '', customer_confirmation_mobile: '', customer_confirmation_date: '',
   survey_engineer_name: '', survey_engineer_date: '',
   earthing_required: false, earthing_count: '', earthing_type: '', earthing_location: '', earthing_remarks: '',
   panel_brand: '', panel_type: '', panel_wattage_w: '', panel_count: '',
@@ -16519,14 +16520,21 @@ function SurveySection({ number, title, children }) {
   );
 }
 
-function SurveyField({ label, required = false, children }) {
+function SurveyField({ label, required = false, error = '', fieldKey = '', children }) {
   return (
-    <label className="block min-w-0">
-      <span className="mb-1.5 block text-[11px] font-extrabold text-[#7386a3]">
+    <label
+      className="block min-w-0"
+      data-survey-field={fieldKey || undefined}
+      data-survey-error={error ? '1' : undefined}
+    >
+      <span className={cx('mb-1.5 block text-[11px] font-extrabold', error ? 'text-[#f04438]' : 'text-[#7386a3]')}>
         {label}
         {required ? <span className="ml-0.5 text-[#f04438]">*</span> : null}
       </span>
-      {children}
+      <div className={error ? '[&_input]:border-[#f04438] [&_input]:ring-2 [&_input]:ring-[#fdecec] [&_select]:border-[#f04438] [&_select]:ring-2 [&_select]:ring-[#fdecec] [&_textarea]:border-[#f04438]' : undefined}>
+        {children}
+      </div>
+      {error ? <p className="mt-1 text-[11px] font-extrabold text-[#f04438]">{error}</p> : null}
     </label>
   );
 }
@@ -16764,8 +16772,11 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
   const [mediaPreview, setMediaPreview] = useState(null);
   const [employeeOptions, setEmployeeOptions] = useState(cachedEmployeeOptions || []);
   const [additionalDocuments, setAdditionalDocuments] = useState([]);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [completionAlert, setCompletionAlert] = useState('');
   const dirtyRef = useRef(false);
   const skipDirtyRef = useRef(true);
+  const formScrollRef = useRef(null);
 
   useEffect(() => {
     getEmployeeOptions().then(setEmployeeOptions);
@@ -16828,7 +16839,13 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
         supply_voltage: data.supply_voltage || '',
         building_type: data.building_type || '',
         floor_count: data.floor_count || '',
-        roof_type: ['RCC', 'Tin Shed'].includes(data.roof_type) ? '' : (data.roof_type || ''),
+        roof_type: (() => {
+          const raw = data.roof_type || '';
+          if (raw === 'RBC Roof') return 'RBC';
+          if (raw === 'Ground Mount' || raw === 'Ground mounted') return 'Ground Mounted';
+          if (raw === 'Tin Shed') return 'Tin Shade';
+          return raw;
+        })(),
         roof_height_ft: data.roof_height_ft || '',
         rooftop_area_sqft: data.rooftop_area_sqft || '',
         roof_length_ft: data.roof_length_ft || '',
@@ -16873,6 +16890,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
           : SURVEY_DEFAULT_MATERIAL_CHECKLIST.map((r) => ({ ...r })),
         additional_observations: data.additional_observations || '',
         customer_confirmation_name: data.customer_confirmation_name || '',
+        customer_confirmation_mobile: data.customer_confirmation_mobile || data.mobile_number || '',
         customer_confirmation_date: data.customer_confirmation_date || '',
         survey_engineer_name: data.survey_engineer_name || '',
         survey_engineer_date: data.survey_engineer_date || '',
@@ -16882,7 +16900,13 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
         earthing_location: data.earthing_location || '',
         earthing_remarks: data.earthing_remarks || '',
         panel_brand: data.panel_brand || '',
-        panel_type: data.panel_type || '',
+        panel_type: (() => {
+          const raw = data.panel_type || '';
+          if (raw === 'TOPCon') return 'Topcon';
+          if (raw === 'Polycrystalline') return '';
+          if (raw === 'Bificial') return 'Bifacial';
+          return raw;
+        })(),
         panel_wattage_w: data.panel_wattage_w || '',
         panel_count: data.panel_count || '',
         inverter_brand: data.inverter_brand || '',
@@ -16933,6 +16957,14 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
   const updateField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
     setDirty(true);
+    setFieldErrors((prev) => {
+      if (!prev[key] && !(key === 'latitude' || key === 'longitude' ? prev.gps : false) && !prev.photos) return prev;
+      const next = { ...prev };
+      delete next[key];
+      if (key === 'latitude' || key === 'longitude') delete next.gps;
+      return next;
+    });
+    setCompletionAlert('');
   };
 
   const handleCaptureLocation = () => {
@@ -16943,9 +16975,17 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        updateField('latitude', position.coords.latitude.toFixed(6));
-        setForm((f) => ({ ...f, longitude: position.coords.longitude.toFixed(6) }));
+        const lat = position.coords.latitude.toFixed(6);
+        const lng = position.coords.longitude.toFixed(6);
+        setForm((f) => ({ ...f, latitude: lat, longitude: lng }));
         setDirty(true);
+        setFieldErrors((prev) => {
+          if (!prev.gps) return prev;
+          const next = { ...prev };
+          delete next.gps;
+          return next;
+        });
+        setCompletionAlert('');
         setLocating(false);
       },
       () => {
@@ -17006,23 +17046,48 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
 
   const getMissingForCompletion = () => {
     const missing = [];
-    if (!form.survey_date) missing.push('Survey Date');
-    if (!String(form.ivrs_number || '').trim()) missing.push('IVRS Number');
-    if (!form.latitude || !form.longitude) missing.push('GPS Location');
-    if (!form.roof_type) missing.push('Roof Type');
-    if (!form.rooftop_area_sqft) missing.push('Roof Area');
+    if (!form.survey_date) missing.push({ key: 'survey_date', label: 'Survey Date' });
+    if (!String(form.ivrs_number || '').trim()) missing.push({ key: 'ivrs_number', label: 'IVRS Number' });
+    if (!form.latitude || !form.longitude) missing.push({ key: 'gps', label: 'GPS Location' });
+    if (!form.roof_type) missing.push({ key: 'roof_type', label: 'Roof Type' });
+    if (!form.rooftop_area_sqft) missing.push({ key: 'rooftop_area_sqft', label: 'Roof Area' });
     const uploadedSlots = new Set((survey?.photos ?? []).map((p) => p.slot));
     const missingPhotos = SURVEY_BASE_PHOTO_SLOTS.filter((s) => s.required && !uploadedSlots.has(s.slot)).map((s) => s.slot);
-    if (missingPhotos.length) missing.push(`Photos — ${missingPhotos.join(', ')}`);
+    if (missingPhotos.length) missing.push({ key: 'photos', label: `Photos — ${missingPhotos.join(', ')}` });
     return missing;
+  };
+
+  const focusFirstMissingField = (missing) => {
+    const first = missing[0];
+    if (!first) return;
+    window.requestAnimationFrame(() => {
+      const root = formScrollRef.current || document;
+      const target = root.querySelector?.(`[data-survey-field="${first.key}"]`)
+        || document.querySelector(`[data-survey-field="${first.key}"]`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const focusable = target.querySelector('input, select, textarea, button');
+      if (focusable && typeof focusable.focus === 'function') {
+        try { focusable.focus({ preventScroll: true }); } catch { focusable.focus(); }
+      }
+    });
   };
 
   const handleComplete = async () => {
     const missing = getMissingForCompletion();
     if (missing.length) {
-      onNotify?.(`Complete these before finishing: ${missing.join('; ')}`, 'error');
+      const errors = {};
+      missing.forEach((item) => {
+        errors[item.key] = 'Required — complete this before finishing';
+      });
+      setFieldErrors(errors);
+      setCompletionAlert(`Complete this before finishing: ${missing.map((m) => m.label).join('; ')}`);
+      onNotify?.(`Complete this before finishing: ${missing.map((m) => m.label).join('; ')}`, 'error');
+      focusFirstMissingField(missing);
       return;
     }
+    setFieldErrors({});
+    setCompletionAlert('');
     const saved = await handleSave('Completed');
     if (saved) onNotify?.('Survey marked completed');
   };
@@ -17046,6 +17111,12 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
       const refreshed = await projectApi.getSiteSurvey(projectId);
       skipDirtyRef.current = true;
       setSurvey(refreshed);
+      setFieldErrors((prev) => {
+        if (!prev.photos) return prev;
+        const next = { ...prev };
+        delete next.photos;
+        return next;
+      });
       onNotify?.(`${slot} photo uploaded`);
     } catch (err) {
       onNotify?.(err?.message || `Failed to upload ${slot} photo`, 'error');
@@ -17172,12 +17243,17 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
         </div>
       </div>
 
-      <div className="scroll-soft min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] p-4 sm:p-6">
+      <div ref={formScrollRef} className="scroll-soft min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] p-4 sm:p-6">
         <div className="space-y-4">
+          {completionAlert ? (
+            <div className="rounded-[10px] border border-[#f5c2c0] bg-[#fdecec] px-4 py-3 text-[13px] font-extrabold text-[#c0392b]">
+              {completionAlert}
+            </div>
+          ) : null}
 
           <SurveySection number={1} title="Survey Information">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <SurveyField label="Survey Date" required>
+              <SurveyField label="Survey Date" required fieldKey="survey_date" error={fieldErrors.survey_date || ''}>
                 <input type="date" value={form.survey_date} onChange={(e) => updateField('survey_date', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Survey Engineer">
@@ -17211,14 +17287,18 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyField label="Email ID">
                 <input type="email" value={form.email_id} onChange={(e) => updateField('email_id', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="IVRS Number" required>
+              <SurveyField label="IVRS Number" required fieldKey="ivrs_number" error={fieldErrors.ivrs_number || ''}>
                 <input value={form.ivrs_number} onChange={(e) => updateField('ivrs_number', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
             </div>
 
-            <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3">
+            <div
+              data-survey-field="gps"
+              data-survey-error={fieldErrors.gps ? '1' : undefined}
+              className={cx('rounded-[10px] border bg-[#f8fafc] p-3', fieldErrors.gps ? 'border-[#f04438] ring-2 ring-[#fdecec]' : 'border-[#e7eef7]')}
+            >
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[12px] font-extrabold text-[#34466c]">GPS Location <span className="text-[#f04438]">*</span></span>
+                <span className={cx('text-[12px] font-extrabold', fieldErrors.gps ? 'text-[#f04438]' : 'text-[#34466c]')}>GPS Location <span className="text-[#f04438]">*</span></span>
                 <button
                   type="button"
                   onClick={handleCaptureLocation}
@@ -17237,6 +17317,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   <input value={form.longitude} onChange={(e) => updateField('longitude', e.target.value)} placeholder="e.g. 75.8577" className={surveyFieldClass} />
                 </SurveyField>
               </div>
+              {fieldErrors.gps ? <p className="mt-2 text-[11px] font-extrabold text-[#f04438]">{fieldErrors.gps}</p> : null}
             </div>
           </SurveySection>
 
@@ -17281,10 +17362,13 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               <SurveyField label="Building Height">
                 <input value={form.floor_count} onChange={(e) => updateField('floor_count', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
-              <SurveyField label="Roof Type" required>
+              <SurveyField label="Roof Type" required fieldKey="roof_type" error={fieldErrors.roof_type || ''}>
                 <select value={form.roof_type} onChange={(e) => updateField('roof_type', e.target.value)} className={surveyFieldClass}>
                   <option value="">Select roof type</option>
                   {SURVEY_ROOF_TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  {form.roof_type && !SURVEY_ROOF_TYPE_OPTIONS.includes(form.roof_type) ? (
+                    <option value={form.roof_type}>{form.roof_type}</option>
+                  ) : null}
                 </select>
               </SurveyField>
               <SurveyField label="Roof Condition">
@@ -17299,7 +17383,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   {SURVEY_ROOF_DIRECTION_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </SurveyField>
-              <SurveyField label="Roof Area (sq.ft)" required>
+              <SurveyField label="Roof Area (sq.ft)" required fieldKey="rooftop_area_sqft" error={fieldErrors.rooftop_area_sqft || ''}>
                 <input value={form.rooftop_area_sqft} onChange={(e) => updateField('rooftop_area_sqft', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Roof Length">
@@ -17318,6 +17402,12 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
           </SurveySection>
 
           <SurveySection number={4} title="Roof / Site Photo Checklist">
+            <div
+              data-survey-field="photos"
+              data-survey-error={fieldErrors.photos ? '1' : undefined}
+              className={cx(fieldErrors.photos && 'rounded-[10px] border border-[#f04438] p-2 ring-2 ring-[#fdecec]')}
+            >
+            {fieldErrors.photos ? <p className="mb-2 text-[11px] font-extrabold text-[#f04438]">{fieldErrors.photos}</p> : null}
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
               {SURVEY_BASE_PHOTO_SLOTS.map(({ slot, required }) => (
                 <SurveyPhotoSlot
@@ -17331,6 +17421,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   onView={() => openPhotoPreview(getPhoto(slot), slot)}
                 />
               ))}
+            </div>
             </div>
             <SurveyMultiPhotoGroup
               title="Conduiting Photo"
@@ -17368,6 +17459,9 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   <select value={form.panel_type} onChange={(e) => updateField('panel_type', e.target.value)} className={surveyFieldClass}>
                     <option value="">Select</option>
                     {SURVEY_PANEL_TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    {form.panel_type && !SURVEY_PANEL_TYPE_OPTIONS.includes(form.panel_type) ? (
+                      <option value={form.panel_type}>{form.panel_type}</option>
+                    ) : null}
                   </select>
                 </SurveyField>
                 <SurveyField label="Panel Wattage (W)">
@@ -17524,7 +17618,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <SurveyCheckbox label="Mobile Tower" checked={form.obstacle_mobile_tower} onChange={(v) => updateField('obstacle_mobile_tower', v)} />
                   <SurveyCheckbox label="Building" checked={form.obstacle_building} onChange={(v) => updateField('obstacle_building', v)} />
-                  <SurveyCheckbox label="Electric Pole" checked={form.obstacle_electric_pole} onChange={(v) => updateField('obstacle_electric_pole', v)} />
+                  <SurveyCheckbox label="Stair Tower" checked={form.obstacle_electric_pole} onChange={(v) => updateField('obstacle_electric_pole', v)} />
                   <SurveyCheckbox label="Other Obstacle" checked={form.obstacle_other} onChange={(v) => updateField('obstacle_other', v)} />
                 </div>
                 {form.obstacle_other ? (
@@ -17671,7 +17765,13 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                 <input value={form.customer_confirmation_name} onChange={(e) => updateField('customer_confirmation_name', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Customer Mobile Number">
-                <input value={survey?.mobile_number || ''} readOnly className={`${surveyFieldClass} bg-[#f8fafc] text-[#53647f]`} />
+                <input
+                  type="tel"
+                  value={form.customer_confirmation_mobile}
+                  onChange={(e) => updateField('customer_confirmation_mobile', e.target.value)}
+                  placeholder="Enter decision maker mobile"
+                  className={surveyFieldClass}
+                />
               </SurveyField>
             </div>
             <SurveyField label="Remark">
@@ -32240,6 +32340,12 @@ function getAssignableEmployeeOptions() {
   return salesExecutiveOptionsPromise;
 }
 
+function normalizeMobileDigits(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
 function useIvrsCheck(excludeId) {
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState(null);
@@ -32263,6 +32369,67 @@ function useIvrsCheck(excludeId) {
   return { checking, result, check, reset: () => setResult(null) };
 }
 
+function useMobileExistingCheck(excludeId) {
+  const [checking, setChecking] = useState(false);
+  const [matches, setMatches] = useState([]);
+  const timerRef = useRef(null);
+  const requestIdRef = useRef(0);
+
+  const reset = () => {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    setMatches([]);
+    setChecking(false);
+  };
+
+  const checkNow = async (value) => {
+    const mobile = normalizeMobileDigits(value);
+    if (mobile.length < 8) {
+      setMatches([]);
+      setChecking(false);
+      return [];
+    }
+    const requestId = ++requestIdRef.current;
+    setChecking(true);
+    try {
+      const data = await leadApi.list({ search: mobile, page_size: 50 });
+      if (requestId !== requestIdRef.current) return [];
+      const rows = Array.isArray(data) ? data : (data?.results ?? []);
+      const found = rows.filter((row) => {
+        if (excludeId && String(row.id) === String(excludeId)) return false;
+        return normalizeMobileDigits(row.mobile_number) === mobile
+          || normalizeMobileDigits(row.alternate_number) === mobile;
+      });
+      setMatches(found);
+      return found;
+    } catch {
+      if (requestId === requestIdRef.current) setMatches([]);
+      return [];
+    } finally {
+      if (requestId === requestIdRef.current) setChecking(false);
+    }
+  };
+
+  const checkDebounced = (value) => {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    const mobile = normalizeMobileDigits(value);
+    if (mobile.length < 8) {
+      setMatches([]);
+      setChecking(false);
+      return;
+    }
+    setChecking(true);
+    timerRef.current = window.setTimeout(() => {
+      checkNow(value);
+    }, 350);
+  };
+
+  useEffect(() => () => {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+  }, []);
+
+  return { checking, matches, check: checkNow, checkDebounced, reset };
+}
+
 function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCreate = false, onClose, onSaved, onRequestApproval, onNotify }) {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateIvrs, setDuplicateIvrs] = useState('');
@@ -32280,7 +32447,11 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
   const [viewDuplicateLeadId, setViewDuplicateLeadId] = useState(null);
   const [surveyModalOpen, setSurveyModalOpen] = useState(false);
   const [projectSurveyForQuote, setProjectSurveyForQuote] = useState(null);
+  const [existingMobileOpen, setExistingMobileOpen] = useState(false);
+  const [basicPrefill, setBasicPrefill] = useState(null);
+  const [formSeed, setFormSeed] = useState(0);
   const ivrsCheck = useIvrsCheck(lead?.id);
+  const mobileCheck = useMobileExistingCheck(mode === 'edit' ? lead?.id : null);
   // "Project Details Update" (edit) aur "New Project" (create) dono project popups —
   // in dono me lead status fixed 'Won' rehta hai aur follow-up date optional hai.
   const projectMode = Boolean(projectContext) || projectCreate;
@@ -32447,8 +32618,27 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
     }
   };
 
-  const d = detail || {};
+  const d = { ...(detail || {}), ...(basicPrefill || {}) };
   const followUpDateValue = d.next_follow_up ? new Date(d.next_follow_up).toISOString().slice(0, 10) : '';
+
+  const applyBasicPrefillFromLead = (existingLead) => {
+    if (!existingLead) return;
+    setBasicPrefill({
+      customer_name: existingLead.customer_name || '',
+      mobile_number: existingLead.mobile_number || '',
+      alternate_number: existingLead.alternate_number || '',
+      email: existingLead.email || '',
+      address: existingLead.address || '',
+      city: existingLead.city || '',
+      state: existingLead.state || '',
+      latitude: existingLead.latitude || '',
+      longitude: existingLead.longitude || '',
+      // Intentionally skip IVRS + previous project fields.
+    });
+    setFormSeed((n) => n + 1);
+    setExistingMobileOpen(false);
+    onNotify?.('Basic details filled from existing customer. IVRS aur project details blank rakhe gaye.', 'success');
+  };
 
   return (
     <div
@@ -32473,7 +32663,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
           {loadingDetail ? (
             <PageLoadingState message="Loading lead..." />
           ) : (
-          <form id="lead-form-modal" ref={formRef} className="space-y-4" onSubmit={handleSubmit}>
+          <form id="lead-form-modal" key={`lead-form-${formSeed}`} ref={formRef} className="space-y-4" onSubmit={handleSubmit}>
             {projectMode ? (
               <LeadFormSection title="Project Status" icon={FolderKanban} tone="primary">
                 <div className="grid gap-4 lg:grid-cols-3">
@@ -32484,9 +32674,20 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
             <LeadFormSection title="1. Basic Information" icon={ReceiptText} tone="success">
               <div className="grid gap-4 lg:grid-cols-3">
                 <LeadInput label="Customer Name" required icon={UserRound} placeholder="Enter customer name" name="customer_name" defaultValue={d.customer_name} />
-                <LeadPhoneInput label="Mobile Number" required placeholder="Enter mobile number" name="mobile_number" defaultValue={d.mobile_number} />
+                <LeadPhoneInput
+                  label="Mobile Number"
+                  required
+                  placeholder="Enter mobile number"
+                  name="mobile_number"
+                  defaultValue={d.mobile_number}
+                  onBlurCheck={(value) => { if (mode === 'create' && !projectMode) mobileCheck.check(value); }}
+                  onChangeReset={(value) => {
+                    if (mode === 'create' && !projectMode) mobileCheck.checkDebounced(value);
+                    else mobileCheck.reset();
+                  }}
+                />
                 <IvrsVerifyField
-                  defaultValue={d.ivrs_number}
+                  defaultValue={mode === 'create' && basicPrefill ? '' : d.ivrs_number}
                   checking={ivrsCheck.checking}
                   result={ivrsCheck.result}
                   onCheck={ivrsCheck.check}
@@ -32494,6 +32695,22 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
                   onShowDetail={setViewDuplicateLeadId}
                 />
               </div>
+              {mode === 'create' && !projectMode && mobileCheck.matches.length > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-[#bfd9ff] bg-[#edf5ff] px-4 py-3 text-[13px] font-bold text-[#0b65e5]">
+                  <span className="inline-flex items-center gap-2">
+                    <AlertTriangle className="size-4" />
+                    Yeh mobile number pehle se CRM mein maujood hai ({mobileCheck.matches.length} lead{mobileCheck.matches.length > 1 ? 's' : ''}).
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setExistingMobileOpen(true)}
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[7px] border border-[#0b65e5] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5] transition hover:bg-[#e8f1ff]"
+                  >
+                    <Eye className="size-3.5" />
+                    View Existing Details
+                  </button>
+                </div>
+              ) : null}
               <div className="grid gap-4 lg:grid-cols-2">
                 <LeadPhoneInput label="Alternate Number" placeholder="Enter alternate number" name="alternate_number" defaultValue={d.alternate_number} />
                 <LeadInput label="Email Address" icon={Mail} placeholder="Enter email address" type="email" name="email" defaultValue={d.email} />
@@ -32507,7 +32724,19 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
               </div>
               <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." name="requirement_details" defaultValue={d.requirement_details} />
               <div className="grid gap-4 lg:grid-cols-2">
-                <LeadSelect label="Source" placeholder="Select source" options={['Walk-in', 'Campaign', 'Reference', 'Other']} name="source" defaultValue={d.source} />
+                <LeadSelect label="Source" placeholder="Select source" options={LEAD_SOURCE_OPTIONS} name="source" defaultValue={(() => {
+                  const src = String(d.source || '');
+                  if (!src) return '';
+                  if (src.startsWith('Reference')) return 'Reference';
+                  const aliases = {
+                    'Just dial': 'Just Dial',
+                    'just dial': 'Just Dial',
+                    'Meta ads': 'Meta Ads',
+                    'meta ads': 'Meta Ads',
+                  };
+                  const normalized = aliases[src] || src;
+                  return LEAD_SOURCE_OPTIONS.includes(normalized) ? normalized : src;
+                })()} />
                 <LeadInput label="Estimated Capacity (kW)" icon={Zap} type="number" placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" defaultValue={d.estimated_capacity} />
               </div>
               <LeadInput label="Reference Name" icon={UserRound} placeholder="If source is Reference, enter name" name="source_reference_name" defaultValue={d.source?.startsWith('Reference - ') ? d.source.replace('Reference - ', '') : ''} />
@@ -32692,6 +32921,29 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
           onClose={() => setViewDuplicateLeadId(null)}
           onEdit={() => setViewDuplicateLeadId(null)}
           onNotify={onNotify}
+        />
+      ) : null}
+
+      {existingMobileOpen ? (
+        <ExistingMobileDetailsModal
+          mobileNumber={normalizeMobileDigits(mobileCheck.matches[0]?.mobile_number) || mobileCheck.matches[0]?.mobile_number}
+          leads={mobileCheck.matches}
+          onClose={() => setExistingMobileOpen(false)}
+          onContinue={applyBasicPrefillFromLead}
+          onViewLead={(row) => setViewDuplicateLeadId(row.id)}
+          onEditLead={(row) => setViewDuplicateLeadId(row.id)}
+          onViewProject={(project) => {
+            const path = `/projects/details/${project.id}`;
+            window.history.pushState({ currentPage: 'Project Details', projectId: project.id }, '', path);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+            onClose();
+          }}
+          onEditProject={(project) => {
+            const path = `/projects/details/${project.id}`;
+            window.history.pushState({ currentPage: 'Project Details', projectId: project.id }, '', path);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+            onClose();
+          }}
         />
       ) : null}
 
@@ -34320,8 +34572,8 @@ function extractLeadingNumber(value) {
 }
 
 function deriveInstallationTypeFromRoof(roofType) {
-  if (roofType === 'Ground Mount') return 'Ground Mounted';
-  if (roofType === 'RCC' || roofType === 'Tin Shed' || roofType === 'Metal Roof') return 'Rooftop';
+  if (roofType === 'Ground Mount' || roofType === 'Ground mounted' || roofType === 'Ground Mounted') return 'Ground Mounted';
+  if (['RCC', 'Coba', 'Tin Shade', 'Tin Shed', 'RBC', 'RBC Roof', 'Metal Roof'].includes(roofType)) return 'Rooftop';
   return '';
 }
 
@@ -36148,7 +36400,7 @@ function IvrsVerifyField({ defaultValue, checking, result, onCheck, onReset, onS
   );
 }
 
-function LeadPhoneInput({ label, placeholder, required = false, name, defaultValue }) {
+function LeadPhoneInput({ label, placeholder, required = false, name, defaultValue, onBlurCheck, onChangeReset }) {
   return (
     <label className="block min-w-0">
       <LeadLabel label={label} required={required} />
@@ -36163,10 +36415,127 @@ function LeadPhoneInput({ label, placeholder, required = false, name, defaultVal
           name={name}
           placeholder={placeholder}
           defaultValue={defaultValue ?? ''}
+          onChange={(event) => onChangeReset?.(event.target.value)}
+          onBlur={(event) => onBlurCheck?.(event.target.value)}
           className="min-w-0 flex-1 bg-transparent px-3 text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
         />
       </span>
     </label>
+  );
+}
+
+function ExistingMobileDetailsModal({ mobileNumber, leads = [], onClose, onContinue, onViewLead, onEditLead, onViewProject, onEditProject }) {
+  const [projectMap, setProjectMap] = useState({});
+  const [loadingProjects, setLoadingProjects] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingProjects(true);
+      const next = {};
+      await Promise.all(
+        leads.map(async (leadRow) => {
+          try {
+            const data = await projectApi.list({ lead: leadRow.id, page_size: 50 });
+            next[leadRow.id] = Array.isArray(data) ? data : (data?.results ?? []);
+          } catch {
+            next[leadRow.id] = [];
+          }
+        }),
+      );
+      if (!cancelled) {
+        setProjectMap(next);
+        setLoadingProjects(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [leads]);
+
+  const primaryLead = leads[0] || null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111827]/55 p-4">
+      <div className="flex max-h-[92vh] w-full max-w-[780px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#edf2f8] px-5 py-4">
+          <div>
+            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Existing Customer Details</h2>
+            <p className="mt-1 text-[13px] font-semibold text-[#53647f]">
+              Mobile <span className="font-extrabold text-[#1e3261]">{mobileNumber || '—'}</span> pe pehle se leads / projects maujood hain.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-[#7585a2] hover:text-[#111827]" aria-label="Close">
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <div className="scroll-soft flex-1 space-y-4 overflow-y-auto p-5">
+          {leads.map((leadRow) => {
+            const projects = projectMap[leadRow.id] || [];
+            return (
+              <div key={leadRow.id} className="rounded-[12px] border border-[#d9e4f2] bg-[#f8fbff] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[14px] font-extrabold text-[#1e3261]">{leadRow.customer_name || '—'}</p>
+                    <p className="mt-1 text-[12px] font-bold text-[#7386a3]">
+                      Lead · {leadRow.status || '—'}
+                      {leadRow.ivrs_number ? ` · IVRS ${leadRow.ivrs_number}` : ''}
+                      {leadRow.project_name ? ` · ${leadRow.project_name}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => onViewLead?.(leadRow)} className="inline-flex h-9 items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#233a6b]">
+                      <Eye className="size-3.5" /> View
+                    </button>
+                    <button type="button" onClick={() => onEditLead?.(leadRow)} className="inline-flex h-9 items-center gap-1.5 rounded-[7px] border border-[#0b65e5] bg-white px-3 text-[12px] font-extrabold text-[#0b65e5]">
+                      Edit
+                    </button>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-[11px] font-extrabold uppercase tracking-wide text-[#8a98af]">Projects</p>
+                {loadingProjects ? (
+                  <p className="mt-2 text-[12px] font-bold text-[#7386a3]">Loading projects…</p>
+                ) : projects.length === 0 ? (
+                  <p className="mt-2 text-[12px] font-bold text-[#7386a3]">Is lead se linked koi project nahi mila.</p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {projects.map((project) => (
+                      <div key={project.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-[#e7eef7] bg-white px-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{project.project_name || project.project_id || `Project #${project.id}`}</p>
+                          <p className="text-[11px] font-bold text-[#8a98af]">{project.status || '—'}{project.capacity_kwp ? ` · ${project.capacity_kwp} kWp` : ''}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => onViewProject?.(project, leadRow)} className="inline-flex h-8 items-center gap-1 rounded-[7px] border border-[#d9e4f2] bg-[#f8fbff] px-2.5 text-[11px] font-extrabold text-[#233a6b]">
+                            <Eye className="size-3.5" /> View
+                          </button>
+                          <button type="button" onClick={() => onEditProject?.(project, leadRow)} className="inline-flex h-8 items-center gap-1 rounded-[7px] border border-[#0b65e5] bg-white px-2.5 text-[11px] font-extrabold text-[#0b65e5]">
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col justify-end gap-3 border-t border-[#edf2f8] px-5 py-4 sm:flex-row">
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => onContinue?.(primaryLead)}
+            className="h-11 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)]"
+          >
+            Continue with Basic Details
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

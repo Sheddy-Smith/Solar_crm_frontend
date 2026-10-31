@@ -383,8 +383,17 @@ class SiteSurvey(models.Model):
         ('Completed', 'Completed'),
     ]
     ROOF_TYPE_CHOICES = [
+        ('RCC', 'RCC'),
+        ('Coba', 'Coba'),
+        ('Tin Shade', 'Tin Shade'),
+        ('RBC', 'RBC'),
+        ('Ground Mounted', 'Ground Mounted'),
+        # Legacy values kept so old surveys still load/validate.
+        ('RCC Flat Roof', 'RCC Flat Roof'),
+        ('Ground mounted', 'Ground mounted'),
         ('RBC Roof', 'RBC Roof'),
         ('Ground Mount', 'Ground Mount'),
+        ('Tin Shed', 'Tin Shed'),
     ]
     PROJECT_CATEGORY_CHOICES = [
         ('Residential', 'Residential'),
@@ -527,6 +536,7 @@ class SiteSurvey(models.Model):
     material_checklist = models.JSONField(default=list, blank=True)
     additional_observations = models.TextField(blank=True)
     customer_confirmation_name = models.CharField(max_length=150, blank=True)
+    customer_confirmation_mobile = models.CharField(max_length=20, blank=True)
     customer_confirmation_date = models.DateField(null=True, blank=True)
     survey_engineer_name = models.CharField(max_length=150, blank=True)
     survey_engineer_date = models.DateField(null=True, blank=True)
