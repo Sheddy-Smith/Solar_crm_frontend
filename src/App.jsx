@@ -11447,7 +11447,7 @@ function PipelineProjectOverview({ pipeline = LIAISON_PIPELINE, project, busy, o
   );
 }
 
-const LIAISON_DOC_TYPES = ['Aadhaar Card', 'PAN Card', 'Electricity Bill', 'Property Document', 'Bank Passbook', 'Site Photo', 'Application Form', 'Approval Letter', 'Agreement', 'Inspection Report', 'Net Meter Certificate', 'Commissioning Report', 'Compliance Certificate', 'Other'];
+const LIAISON_DOC_TYPES = ['Aadhaar Card', 'PAN Card', 'Electricity Bill', 'Property Document', 'Bank Passbook', 'Site Photo', 'Application Form', 'Approval Letter', 'Agreement', 'Inspection Report', 'Net Meter Certificate', 'Commissioning Report', 'Compliance Certificate', 'WCR', 'Other'];
 const LIAISON_REQUIRED_DOCS = ['Aadhaar Card', 'PAN Card', 'Electricity Bill', 'Property Document', 'Bank Passbook', 'Site Photo'];
 
 function LiaisonProjectDocuments({ project, onNotify }) {

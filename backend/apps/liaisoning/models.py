@@ -182,6 +182,7 @@ class LiaisonDocument(models.Model):
         ('Net Meter Certificate', 'Net Meter Certificate'),
         ('Commissioning Report', 'Commissioning Report'),
         ('Compliance Certificate', 'Compliance Certificate'),
+        ('WCR', 'WCR'),
         ('Other', 'Other'),
     ]
 
