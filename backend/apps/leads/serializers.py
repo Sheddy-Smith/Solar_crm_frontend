@@ -198,6 +198,9 @@ class LeadListSerializer(serializers.ModelSerializer):
             'id', 'customer_name', 'mobile_number', 'ivrs_number',
             'alternate_number', 'email', 'source',
             'project_name', 'project_type', 'estimated_capacity',
+            # Needed for Create Lead → Continue with Basic Details prefill
+            # (duplicate-mobile flow). IVRS/project stay optional on the form.
+            'address', 'city', 'state', 'latitude', 'longitude',
             'status', 'priority', 'category', 'remarks',
             'assigned_to', 'assigned_to_name', 'created_by', 'created_by_name',
             'next_follow_up', 'created_at', 'created_at_display', 'survey_status',
