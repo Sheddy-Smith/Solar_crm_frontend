@@ -438,6 +438,10 @@ class SiteSurvey(models.Model):
         ('Smart 3 Phase', 'Smart 3 Phase'),
         ('Normal LTCT', 'Normal LTCT'),
         ('Smart LTCT', 'Smart LTCT'),
+        # Legacy values kept so older surveys still save/validate.
+        ('Single Phase', 'Single Phase'),
+        ('Three Phase', 'Three Phase'),
+        ('3 Phase', '3 Phase'),
     ]
     MODULE_ORIENTATION_CHOICES = [('Portrait', 'Portrait'), ('Landscape', 'Landscape'), ('Both', 'Both')]
 
