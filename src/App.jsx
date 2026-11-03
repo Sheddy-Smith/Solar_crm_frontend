@@ -890,6 +890,51 @@ function permissionModuleForSection(section) {
   return SIDEBAR_MODULE_BY_LABEL[section] || null;
 }
 
+/** First page a restricted role can actually open (never invent an inaccessible fallback). */
+function resolveAccessibleLandingSection(user, visibleItems = []) {
+  if (!user) return 'Dashboard';
+  if (isOmFieldOnlyUser(user)) return OM_FIELD_WORK_SECTION;
+  const landingBySidebarLabel = {
+    Dashboard: 'Dashboard',
+    Lead: 'Lead List',
+    Customer: 'Customer Details',
+    Vendors: 'Vendor Details',
+    'Project Management': 'Project List',
+    'Liaisoning & Commissioning': 'Liaison Projects',
+    'O&M': omSubItems[0] || 'O&M',
+    Tracker: OM_PENDING_SECTIONS[0] || 'Tracker',
+    Accounts: 'Accounts Overview',
+    Inventory: 'Inventory Overview',
+    Employee: 'Employee Details',
+    Supplier: 'Supplier Details',
+    Insights: 'Insights',
+    'Daily Tasks': 'Daily Tasks',
+    'AMC & Warranty': 'AMC Overview',
+    Settings: 'Settings',
+  };
+  for (const item of visibleItems) {
+    const label = item?.label;
+    if (!label) continue;
+    const candidate = landingBySidebarLabel[label] || label;
+    const mod = permissionModuleForSection(candidate);
+    if (!mod || hasAnyModuleAccess(user, mod)) return candidate;
+  }
+  if (hasAnyModuleAccess(user, 'Dashboard')) return 'Dashboard';
+  if (hasAnyModuleAccess(user, 'Project Management')) return 'Project List';
+  if (hasAnyModuleAccess(user, 'Lead')) return 'Lead List';
+  return 'Dashboard';
+}
+
+function canAccessSection(user, section) {
+  if (!user || !section) return true;
+  const mod = permissionModuleForSection(section);
+  if (!mod) return true;
+  if (hasAnyModuleAccess(user, mod)) return true;
+  if (mod === 'O&M Field Work' && hasAnyModuleAccess(user, 'O&M')) return true;
+  if (omRelatedPages.includes(section) && isOmFieldOnlyUser(user)) return true;
+  return false;
+}
+
 function getSettingsRouteKey(section) {
   if (section === 'Master Type') {
     return 'Payment Mode';
@@ -2365,20 +2410,20 @@ function App() {
   );
 
   // Deep-link / stale section: leave pages with zero module permissions.
+  // Must land on a page the role can open — a Dashboard fallback when Dashboard
+  // itself is denied used to re-trigger this effect and crash the app
+  // ("Maximum call stack size exceeded" / forced logout on reload).
   useEffect(() => {
     if (!loggedInUser || currentPage !== 'dashboard') return;
-    const mod = permissionModuleForSection(activeSidebarItem);
-    if (!mod) return;
-    if (hasAnyModuleAccess(loggedInUser, mod)) return;
-    if (mod === 'O&M Field Work' && hasAnyModuleAccess(loggedInUser, 'O&M')) return;
-    if (omRelatedPages.includes(activeSidebarItem) && isOmFieldOnlyUser(loggedInUser)) {
-      setActiveSidebarItem(OM_FIELD_WORK_SECTION);
+    if (canAccessSection(loggedInUser, activeSidebarItem)) {
+      if (omRelatedPages.includes(activeSidebarItem) && isOmFieldOnlyUser(loggedInUser) && activeSidebarItem !== OM_FIELD_WORK_SECTION) {
+        setActiveSidebarItem(OM_FIELD_WORK_SECTION);
+      }
       return;
     }
-    const fallback = visibleSidebarItems[0]?.label === 'Dashboard'
-      ? 'Dashboard'
-      : (visibleSidebarItems[0]?.label === 'Lead' ? 'Lead List' : (visibleSidebarItems[0]?.label || 'Dashboard'));
-    setActiveSidebarItem(fallback === 'Lead' ? 'Lead List' : fallback);
+    const fallback = resolveAccessibleLandingSection(loggedInUser, visibleSidebarItems);
+    if (!fallback || fallback === activeSidebarItem) return;
+    setActiveSidebarItem(fallback);
     notify(`You do not have access to ${activeSidebarItem}`, 'error');
   }, [loggedInUser, activeSidebarItem, currentPage, visibleSidebarItems]);
 
@@ -2391,7 +2436,12 @@ function App() {
   // Lead stats are scoped to the Month/Year/Week toggle + the picked anchor
   // date, so they get their own effect/callback — everything else on the
   // dashboard is period-independent and stays in the effect below.
+  const canViewLeadModule = Boolean(loggedInUser && hasAnyModuleAccess(loggedInUser, 'Lead'));
   const refreshDashboardLeadStats = useCallback(() => {
+    if (!canViewLeadModule) {
+      setDashboardLeadStats({});
+      return;
+    }
     leadApi.stats(dashboardPeriod.toLowerCase(), formatIsoDate(dashboardPeriodAnchor)).then((data) => {
       if (!data) return;
       setDashboardLeadStats(data);
@@ -2419,7 +2469,7 @@ function App() {
         }),
       );
     }).catch(() => notify('Dashboard lead stats could not be loaded.', 'error'));
-  }, [dashboardPeriod, dashboardPeriodAnchor]);
+  }, [canViewLeadModule, dashboardPeriod, dashboardPeriodAnchor]);
 
   useEffect(() => {
     const todayCount = dashboardScheduledFollowUps === null ? null : dashboardFollowUpAlerts.today.length;
@@ -2453,13 +2503,17 @@ function App() {
   }, [currentPage, refreshDashboardLeadStats]);
 
   const refreshDashboardFollowUps = useCallback(() => {
+    if (!canViewLeadModule) {
+      setDashboardScheduledFollowUps([]);
+      return;
+    }
     followUpApi.listAll({ page_size: 500, status: 'Scheduled', ordering: 'scheduled_at' }).then((data) => {
       setDashboardScheduledFollowUps(Array.isArray(data) ? data : (data?.results ?? []));
     }).catch(() => {
       setDashboardScheduledFollowUps((prev) => prev ?? []);
       notify('Follow-ups could not be loaded.', 'error');
     });
-  }, []);
+  }, [canViewLeadModule]);
 
   const isDashboardSection = activeSidebarItem === 'Dashboard';
 
@@ -2483,6 +2537,11 @@ function App() {
       setDashboardProjectSummary(data);
     }).catch(() => notify('Project summary could not be loaded.', 'error'));
 
+    if (!canViewLeadModule) {
+      setDashboardRecentLeads([]);
+      return;
+    }
+
     leadApi.recent().then((data) => {
       const rows = Array.isArray(data) ? data : (data?.results ?? []);
       setDashboardRecentLeads(rows.length === 0 ? [] : rows.map((lead) => ({
@@ -2500,7 +2559,7 @@ function App() {
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
       })));
     }).catch(() => notify('Recent leads could not be loaded.', 'error'));
-  }, [currentPage]);
+  }, [canViewLeadModule, currentPage]);
 
   const openDashboardSection = (section, message, lead, tab) => {
     if (section === 'Create Lead') {
@@ -3990,12 +4049,13 @@ function App() {
                 <MobileDashboardPage
                   userName={loggedInUser?.name || 'Admin'}
                   rangeLabel={dashboardRange.start && dashboardRange.end ? formatDashboardRange(dashboardRange.start, dashboardRange.end) : ''}
-                  stats={dashboardStats.map((stat) => ({ ...stat }))}
+                  stats={dashboardStats}
                   workflowStages={dashboardWorkflowStages}
                   recentLeads={dashboardRecentLeads}
                   overdue={dashboardOverdue}
                   followUps={dashboardFollowUps}
                   projectSummary={dashboardProjectSummary}
+                  loggedInUser={loggedInUser}
                   onOpenSection={(section, message, lead, tab) => openDashboardSection(section, message, lead, tab)}
                   onQuickAction={(action) => {
                     if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
@@ -10117,8 +10177,8 @@ function EmployeeSubnavTabs({ activeSection, onOpenSection }) {
   return <HorizontalModuleTabs items={employeeSubItems} activeSection={activeSection} onOpenSection={onOpenSection} tone="blue" />;
 }
 
-function ProjectSubnavTabs({ activeSection, onOpenSection }) {
-  return <HorizontalModuleTabs items={projectSidebarSubItems} activeSection={activeSection} onOpenSection={onOpenSection} />;
+function ProjectSubnavTabs({ activeSection, onOpenSection, items = projectSidebarSubItems }) {
+  return <HorizontalModuleTabs items={items} activeSection={activeSection} onOpenSection={onOpenSection} />;
 }
 
 function SummarySubnavTabs({ activeSection, onOpenSection }) {
@@ -11791,6 +11851,11 @@ function ProjectPipelineHub({
   const [surveyEditOpen, setSurveyEditOpen] = useState(false);
   const [surveyReloadKey, setSurveyReloadKey] = useState(0);
   const projectCaps = moduleCaps(loggedInUser, 'Project Management');
+  const canQuotation = hasAnyModuleAccess(loggedInUser, 'Quotation');
+  const projectTabItems = projectSidebarSubItems.filter((item) => (item === 'Quotation' ? canQuotation : true));
+  const pipelineForBar = canQuotation
+    ? pipeline
+    : { ...pipeline, subItems: pipeline.subItems.filter((item) => item !== 'Quotation') };
 
   const step = pipeline.steps.find((s) => s.key === section) || null;
   const sectionLabel = getModuleSubnavLabel(section);
@@ -11942,11 +12007,11 @@ function ProjectPipelineHub({
         ]}
       />
 
-      <ProjectSubnavTabs activeSection={section} onOpenSection={onOpenSection} />
+      <ProjectSubnavTabs activeSection={section} onOpenSection={onOpenSection} items={projectTabItems} />
 
       {selected && (
         <PipelineProjectBar
-          pipeline={pipeline}
+          pipeline={pipelineForBar}
           project={selected}
           section={section}
           busy={busy}

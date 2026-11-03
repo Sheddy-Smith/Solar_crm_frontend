@@ -83,6 +83,7 @@ export function MobileDashboardPage({
   overdue,
   followUps,
   projectSummary,
+  loggedInUser = null,
   onOpenSection,
   onQuickAction,
   onOpenMenu,
@@ -90,10 +91,15 @@ export function MobileDashboardPage({
   const [analytics, setAnalytics] = useState(null);
 
   useEffect(() => {
+    // Operations / non-Lead roles get 403 here — skip so dashboard boot stays quiet.
+    if (loggedInUser && !hasAnyModuleAccess(loggedInUser, 'Lead')) {
+      setAnalytics(null);
+      return;
+    }
     analyticsApi.leads().then((data) => {
       if (data) setAnalytics(data);
     }).catch(() => {});
-  }, []);
+  }, [loggedInUser]);
 
   const kpis = (stats || []).filter((s) => s.title !== 'Revenue Overview');
   const revenue = (stats || []).find((s) => s.title === 'Revenue Overview');
