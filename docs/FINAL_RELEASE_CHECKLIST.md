@@ -1,9 +1,32 @@
 # Malwa Solar CRM — Final Release Checklist
 
 **Date:** 2026-11-04  
-**Verdict:** **READY FOR APPROVAL**  
+**Code package verdict:** **READY FOR APPROVAL** (review / schedule only)  
+**Go-live verdict:** **NOT READY TO DEPLOY** until the three hard gates below are **PASS**  
 **Production actions in this package:** **None** (no deploy, restart, migration, or DB write).  
 **Capacity:** Do **not** claim 500+ concurrent users. Phase 3 SLO evidence remains ~20 users on isolated Waitress staging.
+
+---
+
+## Hard pre-deploy gates (mandatory before production)
+
+These are **not** optional reminders. Deploy must wait until each is completed and recorded.
+
+| # | Gate | Status | Owner action |
+|---|------|--------|----------------|
+| 1 | **Production DB backup created** and **restore dry-run verified** on a non-production restore target | **NOT DONE** | Create gzipped `mysqldump`, record path/size/SHA256, restore into isolated DB, confirm table counts / login smoke |
+| 2 | **Index migration maintenance window** scheduled; **rollback commands rehearsed** (migrate reverse / drop index names) | **NOT DONE** | Book window; have `migrate leads 0021` / `migrate projects 0034` (or `DROP INDEX …`) ready; staff on call |
+| 3 | **Celery worker health monitoring** in place; confirm worker up before advertising exports | **NOT DONE** | Process supervisor + alert if worker down; remember: broker up + worker down ⇒ export returns 202 but job stays **pending** |
+
+### Explicit non-claims / coverage gaps
+
+| Item | Status |
+|------|--------|
+| Full UI E2E (every screen / modal / Tele + CRM) | **NOT TESTED** |
+| Exhaustive RBAC matrix (every role × every module × CRUD) | **NOT TESTED** (sample matrix only) |
+| 500+ concurrent-user capacity | **NOT PROVEN** — do not claim |
+
+Until gates 1–3 are **PASS**, production deploy remains blocked even if code review is approved.
 
 ---
 
@@ -32,9 +55,10 @@
 
 ---
 
-## 3. Production DB backup checklist (prepare only — do not run yet)
+## 3. Production DB backup checklist (Gate 1 — create + restore dry-run)
 
-Execute **only after explicit production approval**, on the production host.
+**Status today:** **NOT DONE** (instructions only; no production dump taken).  
+Execute **only after explicit production approval**, on the production host. Gate 1 fails until restore dry-run succeeds.
 
 1. Confirm target is production app path and `DATABASE_URL` from production `.env` only.
 2. Create offline backup directory (example): `/root/backups/`.
@@ -47,11 +71,12 @@ mysqldump --no-tablespaces --single-transaction --routines --triggers \
   -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
   | gzip -c > "/root/backups/malwa_crm_pre_release_${TS}.sql.gz"
 ls -lh "/root/backups/malwa_crm_pre_release_${TS}.sql.gz"
+sha256sum "/root/backups/malwa_crm_pre_release_${TS}.sql.gz"
 ```
 
 4. Record: dump path, size, SHA256, MySQL version, app commit currently running.
 5. Optional: filesystem snapshot / Hostinger panel backup if available.
-6. Verify restore dry-run on a **non-production** instance before relying on the dump.
+6. **Required:** restore dry-run on a **non-production** MySQL instance (empty schema → import → `SHOW TABLE STATUS` / lead count / admin login against restored DB). Dump alone without restore proof does **not** close Gate 1.
 7. Keep dump until at least one successful production soak after deploy.
 
 **Rollback dump restore (emergency only):**
@@ -73,11 +98,14 @@ gunzip -c /root/backups/malwa_crm_pre_release_<TS>.sql.gz | mysql -h ... -u ... 
 
 Model `Meta.indexes` aligned so `makemigrations --check` is clean.
 
-### Safe production plan (approval required)
-1. Complete §3 backup and verify dump size > 0.
-2. Maintenance window (prefer low traffic). MySQL 8 online DDL usually allows concurrent DML; still expect brief metadata locks.
-3. Deploy code first **or** migrate then restart — pick one documented order; recommend: **backup → deploy code → migrate → restart workers/API**.
-4. Run:
+### Safe production plan (Gate 2 — window + rollback ready)
+**Status today:** **NOT DONE** (plan documented; window not booked; rollback not rehearsed on prod).
+
+1. Complete Gate 1 (backup + restore dry-run) first.
+2. Book a **maintenance window** (prefer low traffic). MySQL 8 online DDL usually allows concurrent DML; still expect brief metadata locks — communicate possible short slowdowns on lead/project list.
+3. Confirm rollback is ready **before** migrate: reverse migrate commands tested in staging; index names listed for emergency `DROP INDEX`.
+4. Deploy order: **backup → deploy code → migrate (in window) → restart workers/API**.
+5. Run migrate plan then apply:
 
 ```bash
 cd /var/www/<crm>/backend
@@ -89,8 +117,8 @@ cd /var/www/<crm>/backend
 .venv/bin/python manage.py showmigrations leads projects | tee /tmp/mig_after.txt
 ```
 
-5. Verify indexes exist (`SHOW INDEX FROM leads_lead` / `projects_project`).
-6. Smoke login + leads list + dashboard.
+6. Verify indexes exist (`SHOW INDEX FROM leads_lead` / `projects_project`).
+7. Smoke login + leads list + dashboard.
 
 ### Rollback migrations (if needed)
 ```bash
@@ -151,49 +179,78 @@ See `docs/ENV_SCALING.md`.
 
 ---
 
-## 8. Deployment instructions (do not execute without approval)
+## 8. Celery worker health (Gate 3)
 
-1. Get **explicit written approval**.
-2. Tag or note commit `17a6b6f`.
-3. Backup production DB (§3).
-4. Deploy artifact built from `17a6b6f` (frontend build + backend).
-5. Apply migrations (§4) in window.
-6. Restart API + Celery **once** after code+migrate.
-7. Smoke: login, IVRS verify (Tele), lead create, dashboard, export (expect 202 or controlled 503).
-8. Monitor errors 30–60 minutes.
-9. If failure: rollback code to previous commit; reverse migrations only if indexes cause harm; restore dump only if data integrity incident.
+**Status today:** **NOT DONE**.
+
+| Check | Why it matters |
+|-------|----------------|
+| Worker process running under supervisor/systemd | Without a worker, `export-leads` can still return **202 queued** while tasks never finish |
+| Broker (Redis) reachable | `/ready/` may show redis ok while worker is dead — monitor **worker**, not only Redis |
+| Alert on worker exit / queue depth growth | Pending exports look “successful” to the client until timeout/unknown status |
+| Pre-deploy probe | Submit one staging/prod-approved test export; confirm status reaches `done` (or refuse with 503 if eager blocked) |
+
+Do not enable user-facing heavy exports in production until Gate 3 is green.
 
 ---
 
-## 9. Remaining risks
+## 9. Deployment instructions (blocked until Gates 1–3 PASS)
+
+1. Get **explicit written approval**.
+2. Close **Gate 1** (real backup + restore dry-run).
+3. Close **Gate 2** (window booked + rollback rehearsed).
+4. Close **Gate 3** (Celery worker healthy + monitored).
+5. Tag or note commit `17a6b6f`.
+6. Deploy artifact built from `17a6b6f` (frontend build + backend).
+7. Apply migrations (§4) inside the window.
+8. Restart API + Celery **once** after code+migrate.
+9. Smoke: login, IVRS verify (Tele), lead create, dashboard, export end-to-end (`queued` → `done`).
+10. Monitor errors + Celery 30–60 minutes.
+11. If failure: rollback code to previous commit; reverse migrations only if indexes cause harm; restore dump only if data integrity incident.
+
+---
+
+## 10. Remaining risks
 
 | Level | Item |
 |-------|------|
-| High (capacity) | Sustained multi-user SLO not proven beyond ~20 on Phase 3 staging |
+| **Blocker until done** | Gate 1 backup + restore dry-run not executed |
+| **Blocker until done** | Gate 2 migration window + rollback not ready |
+| **Blocker until done** | Gate 3 Celery worker monitoring not confirmed |
+| High (capacity) | 500+ concurrent users **not proven**; SLO only ~20 on Phase 3 Waitress staging |
 | Medium | Index build time/locks on large production tables |
-| Medium | Export tasks queue even if worker is down — monitor Celery |
-| Low | Full RBAC matrix / full UI E2E not automated |
+| Medium | Export 202 with worker down ⇒ indefinite pending |
+| Low | Full UI E2E **NOT TESTED** |
+| Low | Exhaustive RBAC matrix **NOT TESTED** (sample only) |
 | Low | Local junk files still on disk (untracked) — do not copy to prod |
 
 ---
 
-## 10. Status summary
+## 11. Status summary
 
 | Area | Status |
 |------|--------|
 | Clean release commit | **PASS** |
 | Version recorded | **PASS** |
-| Backup/rollback docs | **PASS** (prepared; not executed) |
-| Migration plan | **PASS** (prepared; not executed) |
+| Gate 1 — prod backup + restore dry-run | **NOT DONE** |
+| Gate 2 — migration window + rollback ready | **NOT DONE** |
+| Gate 3 — Celery worker health monitor | **NOT DONE** |
 | IVRS FE/BE consistency | **PASS** |
-| Regression / RBAC / API / FE smoke | **PASS** / sample RBAC **PASS** / full matrix **NOT TESTED** |
+| Isolated regression / API / FE smoke | **PASS** |
+| Sample RBAC | **PASS** |
+| Full UI E2E | **NOT TESTED** |
+| Exhaustive RBAC matrix | **NOT TESTED** |
+| 500+ capacity | **NOT PROVEN** |
 | Production deploy | **NOT EXECUTED** |
 
 ---
 
 ## Verdict
 
-# READY FOR APPROVAL
+| Decision | Status |
+|----------|--------|
+| Code package ready for human review / scheduling | **READY FOR APPROVAL** |
+| Production go-live | **NOT READY TO DEPLOY** until Gates **1, 2, 3** are **PASS** |
 
-Awaiting **separate explicit production deployment approval**.  
-No production deploy, restart, migration, or data change has been performed.
+No production deploy, restart, migration, or data change has been performed.  
+Do not claim 500+ concurrent-user capacity.
