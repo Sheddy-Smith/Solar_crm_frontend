@@ -1,0 +1,11 @@
+# Optional: when Docker Desktop is available. Current Windows host has no Docker —
+# local staging uses fakeredis TCP + SQLite instead (see scripts/start_local_staging.*).
+# NEVER wire this to production Hostinger credentials.
+name: malwa-crm-staging-local
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]

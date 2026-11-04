@@ -34,7 +34,7 @@ INSTALLED_APPS = [
     'apps.om',
     'apps.amc',
     'apps.reports',
-    'apps.dashboard',
+    'apps.dashboard.apps.DashboardConfig',
     'apps.crm_settings',
     'apps.daily_tasks',
     'apps.notifications',
@@ -63,6 +63,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Optional request timing (OBSERVABILITY_REQUEST_LOG=1). No PII in logs.
+    'malwa_solar.middleware_observability.RequestTimingMiddleware',
 ]
 
 ROOT_URLCONF = 'malwa_solar.urls'
@@ -106,13 +108,22 @@ if 'mysql' in DATABASES['default']['ENGINE']:
     pymysql.install_as_MySQLdb()
     DATABASES['default'].setdefault('OPTIONS', {})
     DATABASES['default']['OPTIONS'].setdefault('charset', 'utf8mb4')
+    # Bound hung remote-MySQL workers (Hostinger latency / packet loss).
+    DATABASES['default']['OPTIONS'].setdefault(
+        'connect_timeout', env.int('DB_CONNECT_TIMEOUT', default=10),
+    )
+    DATABASES['default']['OPTIONS'].setdefault(
+        'read_timeout', env.int('DB_READ_TIMEOUT', default=30),
+    )
+    DATABASES['default']['OPTIONS'].setdefault(
+        'write_timeout', env.int('DB_WRITE_TIMEOUT', default=30),
+    )
 
 _redis_url = (env('REDIS_URL', default='') or '').strip()
 _redis_disabled = _redis_url.lower() in ('', 'none', 'disabled', 'off', 'false', '0')
 
 if _redis_disabled:
-    # Production on Hostinger MySQL only — no Redis/Upstash for CRM data or cache.
-    # Throttling + short-lived cache stay in-process (LocMem).
+    # Single-instance / no-Redis mode: LocMem is fine (not multi-API-safe).
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -125,13 +136,11 @@ if _redis_disabled:
     }
     CELERY_BROKER_URL = 'memory://'
     CELERY_RESULT_BACKEND = 'cache+memory://'
+    CELERY_TASK_ALWAYS_EAGER = True
 else:
     _redis_options = {
         'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        # Redis (Upstash free tier) backs throttling/caching only — it must
-        # never be able to take down request handling (e.g. login, which is
-        # throttled) if the connection is briefly unreachable or misconfigured.
-        # A failed cache call falls back to "no rate data" instead of a 500.
+        # Cache/throttle must never 500 the API if Redis blips.
         'IGNORE_EXCEPTIONS': True,
     }
     if _redis_url.startswith('rediss://'):
@@ -143,17 +152,18 @@ else:
             'LOCATION': _redis_url,
             'OPTIONS': _redis_options,
         },
-        # In-process cache for DRF throttle counters (malwa_solar.throttling).
-        # Request handling must never depend on the shared Redis — a cache
-        # failure outside django-redis's ignored connection errors previously
-        # 500'd every throttled endpoint (2026-07-11 outage).
+        # Shared across Gunicorn workers / API instances for correct rate limits.
+        # Safe* throttles still fail-open if Redis errors (see throttling.py).
         'throttling': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-            'LOCATION': 'drf-throttling',
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': _redis_url,
+            'KEY_PREFIX': 'throttle',
+            'OPTIONS': _redis_options,
         },
     }
     CELERY_BROKER_URL = _redis_url
     CELERY_RESULT_BACKEND = _redis_url
+    CELERY_TASK_ALWAYS_EAGER = env.bool('CELERY_TASK_ALWAYS_EAGER', default=False)
 
 DJANGO_REDIS_IGNORE_EXCEPTIONS = True
 DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = True
@@ -206,14 +216,12 @@ REST_FRAMEWORK = {
         'malwa_solar.throttling.SafeUserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'login': '10/min',
-        # Baseline rate limit for every endpoint (BUG-051) — previously only
-        # 'login' had a scope, so every other endpoint (including the
-        # unauthenticated media route and change_password) had no cap at
-        # all. CustomTokenObtainPairView sets its own throttle_classes/
-        # throttle_scope='login', so it isn't double-throttled by these.
-        'anon': '100/min',
-        'user': '300/min',
+        # Env-overridable so infra size can change without code edits.
+        'login': env('THROTTLE_LOGIN', default='40/min'),
+        # Baseline rate limit for every endpoint (BUG-051).
+        'anon': env('THROTTLE_ANON', default='200/min'),
+        # Shared across every device of the same account.
+        'user': env('THROTTLE_USER', default='750/min'),
     },
 }
 
@@ -242,3 +250,17 @@ EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='Malwa Solar CRM <noreply@malwasolar.com>')
 
 CELERY_TIMEZONE = 'Asia/Kolkata'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_SOFT_TIME_LIMIT = env.int('CELERY_TASK_SOFT_TIME_LIMIT', default=120)
+CELERY_TASK_TIME_LIMIT = env.int('CELERY_TASK_TIME_LIMIT', default=180)
+# When Redis blips, prefer failing the task over hanging the worker forever.
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'visibility_timeout': env.int('CELERY_VISIBILITY_TIMEOUT', default=3600),
+    'socket_connect_timeout': env.int('CELERY_BROKER_CONNECT_TIMEOUT', default=5),
+    'socket_timeout': env.int('CELERY_BROKER_SOCKET_TIMEOUT', default=15),
+}
+# Large exports/imports must not run inline on API workers unless explicitly allowed.
+ALLOW_EAGER_EXPORTS = env.bool('ALLOW_EAGER_EXPORTS', default=False)

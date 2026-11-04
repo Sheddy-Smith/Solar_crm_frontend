@@ -233,7 +233,7 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
         if (cancelled) return;
         if (data) setStats(data);
         if (!data?.alerts) {
-          const items = normalizeRows(await inventoryApi.items.list({ page_size: 2000 }));
+          const items = normalizeRows(await inventoryApi.items.list({ page_size: 200 }));
           if (cancelled) return;
           const critical = items.filter((i) => Number(i.current_stock) <= 0);
           const warning = items.filter((i) => Number(i.current_stock) > 0 && Number(i.current_stock) <= Number(i.minimum_stock || 0));
@@ -473,13 +473,13 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   const load = useCallback((opts = {}) => {
     const showSpinner = opts.showSpinner !== false;
     if (showSpinner) setLoading(true);
-    const itemParams = { page_size: 2000 };
+    const itemParams = { page_size: 200 };
     if (category !== 'All Categories') itemParams.category = category;
     if (stockFilter !== 'All Stock') itemParams.stock_status = stockFilter;
     if (search.trim()) itemParams.search = search.trim();
     Promise.all([
       inventoryApi.items.list(itemParams),
-      inventoryApi.categories.list({ page_size: 500 }).catch(() => ({ results: [] })),
+      inventoryApi.categories.list({ page_size: 200 }).catch(() => ({ results: [] })),
       inventoryApi.warehouses.list({ page_size: 200 }).catch(() => ({ results: [] })),
     ]).then(async ([items, cats, wh]) => {
       let catRows = normalizeRows(cats).filter((c) => c.is_active !== false).map(mergeCategoryFormConfig);
@@ -498,7 +498,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
           ),
         );
         if (created.some(Boolean)) {
-          catRows = normalizeRows(await inventoryApi.categories.list({ page_size: 500 }).catch(() => ({ results: [] })))
+          catRows = normalizeRows(await inventoryApi.categories.list({ page_size: 200 }).catch(() => ({ results: [] })))
             .filter((c) => c.is_active !== false)
             .map(mergeCategoryFormConfig);
         }
@@ -1058,7 +1058,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
 
   const load = useCallback(() => {
     setLoading(true);
-    inventoryApi.categories.list({ page_size: 500 })
+    inventoryApi.categories.list({ page_size: 200 })
       .then((d) => setRows(normalizeRows(d).map(mergeCategoryFormConfig)))
       .catch((e) => onNotifyRef.current?.(e.message, 'error'))
       .finally(() => setLoading(false));

@@ -81,19 +81,53 @@ class LeadViewSet(viewsets.ModelViewSet):
         # Soft-delete → CRM Settings Recycle Bin (auto-purge after 30 days).
         soft_delete_lead(instance, user)
 
+    @action(detail=False, methods=['get'], url_path='check-ivrs')
+    def check_ivrs(self, request):
+        """Global IVRS uniqueness check (not lead-scoped).
+
+        Tele/Sales executives only see their own leads in list/search, so an
+        IVRS owned by another user looked "available" in the UI and then failed
+        on create. This endpoint matches LeadCreateSerializer / DB unique.
+        """
+        ivrs = (request.query_params.get('ivrs') or '').strip()
+        if not ivrs:
+            return Response({'detail': 'ivrs required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        qs = Lead.objects.filter(ivrs_number=ivrs)
+        exclude_id = (request.query_params.get('exclude_id') or '').strip()
+        if exclude_id.isdigit():
+            qs = qs.exclude(pk=int(exclude_id))
+
+        lead = qs.only('id', 'customer_name', 'mobile_number', 'ivrs_number', 'is_deleted', 'status').first()
+        if not lead:
+            return Response({'available': True, 'ivrs': ivrs})
+
+        payload = {
+            'available': False,
+            'ivrs': ivrs,
+            'id': lead.id,
+            'customer_name': lead.customer_name,
+            'status': lead.status,
+            'is_deleted': bool(lead.is_deleted),
+        }
+        # Scoped roles may learn a collision exists, but not another owner's mobile.
+        if not is_lead_scoped(request.user) or is_own_lead(request.user, lead):
+            payload['mobile_number'] = lead.mobile_number
+        return Response(payload)
+
     @action(detail=False, methods=['get'])
     def overdue(self, request):
         qs = self.get_queryset().filter(
             next_follow_up__lt=timezone.now(),
             status__in=['New', 'Follow-up'],
-        )
+        )[:200]
         serializer = LeadListSerializer(qs, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def today_followups(self, request):
         today = timezone.localdate()
-        qs = filter_field_on_local_date(self.get_queryset(), 'next_follow_up', today)
+        qs = filter_field_on_local_date(self.get_queryset(), 'next_follow_up', today)[:200]
         serializer = LeadListSerializer(qs, many=True)
         return Response(serializer.data)
 
@@ -125,17 +159,36 @@ class LeadViewSet(viewsets.ModelViewSet):
         period = request.query_params.get('period')
         period_qs, range_start, range_end = period_created_at_queryset(qs, period, anchor)
 
+        # One aggregate round-trip for status buckets (was 6–10 sequential COUNTs).
+        from django.db.models import Count, Q
+        buckets = qs.aggregate(
+            total=Count('id'),
+            new=Count('id', filter=Q(status='New')),
+            follow_up=Count('id', filter=Q(status='Follow-up')),
+            quotation=Count('id', filter=Q(status='Quotation')),
+            won=Count('id', filter=Q(status='Won')),
+            lost=Count('id', filter=Q(status='Lost')),
+            overdue=Count(
+                'id',
+                filter=Q(next_follow_up__lt=timezone.now(), status__in=['New', 'Follow-up']),
+            ),
+        )
+        period_buckets = period_qs.aggregate(
+            created_in_period=Count('id'),
+            won_in_period=Count('id', filter=Q(status='Won')),
+        )
+
         return Response({
-            'total': qs.count(),
-            'new': qs.filter(status='New').count(),
-            'follow_up': qs.filter(status='Follow-up').count(),
+            'total': buckets['total'] or 0,
+            'new': buckets['new'] or 0,
+            'follow_up': buckets['follow_up'] or 0,
             'today_followups': filter_field_on_local_date(qs, 'next_follow_up', today).count(),
-            'quotation': qs.filter(status='Quotation').count(),
-            'won': qs.filter(status='Won').count(),
-            'lost': qs.filter(status='Lost').count(),
-            'created_in_period': period_qs.count(),
-            'won_in_period': period_qs.filter(status='Won').count(),
-            'overdue': qs.filter(next_follow_up__lt=timezone.now(), status__in=['New', 'Follow-up']).count(),
+            'quotation': buckets['quotation'] or 0,
+            'won': buckets['won'] or 0,
+            'lost': buckets['lost'] or 0,
+            'created_in_period': period_buckets['created_in_period'] or 0,
+            'won_in_period': period_buckets['won_in_period'] or 0,
+            'overdue': buckets['overdue'] or 0,
             'range_start': range_start.isoformat() if range_start else None,
             'range_end': range_end.isoformat() if range_end else None,
         })

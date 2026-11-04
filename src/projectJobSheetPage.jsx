@@ -340,13 +340,13 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
   const project = useMemo(() => projects.find((p) => String(p.id) === String(projectId)) || null, [projects, projectId]);
 
   useEffect(() => {
-    projectApi.list({ page_size: 1000 })
+    projectApi.list({ page_size: 200 })
       .then((data) => setProjects(rowsOf(data).filter((p) => p.lead_status === 'Won')))
       .catch(() => setProjects([]));
-    accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 2000 })
+    accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 200 })
       .then((data) => setVendors(rowsOf(data).map((v) => ({ id: v.id, name: v.name })).filter((v) => v.name)))
       .catch(() => setVendors([]));
-    workforceApi.listEmployees({ page_size: 1000 })
+    workforceApi.listEmployees({ page_size: 200 })
       .then((data) => setLabours(rowsOf(data).map((e) => ({ id: e.id, name: e.name })).filter((e) => e.name)))
       .catch(() => setLabours([]));
   }, []);
@@ -354,7 +354,7 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
   const loadSheets = useCallback(async () => {
     setListLoading(true);
     try {
-      const data = await jobSheetApi.list({ ...filters, page_size: 1000 });
+      const data = await jobSheetApi.list({ ...filters, page_size: 200 });
       setSheets(rowsOf(data));
     } catch {
       setSheets([]);
@@ -392,7 +392,7 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
       if (existing) {
         applySheet(existing);
       } else {
-        const plans = rowsOf(await materialPlanApi.list({ project: pid, page_size: 500 }).catch(() => []));
+        const plans = rowsOf(await materialPlanApi.list({ project: pid, page_size: 200 }).catch(() => []));
         setSheet(null);
         setItems(buildTasksFromPlans(plans));
         setExtraItems([]);
@@ -413,7 +413,7 @@ export function ProjectJobSheetPage({ activeSection, onOpenSection, onNotify, Su
   const syncFromPlanning = async () => {
     if (!projectId) return;
     try {
-      const plans = rowsOf(await materialPlanApi.list({ project: projectId, page_size: 500 }));
+      const plans = rowsOf(await materialPlanApi.list({ project: projectId, page_size: 200 }));
       const fresh = buildTasksFromPlans(plans);
       const existing = new Set(items.map((r) => r.work.trim().toLowerCase()));
       const missing = fresh.filter((r) => !existing.has(r.work.trim().toLowerCase()));

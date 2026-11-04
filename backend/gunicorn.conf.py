@@ -1,12 +1,20 @@
-# Gunicorn manages processes; each worker runs Uvicorn serving malwa_solar.asgi.
-# Gunicorn auto-loads this file from the working directory; CLI flags override it.
+# Sync WSGI workers so Django CONN_MAX_AGE actually reuses MySQL connections.
+# ASGI/UvicornWorker runs ORM work in short-lived threads, so persistent
+# connections are orphaned and every request opens a new Hostinger MySQL
+# connection — that burns max_connections_per_hour (500) and returns HTTP 500.
 import os
 
-wsgi_app = 'malwa_solar.asgi:application'
-worker_class = 'malwa_solar.uvicorn_worker.DjangoUvicornWorker'
+wsgi_app = 'malwa_solar.wsgi:application'
+worker_class = 'sync'
 
 bind = os.environ.get('GUNICORN_BIND') or f"0.0.0.0:{os.environ.get('PORT', '8000')}"
+# Conservative defaults for a 1-vCPU box. Scale ONLY via env on larger hosts:
+#   1 vCPU / 4GB  → WEB_CONCURRENCY=2–3  GUNICORN_THREADS=2
+#   4 vCPU / 8GB  → WEB_CONCURRENCY=5–8  GUNICORN_THREADS=2–3
+#   8 vCPU / 16GB → WEB_CONCURRENCY=9–15 GUNICORN_THREADS=2–4
+# Never raise workers while remote MySQL has a low max_connections_per_hour.
 workers = int(os.environ.get('WEB_CONCURRENCY', '2'))
+threads = int(os.environ.get('GUNICORN_THREADS', '2'))
 
 timeout = int(os.environ.get('GUNICORN_TIMEOUT', '120'))
 graceful_timeout = int(os.environ.get('GUNICORN_GRACEFUL_TIMEOUT', '30'))

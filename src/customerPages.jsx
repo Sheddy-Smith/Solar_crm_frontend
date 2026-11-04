@@ -459,7 +459,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
   const loadCustomers = useCallback(async () => {
     try {
       await accountsModuleApi.syncCustomersFromLeads().catch(() => null);
-      const data = await accountsModuleApi.parties.list({ account_type: 'Customer', page_size: 2000 });
+      const data = await accountsModuleApi.parties.list({ account_type: 'Customer', page_size: 200 });
       setCustomers(normalizeApiRows(data));
     } catch (e) {
       onNotify(e.message || 'Failed to load customers', 'error');

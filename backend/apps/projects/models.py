@@ -146,6 +146,9 @@ class Project(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_deleted', 'status', '-created_at'], name='project_del_status_created_idx'),
+        ]
 
 
 class ProjectActivity(models.Model):
@@ -645,6 +648,11 @@ class SiteSurvey(models.Model):
 
     def __str__(self):
         return f'{self.project.project_id} — Site Survey'
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['status', '-survey_date'], name='survey_status_date_idx'),
+        ]
 
 
 class SiteSurveyPhoto(models.Model):

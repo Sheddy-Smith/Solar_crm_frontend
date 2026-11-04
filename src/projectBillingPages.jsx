@@ -717,7 +717,7 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
   const info = projectDetail && String(projectDetail.id) === String(projectId) ? { ...project, ...projectDetail } : project;
 
   useEffect(() => {
-    projectApi.list({ page_size: 1000 })
+    projectApi.list({ page_size: 200 })
       .then((data) => setProjects(rowsOf(data).filter((p) => p.lead_status === 'Won')))
       .catch(() => setProjects([]));
     settingsApi.company.get()
@@ -737,7 +737,7 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
     setListLoading(true);
     try {
       const scope = locked ? { project: lockedProjectId } : {};
-      setDocs(rowsOf(await cfg.api.list({ ...filters, ...scope, page_size: 1000 })));
+      setDocs(rowsOf(await cfg.api.list({ ...filters, ...scope, page_size: 200 })));
     } catch {
       setDocs([]);
     } finally {
@@ -747,7 +747,7 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
 
   useEffect(() => { loadDocs(); }, [loadDocs]);
 
-  const fetchPlans = (pid) => materialPlanApi.list({ project: pid, page_size: 500 }).then(rowsOf).catch(() => []);
+  const fetchPlans = (pid) => materialPlanApi.list({ project: pid, page_size: 200 }).then(rowsOf).catch(() => []);
   const fetchPrefill = (pid, qid) => projectSalesChallanApi.quotationPrefill(pid, qid).catch(() => null);
   const quotationForm = (prefill) => ({
     quotation_no: prefill.quotation_no || '',

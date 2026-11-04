@@ -16,11 +16,20 @@ def reports_dashboard(date_from=None, date_to=None):
     if date_to:
         lead_qs = lead_qs.filter(created_at__date__lte=date_to)
 
-    total_leads = lead_qs.count()
-    new_leads = lead_qs.filter(status='New').count()
-    won_leads = lead_qs.filter(status='Won').count()
-    follow_up_done = lead_qs.filter(status='Follow-up').count()
-    quotations = lead_qs.filter(status='Quotation').count()
+    from django.db.models import Count, Q
+
+    lead_counts = lead_qs.aggregate(
+        total=Count('id'),
+        new=Count('id', filter=Q(status='New')),
+        won=Count('id', filter=Q(status='Won')),
+        follow_up=Count('id', filter=Q(status='Follow-up')),
+        quotation=Count('id', filter=Q(status='Quotation')),
+    )
+    total_leads = lead_counts['total'] or 0
+    new_leads = lead_counts['new'] or 0
+    won_leads = lead_counts['won'] or 0
+    follow_up_done = lead_counts['follow_up'] or 0
+    quotations = lead_counts['quotation'] or 0
 
     payment_qs = Payment.objects.filter(status='Completed', direction='Received')
     if date_from:
@@ -30,11 +39,23 @@ def reports_dashboard(date_from=None, date_to=None):
     revenue = payment_qs.aggregate(total=Sum('amount'))['total'] or 0
 
     inv = InventoryItem.objects.filter(is_active=True)
-    inventory_value = inv.aggregate(val=Sum(F('current_stock') * F('rate')))['val'] or 0
+    inv_counts = inv.aggregate(
+        total_items=Count('id'),
+        low_stock=Count('id', filter=Q(current_stock__lte=F('minimum_stock'), current_stock__gt=0)),
+        out_of_stock=Count('id', filter=Q(current_stock__lte=0)),
+        total_value=Sum(F('current_stock') * F('rate')),
+    )
+    inventory_value = inv_counts['total_value'] or 0
 
     from apps.accounts_module.services import accounts_dashboard_summary
 
     accounts = accounts_dashboard_summary()
+
+    project_counts = Project.objects.aggregate(
+        total=Count('id'),
+        active=Count('id', filter=~Q(status__in=['Completed', 'Cancelled'])),
+        completed=Count('id', filter=Q(status='Completed')),
+    )
 
     return {
         'kpis': [
@@ -45,15 +66,15 @@ def reports_dashboard(date_from=None, date_to=None):
             {'title': 'Leads Won', 'value': str(won_leads), 'tone': 'sky'},
         ],
         'projects': {
-            'total': Project.objects.count(),
-            'active': Project.objects.exclude(status__in=['Completed', 'Cancelled']).count(),
-            'completed': Project.objects.filter(status='Completed').count(),
+            'total': project_counts['total'] or 0,
+            'active': project_counts['active'] or 0,
+            'completed': project_counts['completed'] or 0,
         },
         'revenue': float(revenue),
         'inventory': {
-            'total_items': inv.count(),
-            'low_stock': inv.filter(current_stock__lte=F('minimum_stock'), current_stock__gt=0).count(),
-            'out_of_stock': inv.filter(current_stock__lte=0).count(),
+            'total_items': inv_counts['total_items'] or 0,
+            'low_stock': inv_counts['low_stock'] or 0,
+            'out_of_stock': inv_counts['out_of_stock'] or 0,
             'total_value': float(inventory_value),
         },
         'operations': {

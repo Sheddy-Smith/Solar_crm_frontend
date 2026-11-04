@@ -18,7 +18,6 @@ import logging
 import os
 import threading
 import time
-import urllib.request
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,9 @@ def _ping_forever(url):
     while True:
         time.sleep(PING_INTERVAL_SECONDS)
         try:
-            urllib.request.urlopen(url, timeout=30)
+            from malwa_solar.http_client import request as http_request
+            # Idempotent GET probe — retries + circuit breaker apply.
+            http_request(url, method='GET', timeout=15, retries=1)
         except Exception as exc:  # never let the keep-alive thread die
             logger.debug('keep-alive self-ping failed: %s', exc)
 

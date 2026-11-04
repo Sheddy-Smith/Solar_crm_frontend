@@ -146,6 +146,7 @@ MODULE_ACTION_FLAGS = {
     'summary': 'can_view',
     'system_config': 'can_view',
     'site_survey': 'can_view',
+    'check_ivrs': 'can_view',
     'create': 'can_add',
     'update': 'can_edit',
     'partial_update': 'can_edit',

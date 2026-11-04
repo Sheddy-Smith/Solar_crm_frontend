@@ -180,7 +180,7 @@ function ActivatePlantModal({ onClose, onSaved, onNotify }) {
   const [date, setDate] = useState('');
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    projectApi.list({ page_size: 2000 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+    projectApi.list({ page_size: 200 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
   }, []);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -247,7 +247,7 @@ function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotify, focu
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    omPlantApi.list({ page_size: 2500, ...filters, search: debounced })
+    omPlantApi.list({ page_size: 200, ...filters, search: debounced })
       .then((r) => { if (alive) setRows(normalizeApiRows(r)); })
       .catch((e) => { if (alive) { setRows([]); onNotify?.(errMsg(e, 'Could not load plants.'), 'error'); } })
       .finally(() => { if (alive) setLoading(false); });
@@ -525,7 +525,7 @@ function PlantDocuments({ plant, caps, onNotify }) {
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     let alive = true;
-    omDocumentApi.list({ plant: plant.id, page_size: 500 }).then((r) => { if (alive) setRows(normalizeApiRows(r)); }).catch(() => {});
+    omDocumentApi.list({ plant: plant.id, page_size: 200 }).then((r) => { if (alive) setRows(normalizeApiRows(r)); }).catch(() => {});
     return () => { alive = false; };
   }, [plant.id, tick]);
   const upload = async () => {
@@ -765,7 +765,7 @@ function InsuranceList({ plant, caps, onNotify, onChanged, initialAlert = '', fo
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    omInsuranceApi.list({ page_size: 2500, ordering: 'expiry_date', alert, plant: plant?.id || '' })
+    omInsuranceApi.list({ page_size: 200, ordering: 'expiry_date', alert, plant: plant?.id || '' })
       .then((r) => { if (alive) setRows(normalizeApiRows(r)); })
       .catch(() => { if (alive) setRows([]); })
       .finally(() => { if (alive) setLoading(false); });

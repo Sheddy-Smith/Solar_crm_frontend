@@ -47,7 +47,28 @@ function isRunningStandalone() {
 }
 
 function notify() {
-  subscribers.forEach((fn) => fn());
+  // Defer so captureDeferredPrompt never re-enters via a subscriber that
+  // synchronously reads install state in the same stack frame.
+  const run = () => {
+    subscribers.forEach((fn) => {
+      try {
+        fn();
+      } catch {
+        /* ignore subscriber errors */
+      }
+    });
+  };
+  if (typeof queueMicrotask === 'function') queueMicrotask(run);
+  else Promise.resolve().then(run);
+}
+
+function clearEarlyDeferredPrompt() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.__malwaDeferredPrompt = null;
+  } catch {
+    /* ignore */
+  }
 }
 
 function captureDeferredPrompt(event) {
@@ -57,9 +78,16 @@ function captureDeferredPrompt(event) {
   } catch {
     /* already prevented by early boot script */
   }
+  // Drop the early-boot copy first. getInstallState() used to re-read
+  // window.__malwaDeferredPrompt while notify() was still running, which
+  // re-entered captureDeferredPrompt → Maximum call stack size exceeded.
+  clearEarlyDeferredPrompt();
   deferredPrompt = event;
   // Chrome offering install again ⇒ previous install marks are stale.
-  clearInstalledMarks();
+  // Update marks without nested notify; a single notify runs below.
+  installedThisSession = false;
+  installedAppDetected = false;
+  writeInstalledFlag(false);
   deferredPrompt = event;
   notify();
 }
@@ -67,14 +95,15 @@ function captureDeferredPrompt(event) {
 function syncEarlyDeferredPrompt() {
   if (typeof window === 'undefined') return;
   const early = window.__malwaDeferredPrompt;
-  if (early) {
-    captureDeferredPrompt(early);
-    try {
-      window.__malwaDeferredPrompt = null;
-    } catch {
-      /* ignore */
-    }
-  }
+  if (!early) return;
+  // Null before capture so subscriber → getInstallState cannot re-enter.
+  clearEarlyDeferredPrompt();
+  captureDeferredPrompt(early);
+}
+
+/** Adopt window.__malwaDeferredPrompt once (safe to call from React mount). */
+export function adoptEarlyInstallPrompt() {
+  syncEarlyDeferredPrompt();
 }
 
 if (typeof window !== 'undefined') {
@@ -162,7 +191,9 @@ export function waitForInstallPrompt(timeoutMs = 2000) {
 }
 
 export function getInstallState() {
-  syncEarlyDeferredPrompt();
+  // Read-only: never sync/capture here. Subscribers call getInstallState from
+  // notify(); a side-effecting sync would recurse (see captureDeferredPrompt).
+  // Early prompt is adopted at module init, waitForInstallPrompt, and promptInstall.
   const standalone = isRunningStandalone();
   // Trust only live signals — NOT localStorage alone (that forced "App status"
   // after delete until the user cleared browser history).

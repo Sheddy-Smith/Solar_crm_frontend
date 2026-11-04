@@ -8,6 +8,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import Throttled, ValidationError
 from malwa_solar.throttling import SafeScopedRateThrottle
+from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -21,6 +24,26 @@ from .serializers import (
 from .permissions import HasModulePermission, is_super_admin
 
 User = get_user_model()
+
+
+class LogoutView(APIView):
+    """Blacklist the refresh token so it cannot mint new access tokens."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        raw = (request.data.get('refresh') or '').strip()
+        if not raw:
+            return Response({'detail': 'refresh required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            token = RefreshToken(raw)
+            token.blacklist()
+        except TokenError:
+            return Response({'detail': 'Invalid or already blacklisted refresh token'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({'detail': 'Could not invalidate refresh token'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'status': 'logged_out'})
+
 
 
 def _parse_throttle_rate(rate):
@@ -212,7 +235,7 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_permissions(self):
-        if self.action in ('me', 'preferences', 'change_password', 'verify_password'):
+        if self.action in ('me', 'preferences', 'change_password', 'verify_password', 'options'):
             return [IsAuthenticated()]
         # All user-admin actions follow the User Management matrix from Settings UI
         # (View / Add / Edit / Delete). Super Admin still bypasses via HasModulePermission.
@@ -287,6 +310,38 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def me(self, request):
         return Response(current_user_payload(request.user))
+
+    @action(detail=False, methods=['get'])
+    def options(self, request):
+        """Lightweight active-user directory for dropdowns (Survey Engineer, assignee, …).
+
+        Any signed-in staff can read id/name/role — full User Management View is
+        not required. Excludes soft-deleted accounts. Optional filters:
+        - is_active=true|false (default true)
+        - exclude_role=Tele Sales Executive (repeatable)
+        """
+        qs = User.objects.select_related('role').filter(is_deleted=False)
+        is_active = request.query_params.get('is_active')
+        if is_active is None or str(is_active).lower() in ('1', 'true', 'yes'):
+            qs = qs.filter(is_active=True)
+        elif str(is_active).lower() in ('0', 'false', 'no'):
+            qs = qs.filter(is_active=False)
+        exclude_roles = request.query_params.getlist('exclude_role')
+        for role_name in exclude_roles:
+            name = (role_name or '').strip()
+            if name:
+                qs = qs.exclude(role__name=name)
+        rows = [
+            {
+                'id': user.id,
+                'name': user.name or user.email,
+                'email': user.email,
+                'role_name': getattr(user.role, 'name', None) or '',
+                'mobile': user.mobile or '',
+            }
+            for user in qs.order_by('name', 'email')
+        ]
+        return Response(rows)
 
     @action(detail=False, methods=['patch'], url_path='me/preferences')
     def preferences(self, request):

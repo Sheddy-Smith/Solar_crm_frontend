@@ -48,7 +48,7 @@ export function CrmFollowUpsPage({
   }, [initialTab]);
 
   const load = () => {
-    followUpApi.listAll({ page_size: 500, ordering: '-scheduled_at' })
+    followUpApi.listAll({ page_size: 200, ordering: '-scheduled_at' })
       .then((data) => setRows(normalizeRows(data)))
       .catch(() => {
         setRows([]);

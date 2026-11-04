@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import os as _os
 
 from django.core.cache import cache
 
@@ -12,14 +13,56 @@ from apps.projects.kpi_service import project_kpi_analytics
 from apps.projects.models import Project
 from apps.reports.services import reports_dashboard
 
-CACHE_TTL_SECONDS = 45
+# 45s default; staging Locust sets DASHBOARD_CACHE_TTL higher via env if needed.
+CACHE_TTL_SECONDS = int(_os.environ.get('DASHBOARD_CACHE_TTL', '45') or 45)
+# Shared generation counter — bumped on CRM writes that affect aggregates.
+CACHE_GEN_KEY = 'unified_dashboard:gen'
+# Explicit scope marker: payload is org-wide aggregates (not per-user PII).
+# If the builder ever becomes user-scoped, bump this and include viewer id.
+CACHE_SCOPE = 'crm_global_v1'
 logger = logging.getLogger(__name__)
 
 
-def _cache_key(params):
-    normalized = json.dumps(sorted((k, str(v)) for k, v in params.items() if v not in (None, '')), sort_keys=True)
+def _cache_generation():
+    try:
+        value = cache.get(CACHE_GEN_KEY)
+        return int(value or 0)
+    except Exception:
+        return 0
+
+
+def invalidate_unified_dashboard_cache(reason: str = '') -> None:
+    """Bump generation so all filter variants miss on next read (TTL cleans orphans)."""
+    try:
+        try:
+            cache.incr(CACHE_GEN_KEY)
+        except ValueError:
+            # Key missing on some backends until first set.
+            cache.add(CACHE_GEN_KEY, 0, timeout=None)
+            try:
+                cache.incr(CACHE_GEN_KEY)
+            except Exception:
+                cache.set(CACHE_GEN_KEY, 1, timeout=None)
+        logger.info('unified_dashboard cache invalidated reason=%s gen=%s', reason or 'unspecified', _cache_generation())
+    except Exception:
+        logger.warning('unified_dashboard cache invalidation failed reason=%s', reason or 'unspecified', exc_info=True)
+
+
+def _cache_key(params, viewer_fingerprint: str = ''):
+    """Key includes generation + global scope (+ optional viewer fingerprint).
+
+    Viewer fingerprint is only for future scoped payloads. Today the dashboard
+    body is identical for all Dashboard:can_view users; fingerprint stays empty
+    so the cache remains shared. Never store another user's private rows here.
+    """
+    normalized = json.dumps(
+        sorted((k, str(v)) for k, v in params.items() if v not in (None, '')),
+        sort_keys=True,
+    )
     digest = hashlib.md5(normalized.encode()).hexdigest()
-    return f'unified_dashboard:{digest}'
+    gen = _cache_generation()
+    fp = (viewer_fingerprint or 'shared').strip() or 'shared'
+    return f'unified_dashboard:{CACHE_SCOPE}:g{gen}:{fp}:{digest}'
 
 
 def _om_alerts():
@@ -86,13 +129,23 @@ def build_unified_dashboard(params=None):
     inventory = inventory_summary()
     amc = amc_dashboard_summary()
 
+    # One grouped query instead of 6 COUNT(*) round-trips (staging Locust hotspot).
+    from django.db.models import Count, Q
+    project_counts = Project.objects.aggregate(
+        total=Count('id'),
+        planning=Count('id', filter=Q(status='Planning')),
+        active=Count('id', filter=Q(status='Active')),
+        on_hold=Count('id', filter=Q(status='On Hold')),
+        completed=Count('id', filter=Q(status='Completed')),
+        cancelled=Count('id', filter=Q(status='Cancelled')),
+    )
     project_summary = {
-        'total': Project.objects.count(),
-        'planning': Project.objects.filter(status='Planning').count(),
-        'active': Project.objects.filter(status='Active').count(),
-        'on_hold': Project.objects.filter(status='On Hold').count(),
-        'completed': Project.objects.filter(status='Completed').count(),
-        'cancelled': Project.objects.filter(status='Cancelled').count(),
+        'total': project_counts['total'] or 0,
+        'planning': project_counts['planning'] or 0,
+        'active': project_counts['active'] or 0,
+        'on_hold': project_counts['on_hold'] or 0,
+        'completed': project_counts['completed'] or 0,
+        'cancelled': project_counts['cancelled'] or 0,
     }
 
     overview = {
@@ -148,9 +201,10 @@ def build_unified_dashboard(params=None):
     }
 
 
-def get_unified_dashboard(params=None):
+def get_unified_dashboard(params=None, viewer_fingerprint: str = ''):
     params = {k: v for k, v in (params or {}).items() if v not in (None, '')}
-    key = _cache_key(params)
+    key = _cache_key(params, viewer_fingerprint=viewer_fingerprint)
+    lock_key = f'{key}:lock'
     # The Redis cache is an optimization only — any failure (including ones
     # django-redis doesn't classify as ignorable connection errors, e.g.
     # stale-entry deserialization after a library upgrade) must degrade to a
@@ -161,9 +215,37 @@ def get_unified_dashboard(params=None):
         cached = None
     if cached is not None:
         return cached
-    payload = build_unified_dashboard(params)
+
+    # Stampede lock: only one builder runs; others briefly wait then re-read cache
+    # or build if lock holder failed. cache.add is atomic on Redis/LocMem.
+    got_lock = False
     try:
-        cache.set(key, payload, CACHE_TTL_SECONDS)
+        got_lock = bool(cache.add(lock_key, '1', timeout=min(30, CACHE_TTL_SECONDS)))
     except Exception:
-        pass
-    return payload
+        got_lock = True  # if lock store fails, build anyway
+
+    if not got_lock:
+        import time
+        for _ in range(15):
+            time.sleep(0.2)
+            try:
+                cached = cache.get(key)
+            except Exception:
+                cached = None
+            if cached is not None:
+                return cached
+        # Timed out waiting — fall through and build (better than empty 504).
+
+    try:
+        payload = build_unified_dashboard(params)
+        try:
+            cache.set(key, payload, CACHE_TTL_SECONDS)
+        except Exception:
+            pass
+        return payload
+    finally:
+        if got_lock:
+            try:
+                cache.delete(lock_key)
+            except Exception:
+                pass

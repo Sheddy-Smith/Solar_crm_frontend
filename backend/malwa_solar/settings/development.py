@@ -2,6 +2,7 @@ from .base import *
 import sys
 
 DEBUG = True
+ALLOW_EAGER_EXPORTS = env.bool('ALLOW_EAGER_EXPORTS', default=True)  # noqa: F405
 
 # Allow LAN access (phone/other devices) in development; the dev machine's
 # DHCP-assigned IP can change, so a wildcard is used instead of a fixed IP.

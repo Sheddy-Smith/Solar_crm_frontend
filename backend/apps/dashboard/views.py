@@ -19,4 +19,9 @@ class UnifiedDashboardView(APIView):
             'status': request.query_params.get('status'),
             'assigned_to': request.query_params.get('assigned_to'),
         }
+        # Payload is org-wide aggregates (CACHE_SCOPE=crm_global_v1). Do not
+        # key by user id — that would fragment the cache and does not add
+        # isolation while the builder ignores request.user. Auth + module
+        # permission still gate access. If builder becomes user-scoped, pass
+        # a stable viewer fingerprint into get_unified_dashboard().
         return Response(get_unified_dashboard(params))

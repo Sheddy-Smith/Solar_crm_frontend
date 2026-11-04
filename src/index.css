@@ -1809,7 +1809,8 @@ html:has(.portal-landing) #root {
   .app-mobile-topbar {
     position: sticky;
     top: 0;
-    z-index: 40;
+    /* Above Lead List search/filter strip (z-20) so profile menu is never covered. */
+    z-index: 50;
     border-radius: 0 !important;
     background: #ffffff !important;
     box-shadow: 0 8px 20px rgba(15, 39, 92, 0.08);

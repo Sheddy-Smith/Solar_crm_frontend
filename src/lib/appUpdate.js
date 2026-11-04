@@ -257,15 +257,24 @@ export async function applyAppUpdate({ force = false } = {}) {
   try {
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
-      regs.forEach((reg) => {
-        if (reg.waiting) {
+      await Promise.all(
+        regs.map(async (reg) => {
+          if (reg.waiting) {
+            try {
+              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            } catch {
+              /* ignore */
+            }
+          }
+          // Drop every SW so the next load fetches fresh HTML/JS (phones often
+          // kept an old shell even after "Update CRM").
           try {
-            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            await reg.unregister();
           } catch {
             /* ignore */
           }
-        }
-      });
+        }),
+      );
     }
   } catch {
     /* ignore */
@@ -273,20 +282,18 @@ export async function applyAppUpdate({ force = false } = {}) {
   try {
     if (window.caches) {
       const keys = await caches.keys();
-      await Promise.all(
-        keys
-          .filter((k) => k.indexOf('malwa-solar-crm-') === 0)
-          .map((k) => caches.delete(k)),
-      );
+      await Promise.all(keys.map((k) => caches.delete(k)));
     }
   } catch {
     /* ignore */
   }
 
   // Always reload once so installed TWA/PWA pick up the latest shell/assets.
-  const url = window.location.href.split('#')[0].replace(/([?&])malwa_updated=\d+/g, '').replace(/[?&]$/, '');
-  const sep = url.indexOf('?') >= 0 ? '&' : '?';
-  window.location.replace(`${url}${sep}malwa_updated=${Date.now()}`);
+  // Use a clean root URL so stale query/path cannot keep an old document cached.
+  const origin = window.location.origin;
+  const path = window.location.pathname || '/';
+  const basePath = path.startsWith('/crm') ? '/crm/' : '/';
+  window.location.replace(`${origin}${basePath}?malwa_updated=${Date.now()}`);
   return { ok: true, reason: 'reloading' };
 }
 

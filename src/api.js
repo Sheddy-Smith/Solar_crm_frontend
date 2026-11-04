@@ -83,7 +83,7 @@ async function refreshAccessToken() {
   return refreshPromise;
 }
 
-async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20000 } = {}) {
+async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20000, signal } = {}) {
   const isFormData = body instanceof FormData;
   const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (auth) {
@@ -92,6 +92,11 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
   }
 
   const controller = new AbortController();
+  const onExternalAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener('abort', onExternalAbort, { once: true });
+  }
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   const doFetch = (hdrs) =>
@@ -106,6 +111,10 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
     let res = await doFetch(headers);
 
     if (res.status === 401 && auth) {
+      // Never auto-retry non-idempotent methods after refresh ambiguity.
+      if (!['GET', 'HEAD', 'OPTIONS'].includes((method || 'GET').toUpperCase())) {
+        throw new Error('Session expired. Please login again.');
+      }
       const newAccess = await refreshAccessToken();
       // Throw instead of returning null: callers treat null as "no data",
       // which silently hides the expired session.
@@ -126,11 +135,13 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
     return data;
   } catch (error) {
     if (error?.name === 'AbortError') {
+      if (signal?.aborted) throw error;
       throw new Error('Request timed out. Please try again.');
     }
     throw error;
   } finally {
     window.clearTimeout(timeoutId);
+    if (signal) signal.removeEventListener('abort', onExternalAbort);
   }
 }
 
@@ -149,13 +160,29 @@ export const authApi = {
   me: () => request('/users/me/'),
   updatePreferences: (prefs) => request('/users/me/preferences/', { method: 'PATCH', body: prefs }),
   verifyPassword: (password) => request('/users/verify-password/', { method: 'POST', body: { password } }),
-  logout: () => tokenStore.clear(),
+  logout: async () => {
+    const refresh = tokenStore.getRefresh();
+    try {
+      if (refresh) {
+        await request('/auth/logout/', { method: 'POST', body: { refresh } });
+      }
+    } catch {
+      /* still clear local session even if blacklist call fails */
+    }
+    tokenStore.clear();
+    window.dispatchEvent(new Event('auth:logout'));
+  },
 };
 
 export const userApi = {
   list: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/users/${qs ? '?' + qs : ''}`);
+  },
+  /** Active users for dropdowns — available to every signed-in role. */
+  options: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/users/options/${qs ? '?' + qs : ''}`);
   },
   create: (data) => request('/users/', { method: 'POST', body: data }),
   update: (id, data) => request(`/users/${id}/`, { method: 'PATCH', body: data }),
@@ -188,6 +215,12 @@ export const leadApi = {
   list: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/leads/${qs ? '?' + qs : ''}`);
+  },
+  /** Global IVRS uniqueness (not limited to the caller's scoped lead list). */
+  checkIvrs: (ivrs, excludeId) => {
+    const qs = new URLSearchParams({ ivrs: (ivrs || '').trim() });
+    if (excludeId != null && excludeId !== '') qs.set('exclude_id', String(excludeId));
+    return request(`/leads/check-ivrs/?${qs.toString()}`);
   },
   create: (data) => request('/leads/', { method: 'POST', body: data }),
   get: (id) => request(`/leads/${id}/`),
@@ -296,6 +329,10 @@ export const reportsApi = {
     ).toString();
     return request(`/reports/dashboard/${qs ? '?' + qs : ''}`);
   },
+  exportLeads: (body = {}) => request('/reports/export-leads/', { method: 'POST', body }),
+  exportLeadsXlsx: (body = {}) => request('/reports/export-leads-xlsx/', { method: 'POST', body }),
+  exportStatus: (taskId) => request(`/reports/export-status/${encodeURIComponent(taskId)}/`),
+  importLeads: (body = {}) => request('/reports/import-leads/', { method: 'POST', body }),
 };
 
 const accountsCrud = (base) => ({
@@ -341,7 +378,7 @@ export const accountsModuleApi = {
 // ─── Follow-ups ──────────────────────────────────────────────────────────────
 
 export const followUpApi = {
-  list: (leadId) => request(`/follow-ups/?lead=${leadId}&page_size=500&ordering=-scheduled_at`),
+  list: (leadId) => request(`/follow-ups/?lead=${leadId}&page_size=200&ordering=-scheduled_at`),
   listAll: (params = {}) => {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
@@ -515,7 +552,7 @@ export const projectTeamApi = {
 
 export const projectMilestoneApi = {
   list: (projectId, params = {}) => {
-    const qs = new URLSearchParams({ project: projectId, page_size: params.page_size || 500, ...params });
+    const qs = new URLSearchParams({ project: projectId, page_size: params.page_size || 200, ...params });
     return request(`/project-milestones/?${qs.toString()}`);
   },
   create: (data) => request('/project-milestones/', { method: 'POST', body: data }),
@@ -527,7 +564,7 @@ export const projectMilestoneApi = {
 
 export const projectChecklistApi = {
   list: (projectId, phase, params = {}) => {
-    const qs = new URLSearchParams({ project: projectId, page_size: params.page_size || 500, ...params });
+    const qs = new URLSearchParams({ project: projectId, page_size: params.page_size || 200, ...params });
     if (phase) qs.set('phase', phase);
     return request(`/project-checklist-items/?${qs.toString()}`);
   },
@@ -540,7 +577,7 @@ export const projectChecklistApi = {
 
 export const installationMaterialApi = {
   list: (projectId, params = {}) => {
-    const qs = new URLSearchParams({ project: projectId, page_size: params.page_size || 500, ...params });
+    const qs = new URLSearchParams({ project: projectId, page_size: params.page_size || 200, ...params });
     return request(`/installation-materials/?${qs.toString()}`);
   },
   create: (data) => request('/installation-materials/', { method: 'POST', body: data }),

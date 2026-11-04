@@ -259,7 +259,7 @@ export function usePlantOptions(enabled = true) {
   useEffect(() => {
     if (!enabled) return undefined;
     let alive = true;
-    omPlantApi.list({ page_size: 2500, ordering: 'customer_name' })
+    omPlantApi.list({ page_size: 200, ordering: 'customer_name' })
       .then((r) => { if (alive) setRows(normalizeApiRows(r)); })
       .catch(() => {});
     return () => { alive = false; };

@@ -241,7 +241,7 @@ export function AccountsLineDocumentPage({
 
   const loadRows = useCallback(() => {
     setLoading(true);
-    const params = { page_size: 1000 };
+    const params = { page_size: 200 };
     if (statusFilter) params.status = statusFilter;
     api.list(params)
       .then((r) => setRows(normalizeApiRows(r)))
@@ -251,10 +251,10 @@ export function AccountsLineDocumentPage({
 
   useEffect(() => { loadRows(); }, [loadRows]);
   useEffect(() => {
-    accountsModuleApi.parties.list({ page_size: 1000 }).then((r) => setParties(normalizeApiRows(r))).catch(() => {});
-    projectApi.list({ page_size: 1000 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+    accountsModuleApi.parties.list({ page_size: 200 }).then((r) => setParties(normalizeApiRows(r))).catch(() => {});
+    projectApi.list({ page_size: 200 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
     if (linkInventory) {
-      inventoryApi.items.list({ page_size: 2000 })
+      inventoryApi.items.list({ page_size: 200 })
         .then((r) => setInventoryItems(normalizeApiRows(r)))
         .catch(() => {});
     }

@@ -643,10 +643,10 @@ function useTeleIvrsCheck(excludeId) {
     if (!ivrs) { setResult(null); return; }
     setChecking(true);
     try {
-      const data = await leadApi.list({ search: ivrs });
-      const rows = Array.isArray(data) ? data : (data?.results ?? []);
-      const match = rows.find((row) => row.ivrs_number === ivrs && row.id !== excludeId);
-      setResult(match || 'unique');
+      // Global check — Tele list is lead-scoped, so list/search missed other owners.
+      const data = await leadApi.checkIvrs(ivrs, excludeId);
+      if (data?.available) setResult('unique');
+      else setResult(data || null);
     } catch {
       setResult(null);
     } finally {
@@ -686,7 +686,11 @@ function TeleIvrsVerifyField({ value, onChange, checking, result, onCheck, onRes
       {result && result !== 'unique' ? (
         <div className="mt-2 flex items-start gap-2 rounded-[9px] border border-[#f6dda9] bg-[#fff8e8] px-3 py-2.5 text-[12px] font-bold text-[#a76200]">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          <span>This IVRS Number already exists ({result.customer_name}). Use a different IVRS or contact admin.</span>
+          <span>
+            {result.is_deleted
+              ? `This IVRS Number already exists in Recycle Bin (${result.customer_name || 'lead'}). Use a different IVRS or ask admin to purge/restore.`
+              : `This IVRS Number already exists (${result.customer_name || 'another lead'}). Use a different IVRS or contact admin.`}
+          </span>
         </div>
       ) : result === 'unique' ? (
         <p className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#0d9f4a]">
@@ -1107,13 +1111,13 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const [addLeadOpen, setAddLeadOpen] = useState(false);
 
   const loadLeads = () => {
-    leadApi.list({ page_size: 500, ordering: '-created_at' }).then((data) => {
+    leadApi.list({ page_size: 200, ordering: '-created_at' }).then((data) => {
       setLeads(Array.isArray(data) ? data : (data?.results ?? []));
     }).catch(() => { setLeads([]); onNotify('Leads could not be loaded.', 'error'); });
   };
 
   const loadFollowUps = () => {
-    followUpApi.listAll({ page_size: 500 }).then((data) => {
+    followUpApi.listAll({ page_size: 200 }).then((data) => {
       setFollowUps(Array.isArray(data) ? data : (data?.results ?? []));
     }).catch(() => { setFollowUps([]); onNotify('Follow-ups could not be loaded.', 'error'); });
   };

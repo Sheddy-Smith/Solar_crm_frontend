@@ -113,7 +113,7 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
 
   const loadTasks = () => {
     setLoading(true);
-    staffDailyTasksApi.list({ page_size: 500, ordering: '-task_date' })
+    staffDailyTasksApi.list({ page_size: 200, ordering: '-task_date' })
       .then((data) => setRows(rowsFrom(data)))
       .catch((err) => {
         setRows([]);

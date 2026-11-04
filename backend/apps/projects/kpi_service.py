@@ -1,37 +1,44 @@
 from collections import defaultdict
 from datetime import datetime
 
-from django.db.models import Sum
+from django.db.models import Avg, Count, Sum
+from django.utils import timezone
 
 from .models import Project
 
 
 def project_kpi_analytics():
-    projects = list(
-        Project.objects.values(
-            'status', 'project_type', 'site', 'customer_name',
-            'total_value', 'capacity_kwp', 'progress_percent',
-            'created_at', 'target_date',
-        )
+    """Project KPI bundle using DB aggregates (no full-table Python materialization)."""
+    qs = Project.objects.filter(is_deleted=False)
+
+    status_rows = list(qs.values('status').annotate(c=Count('id')))
+    status_counts = { (r['status'] or 'Planning'): r['c'] for r in status_rows }
+
+    type_rows = list(qs.values('project_type').annotate(c=Count('id')))
+    type_counts = { (r['project_type'] or 'On-Grid'): r['c'] for r in type_rows }
+
+    site_rows = list(
+        qs.values('site', 'customer_name')
+        .annotate(c=Count('id'))
+        .order_by('-c')[:50]
     )
-    total = len(projects)
-    status_counts = defaultdict(int)
-    type_counts = defaultdict(int)
     site_counts = defaultdict(int)
-    total_value_sum = 0.0
-    total_capacity = 0.0
-    progress_sum = 0
+    for r in site_rows:
+        key = (r.get('site') or r.get('customer_name') or 'Unspecified')
+        site_counts[key] += r['c']
 
-    for p in projects:
-        status_counts[p.get('status') or 'Planning'] += 1
-        type_counts[p.get('project_type') or 'On-Grid'] += 1
-        site_key = (p.get('site') or p.get('customer_name') or 'Unspecified')
-        site_counts[site_key] += 1
-        total_value_sum += float(p.get('total_value') or 0)
-        total_capacity += float(p.get('capacity_kwp') or 0)
-        progress_sum += int(p.get('progress_percent') or 0)
+    sums = qs.aggregate(
+        total=Count('id'),
+        total_value_sum=Sum('total_value'),
+        total_capacity=Sum('capacity_kwp'),
+        progress_avg=Avg('progress_percent'),
+    )
+    total = sums['total'] or 0
+    total_value_sum = float(sums['total_value_sum'] or 0)
+    total_capacity = float(sums['total_capacity'] or 0)
+    avg_progress = round(float(sums['progress_avg'] or 0))
 
-    now = datetime.now()
+    now = timezone.localtime()
     month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     trend_months = []
     for i in range(12):
@@ -43,26 +50,20 @@ def project_kpi_analytics():
             year -= 1
         trend_months.append(datetime(year, month, 1))
 
-    def month_key(dt):
-        if not dt:
-            return None
-        if isinstance(dt, str):
-            try:
-                dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
-            except ValueError:
-                return None
-        return f'{dt.year}-{dt.month}'
-
+    # Lightweight trend: only created_at / status / target_date for last ~13 months.
+    since = timezone.make_aware(datetime(trend_months[0].year, trend_months[0].month, 1))
     new_by_month = defaultdict(int)
     completed_by_month = defaultdict(int)
-    for p in projects:
-        mk = month_key(p.get('created_at'))
-        if mk:
-            new_by_month[mk] += 1
-        if p.get('status') == 'Completed' and p.get('target_date'):
-            cmk = month_key(p.get('target_date'))
-            if cmk:
-                completed_by_month[cmk] += 1
+    for created_at, status, target_date in (
+        qs.filter(created_at__gte=since)
+        .values_list('created_at', 'status', 'target_date')
+        .iterator(chunk_size=2000)
+    ):
+        if created_at:
+            local = timezone.localtime(created_at) if timezone.is_aware(created_at) else created_at
+            new_by_month[f'{local.year}-{local.month}'] += 1
+        if status == 'Completed' and target_date:
+            completed_by_month[f'{target_date.year}-{target_date.month}'] += 1
 
     trend_labels = [f'{month_names[d.month - 1]}\n{d.year}' for d in trend_months]
     trend_series = [
@@ -105,7 +106,6 @@ def project_kpi_analytics():
         if type_counts.get(t, 0) > 0
     ]
 
-    avg_progress = round(progress_sum / total) if total else 0
     avg_value = total_value_sum / total if total else 0
 
     summary_counts = {

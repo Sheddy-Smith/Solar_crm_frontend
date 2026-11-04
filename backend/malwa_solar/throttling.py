@@ -10,11 +10,9 @@ provider quota error) takes down the whole API.
 
 Two defenses, both here:
 
-1. Throttle counters live in the in-process ``throttling`` LocMem cache, not
-   the shared Redis. Request handling no longer depends on Redis at all, and
-   the Upstash free-tier command quota isn't burned 2-4x per request. With
-   ``--workers 2`` the counters are per-worker, making effective limits up to
-   2x the configured rate — acceptable slack for these coarse abuse caps.
+1. Throttle counters use the ``throttling`` cache alias. With REDIS_URL set
+   that alias is Redis (shared across workers/API instances). With Redis
+   disabled it is LocMem (per-process — fine for single-instance).
 
 2. ``allow_request`` fails OPEN on any unexpected error (with a logged
    traceback), because throttling is best-effort protection that must never

@@ -1,6 +1,10 @@
 import os
 from django.core.wsgi import get_wsgi_application
 
+# Prefer reused MySQL connections under sync gunicorn workers. Hostinger caps
+# max_connections_per_hour at 500; without reuse, normal CRM traffic exhausts
+# the quota and login returns HTTP 500.
+os.environ.setdefault('DB_CONN_MAX_AGE', '300')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'malwa_solar.settings.production')
 application = get_wsgi_application()
 

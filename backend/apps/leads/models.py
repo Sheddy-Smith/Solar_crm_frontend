@@ -123,6 +123,11 @@ class Lead(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_deleted', 'status', '-created_at'], name='lead_del_status_created_idx'),
+            models.Index(fields=['is_deleted', 'assigned_to', '-created_at'], name='lead_del_assignee_created_idx'),
+            models.Index(fields=['is_deleted', 'next_follow_up'], name='lead_del_next_followup_idx'),
+        ]
 
 
 class FollowUp(models.Model):
@@ -167,6 +172,9 @@ class FollowUp(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_deleted', 'status', 'scheduled_at'], name='followup_del_status_sched_idx'),
+        ]
 
 
 class AdminApproval(models.Model):

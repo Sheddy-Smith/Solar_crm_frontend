@@ -2272,6 +2272,7 @@ function App() {
   const [dashboardScheduledFollowUps, setDashboardScheduledFollowUps] = useState(null);
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
   const [dashboardOverdue, setDashboardOverdue] = useState(null);
+  const [dashboardWidgetErrors, setDashboardWidgetErrors] = useState({});
   const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
   const [customerLeadRefreshKey, setCustomerLeadRefreshKey] = useState(0);
   const [autoOpenFollowUps, setAutoOpenFollowUps] = useState(false);
@@ -2437,13 +2438,18 @@ function App() {
   // date, so they get their own effect/callback — everything else on the
   // dashboard is period-independent and stays in the effect below.
   const canViewLeadModule = Boolean(loggedInUser && hasAnyModuleAccess(loggedInUser, 'Lead'));
-  const refreshDashboardLeadStats = useCallback(() => {
+  const setDashWidgetError = useCallback((key, message) => {
+    setDashboardWidgetErrors((prev) => ({ ...prev, [key]: message || '' }));
+  }, []);
+  const refreshDashboardLeadStats = useCallback((signal) => {
     if (!canViewLeadModule) {
       setDashboardLeadStats({});
-      return;
+      setDashWidgetError('leadStats', '');
+      return Promise.resolve();
     }
-    leadApi.stats(dashboardPeriod.toLowerCase(), formatIsoDate(dashboardPeriodAnchor)).then((data) => {
-      if (!data) return;
+    return leadApi.stats(dashboardPeriod.toLowerCase(), formatIsoDate(dashboardPeriodAnchor)).then((data) => {
+      if (signal?.aborted || !data) return;
+      setDashWidgetError('leadStats', '');
       setDashboardLeadStats(data);
       setDashboardRange({ start: data.range_start, end: data.range_end });
       const periodLabel = dashboardPeriod.toLowerCase();
@@ -2468,8 +2474,12 @@ function App() {
           return s;
         }),
       );
-    }).catch(() => notify('Dashboard lead stats could not be loaded.', 'error'));
-  }, [canViewLeadModule, dashboardPeriod, dashboardPeriodAnchor]);
+    }).catch((err) => {
+      if (signal?.aborted || err?.name === 'AbortError') return;
+      setDashWidgetError('leadStats', 'Lead stats unavailable');
+      notify('Dashboard lead stats could not be loaded.', 'error');
+    });
+  }, [canViewLeadModule, dashboardPeriod, dashboardPeriodAnchor, setDashWidgetError]);
 
   useEffect(() => {
     const todayCount = dashboardScheduledFollowUps === null ? null : dashboardFollowUpAlerts.today.length;
@@ -2498,51 +2508,70 @@ function App() {
   }, [dashboardFollowUpAlerts, dashboardScheduledFollowUps]);
 
   useEffect(() => {
-    if (currentPage !== 'dashboard') return;
-    refreshDashboardLeadStats();
+    if (currentPage !== 'dashboard') return undefined;
+    const ac = new AbortController();
+    refreshDashboardLeadStats(ac.signal);
+    return () => ac.abort();
   }, [currentPage, refreshDashboardLeadStats]);
 
-  const refreshDashboardFollowUps = useCallback(() => {
+  const refreshDashboardFollowUps = useCallback((signal) => {
     if (!canViewLeadModule) {
       setDashboardScheduledFollowUps([]);
-      return;
+      setDashWidgetError('followUps', '');
+      return Promise.resolve();
     }
-    followUpApi.listAll({ page_size: 500, status: 'Scheduled', ordering: 'scheduled_at' }).then((data) => {
+    return followUpApi.listAll({ page_size: 100, status: 'Scheduled', ordering: 'scheduled_at' }).then((data) => {
+      if (signal?.aborted) return;
+      setDashWidgetError('followUps', '');
       setDashboardScheduledFollowUps(Array.isArray(data) ? data : (data?.results ?? []));
-    }).catch(() => {
+    }).catch((err) => {
+      if (signal?.aborted || err?.name === 'AbortError') return;
       setDashboardScheduledFollowUps((prev) => prev ?? []);
+      setDashWidgetError('followUps', 'Follow-ups unavailable');
       notify('Follow-ups could not be loaded.', 'error');
     });
-  }, [canViewLeadModule]);
+  }, [canViewLeadModule, setDashWidgetError]);
 
   const isDashboardSection = activeSidebarItem === 'Dashboard';
 
-  // Follow-ups are logged from Lead Details / Follow-ups pages, so reload the
-  // High / Extra High alert lists every time the dashboard is shown again.
+  // Follow-ups load independently; abort when leaving dashboard.
   useEffect(() => {
     if (currentPage !== 'dashboard' || !isDashboardSection) return undefined;
-    refreshDashboardFollowUps();
+    const ac = new AbortController();
+    refreshDashboardFollowUps(ac.signal);
     const onVisible = () => {
       if (document.visibilityState === 'visible') refreshDashboardFollowUps();
     };
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    return () => {
+      ac.abort();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [currentPage, isDashboardSection, refreshDashboardFollowUps]);
 
-  // Fetch dashboard stats from API
+  // Secondary widgets: independent failure domains (one API fail ≠ blank dashboard).
   useEffect(() => {
-    if (currentPage !== 'dashboard') return;
+    if (currentPage !== 'dashboard') return undefined;
+    const ac = new AbortController();
+
     projectApi.summary().then((data) => {
-      if (!data) return;
+      if (ac.signal.aborted || !data) return;
+      setDashWidgetError('projects', '');
       setDashboardProjectSummary(data);
-    }).catch(() => notify('Project summary could not be loaded.', 'error'));
+    }).catch((err) => {
+      if (ac.signal.aborted || err?.name === 'AbortError') return;
+      setDashWidgetError('projects', 'Project summary unavailable');
+      notify('Project summary could not be loaded.', 'error');
+    });
 
     if (!canViewLeadModule) {
       setDashboardRecentLeads([]);
-      return;
+      return () => ac.abort();
     }
 
     leadApi.recent().then((data) => {
+      if (ac.signal.aborted) return;
+      setDashWidgetError('recentLeads', '');
       const rows = Array.isArray(data) ? data : (data?.results ?? []);
       setDashboardRecentLeads(rows.length === 0 ? [] : rows.map((lead) => ({
         id: lead.id,
@@ -2558,8 +2587,14 @@ function App() {
         createdOn: lead.created_at_display || '—',
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
       })));
-    }).catch(() => notify('Recent leads could not be loaded.', 'error'));
-  }, [canViewLeadModule, currentPage]);
+    }).catch((err) => {
+      if (ac.signal.aborted || err?.name === 'AbortError') return;
+      setDashWidgetError('recentLeads', 'Recent leads unavailable');
+      notify('Recent leads could not be loaded.', 'error');
+    });
+
+    return () => ac.abort();
+  }, [canViewLeadModule, currentPage, setDashWidgetError]);
 
   const openDashboardSection = (section, message, lead, tab) => {
     if (section === 'Create Lead') {
@@ -3015,7 +3050,8 @@ function App() {
       >
         <div
           className={cx(
-            'fixed inset-0 z-40 bg-[#10213d]/45 transition xl:hidden',
+            // Above bottom nav (z-60) so dim + tap-outside actually closes More menu on phones.
+            'fixed inset-0 z-[70] bg-[#10213d]/45 transition xl:hidden',
             mobileSidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
           )}
           onClick={() => setMobileSidebarOpen(false)}
@@ -3023,7 +3059,7 @@ function App() {
 
         <aside
           className={cx(
-            'sidebar-root fixed inset-y-2 left-2 z-50 flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] border-r-white/10 bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
+            'sidebar-root fixed inset-y-2 left-2 z-[80] flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] border-r-white/10 bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
             desktopSidebarCollapsed ? 'xl:w-[84px]' : 'xl:w-[236px]',
             mobileSidebarOpen ? 'translate-x-0' : 'translate-x-[-110%] xl:translate-x-0',
           )}
@@ -3146,12 +3182,17 @@ function App() {
                           if (sectionKey) {
                             if (expandedSection === sectionKey) {
                               setExpandedSection(null);
-                            } else {
-                              setExpandedSection(sectionKey);
-                              const projectLanding = !loggedInUser || hasAnyModuleAccess(loggedInUser, 'Project Management') ? 'Project Overview' : 'Quotation';
-                              const nextItem = isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Liaison Projects' : isOmSection ? visibleOmSubItems[0] : isOmPendingSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : 'Project List';
-                              setActiveSidebarItem(nextItem);
-                              notify(`${nextItem} section selected`);
+                              // Keep drawer open on mobile so user can pick another section.
+                              return;
+                            }
+                            setExpandedSection(sectionKey);
+                            const projectLanding = !loggedInUser || hasAnyModuleAccess(loggedInUser, 'Project Management') ? 'Project Overview' : 'Quotation';
+                            const nextItem = isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Liaison Projects' : isOmSection ? visibleOmSubItems[0] : isOmPendingSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : 'Project List';
+                            setActiveSidebarItem(nextItem);
+                            notify(`${nextItem} section selected`);
+                            // Mobile: leave drawer open so sub-items stay visible; sub-item click closes it.
+                            if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1279px)').matches) {
+                              return;
                             }
                           } else {
                             setActiveSidebarItem(item.label);
@@ -4180,6 +4221,16 @@ function App() {
               </div>
             </Card>
 
+            {Object.values(dashboardWidgetErrors).some(Boolean) ? (
+              <div className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-2 text-[12px] font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="status">
+                {Object.entries(dashboardWidgetErrors)
+                  .filter(([, msg]) => msg)
+                  .map(([key, msg]) => (
+                    <div key={key}>{msg}</div>
+                  ))}
+              </div>
+            ) : null}
+
             <section className="flex gap-1.5 md:grid md:grid-cols-[repeat(auto-fit,minmax(140px,1fr))] md:gap-3">
               {dashboardStats.map((stat) => (
                 <StatCard key={stat.title} stat={stat} onClick={() => openDashboardSection(stat.target, `${stat.title} opened`, null, stat.title === 'Today Follow-ups' ? 'today' : undefined)} />
@@ -4351,7 +4402,7 @@ function App() {
           }
           openDashboardSection(item.section, `${item.label} opened`);
         }}
-        onMore={() => setMobileSidebarOpen(true)}
+        onMore={() => setMobileSidebarOpen((open) => !open)}
       />
 
       {dashboardCreateLeadOpen ? (
@@ -4449,7 +4500,7 @@ function AppHeader({
   );
 
   return (
-    <header className={`${panelClass} header-toolbar app-mobile-topbar relative z-30 -mx-2 overflow-visible rounded-none border-x-0 border-t-0 px-3 py-2.5 md:mx-0 md:rounded-[16px] md:border md:px-4 md:py-3`}>
+    <header className={`${panelClass} header-toolbar app-mobile-topbar relative z-50 -mx-2 overflow-visible rounded-none border-x-0 border-t-0 px-3 py-2.5 md:mx-0 md:rounded-[16px] md:border md:px-4 md:py-3`}>
       <div className="grid gap-2.5 lg:grid-cols-[40px_minmax(0,1fr)] xl:grid-cols-[40px_minmax(280px,320px)_minmax(0,1fr)_auto] xl:items-center xl:gap-4">
         <div className="flex items-center justify-between gap-2 lg:contents">
           <button
@@ -4499,58 +4550,66 @@ function AppHeader({
             </button>
 
             {profileMenuOpen ? (
-              <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[290px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[16px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.2)] dark:border-slate-600 dark:bg-slate-900">
-                <div className="flex items-center gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-                  <AdminAvatar name={loggedInUser?.name} />
-                  <div className="min-w-0">
-                    <p data-no-translate className="truncate text-[14px] font-extrabold leading-tight text-[#263d72] dark:text-slate-100">{loggedInUser?.name || 'Admin'}</p>
-                    <p className="mt-0.5 truncate text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
+              <>
+                <button
+                  type="button"
+                  aria-label="Close profile menu"
+                  className="fixed inset-0 z-[60] bg-[#10213d]/35 xl:bg-transparent"
+                  onClick={() => setProfileMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[290px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[16px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.2)] dark:border-slate-600 dark:bg-slate-900">
+                  <div className="flex items-center gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+                    <AdminAvatar name={loggedInUser?.name} />
+                    <div className="min-w-0">
+                      <p data-no-translate className="truncate text-[14px] font-extrabold leading-tight text-[#263d72] dark:text-slate-100">{loggedInUser?.name || 'Admin'}</p>
+                      <p className="mt-0.5 truncate text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
+                    </div>
+                  </div>
+
+                  <div className="py-1.5">
+                    <LanguageSwitcher row menuAttrs={{ 'data-profile-menu': 'true' }} />
+                    <div className="flex items-center gap-3 px-4 py-2.5 text-[13px] font-semibold text-[#263d72] dark:text-slate-200">
+                      <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[#f3edff] text-[#7c3aed]"><SunMoon className="size-4" /></span>
+                      <span className="min-w-0 flex-1">Theme</span>
+                      <ThemeToggle
+                        theme={theme}
+                        compact
+                        layoutId="theme-toggle-mobile"
+                        onChange={(next) => {
+                          setTheme(next);
+                          notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
+                        }}
+                      />
+                    </div>
+                    {showInstallApp ? (
+                      <MobileProfileMenuRow
+                        icon={MonitorSmartphone}
+                        iconClass="bg-[#e8f8eb] text-[#0d9f4a]"
+                        label="Install App"
+                        onClick={() => {
+                          setProfileMenuOpen(false);
+                          onInstallApp();
+                        }}
+                      />
+                    ) : null}
+                    {headerActions.map((action) => (
+                      <MobileProfileMenuRow
+                        key={`mobile-${action.label}`}
+                        icon={action.icon}
+                        iconClass={action.label === 'Notifications' ? 'bg-[#fff4df] text-[#b45309]' : 'bg-[#e8f8eb] text-[#0d9f4a]'}
+                        label={action.label}
+                        badge={action.badge}
+                        onClick={() => handleHeaderAction(action.label)}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="border-t border-[#edf2f8] py-1.5 dark:border-slate-700">
+                    <MobileProfileMenuRow icon={UserRound} iconClass="bg-[#eef5ff] text-[#0b65e5]" label="My Profile" onClick={() => handleProfileAction('My Profile')} />
+                    <MobileProfileMenuRow icon={LogOut} iconClass="bg-[#ffefef] text-[#e03434]" label="Logout" danger onClick={() => handleProfileAction('Logout')} />
                   </div>
                 </div>
-
-                <div className="py-1.5">
-                  <LanguageSwitcher row menuAttrs={{ 'data-profile-menu': 'true' }} />
-                  <div className="flex items-center gap-3 px-4 py-2.5 text-[13px] font-semibold text-[#263d72] dark:text-slate-200">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[#f3edff] text-[#7c3aed]"><SunMoon className="size-4" /></span>
-                    <span className="min-w-0 flex-1">Theme</span>
-                    <ThemeToggle
-                      theme={theme}
-                      compact
-                      layoutId="theme-toggle-mobile"
-                      onChange={(next) => {
-                        setTheme(next);
-                        notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
-                      }}
-                    />
-                  </div>
-                  {showInstallApp ? (
-                    <MobileProfileMenuRow
-                      icon={MonitorSmartphone}
-                      iconClass="bg-[#e8f8eb] text-[#0d9f4a]"
-                      label="Install App"
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        onInstallApp();
-                      }}
-                    />
-                  ) : null}
-                  {headerActions.map((action) => (
-                    <MobileProfileMenuRow
-                      key={`mobile-${action.label}`}
-                      icon={action.icon}
-                      iconClass={action.label === 'Notifications' ? 'bg-[#fff4df] text-[#b45309]' : 'bg-[#e8f8eb] text-[#0d9f4a]'}
-                      label={action.label}
-                      badge={action.badge}
-                      onClick={() => handleHeaderAction(action.label)}
-                    />
-                  ))}
-                </div>
-
-                <div className="border-t border-[#edf2f8] py-1.5 dark:border-slate-700">
-                  <MobileProfileMenuRow icon={UserRound} iconClass="bg-[#eef5ff] text-[#0b65e5]" label="My Profile" onClick={() => handleProfileAction('My Profile')} />
-                  <MobileProfileMenuRow icon={LogOut} iconClass="bg-[#ffefef] text-[#e03434]" label="Logout" danger onClick={() => handleProfileAction('Logout')} />
-                </div>
-              </div>
+              </>
             ) : null}
           </div>
 
@@ -5142,7 +5201,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
   useEffect(() => {
     setLeadsLoading(true);
-    const params = { page_size: 1000 };
+    const params = { page_size: 200 };
     if (debouncedSearch) params.search = debouncedSearch;
     leadApi.list(params).then((data) => {
       if (!data) return;
@@ -5431,7 +5490,9 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         </div>
       </section>
 
-      <section className={`${panelClass} relative z-40 shrink-0 overflow-visible p-3 sm:p-2.5`}>
+      {/* z-20 stays under the sticky mobile header (z-50) so profile/language
+          menus are never covered by this search/filter strip. */}
+      <section className={`${panelClass} relative z-20 shrink-0 overflow-visible p-3 sm:p-2.5`}>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <label className="flex h-11 flex-1 items-center gap-3 rounded-[12px] border border-black/15 bg-white px-3.5 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 md:rounded-[8px] md:border-black/20 md:px-4">
             <Search className="size-4 shrink-0 text-[#7386a3]" />
@@ -10455,10 +10516,10 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const needsProjects = config.fields.some((f) => f.type === 'project');
 
   useEffect(() => {
-    if (needsProjects) projectApi.list({ page_size: 1000 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
-    if (needsUsers) userApi.list({ page_size: 500 }).then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
+    if (needsProjects) projectApi.list({ page_size: 200 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+    if (needsUsers) userApi.list({ page_size: 200 }).then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
     Object.entries(config.lookups || {}).forEach(([key, lk]) => {
-      lk.api.list({ page_size: 1000 }).then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) }))).catch(() => {});
+      lk.api.list({ page_size: 200 }).then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) }))).catch(() => {});
     });
   }, [needsUsers, needsProjects]);  
 
@@ -10469,7 +10530,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   const loadRows = useCallback(() => {
     setLoading(true);
-    const params = { page_size: 1000, ...(config.listParams || {}) };
+    const params = { page_size: 200, ...(config.listParams || {}) };
     if (filterStatus) params.status = filterStatus;
     extraFilters.forEach((f) => {
       if (!f.client && extraFilterValues[f.key]) params[f.key] = extraFilterValues[f.key];
@@ -11521,7 +11582,7 @@ function LiaisonProjectDocuments({ project, onNotify }) {
 
   const loadDocs = useCallback(() => {
     setLoading(true);
-    lcDocumentApi.list({ project: project.id, page_size: 500 })
+    lcDocumentApi.list({ project: project.id, page_size: 200 })
       .then((r) => setDocs(normalizeApiRows(r)))
       .catch(() => setDocs([]))
       .finally(() => setLoading(false));
@@ -11693,7 +11754,7 @@ function usePipelineHub(pipeline, section, onNotify) {
 
   const loadProjects = useCallback(() => {
     setLoading(true);
-    api.list({ page_size: 1000 })
+    api.list({ page_size: 200 })
       .then((r) => setProjects(normalizeApiRows(r)))
       .catch((e) => onNotify(e.message || 'Could not load projects.', 'error'))
       .finally(() => { setLoading(false); setLoaded(true); });
@@ -14166,7 +14227,7 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
   useEffect(() => {
     let cancelled = false;
     setLoadingProjects(true);
-    projectApi.list({ page_size: 1000 })
+    projectApi.list({ page_size: 200 })
       .then((res) => { if (!cancelled) setProjects(Array.isArray(res) ? res : res?.results ?? []); })
       .catch(() => { if (!cancelled) setProjects([]); })
       .finally(() => { if (!cancelled) setLoadingProjects(false); });
@@ -14395,7 +14456,7 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
 
   useEffect(() => {
     let cancelled = false;
-    projectApi.list({ page_size: 1000 })
+    projectApi.list({ page_size: 200 })
       .then((res) => { if (!cancelled) setProjects(Array.isArray(res) ? res : res?.results ?? []); })
       .catch(() => { if (!cancelled) setProjects([]); });
     return () => { cancelled = true; };
@@ -14999,7 +15060,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    projectApi.list({ page_size: 1000 })
+    projectApi.list({ page_size: 200 })
       .then((data) => {
         if (cancelled) return;
         const list = Array.isArray(data) ? data : data?.results ?? [];
@@ -17322,8 +17383,17 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                 <input type="date" value={form.survey_date} onChange={(e) => updateField('survey_date', e.target.value)} className={surveyFieldClass} />
               </SurveyField>
               <SurveyField label="Survey Engineer">
-                <select value={form.surveyed_by} onChange={(e) => updateField('surveyed_by', e.target.value)} className={surveyFieldClass}>
-                  <option value="">Select engineer</option>
+                <select
+                  value={form.surveyed_by}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    const selected = employeeOptions.find((opt) => opt.value === nextId);
+                    updateField('surveyed_by', nextId);
+                    updateField('survey_engineer_name', selected?.label || '');
+                  }}
+                  className={surveyFieldClass}
+                >
+                  <option value="">{employeeOptions.length ? 'Select engineer' : 'No employee accounts found'}</option>
                   {employeeOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               </SurveyField>
@@ -18030,7 +18100,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   }, [fullView, projectProp?.id]);
 
   useEffect(() => {
-    userApi.list({ is_active: true }).then((res) => {
+    userApi.options({ is_active: true }).then((res) => {
       const list = Array.isArray(res) ? res : res?.results ?? [];
       setUserOptions(list);
     }).catch(() => setUserOptions([]));
@@ -22856,7 +22926,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
 
   const reloadPlans = useCallback(async () => {
     try {
-      const planData = await materialPlanApi.list({ page_size: 2000 });
+      const planData = await materialPlanApi.list({ page_size: 200 });
       const map = {};
       normalizeApiRows(planData).forEach((row) => {
         const key = row.project;
@@ -22874,7 +22944,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
     let cancelled = false;
     setLoading(true);
     // Load projects first so a material-plan API failure never blanks the Won list.
-    projectApi.list({ page_size: 1000 })
+    projectApi.list({ page_size: 200 })
       .then((projData) => {
         if (cancelled) return;
         const list = normalizeApiRows(projData).filter((p) => p.lead_status === 'Won');
@@ -22890,7 +22960,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
         if (!cancelled) setLoading(false);
       });
 
-    materialPlanApi.list({ page_size: 2000 })
+    materialPlanApi.list({ page_size: 200 })
       .then((planData) => {
         if (cancelled) return;
         const map = {};
@@ -23264,8 +23334,8 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
     setLoadingRows(true);
     try {
       const [planData, itemsData] = await Promise.all([
-        materialPlanApi.list({ project: proj.id, page_size: 500 }),
-        inventoryApi.items.list({ page_size: 2000 }),
+        materialPlanApi.list({ project: proj.id, page_size: 200 }),
+        inventoryApi.items.list({ page_size: 200 }),
       ]);
       setRows(normalizeApiRows(planData));
       setInventoryItems(normalizeApiRows(itemsData));
@@ -23883,7 +23953,8 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
   }, []);
 
   useEffect(() => {
-    userApi.list({ is_active: true }).then((res) => {
+    // /users/options/ is readable by every signed-in role; /users/ list is not.
+    userApi.options({ is_active: true }).then((res) => {
       setUserOptions(Array.isArray(res) ? res : res?.results ?? []);
     }).catch(() => {});
   }, []);
@@ -25980,7 +26051,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify, presetProj
   // ── Load projects on mount ──
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
-    try { const d = await projectApi.list({ page_size: 500 }); setAllProjects(normalizeApiRows(d)); } catch {}
+    try { const d = await projectApi.list({ page_size: 200 }); setAllProjects(normalizeApiRows(d)); } catch {}
     finally { setLoadingProjects(false); }
   }, []);
 
@@ -25992,7 +26063,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify, presetProj
     setLoadingRows(true);
     try {
       const [listData, stats] = await Promise.all([
-        subsidyApi.list({ project: proj.id, page_size: 500 }),
+        subsidyApi.list({ project: proj.id, page_size: 200 }),
         subsidyApi.dashboard({ project: proj.id }),
       ]);
       setRows(normalizeApiRows(listData));
@@ -29013,7 +29084,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
   const loadEmployees = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const data = await workforceApi.listEmployees({ page_size: 500 });
+      const data = await workforceApi.listEmployees({ page_size: 200 });
       setEmployees(normalizeApiRows(data));
     } catch {
       onNotify('Failed to load employees');
@@ -31611,7 +31682,7 @@ function ReportsPage({ onOpenSection, onNotify }) {
   const [incentiveReportOpen, setIncentiveReportOpen] = useState(false);
 
   useEffect(() => {
-    userApi.list({ page_size: 500 })
+    userApi.list({ page_size: 200 })
       .then((data) => {
         const names = [...new Set(normalizeApiRows(data).map((user) => user.name).filter(Boolean))];
         setAssigneeOptions(['All', ...names]);
@@ -32371,7 +32442,9 @@ let salesExecutiveOptionsPromise = null;
 function getEmployeeOptions() {
   if (cachedEmployeeOptions) return Promise.resolve(cachedEmployeeOptions);
   if (!employeeOptionsPromise) {
-    employeeOptionsPromise = userApi.list({ is_active: true })
+    // /users/options/ is allowed for every signed-in role (Survey Engineer etc.).
+    // Full /users/ list requires User Management and returns [] for most staff.
+    employeeOptionsPromise = userApi.options({ is_active: true })
       .then((data) => {
         const users = normalizeApiRows(data);
         cachedEmployeeOptions = users.map((user) => ({ label: user.name || user.email, value: String(user.id) }));
@@ -32389,12 +32462,10 @@ function getEmployeeOptions() {
 function getAssignableEmployeeOptions() {
   if (cachedSalesExecutiveOptions) return Promise.resolve(cachedSalesExecutiveOptions);
   if (!salesExecutiveOptionsPromise) {
-    salesExecutiveOptionsPromise = userApi.list({ is_active: true })
+    salesExecutiveOptionsPromise = userApi.options({ is_active: true, exclude_role: 'Tele Sales Executive' })
       .then((data) => {
         const users = normalizeApiRows(data);
-        cachedSalesExecutiveOptions = users
-          .filter((user) => (user.role_name || '') !== 'Tele Sales Executive')
-          .map((user) => ({ label: user.name || user.email, value: String(user.id) }));
+        cachedSalesExecutiveOptions = users.map((user) => ({ label: user.name || user.email, value: String(user.id) }));
         return cachedSalesExecutiveOptions;
       })
       .catch(() => {
@@ -32420,10 +32491,10 @@ function useIvrsCheck(excludeId) {
     if (!ivrs) { setResult(null); return; }
     setChecking(true);
     try {
-      const data = await leadApi.list({ search: ivrs });
-      const rows = Array.isArray(data) ? data : (data?.results ?? []);
-      const match = rows.find((row) => row.ivrs_number === ivrs && row.id !== excludeId);
-      setResult(match || 'unique');
+      // Global check — must match create validation (not lead-scoped list search).
+      const data = await leadApi.checkIvrs(ivrs, excludeId);
+      if (data?.available) setResult('unique');
+      else setResult(data || null);
     } catch {
       setResult(null);
     } finally {
@@ -35394,7 +35465,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
 
   const loadQuotations = useCallback(() => {
     setLoading(true);
-    return quotationApi.listAll({ page_size: 1000 })
+    return quotationApi.listAll({ page_size: 200 })
       .then((data) => setQuotations(normalizeApiRows(data)))
       .catch(() => {
         setQuotations([]);
@@ -36448,15 +36519,22 @@ function IvrsVerifyField({ defaultValue, checking, result, onCheck, onReset, onS
       </div>
       {result && result !== 'unique' ? (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-[#f6dda9] bg-[#fff8e8] px-4 py-3 text-[13px] font-bold text-[#a76200]">
-          <span className="inline-flex items-center gap-2"><AlertTriangle className="size-4" /> This IVRS Number already exists ({result.customer_name})</span>
-          <button
-            type="button"
-            onClick={() => onShowDetail(result.id)}
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] border border-[#f6dda9] bg-white px-3 text-[12px] font-extrabold text-[#a76200] transition hover:bg-[#fff3d6]"
-          >
-            <Eye className="size-3.5" />
-            Show Detail
-          </button>
+          <span className="inline-flex items-center gap-2">
+            <AlertTriangle className="size-4" />
+            {result.is_deleted
+              ? `This IVRS Number already exists in Recycle Bin (${result.customer_name || 'lead'})`
+              : `This IVRS Number already exists (${result.customer_name || 'another lead'})`}
+          </span>
+          {result.id && !result.is_deleted && onShowDetail ? (
+            <button
+              type="button"
+              onClick={() => onShowDetail(result.id)}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] border border-[#f6dda9] bg-white px-3 text-[12px] font-extrabold text-[#a76200] transition hover:bg-[#fff3d6]"
+            >
+              <Eye className="size-3.5" />
+              Show Detail
+            </button>
+          ) : null}
         </div>
       ) : result === 'unique' ? (
         <p className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#0d9f4a]"><CheckCircle2 className="size-3.5" /> IVRS Number is available</p>

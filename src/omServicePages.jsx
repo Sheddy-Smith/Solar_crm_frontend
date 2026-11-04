@@ -895,7 +895,7 @@ export function ComplaintTicketsList({ plant, caps, onNotify, embedded, focusId,
   const [type, setType] = useState('');
   const [modal, setModal] = useState(null);
   const chipParams = TICKET_CHIPS.find((c) => c.value === chip)?.params || {};
-  const params = { page_size: 1000, ...chipParams, priority, complaint_type: type, plant: plant?.id || '' };
+  const params = { page_size: 200, ...chipParams, priority, complaint_type: type, plant: plant?.id || '' };
   const key = JSON.stringify(params);
   const { rows, loading, reload } = useRows(() => omTicketApi.list(params), [key]);
 
@@ -1167,7 +1167,7 @@ export function ServiceTasksList({ quarterly = false, plant, caps, onNotify, emb
   const engineers = useEngineers();
   const chipParams = chips.find((c) => c.value === chip)?.params || {};
   const params = {
-    page_size: 1000, ordering: quarterly || plant ? 'due_date' : '-created_at', ...chipParams,
+    page_size: 200, ordering: quarterly || plant ? 'due_date' : '-created_at', ...chipParams,
     source: quarterly ? 'Quarterly' : source, assigned_engineer: engineer, plant: plant?.id || '',
   };
   const key = JSON.stringify(params);
@@ -1280,7 +1280,7 @@ export function ServiceVisitsList({ plant, caps, onNotify, embedded }) {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
   const engineers = useEngineers();
-  const params = { page_size: 1000, ordering: '-date', service_type: type, assigned_engineer: engineer, plant: plant?.id || '' };
+  const params = { page_size: 200, ordering: '-date', service_type: type, assigned_engineer: engineer, plant: plant?.id || '' };
   const key = JSON.stringify(params);
   const { rows, loading, reload } = useRows(() => omVisitApi.list(params), [key]);
   const visible = useMemo(() => {

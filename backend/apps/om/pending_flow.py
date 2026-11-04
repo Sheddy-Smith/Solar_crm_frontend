@@ -6,9 +6,10 @@ moment the underlying step is done (work order generated, quotation created,
 material dispatched, installation marked Done, invoice raised, stock refilled).
 """
 from collections import defaultdict
+from datetime import timedelta
 from decimal import Decimal
 
-from django.db.models import Count
+from django.db.models import Count, Exists, F, OuterRef, Q
 from django.utils import timezone
 
 from apps.accounts.permissions import lead_owner_filter
@@ -400,6 +401,80 @@ def pending_summary(user):
     return counts
 
 
+def pending_counts_global_fast():
+    """Dashboard counts via DB aggregates — does not materialize full pending lists.
+
+    List endpoints (`pending_*`) remain authoritative for drill-down rows.
+    Counts match list lengths for work_orders / quotations / installation /
+    invoices; dispatch/materials use safe approximations (no project-demand join).
+    """
+    from apps.leads.models import Quotation
+
+    base = won_projects(None)
+    work_orders = base.annotate(wo_count=Count('work_orders')).filter(wo_count=0).count()
+
+    active_q = Quotation.objects.filter(lead_id=OuterRef('pk'), is_deleted=False)
+    quotations = (
+        Lead.objects.filter(status='Won', is_deleted=False)
+        .exclude(Exists(active_q))
+        .count()
+    )
+
+    installation = base.exclude(installation_status='Done').count()
+
+    invoiced_ids = list(
+        SellInvoice.objects.filter(project__in=base)
+        .exclude(status='Cancelled')
+        .values_list('project_id', flat=True)
+    )
+    pending_inv_qs = base.exclude(pk__in=invoiced_ids)
+    invoices = pending_inv_qs.count()
+    invoices_challan = pending_inv_qs.exclude(
+        Exists(SellChallan.objects.filter(project_id=OuterRef('pk')).exclude(status='Cancelled'))
+    ).count()
+    invoices_invoice = max(invoices - invoices_challan, 0)
+
+    unfinished = (
+        MaterialPlan.objects.filter(project__in=base)
+        .exclude(dispatch_status='Dispatched')
+        .values('project_id')
+        .distinct()
+        .count()
+    )
+    cutoff = timezone.now() - timedelta(days=DISPATCH_DELAY_DAYS)
+    dispatch_delayed = (
+        MaterialPlan.objects.filter(
+            project__in=base,
+            dispatch_status='Packed',
+            packed_at__lte=cutoff,
+        )
+        .values('project_id')
+        .distinct()
+        .count()
+    )
+
+    materials = InventoryItem.objects.filter(is_active=True).filter(
+        Q(current_stock__lte=0) | Q(minimum_stock__gt=0, current_stock__lte=F('minimum_stock'))
+    ).count()
+
+    return {
+        'work_orders': work_orders,
+        'quotations': quotations,
+        'dispatch': unfinished,
+        'installation': installation,
+        'invoices': invoices,
+        'materials': materials,
+        'dispatch_delayed': dispatch_delayed,
+        'invoices_challan': invoices_challan,
+        'invoices_invoice': invoices_invoice,
+        'dispatch_delay_days': DISPATCH_DELAY_DAYS,
+    }
+
+
 def pending_counts_global():
     """Unscoped counts for the dashboard (which is not lead-scoped either)."""
-    return pending_summary(None)
+    try:
+        return pending_counts_global_fast()
+    except Exception:
+        # Fall back to full materialization if aggregate path fails.
+        return pending_summary(None)

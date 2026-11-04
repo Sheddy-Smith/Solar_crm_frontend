@@ -37,22 +37,27 @@ class ProjectViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        qs = Project.objects.select_related(
+        # List/summary: keep queryset lean. Detail/update: deep prefetch for nested serializers.
+        base = Project.objects.select_related(
             'manager', 'site_engineer', 'lead', 'lead__assigned_to', 'created_by',
             'site_survey', 'site_survey__surveyed_by', 'pm_stage_tracker',
-        ).prefetch_related(
-            'activities__assigned_to',
-            'notes__created_by',
-            'documents__uploaded_by',
-            'payments__created_by',
-            'work_orders__assignee',
-            'team_members__user',
-            'checklist_items__checked_by',
-            'installation_materials__inventory_item',
-            'material_plans',
-            'milestones__owner',
-            'milestones__children__owner',
         ).filter(is_deleted=False).filter(Q(lead__isnull=True) | Q(lead__is_deleted=False))
+        if self.action in ('retrieve', 'update', 'partial_update'):
+            qs = base.prefetch_related(
+                'activities__assigned_to',
+                'notes__created_by',
+                'documents__uploaded_by',
+                'payments__created_by',
+                'work_orders__assignee',
+                'team_members__user',
+                'checklist_items__checked_by',
+                'installation_materials__inventory_item',
+                'material_plans',
+                'milestones__owner',
+                'milestones__children__owner',
+            )
+        else:
+            qs = base
         # Sales / Tele Sales Executives see only projects born from their own leads
         filt = lead_owner_filter(self.request.user, prefix='lead__')
         if filt:
@@ -214,7 +219,7 @@ class SiteSurveyViewSet(viewsets.ReadOnlyModelViewSet):
     # Read-only across all projects, for the office-wide Survey Dashboard.
     # Editing a survey always goes through /projects/{id}/site_survey/ — one
     # write path keeps the OneToOne get-or-create semantics unambiguous.
-    queryset = SiteSurvey.objects.select_related('project', 'project__lead', 'surveyed_by').prefetch_related('photos').all()
+    queryset = SiteSurvey.objects.select_related('project', 'project__lead', 'surveyed_by').all()
     serializer_class = SiteSurveyListSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
@@ -222,6 +227,13 @@ class SiteSurveyViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['status', 'surveyed_by']
     ordering_fields = ['survey_date', 'created_at']
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Photos only needed on retrieve — list dashboard must stay light.
+        if self.action == 'retrieve':
+            qs = qs.prefetch_related('photos')
+        return qs
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
