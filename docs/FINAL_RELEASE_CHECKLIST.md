@@ -1,10 +1,11 @@
 # Malwa Solar CRM — Final Release Checklist
 
-**Date:** 2026-11-04 (gates section updated same day)  
+**Date:** 2026-11-04 (gates execution attempt + evidence update)  
 **Code package verdict:** **READY FOR APPROVAL** (review / schedule only)  
-**Go-live verdict:** **NOT READY TO DEPLOY** — Gates 1, 2, 3 are still **NOT DONE**  
-**Production actions in this package:** **None** (no deploy, restart, migration, or DB write).  
-**Capacity:** Do **not** claim 500+ concurrent users. Phase 3 SLO evidence remains ~20 users on isolated Waitress staging.
+**Go-live verdict:** **NOT READY TO DEPLOY**  
+**Production actions in this package:** **None** (no deploy, restart, migration, or production DB write).  
+**Capacity:** Do **not** claim 500+ concurrent users. Phase 3 SLO evidence remains ~20 users on isolated Waitress staging.  
+**Companion approval doc:** `docs/FINAL_DEPLOYMENT_APPROVAL.md`
 
 ---
 
@@ -12,42 +13,40 @@
 
 **Abhi production deploy mat karo.**
 
-Teeno mandatory gates ko **ek-ek karke** close karo, har gate ke baad is checklist mein evidence update karo (path, SHA256, window time, worker PID/alert screenshot, export `queued`→`done` task id).  
-Gates 1–3 sab **PASS** hone ke baad hi **alag se** explicit production deployment approval lo.
+Gate 1 production backup abhi **block** hai (SSH/key access denied). Gate 2 staging technical verification **PASS**. Gate 3 staging drills **PASS**; production worker monitoring **not installed**.  
+Close remaining blockers, update evidence, then request **separate explicit** production deployment approval.
 
 | Decision now | Status |
 |--------------|--------|
 | Production deploy | **DO NOT DEPLOY** |
-| Next milestone | **Gates 1, 2, 3 — all PASS** |
+| Next milestone | Gate **1 PASS** + Gate **3 production monitoring PASS** (+ book Gate 2 prod window) |
 | After that | Separate explicit production deployment approval |
 
 ---
 
-## Hard pre-deploy gates (mandatory — all currently NOT DONE)
-
-These are **not** optional reminders. Deploy must wait until each is completed and recorded in the evidence table below.
+## Hard pre-deploy gates (mandatory)
 
 | # | Gate | Required action | Status |
 |---|------|-----------------|--------|
-| 1 | Database backup | **Actual** production backup create + **isolated DB** par restore dry-run | **NOT DONE** |
-| 2 | Index migration | Maintenance window schedule + rollback rehearse | **NOT DONE** |
-| 3 | Celery monitoring | Worker health monitoring + alert + export `queued` → `done` verification | **NOT DONE** |
+| 1 | Database backup | **Actual** production backup + **isolated** restore dry-run | **NOT DONE** (blocked — no prod SSH) |
+| 2 | Index migration | Staging forward/rollback rehearse + prod window instructions | **PASS** (staging verified; **prod migrate not run**; window still to book at go-live) |
+| 3 | Celery monitoring | Worker health + alert + export `queued`→`done` | **PARTIAL** (staging **PASS**; prod systemd/alerts **NOT DONE**) |
 
 ### Gate-specific rules (important)
 
 | Gate | Rule |
 |------|------|
-| **1** | Sirf backup **command ready** hona **sufficient nahi**. Actual production dump + isolated restore dry-run dono zaroori. Dump path, size, SHA256, restore host, and post-restore smoke (table counts / login) record karo. |
-| **2** | Window booked + rollback rehearsed (`migrate leads 0021` / `migrate projects 0034` or named `DROP INDEX`) before any prod migrate. |
-| **3** | **Redis healthy ≠ worker healthy.** `/ready/` redis ok hone se Celery worker alive prove nahi hota. Worker process + alert required; one export must reach status `done` (not stop at 202 `queued`). |
+| **1** | Staging rehearsal ≠ production Gate 1. Actual prod dump + isolated restore required. Command-ready alone is insufficient. |
+| **2** | Staging rollback rehearsed. Book maintenance window before any production `migrate`. |
+| **3** | **Redis healthy ≠ worker healthy.** HTTP **202 queued** is never proof of completion — poll `export-status` until `done`/`error`. |
 
-### Evidence log (fill when closing each gate)
+### Evidence log
 
-| Gate | Closed at | Evidence | Closed by |
-|------|-----------|----------|-----------|
-| 1 | _pending_ | Dump path / SHA256 / restore host / smoke notes: _TBD_ | _TBD_ |
-| 2 | _pending_ | Window (IST): _TBD_ · Rollback rehearse notes: _TBD_ | _TBD_ |
-| 3 | _pending_ | Worker unit/PID · alert channel · export task_id `queued`→`done`: _TBD_ | _TBD_ |
+| Gate | Closed at (UTC) | Evidence | Closed by |
+|------|-----------------|----------|-----------|
+| 1 | — | **BLOCKER:** SSH `Permission denied` to `139.59.64.36` and Hostinger VPS `200.97.171.119`. Hostinger VPS panel backups listed for VM `1831231` (sizes ~12MB snapshots 2026-10-22 / 2026-10-30) — **not** accepted as CRM logical dump+app restore. Staging procedure rehearsal only: `scripts/phase3_results/gate1_staging_rehearsal.json` (gz 96545 B, sha256 `8164010008c5a141…726aaa`, restore DB `malwa_crm_restore_dryrun`, counts match 501/232/85, login hash verify true). | Agent — incomplete |
+| 2 | 2026-11-04T11:30Z | Staging reverse `leads 0021` / `projects 0034` then re-apply `0022` / `0035` OK. Indexes exist (`gate2_indexes.json` all true). Artifacts: `gate2_*` under `scripts/phase3_results/`. Prod window: **not booked**. | Agent (staging) |
+| 3 | 2026-11-04T11:32Z | Staging: Redis ping true; export 202→poll `done`; worker kill ⇒ status not done; recovery worker ⇒ new export `done`. Evidence: `gate3_celery_staging.json`. Prod unit example only: `docs/deploy/celery-worker.service.example` (**not installed on prod**). | Agent (staging) |
 
 ### Explicit non-claims / coverage gaps
 
@@ -57,7 +56,7 @@ These are **not** optional reminders. Deploy must wait until each is completed a
 | Exhaustive RBAC matrix (every role × every module × CRUD) | **NOT TESTED** (sample matrix only) |
 | 500+ concurrent-user capacity | **NOT PROVEN** — do not claim |
 
-Until gates 1–3 are **PASS**, production deploy remains blocked even if the code package is approved for review.
+Until Gate 1 is **PASS** and Gate 3 production monitoring is **PASS**, production deploy remains blocked.
 
 ---
 
@@ -257,21 +256,32 @@ Do not enable user-facing heavy exports in production until Gate 3 is green.
 
 ---
 
-## 11. Status summary
+## 11. Phase 4 QA (this run)
+
+| Suite | Status | Notes |
+|-------|--------|-------|
+| Unit tests (14) | **PASS** | predeploy + capacity + circuit + foundations |
+| Staging regression (21) | **PASS** | `run_predeploy_regression.py` fail_count=0 |
+| IVRS global check | **PASS** | API + FE wiring (prior + staging) |
+| Login/logout/export/dashboard/pagination | **PASS** | Included in regression |
+| Sample RBAC | **PASS** | Prior matrix + Tele IVRS |
+| Full UI E2E | **NOT TESTED** | |
+| Exhaustive RBAC | **NOT TESTED** | |
+| 500+ capacity | **NOT PROVEN** | |
+
+## 12. Status summary
 
 | Area | Status |
 |------|--------|
-| Clean release commit | **PASS** |
-| Version recorded | **PASS** |
-| Gate 1 — prod backup + restore dry-run | **NOT DONE** |
-| Gate 2 — migration window + rollback ready | **NOT DONE** |
-| Gate 3 — Celery worker health monitor | **NOT DONE** |
-| IVRS FE/BE consistency | **PASS** |
-| Isolated regression / API / FE smoke | **PASS** |
-| Sample RBAC | **PASS** |
-| Full UI E2E | **NOT TESTED** |
-| Exhaustive RBAC matrix | **NOT TESTED** |
-| 500+ capacity | **NOT PROVEN** |
+| Clean release commit `17a6b6f` | **PASS** (ancestor of HEAD) |
+| Gate 1 — **production** backup + restore dry-run | **NOT DONE** (SSH blocker) |
+| Gate 1 — staging backup/restore **rehearsal** | **PASS** (not a substitute) |
+| Gate 2 — staging migrate rollback/forward | **PASS** |
+| Gate 2 — production migrate | **NOT EXECUTED** |
+| Gate 3 — staging Celery lifecycle | **PASS** |
+| Gate 3 — production worker+alerts | **NOT DONE** |
+| IVRS / regression / unit | **PASS** |
+| Full UI E2E / exhaustive RBAC / 500+ | **NOT TESTED** / **NOT TESTED** / **NOT PROVEN** |
 | Production deploy | **NOT EXECUTED** |
 
 ---
@@ -280,12 +290,12 @@ Do not enable user-facing heavy exports in production until Gate 3 is green.
 
 | Decision | Status |
 |----------|--------|
-| Code package ready for human review / scheduling | **READY FOR APPROVAL** |
-| Production go-live **right now** | **NOT READY TO DEPLOY** |
-| Gate 1 / 2 / 3 | **NOT DONE** / **NOT DONE** / **NOT DONE** |
-| Next milestone | Close Gates **1 → 2 → 3** with evidence in this file |
-| After all gates PASS | Request **separate explicit** production deployment approval |
+| Code package ready for human review | **READY FOR APPROVAL** (`17a6b6f`) |
+| Production go-live **right now** | **NOT READY** |
+| Gate 1 / 2 / 3 | **NOT DONE** / **PASS (staging)** / **PARTIAL** |
+| Remaining blockers | (1) Prod SSH + real dump/restore evidence (2) Prod Celery unit + alert + export done proof (3) Book prod migration window |
+| After blockers cleared | Separate explicit production deployment approval |
 
-**Recommendation reiterated:** Do not deploy to production until Gates 1, 2, and 3 are all **PASS**.  
-No production deploy, restart, migration, or data change has been performed in this packaging work.  
-Do not claim 500+ concurrent-user capacity. Full UI E2E and exhaustive RBAC remain **NOT TESTED**.
+**Recommendation reiterated:** Do not deploy.  
+No production deploy, restart, migration, or production data change was performed.  
+Do not claim 500+ concurrent-user capacity.

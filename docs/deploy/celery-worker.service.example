@@ -1,0 +1,37 @@
+# Example systemd unit for Malwa Solar CRM Celery worker (production host).
+# DO NOT enable until Gate 3 production checks are approved.
+# Copy to /etc/systemd/system/malwa-celery.service and adjust paths/user.
+
+[Unit]
+Description=Malwa Solar CRM Celery Worker
+After=network.target redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=malwa
+Group=malwa
+WorkingDirectory=/var/www/ecomalwa-crm/backend
+EnvironmentFile=/var/www/ecomalwa-crm/backend/.env
+Environment=DJANGO_SETTINGS_MODULE=malwa_solar.settings.production
+Environment=CELERY_TASK_ALWAYS_EAGER=0
+Environment=ALLOW_EAGER_EXPORTS=0
+ExecStart=/var/www/ecomalwa-crm/backend/.venv/bin/celery -A malwa_solar worker -l info -c 2
+Restart=always
+RestartSec=5
+# Soft stop so in-flight tasks can finish
+TimeoutStopSec=120
+KillSignal=SIGTERM
+
+# Basic health: fail if process exits
+SuccessExitStatus=0
+
+[Install]
+WantedBy=multi-user.target
+
+# Monitoring notes (Gate 3):
+# - systemctl enable --now malwa-celery
+# - Alert if ActiveState != active (e.g. monitoring agent / cron)
+# - Redis ping != worker health: check `systemctl is-active malwa-celery`
+# - Queue depth: redis-cli -n <db> LLEN celery
+# - Export proof: POST export → poll export-status until status=done|error (never treat HTTP 202 alone as complete)
