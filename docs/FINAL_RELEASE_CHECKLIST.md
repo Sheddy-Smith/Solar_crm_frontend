@@ -1,22 +1,53 @@
 # Malwa Solar CRM — Final Release Checklist
 
-**Date:** 2026-11-04  
+**Date:** 2026-11-04 (gates section updated same day)  
 **Code package verdict:** **READY FOR APPROVAL** (review / schedule only)  
-**Go-live verdict:** **NOT READY TO DEPLOY** until the three hard gates below are **PASS**  
+**Go-live verdict:** **NOT READY TO DEPLOY** — Gates 1, 2, 3 are still **NOT DONE**  
 **Production actions in this package:** **None** (no deploy, restart, migration, or DB write).  
 **Capacity:** Do **not** claim 500+ concurrent users. Phase 3 SLO evidence remains ~20 users on isolated Waitress staging.
 
 ---
 
-## Hard pre-deploy gates (mandatory before production)
+## Recommendation (current)
 
-These are **not** optional reminders. Deploy must wait until each is completed and recorded.
+**Abhi production deploy mat karo.**
 
-| # | Gate | Status | Owner action |
-|---|------|--------|----------------|
-| 1 | **Production DB backup created** and **restore dry-run verified** on a non-production restore target | **NOT DONE** | Create gzipped `mysqldump`, record path/size/SHA256, restore into isolated DB, confirm table counts / login smoke |
-| 2 | **Index migration maintenance window** scheduled; **rollback commands rehearsed** (migrate reverse / drop index names) | **NOT DONE** | Book window; have `migrate leads 0021` / `migrate projects 0034` (or `DROP INDEX …`) ready; staff on call |
-| 3 | **Celery worker health monitoring** in place; confirm worker up before advertising exports | **NOT DONE** | Process supervisor + alert if worker down; remember: broker up + worker down ⇒ export returns 202 but job stays **pending** |
+Teeno mandatory gates ko **ek-ek karke** close karo, har gate ke baad is checklist mein evidence update karo (path, SHA256, window time, worker PID/alert screenshot, export `queued`→`done` task id).  
+Gates 1–3 sab **PASS** hone ke baad hi **alag se** explicit production deployment approval lo.
+
+| Decision now | Status |
+|--------------|--------|
+| Production deploy | **DO NOT DEPLOY** |
+| Next milestone | **Gates 1, 2, 3 — all PASS** |
+| After that | Separate explicit production deployment approval |
+
+---
+
+## Hard pre-deploy gates (mandatory — all currently NOT DONE)
+
+These are **not** optional reminders. Deploy must wait until each is completed and recorded in the evidence table below.
+
+| # | Gate | Required action | Status |
+|---|------|-----------------|--------|
+| 1 | Database backup | **Actual** production backup create + **isolated DB** par restore dry-run | **NOT DONE** |
+| 2 | Index migration | Maintenance window schedule + rollback rehearse | **NOT DONE** |
+| 3 | Celery monitoring | Worker health monitoring + alert + export `queued` → `done` verification | **NOT DONE** |
+
+### Gate-specific rules (important)
+
+| Gate | Rule |
+|------|------|
+| **1** | Sirf backup **command ready** hona **sufficient nahi**. Actual production dump + isolated restore dry-run dono zaroori. Dump path, size, SHA256, restore host, and post-restore smoke (table counts / login) record karo. |
+| **2** | Window booked + rollback rehearsed (`migrate leads 0021` / `migrate projects 0034` or named `DROP INDEX`) before any prod migrate. |
+| **3** | **Redis healthy ≠ worker healthy.** `/ready/` redis ok hone se Celery worker alive prove nahi hota. Worker process + alert required; one export must reach status `done` (not stop at 202 `queued`). |
+
+### Evidence log (fill when closing each gate)
+
+| Gate | Closed at | Evidence | Closed by |
+|------|-----------|----------|-----------|
+| 1 | _pending_ | Dump path / SHA256 / restore host / smoke notes: _TBD_ | _TBD_ |
+| 2 | _pending_ | Window (IST): _TBD_ · Rollback rehearse notes: _TBD_ | _TBD_ |
+| 3 | _pending_ | Worker unit/PID · alert channel · export task_id `queued`→`done`: _TBD_ | _TBD_ |
 
 ### Explicit non-claims / coverage gaps
 
@@ -26,7 +57,7 @@ These are **not** optional reminders. Deploy must wait until each is completed a
 | Exhaustive RBAC matrix (every role × every module × CRUD) | **NOT TESTED** (sample matrix only) |
 | 500+ concurrent-user capacity | **NOT PROVEN** — do not claim |
 
-Until gates 1–3 are **PASS**, production deploy remains blocked even if code review is approved.
+Until gates 1–3 are **PASS**, production deploy remains blocked even if the code package is approved for review.
 
 ---
 
@@ -250,7 +281,11 @@ Do not enable user-facing heavy exports in production until Gate 3 is green.
 | Decision | Status |
 |----------|--------|
 | Code package ready for human review / scheduling | **READY FOR APPROVAL** |
-| Production go-live | **NOT READY TO DEPLOY** until Gates **1, 2, 3** are **PASS** |
+| Production go-live **right now** | **NOT READY TO DEPLOY** |
+| Gate 1 / 2 / 3 | **NOT DONE** / **NOT DONE** / **NOT DONE** |
+| Next milestone | Close Gates **1 → 2 → 3** with evidence in this file |
+| After all gates PASS | Request **separate explicit** production deployment approval |
 
-No production deploy, restart, migration, or data change has been performed.  
-Do not claim 500+ concurrent-user capacity.
+**Recommendation reiterated:** Do not deploy to production until Gates 1, 2, and 3 are all **PASS**.  
+No production deploy, restart, migration, or data change has been performed in this packaging work.  
+Do not claim 500+ concurrent-user capacity. Full UI E2E and exhaustive RBAC remain **NOT TESTED**.
