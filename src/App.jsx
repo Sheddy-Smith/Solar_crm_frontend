@@ -3885,9 +3885,36 @@ function App() {
                 }}
                 selectedProject={selectedProject}
                 onSelectProject={(project, target = 'Project Details') => {
+                  // Full Details page hata di — Lead Detail popup kholo.
+                  if (target === 'Project Details') {
+                    const openLeadFromProject = async () => {
+                      try {
+                        let leadId = project?.lead ?? project?.lead_id ?? null;
+                        if (!leadId && project?.id) {
+                          const data = await projectApi.get(project.id);
+                          leadId = data?.lead ?? null;
+                        }
+                        if (leadId) {
+                          setPopupLeadId(Number(leadId) || leadId);
+                          notify('Lead Details opened');
+                          return;
+                        }
+                        notify('Is project pe linked lead nahi mila.', 'error');
+                      } catch (err) {
+                        notify(err?.message || 'Lead Details open nahi ho paya.', 'error');
+                      }
+                    };
+                    openLeadFromProject();
+                    return;
+                  }
                   setSelectedProject(project);
                   setActiveSidebarItem(target);
                   notify(`${target} opened`);
+                }}
+                onOpenLeadDetail={(leadId) => {
+                  if (!leadId) return;
+                  setPopupLeadId(Number(leadId) || leadId);
+                  notify('Lead Details opened');
                 }}
                 onConsumeSelectedProject={clearSelectedProject}
                 autoOpenQuotation={autoOpenQuotation}
@@ -12037,6 +12064,7 @@ function ProjectPipelineHub({
   section,
   onOpenSection,
   onSelectProject,
+  onOpenLeadDetail = null,
   onNotify,
   loggedInUser = null,
   externalProject = null,
@@ -12051,6 +12079,8 @@ function ProjectPipelineHub({
   const [surveyEditRow, setSurveyEditRow] = useState(null);
   const [surveyDeleteTarget, setSurveyDeleteTarget] = useState(null);
   const [surveyDeleting, setSurveyDeleting] = useState(false);
+  const [hubLeadId, setHubLeadId] = useState(null);
+  const [hubLeadEditId, setHubLeadEditId] = useState(null);
   const projectCaps = moduleCaps(loggedInUser, 'Project Management');
   const canQuotation = hasAnyModuleAccess(loggedInUser, 'Quotation');
   const projectTabItems = projectSidebarSubItems.filter((item) => (item === 'Quotation' ? canQuotation : true));
@@ -12106,10 +12136,12 @@ function ProjectPipelineHub({
     setViewBySection((prev) => ({ ...prev, Quotation: 'all' }));
   }, [autoOpenQuotation, closeProject]);
 
-  // Leaving Site Survey full-page workspace behind: never keep a selected project open there.
+  // Site Survey full-page workspace hata di: selected project → survey popup, list pe raho.
   useEffect(() => {
-    if (isSiteSurveySection && selected) closeProject();
-  }, [isSiteSurveySection, selected, closeProject]);
+    if (!isSiteSurveySection || !selected) return;
+    openSurveyView(selected);
+    closeProject();
+  }, [isSiteSurveySection, selected, closeProject, openSurveyView]);
 
   const openFromRow = (row) => openProject({ id: row.id });
   const toggleLabels = step ? ['At this stage', 'All records'] : ['Project Status', 'Full Project List'];
@@ -12270,19 +12302,75 @@ function ProjectPipelineHub({
           onNext={onOpenSection}
           onClose={closeProject}
           onMarkDone={markDone}
-          extraActions={onSelectProject ? (
-            <button
-              type="button"
-              onClick={() => onSelectProject({ id: selected.id, project_name: selected.project_name }, 'Project Details')}
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#cfe0ff] bg-[#eef4ff] px-3 text-[12px] font-extrabold text-[#0b65e5] hover:bg-[#e0ebff]"
-            >
-              <Eye className="size-4" /><span className="hidden sm:inline">Full Details</span>
-            </button>
-          ) : null}
+          extraActions={(
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  const leadId = selected.lead ?? selected.lead_id ?? null;
+                  if (leadId) {
+                    if (onOpenLeadDetail) onOpenLeadDetail(leadId);
+                    else setHubLeadId(leadId);
+                    return;
+                  }
+                  if (onSelectProject) {
+                    onSelectProject({ id: selected.id, project_name: selected.project_name, lead: selected.lead }, 'Project Details');
+                    return;
+                  }
+                  projectApi.get(selected.id)
+                    .then((data) => {
+                      if (data?.lead) {
+                        if (onOpenLeadDetail) onOpenLeadDetail(data.lead);
+                        else setHubLeadId(data.lead);
+                      } else {
+                        onNotify?.('Is project pe linked lead nahi mila.', 'error');
+                      }
+                    })
+                    .catch((err) => onNotify?.(err?.message || 'Lead Details open nahi ho paya.', 'error'));
+                }}
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#cfe0ff] bg-[#eef4ff] px-3 text-[12px] font-extrabold text-[#0b65e5] hover:bg-[#e0ebff]"
+              >
+                <Eye className="size-4" /><span className="hidden sm:inline">Lead Details</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openSurveyView(selected)}
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#bbf7d0] bg-[#f0fdf4] px-3 text-[12px] font-extrabold text-[#0d9f4a] hover:bg-[#e7f9ee]"
+              >
+                <ClipboardPlus className="size-4" /><span className="hidden sm:inline">Site Survey</span>
+              </button>
+            </>
+          )}
         />
       ) : null}
 
       {content}
+
+      {hubLeadId ? (
+        <LeadViewModal
+          leadId={hubLeadId}
+          onClose={() => setHubLeadId(null)}
+          onEdit={() => {
+            setHubLeadEditId(hubLeadId);
+            setHubLeadId(null);
+          }}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {hubLeadEditId ? (
+        <LeadFormModal
+          mode="edit"
+          lead={{ id: hubLeadEditId }}
+          onClose={() => setHubLeadEditId(null)}
+          onSaved={() => {
+            setHubLeadEditId(null);
+            onNotify?.('Lead updated successfully!');
+            loadProjects();
+          }}
+          onNotify={onNotify}
+        />
+      ) : null}
 
       {surveyViewRow ? (
         <SiteSurveyViewModal
@@ -14285,12 +14373,46 @@ const PM_PIPELINE_SECTION_ALIASES = {
   'Survey Dashboard': 'Project Site Survey',
 };
 
+/** Full Details page ki jagah: Lead Detail popup open karke Project List pe bounce. */
+function ProjectDetailsAsPopups({
+  project,
+  onOpenSection,
+  onSelectProject,
+  onConsumeSelectedProject,
+  onNotify,
+  loggedInUser = null,
+}) {
+  const openedRef = useRef(false);
+  useEffect(() => {
+    if (openedRef.current) return;
+    openedRef.current = true;
+    if (project?.id || project?.lead || project?.lead_id) {
+      onSelectProject?.(project, 'Project Details');
+    } else {
+      onNotify?.('Koi project select nahi hai.', 'error');
+    }
+    onConsumeSelectedProject?.();
+    onOpenSection('Project List');
+  }, [project, onOpenSection, onSelectProject, onConsumeSelectedProject, onNotify]);
+
+  return (
+    <ProjectListPage
+      loggedInUser={loggedInUser}
+      activeSection="Project List"
+      onOpenSection={onOpenSection}
+      onSelectProject={onSelectProject}
+      onNotify={onNotify}
+    />
+  );
+}
+
 function ProjectManagementPage({
   activeSection = 'Project Overview',
   onOpenSection,
   selectedProject,
   onSelectProject,
   onConsumeSelectedProject,
+  onOpenLeadDetail = null,
   onNotify,
   loggedInUser = null,
   autoOpenQuotation = false,
@@ -14335,9 +14457,18 @@ function ProjectManagementPage({
     if (projectScopedTarget) {
       if (selectedProject?.id) {
         if (projectScopedTarget === 'Project Details') {
-          return <ProjectDetailsPage activeSection="Project Details" onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
+          return (
+            <ProjectDetailsAsPopups
+              project={selectedProject}
+              onOpenSection={onOpenSection}
+              onSelectProject={onSelectProject}
+              onConsumeSelectedProject={onConsumeSelectedProject}
+              onNotify={onNotify}
+              loggedInUser={loggedInUser}
+            />
+          );
         }
-        return <ProjectTimelinePage activeSection="Project Timeline" onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
+        return <ProjectTimelinePage activeSection="Project Timeline" onOpenSection={onOpenSection} onSelectProject={onSelectProject} project={selectedProject} onNotify={onNotify} />;
       }
       return <ProjectListPage loggedInUser={loggedInUser} activeSection="Project List" onOpenSection={onOpenSection} onSelectProject={(project, target = projectScopedTarget) => onSelectProject?.(project, target)} onNotify={onNotify} />;
     }
@@ -14372,6 +14503,7 @@ function ProjectManagementPage({
         section={pipelineSection}
         onOpenSection={onOpenSection}
         onSelectProject={onSelectProject}
+        onOpenLeadDetail={onOpenLeadDetail}
         onNotify={onNotify}
         loggedInUser={loggedInUser}
         externalProject={selectedProject}
@@ -14387,11 +14519,20 @@ function ProjectManagementPage({
   }
 
   if (activeSection === 'Project Details') {
-    return <ProjectDetailsPage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
+    return (
+      <ProjectDetailsAsPopups
+        project={selectedProject}
+        onOpenSection={onOpenSection}
+        onSelectProject={onSelectProject}
+        onConsumeSelectedProject={onConsumeSelectedProject}
+        onNotify={onNotify}
+        loggedInUser={loggedInUser}
+      />
+    );
   }
 
   if (activeSection === 'Project Timeline') {
-    return <ProjectTimelinePage activeSection={activeSection} onOpenSection={onOpenSection} project={selectedProject} onNotify={onNotify} />;
+    return <ProjectTimelinePage activeSection={activeSection} onOpenSection={onOpenSection} onSelectProject={onSelectProject} project={selectedProject} onNotify={onNotify} />;
   }
 
   if (activeSection === 'Subsidy') {
@@ -15282,6 +15423,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const [refreshKey, setRefreshKey] = useState(0);
   const [editProject, setEditProject] = useState(null);
   const [viewProjectRow, setViewProjectRow] = useState(null);
+  const [viewLeadId, setViewLeadId] = useState(null);
   const [viewSurveyRow, setViewSurveyRow] = useState(null);
   const [editSurveyRow, setEditSurveyRow] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -15332,10 +15474,14 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     setEditProject({ projectId: row.id, leadId: row.lead, status: row.status });
   };
 
-  // Project List / Site Survey: View opens a read-only popup (no full-page navigate).
+  // Project List → Lead Detail popup; Site Survey → Site Survey popup (no full-page).
   const handleViewRow = (row) => {
     if (isSiteSurveyPicker) {
       setViewSurveyRow(row);
+      return;
+    }
+    if (row.lead) {
+      setViewLeadId(row.lead);
       return;
     }
     setViewProjectRow(row);
@@ -15935,6 +16081,20 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           projectContext={editProject}
           onClose={() => setEditProject(null)}
           onSaved={() => { setEditProject(null); setRefreshKey((key) => key + 1); }}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {viewLeadId ? (
+        <LeadViewModal
+          leadId={viewLeadId}
+          onClose={() => setViewLeadId(null)}
+          onEdit={() => {
+            const row = projectRows.find((r) => r.lead === viewLeadId);
+            setViewLeadId(null);
+            if (row) handleEditProject(row);
+            else setEditProject({ projectId: null, leadId: viewLeadId, status: null });
+          }}
           onNotify={onNotify}
         />
       ) : null}
@@ -22029,8 +22189,12 @@ function ProjectProgressLegend({ color, label }) {
   );
 }
 
-function ProjectTimelinePage({ activeSection, onOpenSection, project: projectProp, onNotify }) {
+function ProjectTimelinePage({ activeSection, onOpenSection, onSelectProject = null, project: projectProp, onNotify }) {
   const openProjectSection = (section) => onOpenSection(section, { preserveProject: true });
+  const openLeadDetails = () => {
+    if (onSelectProject && projectProp) onSelectProject(projectProp, 'Project Details');
+    else onOpenSection('Project List');
+  };
   const [viewMode, setViewMode] = useState('List View');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22275,7 +22439,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Project Management', onClick: () => onOpenSection('Project List') },
           { label: 'Project List', onClick: () => onOpenSection('Project List') },
-          { label: 'Project Details', onClick: () => openProjectSection('Project Details') },
+          { label: 'Lead Details', onClick: openLeadDetails },
           { label: 'Timeline' },
         ]}
         actions={(
@@ -22309,7 +22473,7 @@ function ProjectTimelinePage({ activeSection, onOpenSection, project: projectPro
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button type="button" onClick={openLeadDetails} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Lead Details</button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -24432,7 +24596,17 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
               </div>
               <p className="mt-2 text-[13px] font-bold text-[#53647f]">{project.address}</p>
               <p className="mt-1 text-[13px] font-bold text-[#53647f]">{project.city}</p>
-              <button type="button" onClick={() => onOpenSection('Project Details', { preserveProject: true })} className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"><MapPin className="size-4" />View Project Details</button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSelectProject && selectedProjectProp) onSelectProject(selectedProjectProp, 'Project Details');
+                  else if (onSelectProject && project) onSelectProject({ id: project.id, lead: project.lead }, 'Project Details');
+                  else onOpenSection('Project List');
+                }}
+                className="mt-3 inline-flex items-center gap-2 text-[13px] font-extrabold text-[#2563eb]"
+              >
+                <MapPin className="size-4" />View Lead Details
+              </button>
             </div>
           </div>
           <div className="space-y-2 border-t border-[#eef3f8] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -33367,17 +33541,21 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
           onContinue={applyBasicPrefillFromLead}
           onViewLead={(row) => setViewDuplicateLeadId(row.id)}
           onEditLead={(row) => setViewDuplicateLeadId(row.id)}
-          onViewProject={(project) => {
-            const path = `/projects/details/${project.id}`;
-            window.history.pushState({ currentPage: 'Project Details', projectId: project.id }, '', path);
-            window.dispatchEvent(new PopStateEvent('popstate'));
-            onClose();
+          onViewProject={(project, leadRow) => {
+            const leadId = leadRow?.id || project?.lead || null;
+            if (leadId) {
+              setViewDuplicateLeadId(leadId);
+              return;
+            }
+            onNotify?.('Is project pe linked lead nahi mila.', 'error');
           }}
-          onEditProject={(project) => {
-            const path = `/projects/details/${project.id}`;
-            window.history.pushState({ currentPage: 'Project Details', projectId: project.id }, '', path);
-            window.dispatchEvent(new PopStateEvent('popstate'));
-            onClose();
+          onEditProject={(project, leadRow) => {
+            const leadId = leadRow?.id || project?.lead || null;
+            if (leadId) {
+              setViewDuplicateLeadId(leadId);
+              return;
+            }
+            onNotify?.('Is project pe linked lead nahi mila.', 'error');
           }}
         />
       ) : null}
