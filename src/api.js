@@ -918,6 +918,41 @@ export const settingsApi = {
     setCurrent: (id) => request(`/settings/financial-years/${id}/set_current/`, { method: 'POST' }),
   },
   activityLogs: settingsCrud('activity-logs'),
+  auditEvents: {
+    ...settingsCrud('audit-events'),
+    summary: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null)),
+      ).toString();
+      return request(`/settings/audit-events/summary/${qs ? `?${qs}` : ''}`);
+    },
+    clear: () => request('/settings/audit-events/clear/', { method: 'POST', body: {} }),
+  },
+  bugReports: {
+    ...settingsCrud('bug-reports'),
+    resolve: (id) => request(`/settings/bug-reports/${id}/resolve/`, { method: 'POST', body: {} }),
+    clearResolved: () => request('/settings/bug-reports/clear_resolved/', { method: 'POST', body: {} }),
+  },
+  whatsappMessages: {
+    ...settingsCrud('whatsapp-messages'),
+    stats: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null)),
+      ).toString();
+      return request(`/settings/whatsapp-messages/stats/${qs ? `?${qs}` : ''}`);
+    },
+    markProcessed: (id) => request(`/settings/whatsapp-messages/${id}/mark_processed/`, { method: 'POST', body: {} }),
+  },
+  developerMemory: {
+    get: () => request('/settings/developer/memory/'),
+    update: (data) => request('/settings/developer/memory/', { method: 'PATCH', body: data }),
+  },
+  attendanceMachine: {
+    get: () => request('/settings/developer/attendance-machine/'),
+    update: (data) => request('/settings/developer/attendance-machine/', { method: 'PATCH', body: data }),
+    test: () => request('/settings/developer/attendance-machine/', { method: 'POST', body: { action: 'test' } }),
+    sync: (data) => request('/settings/developer/attendance-machine/', { method: 'POST', body: { action: 'sync', ...data } }),
+  },
   ipRules: settingsCrud('ip-rules'),
   ipBlockedAttempts: settingsCrud('ip-blocked-attempts'),
   documentSeries: settingsCrud('document-series'),

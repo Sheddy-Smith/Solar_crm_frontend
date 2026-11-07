@@ -93,6 +93,8 @@ class Employee(models.Model):
     daily_rate = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     duty_hours_per_day = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('9.00'))
     opening_balance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    # Biometric / eTimeOffice emp code (Settings → Attendance Machine)
+    attendance_emp_code = models.CharField(max_length=40, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

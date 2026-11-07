@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -46,6 +46,7 @@ import { TablePagination, usePagedRows } from './components/TablePagination.jsx'
 import { cx } from './lib/utils.js';
 import { authApi, leadApi, followUpApi } from './api.js';
 import { PwaInstallBanner, PwaInstallIconButton } from './components/mobile/PwaInstallControls.jsx';
+import { ReportProblemButton } from './components/ReportProblemButton.jsx';
 import { hasModuleAccess } from './settingsHubPages.jsx';
 import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
 
@@ -335,13 +336,15 @@ function formatLocalIsoLabel(iso) {
 }
 
 /** Split scheduled follow-ups into today's (high alert) vs overdue (extra high).
- *  Won/Lost leads are excluded — sales follow-up cycle is closed. */
+ *  Won/Lost leads are excluded — sales follow-up cycle is closed.
+ *  Future dates land in `upcoming` so a planned follow-up is not dropped. */
 export function splitFollowUpAlerts(scheduledRows) {
   const todayStart = startOfLocalDay();
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
   const today = [];
   const overdue = [];
+  const upcoming = [];
   for (const item of scheduledRows || []) {
     const leadStatus = String(item.lead_status || '').trim();
     if (leadStatus === 'Won' || leadStatus === 'Lost') continue;
@@ -349,10 +352,119 @@ export function splitFollowUpAlerts(scheduledRows) {
     if (Number.isNaN(when.getTime())) continue;
     if (when < todayStart) overdue.push(item);
     else if (when < tomorrowStart) today.push(item);
+    else upcoming.push(item);
   }
-  today.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
-  overdue.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
-  return { today, overdue };
+  const byTime = (a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at);
+  today.sort(byTime);
+  overdue.sort(byTime);
+  upcoming.sort(byTime);
+  return { today, overdue, upcoming };
+}
+
+function isClosedFollowUpLead(leadOrStatus) {
+  if (leadOrStatus && typeof leadOrStatus === 'object') {
+    const status = String(leadOrStatus.status || '').trim();
+    if (status === 'Won' || status === 'Lost') return true;
+    const display = teleDisplayStatus(leadOrStatus);
+    return display === 'Won' || display === 'Lost';
+  }
+  const status = String(leadOrStatus || '').trim();
+  return status === 'Won' || status === 'Lost';
+}
+
+function alertItemFromLead(lead, scheduled) {
+  const whenRaw = lead?.next_follow_up || scheduled?.scheduled_at;
+  if (scheduled) {
+    return {
+      ...scheduled,
+      scheduled_at: whenRaw,
+      lead_customer_name: scheduled.lead_customer_name || lead.customer_name,
+      lead_mobile_number: scheduled.lead_mobile_number || lead.mobile_number,
+      lead_project_name: scheduled.lead_project_name || lead.project_name,
+      lead_status: lead.status || scheduled.lead_status,
+      lead_assigned_to_name: scheduled.lead_assigned_to_name || lead.assigned_to_name || '',
+    };
+  }
+  return {
+    id: `lead-${lead.id}`,
+    lead: lead.id,
+    lead_customer_name: lead.customer_name,
+    lead_mobile_number: lead.mobile_number,
+    lead_project_name: lead.project_name,
+    lead_status: lead.status,
+    lead_assigned_to_name: lead.assigned_to_name || '',
+    follow_up_type: 'Call',
+    scheduled_at: whenRaw,
+    notes: '',
+    reminder: '',
+    status: 'Scheduled',
+    created_by: lead.created_by,
+    created_by_name: lead.created_by_name,
+  };
+}
+
+/** Follow-ups still to be taken, keyed off the date shown on the lead.
+ *  A lead with `next_follow_up` stays visible even when its Scheduled row
+ *  was never created or fell off the first page of history. */
+export function pendingFollowUpsFromLeads(leads, scheduledRows) {
+  const scheduledByLead = new Map();
+  for (const row of activeScheduledFollowUps(scheduledRows)) {
+    if (isClosedFollowUpLead(row.lead_status)) continue;
+    const key = String(row.lead);
+    const prev = scheduledByLead.get(key);
+    if (!prev || new Date(row.scheduled_at) < new Date(prev.scheduled_at)) {
+      scheduledByLead.set(key, row);
+    }
+  }
+
+  const todayStart = startOfLocalDay();
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const today = [];
+  const overdue = [];
+  const upcoming = [];
+  const seen = new Set();
+
+  const push = (item) => {
+    const when = new Date(item.scheduled_at);
+    if (Number.isNaN(when.getTime())) return;
+    if (when < todayStart) overdue.push(item);
+    else if (when < tomorrowStart) today.push(item);
+    else upcoming.push(item);
+  };
+
+  for (const lead of leads || []) {
+    if (!lead || isClosedFollowUpLead(lead)) continue;
+    const key = String(lead.id);
+    const scheduled = scheduledByLead.get(key);
+    if (!lead.next_follow_up && !scheduled) continue;
+    seen.add(key);
+    push(alertItemFromLead(lead, scheduled));
+  }
+
+  for (const [key, row] of scheduledByLead) {
+    if (seen.has(key)) continue;
+    push(row);
+  }
+
+  const byTime = (a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at);
+  today.sort(byTime);
+  overdue.sort(byTime);
+  upcoming.sort(byTime);
+  return { today, overdue, upcoming };
+}
+
+async function fetchEveryPage(loadPage) {
+  const pageSize = 200;
+  const rows = [];
+  for (let page = 1; page <= 40; page += 1) {
+    const data = await loadPage(page, pageSize);
+    const batch = Array.isArray(data) ? data : (data?.results ?? []);
+    rows.push(...batch);
+    const hasNext = Boolean(data && !Array.isArray(data) && data.next);
+    if (!hasNext || batch.length === 0) break;
+  }
+  return rows;
 }
 
 /** Open-pipeline scheduled rows only (exclude Won/Lost leads). */
@@ -367,20 +479,23 @@ export function activeScheduledFollowUps(rows) {
 function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
   const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
   const isExtra = level === 'extra';
+  const isUpcoming = level === 'upcoming';
   return (
     <div
       className={cx(
         'flex flex-col gap-2.5 rounded-[12px] border px-3 py-2.5 sm:flex-row sm:items-start sm:gap-3',
         isExtra
           ? 'border-[#fecaca] bg-[#fff5f5]'
-          : 'border-[#fde68a] bg-[#fffbeb]',
+          : isUpcoming
+            ? 'border-[#dbeafe] bg-[#f8fbff]'
+            : 'border-[#fde68a] bg-[#fffbeb]',
       )}
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <span
           className={cx(
             'grid size-10 shrink-0 place-items-center rounded-full',
-            isExtra ? 'bg-[#fee2e2] text-[#dc2626]' : 'bg-[#fef3c7] text-[#d97706]',
+            isExtra ? 'bg-[#fee2e2] text-[#dc2626]' : isUpcoming ? 'bg-[#dbeafe] text-[#1d4ed8]' : 'bg-[#fef3c7] text-[#d97706]',
           )}
         >
           <Icon className="size-4" />
@@ -391,14 +506,14 @@ function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
             <span
               className={cx(
                 'inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide',
-                isExtra ? 'bg-[#dc2626] text-white' : 'bg-[#f59e0b] text-white',
+                isExtra ? 'bg-[#dc2626] text-white' : isUpcoming ? 'bg-[#1d4ed8] text-white' : 'bg-[#f59e0b] text-white',
               )}
             >
-              {isExtra ? 'Extra High' : 'High Alert'}
+              {isExtra ? 'Extra High' : isUpcoming ? 'Upcoming' : 'High Alert'}
             </span>
           </div>
           <p className="mt-0.5 text-[11px] font-semibold text-[#7585a2]">
-            {isExtra ? formatDateTime(item.scheduled_at) : formatTime(item.scheduled_at)}
+            {isExtra || isUpcoming ? formatDateTime(item.scheduled_at) : formatTime(item.scheduled_at)}
             {' · '}
             {item.follow_up_type || 'Call'}
             {isExtra ? ` · Pending ${followUpAgeLabel(item.scheduled_at)}` : ''}
@@ -426,7 +541,7 @@ function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
             onClick={() => onCall(item)}
             className={cx(
               'inline-flex h-10 items-center justify-center gap-1 rounded-[10px] px-2.5 text-[12px] font-extrabold text-white sm:h-8 sm:text-[11px]',
-              isExtra ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : 'bg-[#f59e0b] hover:bg-[#d97706]',
+              isExtra ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : isUpcoming ? 'bg-[#1d4ed8] hover:bg-[#1a3fb0]' : 'bg-[#f59e0b] hover:bg-[#d97706]',
             )}
           >
             <Phone className="size-3.5" />
@@ -460,20 +575,25 @@ function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
 export function TeleFollowUpAlertsPanel({
   todayFollowUps,
   overdueFollowUps,
+  upcomingFollowUps = [],
   loaded = true,
   compact = false,
   onOpenToday,
   onOpenOverdue,
+  onOpenUpcoming,
   onCall,
   onLog,
   onView,
 }) {
   const todayCount = todayFollowUps?.length || 0;
   const overdueCount = overdueFollowUps?.length || 0;
+  const upcomingCount = upcomingFollowUps?.length || 0;
   const todayPreview = (todayFollowUps || []).slice(0, compact ? 4 : 8);
   const overduePreview = (overdueFollowUps || []).slice(0, compact ? 4 : 8);
+  const upcomingPreview = (upcomingFollowUps || []).slice(0, compact ? 4 : 8);
 
   return (
+    <div className="grid gap-4">
     <div className={cx('grid gap-4', compact ? '' : 'xl:grid-cols-2')}>
       {/* High Alert — today's follow-ups */}
       <section
@@ -584,6 +704,48 @@ export function TeleFollowUpAlertsPanel({
           ) : null}
         </div>
       </section>
+    </div>
+
+    {loaded && upcomingCount > 0 ? (
+      <section className="overflow-hidden rounded-[16px] border-2 border-[#1d4ed8]/30 bg-white shadow-[0_12px_28px_rgba(29,78,216,0.08)]">
+        <div className="flex items-center justify-between gap-3 border-b border-[#dbeafe] bg-[linear-gradient(90deg,#eff6ff_0%,#f8fbff_100%)] px-4 py-3">
+          <button type="button" onClick={onOpenUpcoming} className="flex min-w-0 items-center gap-2.5 text-left">
+            <span className="grid size-10 place-items-center rounded-full bg-[#1d4ed8] text-white shadow-[0_6px_14px_rgba(29,78,216,0.28)]">
+              <CalendarDays className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[14px] font-extrabold text-[#1e3a8a]">Upcoming follow-ups</p>
+              <p className="text-[11px] font-semibold text-[#1d4ed8]">Scheduled — still to be taken</p>
+            </div>
+          </button>
+          <span className="inline-flex min-w-[36px] items-center justify-center rounded-full bg-[#1d4ed8] px-2.5 py-1 text-[14px] font-extrabold text-white">
+            {upcomingCount}
+          </span>
+        </div>
+        <div className="space-y-2 p-3.5">
+          {upcomingPreview.map((item) => (
+            <TeleFollowUpAlertRow
+              key={item.id}
+              item={item}
+              level="upcoming"
+              onCall={onCall}
+              onLog={onLog}
+              onView={onView}
+            />
+          ))}
+          {upcomingCount > upcomingPreview.length && onOpenUpcoming ? (
+            <button
+              type="button"
+              onClick={onOpenUpcoming}
+              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#dbeafe] bg-[#eff6ff] py-2.5 text-[12px] font-extrabold text-[#1d4ed8] transition hover:bg-[#dbeafe]"
+            >
+              View all {upcomingCount} upcoming follow-ups
+              <ArrowRight className="size-3.5" />
+            </button>
+          ) : null}
+        </div>
+      </section>
+    ) : null}
     </div>
   );
 }
@@ -1111,14 +1273,22 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const [addLeadOpen, setAddLeadOpen] = useState(false);
 
   const loadLeads = () => {
-    leadApi.list({ page_size: 200, ordering: '-created_at' }).then((data) => {
-      setLeads(Array.isArray(data) ? data : (data?.results ?? []));
-    }).catch(() => { setLeads([]); onNotify('Leads could not be loaded.', 'error'); });
+    fetchEveryPage((page, pageSize) => leadApi.list({ page, page_size: pageSize, ordering: '-created_at' }))
+      .then((rows) => setLeads(rows))
+      .catch(() => { setLeads([]); onNotify('Leads could not be loaded.', 'error'); });
   };
 
   const loadFollowUps = () => {
-    followUpApi.listAll({ page_size: 200 }).then((data) => {
-      setFollowUps(Array.isArray(data) ? data : (data?.results ?? []));
+    Promise.all([
+      fetchEveryPage((page, pageSize) => followUpApi.listAll({
+        page, page_size: pageSize, status: 'Scheduled', ordering: 'scheduled_at',
+      })),
+      followUpApi.listAll({ page_size: 200, ordering: '-created_at' }),
+    ]).then(([scheduled, recent]) => {
+      const recentRows = Array.isArray(recent) ? recent : (recent?.results ?? []);
+      const byId = new Map();
+      for (const row of [...scheduled, ...recentRows]) byId.set(row.id, row);
+      setFollowUps([...byId.values()]);
     }).catch(() => { setFollowUps([]); onNotify('Follow-ups could not be loaded.', 'error'); });
   };
 
@@ -1198,14 +1368,14 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const wonCount = teamLeadRows.filter((lead) => lead.status === 'Won' || teleDisplayStatus(lead) === 'Won').length;
   const lostCount = teamLeadRows.filter((lead) => lead.status === 'Lost' || teleDisplayStatus(lead) === 'Lost').length;
 
-  const scheduledFollowUps = useMemo(
-    () => activeScheduledFollowUps(scopedFollowUps).sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)),
-    [scopedFollowUps],
+  const { today: todayFollowUps, overdue: overdueFollowUps, upcoming: upcomingFollowUps } = useMemo(
+    () => pendingFollowUpsFromLeads(leadRows, followUps ?? []),
+    [leadRows, followUps],
   );
 
-  const { today: todayFollowUps, overdue: overdueFollowUps } = useMemo(
-    () => splitFollowUpAlerts(scheduledFollowUps),
-    [scheduledFollowUps],
+  const scheduledFollowUps = useMemo(
+    () => [...overdueFollowUps, ...todayFollowUps, ...upcomingFollowUps],
+    [overdueFollowUps, todayFollowUps, upcomingFollowUps],
   );
 
   const openFollowUpForm = (lead = null) => setFollowUpModal({ lead });
@@ -1257,6 +1427,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             leadsLoaded={leads !== null}
             todayFollowUps={todayFollowUps}
             overdueFollowUps={overdueFollowUps}
+            upcomingFollowUps={upcomingFollowUps}
             scheduledFollowUps={scheduledFollowUps}
             followUpsLoaded={followUps !== null}
             wonCount={wonCount}
@@ -1270,6 +1441,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             onAddLead={() => setAddLeadOpen(true)}
             onOpenToday={() => openFollowUpsTab('today')}
             onOpenOverdue={() => openFollowUpsTab('overdue')}
+            onOpenUpcoming={() => openFollowUpsTab('upcoming')}
             onAlertCall={handleAlertCall}
             onAlertLogFollowUp={handleAlertLogFollowUp}
             onAlertView={handleAlertView}
@@ -1397,6 +1569,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
               <CalendarDays className="size-4 text-[#1d4ed8]" />
               {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', weekday: 'long' })}
             </span>
+            <ReportProblemButton portal="Tele Portal" notify={onNotify} />
             <PwaInstallIconButton notify={onNotify} />
             {onToggleTheme ? (
               <button
@@ -2041,6 +2214,7 @@ function TeleDashboard({
   leadsLoaded,
   todayFollowUps,
   overdueFollowUps,
+  upcomingFollowUps = [],
   scheduledFollowUps,
   followUpsLoaded,
   wonCount,
@@ -2054,6 +2228,7 @@ function TeleDashboard({
   onAddLead,
   onOpenToday,
   onOpenOverdue,
+  onOpenUpcoming,
   onAlertCall,
   onAlertLogFollowUp,
   onAlertView,
@@ -2075,10 +2250,12 @@ function TeleDashboard({
       <TeleFollowUpAlertsPanel
         todayFollowUps={todayFollowUps}
         overdueFollowUps={overdueFollowUps}
+        upcomingFollowUps={upcomingFollowUps}
         loaded={followUpsLoaded}
         compact={false}
         onOpenToday={onOpenToday}
         onOpenOverdue={onOpenOverdue}
+        onOpenUpcoming={onOpenUpcoming}
         onCall={onAlertCall}
         onLog={onAlertLogFollowUp}
         onView={onAlertView}
@@ -2189,29 +2366,33 @@ function TeleFollowUpsPage({
     return Array.from(map, ([id, name]) => ({ id, name }));
   }, [followUps, leads]);
 
+  const leadMatchesFilter = useCallback((lead) => {
+    if (addByFilter === 'All') return true;
+    if (!lead) return false;
+    return String(lead.created_by) === String(addByFilter) || String(lead.assigned_to) === String(addByFilter);
+  }, [addByFilter]);
+
   const matchesAddBy = useCallback((item) => {
     if (addByFilter === 'All') return true;
-    // Prefer who logged the follow-up; fall back to lead creator if needed.
-    if (item.created_by != null) {
-      return String(item.created_by) === String(addByFilter);
-    }
     const lead = leadById.get(String(item.lead));
-    if (lead?.created_by != null) {
-      return String(lead.created_by) === String(addByFilter);
-    }
-    return false;
-  }, [addByFilter, leadById]);
+    if (lead) return leadMatchesFilter(lead);
+    return item.created_by != null && String(item.created_by) === String(addByFilter);
+  }, [addByFilter, leadById, leadMatchesFilter]);
 
   const canOperateFollowUp = useCallback((item) => {
     if (isSuperAdmin) return true;
     if (currentUserId == null) return false;
     const lead = leadById.get(String(item.lead));
     if (lead) {
-      return String(lead.created_by) === String(currentUserId);
+      return String(lead.created_by) === String(currentUserId) || String(lead.assigned_to) === String(currentUserId);
     }
     return String(item.created_by) === String(currentUserId);
   }, [isSuperAdmin, currentUserId, leadById]);
 
+  const holderLeads = useMemo(
+    () => leads.filter(leadMatchesFilter),
+    [leads, leadMatchesFilter],
+  );
   const holderFollowUps = useMemo(
     () => followUps.filter(matchesAddBy),
     [followUps, matchesAddBy],
@@ -2221,15 +2402,25 @@ function TeleFollowUpsPage({
     () => holderFollowUps.filter((item) => item.status === 'Completed'),
     [holderFollowUps],
   );
-  const scheduled = useMemo(
-    () => activeScheduledFollowUps(holderFollowUps),
-    [holderFollowUps],
+  const { today, overdue, upcoming } = useMemo(
+    () => pendingFollowUpsFromLeads(holderLeads, holderFollowUps),
+    [holderLeads, holderFollowUps],
   );
-  const { today, overdue } = useMemo(() => splitFollowUpAlerts(scheduled), [scheduled]);
+
+  const queuedOnce = useRef(false);
+  useEffect(() => {
+    if (!loaded || queuedOnce.current) return;
+    if (today.length + overdue.length + upcoming.length === 0) return;
+    queuedOnce.current = true;
+    if (tab === 'today' && today.length === 0 && overdue.length === 0 && upcoming.length > 0) {
+      setTab('upcoming');
+    }
+  }, [loaded, tab, today.length, overdue.length, upcoming.length]);
 
   const cards = [
     { id: 'today', title: 'High Alert · Today', value: loaded ? today.length : undefined, note: 'Follow-ups due today', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]', activeRing: 'border-[#f59e0b] ring-4 ring-[#fde68a]' },
     { id: 'overdue', title: 'Extra High · Pending', value: loaded ? overdue.length : undefined, note: 'Missed earlier — still pending', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]', activeRing: 'border-[#dc2626] ring-4 ring-[#fecaca]' },
+    { id: 'upcoming', title: 'Upcoming', value: loaded ? upcoming.length : undefined, note: 'Still to be taken', icon: CalendarDays, tone: 'bg-[#e7efff] text-[#1d4ed8]', activeRing: 'border-[#1d4ed8] ring-4 ring-[#dbeafe]' },
     { id: 'completed', title: 'Completed', value: loaded ? completed.length : undefined, note: 'Saved history', icon: CheckCircle2, tone: 'bg-[#e8f8eb] text-[#0d9f4a]', activeRing: 'border-[#0d9f4a] ring-4 ring-[#bbf7d0]' },
     { id: 'all', title: 'All Follow-ups', value: loaded ? holderFollowUps.length : undefined, note: 'Full record', icon: Phone, tone: 'bg-[#e7efff] text-[#1d4ed8]', activeRing: 'border-[#1d4ed8] ring-4 ring-[#dbeafe]' },
   ];
@@ -2238,6 +2429,7 @@ function TeleFollowUpsPage({
     let rows = holderFollowUps;
     if (tab === 'today') rows = today;
     else if (tab === 'overdue') rows = overdue;
+    else if (tab === 'upcoming') rows = upcoming;
     else if (tab === 'completed') rows = completed;
     const query = search.trim().toLowerCase();
     if (query) {
@@ -2252,11 +2444,11 @@ function TeleFollowUpsPage({
     const sorted = [...rows].sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
     if (tab === 'completed' || tab === 'all') sorted.reverse();
     return sorted;
-  }, [holderFollowUps, tab, search, today, overdue, completed]);
+  }, [holderFollowUps, tab, search, today, overdue, upcoming, completed]);
 
   return (
     <>
-      {(today.length > 0 || overdue.length > 0) && loaded ? (
+      {(today.length > 0 || overdue.length > 0 || upcoming.length > 0) && loaded ? (
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
@@ -2287,6 +2479,21 @@ function TeleFollowUpsPage({
               <p className="text-[11px] font-semibold text-[#b91c1c]">{overdue.length} overdue pending</p>
             </div>
             <span className="text-[20px] font-extrabold text-[#dc2626]">{overdue.length}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('upcoming')}
+            className={cx(
+              'flex flex-1 items-center gap-3 rounded-[12px] border-2 px-4 py-3 text-left transition',
+              tab === 'upcoming' ? 'border-[#1d4ed8] bg-[#eff6ff]' : 'border-[#dbeafe] bg-white hover:bg-[#eff6ff]',
+            )}
+          >
+            <span className="grid size-9 place-items-center rounded-full bg-[#1d4ed8] text-white"><CalendarDays className="size-4" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-extrabold text-[#1e3a8a]">Upcoming</p>
+              <p className="text-[11px] font-semibold text-[#1d4ed8]">{upcoming.length} still to be taken</p>
+            </div>
+            <span className="text-[20px] font-extrabold text-[#1d4ed8]">{upcoming.length}</span>
           </button>
         </div>
       ) : null}
@@ -2324,14 +2531,16 @@ function TeleFollowUpsPage({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="font-display text-[17px] font-extrabold text-[#102446]">
-              {tab === 'today' ? "High Alert · Today's Follow-ups" : tab === 'overdue' ? 'Extra High Alert · Pending' : 'Follow-up Diary'}
+              {tab === 'today' ? "High Alert · Today's Follow-ups" : tab === 'overdue' ? 'Extra High Alert · Pending' : tab === 'upcoming' ? 'Upcoming follow-ups' : 'Follow-up Diary'}
             </h2>
             <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">
               {tab === 'today'
                 ? 'These customers need a call or follow-up today.'
                 : tab === 'overdue'
                   ? 'These follow-ups were due earlier and are still pending. Clear them first.'
-                  : 'Every call and WhatsApp note is saved here. Nothing overwrites old history.'}
+                  : tab === 'upcoming'
+                    ? 'These follow-ups are scheduled and still need to be taken.'
+                    : 'Every call and WhatsApp note is saved here. Nothing overwrites old history.'}
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -2383,6 +2592,7 @@ function TeleFollowUpsPage({
             const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
             const isTodayAlert = tab === 'today';
             const isExtraAlert = tab === 'overdue';
+            const isUpcoming = tab === 'upcoming';
             const canOperate = canOperateFollowUp(item);
             return (
               <article
@@ -2393,7 +2603,9 @@ function TeleFollowUpsPage({
                     ? 'border-[#fecaca] bg-[#fff5f5] hover:border-[#f87171]'
                     : isTodayAlert
                       ? 'border-[#fde68a] bg-[#fffbeb] hover:border-[#fbbf24]'
-                      : 'border-[#e8eef6] bg-[#fbfdff] hover:border-[#c7d7f0] hover:bg-white',
+                      : isUpcoming
+                        ? 'border-[#dbeafe] bg-[#f8fbff] hover:border-[#93c5fd]'
+                        : 'border-[#e8eef6] bg-[#fbfdff] hover:border-[#c7d7f0] hover:bg-white',
                 )}
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2421,6 +2633,9 @@ function TeleFollowUpsPage({
                         ) : null}
                         {isExtraAlert ? (
                           <span className="inline-flex rounded-full bg-[#dc2626] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">Extra High</span>
+                        ) : null}
+                        {isUpcoming ? (
+                          <span className="inline-flex rounded-full bg-[#1d4ed8] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">Upcoming</span>
                         ) : null}
                       </div>
                       <p className="mt-1 text-[12px] font-bold text-[#53647f]">

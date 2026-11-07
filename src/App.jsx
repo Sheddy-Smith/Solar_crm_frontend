@@ -80,9 +80,19 @@ import {
   moduleCaps,
   SIDEBAR_MODULE_BY_LABEL,
 } from './settingsHubPages.jsx';
+import {
+  useDeveloperMode,
+  DEVELOPER_SETTINGS_TABS,
+  subscribeDeveloperModeOpen,
+} from './hooks/useDeveloperMode.js';
+import {
+  DeveloperModeToggle,
+  DeveloperSettingsPanel,
+} from './settingsDeveloperPages.jsx';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
 import { setUnsavedWork } from './lib/unsavedWork.js';
 import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide, UpToDateDialog, usePwaInstallAction, downloadAndroidApp, isAndroidDevice, isIosDevice } from './components/mobile/PwaInstallControls.jsx';
+import { ReportProblemButton } from './components/ReportProblemButton.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
@@ -2153,7 +2163,7 @@ function App() {
       : 'Dashboard';
     const preferred = routeSection ?? stored;
     // Refresh pe selectedLead null hota hai, isliye lead-specific page ki jagah Lead List dikhao
-    if (leadDetailPages.includes(preferred) && !initialRoute.params.leadId) return 'Lead List';
+    if (preferred === 'Lead Details' || (leadDetailPages.includes(preferred) && !initialRoute.params.leadId)) return 'Lead List';
     // Refresh pe selectedProject null hota hai, isliye project-specific page ki jagah Project List dikhao
     if (projectDetailPages.includes(preferred) && !initialRoute.params.projectId) return 'Project List';
     if (insightsRelatedPages.includes(preferred) && preferred !== 'Insights') return 'Insights';
@@ -2232,7 +2242,8 @@ function App() {
     const id = Number(initialRoute.params.leadId);
     return Number.isFinite(id) && id > 0 ? { id } : null;
   });
-  const [leadDetailsTab, setLeadDetailsTab] = useState('overview');
+  const [popupLeadId, setPopupLeadId] = useState(null);
+  const [popupEditLeadId, setPopupEditLeadId] = useState(null);
   const updateSelectedLead = (patch) => setSelectedLead((prev) => (prev ? { ...prev, ...patch } : prev));
   const [selectedProject, setSelectedProject] = useState(() => {
     const id = Number(initialRoute.params.projectId);
@@ -2621,8 +2632,21 @@ function App() {
       return;
     }
 
+    if (section === 'Lead Details') {
+      const id = lead?.id ?? lead?.lead ?? null;
+      setMobileSidebarOpen(false);
+      setNotificationMenuOpen(false);
+      setMessageMenuOpen(false);
+      if (id) {
+        setPopupLeadId(id);
+        if (message) notify(message);
+      } else {
+        notify('Open a lead from the list.', 'error');
+      }
+      return;
+    }
+
     if (lead) setSelectedLead(lead);
-    if (section === 'Lead Details') setLeadDetailsTab(tab || 'overview');
     if (section === 'Follow-ups') setFollowUpsPageTab(tab || 'today');
     setActiveSidebarItem(section);
     setMobileSidebarOpen(false);
@@ -3785,9 +3809,15 @@ function App() {
               <CustomerModulePage
                 activeSection={activeSidebarItem === 'Customer Leads' ? 'Customer Details' : activeSidebarItem}
                 onOpenSection={(section, message, payload) => {
-                  if (payload?.lead) setSelectedLead(payload.lead);
                   if (payload?.project) setSelectedProject(payload.project);
-                  if (section === 'Lead Details') setLeadDetailsTab('overview');
+                  if (section === 'Lead Details') {
+                    const id = payload?.lead?.id;
+                    if (id) setPopupLeadId(id);
+                    else notify('Open a lead from the list.', 'error');
+                    if (message) notify(message);
+                    return;
+                  }
+                  if (payload?.lead) setSelectedLead(payload.lead);
                   setActiveSidebarItem(section);
                   notify(message || `${section} opened`);
                 }}
@@ -3916,10 +3946,8 @@ function App() {
                   notify(`New quotation — ${lead.customer_name || 'lead'}`);
                 }}
                 onOpenLead={(lead) => {
-                  setSelectedLead({ id: lead.id, customer: lead.customer_name, mobile: lead.mobile_number });
-                  setLeadDetailsTab('overview');
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
+                  if (lead?.id) setPopupLeadId(lead.id);
+                  else notify('Open a lead from the list.', 'error');
                 }}
                 onNotify={notify}
               />
@@ -3961,17 +3989,11 @@ function App() {
                 onNotify={notify}
                 onViewLead={(item) => {
                   if (!item?.lead) return;
-                  setSelectedLead({ id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number });
-                  setLeadDetailsTab('overview');
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
+                  setPopupLeadId(item.lead);
                 }}
                 onLogFollowUp={(item) => {
                   if (item?.lead) {
-                    setSelectedLead({ id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number });
-                    setLeadDetailsTab('follow-ups');
-                    setActiveSidebarItem('Lead Details');
-                    notify('Lead follow-up opened');
+                    setPopupLeadId(item.lead);
                     return;
                   }
                   setAutoOpenFollowUps(true);
@@ -3986,6 +4008,11 @@ function App() {
                 initialSearch={globalSearch}
                 searchNonce={globalSearchNonce}
                 onOpenSection={(section, message, lead, tab) => {
+                  if (section === 'Lead Details') {
+                    const id = lead?.id ?? lead?.lead ?? null;
+                    if (id) setPopupLeadId(id);
+                    return;
+                  }
                   if (section === 'Follow-ups') setFollowUpsPageTab(tab || 'today');
                   if (lead) setSelectedLead(lead);
                   setActiveSidebarItem(section);
@@ -3996,10 +4023,7 @@ function App() {
                   notify('Create Lead opened');
                 }}
                 onOpenLead={(lead) => {
-                  setSelectedLead(lead);
-                  setLeadDetailsTab('overview');
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
+                  if (lead?.id) setPopupLeadId(lead.id);
                 }}
                 autoOpenFollowUps={autoOpenFollowUps}
                 onConsumeAutoOpenFollowUps={() => setAutoOpenFollowUps(false)}
@@ -4012,34 +4036,13 @@ function App() {
                 onConsumeAutoOpenCreate={consumeAutoOpenQuotation}
                 onNotify={notify}
               />
-            ) : activeSidebarItem === 'Lead Details' ? (
-              <LeadDetailsPage
-                lead={selectedLead}
-                loggedInUser={loggedInUser}
-                initialTab={leadDetailsTab}
-                onLeadUpdated={updateSelectedLead}
-                onOpenSection={(section) => {
-                  setActiveSidebarItem(section);
-                  notify(`${section} opened`);
-                }}
-                onBackToList={() => {
-                  setActiveSidebarItem('Lead List');
-                  notify('Lead List opened');
-                }}
-                onCreateLead={() => {
-                  setActiveSidebarItem('Lead Edit');
-                  notify('Edit Lead opened');
-                }}
-                onShareWhatsApp={openWhatsApp}
-                onNotify={notify}
-              />
             ) : activeSidebarItem === 'Lead Edit' ? (
               <LeadEditPage
                 lead={selectedLead}
                 onLeadUpdated={updateSelectedLead}
                 onBackToDetails={() => {
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
+                  if (selectedLead?.id) setPopupLeadId(selectedLead.id);
+                  setActiveSidebarItem('Lead List');
                 }}
                 onOpenSection={(section) => {
                   setActiveSidebarItem(section);
@@ -4054,10 +4057,7 @@ function App() {
                   notify(`${section} opened`);
                 }}
                 onViewLead={(lead) => {
-                  setSelectedLead(lead);
-                  setLeadDetailsTab('overview');
-                  setActiveSidebarItem('Lead Details');
-                  notify('Lead Details opened');
+                  if (lead?.id) setPopupLeadId(lead.id);
                 }}
                 onNotify={notify}
               />
@@ -4079,8 +4079,7 @@ function App() {
                   }}
                   onLog={(item) => {
                     if (!item.lead) return;
-                    setLeadDetailsTab('follow-ups');
-                    openDashboardSection('Lead Details', 'Lead follow-up opened', { id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number }, 'follow-ups');
+                    setPopupLeadId(item.lead);
                   }}
                   onView={(item) => {
                     if (!item.lead) return;
@@ -4252,8 +4251,7 @@ function App() {
               }}
               onLog={(item) => {
                 if (!item.lead) return;
-                setLeadDetailsTab('follow-ups');
-                openDashboardSection('Lead Details', 'Lead follow-up opened', { id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number }, 'follow-ups');
+                setPopupLeadId(item.lead);
               }}
               onView={(item) => {
                 if (!item.lead) return;
@@ -4422,6 +4420,35 @@ function App() {
         />
       ) : null}
 
+      {popupLeadId ? (
+        <LeadViewModal
+          leadId={popupLeadId}
+          onClose={() => setPopupLeadId(null)}
+          onEdit={() => {
+            setPopupEditLeadId(popupLeadId);
+            setPopupLeadId(null);
+          }}
+          onNotify={notify}
+        />
+      ) : null}
+
+      {popupEditLeadId ? (
+        <LeadFormModal
+          mode="edit"
+          lead={{ id: popupEditLeadId }}
+          onClose={() => setPopupEditLeadId(null)}
+          onSaved={() => {
+            setPopupEditLeadId(null);
+            notify('Lead updated successfully!');
+          }}
+          onRequestApproval={() => {
+            setPopupEditLeadId(null);
+            openDashboardSection('Admin Approval', 'Approval opened');
+          }}
+          onNotify={notify}
+        />
+      ) : null}
+
       {followUpPopupLead ? (
         <ViewFollowUpModal
           lead={followUpPopupLead}
@@ -4531,6 +4558,8 @@ function AppHeader({
           </button>
 
           {renderSearch('flex min-w-0 flex-1 lg:hidden', 'Search leads, customers...')}
+
+          <ReportProblemButton portal="CRM" notify={notify} className="lg:hidden" />
 
           <div className="relative shrink-0 lg:hidden" data-profile-menu="true">
             <button
@@ -4663,6 +4692,8 @@ function AppHeader({
               </div>
             );
           })}
+
+          <ReportProblemButton portal="CRM" notify={notify} className="hidden lg:inline-flex" />
 
           <PwaInstallIconButton notify={notify} className="hidden xl:inline-flex" />
 
@@ -6032,6 +6063,14 @@ function PaymentModeListPage({ onOpenSection, onNotify }) {
 }
 
 function SettingsMasterPage({ activeSection, onOpenSection, onNotify, loggedInUser }) {
+  // Shortcut lives here so Ctrl+Alt+Shift+D ×3 works on any Settings screen.
+  useDeveloperMode({
+    onNotify,
+    onActivated: () => {
+      onOpenSection('Settings');
+    },
+  });
+
   if (activeSection === 'Payment Settings') {
     return <PaymentSettingsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
   }
@@ -6547,14 +6586,45 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
   const [activePillarId, setActivePillarId] = useState('organization');
   const [selectedSection, setSelectedSection] = useState('Company Profile');
   const [advancedGroupTitle, setAdvancedGroupTitle] = useState('General Settings');
+  const [developerTab, setDeveloperTab] = useState('attendance-machine');
+  // Keyboard listener is owned by SettingsMasterPage — here we only mirror state + open UI.
+  const { active: developerMode, setDeveloperMode } = useDeveloperMode({
+    onNotify,
+    listen: false,
+  });
   const activePillar = SETTINGS_PILLARS.find((pillar) => pillar.id === activePillarId);
   const pillarNavItems = getPillarNavItems(activePillar);
   const advancedGroup = advancedSettingsCardGroups.find((group) => group.title === advancedGroupTitle);
   const title = getSettingsDisplayLabel(selectedSection);
+  const developerTabLabel = DEVELOPER_SETTINGS_TABS.find((tab) => tab.id === developerTab)?.label;
+
+  const openDeveloperSurface = useCallback(() => {
+    setActivePillarId('developer');
+    setDeveloperTab('attendance-machine');
+    try {
+      sessionStorage.removeItem('malwa-solar-crm:developer-mode-focus');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // 3rd Ctrl+Alt+Shift+D from master page opens Developer tabs here.
+  useEffect(() => subscribeDeveloperModeOpen(openDeveloperSurface), [openDeveloperSurface]);
+
+  // If shortcut fired while this page was remounting, land on Developer tabs.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('malwa-solar-crm:developer-mode-focus') === '1') {
+        openDeveloperSurface();
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [openDeveloperSurface]);
 
   // Keep content in sync with the active pillar (prevents Security page under Backup tabs).
   useEffect(() => {
-    if (activePillarId === 'advanced') return;
+    if (activePillarId === 'advanced' || activePillarId === 'developer') return;
     const allowed = new Set(pillarNavItems.map((item) => item.key));
     if (allowed.size === 0) return;
     if (!allowed.has(selectedSection)) {
@@ -6563,8 +6633,19 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
     }
   }, [activePillarId, activePillar, pillarNavItems, selectedSection]);
 
+  useEffect(() => {
+    if (!developerMode && activePillarId === 'developer') {
+      setActivePillarId('organization');
+      setSelectedSection('Company Profile');
+    }
+  }, [developerMode, activePillarId]);
+
   const selectPillar = (pillarId) => {
     setActivePillarId(pillarId);
+    if (pillarId === 'developer') {
+      setDeveloperTab((prev) => prev || 'attendance-machine');
+      return;
+    }
     if (pillarId === 'advanced') {
       const firstItem = advancedSettingsCardGroups[0]?.items[0];
       if (firstItem) {
@@ -6579,6 +6660,16 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
   };
 
   const renderPillarContent = () => {
+    if (developerMode && activePillarId === 'developer') {
+      return (
+        <DeveloperSettingsPanel
+          activeTab={developerTab}
+          onTabChange={setDeveloperTab}
+          onNotify={onNotify}
+        />
+      );
+    }
+
     if (activePillarId === 'advanced') {
       return (
         <>
@@ -6633,14 +6724,30 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings' },
-          ...(activePillar ? [{ label: activePillar.label }] : activePillarId === 'advanced' && advancedGroup ? [{ label: 'Advanced' }, { label: advancedGroup.title }] : []),
-          ...(activePillarId !== 'advanced' || selectedSection !== advancedGroup?.items?.[0]?.key ? [{ label: title }] : []),
+          ...(activePillarId === 'developer' && developerMode
+            ? [{ label: 'Developer' }, ...(developerTabLabel ? [{ label: developerTabLabel }] : [])]
+            : activePillar
+              ? [{ label: activePillar.label }]
+              : activePillarId === 'advanced' && advancedGroup
+                ? [{ label: 'Advanced' }, { label: advancedGroup.title }]
+                : []),
+          ...(activePillarId !== 'advanced' && activePillarId !== 'developer' && selectedSection !== advancedGroup?.items?.[0]?.key ? [{ label: title }] : []),
         ]}
+        actions={(
+          <DeveloperModeToggle
+            active={developerMode}
+            onToggle={() => setDeveloperMode(false)}
+          />
+        )}
       />
 
-      <SettingsArchitectureTabs activePillarId={activePillarId} onSelectPillar={selectPillar} />
+      <SettingsArchitectureTabs
+        activePillarId={activePillarId}
+        onSelectPillar={selectPillar}
+        showDeveloper={developerMode}
+      />
 
-      {activePillarId !== 'advanced' && pillarNavItems.length > 1 ? (
+      {activePillarId !== 'advanced' && activePillarId !== 'developer' && pillarNavItems.length > 1 ? (
         <SettingsPillarSubTabs
           items={pillarNavItems}
           activeSection={selectedSection}
@@ -11255,7 +11362,17 @@ function PipelineStageProgress({ project, pipeline = LIAISON_PIPELINE }) {
   );
 }
 
-function PipelineProjectTable({ pipeline = LIAISON_PIPELINE, projects, loading, stepKey, onOpen, onRefresh, toolbar = null }) {
+function PipelineProjectTable({
+  pipeline = LIAISON_PIPELINE,
+  projects,
+  loading,
+  stepKey,
+  onOpen,
+  onRefresh,
+  toolbar = null,
+  // Site Survey: View / Edit / Delete open popups instead of the full-page workspace.
+  surveyActions = null,
+}) {
   const step = pipeline.steps.find((s) => s.key === stepKey) || null;
   const stageOf = (p) => p[pipeline.stageField];
   const [search, setSearch] = useState('');
@@ -11302,8 +11419,17 @@ function PipelineProjectTable({ pipeline = LIAISON_PIPELINE, projects, loading, 
             <span className="ml-2 rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{scoped.length}</span>
           </h3>
           <p className="mt-0.5 text-[12px] font-bold text-[#7a8fa6]">
-            <span className="hidden lg:inline">Double-click a project to open its details.</span>
-            <span className="lg:hidden">Tap a project to open its details.</span>
+            {surveyActions ? (
+              <>
+                <span className="hidden lg:inline">Use View or Edit to open the Site Survey popup.</span>
+                <span className="lg:hidden">Tap View or Edit for the Site Survey popup.</span>
+              </>
+            ) : (
+              <>
+                <span className="hidden lg:inline">Double-click a project to open its details.</span>
+                <span className="lg:hidden">Tap a project to open its details.</span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -11348,8 +11474,12 @@ function PipelineProjectTable({ pipeline = LIAISON_PIPELINE, projects, loading, 
                 { label: 'Progress', value: <PipelineStageProgress project={p} pipeline={pipeline} /> },
                 hintFor(p) ? { label: 'Status', value: hintFor(p) } : null,
               ].filter(Boolean)}
-              onOpen={() => onOpen(p)}
-              actions={[
+              onOpen={() => (surveyActions ? surveyActions.onView(p) : onOpen(p))}
+              actions={surveyActions ? [
+                { label: 'View', icon: Eye, tone: 'blue', onClick: () => surveyActions.onView(p) },
+                surveyActions.onEdit ? { label: 'Edit', icon: Pencil, tone: 'green', onClick: () => surveyActions.onEdit(p) } : null,
+                surveyActions.onDelete ? { label: 'Delete', icon: Trash2, tone: 'red', onClick: () => surveyActions.onDelete(p) } : null,
+              ] : [
                 p.mobile_number ? { label: 'Call', icon: Phone, tone: 'green', href: `tel:${p.mobile_number}` } : null,
                 { label: 'Open', icon: Eye, tone: 'blue', onClick: () => onOpen(p) },
               ]}
@@ -11380,9 +11510,9 @@ function PipelineProjectTable({ pipeline = LIAISON_PIPELINE, projects, loading, 
                 {pageRows.map((p, i) => (
                   <tr
                     key={p.id}
-                    title="Double-click to open"
+                    title={surveyActions ? 'Double-click to view site survey' : 'Double-click to open'}
                     onClick={() => setHighlightId(p.id)}
-                    onDoubleClick={() => onOpen(p)}
+                    onDoubleClick={() => (surveyActions ? surveyActions.onView(p) : onOpen(p))}
                     className={cx('cursor-pointer select-none transition', highlightId === p.id ? 'bg-[#eef6ff]' : 'hover:bg-[#f8fafc]')}
                   >
                     <td className="px-4 py-3 text-[#7a8fa6]">{startIndex + i + 1}</td>
@@ -11401,10 +11531,18 @@ function PipelineProjectTable({ pipeline = LIAISON_PIPELINE, projects, loading, 
                       {hintFor(p) ? <p className="mt-1 text-[11px] font-bold text-[#8a98af]">{hintFor(p)}</p> : null}
                     </td>
                     <td className="px-4 py-3"><PipelineStageProgress project={p} pipeline={pipeline} /></td>
-                    <td className="px-4 py-3">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(p); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#cfe0ff] bg-[#eef4ff] px-3 text-[12px] font-extrabold text-[#0b65e5] hover:bg-[#e0ebff]">
-                        <Eye className="size-3.5" />Open
-                      </button>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                      {surveyActions ? (
+                        <div className="flex items-center gap-1.5">
+                          <UserActionButton label={`View site survey for ${p.project_name}`} icon={Eye} tone="blue" onClick={() => surveyActions.onView(p)} />
+                          {surveyActions.onEdit ? <UserActionButton label={`Edit site survey for ${p.project_name}`} icon={Pencil} tone="green" onClick={() => surveyActions.onEdit(p)} /> : null}
+                          {surveyActions.onDelete ? <UserActionButton label={`Delete ${p.project_name}`} icon={Trash2} tone="red" onClick={() => surveyActions.onDelete(p)} /> : null}
+                        </div>
+                      ) : (
+                        <button type="button" onClick={() => onOpen(p)} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#cfe0ff] bg-[#eef4ff] px-3 text-[12px] font-extrabold text-[#0b65e5] hover:bg-[#e0ebff]">
+                          <Eye className="size-3.5" />Open
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -11909,27 +12047,58 @@ function ProjectPipelineHub({
   const pipeline = PM_PIPELINE;
   const { projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage } = usePipelineHub(pipeline, section, onNotify);
   const [viewBySection, setViewBySection] = useState(() => (autoOpenQuotation ? { Quotation: 'all' } : {}));
-  const [surveyEditOpen, setSurveyEditOpen] = useState(false);
-  const [surveyReloadKey, setSurveyReloadKey] = useState(0);
+  const [surveyViewRow, setSurveyViewRow] = useState(null);
+  const [surveyEditRow, setSurveyEditRow] = useState(null);
+  const [surveyDeleteTarget, setSurveyDeleteTarget] = useState(null);
+  const [surveyDeleting, setSurveyDeleting] = useState(false);
   const projectCaps = moduleCaps(loggedInUser, 'Project Management');
   const canQuotation = hasAnyModuleAccess(loggedInUser, 'Quotation');
   const projectTabItems = projectSidebarSubItems.filter((item) => (item === 'Quotation' ? canQuotation : true));
   const pipelineForBar = canQuotation
     ? pipeline
     : { ...pipeline, subItems: pipeline.subItems.filter((item) => item !== 'Quotation') };
+  const isSiteSurveySection = section === 'Project Site Survey';
 
   const step = pipeline.steps.find((s) => s.key === section) || null;
   const sectionLabel = getModuleSubnavLabel(section);
   const stageView = viewBySection[section] || 'stage';
   const setStageView = (v) => setViewBySection((prev) => ({ ...prev, [section]: v }));
 
-  // A project chosen elsewhere (Tracker, action menus) opens inside the hub.
+  const toSurveyRow = useCallback((project) => ({
+    id: project.id,
+    projectName: project.project_name || project.projectName,
+    projectId: project.project_id || project.projectId,
+    customer: project.customer_name || project.customer,
+  }), []);
+
+  const openSurveyView = useCallback((project) => {
+    setSurveyEditRow(null);
+    setSurveyViewRow(toSurveyRow(project));
+  }, [toSurveyRow]);
+
+  const openSurveyEdit = useCallback((project) => {
+    setSurveyViewRow(null);
+    setSurveyEditRow(toSurveyRow(project));
+  }, [toSurveyRow]);
+
+  // A project chosen elsewhere opens inside the hub — Site Survey uses the popup, not a full page.
   const externalId = externalProject?.id;
   useEffect(() => {
     if (!externalId) return;
+    if (isSiteSurveySection) {
+      closeProject();
+      openSurveyView({
+        id: externalId,
+        project_name: externalProject.project_name,
+        project_id: externalProject.project_id,
+        customer_name: externalProject.customer_name,
+      });
+      onConsumeExternalProject?.();
+      return;
+    }
     openProject({ id: externalId });
     onConsumeExternalProject?.();
-  }, [externalId, openProject, onConsumeExternalProject]);
+  }, [externalId, externalProject, isSiteSurveySection, openProject, closeProject, openSurveyView, onConsumeExternalProject]);
 
   useEffect(() => {
     if (!autoOpenQuotation) return;
@@ -11937,13 +12106,73 @@ function ProjectPipelineHub({
     setViewBySection((prev) => ({ ...prev, Quotation: 'all' }));
   }, [autoOpenQuotation, closeProject]);
 
+  // Leaving Site Survey full-page workspace behind: never keep a selected project open there.
+  useEffect(() => {
+    if (isSiteSurveySection && selected) closeProject();
+  }, [isSiteSurveySection, selected, closeProject]);
+
   const openFromRow = (row) => openProject({ id: row.id });
-  const selectProjectFor = (target) => (project, to = target) => onSelectProject?.(project, to);
   const toggleLabels = step ? ['At this stage', 'All records'] : ['Project Status', 'Full Project List'];
   const viewToggle = <PipelineViewToggle value={stageView} onChange={setStageView} labels={toggleLabels} />;
 
+  const handleSurveyDelete = async () => {
+    if (!surveyDeleteTarget) return;
+    setSurveyDeleting(true);
+    try {
+      await projectApi.delete(surveyDeleteTarget.id);
+      onNotify?.(`Project "${surveyDeleteTarget.project_name || surveyDeleteTarget.projectName}" deleted`);
+      setSurveyDeleteTarget(null);
+      loadProjects();
+    } catch (err) {
+      onNotify?.(err?.message || 'Failed to delete project', 'error');
+    } finally {
+      setSurveyDeleting(false);
+    }
+  };
+
+  const surveyTableActions = isSiteSurveySection ? {
+    onView: openSurveyView,
+    onEdit: projectCaps.edit ? openSurveyEdit : null,
+    onDelete: projectCaps.delete ? (project) => setSurveyDeleteTarget(project) : null,
+  } : null;
+
   let content;
-  if (!selected && stageView === 'stage') {
+  // Site Survey never uses the full-page selected project workspace — list + popup only.
+  if (isSiteSurveySection) {
+    if (stageView === 'stage') {
+      content = (
+        <PipelineProjectTable
+          pipeline={pipeline}
+          projects={projects}
+          loading={loading}
+          stepKey={step?.key || null}
+          onOpen={openSurveyView}
+          onRefresh={loadProjects}
+          toolbar={viewToggle}
+          surveyActions={surveyTableActions}
+        />
+      );
+    } else {
+      content = (
+        <>
+          <section className={cx(panelClass, 'flex flex-wrap items-center justify-between gap-2 px-4 py-3')}>
+            <p className="text-[13px] font-extrabold text-[#1e3261]">
+              All {sectionLabel} records
+              <span className="ml-2 hidden text-[12px] font-bold text-[#7a8fa6] sm:inline">Switch to “{toggleLabels[0]}” to focus on this stage.</span>
+            </p>
+            {viewToggle}
+          </section>
+          <ProjectListPage
+            embedded
+            loggedInUser={loggedInUser}
+            activeSection="Project Site Survey"
+            onOpenSection={onOpenSection}
+            onNotify={onNotify}
+          />
+        </>
+      );
+    }
+  } else if (!selected && stageView === 'stage') {
     content = (
       <PipelineProjectTable
         pipeline={pipeline}
@@ -11965,18 +12194,6 @@ function ProjectPipelineHub({
           activeSection={pipeline.listItem}
           onOpenSection={onOpenSection}
           onSelectProject={onSelectProject}
-          onNotify={onNotify}
-          onOpenPipeline={openFromRow}
-        />
-      );
-    } else if (section === 'Project Site Survey') {
-      legacy = (
-        <ProjectListPage
-          embedded
-          loggedInUser={loggedInUser}
-          activeSection="Project Site Survey"
-          onOpenSection={onOpenSection}
-          onSelectProject={selectProjectFor('Project Site Survey')}
           onNotify={onNotify}
           onOpenPipeline={openFromRow}
         />
@@ -12016,32 +12233,6 @@ function ProjectPipelineHub({
     );
   } else if (!step) {
     content = <PipelineProjectOverview pipeline={pipeline} project={selected} busy={busy} onOpenStep={onOpenSection} onSetStage={setStage} />;
-  } else if (section === 'Project Site Survey') {
-    const surveyRow = { id: selected.id, projectName: selected.project_name, projectId: selected.project_id, customer: selected.customer_name };
-    content = (
-      <>
-        <SiteSurveyViewModal
-          key={`${selected.id}-${surveyReloadKey}`}
-          inline
-          row={surveyRow}
-          onClose={() => {}}
-          onNotify={onNotify}
-          onEdit={projectCaps.edit ? () => setSurveyEditOpen(true) : null}
-        />
-        {surveyEditOpen ? (
-          <SiteSurveyEditModal
-            row={surveyRow}
-            onOpenSection={onOpenSection}
-            onNotify={onNotify}
-            onClose={() => {
-              setSurveyEditOpen(false);
-              setSurveyReloadKey((k) => k + 1);
-              loadProjects();
-            }}
-          />
-        ) : null}
-      </>
-    );
   } else if (section === 'Quotation') {
     content = <ProjectQuotationsPanel key={selected.id} project={selected} loggedInUser={loggedInUser} onNotify={onNotify} onChanged={loadProjects} />;
   } else if (section === 'Project Material Planning') {
@@ -12063,14 +12254,14 @@ function ProjectPipelineHub({
         title={pipeline.title}
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: pipeline.title, onClick: selected ? closeProject : () => onOpenSection(pipeline.listItem) },
-          { label: selected ? `${sectionLabel} · ${selected.project_name}` : sectionLabel },
+          { label: pipeline.title, onClick: selected && !isSiteSurveySection ? closeProject : () => onOpenSection(pipeline.listItem) },
+          { label: selected && !isSiteSurveySection ? `${sectionLabel} · ${selected.project_name}` : sectionLabel },
         ]}
       />
 
       <ProjectSubnavTabs activeSection={section} onOpenSection={onOpenSection} items={projectTabItems} />
 
-      {selected && (
+      {selected && !isSiteSurveySection ? (
         <PipelineProjectBar
           pipeline={pipelineForBar}
           project={selected}
@@ -12089,9 +12280,53 @@ function ProjectPipelineHub({
             </button>
           ) : null}
         />
-      )}
+      ) : null}
 
       {content}
+
+      {surveyViewRow ? (
+        <SiteSurveyViewModal
+          row={surveyViewRow}
+          onClose={() => setSurveyViewRow(null)}
+          onNotify={onNotify}
+          onEdit={projectCaps.edit ? () => { const row = surveyViewRow; setSurveyViewRow(null); setSurveyEditRow(row); } : null}
+        />
+      ) : null}
+
+      {surveyEditRow ? (
+        <SiteSurveyEditModal
+          row={surveyEditRow}
+          onOpenSection={onOpenSection}
+          onNotify={onNotify}
+          onClose={() => {
+            setSurveyEditRow(null);
+            loadProjects();
+          }}
+        />
+      ) : null}
+
+      {surveyDeleteTarget ? (
+        <div className="modal-overlay fixed inset-0 z-100 flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !surveyDeleting) setSurveyDeleteTarget(null); }}>
+          <div className="modal-pop-in w-full max-w-[420px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#ffeceb] text-[#ef4444]"><Trash2 className="size-5" /></span>
+              <div className="min-w-0">
+                <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Delete Project</h2>
+                <p className="mt-1 text-[13px] font-bold leading-6 text-[#53647f]">
+                  Delete <span className="text-[#1e3261]">{surveyDeleteTarget.project_name || surveyDeleteTarget.projectName}</span>? This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" disabled={surveyDeleting} onClick={() => setSurveyDeleteTarget(null)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff] disabled:opacity-60">Cancel</button>
+              <button type="button" disabled={surveyDeleting} onClick={handleSurveyDelete} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#ef4444] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#dc2f2f] disabled:opacity-60">
+                <Trash2 className="size-4" />
+                {surveyDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <DashboardFooter />
     </div>
@@ -15106,8 +15341,20 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     setViewProjectRow(row);
   };
 
-  const handleOpenRow = (row) => (onOpenPipeline ? onOpenPipeline(row) : handleViewRow(row));
-  const openRowTitle = onOpenPipeline ? 'Double-click to open project pipeline' : 'Double-tap to view project';
+  // Site Survey stays on the list + popup. Other stages may open the pipeline workspace.
+  const handleOpenRow = (row) => {
+    if (isSiteSurveyPicker) {
+      handleViewRow(row);
+      return;
+    }
+    if (onOpenPipeline) onOpenPipeline(row);
+    else handleViewRow(row);
+  };
+  const openRowTitle = isSiteSurveyPicker
+    ? 'Double-click to view site survey'
+    : onOpenPipeline
+      ? 'Double-click to open project pipeline'
+      : 'Double-tap to view project';
 
   const handleEditRow = (row) => {
     if (isSiteSurveyPicker) {
@@ -15521,10 +15768,18 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
                   )}
                   <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
                     <div className="flex items-center gap-2">
-                      {onOpenPipeline ? <UserActionButton label={`Open ${row.projectName} pipeline`} icon={FolderKanban} tone="green" onClick={() => onOpenPipeline(row)} /> : null}
+                      {!isSiteSurveyPicker && onOpenPipeline ? <UserActionButton label={`Open ${row.projectName} pipeline`} icon={FolderKanban} tone="green" onClick={() => onOpenPipeline(row)} /> : null}
                       <UserActionButton label={`View ${row.projectName}`} icon={Eye} tone="blue" onClick={() => handleViewRow(row)} />
-                      <UserActionButton label={`Edit ${row.projectName}`} icon={Pencil} tone="green" onClick={() => handleEditRow(row)} />
-                      <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={(event) => openActionMenu(event, row)} />
+                      {(!isSiteSurveyPicker || projectCaps.edit) ? (
+                        <UserActionButton label={`Edit ${row.projectName}`} icon={Pencil} tone="green" onClick={() => handleEditRow(row)} />
+                      ) : null}
+                      {isSiteSurveyPicker ? (
+                        projectCaps.delete ? (
+                          <UserActionButton label={`Delete ${row.projectName}`} icon={Trash2} tone="red" onClick={() => setDeleteTarget(row)} />
+                        ) : null
+                      ) : (
+                        <UserActionButton label={`More actions for ${row.projectName}`} icon={MoreVertical} tone="blue" onClick={(event) => openActionMenu(event, row)} />
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -15637,12 +15892,20 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
               )}
 
               <div className="mt-3 flex gap-2" data-no-row-open onDoubleClick={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
-                {onOpenPipeline ? (
+                {!isSiteSurveyPicker && onOpenPipeline ? (
                   <button type="button" onClick={() => onOpenPipeline(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] bg-[#0d9f4a] text-[12px] font-extrabold text-white"><FolderKanban className="size-4" />Open</button>
                 ) : null}
                 <button type="button" onClick={() => handleViewRow(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0b65e5]"><Eye className="size-4" />View</button>
-                <button type="button" onClick={() => handleEditRow(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0d9f4a]"><Pencil className="size-4" />Edit</button>
-                <button type="button" onClick={(event) => openActionMenu(event, row)} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
+                {(!isSiteSurveyPicker || projectCaps.edit) ? (
+                  <button type="button" onClick={() => handleEditRow(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#dce6f3] bg-white text-[12px] font-extrabold text-[#0d9f4a]"><Pencil className="size-4" />Edit</button>
+                ) : null}
+                {isSiteSurveyPicker ? (
+                  projectCaps.delete ? (
+                    <button type="button" onClick={() => setDeleteTarget(row)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#ffd5d5] bg-[#fff8f8] text-[12px] font-extrabold text-[#ef4444]"><Trash2 className="size-4" />Delete</button>
+                  ) : null
+                ) : (
+                  <button type="button" onClick={(event) => openActionMenu(event, row)} className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#dce6f3] bg-white text-[#284276]"><MoreVertical className="size-4" /></button>
+                )}
               </div>
             </article>
           ))}
@@ -15689,12 +15952,17 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           row={viewSurveyRow}
           onClose={() => setViewSurveyRow(null)}
           onNotify={onNotify}
-          onViewFullProject={() => { const id = viewSurveyRow.id; setViewSurveyRow(null); onSelectProject?.({ id }); }}
+          onEdit={projectCaps.edit ? () => { const row = viewSurveyRow; setViewSurveyRow(null); setEditSurveyRow(row); } : null}
         />
       ) : null}
 
       {editSurveyRow ? (
-        <SiteSurveyEditModal row={editSurveyRow} onClose={() => setEditSurveyRow(null)} onOpenSection={onOpenSection} onNotify={onNotify} />
+        <SiteSurveyEditModal
+          row={editSurveyRow}
+          onClose={() => { setEditSurveyRow(null); setRefreshKey((key) => key + 1); }}
+          onOpenSection={onOpenSection}
+          onNotify={onNotify}
+        />
       ) : null}
 
       {createOpen ? (
@@ -22891,26 +23159,57 @@ function ProjectDocumentsTable({
 }
 
 function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectProp, onSelectProject, onNotify, initialSurveyTab = 'Overview', loggedInUser = null }) {
-  if (!projectProp?.id) {
-    return (
-      <ProjectListPage loggedInUser={loggedInUser}
-        activeSection={activeSection}
-        onOpenSection={onOpenSection}
-        onSelectProject={(project, target = 'Project Site Survey') => onSelectProject?.(project, target)}
-        onNotify={onNotify}
-      />
-    );
-  }
+  const projectCaps = moduleCaps(loggedInUser, 'Project Management');
+  const [surveyViewRow, setSurveyViewRow] = useState(() => (
+    projectProp?.id
+      ? {
+          id: projectProp.id,
+          projectName: projectProp.project_name || projectProp.projectName,
+          projectId: projectProp.project_id || projectProp.projectId,
+          customer: projectProp.customer_name || projectProp.customer,
+        }
+      : null
+  ));
+  const [surveyEditRow, setSurveyEditRow] = useState(null);
+  // Documents tab from older flows still opens the edit popup (documents live there).
+  useEffect(() => {
+    if (!projectProp?.id) return;
+    if (initialSurveyTab === 'Documents' && projectCaps.edit) {
+      setSurveyViewRow(null);
+      setSurveyEditRow({
+        id: projectProp.id,
+        projectName: projectProp.project_name || projectProp.projectName,
+        projectId: projectProp.project_id || projectProp.projectId,
+        customer: projectProp.customer_name || projectProp.customer,
+      });
+    }
+  }, [projectProp?.id, initialSurveyTab, projectCaps.edit]);
 
   return (
-    <ProjectDetailsPage
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      project={projectProp}
-      onNotify={onNotify}
-      hubMode
-      initialHubTab={initialSurveyTab}
-    />
+    <>
+      <ProjectListPage
+        loggedInUser={loggedInUser}
+        activeSection={activeSection || 'Project Site Survey'}
+        onOpenSection={onOpenSection}
+        onNotify={onNotify}
+      />
+      {surveyViewRow ? (
+        <SiteSurveyViewModal
+          row={surveyViewRow}
+          onClose={() => setSurveyViewRow(null)}
+          onNotify={onNotify}
+          onEdit={projectCaps.edit ? () => { const row = surveyViewRow; setSurveyViewRow(null); setSurveyEditRow(row); } : null}
+        />
+      ) : null}
+      {surveyEditRow ? (
+        <SiteSurveyEditModal
+          row={surveyEditRow}
+          onClose={() => setSurveyEditRow(null)}
+          onOpenSection={onOpenSection}
+          onNotify={onNotify}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -36839,810 +37138,6 @@ function NoLeadSelected({ title, onGoToList }) {
   );
 }
 
-// Overview / Follow-ups / Quotation — ek hi page, tabs se switch hota hai.
-// Pehle ye 3 alag pages the (breadcrumb hopping + "Back" button chahiye tha); ab sab Lead Details ke andar hi hai.
-function LeadDetailsPage({ lead, loggedInUser = null, initialTab = 'overview', onOpenSection, onBackToList, onCreateLead, onShareWhatsApp, onLeadUpdated, onNotify }) {
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [followUps, setFollowUps] = useState(null);
-  const [activeModal, setActiveModal] = useState(null);
-  const [editFollowUp, setEditFollowUp] = useState(null);
-  const [linkedLeads, setLinkedLeads] = useState(null);
-
-  useEffect(() => {
-    if (initialTab) setActiveTab(initialTab);
-  }, [initialTab]);
-
-  // Always hydrate from the API by id — callers (Dashboard cards, Lead List, Overdue widget, etc.)
-  // each shape the `lead` object differently for their own display needs, so only the authoritative
-  // backend record can be trusted for the full Overview tab.
-  useEffect(() => {
-    if (!lead?.id) return;
-    let cancelled = false;
-    leadApi.get(lead.id).then((data) => {
-      if (cancelled || !data) return;
-      onLeadUpdated?.({
-        customer: data.customer_name || '—',
-        mobile: data.mobile_number || '—',
-        ivrs: data.ivrs_number || '—',
-        alternateNumber: data.alternate_number || '—',
-        email: data.email || '—',
-        address: data.address || '—',
-        project: data.project_name || '—',
-        type: data.project_type || '—',
-        requirementDetails: data.requirement_details || '—',
-        capacity: formatCapacityKw(data.estimated_capacity).trim() || '—',
-        status: data.status || 'New',
-        source: data.source || '',
-        createdOn: data.created_at_display || '—',
-        nextFollowUp: data.next_follow_up
-          ? new Date(data.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-          : '—',
-        assignedTo: {
-          id: data.assigned_to ?? null,
-          name: data.assigned_to_name || 'Unassigned',
-          initials: (data.assigned_to_name || 'UN').slice(0, 2).toUpperCase(),
-          tone: 'amber',
-        },
-      });
-    }).catch(() => {});
-    return () => { cancelled = true; };
-    // onLeadUpdated's identity changes on every App render (not memoized) — keying on it
-    // would refetch in a loop. Re-running once per lead id is the intended behavior.
-     
-  }, [lead?.id]);
-
-  const loadFollowUps = () => {
-    if (!lead?.id) { setFollowUps([]); return; }
-    followUpApi.list(lead.id).then((data) => setFollowUps(Array.isArray(data) ? data : data?.results ?? [])).catch(() => setFollowUps([]));
-  };
-
-  // Saving a follow-up moves the lead's next follow-up date on the backend.
-  const reloadAfterFollowUpChange = () => {
-    loadFollowUps();
-    if (!lead?.id) return;
-    leadApi.get(lead.id).then((data) => {
-      if (!data) return;
-      onLeadUpdated?.({
-        status: data.status || 'New',
-        nextFollowUp: data.next_follow_up
-          ? new Date(data.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-          : '—',
-      });
-    }).catch(() => {});
-  };
-
-  useEffect(() => {
-    setFollowUps(null);
-    loadFollowUps();
-  }, [lead?.id]);
-
-  useEffect(() => {
-    if (!lead?.mobile) { setLinkedLeads([]); return; }
-    setLinkedLeads(null);
-    leadApi.list({ search: lead.mobile }).then((data) => {
-      const rows = Array.isArray(data) ? data : data?.results ?? [];
-      setLinkedLeads(rows.filter((row) => row.id !== lead.id && row.mobile_number === lead.mobile));
-    }).catch(() => setLinkedLeads([]));
-  }, [lead?.id, lead?.mobile]);
-
-  const emptyQuoteRow = () => ({ item_name: '', quantity: '', unit: 'Nos', rate: '' });
-  const [quotationLoading, setQuotationLoading] = useState(true);
-  const [savedQuotation, setSavedQuotation] = useState(null);
-  const [quoteItems, setQuoteItems] = useState([emptyQuoteRow()]);
-  const [qForm, setQForm] = useState(emptyQuotationFields());
-  const [quotationSaving, setQuotationSaving] = useState(false);
-  const [quotationError, setQuotationError] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [employeeOptions, setEmployeeOptions] = useState(cachedEmployeeOptions || []);
-
-  useEffect(() => {
-    getEmployeeOptions().then(setEmployeeOptions);
-  }, []);
-
-  const updateQField = (name, value) => setQForm((prev) => ({ ...prev, [name]: value }));
-
-  const loadQuotation = () => {
-    if (!lead?.id) { setSavedQuotation(null); setQForm(emptyQuotationFields()); setQuoteItems([emptyQuoteRow()]); setQuotationLoading(false); return; }
-    setQuotationLoading(true);
-    quotationApi.list(lead.id).then((data) => {
-      const rows = Array.isArray(data) ? data : data?.results ?? [];
-      const existing = rows[0] || null;
-      setSavedQuotation(existing);
-      if (existing) {
-        setQForm(fieldsFromQuotation(existing));
-        setQuoteItems(existing.items?.length ? existing.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })) : [emptyQuoteRow()]);
-      } else {
-        setQForm(emptyQuotationFields());
-        setQuoteItems([emptyQuoteRow()]);
-      }
-    }).catch(() => { setSavedQuotation(null); setQForm(emptyQuotationFields()); setQuoteItems([emptyQuoteRow()]); }).finally(() => setQuotationLoading(false));
-  };
-
-  useEffect(() => {
-    loadQuotation();
-    setDeleteConfirm(null);
-  }, [lead?.id]);
-
-  if (!lead?.id) return <NoLeadSelected title="Lead Details" onGoToList={onBackToList} />;
-
-  const detailsLead = moduleCaps(loggedInUser, 'Lead');
-  const detailsQuote = moduleCaps(loggedInUser, 'Quotation');
-
-  const quickDetailActions = [
-    ...(detailsLead.add || detailsLead.edit ? [{ label: 'Log Follow-up', icon: Phone, tone: 'green', onClick: () => setActiveModal('follow-up') }] : []),
-    ...(detailsLead.add || detailsLead.edit ? [{ label: 'Schedule Site Visit', icon: CalendarDays, tone: 'blue', onClick: () => setActiveModal('site-visit') }] : []),
-    ...(detailsQuote.add ? [{ label: 'Create Quotation', icon: FilePlus2, tone: 'blue', onClick: () => setActiveTab('quotation') }] : []),
-    ...(detailsLead.assign ? [{ label: 'Assign Lead', icon: Users, tone: 'purple', onClick: () => setActiveModal('assign') }] : []),
-    ...(detailsLead.edit ? [{ label: 'Change Status', icon: Clock3, tone: 'amber', onClick: () => setActiveModal('status') }] : []),
-    ...(detailsLead.add || detailsLead.edit ? [{ label: 'Add Note', icon: Flag, tone: 'slate', onClick: () => setActiveModal('note') }] : []),
-  ];
-
-  const sortedFollowUps = [...(followUps ?? [])].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at));
-  const completedCount = (followUps ?? []).filter((f) => f.status === 'Completed').length;
-  const scheduledCount = (followUps ?? []).filter((f) => f.status === 'Scheduled').length;
-  const missedCount = (followUps ?? []).filter((f) => f.status === 'Missed').length;
-  const nextFollowUp = (followUps ?? []).filter((f) => f.status === 'Scheduled').sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))[0];
-
-  const parseNum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
-  const rowAmount = (row) => parseNum(row.quantity) * parseNum(row.rate);
-
-  const sectionVisibility = QUOTATION_SECTION_VISIBILITY[qForm.template] || {};
-  const itemsTotal = quoteItems.reduce((sum, row) => sum + rowAmount(row), 0);
-  const costsTotal = ['material_cost', 'structure_cost', 'installation_cost', 'transportation_cost', 'liaisoning_charges', 'net_metering_charges', 'other_charges']
-    .reduce((sum, key) => sum + parseNum(qForm[key]), 0);
-  const leadSplitGst = (qForm.use_split_gst !== false && qForm.use_split_gst !== 'false' && parseNum(qForm.project_cost_with_gst))
-    ? calcSplitGstAmounts(qForm.project_cost_with_gst)
-    : null;
-  const computedSubtotal = leadSplitGst ? leadSplitGst.taxable : (itemsTotal + costsTotal);
-  const computedGstAmount = leadSplitGst ? leadSplitGst.gstTotal : computedSubtotal * (parseNum(qForm.gst_percent) / 100);
-  const computedGrandTotal = leadSplitGst ? leadSplitGst.total - parseNum(qForm.discount) : computedSubtotal + computedGstAmount - parseNum(qForm.discount);
-  const computedCustomerContribution = qForm.subsidy_applicable ? computedGrandTotal - parseNum(qForm.subsidy_amount) : computedGrandTotal;
-  const computedTotalDcCapacity = (parseNum(qForm.number_of_panels) && parseNum(qForm.panel_wattage))
-    ? (parseNum(qForm.number_of_panels) * parseNum(qForm.panel_wattage)) / 1000
-    : null;
-  const computedPlantCapacity = parseNum(qForm.plant_capacity_kw) || computedTotalDcCapacity || null;
-  const computedCostPerWatt = computedTotalDcCapacity ? computedCustomerContribution / (computedTotalDcCapacity * 1000) : null;
-  const computedAnnualSavings = parseNum(qForm.monthly_electricity_bill) ? parseNum(qForm.monthly_electricity_bill) * 12 : null;
-  const computedRoiPercent = (computedAnnualSavings && computedCustomerContribution) ? (computedAnnualSavings / computedCustomerContribution) * 100 : null;
-  const computedPaybackYears = (computedAnnualSavings && computedCustomerContribution) ? computedCustomerContribution / computedAnnualSavings : null;
-
-  const updateQuoteItem = (index, patch) => {
-    setQuoteItems((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
-  };
-  const addQuoteItem = () => setQuoteItems((prev) => [...prev, emptyQuoteRow()]);
-  const removeQuoteItem = (index) => setQuoteItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
-
-  const handleResetQuotation = () => {
-    if (savedQuotation) {
-      setQForm(fieldsFromQuotation(savedQuotation));
-      setQuoteItems(savedQuotation.items?.length ? savedQuotation.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })) : [emptyQuoteRow()]);
-    } else {
-      setQForm(emptyQuotationFields());
-      setQuoteItems([emptyQuoteRow()]);
-    }
-    setQuotationError('');
-    onNotify('Quotation form has been reset');
-  };
-
-  const handleSaveQuotation = async () => {
-    if (qForm.subsidy_applicable && parseNum(qForm.subsidy_amount) > computedGrandTotal) {
-      setQuotationError('Subsidy amount cannot exceed the grand total');
-      return;
-    }
-
-    const droppedRows = quoteItems.filter((row) => !row.item_name.trim() && (parseNum(row.quantity) || parseNum(row.rate)));
-    if (droppedRows.length) {
-      setQuotationError(`${droppedRows.length} item row(s) have quantity/rate but no item name and will not be saved. Add an item name or clear those rows.`);
-      return;
-    }
-
-    const items = quoteItems
-      .filter((row) => row.item_name.trim())
-      .map((row) => ({ item_name: row.item_name.trim(), quantity: row.quantity, unit: row.unit || 'Nos', rate: parseNum(row.rate), amount: rowAmount(row) }));
-
-    setQuotationSaving(true);
-    setQuotationError('');
-    try {
-      const payload = buildQuotationPayload(qForm, lead.id, items);
-      const saved = savedQuotation ? await quotationApi.update(savedQuotation.id, payload) : await quotationApi.create(payload);
-      setSavedQuotation(saved);
-      setQForm(fieldsFromQuotation(saved));
-      setQuoteItems(saved.items?.length ? saved.items.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, rate: String(i.rate) })) : [emptyQuoteRow()]);
-      onNotify('Quotation saved successfully!');
-    } catch (err) {
-      setQuotationError(err.message || 'Failed to save quotation');
-    } finally {
-      setQuotationSaving(false);
-    }
-  };
-
-  const handleDeleteQuotation = () => {
-    if (!savedQuotation?.id) return;
-    setDeleteConfirm({
-      message: 'this quotation',
-      onConfirm: async () => {
-        setQuotationSaving(true);
-        try {
-          await quotationApi.delete(savedQuotation.id);
-          setSavedQuotation(null);
-          setQForm(emptyQuotationFields());
-          setQuoteItems([emptyQuoteRow()]);
-          setDeleteConfirm(null);
-          onNotify('Quotation deleted');
-        } catch (err) {
-          setDeleteConfirm(null);
-          setQuotationError(err.message || 'Failed to delete quotation');
-        } finally {
-          setQuotationSaving(false);
-        }
-      },
-    });
-  };
-
-  const handleRequestApproval = async () => {
-    if (!savedQuotation) { onNotify('Save the quotation first, then request approval'); return; }
-    setQuotationSaving(true);
-    setQuotationError('');
-    try {
-      const updated = await quotationApi.update(savedQuotation.id, { status: 'Sent' });
-      setSavedQuotation(updated);
-      onNotify('Quotation sent for approval');
-    } catch (err) {
-      setQuotationError(err.message || 'Failed to update quotation status');
-    } finally {
-      setQuotationSaving(false);
-    }
-  };
-
-  const tabs = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'follow-ups', label: 'Follow-ups' },
-    { key: 'quotation', label: 'Quotation' },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Lead Details"
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: 'Lead', onClick: onBackToList },
-          { label: 'Lead Details' },
-        ]}
-        actions={(
-          <>
-            {detailsLead.edit ? (
-              <button type="button" onClick={onCreateLead} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
-                <FileText className="size-4" />
-                Edit Lead
-              </button>
-            ) : null}
-            {(detailsLead.add || detailsLead.edit) ? (
-              <button type="button" onClick={() => setActiveModal('follow-up')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
-                <Plus className="size-4" />
-                Add Follow-up
-              </button>
-            ) : null}
-          </>
-        )}
-      />
-
-      {/* Mobile hero card (mockup style) — avatar, call/WhatsApp, key info grid */}
-      <section className="rounded-[16px] border border-[#e4ebf4] bg-white p-4 shadow-[0_6px_18px_rgba(21,43,83,0.06)] lg:hidden">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className={cx('grid size-11 shrink-0 place-items-center rounded-full text-[13px] font-extrabold text-white', mobileAvatarTone(lead.customer))}>
-              {(lead.customer || 'NA').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()}
-            </span>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="truncate text-[15px] font-extrabold text-[#1e3261]">{lead.customer}</p>
-                <StatusBadge status={lead.status} />
-              </div>
-              <p className="mt-0.5 text-[11px] font-semibold text-[#8895ab]">Lead ID: LEAD-{String(lead.id).padStart(4, '0')}</p>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <a href={`tel:${lead.mobile}`} aria-label={`Call ${lead.customer}`} className="grid size-9 place-items-center rounded-full bg-[#e9f8ec] text-[#0d9f4a]">
-              <Phone className="size-4" />
-            </a>
-            <a href={`https://wa.me/91${String(lead.mobile || '').replace(/\D/g, '').slice(-10)}`} target="_blank" rel="noreferrer" aria-label={`WhatsApp ${lead.customer}`} className="grid size-9 place-items-center rounded-full bg-[#e9f8ec] text-[#0d9f4a]">
-              <MessageSquareMore className="size-4" />
-            </a>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 border-t border-[#eef2f8] pt-3">
-          <InfoCell label="Project" value={`${lead.capacity && lead.capacity !== '—' ? `${lead.capacity} ` : ''}${lead.type || '—'}`} />
-          <InfoCell label="Mobile" value={lead.mobile} />
-          <InfoCell label="Source" value={lead.source || '—'} />
-          <InfoCell label="IVRS Number" value={lead.ivrs || '—'} />
-          {lead.assignedTo ? (
-            <InfoCell label="Assigned To" valueNode={<AssigneeCell assignee={lead.assignedTo} compact />} />
-          ) : (
-            <InfoCell label="Assigned To" value="—" />
-          )}
-          <InfoCell label="Next Follow-up" value={lead.nextFollowUp || '—'} valueClass="text-[#d97706]" />
-        </div>
-      </section>
-
-      <div className="hidden gap-3 rounded-[12px] border border-[#f4cf83] bg-[#fff8e8] p-4 text-[13px] font-extrabold text-[#a76200] lg:flex lg:items-center lg:justify-between">
-        <span className="inline-flex items-center gap-2"><AlertTriangle className="size-4" /> IVRS Number: {lead?.ivrs || '—'}</span>
-        <span className="rounded-[8px] bg-[#fff0cf] px-3 py-1">Duplicate Check: Unique</span>
-        <span className="rounded-[8px] bg-[#dff6e7] px-3 py-1 text-[#087a39]">Status: {lead?.status || '—'}</span>
-      </div>
-
-      <div className="flex gap-2 border-b border-[#e4ebf4]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveTab(tab.key)}
-            className={cx(
-              '-mb-px border-b-2 px-4 py-2.5 text-[13px] font-extrabold transition',
-              activeTab === tab.key ? 'border-[#0b65e5] text-[#0b65e5]' : 'border-transparent text-[#53647f] hover:text-[#1e3261]',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'overview' ? (
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-4">
-            <div className="grid gap-4 lg:grid-cols-2">
-              <InfoPanel title="1. Basic Information" icon={CalendarDays} tone="success">
-                <DetailRow label="Customer Name" value={lead?.customer || '—'} />
-                <DetailRow label="Mobile Number" value={lead?.mobile || '—'} />
-                <DetailRow label="Alternate Number" value={lead?.alternateNumber || '—'} />
-                <DetailRow label="IVRS Number" valueNode={<span className="inline-flex items-center gap-2">{lead?.ivrs || '—'} <StatusBadge status="Verified" /></span>} />
-                <DetailRow label="Email Address" value={lead?.email || '—'} />
-                <DetailRow label="Address" value={lead?.address || '—'} />
-                <DetailRow label="Source" value={lead?.source || '—'} />
-                <DetailRow label="Assigned To" valueNode={<AssigneeCell assignee={lead?.assignedTo ?? { name: 'Unassigned', initials: 'UN', tone: 'amber' }} compact />} />
-                <DetailRow label="Created On" value={lead?.createdOn || '—'} />
-              </InfoPanel>
-
-              <InfoPanel title="2. Project Information" icon={ClipboardPlus} tone="primary">
-                <DetailRow label="Project Name" value={lead?.project || '—'} />
-                <DetailRow label="Project Type" value={lead?.type || '—'} />
-                <DetailRow label="Requirement Details" value={lead?.requirementDetails || '—'} />
-                <DetailRow label="Estimated Capacity" value={lead?.capacity || '—'} />
-                <DetailRow label="Follow-up Date" value={lead?.nextFollowUp || '—'} />
-                <DetailRow label="Lead Status" valueNode={<StatusBadge status={lead?.status || 'New'} />} />
-              </InfoPanel>
-            </div>
-
-            <InfoPanel title="3. Follow-up History" icon={Phone} actionLabel="View All Follow-ups" onAction={() => setActiveTab('follow-ups')}>
-              <div className="space-y-5">
-                {followUps === null ? (
-                  <PageLoadingState message="Loading follow-ups..." compact />
-                ) : followUps.length === 0 ? (
-                  <p className="text-[13px] font-bold text-[#53647f]">No follow-ups yet. Every call/WhatsApp note will appear here.</p>
-                ) : sortedFollowUps.slice(0, 3).map((item) => (
-                  <TimelineItem
-                    key={item.id}
-                    title={`${item.follow_up_type || 'Follow-up'}${item.outcome ? ` · ${item.outcome}` : ''} · ${item.status}`}
-                    text={item.notes || 'No conversation note saved.'}
-                    by={item.created_by_name}
-                    date={item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                    tone={item.status === 'Completed' ? 'success' : item.status === 'Missed' ? 'slate' : 'primary'}
-                  />
-                ))}
-              </div>
-            </InfoPanel>
-          </div>
-
-          <div className="space-y-4">
-            <InfoPanel title="IVRS Intelligence" icon={ShieldCheck} tone="success">
-              <div className="rounded-[10px] border border-[#d7f0df] bg-[#effbf3] p-4">
-                <p className="font-extrabold text-[#087a39]">IVRS: <span className="text-[#1e3261]">{lead?.ivrs || '—'}</span></p>
-                <p className="mt-2 text-[12px] font-bold text-[#087a39]">This IVRS Number is unique. No duplicate found.</p>
-              </div>
-            </InfoPanel>
-            <InfoPanel title="Linked Leads (Same Mobile Number)" icon={Phone} tone="danger" actionLabel="View All Linked Leads" onAction={onBackToList}>
-              <p className="mb-3 font-extrabold text-[#1e3261]">Mobile: {lead?.mobile || '—'} <span className="ml-2 rounded-[8px] bg-[#dff6e7] px-2 py-1 text-[11px] text-[#087a39]">{linkedLeads === null ? '...' : linkedLeads.length} Lead{linkedLeads?.length === 1 ? '' : 's'}</span></p>
-              {linkedLeads === null ? (
-                <PageLoadingState message="Loading linked leads..." compact className="py-2" />
-              ) : linkedLeads.length === 0 ? (
-                <p className="text-[12px] font-bold text-[#53647f]">No other leads found with this mobile number.</p>
-              ) : linkedLeads.map((item) => (
-                <div key={item.id} className="mb-2 flex items-center justify-between rounded-[8px] border border-[#edf2f8] bg-white px-3 py-2 text-[12px] font-bold text-[#263d72]">
-                  <span>{item.project_name || '—'}</span>
-                  <StatusBadge status={item.status} />
-                </div>
-              ))}
-            </InfoPanel>
-            <InfoPanel title="Quick Actions" icon={Zap} tone="success">
-              <div className="grid gap-3">
-                {quickDetailActions.map((action) => (
-                  <MiniActionButton key={action.label} {...action} />
-                ))}
-              </div>
-            </InfoPanel>
-          </div>
-        </section>
-      ) : activeTab === 'follow-ups' ? (
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <InfoPanel title="Follow-up Timeline" icon={ShieldCheck} actionLabel={(detailsLead.add || detailsLead.edit) ? 'Log Follow-up' : null} onAction={(detailsLead.add || detailsLead.edit) ? (() => setActiveModal('follow-up')) : null}>
-            <p className="mb-5 text-[12px] font-semibold text-[#7585a2]">Newest first. Every saved call stays in this timeline — nothing overwrites older history.</p>
-            <div className="space-y-8">
-              {followUps === null ? (
-                <PageLoadingState message="Loading follow-ups..." compact />
-              ) : sortedFollowUps.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center">
-                  <span className="grid size-12 place-items-center rounded-full bg-[#eef2f7] text-[#7585a2]"><Phone className="size-6" /></span>
-                  <div>
-                    <p className="font-display text-[14px] font-extrabold text-[#1e3261]">No follow-ups yet</p>
-                    <p className="mt-1 text-[12px] font-semibold text-[#53647f]">Log the first conversation to start this lead's history.</p>
-                  </div>
-                  {(detailsLead.add || detailsLead.edit) ? (
-                    <button type="button" onClick={() => setActiveModal('follow-up')} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]">
-                      <Plus className="size-4" />
-                      Log Follow-up
-                    </button>
-                  ) : null}
-                </div>
-              ) : sortedFollowUps.map((item) => (
-                <FollowUpHistoryCard
-                  key={item.id}
-                  item={item}
-                  onEdit={detailsLead.edit ? (() => setEditFollowUp(item)) : null}
-                  onDelete={detailsLead.delete ? (() => setDeleteConfirm({
-                    message: `this ${item.follow_up_type || 'follow-up'} entry`,
-                    onConfirm: async () => {
-                      try {
-                        await followUpApi.delete(item.id);
-                        onNotify?.('Follow-up deleted.');
-                        setDeleteConfirm(null);
-                        reloadAfterFollowUpChange();
-                      } catch (err) {
-                        onNotify?.(err.message || 'Could not delete follow-up.', 'error');
-                        setDeleteConfirm(null);
-                      }
-                    },
-                  })) : null}
-                />
-              ))}
-            </div>
-          </InfoPanel>
-
-          <div className="space-y-4">
-            <InfoPanel title="Follow-up Summary" icon={ReceiptText} tone="success">
-              {[
-                ['Total Follow-ups', String((followUps ?? []).length), 'text-[#1e3261]'],
-                ['Completed', String(completedCount), 'text-[#0d9f4a]'],
-                ['Scheduled', String(scheduledCount), 'text-[#0b65e5]'],
-                ['Missed', String(missedCount), 'text-[#e3342f]'],
-              ].map(([label, value, color]) => (
-                <div key={label} className="flex justify-between border-b border-[#edf2f8] py-2 text-[13px] font-bold"><span>{label}</span><span className={color}>{value}</span></div>
-              ))}
-            </InfoPanel>
-            <InfoPanel title="Next Follow-up Details" icon={CalendarDays} tone="primary">
-              {nextFollowUp ? (
-                <>
-                  <DetailRow label="Date" value={new Date(nextFollowUp.scheduled_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} />
-                  <DetailRow label="Time" value={new Date(nextFollowUp.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} />
-                  <DetailRow label="Type" value={nextFollowUp.follow_up_type || '—'} />
-                </>
-              ) : <p className="text-[13px] font-bold text-[#53647f]">No follow-up scheduled.</p>}
-            </InfoPanel>
-          </div>
-        </section>
-      ) : (
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-4">
-            <div className={`${panelClass} flex flex-wrap items-center justify-between gap-3 p-4`}>
-              <p className="font-display text-[16px] font-extrabold text-[#1e3261]">
-                Quotation {savedQuotation ? <span className="ml-2 rounded-[6px] bg-[#eef6ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{savedQuotation.quotation_number} • {savedQuotation.status}</span> : null}
-              </p>
-              <div className="flex items-center gap-2">
-                {(detailsQuote.add || detailsQuote.edit) ? (
-                  <button type="button" onClick={handleResetQuotation} disabled={quotationSaving} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
-                    <RefreshCw className="size-4 text-[#0b65e5]" />
-                    Reset
-                  </button>
-                ) : null}
-                {((!savedQuotation && detailsQuote.add) || (savedQuotation && detailsQuote.edit)) ? (
-                  <button type="button" onClick={handleSaveQuotation} disabled={quotationSaving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e] disabled:opacity-60">
-                    <Save className="size-4" />
-                    {quotationSaving ? 'Saving...' : savedQuotation ? 'Update Quotation' : 'Save Quotation'}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            {quotationError ? (
-              <p className="rounded-[8px] bg-[#fdecec] px-3 py-2 text-[12px] font-bold text-[#c0392b]">{quotationError}</p>
-            ) : null}
-
-            {quotationLoading ? (
-              <PageLoadingState message="Loading quotation..." compact />
-            ) : (
-              <>
-                <LeadFormSection title="A. Basic Details" icon={FileText} tone="primary">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <QField label="Quotation No" value={savedQuotation?.quotation_number || 'Auto-generated on save'} readOnly />
-                    <QField label="Lead ID" value={lead?.ivrs || `#${lead?.id}`} readOnly />
-                    <QSelect label="Quotation Template" name="template" value={qForm.template} onChange={updateQField} options={QUOTATION_TEMPLATE_OPTIONS} />
-                    <QField label="Quotation Date" name="quotation_date" type="date" value={qForm.quotation_date} onChange={updateQField} optional />
-                    <QField label="Valid Till" name="valid_till" type="date" value={qForm.valid_till} onChange={updateQField} optional />
-                    <QSelect label="Sales Executive" name="sales_executive" value={qForm.sales_executive} onChange={updateQField} options={employeeOptions} optional placeholder={employeeOptions.length ? 'Select employee' : 'No active employees found'} />
-                  </div>
-                </LeadFormSection>
-
-                <LeadFormSection title="B. Customer Details" icon={UserRound} tone="success">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <QField label="Customer Name" value={lead?.customer || '—'} readOnly />
-                    <QField label="Mobile Number" value={lead?.mobile || '—'} readOnly />
-                    <QField label="Company Name" name="company_name" value={qForm.company_name} onChange={updateQField} placeholder="Enter company name" optional />
-                    <QField label="Alternate Number" name="alternate_number" value={qForm.alternate_number} onChange={updateQField} placeholder="Enter alternate number" optional />
-                    <QField label="Email ID" name="email" type="email" value={qForm.email} onChange={updateQField} placeholder="Enter email" optional />
-                    <QField label="GST Number" name="gst_number" value={qForm.gst_number} onChange={updateQField} placeholder="Enter GST number" optional />
-                    <QField label="City" name="city" value={qForm.city} onChange={updateQField} placeholder="Enter city" optional />
-                    <QField label="State" name="state" value={qForm.state} onChange={updateQField} placeholder="Enter state" optional />
-                    <QField label="Pincode" name="pincode" value={qForm.pincode} onChange={updateQField} placeholder="Enter pincode" optional />
-                  </div>
-                  <QTextarea label="Address" name="address" value={qForm.address} onChange={updateQField} placeholder="Enter full address" optional compact />
-                </LeadFormSection>
-
-                {sectionVisibility.project ? (
-                  <LeadFormSection title="C. Project Details" icon={ClipboardPlus} tone="primary">
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <QSelect label="Project Type" name="project_type" value={qForm.project_type} onChange={updateQField} options={['Residential Subsidy', 'Residential Non Subsidy', 'Commercial', 'Industrial', 'Agriculture']} optional />
-                      <QSelect label="Installation Type" name="installation_type" value={qForm.installation_type} onChange={updateQField} options={['Rooftop', 'Ground Mounted', 'Elevated Structure']} optional />
-                      <QField label="Sanctioned Load (kW)" name="sanctioned_load_kw" type="number" value={qForm.sanctioned_load_kw} onChange={updateQField} placeholder="Enter sanctioned load" optional />
-                      <QField label="Monthly Electricity Bill (₹)" name="monthly_electricity_bill" type="number" value={qForm.monthly_electricity_bill} onChange={updateQField} placeholder="Enter monthly bill" optional />
-                      <QField label="DISCOM Name" name="discom_name" value={qForm.discom_name} onChange={updateQField} placeholder="Enter DISCOM name" optional />
-                    </div>
-                  </LeadFormSection>
-                ) : null}
-
-                {sectionVisibility.plant ? (
-                  <LeadFormSection title="D. Plant Details" icon={Zap} tone="warning">
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <QField label="Plant Capacity (kW)" name="plant_capacity_kw" type="number" value={qForm.plant_capacity_kw} onChange={updateQField} placeholder={computedTotalDcCapacity ? String(computedTotalDcCapacity) : 'Auto from panels'} optional />
-                      <QField label="Estimated Annual Generation (kWh)" name="estimated_annual_generation" type="number" value={qForm.estimated_annual_generation} onChange={updateQField} placeholder="Enter estimate" optional />
-                      <QField label="Shadow Free Area" name="shadow_free_area" value={qForm.shadow_free_area} onChange={updateQField} placeholder="e.g. 350 sq.ft" optional />
-                      <QField label="Module Orientation" name="module_orientation" value={qForm.module_orientation} onChange={updateQField} placeholder="e.g. South facing" optional />
-                    </div>
-                  </LeadFormSection>
-                ) : null}
-
-                {sectionVisibility.panel ? (
-                  <LeadFormSection title="E. Panel Details" icon={BadgeCheck} tone="success">
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <QField label="Panel Brand" name="panel_brand" value={qForm.panel_brand} onChange={updateQField} placeholder="Enter brand" optional />
-                      <QField label="Panel Model" name="panel_model" value={qForm.panel_model} onChange={updateQField} placeholder="Enter model" optional />
-                      <QField label="Panel Wattage (W)" name="panel_wattage" type="number" value={qForm.panel_wattage} onChange={updateQField} placeholder="e.g. 550" optional />
-                      <QField label="Number of Panels" name="number_of_panels" type="number" value={qForm.number_of_panels} onChange={updateQField} placeholder="Enter count" optional />
-                      <QField label="Total DC Capacity (kW)" value={computedTotalDcCapacity ? computedTotalDcCapacity.toFixed(2) : 'Auto-calculated'} readOnly />
-                    </div>
-                  </LeadFormSection>
-                ) : null}
-
-                {sectionVisibility.inverter ? (
-                  <LeadFormSection title="F. Inverter Details" icon={Zap} tone="purple">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <QField label="Inverter Brand" name="inverter_brand" value={qForm.inverter_brand} onChange={updateQField} placeholder="Enter brand" optional />
-                      <QField label="Inverter Model" name="inverter_model" value={qForm.inverter_model} onChange={updateQField} placeholder="Enter model" optional />
-                      <QField label="Inverter Capacity" name="inverter_capacity" value={qForm.inverter_capacity} onChange={updateQField} placeholder="e.g. 5kW" optional />
-                      <QField label="Quantity" name="inverter_quantity" type="number" value={qForm.inverter_quantity} onChange={updateQField} placeholder="Enter qty" optional />
-                    </div>
-                  </LeadFormSection>
-                ) : null}
-
-                {sectionVisibility.structure ? (
-                  <LeadFormSection title="G. Structure Details" icon={FolderKanban} tone="warning">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <QField label="Structure Type" name="structure_type" value={qForm.structure_type} onChange={updateQField} placeholder="Enter structure type" optional />
-                      <QSelect label="Material" name="structure_material" value={qForm.structure_material} onChange={updateQField} options={['GI', 'HDGI', 'Aluminium']} optional />
-                      <QField label="Foundation Type" name="foundation_type" value={qForm.foundation_type} onChange={updateQField} placeholder="Enter foundation type" optional />
-                      <QField label="Wind Speed Rating" name="wind_speed_rating" value={qForm.wind_speed_rating} onChange={updateQField} placeholder="e.g. 150 km/h" optional />
-                    </div>
-                  </LeadFormSection>
-                ) : null}
-
-                {sectionVisibility.bos ? (
-                  <LeadFormSection title="H. BOS Material" icon={Boxes} tone="primary">
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <QField label="DC Cable" name="dc_cable" value={qForm.dc_cable} onChange={updateQField} placeholder="Enter spec" optional />
-                      <QField label="AC Cable" name="ac_cable" value={qForm.ac_cable} onChange={updateQField} placeholder="Enter spec" optional />
-                      <QField label="Earthing Kit" name="earthing_kit" value={qForm.earthing_kit} onChange={updateQField} placeholder="Enter spec" optional />
-                      <QField label="Lightning Arrester" name="lightning_arrester" value={qForm.lightning_arrester} onChange={updateQField} placeholder="Enter spec" optional />
-                      <QField label="ACDB" name="acdb" value={qForm.acdb} onChange={updateQField} placeholder="Enter spec" optional />
-                      <QField label="DCDB" name="dcdb" value={qForm.dcdb} onChange={updateQField} placeholder="Enter spec" optional />
-                      <QField label="Connectors" name="connectors" value={qForm.connectors} onChange={updateQField} placeholder="Enter spec" optional />
-                    </div>
-                  </LeadFormSection>
-                ) : null}
-
-                <LeadFormSection title="Line Items" titleSuffix="(Optional)" icon={ReceiptText} tone="success">
-                  <div className="overflow-hidden rounded-[10px] border border-[#e7eef7] bg-white">
-                    <table className="crm-table min-w-[640px] w-full">
-                      <thead><tr>{['Item', 'Qty', 'Unit', 'Rate', 'Amount', ''].map((header) => <th key={header || 'remove'}>{header}</th>)}</tr></thead>
-                      <tbody>
-                        {quoteItems.map((row, index) => (
-                          <tr key={index}>
-                            <td><input value={row.item_name} onChange={(e) => updateQuoteItem(index, { item_name: e.target.value })} placeholder="Item name" className="h-9 w-full min-w-[160px] rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
-                            <td><input value={row.quantity} onChange={(e) => updateQuoteItem(index, { quantity: e.target.value })} placeholder="Qty" className="h-9 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
-                            <td><input value={row.unit} onChange={(e) => updateQuoteItem(index, { unit: e.target.value })} placeholder="Unit" className="h-9 w-20 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
-                            <td><input value={row.rate} onChange={(e) => updateQuoteItem(index, { rate: e.target.value })} placeholder="Rate" className="h-9 w-24 rounded-[6px] border border-[#dbe5f1] bg-white px-2 text-[13px] font-bold text-[#30466d] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></td>
-                            <td className="font-extrabold text-[#1e3261]">{formatCurrencyPrecise(rowAmount(row))}</td>
-                            <td>
-                              <button type="button" onClick={() => removeQuoteItem(index)} disabled={quoteItems.length === 1} aria-label="Remove item" className="grid size-8 place-items-center rounded-[6px] text-[#c0392b] transition hover:bg-[#fdecec] disabled:cursor-not-allowed disabled:opacity-30">
-                                <X className="size-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <button type="button" onClick={addQuoteItem} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-dashed border-[#b9cce7] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
-                    <Plus className="size-4" />
-                    Add Item
-                  </button>
-                </LeadFormSection>
-
-                <LeadFormSection title="I. Costing Section" icon={IndianRupee} tone="warning">
-                  <div className="grid gap-4 md:grid-cols-4">
-                    <QField label="Material Cost" name="material_cost" type="number" value={qForm.material_cost} onChange={updateQField} optional />
-                    <QField label="Structure Cost" name="structure_cost" type="number" value={qForm.structure_cost} onChange={updateQField} optional />
-                    <QField label="Installation Cost" name="installation_cost" type="number" value={qForm.installation_cost} onChange={updateQField} optional />
-                    <QField label="Transportation Cost" name="transportation_cost" type="number" value={qForm.transportation_cost} onChange={updateQField} optional />
-                    <QField label="Liaisoning Charges" name="liaisoning_charges" type="number" value={qForm.liaisoning_charges} onChange={updateQField} optional />
-                    <QField label="Net Metering Charges" name="net_metering_charges" type="number" value={qForm.net_metering_charges} onChange={updateQField} optional />
-                    <QField label="Other Charges" name="other_charges" type="number" value={qForm.other_charges} onChange={updateQField} optional />
-                  </div>
-                </LeadFormSection>
-
-                {sectionVisibility.subsidy ? (
-                  <LeadFormSection title="J. Subsidy Section" icon={ShieldCheck} tone="success">
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <QSelect label="Subsidy Applicable" value={qForm.subsidy_applicable ? 'Yes' : 'No'} onChange={(_, v) => updateQField('subsidy_applicable', v === 'Yes')} options={['Yes', 'No']} />
-                      <QField label="Subsidy Amount" name="subsidy_amount" type="number" value={qForm.subsidy_amount} onChange={updateQField} optional />
-                      <QField label="Customer Contribution" value={formatCurrencyPrecise(computedCustomerContribution)} readOnly />
-                    </div>
-                  </LeadFormSection>
-                ) : null}
-
-                <LeadFormSection title="Client Proposal (Print PDF)" icon={FileText} tone="primary">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <QField label="Subject" name="subject" value={qForm.subject} onChange={updateQField} optional />
-                    <QField label="Project Cost With GST (₹)" name="project_cost_with_gst" type="number" value={qForm.project_cost_with_gst} onChange={updateQField} placeholder="e.g. 200000" optional />
-                    <QSelect label="Use Split GST" value={qForm.use_split_gst ? 'Yes' : 'No'} onChange={(_, v) => updateQField('use_split_gst', v === 'Yes')} options={['Yes', 'No']} />
-                    <QField label="Monthly Production (Units)" name="monthly_production_units" type="number" value={qForm.monthly_production_units} onChange={updateQField} optional />
-                    <QField label="Tariff ₹/unit" name="tariff_rate_per_unit" type="number" value={qForm.tariff_rate_per_unit} onChange={updateQField} optional />
-                    <QField label="Tilt Angle Range" name="tilt_angle_range" value={qForm.tilt_angle_range} onChange={updateQField} optional />
-                  </div>
-                  <QTextarea label="Net Meter Details" name="net_meter_details" value={qForm.net_meter_details} onChange={updateQField} optional compact />
-                  <QTextarea label="Structure Spec Details" name="structure_spec_details" value={qForm.structure_spec_details} onChange={updateQField} optional compact />
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <QField label="Infra Items" name="infra_items" value={qForm.infra_items} onChange={updateQField} optional />
-                    <QField label="Govt. Liasoning" name="govt_liasoning_details" value={qForm.govt_liasoning_details} onChange={updateQField} optional />
-                    <QField label="Payment Terms Text" name="payment_terms_text" value={qForm.payment_terms_text} onChange={updateQField} optional />
-                    <QField label="Validity Text" name="validity_text" value={qForm.validity_text} onChange={updateQField} optional />
-                  </div>
-                </LeadFormSection>
-
-                <LeadFormSection title="K. Tax Section" icon={ReceiptText} tone="primary">
-                  <div className="grid gap-4 md:grid-cols-4">
-                    <QField label="GST % (effective)" name="gst_percent" type="number" value={leadSplitGst ? '8.9' : qForm.gst_percent} onChange={updateQField} />
-                    <QField label="Taxable Value" value={formatCurrencyPrecise(computedSubtotal)} readOnly />
-                    <QField label="GST Amount" value={formatCurrencyPrecise(computedGstAmount)} readOnly />
-                    <QField label="Discount" name="discount" type="number" value={qForm.discount} onChange={updateQField} optional />
-                    <QField label="Total Amount" value={formatCurrencyPrecise(computedGrandTotal)} readOnly />
-                  </div>
-                </LeadFormSection>
-
-                {sectionVisibility.payment ? (
-                  <LeadFormSection title="L. Payment Terms" icon={CreditCard} tone="purple">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <QField label="Advance %" name="advance_percent" type="number" value={qForm.advance_percent} onChange={updateQField} optional />
-                      <QField label="Material Dispatch %" name="material_dispatch_percent" type="number" value={qForm.material_dispatch_percent} onChange={updateQField} optional />
-                      <QField label="Installation %" name="installation_percent" type="number" value={qForm.installation_percent} onChange={updateQField} optional />
-                      <QField label="Commissioning %" name="commissioning_percent" type="number" value={qForm.commissioning_percent} onChange={updateQField} optional />
-                    </div>
-                  </LeadFormSection>
-                ) : null}
-
-                {sectionVisibility.warranty ? (
-                  <LeadFormSection title="M. Warranty" icon={ShieldCheck} tone="success">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <QField label="Panel Warranty" name="panel_warranty" value={qForm.panel_warranty} onChange={updateQField} placeholder="e.g. 25 years" optional />
-                      <QField label="Inverter Warranty" name="inverter_warranty" value={qForm.inverter_warranty} onChange={updateQField} placeholder="e.g. 5 years" optional />
-                      <QField label="Structure Warranty" name="structure_warranty" value={qForm.structure_warranty} onChange={updateQField} placeholder="e.g. 10 years" optional />
-                      <QField label="Workmanship Warranty" name="workmanship_warranty" value={qForm.workmanship_warranty} onChange={updateQField} placeholder="e.g. 2 years" optional />
-                    </div>
-                  </LeadFormSection>
-                ) : null}
-
-                <LeadFormSection title="N. Additional Notes" titleSuffix="(Optional)" icon={FileText} tone="warning">
-                  <QTextarea label="Special Instructions" name="special_instructions" value={qForm.special_instructions} onChange={updateQField} optional compact />
-                  <QTextarea label="Scope of Work" name="scope_of_work" value={qForm.scope_of_work} onChange={updateQField} optional compact />
-                  <QTextarea label="Exclusions" name="exclusions" value={qForm.exclusions} onChange={updateQField} optional compact />
-                  <QTextarea label="Remarks" name="notes" value={qForm.notes} onChange={updateQField} optional compact />
-                </LeadFormSection>
-              </>
-            )}
-
-            {savedQuotation && detailsQuote.delete ? (
-              <div className={`${panelClass} p-4`}>
-                <button type="button" onClick={handleDeleteQuotation} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#f5c6c6] bg-white px-4 text-[13px] font-extrabold text-[#c0392b] transition hover:bg-[#fdecec]">
-                  <Trash2 className="size-4" />
-                  Delete Quotation
-                </button>
-              </div>
-            ) : null}
-          </div>
-          <aside className="space-y-4">
-            <InfoPanel title="Auto Calculations" icon={Zap} tone="success">
-              <DetailRow label="Plant Capacity" value={computedPlantCapacity ? `${computedPlantCapacity.toFixed(2)} kW` : '—'} />
-              <DetailRow label="Total DC Capacity" value={computedTotalDcCapacity ? `${computedTotalDcCapacity.toFixed(2)} kW` : '—'} />
-              <DetailRow label="Subtotal" value={formatCurrencyPrecise(computedSubtotal)} />
-              <DetailRow label="GST Amount" value={formatCurrencyPrecise(computedGstAmount)} />
-              <DetailRow label="Grand Total" valueNode={<span className="text-[14px] font-extrabold text-[#0d9f4a]">{formatCurrencyPrecise(computedGrandTotal)}</span>} />
-              <DetailRow label="Customer Payable" valueNode={<span className="text-[14px] font-extrabold text-[#0d9f4a]">{formatCurrencyPrecise(computedCustomerContribution)}</span>} />
-              <DetailRow label="Cost / Watt" value={computedCostPerWatt ? `₹${computedCostPerWatt.toFixed(2)}/W` : '—'} />
-              <DetailRow label="ROI" value={computedRoiPercent ? `${computedRoiPercent.toFixed(1)}%` : '—'} />
-              <DetailRow label="Payback Period" value={computedPaybackYears ? `${computedPaybackYears.toFixed(1)} years` : '—'} />
-            </InfoPanel>
-            <InfoPanel title="Next Actions" icon={Zap} tone="primary">
-              <div className="grid gap-3">
-                <MiniActionButton
-                  label="Share on WhatsApp"
-                  icon={MessageSquareMore}
-                  tone="green"
-                  onClick={() => {
-                    if (!savedQuotation) { onNotify('Save the quotation first, then share it'); return; }
-                    const message = [
-                      `Hi ${lead?.customer || ''}, here is your solar quotation from ${organizationDisplayName()}.`,
-                      `Project: ${lead?.project || '—'}`,
-                      `Grand Total: ${formatCurrencyPrecise(computedGrandTotal)}`,
-                      'Thank you for choosing us!',
-                    ].join('\n');
-                    onShareWhatsApp?.({ name: lead?.customer, phone: lead?.mobile, message });
-                  }}
-                />
-                {(!savedQuotation || savedQuotation.status === 'Draft') ? (
-                  <MiniActionButton label="Request Approval" icon={ShieldCheck} tone="blue" disabled={quotationSaving} onClick={handleRequestApproval} />
-                ) : (
-                  <p className="rounded-[8px] border border-[#d7f0df] bg-[#effbf3] px-4 py-3 text-[13px] font-extrabold text-[#087a39]">Quotation status: {savedQuotation.status}</p>
-                )}
-              </div>
-            </InfoPanel>
-          </aside>
-        </section>
-      )}
-
-      <DashboardFooter />
-      {activeModal ? (
-        <LeadQuickActionModal
-          type={activeModal}
-          lead={lead}
-          onClose={() => setActiveModal(null)}
-          onSaved={reloadAfterFollowUpChange}
-          onLeadUpdated={onLeadUpdated}
-          onNotify={onNotify}
-        />
-      ) : null}
-      {editFollowUp ? (
-        <CrmFollowUpEditModal
-          followUp={editFollowUp}
-          lead={lead}
-          onClose={() => setEditFollowUp(null)}
-          onSaved={() => { setEditFollowUp(null); reloadAfterFollowUpChange(); }}
-          onNotify={onNotify}
-        />
-      ) : null}
-      {deleteConfirm ? (
-        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
-      ) : null}
-    </div>
-  );
-}
-
 // Edit Lead — sirf isi ek action ke liye full page hai, kyunki ye lead ke core fields update karta hai
 // (Follow-up/Site Visit/Note/Status/Assign ab LeadQuickActionModal mein modal ke roop mein hain).
 function LeadEditPage({ lead, onBackToDetails, onOpenSection, onLeadUpdated, onNotify }) {
@@ -38267,7 +37762,7 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
   };
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
+    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[18px] font-extrabold text-[#111827]"><Icon className="size-5 text-[#0b65e5]" /> {meta.title}</h2>
@@ -38531,7 +38026,7 @@ function CrmFollowUpEditModal({ followUp, lead, onClose, onSaved, onNotify }) {
   };
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-[#111827]/45 p-4">
+    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[#111827]/45 p-4">
       <div className="max-h-[92vh] w-full max-w-[640px] overflow-y-auto rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
         <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-5">
           <h2 className="flex items-center gap-3 font-display text-[18px] font-extrabold text-[#111827]"><Pencil className="size-5 text-[#0b65e5]" /> Edit Follow-up</h2>

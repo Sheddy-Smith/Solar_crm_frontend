@@ -6,7 +6,10 @@ import { enableCrmTableColumnResize } from './lib/crmTableResize.js';
 import { enableNativeEditShortcuts } from './lib/nativeEditShortcuts.js';
 import { registerServiceWorker } from './lib/pwaInstall.js';
 import { initI18n } from './i18n/index.js';
+import { installConsoleBugCapture } from './lib/consoleBugCapture.js';
 import './index.css';
+
+installConsoleBugCapture();
 
 // Backend keep-alive: silent 14-min ping so the Render backend never sleeps.
 startKeepAlive();

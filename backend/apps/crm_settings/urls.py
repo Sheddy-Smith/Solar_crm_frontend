@@ -1,6 +1,13 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+from .developer_views import (
+    AttendanceMachineView,
+    AuditEventViewSet,
+    BugReportViewSet,
+    DeveloperMemoryView,
+    WhatsAppExtensionMessageViewSet,
+)
 from .recycle_views import RecycleBinViewSet
 from .views import (
     AccountsSettingsSummaryView,
@@ -31,6 +38,9 @@ router.register('ip-rules', IpAccessRuleViewSet, basename='ip-rule')
 router.register('ip-blocked-attempts', IpBlockedAttemptViewSet, basename='ip-blocked-attempt')
 router.register('document-series', DocumentNumberSeriesViewSet, basename='document-series')
 router.register('recycle-bin', RecycleBinViewSet, basename='recycle-bin')
+router.register('audit-events', AuditEventViewSet, basename='audit-event')
+router.register('bug-reports', BugReportViewSet, basename='bug-report')
+router.register('whatsapp-messages', WhatsAppExtensionMessageViewSet, basename='whatsapp-extension-message')
 
 urlpatterns = [
     path('dashboard/', SettingsDashboardView.as_view(), name='settings-dashboard'),
@@ -43,5 +53,7 @@ urlpatterns = [
     path('accounts-summary/', AccountsSettingsSummaryView.as_view(), name='settings-accounts-summary'),
     path('maintenance/', SystemMaintenanceView.as_view(), name='settings-maintenance'),
     path('backups/', SystemBackupView.as_view(), name='settings-backups'),
+    path('developer/memory/', DeveloperMemoryView.as_view(), name='settings-developer-memory'),
+    path('developer/attendance-machine/', AttendanceMachineView.as_view(), name='settings-attendance-machine'),
     path('', include(router.urls)),
 ]

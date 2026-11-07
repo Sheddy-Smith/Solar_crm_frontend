@@ -674,14 +674,18 @@ export function AboutSettingsPage() {
   );
 }
 
-export function SettingsArchitectureTabs({ activePillarId, onSelectPillar }) {
-  const tabItems = [...SETTINGS_PILLARS.map((pillar) => ({ value: pillar.id, label: pillar.label })), { value: 'advanced', label: 'Advanced' }];
+export function SettingsArchitectureTabs({ activePillarId, onSelectPillar, showDeveloper = false }) {
+  const tabItems = [
+    ...SETTINGS_PILLARS.map((pillar) => ({ value: pillar.id, label: pillar.label })),
+    { value: 'advanced', label: 'Advanced' },
+    ...(showDeveloper ? [{ value: 'developer', label: 'Developer' }] : []),
+  ];
   return (
     <div>
       <section className={`${CARD} p-3 md:hidden`}>
         <MobileSubnavSelect className="" label="Settings" items={tabItems} value={activePillarId} onChange={onSelectPillar} />
       </section>
-      <UnderlineTabs items={tabItems} value={activePillarId} onChange={onSelectPillar} />
+      <UnderlineTabs items={tabItems} value={activePillarId} onChange={onSelectPillar} tone={showDeveloper && activePillarId === 'developer' ? 'red' : 'green'} />
     </div>
   );
 }
