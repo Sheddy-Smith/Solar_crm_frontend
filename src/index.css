@@ -15,6 +15,64 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #f5f7fb;
+
+  /* Developer Mode → Animation scale (CRM UI only). Defaults match Android 0.5x. */
+  --crm-window-anim-scale: 0.5;
+  --crm-transition-anim-scale: 0.5;
+  --crm-animator-duration-scale: 0.5;
+  --crm-window-duration: calc(220ms * var(--crm-window-anim-scale));
+  --crm-transition-duration: calc(180ms * var(--crm-transition-anim-scale));
+  --crm-animator-duration: calc(150ms * var(--crm-animator-duration-scale));
+}
+
+/* Window / modal enter-exit helpers */
+.crm-anim-window {
+  transition-property: opacity, transform, visibility;
+  transition-duration: var(--crm-window-duration);
+  transition-timing-function: ease-out;
+  animation-duration: var(--crm-window-duration);
+}
+
+/* Navigation / sidebar CSS transitions */
+.crm-anim-transition,
+.sidebar-root {
+  transition-duration: var(--crm-transition-duration) !important;
+}
+
+/* Micro-interaction CSS transitions */
+.crm-anim-animator {
+  transition-duration: var(--crm-animator-duration) !important;
+  animation-duration: var(--crm-animator-duration) !important;
+}
+
+html[data-crm-window-anim='off'] .crm-anim-window,
+html[data-crm-transition-anim='off'] .crm-anim-transition,
+html[data-crm-transition-anim='off'] .sidebar-root,
+html[data-crm-animator-anim='off'] .crm-anim-animator {
+  transition-duration: 0ms !important;
+  animation-duration: 0ms !important;
+}
+
+/* Developer Mode — Show layout bounds */
+html.crm-dev-layout-bounds button,
+html.crm-dev-layout-bounds a,
+html.crm-dev-layout-bounds input,
+html.crm-dev-layout-bounds select,
+html.crm-dev-layout-bounds textarea,
+html.crm-dev-layout-bounds [role='dialog'],
+html.crm-dev-layout-bounds [role='button'],
+html.crm-dev-layout-bounds .crm-panel,
+html.crm-dev-layout-bounds .crm-data-panel {
+  outline: 1px solid rgba(26, 115, 232, 0.55) !important;
+  outline-offset: -1px;
+}
+
+html.crm-dev-render-diag * {
+  box-shadow: inset 0 0 0 0.5px rgba(234, 88, 12, 0.18);
+}
+
+html.crm-dev-force-rtl body {
+  direction: rtl;
 }
 
 html {

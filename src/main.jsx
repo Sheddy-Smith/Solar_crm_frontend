@@ -7,9 +7,14 @@ import { enableNativeEditShortcuts } from './lib/nativeEditShortcuts.js';
 import { registerServiceWorker } from './lib/pwaInstall.js';
 import { initI18n } from './i18n/index.js';
 import { installConsoleBugCapture } from './lib/consoleBugCapture.js';
+import { bootstrapAnimationScales } from './lib/animationScale.js';
+import { AnimationScaleProvider } from './hooks/useAnimationScale.jsx';
+import { installDebugLogBridge } from './developer/index.js';
 import './index.css';
 
 installConsoleBugCapture();
+bootstrapAnimationScales();
+installDebugLogBridge();
 
 // Backend keep-alive: silent 14-min ping so the Render backend never sleeps.
 startKeepAlive();
@@ -79,8 +84,10 @@ function renderApp(UpdatePopup) {
   reactRoot.render(
     <React.StrictMode>
       <ErrorBoundary>
-        <App />
-        <Popup />
+        <AnimationScaleProvider>
+          <App />
+          <Popup />
+        </AnimationScaleProvider>
       </ErrorBoundary>
     </React.StrictMode>,
   );

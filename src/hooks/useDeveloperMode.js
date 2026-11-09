@@ -4,8 +4,8 @@ const STORAGE_KEY = 'malwa-solar-crm:developer-mode';
 const FOCUS_KEY = 'malwa-solar-crm:developer-mode-focus';
 const OPEN_EVENT = 'malwa-solar-crm:developer-mode-open';
 const REQUIRED_PRESSES = 3;
-/** Hold Ctrl+Alt+Shift and tap D three times within this window. */
-const PRESS_WINDOW_MS = 4000;
+/** Three D presses must complete within this window. */
+const PRESS_WINDOW_MS = 3000;
 
 function readEnabled() {
   if (typeof window === 'undefined') return false;
@@ -37,31 +37,58 @@ export function subscribeDeveloperModeOpen(handler) {
 }
 
 function isDeveloperShortcut(event) {
-  // Physical D key only — reliable with Shift held / non-US layouts.
   const isD = event.code === 'KeyD' || event.key === 'd' || event.key === 'D';
   return Boolean(event.ctrlKey && event.altKey && event.shiftKey && isD);
 }
 
+function isEditableTarget(target) {
+  if (!target || typeof target !== 'object') return false;
+  const el = target;
+  const tag = (el.tagName || '').toUpperCase();
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (el.isContentEditable) return true;
+  const role = el.getAttribute?.('role');
+  if (role === 'textbox' || role === 'searchbox') return true;
+  return Boolean(el.closest?.('input, textarea, select, [contenteditable="true"]'));
+}
+
+async function resetTemporaryDeveloperOverrides() {
+  try {
+    const { resetNetworkSimulator } = await import('../developer/services/apiInspector.js');
+    resetNetworkSimulator();
+  } catch {
+    /* ignore */
+  }
+  try {
+    const { resetUiDebugControls } = await import('../developer/services/uiDebugControls.js');
+    await resetUiDebugControls();
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Settings Developer Mode.
- * Unlock / open: hold Ctrl+Alt+Shift and press D exactly 3 times.
- * Toggle off hides developer options; 3 presses again re-opens.
+ * Unlock / open: hold Ctrl+Alt+Shift and press D exactly 3 times (within 3s).
+ * Super Admin gate via canActivate (default true for backward-compatible listen:false surfaces).
  */
 export function useDeveloperMode({
   onNotify,
   enabled = true,
   listen = true,
   onActivated,
+  canActivate = true,
 } = {}) {
   const [active, setActive] = useState(readEnabled);
   const pressCountRef = useRef(0);
   const lastPressAtRef = useRef(0);
   const onActivatedRef = useRef(onActivated);
   const onNotifyRef = useRef(onNotify);
+  const canActivateRef = useRef(canActivate);
   onActivatedRef.current = onActivated;
   onNotifyRef.current = onNotify;
+  canActivateRef.current = canActivate;
 
-  // Keep UI in sync when another Settings surface activates/disables mode.
   useEffect(() => {
     const sync = () => setActive(readEnabled());
     window.addEventListener(OPEN_EVENT, sync);
@@ -73,6 +100,10 @@ export function useDeveloperMode({
   }, []);
 
   const activate = useCallback(() => {
+    if (!canActivateRef.current) {
+      onNotifyRef.current?.('Developer Mode is restricted to Super Admin', 'error');
+      return;
+    }
     const already = readEnabled();
     setActive(true);
     writeEnabled(true);
@@ -96,6 +127,7 @@ export function useDeveloperMode({
       setActive(false);
       writeEnabled(false);
       pressCountRef.current = 0;
+      resetTemporaryDeveloperOverrides();
       onNotifyRef.current?.('Developer Mode disabled', 'success');
       window.dispatchEvent(new CustomEvent('malwa-solar-crm:developer-mode-close'));
     },
@@ -112,9 +144,16 @@ export function useDeveloperMode({
     const onKeyDown = (event) => {
       if (event.repeat) return;
       if (!isDeveloperShortcut(event)) return;
+      if (isEditableTarget(event.target)) return;
 
       event.preventDefault();
       event.stopPropagation();
+
+      if (!canActivateRef.current) {
+        onNotifyRef.current?.('Developer Mode is restricted to Super Admin', 'error');
+        pressCountRef.current = 0;
+        return;
+      }
 
       const now = Date.now();
       if (now - lastPressAtRef.current > PRESS_WINDOW_MS) {
@@ -123,12 +162,10 @@ export function useDeveloperMode({
       lastPressAtRef.current = now;
       pressCountRef.current += 1;
 
-      // 1st / 2nd D press: ignore (do not open)
       if (pressCountRef.current < REQUIRED_PRESSES) {
         return;
       }
 
-      // 3rd D press with Ctrl+Alt+Shift held → open
       pressCountRef.current = 0;
       activate();
     };
@@ -140,8 +177,11 @@ export function useDeveloperMode({
   return { active, setDeveloperMode, toggle, activate };
 }
 
+/** @deprecated Legacy tab list kept for compatibility; console uses categories. */
 export const DEVELOPER_SETTINGS_TABS = [
+  { id: 'console', label: 'Console' },
   { id: 'memory', label: 'Memory' },
+  { id: 'animation', label: 'Animation' },
   { id: 'whatsapp-extension', label: 'WhatsApp Extension' },
   { id: 'attendance-machine', label: 'Attendance Machine' },
   { id: 'audit-logs', label: 'Audit Logs' },

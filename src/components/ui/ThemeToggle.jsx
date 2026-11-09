@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Sun, Moon, Monitor } from 'lucide-react';
+import { useAnimationScale } from '../../hooks/useAnimationScale.jsx';
 
 const OPTIONS = [
   { value: 'light', label: 'Light', icon: Sun },
@@ -9,9 +10,14 @@ const OPTIONS = [
 
 /** 3-way Light/Dark/System toggle with an animated sliding active-pill. */
 function ThemeToggle({ theme, onChange, className = '', layoutId = 'theme-toggle-active', compact = false }) {
+  const { scales, motionDuration } = useAnimationScale();
+  const animOff = (scales?.animator ?? 0.5) <= 0;
+  const pillTransition = animOff
+    ? { duration: 0 }
+    : { type: 'spring', stiffness: 350, damping: 28, duration: motionDuration(0.35, 'animator') };
   return (
     <div
-      className={`inline-flex items-center gap-0.5 rounded-full border border-[#dce7f5] bg-white p-1 dark:border-slate-600 dark:bg-slate-800 ${className}`}
+      className={`crm-anim-animator inline-flex items-center gap-0.5 rounded-full border border-[#dce7f5] bg-white p-1 dark:border-slate-600 dark:bg-slate-800 ${className}`}
     >
       {OPTIONS.map(({ value, label, icon: Icon }) => {
         const isActive = theme === value;
@@ -28,7 +34,7 @@ function ThemeToggle({ theme, onChange, className = '', layoutId = 'theme-toggle
               <motion.span
                 layoutId={layoutId}
                 className="theme-toggle-pill absolute inset-0 rounded-full bg-[#0b65e5] shadow-[0_4px_10px_rgba(11,101,229,0.35)] dark:bg-sky-500"
-                transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+                transition={pillTransition}
               />
             )}
             <Icon className={`relative z-10 ${compact ? 'size-3.5' : 'size-4'} ${isActive ? 'text-white' : 'text-[#5a6d88] dark:text-slate-300'}`} />

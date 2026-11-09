@@ -1,4 +1,4 @@
-import { useDeferredValue, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Button from './components/ui/Button.jsx';
@@ -82,13 +82,13 @@ import {
 } from './settingsHubPages.jsx';
 import {
   useDeveloperMode,
-  DEVELOPER_SETTINGS_TABS,
   subscribeDeveloperModeOpen,
 } from './hooks/useDeveloperMode.js';
+import { useAnimationScale } from './hooks/useAnimationScale.jsx';
 import {
   DeveloperModeToggle,
-  DeveloperSettingsPanel,
 } from './settingsDeveloperPages.jsx';
+import { DeveloperConsole } from './developer/index.js';
 import { usePwaInstall } from './hooks/usePwaInstall.js';
 import { setUnsavedWork } from './lib/unsavedWork.js';
 import { PwaInstallBanner, PwaInstallIconButton, PwaInstallGuide, UpToDateDialog, usePwaInstallAction, downloadAndroidApp, isAndroidDevice, isIosDevice } from './components/mobile/PwaInstallControls.jsx';
@@ -97,6 +97,7 @@ import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
 import { usePagedRows, usePageSize, TablePagination } from './components/TablePagination.jsx';
+import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, DASHBOARD_PAGE_SIZE, rowsOf, parseListPage, listParams } from './lib/listQuery.js';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
 import { SettingsRecycleBinPage } from './recycleBinPage.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -2135,6 +2136,15 @@ function formatCapacityKw(value) {
 
 function App() {
   const pwaInstall = usePwaInstall();
+  const { motionDuration: scaledMotionDuration } = useAnimationScale();
+  const navMotionTransition = useMemo(
+    () => ({ duration: scaledMotionDuration(0.18, 'transition'), ease: 'easeOut' }),
+    [scaledMotionDuration],
+  );
+  const microMotionTransition = useMemo(
+    () => ({ duration: scaledMotionDuration(0.15, 'animator'), ease: 'easeOut' }),
+    [scaledMotionDuration],
+  );
   const [pwaGuideOpen, setPwaGuideOpen] = useState(false);
   const initialPreferencesRef = useRef(readStoredPreferences());
   const initialRouteRef = useRef(resolveSectionFromPath(typeof window !== 'undefined' ? window.location.pathname : '/'));
@@ -2531,7 +2541,7 @@ function App() {
       setDashWidgetError('followUps', '');
       return Promise.resolve();
     }
-    return followUpApi.listAll({ page_size: 100, status: 'Scheduled', ordering: 'scheduled_at' }).then((data) => {
+    return followUpApi.listAll({ page_size: DASHBOARD_PAGE_SIZE, status: 'Scheduled', ordering: 'scheduled_at' }).then((data) => {
       if (signal?.aborted) return;
       setDashWidgetError('followUps', '');
       setDashboardScheduledFollowUps(Array.isArray(data) ? data : (data?.results ?? []));
@@ -3075,7 +3085,7 @@ function App() {
         <div
           className={cx(
             // Above bottom nav (z-60) so dim + tap-outside actually closes More menu on phones.
-            'fixed inset-0 z-[70] bg-[#10213d]/45 transition xl:hidden',
+            'crm-anim-window fixed inset-0 z-[70] bg-[#10213d]/45 transition xl:hidden',
             mobileSidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
           )}
           onClick={() => setMobileSidebarOpen(false)}
@@ -3259,7 +3269,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -3297,7 +3307,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -3333,7 +3343,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -3369,7 +3379,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -3407,7 +3417,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -3449,7 +3459,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -3491,7 +3501,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -3534,7 +3544,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -3571,7 +3581,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -3608,7 +3618,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -3645,7 +3655,7 @@ function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          transition={navMotionTransition}
                           className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
                         >
                           <div className="space-y-1">
@@ -4173,7 +4183,7 @@ function App() {
                         type="button"
                         whileHover={{ y: -1 }}
                         whileTap={{ scale: 0.95 }}
-                        transition={{ duration: 0.15, ease: 'easeOut' }}
+                        transition={microMotionTransition}
                         onClick={() => {
                           setDashboardPeriod(period);
                           setDashboardPeriodAnchor(new Date());
@@ -4231,7 +4241,7 @@ function App() {
                       type="button"
                       whileHover={{ y: -1 }}
                       whileTap={{ scale: 0.95 }}
-                      transition={{ duration: 0.15, ease: 'easeOut' }}
+                      transition={microMotionTransition}
                       onClick={() => {
                         refreshDashboardLeadStats();
                         refreshDashboardFollowUps();
@@ -4322,7 +4332,7 @@ function App() {
                         type="button"
                         whileHover={{ y: -2, filter: 'brightness(1.03)' }}
                         whileTap={{ scale: 0.97 }}
-                        transition={{ duration: 0.15, ease: 'easeOut' }}
+                        transition={microMotionTransition}
                         onClick={() => {
                           if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
                             if (loggedInUser && !hasModuleAccess(loggedInUser, 'Lead', 'Add')) {
@@ -4699,7 +4709,7 @@ function AppHeader({
                   type="button"
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  transition={microMotionTransition}
                   onClick={() => handleHeaderAction(action.label)}
                   className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition-colors hover:text-[#2158d6]"
                   aria-label={action.label}
@@ -5181,6 +5191,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     }
   });
   const [apiLeads, setApiLeads] = useState(null);
+  const [leadsTotal, setLeadsTotal] = useState(0);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -5198,8 +5209,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   useEffect(() => {
-    userApi.list({ is_active: true }).then((data) => {
-      const users = Array.isArray(data) ? data : (data?.results ?? []);
+    userApi.options({ is_active: true, page_size: LOOKUP_PAGE_SIZE }).then((data) => {
+      const users = rowsOf(data);
       setExecutiveList(users.map((u) => ({ id: u.id, name: u.name || u.email, role: u.role_name || '' })));
     }).catch(() => setExecutiveList([]));
   }, []);
@@ -5259,12 +5270,22 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
   useEffect(() => {
     setLeadsLoading(true);
-    const params = { page_size: 200 };
-    if (debouncedSearch) params.search = debouncedSearch;
+    const params = listParams({
+      page: activePage,
+      page_size: pageSize || LIST_PAGE_SIZE,
+      search: debouncedSearch || undefined,
+      status: statusFilter !== 'All' ? statusFilter : undefined,
+      assigned_to: (
+        assignedToFilter !== 'All' && assignedToFilter !== '__unassigned__'
+          ? assignedToFilter
+          : undefined
+      ),
+    });
     leadApi.list(params).then((data) => {
       if (!data) return;
-      const rows = Array.isArray(data) ? data : (data.results ?? []);
-      setApiLeads(rows.map((lead, i) => ({
+      const pageData = parseListPage(data, { page: activePage, pageSize: pageSize || LIST_PAGE_SIZE });
+      setLeadsTotal(pageData.count);
+      setApiLeads(pageData.results.map((lead, i) => ({
         id: lead.id ?? i,
         customer: lead.customer_name,
         mobile: lead.mobile_number,
@@ -5284,12 +5305,12 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     }).catch((err) => {
       onNotify?.((err && err.message) ? `Failed to load leads: ${err.message}` : 'Failed to load leads. Please try again.');
     }).finally(() => setLeadsLoading(false));
-  }, [debouncedSearch, refreshKey]);
+  }, [debouncedSearch, refreshKey, activePage, pageSize, statusFilter, assignedToFilter]);
 
-  // Search change → page 1. Assign/delete refresh keeps the current page.
+  // Search / filter change → page 1. Assign/delete refresh keeps the current page.
   useEffect(() => {
     setActivePage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, statusFilter, assignedToFilter, pageSize]);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
 
@@ -5385,8 +5406,10 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   }, [activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, addByFilter, followUpDate, assigneeOptions, addByOptions]);
 
   const hasLeadFilters = activeFilterLabels.length > 0;
-  const totalLeadCount = apiLeads?.length ?? 0;
+  const totalLeadCount = leadsTotal || apiLeads?.length || 0;
 
+  // Server already paginated by status/search/assigned_to. Extra client filters
+  // (category chips, project type, added-by, follow-up date) apply to this page.
   const visibleLeadRows = useMemo(() => {
     if (!apiLeads) return [];
 
@@ -5398,10 +5421,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     }
 
     return source.filter((lead) => {
-      const query = searchQuery.trim().toLowerCase();
-      const queryMatch = !query || [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name, lead.createdByName].some((value) => String(value).toLowerCase().includes(query));
       const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
-      const statusMatch = statusFilter === 'All' || lead.status === statusFilter;
       const assignedMatch =
         assignedToFilter === 'All'
           ? true
@@ -5410,16 +5430,15 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             : String(lead.assignedTo.id) === assignedToFilter;
       const addByMatch = addByFilter === 'All' || String(lead.createdById) === String(addByFilter);
       const followUpMatch = !followUpDate || (lead.nextFollowUpRaw && lead.nextFollowUpRaw.slice(0, 10) === followUpDate);
-      return queryMatch && projectTypeMatch && statusMatch && assignedMatch && addByMatch && followUpMatch;
+      return projectTypeMatch && assignedMatch && addByMatch && followUpMatch;
     });
-  }, [apiLeads, activeLeadCategory, searchQuery, projectTypeFilter, statusFilter, assignedToFilter, addByFilter, followUpDate]);
+  }, [apiLeads, activeLeadCategory, projectTypeFilter, assignedToFilter, addByFilter, followUpDate]);
 
   const LEAD_PAGE_SIZE = pageSize;
-  const totalLeadPages = Math.max(1, Math.ceil(visibleLeadRows.length / LEAD_PAGE_SIZE));
+  const totalLeadPages = Math.max(1, Math.ceil((leadsTotal || visibleLeadRows.length) / LEAD_PAGE_SIZE));
   const safePage = Math.min(activePage, totalLeadPages);
-  const pagedLeadRows = visibleLeadRows.slice((safePage - 1) * LEAD_PAGE_SIZE, safePage * LEAD_PAGE_SIZE);
+  const pagedLeadRows = visibleLeadRows;
 
-  // Agar list shrink ho jaaye aur current page range se bahar nikal jaaye to page wapas valid range mein laao
   useEffect(() => {
     if (activePage > totalLeadPages) setActivePage(totalLeadPages);
   }, [activePage, totalLeadPages]);
@@ -6091,8 +6110,10 @@ function PaymentModeListPage({ onOpenSection, onNotify }) {
 
 function SettingsMasterPage({ activeSection, onOpenSection, onNotify, loggedInUser }) {
   // Shortcut lives here so Ctrl+Alt+Shift+D ×3 works on any Settings screen.
+  const isSuperAdmin = Boolean(loggedInUser?.is_super_admin);
   useDeveloperMode({
     onNotify,
+    canActivate: isSuperAdmin,
     onActivated: () => {
       onOpenSection('Settings');
     },
@@ -6613,27 +6634,31 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
   const [activePillarId, setActivePillarId] = useState('organization');
   const [selectedSection, setSelectedSection] = useState('Company Profile');
   const [advancedGroupTitle, setAdvancedGroupTitle] = useState('General Settings');
-  const [developerTab, setDeveloperTab] = useState('attendance-machine');
+  const isSuperAdmin = Boolean(loggedInUser?.is_super_admin);
   // Keyboard listener is owned by SettingsMasterPage — here we only mirror state + open UI.
   const { active: developerMode, setDeveloperMode } = useDeveloperMode({
     onNotify,
     listen: false,
+    canActivate: isSuperAdmin,
   });
   const activePillar = SETTINGS_PILLARS.find((pillar) => pillar.id === activePillarId);
   const pillarNavItems = getPillarNavItems(activePillar);
   const advancedGroup = advancedSettingsCardGroups.find((group) => group.title === advancedGroupTitle);
   const title = getSettingsDisplayLabel(selectedSection);
-  const developerTabLabel = DEVELOPER_SETTINGS_TABS.find((tab) => tab.id === developerTab)?.label;
 
   const openDeveloperSurface = useCallback(() => {
+    if (!isSuperAdmin) {
+      onNotify?.('Developer Mode is restricted to Super Admin', 'error');
+      setDeveloperMode(false);
+      return;
+    }
     setActivePillarId('developer');
-    setDeveloperTab('attendance-machine');
     try {
       sessionStorage.removeItem('malwa-solar-crm:developer-mode-focus');
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [isSuperAdmin, onNotify, setDeveloperMode]);
 
   // 3rd Ctrl+Alt+Shift+D from master page opens Developer tabs here.
   useEffect(() => subscribeDeveloperModeOpen(openDeveloperSurface), [openDeveloperSurface]);
@@ -6670,7 +6695,11 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
   const selectPillar = (pillarId) => {
     setActivePillarId(pillarId);
     if (pillarId === 'developer') {
-      setDeveloperTab((prev) => prev || 'attendance-machine');
+      if (!isSuperAdmin) {
+        onNotify?.('Developer Mode is restricted to Super Admin', 'error');
+        setActivePillarId('organization');
+        return;
+      }
       return;
     }
     if (pillarId === 'advanced') {
@@ -6687,12 +6716,11 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
   };
 
   const renderPillarContent = () => {
-    if (developerMode && activePillarId === 'developer') {
+    if (developerMode && isSuperAdmin && activePillarId === 'developer') {
       return (
-        <DeveloperSettingsPanel
-          activeTab={developerTab}
-          onTabChange={setDeveloperTab}
+        <DeveloperConsole
           onNotify={onNotify}
+          onExit={() => setDeveloperMode(false)}
         />
       );
     }
@@ -6752,7 +6780,7 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings' },
           ...(activePillarId === 'developer' && developerMode
-            ? [{ label: 'Developer' }, ...(developerTabLabel ? [{ label: developerTabLabel }] : [])]
+            ? [{ label: 'Developer Console' }, { label: 'Developer Mode (Advanced)' }]
             : activePillar
               ? [{ label: activePillar.label }]
               : activePillarId === 'advanced' && advancedGroup
@@ -6771,7 +6799,7 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
       <SettingsArchitectureTabs
         activePillarId={activePillarId}
         onSelectPillar={selectPillar}
-        showDeveloper={developerMode}
+        showDeveloper={developerMode && isSuperAdmin}
       />
 
       {activePillarId !== 'advanced' && activePillarId !== 'developer' && pillarNavItems.length > 1 ? (
@@ -10485,7 +10513,7 @@ function LiaisoningCommissioningPage({ activeSection, onOpenSection, onNotify })
 const lcInputCls = 'h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none';
 const lcTextareaCls = 'w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 py-2 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none resize-none';
 const lcLabelCls = 'block text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6] mb-1';
-const lcModalBackdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+const lcModalBackdrop = 'crm-anim-window fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
 const lcModalBox = 'w-full max-w-lg rounded-[16px] bg-white shadow-2xl flex flex-col max-h-[90vh]';
 
 const lcFormatDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN') : '—');
@@ -10650,10 +10678,10 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const needsProjects = config.fields.some((f) => f.type === 'project');
 
   useEffect(() => {
-    if (needsProjects) projectApi.list({ page_size: 200 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
-    if (needsUsers) userApi.list({ page_size: 200 }).then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
+    if (needsProjects) projectApi.list({ page_size: 25 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+    if (needsUsers) userApi.list({ page_size: 25 }).then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
     Object.entries(config.lookups || {}).forEach(([key, lk]) => {
-      lk.api.list({ page_size: 200 }).then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) }))).catch(() => {});
+      lk.api.list({ page_size: 25 }).then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) }))).catch(() => {});
     });
   }, [needsUsers, needsProjects]);  
 
@@ -10664,7 +10692,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   const loadRows = useCallback(() => {
     setLoading(true);
-    const params = { page_size: 200, ...(config.listParams || {}) };
+    const params = { page_size: 25, ...(config.listParams || {}) };
     if (filterStatus) params.status = filterStatus;
     extraFilters.forEach((f) => {
       if (!f.client && extraFilterValues[f.key]) params[f.key] = extraFilterValues[f.key];
@@ -11399,24 +11427,46 @@ function PipelineProjectTable({
   toolbar = null,
   // Site Survey: View / Edit / Delete open popups instead of the full-page workspace.
   surveyActions = null,
+  // Project List / other stages: View + Edit action buttons (popup / edit form).
+  listActions = null,
+  // Server-side stage chip counts (from /summary/) — avoids loading every project.
+  stageCounts: stageCountsProp = null,
+  // When parent already scoped by stage via API, skip client stage filter.
+  serverScoped = false,
+  onServerSearch = null,
 }) {
   const step = pipeline.steps.find((s) => s.key === stepKey) || null;
+  // Hard guard: Site Survey step never uses pipeline "Open → full page" even if surveyActions was omitted.
+  const effectiveSurveyActions = surveyActions || (stepKey === 'Project Site Survey' ? {
+    onView: onOpen,
+    onEdit: null,
+    onDelete: null,
+  } : null);
+  const effectiveListActions = effectiveSurveyActions ? null : listActions;
   const stageOf = (p) => p[pipeline.stageField];
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('');
   const [highlightId, setHighlightId] = useState(null);
+  const debouncedSearch = useDeferredValue(search.trim());
 
-  const scoped = step ? projects.filter((p) => stageOf(p) === step.stage) : projects;
-  const stageCounts = projects.reduce((acc, p) => ({ ...acc, [stageOf(p)]: (acc[stageOf(p)] || 0) + 1 }), {});
-  const q = search.trim().toLowerCase();
+  useEffect(() => {
+    if (!onServerSearch) return undefined;
+    onServerSearch(debouncedSearch);
+    return undefined;
+  }, [debouncedSearch, onServerSearch]);
+
+  const scoped = (step && !serverScoped) ? projects.filter((p) => stageOf(p) === step.stage) : projects;
+  const stageCounts = stageCountsProp || projects.reduce((acc, p) => ({ ...acc, [stageOf(p)]: (acc[stageOf(p)] || 0) + 1 }), {});
+  const q = onServerSearch ? '' : search.trim().toLowerCase();
   const filtered = scoped.filter((p) => {
-    if (!step && stageFilter && stageOf(p) !== stageFilter) return false;
+    if (!step && !serverScoped && stageFilter && stageOf(p) !== stageFilter) return false;
     if (!q) return true;
     return [p.project_name, p.project_id, p.customer_name, p.mobile_number, p.city]
       .some((v) => String(v || '').toLowerCase().includes(q));
   });
   const { pageRows, startIndex, pagination } = usePagedRows(filtered, `pipeline-${pipeline.id}`, {
-    resetKey: `${search}|${stageFilter}|${stepKey || ''}`,
+    defaultSize: LIST_PAGE_SIZE,
+    resetKey: `${search}|${stageFilter}|${stepKey || ''}|${projects.length}`,
   });
   const heading = step ? `${getModuleSubnavLabel(step.key)} — Projects` : 'Won Projects';
   const emptyText = step ? `No project is at the ${getModuleSubnavLabel(step.key)} stage right now` : 'No won projects yet';
@@ -11446,10 +11496,15 @@ function PipelineProjectTable({
             <span className="ml-2 rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{scoped.length}</span>
           </h3>
           <p className="mt-0.5 text-[12px] font-bold text-[#7a8fa6]">
-            {surveyActions ? (
+            {effectiveSurveyActions ? (
               <>
                 <span className="hidden lg:inline">Use View or Edit to open the Site Survey popup.</span>
                 <span className="lg:hidden">Tap View or Edit for the Site Survey popup.</span>
+              </>
+            ) : effectiveListActions ? (
+              <>
+                <span className="hidden lg:inline">Use View or Edit in Action. Double-click opens the project workspace.</span>
+                <span className="lg:hidden">Tap View or Edit. Open enters the project workspace.</span>
               </>
             ) : (
               <>
@@ -11501,11 +11556,15 @@ function PipelineProjectTable({
                 { label: 'Progress', value: <PipelineStageProgress project={p} pipeline={pipeline} /> },
                 hintFor(p) ? { label: 'Status', value: hintFor(p) } : null,
               ].filter(Boolean)}
-              onOpen={() => (surveyActions ? surveyActions.onView(p) : onOpen(p))}
-              actions={surveyActions ? [
-                { label: 'View', icon: Eye, tone: 'blue', onClick: () => surveyActions.onView(p) },
-                surveyActions.onEdit ? { label: 'Edit', icon: Pencil, tone: 'green', onClick: () => surveyActions.onEdit(p) } : null,
-                surveyActions.onDelete ? { label: 'Delete', icon: Trash2, tone: 'red', onClick: () => surveyActions.onDelete(p) } : null,
+              onOpen={() => (effectiveSurveyActions ? effectiveSurveyActions.onView(p) : onOpen(p))}
+              actions={effectiveSurveyActions ? [
+                { label: 'View', icon: Eye, tone: 'blue', onClick: () => effectiveSurveyActions.onView(p) },
+                effectiveSurveyActions.onEdit ? { label: 'Edit', icon: Pencil, tone: 'green', onClick: () => effectiveSurveyActions.onEdit(p) } : null,
+                effectiveSurveyActions.onDelete ? { label: 'Delete', icon: Trash2, tone: 'red', onClick: () => effectiveSurveyActions.onDelete(p) } : null,
+              ] : effectiveListActions ? [
+                { label: 'View', icon: Eye, tone: 'blue', onClick: () => effectiveListActions.onView(p) },
+                effectiveListActions.onEdit ? { label: 'Edit', icon: Pencil, tone: 'green', onClick: () => effectiveListActions.onEdit(p) } : null,
+                { label: 'Open', icon: FolderKanban, tone: 'slate', onClick: () => onOpen(p) },
               ] : [
                 p.mobile_number ? { label: 'Call', icon: Phone, tone: 'green', href: `tel:${p.mobile_number}` } : null,
                 { label: 'Open', icon: Eye, tone: 'blue', onClick: () => onOpen(p) },
@@ -11537,9 +11596,9 @@ function PipelineProjectTable({
                 {pageRows.map((p, i) => (
                   <tr
                     key={p.id}
-                    title={surveyActions ? 'Double-click to view site survey' : 'Double-click to open'}
+                    title={effectiveSurveyActions ? 'Double-click to view site survey' : effectiveListActions ? 'Double-click to open project workspace' : 'Double-click to open'}
                     onClick={() => setHighlightId(p.id)}
-                    onDoubleClick={() => (surveyActions ? surveyActions.onView(p) : onOpen(p))}
+                    onDoubleClick={() => (effectiveSurveyActions ? effectiveSurveyActions.onView(p) : onOpen(p))}
                     className={cx('cursor-pointer select-none transition', highlightId === p.id ? 'bg-[#eef6ff]' : 'hover:bg-[#f8fafc]')}
                   >
                     <td className="px-4 py-3 text-[#7a8fa6]">{startIndex + i + 1}</td>
@@ -11559,11 +11618,16 @@ function PipelineProjectTable({
                     </td>
                     <td className="px-4 py-3"><PipelineStageProgress project={p} pipeline={pipeline} /></td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-                      {surveyActions ? (
+                      {effectiveSurveyActions ? (
                         <div className="flex items-center gap-1.5">
-                          <UserActionButton label={`View site survey for ${p.project_name}`} icon={Eye} tone="blue" onClick={() => surveyActions.onView(p)} />
-                          {surveyActions.onEdit ? <UserActionButton label={`Edit site survey for ${p.project_name}`} icon={Pencil} tone="green" onClick={() => surveyActions.onEdit(p)} /> : null}
-                          {surveyActions.onDelete ? <UserActionButton label={`Delete ${p.project_name}`} icon={Trash2} tone="red" onClick={() => surveyActions.onDelete(p)} /> : null}
+                          <UserActionButton label={`View site survey for ${p.project_name}`} icon={Eye} tone="blue" onClick={() => effectiveSurveyActions.onView(p)} />
+                          {effectiveSurveyActions.onEdit ? <UserActionButton label={`Edit site survey for ${p.project_name}`} icon={Pencil} tone="green" onClick={() => effectiveSurveyActions.onEdit(p)} /> : null}
+                          {effectiveSurveyActions.onDelete ? <UserActionButton label={`Delete ${p.project_name}`} icon={Trash2} tone="red" onClick={() => effectiveSurveyActions.onDelete(p)} /> : null}
+                        </div>
+                      ) : effectiveListActions ? (
+                        <div className="flex items-center gap-1.5">
+                          <UserActionButton label={`View ${p.project_name}`} icon={Eye} tone="blue" onClick={() => effectiveListActions.onView(p)} />
+                          {effectiveListActions.onEdit ? <UserActionButton label={`Edit ${p.project_name}`} icon={Pencil} tone="green" onClick={() => effectiveListActions.onEdit(p)} /> : null}
                         </div>
                       ) : (
                         <button type="button" onClick={() => onOpen(p)} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#cfe0ff] bg-[#eef4ff] px-3 text-[12px] font-extrabold text-[#0b65e5] hover:bg-[#e0ebff]">
@@ -11747,7 +11811,7 @@ function LiaisonProjectDocuments({ project, onNotify }) {
 
   const loadDocs = useCallback(() => {
     setLoading(true);
-    lcDocumentApi.list({ project: project.id, page_size: 200 })
+    lcDocumentApi.list({ project: project.id, page_size: 25 })
       .then((r) => setDocs(normalizeApiRows(r)))
       .catch(() => setDocs([]))
       .finally(() => setLoading(false));
@@ -11909,46 +11973,122 @@ function storePipelineProject(storageKey, id) {
   } catch { /* storage unavailable (private mode) — selection just won't survive refresh */ }
 }
 
-function usePipelineHub(pipeline, section, onNotify) {
+function usePipelineHub(pipeline, section, onNotify, { disableSelection = false } = {}) {
   const { api, stageField, storageKey, completedMessage } = pipeline;
+  const step = pipeline.steps.find((s) => s.key === section) || null;
   const [projects, setProjects] = useState([]);
+  const [stageCounts, setStageCounts] = useState({});
+  const [listTotal, setListTotal] = useState(0);
+  const [listPage, setListPage] = useState(1);
+  const [listSearch, setListSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
-  const [selectedId, setSelectedId] = useState(() => readStoredPipelineProject(storageKey));
+  const [selectedId, setSelectedId] = useState(() => (
+    disableSelection ? null : readStoredPipelineProject(storageKey)
+  ));
+  const [selectedCache, setSelectedCache] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const loadProjects = useCallback(() => {
+  const loadProjects = useCallback((overrides = {}) => {
+    const page = overrides.page ?? listPage;
+    const search = overrides.search !== undefined ? overrides.search : listSearch;
     setLoading(true);
-    api.list({ page_size: 200 })
-      .then((r) => setProjects(normalizeApiRows(r)))
+    const params = listParams({
+      page,
+      page_size: LIST_PAGE_SIZE,
+      search: search || undefined,
+      stage: step?.stage || undefined,
+    });
+    const listReq = api.list(params);
+    const summaryReq = typeof api.summary === 'function'
+      ? api.summary().catch(() => null)
+      : Promise.resolve(null);
+    Promise.all([listReq, summaryReq])
+      .then(([listData, summary]) => {
+        const pageData = parseListPage(listData, { page, pageSize: LIST_PAGE_SIZE });
+        setProjects(pageData.results);
+        setListTotal(pageData.count);
+        if (summary?.stages) setStageCounts(summary.stages);
+        else {
+          // Fallback: count only the loaded page (better than fetching 200).
+          setStageCounts((prev) => {
+            if (Object.keys(prev).length) return prev;
+            return pageData.results.reduce((acc, p) => {
+              const key = p[stageField];
+              return { ...acc, [key]: (acc[key] || 0) + 1 };
+            }, {});
+          });
+        }
+      })
       .catch((e) => onNotify(e.message || 'Could not load projects.', 'error'))
       .finally(() => { setLoading(false); setLoaded(true); });
-  }, [api, onNotify]);
+  }, [api, onNotify, step?.stage, listPage, listSearch, stageField]);
 
   // Reload on every tab switch so step counts / stages reflect records just added.
+  useEffect(() => {
+    setListPage(1);
+    setListSearch('');
+  }, [section]);
+
   useEffect(() => { loadProjects(); }, [loadProjects, section]);
 
-  const selected = selectedId ? projects.find((p) => String(p.id) === String(selectedId)) || null : null;
+  const setServerSearch = useCallback((value) => {
+    setListPage(1);
+    setListSearch(value || '');
+  }, []);
+
+  // Site Survey = list + popup only — drop in-memory selection before paint.
+  // sessionStorage clear + popup open are handled by ProjectPipelineHub so the stored id can be consumed first.
+  useLayoutEffect(() => {
+    if (!disableSelection) return;
+    setSelectedId(null);
+    setSelectedCache(null);
+  }, [disableSelection, section]);
+
+  const selectedFromList = (!disableSelection && selectedId)
+    ? (projects.find((p) => String(p.id) === String(selectedId)) || null)
+    : null;
+  const selected = selectedFromList || (
+    (!disableSelection && selectedId && selectedCache && String(selectedCache.id) === String(selectedId))
+      ? selectedCache
+      : null
+  );
+
+  // Selected project may sit on another page — fetch that one record on demand.
+  useEffect(() => {
+    if (disableSelection || !selectedId || selectedFromList) return undefined;
+    if (!api.get) return undefined;
+    let cancelled = false;
+    api.get(selectedId)
+      .then((data) => { if (!cancelled && data) setSelectedCache(data); })
+      .catch(() => { if (!cancelled) setSelectedCache(null); });
+    return () => { cancelled = true; };
+  }, [disableSelection, selectedId, selectedFromList, api]);
 
   useEffect(() => {
-    if (loaded && !loading && selectedId && !selected) {
+    if (disableSelection) return;
+    if (loaded && !loading && selectedId && !selected && !api.get) {
       setSelectedId(null);
       storePipelineProject(storageKey, null);
     }
-  }, [loaded, loading, selectedId, selected, storageKey]);
+  }, [disableSelection, loaded, loading, selectedId, selected, storageKey, api]);
 
   const openProject = useCallback((p) => {
+    if (disableSelection) return;
     setSelectedId(String(p.id));
+    setSelectedCache(p);
     storePipelineProject(storageKey, p.id);
-  }, [storageKey]);
+  }, [storageKey, disableSelection]);
 
   const closeProject = useCallback(() => {
     setSelectedId(null);
+    setSelectedCache(null);
     storePipelineProject(storageKey, null);
   }, [storageKey]);
 
   function replaceProject(updated) {
     setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setSelectedCache((prev) => (prev && String(prev.id) === String(updated.id) ? updated : prev));
   }
 
   function markDone() {
@@ -11960,6 +12100,7 @@ function usePipelineHub(pipeline, section, onNotify) {
         replaceProject(updated);
         const to = updated[stageField];
         onNotify(to === PIPELINE_COMPLETED_STAGE ? `${from} done — ${completedMessage}.` : `${from} done — moved to ${to}.`, 'success');
+        loadProjects();
       })
       .catch((e) => { onNotify(e.message || 'Could not update stage.', 'error'); loadProjects(); })
       .finally(() => setBusy(false));
@@ -11969,24 +12110,55 @@ function usePipelineHub(pipeline, section, onNotify) {
     if (!selected || stage === selected[stageField]) return;
     setBusy(true);
     api.setStage(selected.id, stage)
-      .then((updated) => { replaceProject(updated); onNotify(`Stage changed to ${updated[stageField]}.`, 'success'); })
+      .then((updated) => { replaceProject(updated); onNotify(`Stage changed to ${updated[stageField]}.`, 'success'); loadProjects(); })
       .catch((e) => onNotify(e.message || 'Could not change stage.', 'error'))
       .finally(() => setBusy(false));
   }
 
-  return { projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage };
+  return {
+    projects,
+    loading,
+    selected,
+    busy,
+    loadProjects,
+    openProject,
+    closeProject,
+    markDone,
+    setStage,
+    stageCounts,
+    listTotal,
+    listPage,
+    setListPage,
+    setServerSearch,
+    serverScoped: Boolean(step?.stage),
+  };
 }
 
 function LiaisonPipelineHub({ section, onOpenSection, onNotify }) {
   const pipeline = LIAISON_PIPELINE;
-  const { projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage } = usePipelineHub(pipeline, section, onNotify);
+  const {
+    projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage,
+    stageCounts, setServerSearch, serverScoped,
+  } = usePipelineHub(pipeline, section, onNotify);
 
   const step = pipeline.steps.find((s) => s.key === section) || null;
   const sectionLabel = getModuleSubnavLabel(section);
 
   let content;
   if (!selected) {
-    content = <PipelineProjectTable pipeline={pipeline} projects={projects} loading={loading} stepKey={step?.key || null} onOpen={openProject} onRefresh={loadProjects} />;
+    content = (
+      <PipelineProjectTable
+        pipeline={pipeline}
+        projects={projects}
+        loading={loading}
+        stepKey={step?.key || null}
+        onOpen={openProject}
+        onRefresh={loadProjects}
+        stageCounts={stageCounts}
+        serverScoped={serverScoped}
+        onServerSearch={setServerSearch}
+      />
+    );
   } else if (!step) {
     content = <PipelineProjectOverview pipeline={pipeline} project={selected} busy={busy} onOpenStep={onOpenSection} onSetStage={setStage} />;
   } else if (step.key === 'Documents') {
@@ -12073,7 +12245,16 @@ function ProjectPipelineHub({
   onConsumeAutoOpenQuotation,
 }) {
   const pipeline = PM_PIPELINE;
-  const { projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage } = usePipelineHub(pipeline, section, onNotify);
+  const isSiteSurveySection = section === 'Project Site Survey';
+  const {
+    projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage,
+    stageCounts, setServerSearch, serverScoped,
+  } = usePipelineHub(
+    pipeline,
+    section,
+    onNotify,
+    { disableSelection: isSiteSurveySection },
+  );
   const [viewBySection, setViewBySection] = useState(() => (autoOpenQuotation ? { Quotation: 'all' } : {}));
   const [surveyViewRow, setSurveyViewRow] = useState(null);
   const [surveyEditRow, setSurveyEditRow] = useState(null);
@@ -12081,13 +12262,14 @@ function ProjectPipelineHub({
   const [surveyDeleting, setSurveyDeleting] = useState(false);
   const [hubLeadId, setHubLeadId] = useState(null);
   const [hubLeadEditId, setHubLeadEditId] = useState(null);
+  const [hubViewProjectRow, setHubViewProjectRow] = useState(null);
+  const [hubEditProject, setHubEditProject] = useState(null);
   const projectCaps = moduleCaps(loggedInUser, 'Project Management');
   const canQuotation = hasAnyModuleAccess(loggedInUser, 'Quotation');
   const projectTabItems = projectSidebarSubItems.filter((item) => (item === 'Quotation' ? canQuotation : true));
   const pipelineForBar = canQuotation
     ? pipeline
     : { ...pipeline, subItems: pipeline.subItems.filter((item) => item !== 'Quotation') };
-  const isSiteSurveySection = section === 'Project Site Survey';
 
   const step = pipeline.steps.find((s) => s.key === section) || null;
   const sectionLabel = getModuleSubnavLabel(section);
@@ -12102,14 +12284,25 @@ function ProjectPipelineHub({
   }), []);
 
   const openSurveyView = useCallback((project) => {
+    if (!project?.id) return;
     setSurveyEditRow(null);
     setSurveyViewRow(toSurveyRow(project));
   }, [toSurveyRow]);
 
   const openSurveyEdit = useCallback((project) => {
+    if (!project?.id) return;
     setSurveyViewRow(null);
     setSurveyEditRow(toSurveyRow(project));
   }, [toSurveyRow]);
+
+  // Entering Site Survey with a previously selected project → popup only (no workspace page).
+  useLayoutEffect(() => {
+    if (!isSiteSurveySection) return;
+    const storedId = readStoredPipelineProject(pipeline.storageKey);
+    if (!storedId) return;
+    openSurveyView({ id: Number(storedId) || storedId });
+    storePipelineProject(pipeline.storageKey, null);
+  }, [isSiteSurveySection, pipeline.storageKey, openSurveyView]);
 
   // A project chosen elsewhere opens inside the hub — Site Survey uses the popup, not a full page.
   const externalId = externalProject?.id;
@@ -12136,12 +12329,17 @@ function ProjectPipelineHub({
     setViewBySection((prev) => ({ ...prev, Quotation: 'all' }));
   }, [autoOpenQuotation, closeProject]);
 
-  // Site Survey full-page workspace hata di: selected project → survey popup, list pe raho.
-  useEffect(() => {
-    if (!isSiteSurveySection || !selected) return;
-    openSurveyView(selected);
-    closeProject();
-  }, [isSiteSurveySection, selected, closeProject, openSurveyView]);
+  // From Project List / pipeline bar: Site Survey opens popup in-place (no full-page navigate).
+  const navigatePipeline = useCallback((target) => {
+    if (target === 'Project Site Survey') {
+      if (selected) {
+        openSurveyView(selected);
+        onNotify?.('Site Survey opened');
+        return;
+      }
+    }
+    onOpenSection(target);
+  }, [selected, openSurveyView, onOpenSection, onNotify]);
 
   const openFromRow = (row) => openProject({ id: row.id });
   const toggleLabels = step ? ['At this stage', 'All records'] : ['Project Status', 'Full Project List'];
@@ -12162,11 +12360,47 @@ function ProjectPipelineHub({
     }
   };
 
-  const surveyTableActions = isSiteSurveySection ? {
+  const surveyTableActions = {
     onView: openSurveyView,
     onEdit: projectCaps.edit ? openSurveyEdit : null,
     onDelete: projectCaps.delete ? (project) => setSurveyDeleteTarget(project) : null,
-  } : null;
+  };
+
+  const openListView = useCallback((project) => {
+    if (!project?.id) return;
+    const leadId = project.lead ?? project.lead_id ?? null;
+    if (leadId) {
+      if (onOpenLeadDetail) onOpenLeadDetail(leadId);
+      else setHubLeadId(leadId);
+      return;
+    }
+    setHubViewProjectRow({
+      id: project.id,
+      projectName: project.project_name || project.projectName || '—',
+      projectId: project.project_id || project.projectId || '',
+      customer: project.customer_name || project.customer || '—',
+      site: project.city || '—',
+      capacity: project.capacity_kwp ?? project.capacity ?? null,
+      status: project.status || project.current_stage || '—',
+      type: project.project_type || project.type || '—',
+      mobile: project.mobile_number || project.mobile || '',
+      lead: null,
+    });
+  }, [onOpenLeadDetail]);
+
+  const openListEdit = useCallback((project) => {
+    if (!project?.id) return;
+    setHubEditProject({
+      projectId: project.id,
+      leadId: project.lead ?? project.lead_id ?? null,
+      status: project.status || project.current_stage || null,
+    });
+  }, []);
+
+  const listTableActions = {
+    onView: openListView,
+    onEdit: projectCaps.edit ? openListEdit : null,
+  };
 
   let content;
   // Site Survey never uses the full-page selected project workspace — list + popup only.
@@ -12182,6 +12416,9 @@ function ProjectPipelineHub({
           onRefresh={loadProjects}
           toolbar={viewToggle}
           surveyActions={surveyTableActions}
+          stageCounts={stageCounts}
+          serverScoped={serverScoped}
+          onServerSearch={setServerSearch}
         />
       );
     } else {
@@ -12214,6 +12451,10 @@ function ProjectPipelineHub({
         onOpen={openProject}
         onRefresh={loadProjects}
         toolbar={viewToggle}
+        listActions={listTableActions}
+        stageCounts={stageCounts}
+        serverScoped={serverScoped}
+        onServerSearch={setServerSearch}
       />
     );
   } else if (!selected) {
@@ -12264,7 +12505,7 @@ function ProjectPipelineHub({
       </>
     );
   } else if (!step) {
-    content = <PipelineProjectOverview pipeline={pipeline} project={selected} busy={busy} onOpenStep={onOpenSection} onSetStage={setStage} />;
+    content = <PipelineProjectOverview pipeline={pipeline} project={selected} busy={busy} onOpenStep={navigatePipeline} onSetStage={setStage} />;
   } else if (section === 'Quotation') {
     content = <ProjectQuotationsPanel key={selected.id} project={selected} loggedInUser={loggedInUser} onNotify={onNotify} onChanged={loadProjects} />;
   } else if (section === 'Project Material Planning') {
@@ -12276,8 +12517,27 @@ function ProjectPipelineHub({
   } else if (section === 'Project Installation') {
     content = <ProjectInstallationPanel key={selected.id} project={selected} onNotify={onNotify} onChanged={loadProjects} />;
   } else {
-    const BillingPage = section === 'Project Invoice' ? ProjectInvoicePage : ProjectSalesChallanPage;
-    content = <BillingPage key={`${section}-${selected.id}`} embedded lockedProjectId={selected.id} activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    // Site Survey selected workspace intentionally removed — never render a full page here.
+    if (section === 'Project Site Survey') {
+      content = (
+        <PipelineProjectTable
+          pipeline={pipeline}
+          projects={projects}
+          loading={loading}
+          stepKey="Project Site Survey"
+          onOpen={openSurveyView}
+          onRefresh={loadProjects}
+          toolbar={viewToggle}
+          surveyActions={surveyTableActions}
+          stageCounts={stageCounts}
+          serverScoped={serverScoped}
+          onServerSearch={setServerSearch}
+        />
+      );
+    } else {
+      const BillingPage = section === 'Project Invoice' ? ProjectInvoicePage : ProjectSalesChallanPage;
+      content = <BillingPage key={`${section}-${selected.id}`} embedded lockedProjectId={selected.id} activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    }
   }
 
   return (
@@ -12299,7 +12559,7 @@ function ProjectPipelineHub({
           project={selected}
           section={section}
           busy={busy}
-          onNext={onOpenSection}
+          onNext={navigatePipeline}
           onClose={closeProject}
           onMarkDone={markDone}
           extraActions={(
@@ -12351,8 +12611,14 @@ function ProjectPipelineHub({
           leadId={hubLeadId}
           onClose={() => setHubLeadId(null)}
           onEdit={() => {
-            setHubLeadEditId(hubLeadId);
+            const leadId = hubLeadId;
             setHubLeadId(null);
+            const match = projects.find((p) => String(p.lead ?? p.lead_id) === String(leadId));
+            if (match && projectCaps.edit) {
+              openListEdit(match);
+              return;
+            }
+            setHubLeadEditId(leadId);
           }}
           onNotify={onNotify}
         />
@@ -12366,6 +12632,29 @@ function ProjectPipelineHub({
           onSaved={() => {
             setHubLeadEditId(null);
             onNotify?.('Lead updated successfully!');
+            loadProjects();
+          }}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {hubViewProjectRow ? (
+        <ProjectListViewModal
+          row={hubViewProjectRow}
+          onClose={() => setHubViewProjectRow(null)}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {hubEditProject ? (
+        <LeadFormModal
+          mode="edit"
+          lead={hubEditProject.leadId ? { id: hubEditProject.leadId } : null}
+          projectContext={hubEditProject}
+          onClose={() => setHubEditProject(null)}
+          onSaved={() => {
+            setHubEditProject(null);
+            onNotify?.('Project updated successfully!');
             loadProjects();
           }}
           onNotify={onNotify}
@@ -14603,7 +14892,7 @@ function ProjectOverviewPage({ activeSection, onOpenSection, onNotify }) {
   useEffect(() => {
     let cancelled = false;
     setLoadingProjects(true);
-    projectApi.list({ page_size: 200 })
+    projectApi.list({ page_size: 25 })
       .then((res) => { if (!cancelled) setProjects(Array.isArray(res) ? res : res?.results ?? []); })
       .catch(() => { if (!cancelled) setProjects([]); })
       .finally(() => { if (!cancelled) setLoadingProjects(false); });
@@ -14832,7 +15121,7 @@ function ProjectKpiAnalyticsPage({ activeSection, onOpenSection, onNotify }) {
 
   useEffect(() => {
     let cancelled = false;
-    projectApi.list({ page_size: 200 })
+    projectApi.list({ page_size: 25 })
       .then((res) => { if (!cancelled) setProjects(Array.isArray(res) ? res : res?.results ?? []); })
       .catch(() => { if (!cancelled) setProjects([]); });
     return () => { cancelled = true; };
@@ -15062,223 +15351,136 @@ function buildSiteSurveyViewHtml(row, detail) {
   const totalValue = Number(d.total_value || 0);
   const totalPaid = Number(d.total_paid || 0);
 
-  const infoRow = (label, value) => `<tr><td class="k">${esc(label)}</td><td class="v">${esc(value || '-')}</td></tr>`;
-  const kvPairs = (rows) => (Array.isArray(rows) && rows.length
-    ? rows.map(([label, value]) => infoRow(label, value)).join('')
-    : '<tr><td colspan="2" class="empty">No data recorded</td></tr>');
-  const listTable = (headers, rows) => `<table class="list"><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${
-    rows.length ? rows.join('') : `<tr><td colspan="${headers.length}" class="empty">No records</td></tr>`
-  }</tbody></table>`;
+  const hasVal = (value) => value !== null && value !== undefined && String(value).trim() !== '' && String(value).trim() !== '-';
+  const infoRow = (label, value, { hideEmpty = false } = {}) => {
+    if (hideEmpty && !hasVal(value)) return '';
+    return `<tr><td class="k">${esc(label)}</td><td class="v">${esc(hasVal(value) ? value : '—')}</td></tr>`;
+  };
+  const kvPairs = (rows, { hideEmpty = true } = {}) => {
+    if (!Array.isArray(rows) || !rows.length) return '';
+    return rows.map(([label, value]) => infoRow(label, value, { hideEmpty })).join('');
+  };
+  const listTable = (headers, rows) => {
+    if (!rows.length) return '';
+    return `<table class="list"><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+  };
+  const block = (title, inner) => (inner ? `<h2 class="section-title">${title}</h2>${inner}` : '');
+  const card = (inner, cls = '') => (inner ? `<section class="${cls}"><table>${inner}</table></section>` : '');
   const surveyPhotos = Array.isArray(survey.photos) ? survey.photos : [];
   const surveyPhotoHtml = (slot, label) => {
     const photo = surveyPhotos.find((p) => p.slot === slot);
-    return photo
-      ? `<div class="photo"><p class="sub">${esc(label)}</p><img src="${esc(new URL(getMediaUrl(photo.image), window.location.origin).href)}" alt="${esc(label)}"></div>`
-      : `<p class="muted" style="margin-top:8px">${esc(label)}: not uploaded</p>`;
+    if (!photo) return '';
+    return `<div class="photo"><p class="sub">${esc(label)}</p><img src="${esc(new URL(getMediaUrl(photo.image), window.location.origin).href)}" alt="${esc(label)}"></div>`;
   };
 
-  const paymentsRows = payments.map((p) => `<tr><td>${esc(fmtDate(p.payment_date))}</td><td>${esc(inr(p.amount))}</td><td>${esc(p.payment_mode)}</td><td>${esc(p.reference || '-')}</td><td>${esc(p.created_by_name || '-')}</td></tr>`);
-  const teamRows = team.map((m) => `<tr><td>${esc(m.user_name)}</td><td>${esc(m.role_title || 'Member')}</td><td>${esc(m.access_level_display || '-')}</td><td>${esc(m.user_email || '-')}</td><td>${esc(m.user_mobile || '-')}</td></tr>`);
-  const documentsRows = documents.map((doc) => `<tr><td>${esc(doc.name)}</td><td>${esc(doc.category || '-')}</td><td>${esc(doc.uploaded_by_name || '-')}</td><td>${esc(fmtDate(doc.uploaded_at?.slice(0, 10)))}</td></tr>`);
-  const checklistRows = checklist.map((c) => `<tr><td>${esc(c.category || 'General')}</td><td>${esc(c.label)}</td><td>${c.is_checked ? 'Done' : 'Pending'}</td><td>${esc(c.notes || '-')}</td></tr>`);
+  const paymentsRows = payments.map((p) => `<tr><td>${esc(fmtDate(p.payment_date))}</td><td>${esc(inr(p.amount))}</td><td>${esc(p.payment_mode)}</td><td>${esc(p.reference || '—')}</td><td>${esc(p.created_by_name || '—')}</td></tr>`);
+  const teamRows = team.map((m) => `<tr><td>${esc(m.user_name)}</td><td>${esc(m.role_title || 'Member')}</td><td>${esc(m.access_level_display || '—')}</td><td>${esc(m.user_email || '—')}</td><td>${esc(m.user_mobile || '—')}</td></tr>`);
+  const documentsRows = documents.map((doc) => `<tr><td>${esc(doc.name)}</td><td>${esc(doc.category || '—')}</td><td>${esc(doc.uploaded_by_name || '—')}</td><td>${esc(fmtDate(doc.uploaded_at?.slice(0, 10)))}</td></tr>`);
+  const checklistRows = checklist.map((c) => `<tr><td>${esc(c.category || 'General')}</td><td>${esc(c.label)}</td><td>${c.is_checked ? 'Done' : 'Pending'}</td><td>${esc(c.notes || '—')}</td></tr>`);
   const activitiesRows = activities.map((a) => `<tr><td>${esc(a.title)}</td><td>${esc(a.activity_type)}</td><td>${esc(a.assigned_to_name || 'Unassigned')}</td><td>${esc(fmtDate(a.due_date))}</td><td>${esc(a.status)}</td></tr>`);
-  const milestonesRows = milestones.map((m) => `<tr><td>${esc(m.title)}</td><td>${esc(m.category || '-')}</td><td>${esc(fmtDate(m.start_date))}</td><td>${esc(fmtDate(m.end_date))}</td><td>${esc(m.status)}</td><td>${esc(m.progress_percent)}%</td><td>${esc(m.owner_name || 'Unassigned')}</td></tr>`);
-  const notesRows = notes.map((n) => `<tr><td>${esc(n.title || 'Untitled')}</td><td>${esc(n.content)}</td><td>${esc(n.created_by_name || '-')}</td><td>${esc(fmtDate(n.created_at?.slice(0, 10)))}</td><td>${n.is_pinned ? 'Yes' : 'No'}</td></tr>`);
+  const milestonesRows = milestones.map((m) => `<tr><td>${esc(m.title)}</td><td>${esc(m.category || '—')}</td><td>${esc(fmtDate(m.start_date))}</td><td>${esc(fmtDate(m.end_date))}</td><td>${esc(m.status)}</td><td>${esc(m.progress_percent)}%</td><td>${esc(m.owner_name || 'Unassigned')}</td></tr>`);
+  const notesRows = notes.map((n) => `<tr><td>${esc(n.title || 'Untitled')}</td><td>${esc(n.content)}</td><td>${esc(n.created_by_name || '—')}</td><td>${esc(fmtDate(n.created_at?.slice(0, 10)))}</td><td>${n.is_pinned ? 'Yes' : 'No'}</td></tr>`);
+
+  const siteDetailsHtml = kvPairs(survey.site_details);
+  const roofDetailsHtml = kvPairs(survey.roof_details);
+  const electricalDetailsHtml = kvPairs(survey.electrical_details);
+  const systemHasData = hasVal(d.system_type) || hasVal(cfg.inverter_brand) || hasVal(cfg.panel_brand) || hasVal(cfg.panel_count) || hasVal(cfg.protection_devices) || hasVal(cfg.notes);
+  const financeHasData = totalValue > 0 || totalPaid > 0 || payments.length > 0;
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(row.projectName)} — Site Survey</title>
   <style>
     *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;}
-    body{margin:0;padding:28px;color:#1e3261;}
-    .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #11a650;padding-bottom:14px;margin-bottom:18px;}
-    .brand{font-size:22px;font-weight:800;color:#11a650;}
-    .brand small{display:block;font-size:11px;color:#53647f;font-weight:700;letter-spacing:.08em;}
-    h1{font-size:18px;margin:0 0 2px;}
-    .muted{color:#53647f;font-size:12px;}
-    h2.section-title{font-size:14px;margin:26px 0 10px;color:#0b65e5;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e7eef7;padding-bottom:6px;}
+    body{margin:0;padding:12px 14px;color:#1e3261;font-size:11px;line-height:1.25;}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:2px solid #11a650;padding-bottom:8px;margin-bottom:8px;}
+    .brand{font-size:16px;font-weight:800;color:#11a650;line-height:1.15;}
+    .brand small{display:block;font-size:9px;color:#53647f;font-weight:700;letter-spacing:.06em;margin-top:1px;}
+    h1{font-size:14px;margin:0 0 1px;line-height:1.2;}
+    .muted{color:#53647f;font-size:10px;}
+    h2.section-title{font-size:10px;margin:10px 0 4px;color:#0b65e5;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #dbe5f2;padding-bottom:2px;}
     h2.section-title:first-of-type{margin-top:0;}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
-    section{border:1px solid #e7eef7;border-radius:10px;padding:14px 16px;}
-    table{width:100%;border-collapse:collapse;font-size:12px;}
-    td.k{color:#53647f;font-weight:700;padding:4px 8px 4px 0;width:46%;}
-    td.v{font-weight:800;padding:4px 0;}
-    table.list td,table.list th{border-bottom:1px solid #eef2f8;padding:6px 8px;text-align:left;font-size:11.5px;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;}
+    section{border:1px solid #e1e8f2;border-radius:6px;padding:6px 8px;background:#fff;}
+    table{width:100%;border-collapse:collapse;font-size:10.5px;}
+    td.k{color:#53647f;font-weight:700;padding:1px 6px 1px 0;width:42%;vertical-align:top;}
+    td.v{font-weight:800;padding:1px 0;vertical-align:top;}
+    table.list td,table.list th{border-bottom:1px solid #eef2f8;padding:3px 5px;text-align:left;font-size:10px;}
     table.list th{color:#53647f;font-weight:800;background:#f7faff;}
-    .empty{color:#8a98af;text-align:center;}
     .full{grid-column:1 / -1;}
-    .sub{font-size:12px;margin:0 0 8px;color:#53647f;font-weight:800;}
-    .photo{margin-top:10px;}
-    .photo img{display:block;width:180px;height:180px;object-fit:cover;border:1px solid #e7eef7;border-radius:8px;}
-    .foot{margin-top:26px;font-size:11px;color:#8a98af;text-align:center;border-top:1px solid #e7eef7;padding-top:12px;}
-    @media print{body{padding:14px;} section{break-inside:avoid;}}
+    .sub{font-size:10px;margin:0 0 3px;color:#53647f;font-weight:800;}
+    .photo{margin-top:4px;}
+    .photo img{display:block;width:88px;height:88px;object-fit:cover;border:1px solid #e7eef7;border-radius:4px;}
+    .photos{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+    .foot{margin-top:10px;font-size:9px;color:#8a98af;text-align:center;border-top:1px solid #e7eef7;padding-top:6px;}
+    @media print{
+      @page{margin:8mm;}
+      body{padding:0;}
+      section,.grid,.grid-3{break-inside:avoid;}
+      h2.section-title{break-after:avoid;}
+      .photo img{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    }
   </style></head><body>
   <div class="head">
     <div><div class="brand">${esc(organizationDisplayName())}<small>CRM SYSTEM — SITE SURVEY REPORT</small></div></div>
-    <div style="text-align:right"><h1>${esc(row.projectName)}</h1><div class="muted">${esc(row.projectId || d.project_id || '')} • Survey ${esc(survey.survey_id || '-')}</div><div class="muted">Generated: ${esc(new Date().toLocaleString('en-IN'))}</div></div>
+    <div style="text-align:right"><h1>${esc(row.projectName)}</h1><div class="muted">${esc(row.projectId || d.project_id || '')} · Survey ${esc(survey.survey_id || '—')} · ${esc(new Date().toLocaleString('en-IN'))}</div></div>
   </div>
 
-  <h2 class="section-title">Overview</h2>
-  <div class="grid">
-    <section><table>
-      ${infoRow('Customer', row.customer || d.customer_name)}
-      ${infoRow('Site', row.site || d.site)}
-      ${infoRow('Status', d.status)}
-      ${infoRow('Project Type', d.project_type)}
-      ${infoRow('Capacity (kWp)', d.capacity_kwp)}
-      ${infoRow('Progress', `${d.progress_percent || 0}%`)}
-    </table></section>
-    <section><table>
-      ${infoRow('Survey Status', survey.status)}
-      ${infoRow('Survey Date', fmtDate(survey.survey_date))}
-      ${infoRow('Surveyed By', survey.surveyed_by_name)}
-      ${infoRow('Feasibility', survey.feasibility)}
-      ${infoRow('Meter No.', d.meter_number)}
-      ${infoRow('Size', d.site_size)}
-    </table></section>
-  </div>
+  ${block('Overview', `<div class="grid">
+    ${card(`${infoRow('Customer', row.customer || d.customer_name)}${infoRow('Site', row.site || d.site)}${infoRow('Status', d.status)}${infoRow('Project Type', d.project_type)}${infoRow('Capacity (kWp)', d.capacity_kwp)}${infoRow('Progress', `${d.progress_percent || 0}%`)}`)}
+    ${card(`${infoRow('Survey Status', survey.status)}${infoRow('Survey Date', fmtDate(survey.survey_date))}${infoRow('Surveyed By', survey.surveyed_by_name)}${infoRow('Feasibility', survey.feasibility)}${infoRow('Meter No.', d.meter_number)}${infoRow('Size', d.site_size)}`)}
+  </div>`)}
 
-  <h2 class="section-title">Customer &amp; Site</h2>
-  <div class="grid">
-    <section><table>
-      ${infoRow('Customer Name', d.customer_name)}
-      ${infoRow('Site', d.site)}
-      ${infoRow('Site Address', d.site_address)}
-      ${infoRow('City / State', [d.city, d.state].filter(Boolean).join(', '))}
-      ${infoRow('Meter No.', d.meter_number)}
-      ${infoRow('Size', d.site_size)}
-    </table></section>
-    <section><table>${kvPairs(survey.site_details)}</table></section>
-  </div>
+  ${block('Customer &amp; Site', `<div class="grid">
+    ${card(`${infoRow('Customer Name', d.customer_name)}${infoRow('Site', d.site)}${infoRow('Site Address', d.site_address)}${infoRow('City / State', [d.city, d.state].filter(Boolean).join(', '))}${infoRow('Meter No.', d.meter_number)}${infoRow('Size', d.site_size)}`)}
+    ${siteDetailsHtml ? card(siteDetailsHtml) : ''}
+  </div>`)}
 
-  <h2 class="section-title">Project Details</h2>
-  <div class="grid">
-    <section><table>
-      ${infoRow('Category', survey.project_category)}
-      ${infoRow('Capacity Required (kW)', survey.capacity_required_kw)}
-      ${infoRow('Project Type', survey.purpose)}
-      ${infoRow('Sanction Load (kW)', survey.sanction_load_kw)}
-      ${infoRow('Tariff Category', survey.tariff_category)}
-      ${infoRow('Avg Monthly Bill', survey.average_monthly_bill)}
-    </table></section>
-    <section><table>
-      ${infoRow('IVRS', survey.ivrs_number)}
-      ${infoRow('Alternate Mobile', survey.alternate_mobile)}
-      ${infoRow('Email', survey.email_id)}
-      ${infoRow('Types of Meters', survey.meter_location)}
-      ${infoRow('Main Supply From', survey.main_supply_from)}
-      ${infoRow('Supply Voltage', survey.supply_voltage)}
-    </table></section>
-  </div>
+  ${block('Project Details', `<div class="grid">
+    ${card(`${infoRow('Category', survey.project_category)}${infoRow('Capacity Required (kW)', survey.capacity_required_kw)}${infoRow('Project Type', survey.purpose)}${infoRow('Sanction Load (kW)', survey.sanction_load_kw)}${infoRow('Tariff Category', survey.tariff_category)}${infoRow('Avg Monthly Bill', survey.average_monthly_bill)}`)}
+    ${card(`${infoRow('IVRS', survey.ivrs_number)}${infoRow('Alternate Mobile', survey.alternate_mobile)}${infoRow('Email', survey.email_id)}${infoRow('Types of Meters', survey.meter_location)}${infoRow('Main Supply From', survey.main_supply_from)}${infoRow('Supply Voltage', survey.supply_voltage)}`)}
+  </div>`)}
 
-  <h2 class="section-title">Roof &amp; Electrical</h2>
-  <div class="grid">
-    <section><table>
-      ${infoRow('Building Type', survey.building_type)}
-      ${infoRow('Floor Count', survey.floor_count)}
-      ${infoRow('Roof Type', survey.roof_type)}
-      ${infoRow('Roof Condition', survey.roof_condition)}
-      ${infoRow('Roof Direction', survey.roof_direction)}
-      ${infoRow('Roof Tilt', survey.roof_tilt_angle)}
-      ${(survey.roof_stats || []).map((s) => infoRow(s.label, s.value)).join('')}
-    </table></section>
-    <section><table>
-      ${infoRow('Structure Type', survey.structure_type)}
-      ${infoRow('Front / Back Leg (ft)', [survey.front_leg_height_ft, survey.back_leg_height_ft].filter(Boolean).join(' / '))}
-      ${infoRow('Main DB Location', survey.main_db_location)}
-      ${infoRow('Termination Point', survey.last_termination_point)}
-      ${infoRow('LA Wire Length (m)', survey.la_wire_length_m)}
-      ${kvPairs(survey.roof_details)}
-    </table></section>
+  ${block('Roof &amp; Electrical', `<div class="grid">
+    ${card(`${infoRow('Building Type', survey.building_type)}${infoRow('Floor Count', survey.floor_count)}${infoRow('Roof Type', survey.roof_type)}${infoRow('Roof Condition', survey.roof_condition)}${infoRow('Roof Direction', survey.roof_direction)}${infoRow('Roof Tilt', survey.roof_tilt_angle)}${(survey.roof_stats || []).map((s) => infoRow(s.label, s.value)).join('')}`)}
+    ${card(`${infoRow('Structure Type', survey.structure_type)}${infoRow('Front / Back Leg (ft)', [survey.front_leg_height_ft, survey.back_leg_height_ft].filter(Boolean).join(' / '))}${infoRow('Main DB Location', survey.main_db_location)}${infoRow('Termination Point', survey.last_termination_point)}${infoRow('LA Wire Length (m)', survey.la_wire_length_m)}${roofDetailsHtml}`)}
   </div>
-  <section class="full"><p class="sub">Shadow Analysis</p><table>
-    ${infoRow('Morning', [survey.shadow_morning_from, survey.shadow_morning_to, survey.shadow_morning_percent].filter(Boolean).join(' → ') || '-')}
-    ${infoRow('Afternoon', [survey.shadow_afternoon_from, survey.shadow_afternoon_to, survey.shadow_afternoon_percent].filter(Boolean).join(' → ') || '-')}
-    ${infoRow('Evening', [survey.shadow_evening_from, survey.shadow_evening_to, survey.shadow_evening_percent].filter(Boolean).join(' → ') || '-')}
-    ${infoRow('Remarks', survey.shadow_analysis_remarks)}
-  </table></section>
-  <section class="full"><p class="sub">Electrical Details</p><table>${kvPairs(survey.electrical_details)}</table></section>
-  <section class="full"><p class="sub">Cable &amp; Conduit</p><table>
-    ${infoRow('AC Cable Length (m)', survey.ac_cable_length_approx)}
-    ${infoRow('DC Cable Length (m)', survey.dc_cable_length_approx)}
-    ${infoRow('Conduit Length (m)', survey.conduit_length_approx)}
-    ${infoRow('Conduit Route', survey.conduit_route_description)}
-  </table></section>
-  <section class="full"><table>
-    ${infoRow('Decision maker', survey.customer_confirmation_name)}
-    ${infoRow('Customer Mobile Number', survey.customer_confirmation_mobile || survey.mobile_number)}
-  </table></section>
+  <div class="grid" style="margin-top:6px">
+    ${card(`<tr><td colspan="2" class="sub" style="padding:0 0 2px">Shadow Analysis</td></tr>${infoRow('Morning', [survey.shadow_morning_from, survey.shadow_morning_to, survey.shadow_morning_percent].filter(Boolean).join(' → '))}${infoRow('Afternoon', [survey.shadow_afternoon_from, survey.shadow_afternoon_to, survey.shadow_afternoon_percent].filter(Boolean).join(' → '))}${infoRow('Evening', [survey.shadow_evening_from, survey.shadow_evening_to, survey.shadow_evening_percent].filter(Boolean).join(' → '))}${infoRow('Remarks', survey.shadow_analysis_remarks, { hideEmpty: true })}`)}
+    ${card(`<tr><td colspan="2" class="sub" style="padding:0 0 2px">Cable &amp; Conduit</td></tr>${infoRow('AC Cable (m)', survey.ac_cable_length_approx)}${infoRow('DC Cable (m)', survey.dc_cable_length_approx)}${infoRow('Conduit (m)', survey.conduit_length_approx)}${infoRow('Route', survey.conduit_route_description, { hideEmpty: true })}`)}
+  </div>
+  ${electricalDetailsHtml ? card(`<tr><td colspan="2" class="sub" style="padding:0 0 2px">Electrical Details</td></tr>${electricalDetailsHtml}`, 'full') : ''}
+  ${card(`${infoRow('Decision maker', survey.customer_confirmation_name)}${infoRow('Customer Mobile', survey.customer_confirmation_mobile || survey.mobile_number)}`, 'full')}`)}
 
-  <h2 class="section-title">Panel, Inverter &amp; Meter</h2>
-  <div class="grid">
-    <section><p class="sub">Panel Details</p><table>
-      ${infoRow('Brand', survey.panel_brand)}
-      ${infoRow('Type', survey.panel_type)}
-      ${infoRow('Wattage', survey.panel_wattage_w ? `${survey.panel_wattage_w} W` : '')}
-      ${infoRow('No. of Panels', survey.panel_count)}
-      ${infoRow('Total DC Capacity', Number(survey.panel_wattage_w) > 0 && Number(survey.panel_count) > 0 ? `${((Number(survey.panel_wattage_w) * Number(survey.panel_count)) / 1000).toFixed(2)} kWp` : '')}
-    </table>${surveyPhotoHtml(SURVEY_PANEL_PHOTO_SLOT, 'Panel Placement Photo')}</section>
-    <section><p class="sub">Inverter Details</p><table>
-      ${infoRow('Brand', survey.inverter_brand)}
-      ${infoRow('Type', survey.inverter_type)}
-      ${infoRow('Capacity', survey.inverter_capacity_kw ? `${survey.inverter_capacity_kw} kW` : '')}
-      ${infoRow('No. of Inverters', survey.inverter_quantity)}
-      ${infoRow('Placement / Mounting', [survey.inverter_placement, survey.inverter_mounting].filter(Boolean).join(' / '))}
-    </table>${surveyPhotoHtml(SURVEY_INVERTER_PHOTO_SLOT, 'Inverter Location Photo')}</section>
-    <section class="full"><p class="sub">Meter Details</p><table>
-      ${infoRow('Meter Number', survey.meter_number || d.meter_number)}
-      ${infoRow('Types of Meters', survey.meter_location)}
-      ${infoRow('Meter Capacity', survey.meter_capacity)}
-      ${infoRow('Existing MCB', survey.existing_mcb)}
-      ${infoRow('Main DB Location', survey.main_db_location)}
+  ${block('Panel, Inverter &amp; Meter', `<div class="grid-3">
+    <section><p class="sub">Panel</p><table>
+      ${infoRow('Brand', survey.panel_brand)}${infoRow('Type', survey.panel_type)}${infoRow('Wattage', survey.panel_wattage_w ? `${survey.panel_wattage_w} W` : '')}${infoRow('No. of Panels', survey.panel_count)}${infoRow('DC Capacity', Number(survey.panel_wattage_w) > 0 && Number(survey.panel_count) > 0 ? `${((Number(survey.panel_wattage_w) * Number(survey.panel_count)) / 1000).toFixed(2)} kWp` : '')}
+    </table>${surveyPhotoHtml(SURVEY_PANEL_PHOTO_SLOT, 'Panel Photo')}</section>
+    <section><p class="sub">Inverter</p><table>
+      ${infoRow('Brand', survey.inverter_brand)}${infoRow('Type', survey.inverter_type)}${infoRow('Capacity', survey.inverter_capacity_kw ? `${survey.inverter_capacity_kw} kW` : '')}${infoRow('Qty', survey.inverter_quantity)}${infoRow('Place / Mount', [survey.inverter_placement, survey.inverter_mounting].filter(Boolean).join(' / '))}
+    </table>${surveyPhotoHtml(SURVEY_INVERTER_PHOTO_SLOT, 'Inverter Photo')}</section>
+    <section><p class="sub">Meter</p><table>
+      ${infoRow('Meter No.', survey.meter_number || d.meter_number)}${infoRow('Types of Meters', survey.meter_location)}${infoRow('Capacity', survey.meter_capacity)}${infoRow('Existing MCB', survey.existing_mcb)}${infoRow('Main DB', survey.main_db_location)}
     </table>${surveyPhotoHtml(SURVEY_METER_PHOTO_SLOT, 'Meter Photo')}</section>
-  </div>
+  </div>`)}
 
-  <h2 class="section-title">System Details</h2>
-  <div class="grid">
-    <section><table>
-      ${infoRow('System Type', d.system_type)}
-      ${infoRow('Inverter', [cfg.inverter_brand, cfg.inverter_model].filter(Boolean).join(' '))}
-      ${infoRow('Inverter Capacity', cfg.inverter_capacity_kw ? `${cfg.inverter_capacity_kw} kW` : '')}
-      ${infoRow('String Count', cfg.string_count)}
-    </table></section>
-    <section><table>
-      ${infoRow('Panel', [cfg.panel_brand, cfg.panel_model].filter(Boolean).join(' '))}
-      ${infoRow('Panel Wattage', cfg.panel_wattage_w ? `${cfg.panel_wattage_w} W` : '')}
-      ${infoRow('Panel Count', cfg.panel_count)}
-      ${infoRow('Total DC Capacity', cfg.panel_wattage_w && cfg.panel_count ? `${((cfg.panel_wattage_w * cfg.panel_count) / 1000).toFixed(2)} kWp` : '')}
-    </table></section>
-  </div>
-  <section class="full"><table>${infoRow('Protection Devices', cfg.protection_devices)}${infoRow('Notes', cfg.notes)}</table></section>
+  ${systemHasData ? block('System Details', `<div class="grid">
+    ${card(`${infoRow('System Type', d.system_type)}${infoRow('Inverter', [cfg.inverter_brand, cfg.inverter_model].filter(Boolean).join(' '))}${infoRow('Inverter Capacity', cfg.inverter_capacity_kw ? `${cfg.inverter_capacity_kw} kW` : '')}${infoRow('String Count', cfg.string_count)}`)}
+    ${card(`${infoRow('Panel', [cfg.panel_brand, cfg.panel_model].filter(Boolean).join(' '))}${infoRow('Panel Wattage', cfg.panel_wattage_w ? `${cfg.panel_wattage_w} W` : '')}${infoRow('Panel Count', cfg.panel_count)}${infoRow('DC Capacity', cfg.panel_wattage_w && cfg.panel_count ? `${((cfg.panel_wattage_w * cfg.panel_count) / 1000).toFixed(2)} kWp` : '')}`)}
+  </div>${(hasVal(cfg.protection_devices) || hasVal(cfg.notes)) ? card(`${infoRow('Protection Devices', cfg.protection_devices, { hideEmpty: true })}${infoRow('Notes', cfg.notes, { hideEmpty: true })}`, 'full') : ''}`) : ''}
 
-  <h2 class="section-title">Financials</h2>
-  <div class="grid">
-    <section><table>
-      ${infoRow('Total Value', inr(totalValue))}
-      ${infoRow('Amount Received', inr(totalPaid))}
-      ${infoRow('Net Balance', inr(totalValue - totalPaid))}
-    </table></section>
-    <section><table>${infoRow('Payments Recorded', payments.length)}</table></section>
-  </div>
-  <section class="full"><p class="sub">Payments</p>${listTable(['Date', 'Amount', 'Mode', 'Reference', 'By'], paymentsRows)}</section>
+  ${financeHasData ? block('Financials', `<div class="grid">
+    ${card(`${infoRow('Total Value', inr(totalValue))}${infoRow('Amount Received', inr(totalPaid))}${infoRow('Net Balance', inr(totalValue - totalPaid))}`)}
+    ${card(`${infoRow('Payments Recorded', payments.length)}`)}
+  </div>${paymentsRows.length ? `<section class="full"><p class="sub">Payments</p>${listTable(['Date', 'Amount', 'Mode', 'Reference', 'By'], paymentsRows)}</section>` : ''}`) : ''}
 
-  <h2 class="section-title">Progress</h2>
-  <section class="full">${listTable(['Task / Milestone', 'Category', 'Start', 'End', 'Status', 'Progress', 'Owner'], milestonesRows)}</section>
+  ${milestonesRows.length ? block('Progress', `<section class="full">${listTable(['Task / Milestone', 'Category', 'Start', 'End', 'Status', 'Progress', 'Owner'], milestonesRows)}</section>`) : ''}
+  ${teamRows.length ? block('Team', `<section class="full">${listTable(['Name', 'Role', 'Access Level', 'Email', 'Phone'], teamRows)}</section>`) : ''}
+  ${documentsRows.length ? block('Documents', `<section class="full">${listTable(['Name', 'Category', 'Uploaded By', 'Uploaded On'], documentsRows)}</section>`) : ''}
+  ${checklistRows.length ? block('Checklist', `<section class="full">${listTable(['Category', 'Item', 'Status', 'Notes'], checklistRows)}</section>`) : ''}
+  ${activitiesRows.length ? block('Activities', `<section class="full">${listTable(['Title', 'Type', 'Assigned To', 'Due Date', 'Status'], activitiesRows)}</section>`) : ''}
+  ${notesRows.length ? block('Notes', `<section class="full">${listTable(['Title', 'Content', 'By', 'Date', 'Pinned'], notesRows)}</section>`) : ''}
 
-  <h2 class="section-title">Team</h2>
-  <section class="full">${listTable(['Name', 'Role', 'Access Level', 'Email', 'Phone'], teamRows)}</section>
-
-  <h2 class="section-title">Documents</h2>
-  <section class="full">${listTable(['Name', 'Category', 'Uploaded By', 'Uploaded On'], documentsRows)}</section>
-
-  <h2 class="section-title">Checklist</h2>
-  <section class="full">${listTable(['Category', 'Item', 'Status', 'Notes'], checklistRows)}</section>
-
-  <h2 class="section-title">Activities</h2>
-  <section class="full">${listTable(['Title', 'Type', 'Assigned To', 'Due Date', 'Status'], activitiesRows)}</section>
-
-  <h2 class="section-title">Notes</h2>
-  <section class="full">${listTable(['Title', 'Content', 'By', 'Date', 'Pinned'], notesRows)}</section>
-
-  <div class="foot">This document is system-generated by ${esc(organizationDisplayName())} CRM.</div>
+  <div class="foot">System-generated by ${esc(organizationDisplayName())} CRM</div>
   </body></html>`;
 }
 
@@ -15419,6 +15621,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const [activePage, setActivePage] = useState(1);
   const [projectPageSize, setProjectPageSize] = usePageSize(activeSection === 'Project Site Survey' ? 'project-survey-list' : 'project-list');
   const [projectRows, setProjectRows] = useState([]);
+  const [projectTotal, setProjectTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editProject, setEditProject] = useState(null);
@@ -15434,23 +15637,48 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   const deferredQuery = useDeferredValue(query);
   const formattedRange = formatProjectDateRange(dateFrom, dateTo);
 
+  const isSiteSurveyPicker = activeSection === 'Project Site Survey';
+  const deferredStatus = useDeferredValue(statusFilter);
+  const deferredStage = useDeferredValue(stageFilter);
+
+  useEffect(() => {
+    setActivePage(1);
+  }, [deferredQuery, deferredStatus, deferredStage, projectTypeFilter, managerFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo, projectPageSize]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    projectApi.list({ page_size: 200 })
+    const params = listParams({
+      page: activePage,
+      page_size: projectPageSize || LIST_PAGE_SIZE,
+      won_only: 1,
+      search: deferredQuery || undefined,
+      status: (!isSiteSurveyPicker && deferredStatus !== 'All') ? deferredStatus : undefined,
+      pm_stage: (!isSiteSurveyPicker && deferredStage !== 'All') ? deferredStage : undefined,
+      project_type: projectTypeFilter !== 'All' ? projectTypeFilter : undefined,
+    });
+    projectApi.list(params)
       .then((data) => {
         if (cancelled) return;
-        const list = Array.isArray(data) ? data : data?.results ?? [];
-        // Project List sirf un projects ko dikhata hai jinka linked lead "Won" hai
-        const wonOnly = list.filter((p) => p.lead_status === 'Won');
-        setProjectRows(wonOnly.map(projectRowFromApi));
+        const pageData = parseListPage(data, { page: activePage, pageSize: projectPageSize || LIST_PAGE_SIZE });
+        // Prefer server won_only=1; keep client guard if older API ignores the param.
+        const wonRows = pageData.results.filter((p) => !p.lead_status || p.lead_status === 'Won');
+        setProjectRows(wonRows.map(projectRowFromApi));
+        setProjectTotal(pageData.count);
       })
-      .catch(() => { if (!cancelled) setProjectRows([]); })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectRows([]);
+          setProjectTotal(0);
+        }
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [refreshKey]);
+  }, [
+    refreshKey, activePage, projectPageSize, deferredQuery, deferredStatus, deferredStage,
+    projectTypeFilter, isSiteSurveyPicker,
+  ]);
 
-  const isSiteSurveyPicker = activeSection === 'Project Site Survey';
 
   // Survey stat cards (Total / Pending / In Progress / Completed) — previously
   // their own "Survey Dashboard" tab, now merged into the Site Survey page.
@@ -15575,13 +15803,11 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     return counts;
   }, [projectRows]);
 
+  // Secondary filters still applied client-side on the current server page
+  // (manager name / surveyed-by / feasibility / date). Primary filters are server-side.
   const filteredRows = useMemo(() => {
-    const normalizedQuery = deferredQuery.trim().toLowerCase();
     return projectRows.filter((row) => {
-      if (normalizedQuery) {
-        const haystack = [row.projectName, row.projectId, row.customer, row.site, row.manager.name, row.ivrs, row.mobile, row.surveyedBy].join(' ').toLowerCase();
-        if (!haystack.includes(normalizedQuery)) return false;
-      }
+      if (managerFilter !== 'All' && row.manager.name !== managerFilter) return false;
       if (isSiteSurveyPicker) {
         if (statusFilter !== 'All') {
           const surveyStatus = row.surveyStatus || 'Not Started';
@@ -15589,25 +15815,16 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         }
         if (surveyedByFilter !== 'All' && (row.surveyedBy || 'Unassigned') !== surveyedByFilter) return false;
         if (feasibilityFilter !== 'All' && (row.surveyFeasibility || 'Pending') !== feasibilityFilter) return false;
-        if (managerFilter !== 'All' && row.manager.name !== managerFilter) return false;
-      } else {
-        if (projectTypeFilter !== 'All' && (row.type || '') !== projectTypeFilter) return false;
-        if (statusFilter !== 'All' && row.status !== statusFilter) return false;
-        if (managerFilter !== 'All' && row.manager.name !== managerFilter) return false;
-        if (stageFilter !== 'All' && row.pmStage !== stageFilter) return false;
       }
       if (dateFrom && row.startDate && row.startDate < dateFrom) return false;
       if (dateTo && row.startDate && row.startDate > dateTo) return false;
       return true;
     });
-  }, [deferredQuery, projectRows, statusFilter, managerFilter, projectTypeFilter, surveyedByFilter, feasibilityFilter, stageFilter, dateFrom, dateTo, isSiteSurveyPicker]);
+  }, [projectRows, managerFilter, statusFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo, isSiteSurveyPicker]);
 
-  const totalProjectPages = Math.max(1, Math.ceil(filteredRows.length / projectPageSize));
-  const safeProjectPage = Math.min(activePage, totalProjectPages);
-  const pagedProjectRows = filteredRows.slice((safeProjectPage - 1) * projectPageSize, safeProjectPage * projectPageSize);
+  const safeProjectPage = Math.max(1, activePage);
+  const pagedProjectRows = filteredRows;
   const pmStageOptions = ['All', ...PM_STAGE_NAMES, PIPELINE_COMPLETED_STAGE];
-
-  useEffect(() => { setActivePage(1); }, [deferredQuery, statusFilter, managerFilter, projectTypeFilter, surveyedByFilter, feasibilityFilter, stageFilter, dateFrom, dateTo]);
 
   const exportProjects = () => {
     if (loading) {
@@ -16061,7 +16278,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         </div>
 
         <TablePagination
-          total={filteredRows.length}
+          total={projectTotal || filteredRows.length}
           page={safeProjectPage}
           pageSize={projectPageSize}
           onPageChange={setActivePage}
@@ -16217,11 +16434,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
   );
 }
 
-// Site Survey list ke "View" action ka read-only quick-look popup — sirf survey-relevant
-// essentials (Survey Snapshot, Customer & Site, Roof & Electrical), Lead/Quotation view popup
-// jaisa compact. Pura project data (Financials/Progress/Team/Documents/Checklist/Activities/Notes)
-// "View Full Project" se full hub page par dekha ja sakta hai; Print abhi bhi poora report nikalta
-// hai (buildSiteSurveyViewHtml unchanged — record-keeping ke liye full detail).
+// Site Survey list / project hub ke "View" action — full Site Survey form read-only popup mein.
+// Edit Survey same full form ko editable mode mein kholta hai (SiteSurveyEditModal).
 function ProjectStageProgressCell({ progress, projectLabel, variant = 'table' }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const p = progress || {};
@@ -16541,37 +16755,61 @@ function ProjectListViewModal({ row, onClose, onNotify }) {
 
 function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject, onEdit = null, inline = false }) {
   const [detail, setDetail] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     projectApi.get(row.id)
       .then((data) => { if (!cancelled) setDetail(data); })
-      .catch((err) => { if (!cancelled) onNotify(err?.message || 'Failed to load site survey details'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .catch(() => { /* print can retry later */ });
     return () => { cancelled = true; };
   }, [row.id]);
 
-  const handlePrint = () => {
-    const win = window.open('', '_blank');
-    if (!win) { onNotify('Allow pop-ups to print this document'); return; }
-    win.document.write(buildSiteSurveyViewHtml(row, detail));
-    win.document.close();
-    win.focus();
-    win.onload = () => { win.print(); };
-    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 600);
-  };
+  const handlePrint = useCallback(async () => {
+    setPrinting(true);
+    try {
+      let data = detail;
+      if (!data) {
+        data = await projectApi.get(row.id);
+        setDetail(data);
+      }
+      const win = window.open('', '_blank');
+      if (!win) { onNotify?.('Allow pop-ups to print this document'); return; }
+      win.document.write(buildSiteSurveyViewHtml(row, data));
+      win.document.close();
+      win.focus();
+      win.onload = () => { win.print(); };
+      setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 600);
+    } catch (err) {
+      onNotify?.(err?.message || 'Failed to load site survey for print', 'error');
+    } finally {
+      setPrinting(false);
+    }
+  }, [detail, row, onNotify]);
 
-  const d = detail || {};
-  const survey = d.site_survey || {};
-  const surveyPhotoBySlot = Object.fromEntries((survey.photos || []).map((photo) => [photo.slot, photo]));
-  const surveyDcKwp = (() => {
-    const watt = Number(survey.panel_wattage_w);
-    const count = Number(survey.panel_count);
-    return watt > 0 && count > 0 ? Math.round((watt * count) / 10) / 100 : 0;
-  })();
-  const feasibilityTone = survey.feasibility === 'Feasible' ? 'green' : survey.feasibility === 'Not Feasible' ? 'red' : survey.feasibility ? 'amber' : 'slate';
+  const footer = useMemo(() => (
+    <div className="flex flex-col-reverse gap-3 border-t border-[#8fa0b8] px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+      {inline ? null : (
+        <button type="button" onClick={onClose} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">Close</button>
+      )}
+      {onEdit ? (
+        <button type="button" onClick={onEdit} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#0d9f4a] bg-white px-5 text-[13px] font-extrabold text-[#0d9f4a] transition hover:bg-[#f3fbf6]">
+          <Pencil className="size-4" />
+          Edit Survey
+        </button>
+      ) : null}
+      {onViewFullProject ? (
+        <button type="button" onClick={onViewFullProject} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
+          <FolderKanban className="size-4" />
+          View Full Project
+        </button>
+      ) : null}
+      <button type="button" disabled={printing} onClick={handlePrint} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#078c3e] disabled:cursor-not-allowed disabled:opacity-60">
+        <Printer className="size-4" />
+        {printing ? 'Preparing...' : 'Print'}
+      </button>
+    </div>
+  ), [inline, onClose, onEdit, onViewFullProject, printing, handlePrint]);
 
   return (
     <div
@@ -16580,207 +16818,15 @@ function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject, onEdit
     >
       <div className={inline
         ? `${panelClass} flex w-full flex-col overflow-hidden`
-        : 'flex max-h-[92vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_36px_80px_rgba(11,18,38,0.32)]'}
+        : 'flex max-h-[92vh] w-full max-w-[960px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_36px_80px_rgba(11,18,38,0.32)]'}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-[#e7eef7] px-5 py-4 sm:px-6">
-          <div className="flex items-start gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-[#dff7e8] text-[#0d9f4a]"><ClipboardPlus className="size-5" /></span>
-            <div className="min-w-0">
-              <h2 className="font-display text-[18px] font-extrabold leading-tight text-[#06135a] sm:text-[20px]">{row.projectName}</h2>
-              <p className="mt-1 text-[12px] font-bold text-[#53647f]">{row.projectId || d.project_id} • Survey {survey.survey_id || 'Not yet created'} • {row.customer}</p>
-            </div>
-          </div>
-          {inline ? null : (
-            <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-[8px] text-[#7585a2] transition hover:bg-[#f1f5fa]" aria-label="Close site survey details">
-              <X className="size-5" />
-            </button>
-          )}
-        </div>
-
-        <div className={cx('flex-1 px-5 py-5 sm:px-6', !inline && 'overflow-y-auto')}>
-          {loading ? (
-            <PageLoadingState message="Loading site survey details..." />
-          ) : (
-            <div className="space-y-5">
-              <ProjectInfoCard title="Survey Snapshot" icon={Home} tone="blue">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <InfoCell label="Project Status" valueNode={<ProjectPhaseBadge label={d.status} />} />
-                  <InfoCell label="Survey Status" value={survey.status || 'Draft'} />
-                  <InfoCell label="Survey ID" value={survey.survey_id || '—'} />
-                  <InfoCell label="Survey Date" value={survey.survey_date ? formatProjectDisplayDate(survey.survey_date) : '—'} />
-                  <InfoCell label="Surveyed By" value={survey.surveyed_by_name || 'Unassigned'} />
-                  <InfoCell label="Feasibility" valueNode={<ProjectInfoPill tone={feasibilityTone}>{survey.feasibility || 'Pending'}</ProjectInfoPill>} />
-                  <InfoCell label="Manager" value={d.manager_detail?.name || 'Unassigned'} />
-                  <InfoCell label="Site Engineer" value={d.site_engineer_detail?.name || 'Unassigned'} />
-                </div>
-              </ProjectInfoCard>
-
-              <ProjectInfoCard title="Customer & Site" icon={MapPin} tone="blue">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <InfoCell label="Customer Name" value={d.customer_name || '—'} />
-                  <InfoCell label="Site" value={d.site || '—'} />
-                  <InfoCell label="Meter No." value={d.meter_number || '—'} />
-                  <InfoCell label="Size" value={d.site_size || '—'} />
-                  <InfoCell label="City" value={d.city || '—'} />
-                  <InfoCell label="State" value={d.state || '—'} />
-                </div>
-                <div className="mt-4 border-t border-[#edf2f8] pt-4">
-                  <InfoCell label="Site Address" value={d.site_address || '—'} large />
-                </div>
-                {survey.site_details?.length ? (
-                  <div className="mt-4 border-t border-[#edf2f8] pt-4">
-                    <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Site Condition Details</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {survey.site_details.map(([label, value]) => (
-                        <div key={label} className="grid gap-1 text-[13px] sm:grid-cols-[160px_1fr]">
-                          <span className="font-bold text-[#53647f]">{label}</span>
-                          <span className="font-extrabold text-[#1e3261]">{value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                {survey.summary_notes ? (
-                  <div className="mt-4 border-t border-[#edf2f8] pt-4">
-                    <p className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Survey Summary</p>
-                    <p className="text-[13px] font-bold leading-6 text-[#314a79]">{survey.summary_notes}</p>
-                  </div>
-                ) : null}
-              </ProjectInfoCard>
-
-              <ProjectInfoCard title="Roof & Electrical" icon={Zap} tone="amber">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <InfoCell label="Building Type" value={survey.building_type || '—'} />
-                  <InfoCell label="Floor Count" value={survey.floor_count || '—'} />
-                  <InfoCell label="Roof Type" value={survey.roof_type || '—'} />
-                  {(survey.roof_stats || []).map((stat) => (
-                    <InfoCell key={stat.label} label={stat.label} value={stat.value ?? '—'} />
-                  ))}
-                </div>
-                <div className="mt-5 grid gap-4 border-t border-[#edf2f8] pt-4 sm:grid-cols-2">
-                  <div>
-                    <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Roof Measurements</p>
-                    <div className="space-y-2">
-                      {(survey.roof_details || []).length ? survey.roof_details.map(([label, value]) => (
-                        <div key={label} className="grid gap-1 text-[13px] sm:grid-cols-[150px_1fr]">
-                          <span className="font-bold text-[#53647f]">{label}</span>
-                          <span className="font-extrabold text-[#1e3261]">{value}</span>
-                        </div>
-                      )) : <p className="text-[13px] font-bold text-[#8a98af]">No roof details recorded yet.</p>}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Electrical Details</p>
-                    <div className="space-y-2">
-                      {(survey.electrical_details || []).length ? survey.electrical_details.map(([label, value]) => (
-                        <div key={label} className="grid gap-1 text-[13px] sm:grid-cols-[150px_1fr]">
-                          <span className="font-bold text-[#53647f]">{label}</span>
-                          <span className="font-extrabold text-[#1e3261]">{value}</span>
-                        </div>
-                      )) : <p className="text-[13px] font-bold text-[#8a98af]">No electrical details recorded yet.</p>}
-                    </div>
-                  </div>
-                </div>
-              </ProjectInfoCard>
-
-              <ProjectInfoCard title="Panel, Inverter & Meter" icon={Sun} tone="green">
-                <div className="space-y-5">
-                  {[
-                    {
-                      key: 'panel',
-                      title: 'Panel Details',
-                      slot: SURVEY_PANEL_PHOTO_SLOT,
-                      photoLabel: 'Panel Placement Photo',
-                      cells: [
-                        ['Brand', survey.panel_brand],
-                        ['Type', survey.panel_type],
-                        ['Wattage', survey.panel_wattage_w ? `${survey.panel_wattage_w} W` : ''],
-                        ['No. of Panels', survey.panel_count],
-                        ['Total DC Capacity', surveyDcKwp ? `${surveyDcKwp} kWp` : ''],
-                      ],
-                    },
-                    {
-                      key: 'inverter',
-                      title: 'Inverter Details',
-                      slot: SURVEY_INVERTER_PHOTO_SLOT,
-                      photoLabel: 'Inverter Location Photo',
-                      cells: [
-                        ['Brand', survey.inverter_brand],
-                        ['Type', survey.inverter_type],
-                        ['Capacity', survey.inverter_capacity_kw ? `${survey.inverter_capacity_kw} kW` : ''],
-                        ['No. of Inverters', survey.inverter_quantity],
-                        ['Placement', survey.inverter_placement],
-                        ['Mounting', survey.inverter_mounting],
-                      ],
-                    },
-                    {
-                      key: 'meter',
-                      title: 'Meter Details',
-                      slot: SURVEY_METER_PHOTO_SLOT,
-                      photoLabel: 'Meter Photo',
-                      cells: [
-                        ['Meter Number', survey.meter_number || d.meter_number],
-                        ['Types of Meters', survey.meter_location],
-                        ['Meter Capacity', survey.meter_capacity],
-                        ['Existing MCB', survey.existing_mcb],
-                        ['Main DB Location', survey.main_db_location],
-                      ],
-                    },
-                  ].map((group, index) => {
-                    const photo = surveyPhotoBySlot[group.slot];
-                    return (
-                      <div key={group.key} className={cx('grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]', index > 0 && 'border-t border-[#edf2f8] pt-5')}>
-                        <div className="min-w-0">
-                          <p className="mb-3 text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">{group.title}</p>
-                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {group.cells.map(([label, value]) => (
-                              <InfoCell key={label} label={label} value={value || '—'} />
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="mb-2 truncate text-[11px] font-extrabold text-[#34466c]">{group.photoLabel}</p>
-                          {photo ? (
-                            <a href={getMediaUrl(photo.image)} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden rounded-[10px] border border-[#d9e4f2] bg-[#f4f7fb]">
-                              <img src={getMediaUrl(photo.image)} alt={group.photoLabel} className="h-full w-full object-cover" />
-                            </a>
-                          ) : (
-                            <div className="grid aspect-square place-items-center rounded-[10px] border border-dashed border-[#c9d6e8] bg-[#f8fbff] px-3 text-center text-[11px] font-bold text-[#8a98af]">
-                              No photo uploaded
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ProjectInfoCard>
-
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col-reverse gap-3 border-t border-[#e7eef7] px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
-          {inline ? null : (
-            <button type="button" onClick={onClose} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">Close</button>
-          )}
-          {onEdit ? (
-            <button type="button" onClick={onEdit} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#0d9f4a] transition hover:bg-[#f3fbf6]">
-              <Pencil className="size-4" />
-              Edit Survey
-            </button>
-          ) : null}
-          {onViewFullProject ? (
-            <button type="button" onClick={onViewFullProject} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#f8fbff]">
-              <FolderKanban className="size-4" />
-              View Full Project
-            </button>
-          ) : null}
-          <button type="button" disabled={loading} onClick={handlePrint} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-6 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#078c3e] disabled:cursor-not-allowed disabled:opacity-60">
-            <Printer className="size-4" />
-            Print
-          </button>
-        </div>
+        <SiteSurveyFullForm
+          projectId={row.id}
+          onClose={onClose}
+          onNotify={onNotify}
+          readOnly
+          footer={footer}
+        />
       </div>
     </div>
   );
@@ -17102,7 +17148,7 @@ function SurveyCheckbox({ label, checked, onChange }) {
   );
 }
 
-function SurveyPhotoSlot({ label, required = false, photo, uploading, onUpload, onDelete, onView }) {
+function SurveyPhotoSlot({ label, required = false, photo, uploading, onUpload, onDelete, onView, readOnly = false }) {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
@@ -17118,7 +17164,7 @@ function SurveyPhotoSlot({ label, required = false, photo, uploading, onUpload, 
       <div className="relative mt-2 aspect-square overflow-hidden rounded-[8px] bg-[#f4f7fb]">
         {photo ? (
           <>
-            <img src={getMediaUrl(photo.image)} alt={label} className="h-full w-full object-cover" />
+            <img src={getMediaUrl(photo.image)} alt={label} loading="lazy" decoding="async" className="h-full w-full object-cover" />
             <button
               type="button"
               onClick={onView}
@@ -17137,27 +17183,33 @@ function SurveyPhotoSlot({ label, required = false, photo, uploading, onUpload, 
         <p className="mt-1.5 flex items-center justify-center gap-1 text-[10px] font-extrabold text-[#0d9f4a]">
           <CheckCircle2 className="size-3" /> Uploaded
         </p>
+      ) : readOnly ? (
+        <p className="mt-1.5 text-center text-[10px] font-bold text-[#8a98af]">No photo</p>
       ) : null}
-      <div className="mt-2 grid grid-cols-2 gap-1.5">
-        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
-          <Upload className="size-3" /> Upload
-        </button>
-        <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
-          <Camera className="size-3" /> Camera
-        </button>
-      </div>
-      {photo ? (
-        <button type="button" onClick={onDelete} className="mt-1.5 flex w-full items-center justify-center gap-1 text-[10px] font-bold text-[#e2594c] hover:underline">
-          <Trash2 className="size-3" /> Remove
-        </button>
-      ) : null}
-      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+      {readOnly ? null : (
+        <>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+              <Upload className="size-3" /> Upload
+            </button>
+            <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+              <Camera className="size-3" /> Camera
+            </button>
+          </div>
+          {photo ? (
+            <button type="button" onClick={onDelete} className="mt-1.5 flex w-full items-center justify-center gap-1 text-[10px] font-bold text-[#e2594c] hover:underline">
+              <Trash2 className="size-3" /> Remove
+            </button>
+          ) : null}
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+        </>
+      )}
     </div>
   );
 }
 
-function SurveyVideoSlot({ label, doc, uploading, onUpload, onDelete, onView }) {
+function SurveyVideoSlot({ label, doc, uploading, onUpload, onDelete, onView, readOnly = false }) {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
@@ -17198,28 +17250,32 @@ function SurveyVideoSlot({ label, doc, uploading, onUpload, onDelete, onView }) 
           <CheckCircle2 className="size-3" /> Uploaded
         </p>
       ) : (
-        <p className="mt-1.5 text-center text-[10px] font-bold text-[#8a98af]">{uploading ? 'Please wait' : 'Max 2 min · auto compressed'}</p>
+        <p className="mt-1.5 text-center text-[10px] font-bold text-[#8a98af]">{readOnly ? 'No video' : (uploading ? 'Please wait' : 'Max 2 min · auto compressed')}</p>
       )}
-      <div className="mt-2 grid grid-cols-2 gap-1.5">
-        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
-          <Upload className="size-3" /> Upload
-        </button>
-        <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
-          <Camera className="size-3" /> Camera
-        </button>
-      </div>
-      {doc ? (
-        <button type="button" onClick={onDelete} className="mt-1.5 flex w-full items-center justify-center gap-1 text-[10px] font-bold text-[#e2594c] hover:underline">
-          <Trash2 className="size-3" /> Remove
-        </button>
-      ) : null}
-      <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
-      <input ref={cameraInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+      {readOnly ? null : (
+        <>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+              <Upload className="size-3" /> Upload
+            </button>
+            <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={uploading} className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+              <Camera className="size-3" /> Camera
+            </button>
+          </div>
+          {doc ? (
+            <button type="button" onClick={onDelete} className="mt-1.5 flex w-full items-center justify-center gap-1 text-[10px] font-bold text-[#e2594c] hover:underline">
+              <Trash2 className="size-3" /> Remove
+            </button>
+          ) : null}
+          <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+          <input ref={cameraInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+        </>
+      )}
     </div>
   );
 }
 
-function SurveyDocSlot({ label, doc, uploading, onUpload, onDelete, onView }) {
+function SurveyDocSlot({ label, doc, uploading, onUpload, onDelete, onView, readOnly = false }) {
   const fileInputRef = useRef(null);
   const isImage = isImageFileName(doc?.name || doc?.file);
   const isVideo = isSurveyVideoFile(doc?.name || doc?.file);
@@ -17232,7 +17288,7 @@ function SurveyDocSlot({ label, doc, uploading, onUpload, onDelete, onView }) {
       </div>
       <div className="relative mt-2 aspect-square overflow-hidden rounded-[8px] bg-[#f4f7fb]">
         {doc && isImage ? (
-          <img src={getMediaUrl(doc.file)} alt={label} className="h-full w-full object-cover" />
+          <img src={getMediaUrl(doc.file)} alt={label} loading="lazy" decoding="async" className="h-full w-full object-cover" />
         ) : doc ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 text-[#5f7396]">
             {isVideo ? <Play className="size-7" /> : <FileText className="size-7" />}
@@ -17253,22 +17309,28 @@ function SurveyDocSlot({ label, doc, uploading, onUpload, onDelete, onView }) {
           </button>
         ) : null}
       </div>
-      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
-        <Upload className="size-3" /> {uploading ? 'Uploading...' : 'Upload'}
-      </button>
-      {doc ? (
-        <button type="button" onClick={onDelete} className="mt-1.5 flex w-full items-center justify-center gap-1 text-[10px] font-bold text-[#e2594c] hover:underline">
-          <Trash2 className="size-3" /> Remove
-        </button>
-      ) : null}
-      <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.mp4,.mov" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+      {readOnly ? (
+        doc ? null : <p className="mt-2 text-center text-[10px] font-bold text-[#8a98af]">No document</p>
+      ) : (
+        <>
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1 rounded-[6px] border border-[#d9e4f2] bg-white text-[11px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60">
+            <Upload className="size-3" /> {uploading ? 'Uploading...' : 'Upload'}
+          </button>
+          {doc ? (
+            <button type="button" onClick={onDelete} className="mt-1.5 flex w-full items-center justify-center gap-1 text-[10px] font-bold text-[#e2594c] hover:underline">
+              <Trash2 className="size-3" /> Remove
+            </button>
+          ) : null}
+          <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.mp4,.mov" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
+        </>
+      )}
     </div>
   );
 }
 
-function SurveyMultiPhotoGroup({ title, slots, visibleCount, onAdd, getPhoto, uploadingSlot, onUpload, onDelete, onView }) {
+function SurveyMultiPhotoGroup({ title, slots, visibleCount, onAdd, getPhoto, uploadingSlot, onUpload, onDelete, onView, readOnly = false }) {
   const shownSlots = slots.slice(0, visibleCount);
-  const canAddMore = visibleCount < slots.length;
+  const canAddMore = !readOnly && visibleCount < slots.length;
 
   return (
     <div className="rounded-[12px] border border-[#8fa0b8] bg-[#fbfcff] p-3">
@@ -17283,6 +17345,7 @@ function SurveyMultiPhotoGroup({ title, slots, visibleCount, onAdd, getPhoto, up
               label={`${title} ${index + 1}`}
               photo={getPhoto(slot)}
               uploading={uploadingSlot === slot}
+              readOnly={readOnly}
               onUpload={(file) => onUpload(slot, file)}
               onDelete={() => {
                 const photo = getPhoto(slot);
@@ -17312,7 +17375,7 @@ function SurveyMultiPhotoGroup({ title, slots, visibleCount, onAdd, getPhoto, up
   );
 }
 
-function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
+function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, footer = null }) {
   const [loading, setLoading] = useState(true);
   const [survey, setSurvey] = useState(null);
   const [form, setForm] = useState(SURVEY_EMPTY_FORM);
@@ -17331,6 +17394,9 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
   const dirtyRef = useRef(false);
   const skipDirtyRef = useRef(true);
   const formScrollRef = useRef(null);
+  const formRef = useRef(form);
+
+  useEffect(() => { formRef.current = form; }, [form]);
 
   useEffect(() => {
     getEmployeeOptions().then(setEmployeeOptions);
@@ -17349,15 +17415,23 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
 
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
   useEffect(() => {
+    if (readOnly) {
+      setUnsavedWork('site-survey', false);
+      return undefined;
+    }
     setUnsavedWork('site-survey', dirty);
     return () => setUnsavedWork('site-survey', false);
-  }, [dirty]);
+  }, [dirty, readOnly]);
 
+  const surveyPhotoSig = Array.isArray(survey?.photos)
+    ? survey.photos.map((photo) => `${photo.id}:${photo.slot || ''}`).join('|')
+    : '';
   useEffect(() => {
     if (!survey?.photos) return;
     setConduitingVisibleCount((current) => Math.max(current, getMultiPhotoVisibleCount(SURVEY_CONDUITING_PHOTO_SLOTS, survey.photos)));
     setSiteDrawingVisibleCount((current) => Math.max(current, getMultiPhotoVisibleCount(SURVEY_SITE_DRAWING_PHOTO_SLOTS, survey.photos)));
-  }, [survey?.id, survey?.photos]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: photo id/slot signature, not array identity
+  }, [survey?.id, surveyPhotoSig]);
 
   useEffect(() => {
     const filled = SURVEY_ADDITIONAL_DOC_SLOTS.filter((slot) => additionalDocuments.some((doc) => doc.category === slot || (slot === 'Document 1' && doc.category === 'Other Documents'))).length;
@@ -17509,6 +17583,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
   }, [projectId]);
 
   const updateField = (key, value) => {
+    if (readOnly) return;
     setForm((f) => ({ ...f, [key]: value }));
     setDirty(true);
     setFieldErrors((prev) => {
@@ -17561,13 +17636,23 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
   });
 
   const handleSave = useCallback(async (nextStatus) => {
-    if (!String(form.ivrs_number || '').trim()) {
+    if (readOnly) return null;
+    const current = formRef.current || SURVEY_EMPTY_FORM;
+    if (!String(current.ivrs_number || '').trim()) {
       onNotify?.('IVRS Number is required.', 'error');
       return null;
     }
     setSaving(true);
     try {
-      const payload = buildPayload();
+      const payload = {
+        ...current,
+        survey_date: current.survey_date || null,
+        surveyed_by: current.surveyed_by || null,
+        email_id: current.email_id || '',
+        customer_confirmation_date: current.customer_confirmation_date || null,
+        survey_engineer_date: current.survey_engineer_date || null,
+        material_checklist: Array.isArray(current.material_checklist) ? current.material_checklist : [],
+      };
       if (nextStatus) payload.status = nextStatus;
       const saved = await projectApi.saveSiteSurvey(projectId, payload);
       setSurvey((prev) => ({ ...prev, ...saved }));
@@ -17580,18 +17665,18 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
     } finally {
       setSaving(false);
     }
-     
-  }, [projectId, form]);
+  }, [projectId, onNotify, readOnly]);
 
-  // Auto-save draft every 30s while there are unsaved changes.
+  // Auto-save draft every 30s while editing — never in read-only View modal.
   useEffect(() => {
+    if (readOnly) return undefined;
     const timer = window.setInterval(() => {
-      if (dirtyRef.current && form.status !== 'Completed') {
+      if (dirtyRef.current && formRef.current?.status !== 'Completed') {
         handleSave().then((saved) => { if (saved) onNotify?.('Draft auto-saved'); });
       }
     }, 30000);
     return () => window.clearInterval(timer);
-  }, [handleSave, form.status, onNotify]);
+  }, [handleSave, onNotify, readOnly]);
 
   const handleSaveDraft = async () => {
     const saved = await handleSave();
@@ -17788,18 +17873,21 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
     <>
       <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
         <div>
-          <h2 className="font-display text-[18px] font-extrabold text-[#111827]">Site Survey</h2>
-          <p className="mt-0.5 text-[12px] font-bold text-[#7386a3]">{survey?.project_name || '—'} · {survey?.customer_name || '—'}</p>
+          <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{readOnly ? 'Site Survey Details' : 'Site Survey'}</h2>
+          <p className="mt-0.5 text-[12px] font-bold text-[#7386a3]">{survey?.project_name || '—'} · {survey?.customer_name || '—'}{survey?.survey_id ? ` · ${survey.survey_id}` : ''}</p>
         </div>
         <div className="flex items-center gap-3">
-          {dirty ? <span className="text-[11px] font-bold text-[#b45309]">Unsaved changes</span> : null}
+          {!readOnly && dirty ? <span className="text-[11px] font-bold text-[#b45309]">Unsaved changes</span> : null}
           <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
         </div>
       </div>
 
       <div ref={formScrollRef} className="scroll-soft min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] p-4 sm:p-6">
-        <div className="space-y-4">
-          {completionAlert ? (
+        <div className={cx(
+          'min-w-0 space-y-4',
+          readOnly && '[&_input:not([type=hidden])]:pointer-events-none [&_input:not([type=hidden])]:bg-[#f4f7fb] [&_select]:pointer-events-none [&_select]:bg-[#f4f7fb] [&_textarea]:pointer-events-none [&_textarea]:bg-[#f4f7fb]',
+        )}>
+          {completionAlert && !readOnly ? (
             <div className="rounded-[10px] border border-[#f5c2c0] bg-[#fdecec] px-4 py-3 text-[13px] font-extrabold text-[#c0392b]">
               {completionAlert}
             </div>
@@ -17861,16 +17949,18 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               className={cx('rounded-[10px] border bg-[#f8fafc] p-3', fieldErrors.gps ? 'border-[#f04438] ring-2 ring-[#fdecec]' : 'border-[#e7eef7]')}
             >
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className={cx('text-[12px] font-extrabold', fieldErrors.gps ? 'text-[#f04438]' : 'text-[#34466c]')}>GPS Location <span className="text-[#f04438]">*</span></span>
-                <button
-                  type="button"
-                  onClick={handleCaptureLocation}
-                  disabled={locating}
-                  className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
-                >
-                  <Crosshair className="size-3.5" />
-                  {locating ? 'Capturing...' : 'Capture Current Location'}
-                </button>
+                <span className={cx('text-[12px] font-extrabold', fieldErrors.gps ? 'text-[#f04438]' : 'text-[#34466c]')}>GPS Location {readOnly ? null : <span className="text-[#f04438]">*</span>}</span>
+                {readOnly ? null : (
+                  <button
+                    type="button"
+                    onClick={handleCaptureLocation}
+                    disabled={locating}
+                    className="inline-flex items-center gap-1.5 rounded-[7px] border border-[#d9e4f2] bg-white px-2.5 py-1.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-60"
+                  >
+                    <Crosshair className="size-3.5" />
+                    {locating ? 'Capturing...' : 'Capture Current Location'}
+                  </button>
+                )}
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <SurveyField label="Latitude" required>
@@ -17979,6 +18069,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   required={required}
                   photo={getPhoto(slot)}
                   uploading={uploadingSlot === slot}
+                  readOnly={readOnly}
                   onUpload={(file) => handlePhotoUpload(slot, file)}
                   onDelete={() => handlePhotoDelete(getPhoto(slot).id)}
                   onView={() => openPhotoPreview(getPhoto(slot), slot)}
@@ -17996,6 +18087,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               onUpload={handlePhotoUpload}
               onDelete={handlePhotoDelete}
               onView={openPhotoPreview}
+              readOnly={readOnly}
             />
             <SurveyMultiPhotoGroup
               title="Site Drawing"
@@ -18007,8 +18099,9 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
               onUpload={handlePhotoUpload}
               onDelete={handlePhotoDelete}
               onView={openPhotoPreview}
+              readOnly={readOnly}
             />
-            {!survey?.id ? <p className="mt-2 text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
+            {!readOnly && !survey?.id ? <p className="mt-2 text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
           </SurveySection>
 
           <SurveySection number={5} title="Panel Details">
@@ -18042,6 +18135,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   label="Panel Placement Photo"
                   photo={getPhoto(SURVEY_PANEL_PHOTO_SLOT)}
                   uploading={uploadingSlot === SURVEY_PANEL_PHOTO_SLOT}
+                  readOnly={readOnly}
                   onUpload={(file) => handlePhotoUpload(SURVEY_PANEL_PHOTO_SLOT, file)}
                   onDelete={() => handlePhotoDelete(getPhoto(SURVEY_PANEL_PHOTO_SLOT).id)}
                   onView={() => openPhotoPreview(getPhoto(SURVEY_PANEL_PHOTO_SLOT), 'Panel Placement Photo')}
@@ -18094,6 +18188,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   label="Inverter Location Photo"
                   photo={getPhoto(SURVEY_INVERTER_PHOTO_SLOT)}
                   uploading={uploadingSlot === SURVEY_INVERTER_PHOTO_SLOT}
+                  readOnly={readOnly}
                   onUpload={(file) => handlePhotoUpload(SURVEY_INVERTER_PHOTO_SLOT, file)}
                   onDelete={() => handlePhotoDelete(getPhoto(SURVEY_INVERTER_PHOTO_SLOT).id)}
                   onView={() => openPhotoPreview(getPhoto(SURVEY_INVERTER_PHOTO_SLOT), 'Inverter Location Photo')}
@@ -18132,6 +18227,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   label="Meter Photo"
                   photo={getPhoto(SURVEY_METER_PHOTO_SLOT)}
                   uploading={uploadingSlot === SURVEY_METER_PHOTO_SLOT}
+                  readOnly={readOnly}
                   onUpload={(file) => handlePhotoUpload(SURVEY_METER_PHOTO_SLOT, file)}
                   onDelete={() => handlePhotoDelete(getPhoto(SURVEY_METER_PHOTO_SLOT).id)}
                   onView={() => openPhotoPreview(getPhoto(SURVEY_METER_PHOTO_SLOT), 'Meter Photo')}
@@ -18141,7 +18237,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
             <SurveyField label="Meter Remarks">
               <textarea value={form.meter_remarks} onChange={(e) => updateField('meter_remarks', e.target.value)} rows={2} className="w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 py-2 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-blue-500" />
             </SurveyField>
-            {!survey?.id ? <p className="text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
+            {!readOnly && !survey?.id ? <p className="text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
           </SurveySection>
 
           <SurveySection number={8} title="Shadow Analysis">
@@ -18221,13 +18317,14 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                   label={category}
                   doc={getDocByCategory(category)}
                   uploading={uploadingSlot === category}
+                  readOnly={readOnly}
                   onUpload={(file) => handleCategoryFileUpload(category, file, { videoOnly: true })}
                   onDelete={() => handleCategoryFileDelete(getDocByCategory(category)?.id)}
                   onView={() => openDocPreview(getDocByCategory(category), category)}
                 />
               ))}
             </div>
-            {!survey?.id ? <p className="text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable video uploads.</p> : null}
+            {!readOnly && !survey?.id ? <p className="text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable video uploads.</p> : null}
           </SurveySection>
 
           <SurveySection number={11} title="Cable & Conduit Route">
@@ -18301,12 +18398,13 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
                     label={`Document ${index + 1}`}
                     doc={getDocByCategory(slot)}
                     uploading={uploadingSlot === slot}
+                    readOnly={readOnly}
                     onUpload={(file) => handleCategoryFileUpload(slot, file)}
                     onDelete={() => handleCategoryFileDelete(getDocByCategory(slot)?.id)}
                     onView={() => openDocPreview(getDocByCategory(slot), `Document ${index + 1}`)}
                   />
                 ))}
-                {documentVisibleCount < SURVEY_ADDITIONAL_DOC_SLOTS.length ? (
+                {!readOnly && documentVisibleCount < SURVEY_ADDITIONAL_DOC_SLOTS.length ? (
                   <button
                     type="button"
                     onClick={() => setDocumentVisibleCount((count) => Math.min(SURVEY_ADDITIONAL_DOC_SLOTS.length, count + 1))}
@@ -18366,23 +18464,29 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify }) {
         </div>
       </div>
 
-      <div className="flex flex-col justify-end gap-3 border-t border-[#8fa0b8] px-6 py-4 sm:flex-row">
-        <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
-          Cancel
-        </button>
-        <button type="button" onClick={handleSaveDraft} disabled={saving} className="h-11 rounded-[8px] border border-[#0b65e5] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#edf5ff] disabled:opacity-60">
-          {saving ? 'Saving...' : 'Save Draft'}
-        </button>
-        <button
-          type="button"
-          onClick={handleComplete}
-          disabled={saving}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60"
-        >
-          <Save className="size-4" />
-          Complete Survey
-        </button>
-      </div>
+      {footer !== null ? footer : (
+        <div className="flex flex-col justify-end gap-3 border-t border-[#8fa0b8] px-6 py-4 sm:flex-row">
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b] transition hover:bg-[#f8fbff]">
+            {readOnly ? 'Close' : 'Cancel'}
+          </button>
+          {readOnly ? null : (
+            <>
+              <button type="button" onClick={handleSaveDraft} disabled={saving} className="h-11 rounded-[8px] border border-[#0b65e5] bg-white px-5 text-[13px] font-extrabold text-[#0b65e5] transition hover:bg-[#edf5ff] disabled:opacity-60">
+                {saving ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button
+                type="button"
+                onClick={handleComplete}
+                disabled={saving}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10a64e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition hover:bg-[#0e9145] disabled:opacity-60"
+              >
+                <Save className="size-4" />
+                Complete Survey
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {mediaPreview ? (
         <SurveyMediaPreview
           title={mediaPreview.title}
@@ -23389,7 +23493,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
 
   const reloadPlans = useCallback(async () => {
     try {
-      const planData = await materialPlanApi.list({ page_size: 200 });
+      const planData = await materialPlanApi.list({ page_size: 25 });
       const map = {};
       normalizeApiRows(planData).forEach((row) => {
         const key = row.project;
@@ -23407,7 +23511,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
     let cancelled = false;
     setLoading(true);
     // Load projects first so a material-plan API failure never blanks the Won list.
-    projectApi.list({ page_size: 200 })
+    projectApi.list({ page_size: 25 })
       .then((projData) => {
         if (cancelled) return;
         const list = normalizeApiRows(projData).filter((p) => p.lead_status === 'Won');
@@ -23423,7 +23527,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
         if (!cancelled) setLoading(false);
       });
 
-    materialPlanApi.list({ page_size: 200 })
+    materialPlanApi.list({ page_size: 25 })
       .then((planData) => {
         if (cancelled) return;
         const map = {};
@@ -23797,8 +23901,8 @@ function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onP
     setLoadingRows(true);
     try {
       const [planData, itemsData] = await Promise.all([
-        materialPlanApi.list({ project: proj.id, page_size: 200 }),
-        inventoryApi.items.list({ page_size: 200 }),
+        materialPlanApi.list({ project: proj.id, page_size: 25 }),
+        inventoryApi.items.list({ page_size: 25 }),
       ]);
       setRows(normalizeApiRows(planData));
       setInventoryItems(normalizeApiRows(itemsData));
@@ -24395,7 +24499,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
     if (allProjects.length > 0) return;
     setLoadingProjects(true);
     try {
-      const d = await projectApi.list({ page_size: 200 });
+      const d = await projectApi.list({ page_size: 25 });
       setAllProjects(normalizeApiRows(d));
     } catch { /* ignore */ }
     finally { setLoadingProjects(false); }
@@ -24911,8 +25015,8 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
     return m[ext] || '#64748b';
   };
 
-  const modalBackdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
-  const modalBox = 'w-full max-w-lg rounded-[16px] bg-white p-6 shadow-2xl';
+  const modalBackdrop = 'crm-anim-window fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+  const modalBox = 'crm-anim-window w-full max-w-lg rounded-[16px] bg-white p-6 shadow-2xl';
   const modalHeader = (title, onClose) => (
     <div className="mb-4 flex items-center justify-between">
       <h2 className="text-[17px] font-extrabold text-[#1e2a38]">{title}</h2>
@@ -25317,8 +25421,8 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
   const iCls = 'h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none';
   const taCls = 'w-full rounded-[8px] border border-[#d9e2ec] bg-white px-3 py-2 text-[13px] text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none resize-none';
   const lCls = 'block text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6] mb-1';
-  const modalBackdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
-  const modalBox = 'w-full max-w-lg rounded-[16px] bg-white shadow-2xl flex flex-col max-h-[90vh]';
+  const modalBackdrop = 'crm-anim-window fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+  const modalBox = 'crm-anim-window w-full max-w-lg rounded-[16px] bg-white shadow-2xl flex flex-col max-h-[90vh]';
   const modalHeader = (title, onClose) => (
     <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#f1f5f9] shrink-0">
       <h2 className="text-[17px] font-extrabold text-[#1e2a38]">{title}</h2>
@@ -26524,7 +26628,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify, presetProj
   // ── Load projects on mount ──
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
-    try { const d = await projectApi.list({ page_size: 200 }); setAllProjects(normalizeApiRows(d)); } catch {}
+    try { const d = await projectApi.list({ page_size: 25 }); setAllProjects(normalizeApiRows(d)); } catch {}
     finally { setLoadingProjects(false); }
   }, []);
 
@@ -26536,7 +26640,7 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify, presetProj
     setLoadingRows(true);
     try {
       const [listData, stats] = await Promise.all([
-        subsidyApi.list({ project: proj.id, page_size: 200 }),
+        subsidyApi.list({ project: proj.id, page_size: 25 }),
         subsidyApi.dashboard({ project: proj.id }),
       ]);
       setRows(normalizeApiRows(listData));
@@ -29557,7 +29661,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
   const loadEmployees = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const data = await workforceApi.listEmployees({ page_size: 200 });
+      const data = await workforceApi.listEmployees({ page_size: 25 });
       setEmployees(normalizeApiRows(data));
     } catch {
       onNotify('Failed to load employees');
@@ -31881,7 +31985,13 @@ function ConfirmDeleteModal({ message, onConfirm, onCancel, loading = false }) {
 }
 
 function UserActionButton({ label, icon: Icon, tone, onClick }) {
-  const toneClass = tone === 'red' ? 'border-[#ffd5d5] bg-[#fff8f8] text-[#ef4444]' : 'border-[#d9e4f2] bg-white text-[#0b65e5]';
+  const toneClass = tone === 'red'
+    ? 'border-[#ffd5d5] bg-[#fff8f8] text-[#ef4444]'
+    : tone === 'green'
+      ? 'border-[#cfeedd] bg-[#f3fbf6] text-[#0d9f4a]'
+      : tone === 'slate'
+        ? 'border-[#d9e4f2] bg-white text-[#53647f]'
+        : 'border-[#d9e4f2] bg-white text-[#0b65e5]';
   return (
     <button type="button" onClick={onClick} aria-label={label} className={cx('inline-flex size-8 items-center justify-center rounded-[8px] transition hover:-translate-y-0.5', toneClass)}>
       <Icon className="size-4" />
@@ -32155,7 +32265,7 @@ function ReportsPage({ onOpenSection, onNotify }) {
   const [incentiveReportOpen, setIncentiveReportOpen] = useState(false);
 
   useEffect(() => {
-    userApi.list({ page_size: 200 })
+    userApi.list({ page_size: 25 })
       .then((data) => {
         const names = [...new Set(normalizeApiRows(data).map((user) => user.name).filter(Boolean))];
         setAssigneeOptions(['All', ...names]);
@@ -35671,7 +35781,7 @@ function QuotationLeadPickerModal({ onClose, onSelect, onNotify }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    leadApi.list({ page_size: 200 })
+    leadApi.list({ page_size: 25 })
       .then((data) => setLeads(normalizeApiRows(data)))
       .catch(() => {
         setLeads([]);
@@ -35942,7 +36052,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
 
   const loadQuotations = useCallback(() => {
     setLoading(true);
-    return quotationApi.listAll({ page_size: 200 })
+    return quotationApi.listAll({ page_size: 25 })
       .then((data) => setQuotations(normalizeApiRows(data)))
       .catch(() => {
         setQuotations([]);
@@ -36347,7 +36457,7 @@ function ProjectQuotationsPanel({ project, loggedInUser, onNotify, onChanged }) 
     }
     let cancelled = false;
     setLoading(true);
-    quotationApi.listAll({ lead: leadId, page_size: 200 })
+    quotationApi.listAll({ lead: leadId, page_size: 25 })
       .then((data) => {
         if (cancelled) return;
         const rows = normalizeApiRows(data).slice().sort((a, b) => (
@@ -38460,17 +38570,19 @@ function DashboardFooter() {
 
 function StatCard({ stat, onClick }) {
   const Icon = stat.icon;
+  const { motionDuration, scales } = useAnimationScale();
+  const animOff = (scales?.animator ?? 0.5) <= 0;
 
   return (
     <motion.button
       type="button"
       onClick={onClick}
-      whileHover={{ y: -3 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.15, ease: 'easeOut' }}
+      whileHover={animOff ? undefined : { y: -3 }}
+      whileTap={animOff ? undefined : { scale: 0.98 }}
+      transition={{ duration: motionDuration(0.15, 'animator'), ease: 'easeOut' }}
       className={cx(
         panelClass,
-        'flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center transition-shadow duration-200',
+        'crm-anim-animator flex min-w-0 flex-1 flex-col items-center gap-1 px-1.5 py-2 text-center transition-shadow duration-200',
         'md:w-full md:flex-none md:items-stretch md:gap-2 md:px-3 md:py-3 md:text-left md:hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]',
       )}
     >

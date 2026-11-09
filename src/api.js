@@ -1,3 +1,5 @@
+import { maybeSimulateNetwork, recordApiCall } from './developer/services/apiInspector.js';
+
 // Dev: default `/api/v1` goes through Vite proxy → backend (works on LAN Network URL).
 // Prod: VITE_API_URL is required. If a Hostinger zip is built without it, fall back
 // to the live API so CRM lists do not go empty.
@@ -48,8 +50,15 @@ export function getMediaUrl(url) {
   if (!resolved) return resolved;
   const token = tokenStore.getAccess();
   if (!token) return resolved;
-  const separator = resolved.includes('?') ? '&' : '?';
-  return `${resolved}${separator}access=${encodeURIComponent(token)}`;
+  // Drop a previous access= so nested/re-render calls don't stack tokens and
+  // change the URL (browser would reload every <img> and freeze the UI).
+  const base = String(resolved)
+    .replace(/([?&])access=[^&]*/g, '$1')
+    .replace(/[?&]$/, '')
+    .replace(/\?&/, '?')
+    .replace(/&&+/g, '&');
+  const separator = base.includes('?') ? '&' : '?';
+  return `${base}${separator}access=${encodeURIComponent(token)}`;
 }
 
 let refreshPromise = null;
@@ -98,6 +107,14 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
     else signal.addEventListener('abort', onExternalAbort, { once: true });
   }
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  try {
+    await maybeSimulateNetwork(path, method);
+  } catch (simErr) {
+    window.clearTimeout(timeoutId);
+    if (signal) signal.removeEventListener('abort', onExternalAbort);
+    throw simErr;
+  }
 
   const doFetch = (hdrs) =>
     fetch(`${API_BASE}${path}`, {
@@ -106,6 +123,20 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
       body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
       signal: controller.signal,
     });
+
+  const finishInspect = (partial) => {
+    try {
+      recordApiCall({
+        method,
+        path,
+        durationMs: (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt,
+        requestBytes: body == null ? 0 : isFormData ? null : JSON.stringify(body).length,
+        ...partial,
+      });
+    } catch {
+      /* ignore inspector failures */
+    }
+  };
 
   try {
     let res = await doFetch(headers);
@@ -123,20 +154,38 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
       res = await doFetch(headers);
     }
 
-    if (res.status === 204) return null;
+    if (res.status === 204) {
+      finishInspect({ status: 204, ok: true, responseBytes: 0 });
+      return null;
+    }
 
-    const data = await res.json().catch(() => ({}));
+    const rawText = await res.text();
+    let data = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      data = {};
+    }
 
     if (!res.ok) {
       const msg = data.detail || data.message || Object.values(data).flat().join(' ') || `HTTP ${res.status}`;
+      finishInspect({ status: res.status, ok: false, responseBytes: rawText.length, error: msg });
       throw new Error(msg);
     }
 
+    finishInspect({ status: res.status, ok: true, responseBytes: rawText.length });
     return data;
   } catch (error) {
     if (error?.name === 'AbortError') {
-      if (signal?.aborted) throw error;
+      if (signal?.aborted) {
+        finishInspect({ status: 0, ok: false, error: 'aborted' });
+        throw error;
+      }
+      finishInspect({ status: 0, ok: false, error: 'timeout' });
       throw new Error('Request timed out. Please try again.');
+    }
+    if (!String(error?.message || '').includes('Network simulator')) {
+      finishInspect({ status: 0, ok: false, error: error?.message || 'request failed' });
     }
     throw error;
   } finally {
@@ -378,7 +427,7 @@ export const accountsModuleApi = {
 // ─── Follow-ups ──────────────────────────────────────────────────────────────
 
 export const followUpApi = {
-  list: (leadId) => request(`/follow-ups/?lead=${leadId}&page_size=200&ordering=-scheduled_at`),
+  list: (leadId) => request(`/follow-ups/?lead=${leadId}&page_size=25&ordering=-scheduled_at`),
   listAll: (params = {}) => {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
@@ -750,6 +799,7 @@ export const pmPipelineApi = {
     const qs = new URLSearchParams(params).toString();
     return request(`/project-pipeline/${qs ? '?' + qs : ''}`);
   },
+  summary: () => request('/project-pipeline/summary/'),
   get: (id) => request(`/project-pipeline/${id}/`),
   advance: (id, fromStage) => request(`/project-pipeline/${id}/advance/`, { method: 'POST', body: { from_stage: fromStage } }),
   setStage: (id, stage) => request(`/project-pipeline/${id}/set-stage/`, { method: 'POST', body: { stage } }),

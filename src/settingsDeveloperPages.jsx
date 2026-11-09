@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bug,
   Check,
+  ChevronRight,
   Code2,
   Download,
   Eye,
@@ -16,6 +18,7 @@ import {
   Search,
   Shield,
   ShieldAlert,
+  Sparkles,
   ToggleRight,
   Trash2,
   X,
@@ -25,7 +28,12 @@ import { ReportProblemModal } from './components/ReportProblemButton.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { DEVELOPER_SETTINGS_TABS } from './hooks/useDeveloperMode.js';
-
+import { useAnimationScale } from './hooks/useAnimationScale.jsx';
+import {
+  ANIMATION_SCALE_OPTION_VALUES,
+  ANIMATION_SCALE_SETTINGS,
+  formatAnimationScaleLabel,
+} from './lib/animationScale.js';
 const CARD = 'rounded-[12px] border border-[#dbe5f2] bg-white shadow-[0_8px_24px_rgba(24,48,87,0.06)]';
 const WA_SMART_ZIP_URL = '/extension/malwa-wa-smart.zip?v=2.0.5';
 
@@ -909,28 +917,150 @@ export function DeveloperWhatsAppExtensionPage({ onNotify }) {
   );
 }
 
-export function DeveloperSettingsPanel({ activeTab, onTabChange, onNotify }) {
-  const content = (() => {
-    switch (activeTab) {
-      case 'memory':
-        return <DeveloperMemoryPage onNotify={onNotify} />;
-      case 'whatsapp-extension':
-        return <DeveloperWhatsAppExtensionPage onNotify={onNotify} />;
-      case 'attendance-machine':
-        return <DeveloperAttendanceMachinePage onNotify={onNotify} />;
-      case 'audit-logs':
-        return <DeveloperAuditLogsPage onNotify={onNotify} />;
-      case 'bug-reports':
-        return <DeveloperBugReportsPage onNotify={onNotify} />;
-      default:
-        return <DeveloperAttendanceMachinePage onNotify={onNotify} />;
-    }
-  })();
+function AnimationScaleRadio({ selected }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-flex size-[22px] shrink-0 items-center justify-center rounded-full border-[2.5px] ${
+        selected ? 'border-[#1a73e8] bg-white' : 'border-[#c4c7c5] bg-white'
+      }`}
+    >
+      {selected ? <span className="block size-[11px] rounded-full bg-[#1a73e8]" /> : null}
+    </span>
+  );
+}
+
+function AnimationScalePickerDialog({ title, value, onSelect, onClose }) {
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const dialog = (
+    <div
+      className="crm-anim-window fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="crm-anim-window w-full max-w-[340px] overflow-hidden rounded-[28px] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.28)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 pt-5 pb-2 text-center">
+          <h3 className="text-[18px] font-semibold tracking-[-0.01em] text-[#202124]">{title}</h3>
+        </div>
+        <div className="max-h-[min(70vh,420px)] overflow-y-auto">
+          {ANIMATION_SCALE_OPTION_VALUES.map((option, index) => {
+            const selected = Math.abs(Number(value) - option) < 0.001;
+            const label = formatAnimationScaleLabel(option);
+            return (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                className={`flex w-full items-center justify-between gap-3 px-5 py-[14px] text-left transition-colors hover:bg-[#f8f9fa] ${
+                  index === 0 ? 'border-t border-[#e8eaed]' : ''
+                } ${index < ANIMATION_SCALE_OPTION_VALUES.length - 1 ? 'border-b border-[#e8eaed]' : ''}`}
+                onClick={() => {
+                  onSelect(option);
+                  onClose();
+                }}
+              >
+                <span className="text-[15px] font-medium text-[#202124]">{label}</span>
+                <AnimationScaleRadio selected={selected} />
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex justify-center px-5 pt-2 pb-4">
+          <button
+            type="button"
+            className="min-w-[96px] rounded-full px-4 py-2.5 text-[15px] font-semibold text-[#1a73e8] hover:bg-[#e8f0fe]"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (typeof document === 'undefined') return dialog;
+  return createPortal(dialog, document.body);
+}
+
+export function DeveloperAnimationPage({ onNotify }) {
+  const { scales, setScale } = useAnimationScale();
+  const [openKey, setOpenKey] = useState(null);
+  const openSetting = ANIMATION_SCALE_SETTINGS.find((item) => item.key === openKey) || null;
 
   return (
     <div className="space-y-4">
-      <DeveloperSettingsTabs activeId={activeTab} onChange={onTabChange} />
-      {content}
+      <article className={`${CARD} overflow-hidden`}>
+        <div className="border-b border-[#eef2f7] px-5 py-4">
+          <h2 className="flex items-center gap-2 font-display text-[18px] font-extrabold text-[#1e3261]">
+            <Sparkles className="size-5 text-[#1a73e8]" />
+            Animation scale
+          </h2>
+          <p className="mt-1 text-[13px] font-semibold text-[#53647f]">
+            Android-style developer options for CRM UI animations only (not phone OS animations).
+          </p>
+        </div>
+
+        <div className="bg-white">
+          {ANIMATION_SCALE_SETTINGS.map((item, index) => {
+            const current = scales[item.key];
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className={`flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-[#f8fafc] ${
+                  index < ANIMATION_SCALE_SETTINGS.length - 1 ? 'border-b border-[#e8eaed]' : ''
+                }`}
+                onClick={() => setOpenKey(item.key)}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-[16px] font-medium leading-snug text-[#202124]">{item.title}</p>
+                  <p className="mt-0.5 text-[14px] font-normal text-[#5f6368]">{formatAnimationScaleLabel(current)}</p>
+                </div>
+                <ChevronRight className="size-5 shrink-0 text-[#9aa0a6]" aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+      </article>
+
+      <article className={`${CARD} p-5`}>
+        <p className="text-[12px] font-semibold leading-relaxed text-[#64748b]">
+          Default is <span className="font-extrabold text-[#1e3261]">Animation scale 0.5x</span>. Values persist in
+          localStorage across refresh and logout/login. Window = modals/dialogs · Transition = navigation/sidebar ·
+          Animator = buttons and micro-interactions.
+        </p>
+      </article>
+
+      {openSetting ? (
+        <AnimationScalePickerDialog
+          title={openSetting.title}
+          value={scales[openSetting.key]}
+          onClose={() => setOpenKey(null)}
+          onSelect={(next) => {
+            setScale(openSetting.key, next);
+            onNotify?.(`${openSetting.title}: ${formatAnimationScaleLabel(next)}`, 'success');
+          }}
+        />
+      ) : null}
     </div>
   );
+}
+
+export function DeveloperSettingsPanel({ onNotify, onExit }) {
+  // Kept for compatibility — App mounts DeveloperConsole directly.
+  return null;
 }

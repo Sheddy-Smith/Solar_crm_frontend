@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useAnimationScale } from '../../hooks/useAnimationScale.jsx';
 
 const sizeClasses = {
   sm: 'px-3 py-2 text-[15px]',
@@ -39,15 +40,17 @@ function Button({
   disabled = false,
   ...rest
 }) {
+  const { motionDuration, scales } = useAnimationScale();
+  const animOff = (scales?.animator ?? 0.5) <= 0;
   return (
     <motion.button
       type={type}
       disabled={disabled}
-      whileHover={disabled ? undefined : { y: -1, scale: 1.02 }}
-      whileTap={disabled ? undefined : { y: 0, scale: 0.98 }}
-      transition={{ duration: 0.15, ease: 'easeOut' }}
+      whileHover={disabled || animOff ? undefined : { y: -1, scale: 1.02 }}
+      whileTap={disabled || animOff ? undefined : { y: 0, scale: 0.98 }}
+      transition={{ duration: motionDuration(0.15, 'animator'), ease: 'easeOut' }}
       className={[
-        'inline-flex items-center justify-center gap-1.5 rounded-[10px] font-semibold transition-colors',
+        'crm-anim-animator inline-flex items-center justify-center gap-1.5 rounded-[10px] font-semibold transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
         'disabled:cursor-not-allowed disabled:opacity-50',
         sizeClasses[size] || sizeClasses.md,
