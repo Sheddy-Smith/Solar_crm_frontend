@@ -4526,6 +4526,11 @@ function AppHeader({
   theme, setTheme, loggedInUser, showInstallApp, onInstallApp,
   notificationUnread = 0, onNotificationsChanged, onOpenNotificationLink,
 }) {
+  const { motionDuration } = useAnimationScale();
+  const microMotionTransition = useMemo(
+    () => ({ duration: motionDuration(0.15, 'animator'), ease: 'easeOut' }),
+    [motionDuration],
+  );
   const headerActions = actionIcons.map((action) => (
     action.label === 'Notifications' && notificationUnread > 0
       ? { ...action, badge: notificationUnread > 99 ? '99+' : notificationUnread }
